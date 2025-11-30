@@ -13,6 +13,23 @@ required_apps = ["frappe/erpnext"]
 # Includes in <head>
 # ------------------
 
+
+fixtures = [
+	{
+		"doctype": "Custom Field",
+		"filters": [
+			[
+				"name",
+				"in",
+				(
+				"Contact-custom_mobile_owner",
+    			"Contact-custom_whatsapp"
+				),
+			]
+		],
+	},
+]
+
 # include js, css files in header of desk.html
 # app_include_css = "/assets/healthcare/css/healthcare.css"
 app_include_js = "healthcare.bundle.js"

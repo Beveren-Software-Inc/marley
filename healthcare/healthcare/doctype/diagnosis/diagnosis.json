@@ -13,6 +13,8 @@
   "diagnosis",
   "column_break_2",
   "estimated_duration",
+  "section_break_zlos",
+  "description",
   "codification",
   "codification_table"
  ],
@@ -39,22 +41,32 @@
    "fieldtype": "Column Break"
   },
   {
-  "fieldname": "codification_table",
-  "fieldtype": "Table",
-  "label": "Medical Codes",
-  "options": "Codification Table"
- },
- {
-  "fieldname": "codification",
-  "fieldtype": "Section Break",
-  "label": "Medical Coding"
- }
+   "fieldname": "codification_table",
+   "fieldtype": "Table",
+   "label": "Medical Codes",
+   "options": "Codification Table"
+  },
+  {
+   "fieldname": "codification",
+   "fieldtype": "Section Break",
+   "label": "Medical Coding"
+  },
+  {
+   "fieldname": "section_break_zlos",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Text Editor",
+   "label": "Description"
+  }
  ],
  "links": [],
- "modified": "2021-03-14 20:34:07.440600",
+ "modified": "2025-11-30 13:27:27.771734",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Diagnosis",
+ "naming_rule": "By fieldname",
  "owner": "Administrator",
  "permissions": [
   {
@@ -84,6 +96,8 @@
  ],
  "quick_entry": 1,
  "restrict_to_domain": "Healthcare",
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
  "search_fields": "diagnosis",
  "sort_field": "modified",
  "sort_order": "DESC",

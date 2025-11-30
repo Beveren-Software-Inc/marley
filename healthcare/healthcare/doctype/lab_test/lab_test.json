@@ -13,6 +13,8 @@
   "lab_test_name",
   "lab_test_group",
   "department",
+  "reference_doctype",
+  "reference_document",
   "column_break_26",
   "company",
   "status",
@@ -630,6 +632,18 @@
    "print_hide": 1,
    "read_only": 1,
    "search_index": 1
+  },
+  {
+   "fieldname": "reference_doctype",
+   "fieldtype": "Link",
+   "label": "Reference Doctype",
+   "options": "DocType"
+  },
+  {
+   "fieldname": "reference_document",
+   "fieldtype": "Dynamic Link",
+   "label": "Reference Document",
+   "options": "reference_doctype"
   }
  ],
  "is_submittable": 1,
@@ -639,7 +653,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2025-09-18 12:27:01.235401",
+ "modified": "2025-11-30 15:51:26.951292",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Lab Test",
@@ -696,6 +710,7 @@
  ],
  "restrict_to_domain": "Healthcare",
  "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
  "search_fields": "patient,practitioner,lab_test_name,sample",
  "show_name_in_global_search": 1,
  "sort_field": "modified",

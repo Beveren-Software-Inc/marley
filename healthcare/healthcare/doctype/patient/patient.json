@@ -40,6 +40,28 @@
   "default_currency",
   "default_price_list",
   "language",
+  "occupation_section",
+  "job_title",
+  "job_company",
+  "id_type",
+  "column_break_knlb",
+  "nationality",
+  "id_number",
+  "section_break_zota",
+  "cr_id",
+  "cr_date",
+  "is_follow_up",
+  "column_break_pthe",
+  "up_date",
+  "pat_major_type",
+  "is_marketing",
+  "insurance_section",
+  "is_insurance",
+  "insurance",
+  "insurance_company_no",
+  "column_break_eqbb",
+  "insurance_policy_no",
+  "ref_no",
   "more_info",
   "patient_details",
   "dashboard_tab",
@@ -58,6 +80,7 @@
   "allergy_medical_and_surgical_history",
   "allergies",
   "medication",
+  "show_allergy",
   "column_break_20",
   "medical_history",
   "surgical_history",
@@ -68,7 +91,9 @@
   "alcohol_current_use",
   "column_break_32",
   "surrounding_factors",
-  "other_risk_factors"
+  "other_risk_factors",
+  "uploads_tab",
+  "patient_document"
  ],
  "fields": [
   {
@@ -483,6 +508,141 @@
    "fieldname": "medical_history_tab",
    "fieldtype": "Tab Break",
    "label": "Medical History"
+  },
+  {
+   "fieldname": "occupation_section",
+   "fieldtype": "Section Break",
+   "label": "Occupation"
+  },
+  {
+   "fieldname": "job_title",
+   "fieldtype": "Data",
+   "label": "Job Title"
+  },
+  {
+   "fieldname": "job_company",
+   "fieldtype": "Data",
+   "label": "Job Company"
+  },
+  {
+   "fieldname": "id_type",
+   "fieldtype": "Data",
+   "label": "ID Type"
+  },
+  {
+   "fieldname": "column_break_knlb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "nationality",
+   "fieldtype": "Link",
+   "label": "Nationality",
+   "options": "Country"
+  },
+  {
+   "fieldname": "id_number",
+   "fieldtype": "Data",
+   "label": "ID Number"
+  },
+  {
+   "fieldname": "section_break_zota",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "cr_id",
+   "fieldtype": "Data",
+   "label": "CR ID"
+  },
+  {
+   "fieldname": "cr_date",
+   "fieldtype": "Date",
+   "label": "CR Date"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_follow_up",
+   "fieldtype": "Check",
+   "label": "Allow Follow up?"
+  },
+  {
+   "fieldname": "column_break_pthe",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "up_date",
+   "fieldtype": "Data",
+   "label": "UP Date"
+  },
+  {
+   "fieldname": "pat_major_type",
+   "fieldtype": "Select",
+   "label": "Pat Major Type",
+   "options": "\nN\nA"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_marketing",
+   "fieldtype": "Check",
+   "label": "Is Marketing Referral"
+  },
+  {
+   "default": "0",
+   "fieldname": "show_allergy",
+   "fieldtype": "Check",
+   "label": "Show Allergy"
+  },
+  {
+   "fieldname": "insurance_section",
+   "fieldtype": "Section Break",
+   "label": "Insurance"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_insurance",
+   "fieldtype": "Check",
+   "label": "Is Insurance"
+  },
+  {
+   "depends_on": "is_insurance",
+   "fetch_from": "insurance.insurance_no",
+   "fieldname": "insurance_company_no",
+   "fieldtype": "Data",
+   "label": "Insurance Company No"
+  },
+  {
+   "fieldname": "column_break_eqbb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "is_insurance",
+   "fetch_from": "insurance.policy_no",
+   "fieldname": "insurance_policy_no",
+   "fieldtype": "Data",
+   "label": "Insurance Policy No"
+  },
+  {
+   "depends_on": "is_insurance",
+   "fieldname": "ref_no",
+   "fieldtype": "Data",
+   "label": "Ref No"
+  },
+  {
+   "depends_on": "is_insurance",
+   "fieldname": "insurance",
+   "fieldtype": "Link",
+   "label": "Insurance",
+   "options": "Health Insurance"
+  },
+  {
+   "fieldname": "uploads_tab",
+   "fieldtype": "Tab Break",
+   "label": "Patient Documents"
+  },
+  {
+   "fieldname": "patient_document",
+   "fieldtype": "Table",
+   "label": "Patient Document",
+   "options": "Patient Upload Document"
   }
  ],
  "grid_page_length": 50,
@@ -591,10 +751,11 @@
   }
  ],
  "max_attachments": 50,
- "modified": "2025-09-02 13:04:27.771400",
+ "modified": "2025-11-30 15:36:22.082344",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient",
+ "naming_rule": "By \"Naming Series\" field",
  "owner": "Administrator",
  "permissions": [
   {
@@ -649,6 +810,7 @@
  "quick_entry": 1,
  "restrict_to_domain": "Healthcare",
  "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
  "search_fields": "patient_name,mobile,email,phone,uid",
  "show_name_in_global_search": 1,
  "sort_field": "modified",
