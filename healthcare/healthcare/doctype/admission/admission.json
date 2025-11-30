@@ -1,0 +1,1285 @@
+{
+ "actions": [],
+ "allow_events_in_timeline": 1,
+ "allow_import": 1,
+ "autoname": "prompt",
+ "creation": "2025-09-20 00:19:07.326886",
+ "default_view": "List",
+ "description": "Patient",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "engine": "InnoDB",
+ "field_order": [
+  "basic_info",
+  "file_number",
+  "patient_name",
+  "patient_category",
+  "admission_type",
+  "column_break_14",
+  "status",
+  "date_of_admission",
+  "admission_time",
+  "mode_of_admission",
+  "section_break_ijnw",
+  "mobile",
+  "phone",
+  "admission_by_cpr",
+  "column_break_pwuc",
+  "email",
+  "relationship",
+  "guardian_name",
+  "section_break_oorf",
+  "admission_by_nm",
+  "admission_by_doctor",
+  "admission_doctor_name",
+  "column_break_mqty",
+  "psychologist_doctor",
+  "psychologist_doctor_name",
+  "escort",
+  "column_break_cmar",
+  "residents_doctor_no",
+  "resident_doctor_name",
+  "reference_by",
+  "more_info",
+  "patient_details",
+  "family_history",
+  "is_med_supr_required",
+  "med_supr_service_code",
+  "column_break_xavr",
+  "doctor_instruction",
+  "belonging",
+  "health_unit_section_section",
+  "health_unit",
+  "column_break_gwdi",
+  "bed_number",
+  "admission_charges_section",
+  "charges",
+  "costs_section",
+  "admission_cost",
+  "case_management_fee",
+  "column_break_ttki",
+  "room_charges",
+  "medical_history_tab",
+  "allergy_medical_and_surgical_history",
+  "allergies",
+  "medication",
+  "column_break_20",
+  "medical_history",
+  "surgical_history",
+  "for_room_section",
+  "bed_no",
+  "service_code",
+  "room_name",
+  "column_break_jaol",
+  "amount",
+  "gl_code",
+  "for_case_management_section",
+  "case_service_code",
+  "case_management_name",
+  "is_case_management",
+  "column_break_gthg",
+  "case_amount",
+  "case_gl_code",
+  "section_break_fpwo",
+  "management_notes",
+  "column_break_kxkd",
+  "patient_progress",
+  "history_form_tab",
+  "table_snob",
+  "risk_assessment_checklist_tab",
+  "risk_toward_self_section",
+  "self_harming",
+  "self_harming_description",
+  "suicidal_behaviourattempt",
+  "suicide_behaviour_description",
+  "column_break_rijd",
+  "suicidal_thoughts_plans_currently",
+  "suicidal_thoughts_description",
+  "section_break_gcpu",
+  "compliance_to_psychiatric_followup",
+  "compliance_to_psychiatric_medication",
+  "driving",
+  "self_neglect",
+  "column_break_sgkj",
+  "malnutrition__dehydration",
+  "falls",
+  "setting_fire_overelectricity_etc",
+  "risk_toward_others_section",
+  "bullying",
+  "exploitation",
+  "exploitation_description",
+  "violenceaggression",
+  "violence_aggression_reason",
+  "column_break_vgdc",
+  "neglect",
+  "neglect_description",
+  "risk_from_others_section",
+  "r_bullying",
+  "r_exploitation",
+  "r_exploitation_description",
+  "violence",
+  "r_violence_reason",
+  "column_break_uzji",
+  "r_neglect",
+  "r_neglect_description",
+  "visitors_allowed_tab",
+  "relatives_section",
+  "patient_relatives",
+  "section_break_hmbj",
+  "patient_visitors",
+  "physical_examination_tab",
+  "basic_conditions_section",
+  "weight",
+  "height",
+  "bp",
+  "trans_no",
+  "blood_pressure",
+  "column_break_wait",
+  "pulse",
+  "temp",
+  "resp_rate",
+  "admission_old_no",
+  "general_condition_section",
+  "small_text_xxpd",
+  "cns",
+  "others",
+  "column_break_eiov",
+  "cvs__resp",
+  "git",
+  "signature_tab",
+  "signature",
+  "discharge_tab",
+  "discharge_by_user",
+  "final_discharge_user_id",
+  "username",
+  "append_date",
+  "final_discharge_date",
+  "discharge_type",
+  "is_escort",
+  "column_break_pbka",
+  "spend_days",
+  "discharge_responsibility",
+  "escort_name",
+  "forward_from",
+  "discharge_flag",
+  "discharge_time",
+  "discharge_consul_doc_no",
+  "section_break_xkdk",
+  "discharge_treatment_plan",
+  "column_break_nxmn",
+  "discharge_reason",
+  "section_break_ckhf",
+  "discharge_conditions",
+  "discharge_diagnosis",
+  "column_break_biww",
+  "duscharge_instructions",
+  "discharge_medic_stopped_reason",
+  "additional_info_tab",
+  "cr_id",
+  "cr_date",
+  "admission_number_master",
+  "column_break_pxlb",
+  "up_id",
+  "up_date",
+  "admission_number_old",
+  "spacial_care_yn",
+  "section_break_lzuu",
+  "is_dama_yn",
+  "dama_type",
+  "dama_gp_doc_no",
+  "column_break_nylp",
+  "dama_reason",
+  "section_break_dmhf",
+  "ip_re_admission_count",
+  "prognosis_inst",
+  "column_break_sgyu",
+  "receiving_doctor",
+  "package_num",
+  "section_break_kbvi",
+  "management_in_hospital",
+  "column_break_kpgq",
+  "final_mental_exam"
+ ],
+ "fields": [
+  {
+   "fieldname": "basic_info",
+   "fieldtype": "Section Break",
+   "label": "Patient Demographics",
+   "oldfieldtype": "Section Break",
+   "options": "fa fa-user"
+  },
+  {
+   "fieldname": "file_number",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "File Number",
+   "options": "IP Patient",
+   "reqd": 1
+  },
+  {
+   "bold": 1,
+   "fetch_from": "file_number.patient_name",
+   "fieldname": "patient_name",
+   "fieldtype": "Data",
+   "in_global_search": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Full Name",
+   "no_copy": 1,
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "default": "NORMAL-REGULAR",
+   "fieldname": "patient_category",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Patient Category",
+   "options": "\nINSURANCE - BUPA\nINSURANCE-MILITARY\nINSURANCE-OTHERS\nJAU HOSPITAL-PATIENTS\nNORMAL-REGULAR\nROYAL/VIP-REGULAR"
+  },
+  {
+   "fieldname": "admission_type",
+   "fieldtype": "Select",
+   "label": "Admission Type",
+   "options": "\n0\n1\n2\n3\n4"
+  },
+  {
+   "fieldname": "column_break_14",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_filter": 1,
+   "in_list_view": 1,
+   "label": "Status",
+   "no_copy": 1,
+   "options": "\nActive\nDisabled\n2\n1\nAdmission Scheduled\nAdmitted\nDischarge Scheduled\nDischarged\nCancelled",
+   "print_hide": 1,
+   "read_only": 1
+  },
+  {
+   "default": "Today",
+   "fieldname": "date_of_admission",
+   "fieldtype": "Date",
+   "label": "Admission Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "admission_time",
+   "fieldtype": "Time",
+   "label": "Admission Time"
+  },
+  {
+   "fieldname": "mode_of_admission",
+   "fieldtype": "Select",
+   "label": "Mode of Admission",
+   "options": "\nEMERGENCY\nNORMAL"
+  },
+  {
+   "fieldname": "section_break_ijnw",
+   "fieldtype": "Section Break",
+   "label": "Person To Contact"
+  },
+  {
+   "bold": 1,
+   "fieldname": "mobile",
+   "fieldtype": "Data",
+   "label": "Contact No",
+   "no_copy": 1
+  },
+  {
+   "fieldname": "phone",
+   "fieldtype": "Data",
+   "in_filter": 1,
+   "label": "Emergency Phone",
+   "no_copy": 1,
+   "options": "Phone"
+  },
+  {
+   "fieldname": "admission_by_cpr",
+   "fieldtype": "Data",
+   "label": "Admission By CPR"
+  },
+  {
+   "fieldname": "column_break_pwuc",
+   "fieldtype": "Column Break"
+  },
+  {
+   "bold": 1,
+   "fieldname": "email",
+   "fieldtype": "Data",
+   "label": "Email",
+   "no_copy": 1
+  },
+  {
+   "fieldname": "relationship",
+   "fieldtype": "Select",
+   "label": "Relationship",
+   "options": "\nFATHER\nSON\nCOLLEAGUES\nMOTHER\nAUNT\nSISTER\nBROTHER\nFRIEND\nUNCLE\nWIFE\nDAUGHTER\nHUSBAND"
+  },
+  {
+   "fieldname": "guardian_name",
+   "fieldtype": "Data",
+   "label": "Guardian Name"
+  },
+  {
+   "fieldname": "section_break_oorf",
+   "fieldtype": "Section Break",
+   "label": "Doctors Details"
+  },
+  {
+   "fieldname": "admission_by_nm",
+   "fieldtype": "Data",
+   "label": "Admission By NM"
+  },
+  {
+   "fieldname": "admission_by_doctor",
+   "fieldtype": "Link",
+   "label": "Admission By Doctor",
+   "options": "Healthcare Practitioner"
+  },
+  {
+   "fetch_from": "residents_doctor_no.practitioner_name",
+   "fieldname": "admission_doctor_name",
+   "fieldtype": "Data",
+   "label": "Admission Doctor Name"
+  },
+  {
+   "fieldname": "column_break_mqty",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "psychologist_doctor",
+   "fieldtype": "Link",
+   "label": "Psychologist Doctor",
+   "options": "Healthcare Practitioner"
+  },
+  {
+   "fetch_from": "psychologist_doctor.practitioner_name",
+   "fetch_if_empty": 1,
+   "fieldname": "psychologist_doctor_name",
+   "fieldtype": "Data",
+   "label": "Psychologist Doctor Name"
+  },
+  {
+   "default": "0",
+   "fieldname": "escort",
+   "fieldtype": "Check",
+   "label": "Escort"
+  },
+  {
+   "fieldname": "column_break_cmar",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "residents_doctor_no",
+   "fieldtype": "Link",
+   "label": "Residents Doctor",
+   "options": "Healthcare Practitioner"
+  },
+  {
+   "fetch_from": "residents_doctor_no.practitioner_name",
+   "fieldname": "resident_doctor_name",
+   "fieldtype": "Data",
+   "label": "Resident Doctor Name"
+  },
+  {
+   "fieldname": "reference_by",
+   "fieldtype": "Data",
+   "label": "Reference By"
+  },
+  {
+   "collapsible_depends_on": "patient_details",
+   "fieldname": "more_info",
+   "fieldtype": "Section Break",
+   "label": "More Information",
+   "oldfieldtype": "Section Break",
+   "options": "fa fa-file-text"
+  },
+  {
+   "fieldname": "patient_details",
+   "fieldtype": "Small Text",
+   "ignore_xss_filter": 1,
+   "label": "Admission Reasons",
+   "no_copy": 1
+  },
+  {
+   "fieldname": "family_history",
+   "fieldtype": "Small Text",
+   "label": "Family History"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_med_supr_required",
+   "fieldtype": "Check",
+   "label": "Is Med Supr Required"
+  },
+  {
+   "fieldname": "med_supr_service_code",
+   "fieldtype": "Data",
+   "label": "Med SUPR Service Code"
+  },
+  {
+   "fieldname": "column_break_xavr",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "doctor_instruction",
+   "fieldtype": "Small Text",
+   "label": "Doctor Instruction"
+  },
+  {
+   "fieldname": "belonging",
+   "fieldtype": "Small Text",
+   "label": "Belonging"
+  },
+  {
+   "fieldname": "health_unit_section_section",
+   "fieldtype": "Section Break",
+   "label": "Health Unit Section"
+  },
+  {
+   "fieldname": "health_unit",
+   "fieldtype": "Link",
+   "label": "Health Unit",
+   "options": "Healthcare Service Unit"
+  },
+  {
+   "fieldname": "column_break_gwdi",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "bed_number",
+   "fieldtype": "Data",
+   "label": "Bed Number"
+  },
+  {
+   "fieldname": "admission_charges_section",
+   "fieldtype": "Section Break",
+   "label": "Admission Charges"
+  },
+  {
+   "fieldname": "charges",
+   "fieldtype": "Table",
+   "label": "Charges",
+   "options": "Admission Fee"
+  },
+  {
+   "fieldname": "costs_section",
+   "fieldtype": "Section Break",
+   "label": "Costs"
+  },
+  {
+   "fieldname": "admission_cost",
+   "fieldtype": "Currency",
+   "label": "Admission Cost"
+  },
+  {
+   "fieldname": "case_management_fee",
+   "fieldtype": "Currency",
+   "label": "Case Management Fee"
+  },
+  {
+   "fieldname": "column_break_ttki",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "room_charges",
+   "fieldtype": "Currency",
+   "label": "Room Charges"
+  },
+  {
+   "fieldname": "medical_history_tab",
+   "fieldtype": "Tab Break",
+   "label": "Medical History"
+  },
+  {
+   "fieldname": "allergy_medical_and_surgical_history",
+   "fieldtype": "Section Break",
+   "label": "Allergies, Medical and Surgical History"
+  },
+  {
+   "fieldname": "allergies",
+   "fieldtype": "Small Text",
+   "ignore_xss_filter": 1,
+   "label": "Allergies",
+   "no_copy": 1
+  },
+  {
+   "fieldname": "medication",
+   "fieldtype": "Small Text",
+   "ignore_xss_filter": 1,
+   "label": "Medication",
+   "no_copy": 1
+  },
+  {
+   "fieldname": "column_break_20",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "medical_history",
+   "fieldtype": "Small Text",
+   "ignore_xss_filter": 1,
+   "label": "Medical History",
+   "no_copy": 1
+  },
+  {
+   "fieldname": "surgical_history",
+   "fieldtype": "Small Text",
+   "ignore_xss_filter": 1,
+   "label": "Surgical History",
+   "no_copy": 1
+  },
+  {
+   "fieldname": "for_room_section",
+   "fieldtype": "Section Break",
+   "label": "For Room"
+  },
+  {
+   "fieldname": "bed_no",
+   "fieldtype": "Data",
+   "label": "Bed No"
+  },
+  {
+   "fieldname": "service_code",
+   "fieldtype": "Data",
+   "label": "Service Code"
+  },
+  {
+   "fieldname": "room_name",
+   "fieldtype": "Data",
+   "label": "Room Name"
+  },
+  {
+   "fieldname": "column_break_jaol",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "amount",
+   "fieldtype": "Currency",
+   "label": "Amount"
+  },
+  {
+   "fieldname": "gl_code",
+   "fieldtype": "Data",
+   "label": "GL Code"
+  },
+  {
+   "fieldname": "for_case_management_section",
+   "fieldtype": "Section Break",
+   "label": "For Case Management"
+  },
+  {
+   "fieldname": "case_service_code",
+   "fieldtype": "Data",
+   "label": "Case Service Code"
+  },
+  {
+   "fieldname": "case_management_name",
+   "fieldtype": "Data",
+   "label": "Case Management Name"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_case_management",
+   "fieldtype": "Check",
+   "label": "Is Case Management"
+  },
+  {
+   "fieldname": "column_break_gthg",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "case_amount",
+   "fieldtype": "Currency",
+   "label": "Case Amount"
+  },
+  {
+   "fieldname": "case_gl_code",
+   "fieldtype": "Data",
+   "label": "Case GL Code"
+  },
+  {
+   "fieldname": "section_break_fpwo",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "management_notes",
+   "fieldtype": "Small Text",
+   "label": "Management Notes"
+  },
+  {
+   "fieldname": "column_break_kxkd",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "patient_progress",
+   "fieldtype": "Small Text",
+   "label": "Patient Progress"
+  },
+  {
+   "fieldname": "history_form_tab",
+   "fieldtype": "Tab Break",
+   "label": "History Form"
+  },
+  {
+   "fieldname": "table_snob",
+   "fieldtype": "Table",
+   "label": "History Attributes",
+   "options": "Patient History Details"
+  },
+  {
+   "fieldname": "risk_assessment_checklist_tab",
+   "fieldtype": "Tab Break",
+   "label": "Risk Assessment Checklist"
+  },
+  {
+   "fieldname": "risk_toward_self_section",
+   "fieldtype": "Section Break",
+   "label": "Risk Toward Self"
+  },
+  {
+   "default": "0",
+   "fieldname": "self_harming",
+   "fieldtype": "Check",
+   "label": "Self-Harming (Parasuicide)"
+  },
+  {
+   "depends_on": "self_harming",
+   "fieldname": "self_harming_description",
+   "fieldtype": "Data",
+   "label": "Self-Harming Description"
+  },
+  {
+   "default": "0",
+   "fieldname": "suicidal_behaviourattempt",
+   "fieldtype": "Check",
+   "label": "Suicidal Behaviour/Attempt"
+  },
+  {
+   "depends_on": "suicidal_behaviourattempt",
+   "fieldname": "suicide_behaviour_description",
+   "fieldtype": "Data",
+   "label": "Suicide Behaviour Description"
+  },
+  {
+   "fieldname": "column_break_rijd",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "suicidal_thoughts_plans_currently",
+   "fieldtype": "Check",
+   "label": "Suicidal Thoughts Plans Currently"
+  },
+  {
+   "depends_on": "suicidal_thoughts_plans_currently",
+   "fieldname": "suicidal_thoughts_description",
+   "fieldtype": "Data",
+   "label": "Suicidal Thoughts Description"
+  },
+  {
+   "fieldname": "section_break_gcpu",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "compliance_to_psychiatric_followup",
+   "fieldtype": "Select",
+   "label": "Compliance to Psychiatric Followup",
+   "options": "\nYes\nNo"
+  },
+  {
+   "fieldname": "compliance_to_psychiatric_medication",
+   "fieldtype": "Select",
+   "label": "Compliance to Psychiatric Medication",
+   "options": "\nYes\nNo"
+  },
+  {
+   "fieldname": "driving",
+   "fieldtype": "Select",
+   "label": "Driving",
+   "options": "\nYes\nNo"
+  },
+  {
+   "fieldname": "self_neglect",
+   "fieldtype": "Select",
+   "label": "Self Neglect",
+   "options": "\nYes\nNo"
+  },
+  {
+   "fieldname": "column_break_sgkj",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "malnutrition__dehydration",
+   "fieldtype": "Select",
+   "label": "Malnutrition / Dehydration",
+   "options": "\nYes\nNo"
+  },
+  {
+   "fieldname": "falls",
+   "fieldtype": "Select",
+   "label": "Falls",
+   "options": "\nYes\nNo"
+  },
+  {
+   "fieldname": "setting_fire_overelectricity_etc",
+   "fieldtype": "Select",
+   "label": "Setting Fire (Over/Electricity etc)",
+   "options": "\nYes\nNo"
+  },
+  {
+   "fieldname": "risk_toward_others_section",
+   "fieldtype": "Section Break",
+   "label": "Risk Toward Others"
+  },
+  {
+   "default": "0",
+   "fieldname": "bullying",
+   "fieldtype": "Check",
+   "label": "Bullying"
+  },
+  {
+   "fieldname": "exploitation",
+   "fieldtype": "Select",
+   "label": "Exploitation",
+   "options": "\nFinancial\nSexual\nOthers"
+  },
+  {
+   "fieldname": "exploitation_description",
+   "fieldtype": "Small Text",
+   "label": "Exploitation Description"
+  },
+  {
+   "default": "0",
+   "fieldname": "violenceaggression",
+   "fieldtype": "Check",
+   "label": "Violence/Aggression"
+  },
+  {
+   "fieldname": "violence_aggression_reason",
+   "fieldtype": "Small Text",
+   "label": "Violence Aggression Reason"
+  },
+  {
+   "fieldname": "column_break_vgdc",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "neglect",
+   "fieldtype": "Select",
+   "label": "Neglect",
+   "options": "\nChildren\nPets\nOthers"
+  },
+  {
+   "fieldname": "neglect_description",
+   "fieldtype": "Small Text",
+   "label": "Neglect Description"
+  },
+  {
+   "fieldname": "risk_from_others_section",
+   "fieldtype": "Section Break",
+   "label": "Risk From Others"
+  },
+  {
+   "default": "0",
+   "fieldname": "r_bullying",
+   "fieldtype": "Check",
+   "label": "R Bullying"
+  },
+  {
+   "fieldname": "r_exploitation",
+   "fieldtype": "Data",
+   "label": "R Exploitation",
+   "options": "\nFinancial\nSexual\nOthers"
+  },
+  {
+   "fieldname": "r_exploitation_description",
+   "fieldtype": "Small Text",
+   "label": "R Exploitation Description"
+  },
+  {
+   "default": "0",
+   "fieldname": "violence",
+   "fieldtype": "Check",
+   "label": "Violence"
+  },
+  {
+   "fieldname": "r_violence_reason",
+   "fieldtype": "Small Text",
+   "label": "R Violence Reason"
+  },
+  {
+   "fieldname": "column_break_uzji",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "r_neglect",
+   "fieldtype": "Select",
+   "label": "R Neglect",
+   "options": "\nChildren\nPets\nOthers"
+  },
+  {
+   "fieldname": "r_neglect_description",
+   "fieldtype": "Small Text",
+   "label": "R Neglect Description"
+  },
+  {
+   "fieldname": "visitors_allowed_tab",
+   "fieldtype": "Tab Break",
+   "label": "Visitors Allowed"
+  },
+  {
+   "fieldname": "relatives_section",
+   "fieldtype": "Section Break",
+   "label": "Relatives"
+  },
+  {
+   "fieldname": "patient_relatives",
+   "fieldtype": "Table",
+   "label": "Patient Relatives",
+   "options": "IP Patient Relatives Details"
+  },
+  {
+   "fieldname": "section_break_hmbj",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "patient_visitors",
+   "fieldtype": "Table",
+   "label": "Patient Visitors",
+   "options": "Patient Visitors"
+  },
+  {
+   "fieldname": "physical_examination_tab",
+   "fieldtype": "Tab Break",
+   "label": "Physical Examination"
+  },
+  {
+   "fieldname": "basic_conditions_section",
+   "fieldtype": "Section Break",
+   "label": "Basic Conditions"
+  },
+  {
+   "fieldname": "weight",
+   "fieldtype": "Float",
+   "label": "Weight"
+  },
+  {
+   "fieldname": "height",
+   "fieldtype": "Float",
+   "label": "Height"
+  },
+  {
+   "fieldname": "bp",
+   "fieldtype": "Float",
+   "label": "BP"
+  },
+  {
+   "fieldname": "trans_no",
+   "fieldtype": "Int",
+   "label": "Trans No"
+  },
+  {
+   "fieldname": "blood_pressure",
+   "fieldtype": "Data",
+   "label": "Blood Pressure"
+  },
+  {
+   "fieldname": "column_break_wait",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "pulse",
+   "fieldtype": "Float",
+   "label": "Pulse"
+  },
+  {
+   "fieldname": "temp",
+   "fieldtype": "Float",
+   "label": "Temp"
+  },
+  {
+   "fieldname": "resp_rate",
+   "fieldtype": "Float",
+   "label": "Resp Rate"
+  },
+  {
+   "fieldname": "admission_old_no",
+   "fieldtype": "Data",
+   "label": "Admission Old No"
+  },
+  {
+   "description": "Skin, Hair, Nail, Gait, Surface, Abnormalities",
+   "fieldname": "general_condition_section",
+   "fieldtype": "Section Break",
+   "label": "General Condition"
+  },
+  {
+   "fieldname": "small_text_xxpd",
+   "fieldtype": "Small Text",
+   "label": "General Condition"
+  },
+  {
+   "fieldname": "cns",
+   "fieldtype": "Small Text",
+   "label": "CNS"
+  },
+  {
+   "fieldname": "others",
+   "fieldtype": "Small Text",
+   "label": "Others"
+  },
+  {
+   "fieldname": "column_break_eiov",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "cvs__resp",
+   "fieldtype": "Small Text",
+   "label": "CVS / RESP"
+  },
+  {
+   "fieldname": "git",
+   "fieldtype": "Small Text",
+   "label": "GIT"
+  },
+  {
+   "fieldname": "signature_tab",
+   "fieldtype": "Tab Break",
+   "label": "Signature"
+  },
+  {
+   "fieldname": "signature",
+   "fieldtype": "Signature",
+   "label": "Signature"
+  },
+  {
+   "fieldname": "discharge_tab",
+   "fieldtype": "Tab Break",
+   "label": "Discharge"
+  },
+  {
+   "fieldname": "discharge_by_user",
+   "fieldtype": "Data",
+   "label": "Discharge By User"
+  },
+  {
+   "fieldname": "final_discharge_user_id",
+   "fieldtype": "Data",
+   "label": "Final Discharge User ID"
+  },
+  {
+   "fieldname": "username",
+   "fieldtype": "Data",
+   "label": "UserName"
+  },
+  {
+   "fieldname": "append_date",
+   "fieldtype": "Data",
+   "label": "Append Date"
+  },
+  {
+   "fieldname": "final_discharge_date",
+   "fieldtype": "Date",
+   "label": "Final Discharge Date"
+  },
+  {
+   "fieldname": "discharge_type",
+   "fieldtype": "Select",
+   "label": "Discharge Type",
+   "options": "\nDAMA\nHOME\nHOSPITAL"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_escort",
+   "fieldtype": "Check",
+   "label": "Is Escort"
+  },
+  {
+   "fieldname": "column_break_pbka",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "spend_days",
+   "fieldtype": "Data",
+   "label": "Spend days"
+  },
+  {
+   "fieldname": "discharge_responsibility",
+   "fieldtype": "Data",
+   "label": "Discharge Responsibility"
+  },
+  {
+   "fieldname": "escort_name",
+   "fieldtype": "Data",
+   "label": "Escort Name"
+  },
+  {
+   "fieldname": "forward_from",
+   "fieldtype": "Data",
+   "label": "Forward From"
+  },
+  {
+   "fieldname": "discharge_flag",
+   "fieldtype": "Data",
+   "label": "Discharge Flag"
+  },
+  {
+   "fieldname": "discharge_time",
+   "fieldtype": "Time",
+   "label": "Discharge Time"
+  },
+  {
+   "fieldname": "discharge_consul_doc_no",
+   "fieldtype": "Int",
+   "label": "Discharge Consul Doc No"
+  },
+  {
+   "fieldname": "section_break_xkdk",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "discharge_treatment_plan",
+   "fieldtype": "Small Text",
+   "label": "Discharge Treatment Plan"
+  },
+  {
+   "fieldname": "column_break_nxmn",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "discharge_reason",
+   "fieldtype": "Small Text",
+   "label": "Discharge Reason"
+  },
+  {
+   "fieldname": "section_break_ckhf",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "discharge_conditions",
+   "fieldtype": "Small Text",
+   "label": "Discharge Conditions"
+  },
+  {
+   "fieldname": "discharge_diagnosis",
+   "fieldtype": "Small Text",
+   "label": "Discharge Diagnosis"
+  },
+  {
+   "fieldname": "column_break_biww",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "duscharge_instructions",
+   "fieldtype": "Small Text",
+   "label": "Discharge Instructions"
+  },
+  {
+   "fieldname": "discharge_medic_stopped_reason",
+   "fieldtype": "Small Text",
+   "label": "Discharge Medic Stopped Reason"
+  },
+  {
+   "fieldname": "additional_info_tab",
+   "fieldtype": "Tab Break",
+   "label": "Additional Info"
+  },
+  {
+   "fieldname": "cr_id",
+   "fieldtype": "Int",
+   "label": "CR ID"
+  },
+  {
+   "fieldname": "cr_date",
+   "fieldtype": "Datetime",
+   "label": "CR Date"
+  },
+  {
+   "fieldname": "admission_number_master",
+   "fieldtype": "Int",
+   "label": "Admission Number Master"
+  },
+  {
+   "fieldname": "column_break_pxlb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "up_id",
+   "fieldtype": "Data",
+   "label": "UP ID"
+  },
+  {
+   "fieldname": "up_date",
+   "fieldtype": "Datetime",
+   "label": "UP Date"
+  },
+  {
+   "fieldname": "admission_number_old",
+   "fieldtype": "Int",
+   "label": "Admission Number Old"
+  },
+  {
+   "default": "0",
+   "fieldname": "spacial_care_yn",
+   "fieldtype": "Check",
+   "label": "Spacial Care YN"
+  },
+  {
+   "fieldname": "section_break_lzuu",
+   "fieldtype": "Section Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_dama_yn",
+   "fieldtype": "Check",
+   "label": "Is Dama YN"
+  },
+  {
+   "fieldname": "dama_type",
+   "fieldtype": "Data",
+   "label": "Dama Type"
+  },
+  {
+   "fieldname": "dama_gp_doc_no",
+   "fieldtype": "Int",
+   "label": "Dama GP Doc No"
+  },
+  {
+   "fieldname": "column_break_nylp",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "dama_reason",
+   "fieldtype": "Small Text",
+   "label": "Dama Reason"
+  },
+  {
+   "fieldname": "section_break_dmhf",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "ip_re_admission_count",
+   "fieldtype": "Int",
+   "label": "IP Re Admission Count"
+  },
+  {
+   "fieldname": "prognosis_inst",
+   "fieldtype": "Small Text",
+   "label": "Prognosis Inst"
+  },
+  {
+   "fieldname": "column_break_sgyu",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "receiving_doctor",
+   "fieldtype": "Data",
+   "label": "Receiving Doctor"
+  },
+  {
+   "fieldname": "package_num",
+   "fieldtype": "Int",
+   "label": "Package Num"
+  },
+  {
+   "fieldname": "section_break_kbvi",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "management_in_hospital",
+   "fieldtype": "Small Text",
+   "label": "Management in Hospital"
+  },
+  {
+   "fieldname": "column_break_kpgq",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "final_mental_exam",
+   "fieldtype": "Small Text",
+   "label": "Final Mental Exam"
+  }
+ ],
+ "grid_page_length": 50,
+ "icon": "fa fa-user",
+ "links": [
+  {
+   "link_doctype": "Admission Detail",
+   "link_fieldname": "admission"
+  },
+  {
+   "link_doctype": "IP Admission 3",
+   "link_fieldname": "admission"
+  }
+ ],
+ "max_attachments": 50,
+ "modified": "2025-11-30 18:04:15.497979",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Admission",
+ "naming_rule": "Set by user",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Physician",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Laboratory User",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Nursing User",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "search_fields": "patient_name,mobile,email,phone",
+ "show_name_in_global_search": 1,
+ "sort_field": "modified",
+ "sort_order": "ASC",
+ "states": [],
+ "title_field": "patient_name",
+ "track_changes": 1
+}

@@ -1,0 +1,166 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2025-11-30 12:34:54.234330",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "visit_date",
+  "patient_file_no",
+  "patient_name",
+  "column_break_vtwe",
+  "patient_id_no",
+  "patient_mobile_no",
+  "is_blacklist",
+  "section_break_kiko",
+  "consult_doctor",
+  "column_break_npir",
+  "consult_doctor_name",
+  "section_break_vubm",
+  "patient_notes",
+  "consultationservice_tab",
+  "consultation_fee",
+  "lab_tests_tab",
+  "medicines_tab",
+  "charges_and_payments_tab",
+  "charges"
+ ],
+ "fields": [
+  {
+   "default": "Today",
+   "fieldname": "visit_date",
+   "fieldtype": "Date",
+   "label": "Visit Date"
+  },
+  {
+   "fieldname": "patient_file_no",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Patient File No",
+   "options": "IP Patient",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "patient_file_no.patient_name",
+   "fieldname": "patient_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Patient name"
+  },
+  {
+   "fieldname": "column_break_vtwe",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "patient_file_no.id_number",
+   "fieldname": "patient_id_no",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Patient ID No"
+  },
+  {
+   "fieldname": "patient_mobile_no",
+   "fieldtype": "Phone",
+   "label": "Patient Mobile No"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_blacklist",
+   "fieldtype": "Check",
+   "label": "Is BlackList"
+  },
+  {
+   "fieldname": "section_break_kiko",
+   "fieldtype": "Section Break",
+   "label": "Doctors Information"
+  },
+  {
+   "fieldname": "consult_doctor",
+   "fieldtype": "Link",
+   "label": "Consult Doctor",
+   "options": "Healthcare Practitioner",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_npir",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "consult_doctor.practitioner_name",
+   "fieldname": "consult_doctor_name",
+   "fieldtype": "Data",
+   "label": "Consult Doctor Name"
+  },
+  {
+   "fieldname": "section_break_vubm",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "patient_notes",
+   "fieldtype": "Small Text",
+   "label": "Patient Notes"
+  },
+  {
+   "fieldname": "consultationservice_tab",
+   "fieldtype": "Tab Break",
+   "label": "Consultation/Service"
+  },
+  {
+   "fieldname": "consultation_fee",
+   "fieldtype": "Table",
+   "label": "Consultation Fee",
+   "options": "Consultation Fee"
+  },
+  {
+   "fieldname": "lab_tests_tab",
+   "fieldtype": "Tab Break",
+   "label": "Lab Tests"
+  },
+  {
+   "fieldname": "medicines_tab",
+   "fieldtype": "Tab Break",
+   "label": "Medicines"
+  },
+  {
+   "fieldname": "charges_and_payments_tab",
+   "fieldtype": "Tab Break",
+   "label": "Charges and Payments"
+  },
+  {
+   "fieldname": "charges",
+   "fieldtype": "Table",
+   "label": "Charges",
+   "options": "OP Charges"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-11-30 18:03:47.401032",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Patient Visit",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
