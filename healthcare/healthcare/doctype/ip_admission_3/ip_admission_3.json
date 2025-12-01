@@ -1,0 +1,219 @@
+{
+ "actions": [],
+ "allow_import": 1,
+ "allow_rename": 1,
+ "autoname": "format:IP_Adm-{#####}",
+ "creation": "2025-09-25 12:33:52.287980",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "trans_no",
+  "trans_date",
+  "admission",
+  "column_break_zgzu",
+  "file_no",
+  "patient_name",
+  "transaction_details_section",
+  "inv_type",
+  "inv_num",
+  "column_break_hlzj",
+  "gl_code",
+  "service_section",
+  "doc_no",
+  "serve_num",
+  "old_serv_no",
+  "serv_amount",
+  "column_break_lvjl",
+  "serve_note",
+  "oth_type",
+  "section_break_ffue",
+  "time_from",
+  "column_break_npde",
+  "time_to",
+  "section_break_fshp",
+  "cr_id",
+  "cr_date",
+  "column_break_ahwh",
+  "up_id",
+  "up_date"
+ ],
+ "fields": [
+  {
+   "fieldname": "trans_no",
+   "fieldtype": "Int",
+   "label": "Trans No"
+  },
+  {
+   "fieldname": "trans_date",
+   "fieldtype": "Data",
+   "label": "Trans Date"
+  },
+  {
+   "fieldname": "admission",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Admission",
+   "options": "Admission",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_zgzu",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "admission.file_number",
+   "fieldname": "file_no",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "File No",
+   "options": "IP Patient",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "file_no.patient_name",
+   "fieldname": "patient_name",
+   "fieldtype": "Data",
+   "label": "Patient Name"
+  },
+  {
+   "fieldname": "transaction_details_section",
+   "fieldtype": "Section Break",
+   "label": "Transaction Details"
+  },
+  {
+   "fieldname": "inv_type",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Inv Type"
+  },
+  {
+   "fieldname": "inv_num",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Inv Num"
+  },
+  {
+   "fieldname": "column_break_hlzj",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "gl_code",
+   "fieldtype": "Data",
+   "label": "GL Code"
+  },
+  {
+   "fieldname": "service_section",
+   "fieldtype": "Section Break",
+   "label": "Service"
+  },
+  {
+   "fieldname": "doc_no",
+   "fieldtype": "Int",
+   "label": "Doc No"
+  },
+  {
+   "fieldname": "serve_num",
+   "fieldtype": "Int",
+   "label": "Serve Num"
+  },
+  {
+   "fieldname": "old_serv_no",
+   "fieldtype": "Int",
+   "label": "Old Serv No"
+  },
+  {
+   "fieldname": "serv_amount",
+   "fieldtype": "Currency",
+   "label": "Serv Amount"
+  },
+  {
+   "fieldname": "column_break_lvjl",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "serve_note",
+   "fieldtype": "Small Text",
+   "label": "Serve Note"
+  },
+  {
+   "fieldname": "oth_type",
+   "fieldtype": "Data",
+   "label": "OTH Type"
+  },
+  {
+   "fieldname": "section_break_ffue",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "time_from",
+   "fieldtype": "Int",
+   "label": "Time From"
+  },
+  {
+   "fieldname": "column_break_npde",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "time_to",
+   "fieldtype": "Int",
+   "label": "Time To"
+  },
+  {
+   "fieldname": "section_break_fshp",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "cr_id",
+   "fieldtype": "Int",
+   "label": "CR ID"
+  },
+  {
+   "fieldname": "cr_date",
+   "fieldtype": "Datetime",
+   "label": "CR Date"
+  },
+  {
+   "fieldname": "column_break_ahwh",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "up_id",
+   "fieldtype": "Int",
+   "label": "UP ID"
+  },
+  {
+   "fieldname": "up_date",
+   "fieldtype": "Datetime",
+   "label": "UP Date"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-12-01 11:49:41.206733",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "IP Admission 3",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

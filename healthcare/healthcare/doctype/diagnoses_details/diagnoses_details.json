@@ -1,0 +1,64 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2025-09-21 02:03:56.557239",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "diagnoses_description",
+  "notemore_description",
+  "column_break_cizg",
+  "source",
+  "user"
+ ],
+ "fields": [
+  {
+   "fieldname": "diagnoses_description",
+   "fieldtype": "Small Text",
+   "in_list_view": 1,
+   "label": "Diagnoses Description",
+   "reqd": 1
+  },
+  {
+   "fieldname": "notemore_description",
+   "fieldtype": "Small Text",
+   "in_list_view": 1,
+   "label": "Note/More Description"
+  },
+  {
+   "fieldname": "column_break_cizg",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "source",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Source"
+  },
+  {
+   "fieldname": "user",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "User",
+   "options": "User"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2025-12-01 11:49:44.200353",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Diagnoses Details",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

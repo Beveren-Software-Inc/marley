@@ -1,0 +1,181 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2025-09-21 02:56:17.245248",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "date",
+  "time",
+  "source",
+  "duration",
+  "energy",
+  "_age",
+  "success",
+  "column_break_yexn",
+  "repeated",
+  "vitals",
+  "ecg",
+  "anathesiologist",
+  "assist_doctor",
+  "psychiatrist",
+  "nurse",
+  "section_break_wpqr",
+  "doctors_name",
+  "ect_doctors_notes",
+  "date_and_time",
+  "column_break_fvpq",
+  "nurse_name",
+  "ect_nurse_notes",
+  "n_date_and_time"
+ ],
+ "fields": [
+  {
+   "default": "Today",
+   "fieldname": "date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "time",
+   "fieldtype": "Time",
+   "in_list_view": 1,
+   "label": "Time"
+  },
+  {
+   "fieldname": "source",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Source"
+  },
+  {
+   "fieldname": "duration",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Duration"
+  },
+  {
+   "fieldname": "energy",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Energy"
+  },
+  {
+   "fieldname": "_age",
+   "fieldtype": "Percent",
+   "in_list_view": 1,
+   "label": "% Age"
+  },
+  {
+   "fieldname": "success",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Success"
+  },
+  {
+   "fieldname": "column_break_yexn",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "repeated",
+   "fieldtype": "Data",
+   "label": "Repeated"
+  },
+  {
+   "fieldname": "vitals",
+   "fieldtype": "Data",
+   "label": "Vitals"
+  },
+  {
+   "fieldname": "ecg",
+   "fieldtype": "Data",
+   "label": "ECG"
+  },
+  {
+   "fieldname": "anathesiologist",
+   "fieldtype": "Data",
+   "label": "Anathesiologist"
+  },
+  {
+   "fieldname": "assist_doctor",
+   "fieldtype": "Data",
+   "label": "Assist Doctor"
+  },
+  {
+   "fieldname": "psychiatrist",
+   "fieldtype": "Data",
+   "label": "Psychiatrist"
+  },
+  {
+   "fieldname": "nurse",
+   "fieldtype": "Data",
+   "label": "Nurse"
+  },
+  {
+   "fieldname": "section_break_wpqr",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "doctors_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Doctors Name"
+  },
+  {
+   "fieldname": "ect_doctors_notes",
+   "fieldtype": "Small Text",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "ECT Doctors Notes"
+  },
+  {
+   "fieldname": "date_and_time",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Date and Time"
+  },
+  {
+   "fieldname": "column_break_fvpq",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "nurse_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Nurse name"
+  },
+  {
+   "fieldname": "ect_nurse_notes",
+   "fieldtype": "Small Text",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "ECT Nurse Notes"
+  },
+  {
+   "fieldname": "n_date_and_time",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Date and Time"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2025-12-01 11:49:47.989203",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "ECT Details",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

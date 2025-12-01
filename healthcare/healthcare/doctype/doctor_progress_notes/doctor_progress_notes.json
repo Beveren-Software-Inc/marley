@@ -1,0 +1,176 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2025-09-21 00:40:22.105296",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "date",
+  "time",
+  "doc_order_description",
+  "progress_notes",
+  "trans_num",
+  "doc_num",
+  "doc_date",
+  "column_break_oojo",
+  "cost_center",
+  "user",
+  "user_name",
+  "attendance_status",
+  "nurse_num",
+  "nurse_date",
+  "nurse_remarks",
+  "job_status",
+  "section_break_tdmi",
+  "cd_id",
+  "cr_date",
+  "request_type",
+  "column_break_bkgm",
+  "up_id",
+  "up_date"
+ ],
+ "fields": [
+  {
+   "fieldname": "date",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Date"
+  },
+  {
+   "fieldname": "time",
+   "fieldtype": "Time",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Time"
+  },
+  {
+   "fieldname": "doc_order_description",
+   "fieldtype": "Small Text",
+   "label": "Doc Order Description"
+  },
+  {
+   "fieldname": "progress_notes",
+   "fieldtype": "Small Text",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Progress Notes"
+  },
+  {
+   "fieldname": "trans_num",
+   "fieldtype": "Data",
+   "label": "Trans Num"
+  },
+  {
+   "fieldname": "doc_num",
+   "fieldtype": "Int",
+   "label": "Doc Num"
+  },
+  {
+   "fieldname": "doc_date",
+   "fieldtype": "Data",
+   "label": "Doc Date"
+  },
+  {
+   "fieldname": "column_break_oojo",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "cost_center",
+   "fieldtype": "Link",
+   "label": "Cost Center",
+   "options": "Cost Center"
+  },
+  {
+   "fieldname": "user",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "User",
+   "options": "User"
+  },
+  {
+   "fieldname": "user_name",
+   "fieldtype": "Data",
+   "label": "User Name"
+  },
+  {
+   "default": "P",
+   "fieldname": "attendance_status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Attendance Status",
+   "options": "\nP\nA"
+  },
+  {
+   "fieldname": "nurse_num",
+   "fieldtype": "Data",
+   "label": "Nurse Num"
+  },
+  {
+   "fieldname": "nurse_date",
+   "fieldtype": "Date",
+   "label": "Nurse Date"
+  },
+  {
+   "fieldname": "nurse_remarks",
+   "fieldtype": "Small Text",
+   "label": "Nurse Remarks"
+  },
+  {
+   "fieldname": "job_status",
+   "fieldtype": "Data",
+   "label": "Job Status"
+  },
+  {
+   "fieldname": "section_break_tdmi",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "cd_id",
+   "fieldtype": "Int",
+   "label": "CD ID"
+  },
+  {
+   "fieldname": "cr_date",
+   "fieldtype": "Datetime",
+   "label": "CR Date"
+  },
+  {
+   "fieldname": "request_type",
+   "fieldtype": "Data",
+   "label": "Request Type"
+  },
+  {
+   "fieldname": "column_break_bkgm",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "up_id",
+   "fieldtype": "Int",
+   "label": "UP ID"
+  },
+  {
+   "fieldname": "up_date",
+   "fieldtype": "Date",
+   "label": "UP Date"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2025-12-01 11:49:41.723225",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Doctor Progress Notes",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

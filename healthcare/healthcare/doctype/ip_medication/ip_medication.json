@@ -1,0 +1,134 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2025-09-21 00:51:43.552961",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "item_code",
+  "item_name",
+  "start_date",
+  "dose",
+  "efective_status",
+  "dc_date",
+  "dc_remarks",
+  "column_break_cfdb",
+  "route",
+  "frequency",
+  "user",
+  "cost_center",
+  "current_values",
+  "edit_by"
+ ],
+ "fields": [
+  {
+   "fieldname": "item_code",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Item Code",
+   "options": "Item",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "item_code.item_name",
+   "fieldname": "item_name",
+   "fieldtype": "Data",
+   "label": "Item Name"
+  },
+  {
+   "fieldname": "start_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Start Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "dose",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Dose",
+   "reqd": 1
+  },
+  {
+   "fieldname": "efective_status",
+   "fieldtype": "Select",
+   "label": "Efective Status",
+   "options": "\nEfective\nLess Effective\nNon Effective"
+  },
+  {
+   "fieldname": "dc_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "D/C Date"
+  },
+  {
+   "fieldname": "dc_remarks",
+   "fieldtype": "Small Text",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "D/C Remarks"
+  },
+  {
+   "fieldname": "column_break_cfdb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "route",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Route",
+   "options": "\nPO\nS/L\nS/C\nIM\nIV\nIG\nPR"
+  },
+  {
+   "fieldname": "frequency",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Frequency",
+   "options": "\nQPM\nQAM\nQ1W\nQ2W\nQ3W\nQ4W\nOTHER"
+  },
+  {
+   "fieldname": "user",
+   "fieldtype": "Link",
+   "label": "User",
+   "options": "User",
+   "reqd": 1
+  },
+  {
+   "fieldname": "cost_center",
+   "fieldtype": "Link",
+   "label": "Cost Center",
+   "options": "Cost Center"
+  },
+  {
+   "fieldname": "current_values",
+   "fieldtype": "Small Text",
+   "label": "Current Values"
+  },
+  {
+   "fieldname": "edit_by",
+   "fieldtype": "Link",
+   "label": "Edit By",
+   "options": "User"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2025-12-01 11:49:47.404768",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "IP Medication",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

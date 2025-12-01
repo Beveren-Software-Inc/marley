@@ -1,0 +1,136 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2025-09-21 03:07:35.270836",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "code",
+  "level",
+  "time",
+  "notes",
+  "start_date",
+  "trans_num",
+  "column_break_uyxj",
+  "dc_date",
+  "user_name",
+  "user",
+  "date",
+  "amount",
+  "cr_id",
+  "cr_date",
+  "up_id",
+  "up_date"
+ ],
+ "fields": [
+  {
+   "fieldname": "code",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Code",
+   "options": "\n1\n2\n3\n4"
+  },
+  {
+   "fieldname": "level",
+   "fieldtype": "Small Text",
+   "in_list_view": 1,
+   "label": "Level"
+  },
+  {
+   "fieldname": "time",
+   "fieldtype": "Time",
+   "in_list_view": 1,
+   "label": "Time"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "in_list_view": 1,
+   "label": "Notes"
+  },
+  {
+   "fieldname": "start_date",
+   "fieldtype": "Datetime",
+   "label": "Start Date"
+  },
+  {
+   "fieldname": "trans_num",
+   "fieldtype": "Int",
+   "label": "Trans Num"
+  },
+  {
+   "fieldname": "column_break_uyxj",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "dc_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "DC Date"
+  },
+  {
+   "fieldname": "user_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "User Name"
+  },
+  {
+   "fieldname": "user",
+   "fieldtype": "Link",
+   "label": "User",
+   "options": "User"
+  },
+  {
+   "fieldname": "date",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "DC Date"
+  },
+  {
+   "fieldname": "amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Amount"
+  },
+  {
+   "fieldname": "cr_id",
+   "fieldtype": "Int",
+   "label": "CR ID"
+  },
+  {
+   "fieldname": "cr_date",
+   "fieldtype": "Datetime",
+   "label": "CR Date"
+  },
+  {
+   "fieldname": "up_id",
+   "fieldtype": "Int",
+   "label": "UP ID"
+  },
+  {
+   "fieldname": "up_date",
+   "fieldtype": "Datetime",
+   "label": "UP Date"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2025-12-01 11:49:43.044641",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Observation Level details",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

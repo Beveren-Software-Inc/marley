@@ -1,0 +1,141 @@
+{
+ "actions": [],
+ "allow_import": 1,
+ "allow_rename": 1,
+ "creation": "2025-09-25 15:32:15.672212",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "trans_no",
+  "admission",
+  "column_break_aoxj",
+  "file_no",
+  "patient_name",
+  "section_break_pcez",
+  "relative_relation",
+  "relative_name",
+  "relative_id_num",
+  "column_break_hmbb",
+  "any_remarks",
+  "section_break_mgzx",
+  "cr_id",
+  "cr_date",
+  "column_break_ijex",
+  "up_id",
+  "up_date"
+ ],
+ "fields": [
+  {
+   "fieldname": "trans_no",
+   "fieldtype": "Data",
+   "label": "Trans No"
+  },
+  {
+   "fieldname": "admission",
+   "fieldtype": "Link",
+   "label": "Admission",
+   "options": "Admission"
+  },
+  {
+   "fieldname": "column_break_aoxj",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "admission.file_number",
+   "fieldname": "file_no",
+   "fieldtype": "Link",
+   "label": "File No",
+   "options": "IP Patient"
+  },
+  {
+   "fetch_from": "file_no.patient_name",
+   "fieldname": "patient_name",
+   "fieldtype": "Data",
+   "label": "Patient Name"
+  },
+  {
+   "fieldname": "section_break_pcez",
+   "fieldtype": "Section Break",
+   "label": "Relative Details"
+  },
+  {
+   "fieldname": "relative_relation",
+   "fieldtype": "Data",
+   "label": "Relative Relation"
+  },
+  {
+   "fieldname": "relative_name",
+   "fieldtype": "Data",
+   "label": "Relative Name"
+  },
+  {
+   "fieldname": "relative_id_num",
+   "fieldtype": "Data",
+   "label": "Relative ID Num"
+  },
+  {
+   "fieldname": "column_break_hmbb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "any_remarks",
+   "fieldtype": "Small Text",
+   "label": "Any Remarks"
+  },
+  {
+   "fieldname": "section_break_mgzx",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "cr_id",
+   "fieldtype": "Int",
+   "label": "CR ID"
+  },
+  {
+   "fieldname": "cr_date",
+   "fieldtype": "Date",
+   "label": "CR Date"
+  },
+  {
+   "fieldname": "column_break_ijex",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "up_id",
+   "fieldtype": "Int",
+   "label": "UP ID"
+  },
+  {
+   "fieldname": "up_date",
+   "fieldtype": "Date",
+   "label": "UP Date"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-12-01 11:49:45.056403",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "IP Patient Relatives",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

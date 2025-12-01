@@ -1,0 +1,392 @@
+{
+ "actions": [],
+ "allow_events_in_timeline": 1,
+ "allow_import": 1,
+ "allow_rename": 1,
+ "autoname": "prompt",
+ "creation": "2025-09-21 23:24:57.052513",
+ "description": "Patient",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "engine": "InnoDB",
+ "field_order": [
+  "basic_info",
+  "patient_name",
+  "sex",
+  "dob",
+  "age_html",
+  "patient_title",
+  "column_break_14",
+  "uid",
+  "marital_status",
+  "up_id",
+  "is_blacklist",
+  "occupation_section",
+  "job_title",
+  "job_company",
+  "id_date",
+  "column_break_weip",
+  "nationality",
+  "id_number",
+  "section_break_pbve",
+  "cr_id",
+  "cr_date",
+  "is_follow_up",
+  "column_break_vmyb",
+  "up_date",
+  "pat_major_type",
+  "is_marketing",
+  "family_history_section",
+  "patient_allergy",
+  "show_allergy",
+  "column_break_bwfw",
+  "medical_history",
+  "more_info",
+  "previous_disease_history",
+  "column_break_dyss",
+  "patient_details",
+  "section_break_erzu",
+  "is_insurance",
+  "insurance_company_no",
+  "column_break_weii",
+  "insurance_policy_no",
+  "ref_no",
+  "contacts_tab",
+  "ip_mobile_details"
+ ],
+ "fields": [
+  {
+   "fieldname": "basic_info",
+   "fieldtype": "Section Break",
+   "label": "Patient Demographics",
+   "oldfieldtype": "Section Break",
+   "options": "fa fa-user"
+  },
+  {
+   "bold": 1,
+   "fieldname": "patient_name",
+   "fieldtype": "Data",
+   "in_global_search": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Full Name",
+   "no_copy": 1,
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "sex",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_preview": 1,
+   "in_standard_filter": 1,
+   "label": "Sex",
+   "options": "Gender",
+   "reqd": 1
+  },
+  {
+   "bold": 1,
+   "fieldname": "dob",
+   "fieldtype": "Date",
+   "in_preview": 1,
+   "label": "Date of birth",
+   "no_copy": 1
+  },
+  {
+   "fieldname": "age_html",
+   "fieldtype": "HTML",
+   "label": "Age",
+   "no_copy": 1,
+   "print_hide": 1,
+   "read_only": 1,
+   "report_hide": 1
+  },
+  {
+   "fieldname": "patient_title",
+   "fieldtype": "Select",
+   "label": "Patient Title",
+   "options": "\nMiss.\nMr.\nDr.\nMrs.\nMrs\nMiss\nMr"
+  },
+  {
+   "fieldname": "column_break_14",
+   "fieldtype": "Column Break"
+  },
+  {
+   "allow_in_quick_entry": 1,
+   "bold": 1,
+   "fieldname": "uid",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Identification Number (UID)",
+   "unique": 1
+  },
+  {
+   "fieldname": "marital_status",
+   "fieldtype": "Select",
+   "label": "Marital Status",
+   "options": "\nSingle\nMarried\nDivorced\nWidowed"
+  },
+  {
+   "fieldname": "up_id",
+   "fieldtype": "Data",
+   "label": "UP ID"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_blacklist",
+   "fieldtype": "Check",
+   "label": "Is BlackList"
+  },
+  {
+   "fieldname": "occupation_section",
+   "fieldtype": "Section Break",
+   "label": "Occupation"
+  },
+  {
+   "fieldname": "job_title",
+   "fieldtype": "Data",
+   "label": "Job Title"
+  },
+  {
+   "fieldname": "job_company",
+   "fieldtype": "Data",
+   "label": "Job Company"
+  },
+  {
+   "fieldname": "id_date",
+   "fieldtype": "Data",
+   "label": "ID Type"
+  },
+  {
+   "fieldname": "column_break_weip",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "nationality",
+   "fieldtype": "Link",
+   "label": "Nationality",
+   "options": "Country",
+   "reqd": 1
+  },
+  {
+   "fieldname": "id_number",
+   "fieldtype": "Data",
+   "label": "ID Number",
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_break_pbve",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "cr_id",
+   "fieldtype": "Data",
+   "label": "CR ID"
+  },
+  {
+   "fieldname": "cr_date",
+   "fieldtype": "Data",
+   "label": "CR Date"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_follow_up",
+   "fieldtype": "Check",
+   "label": "Is Follow Up"
+  },
+  {
+   "fieldname": "column_break_vmyb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "up_date",
+   "fieldtype": "Data",
+   "label": "UP Date"
+  },
+  {
+   "fieldname": "pat_major_type",
+   "fieldtype": "Select",
+   "label": "Pat Major Type",
+   "options": "\nN\nA"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_marketing",
+   "fieldtype": "Check",
+   "label": "Is Marketing"
+  },
+  {
+   "fieldname": "family_history_section",
+   "fieldtype": "Section Break",
+   "label": "Family History"
+  },
+  {
+   "fieldname": "patient_allergy",
+   "fieldtype": "Small Text",
+   "label": "Patient Allergy"
+  },
+  {
+   "default": "0",
+   "fieldname": "show_allergy",
+   "fieldtype": "Check",
+   "label": "Show Allergy"
+  },
+  {
+   "fieldname": "column_break_bwfw",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "medical_history",
+   "fieldtype": "Small Text",
+   "label": "Medical History"
+  },
+  {
+   "collapsible_depends_on": "patient_details",
+   "fieldname": "more_info",
+   "fieldtype": "Section Break",
+   "label": "More Information",
+   "oldfieldtype": "Section Break",
+   "options": "fa fa-file-text"
+  },
+  {
+   "fieldname": "previous_disease_history",
+   "fieldtype": "Small Text",
+   "label": "Previous Disease History"
+  },
+  {
+   "fieldname": "column_break_dyss",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Additional information regarding the patient",
+   "fieldname": "patient_details",
+   "fieldtype": "Small Text",
+   "ignore_xss_filter": 1,
+   "label": "Patient Details",
+   "no_copy": 1
+  },
+  {
+   "fieldname": "section_break_erzu",
+   "fieldtype": "Section Break",
+   "label": "Insurance"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_insurance",
+   "fieldtype": "Check",
+   "label": "Is Insurance"
+  },
+  {
+   "fieldname": "insurance_company_no",
+   "fieldtype": "Data",
+   "label": "Insurance Company No"
+  },
+  {
+   "fieldname": "column_break_weii",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "insurance_policy_no",
+   "fieldtype": "Int",
+   "label": "Insurance Policy No"
+  },
+  {
+   "fieldname": "ref_no",
+   "fieldtype": "Data",
+   "label": "Ref No"
+  },
+  {
+   "fieldname": "contacts_tab",
+   "fieldtype": "Tab Break",
+   "label": "Contacts"
+  },
+  {
+   "fieldname": "ip_mobile_details",
+   "fieldtype": "Table",
+   "label": "IP Mobile Details",
+   "options": "IP Mobile Details"
+  }
+ ],
+ "grid_page_length": 50,
+ "icon": "fa fa-user",
+ "links": [
+  {
+   "link_doctype": "Admission",
+   "link_fieldname": "file_number"
+  },
+  {
+   "link_doctype": "Admission Detail",
+   "link_fieldname": "file_no"
+  },
+  {
+   "link_doctype": "IP Admission 3",
+   "link_fieldname": "file_no"
+  }
+ ],
+ "max_attachments": 50,
+ "modified": "2025-12-01 11:49:39.637457",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "IP Patient",
+ "naming_rule": "Set by user",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Physician",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Laboratory User",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Nursing User",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "search_fields": "patient_name",
+ "show_name_in_global_search": 1,
+ "sort_field": "modified",
+ "sort_order": "ASC",
+ "states": [],
+ "title_field": "patient_name",
+ "track_changes": 1
+}

@@ -1,0 +1,359 @@
+{
+ "actions": [],
+ "allow_import": 1,
+ "allow_rename": 1,
+ "autoname": "field:admission",
+ "creation": "2025-09-21 00:21:12.289560",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "admission",
+  "file_no",
+  "column_break_bdjf",
+  "patient_name",
+  "admission_history_section",
+  "admission_history",
+  "section_break_kpgo",
+  "dr_name",
+  "column_break_izmc",
+  "residents",
+  "doctor_progress_notes_section",
+  "doctors_orders",
+  "medication_tab",
+  "ip_medication",
+  "given_medication_tab",
+  "table_yrwe",
+  "doctors_order_tab",
+  "doctors_notes",
+  "diagnoses_section",
+  "table_pzjk",
+  "warnings_section",
+  "warning_messages",
+  "psychological_section",
+  "psychologist_details",
+  "nutritionist_tab",
+  "table_nfve",
+  "therapies_services_tab",
+  "therapies",
+  "psychological_doctors_order_tab",
+  "table_ujjj",
+  "nursing_tab",
+  "nursing_notes",
+  "laboratory_tab",
+  "lab_test_1",
+  "lab_test_2_section",
+  "lab_test_2_column",
+  "table_fgvw",
+  "op_visits_tab",
+  "op_visit_details",
+  "tprvital_chart_tab",
+  "tpr_chart",
+  "ect_tab",
+  "ect_details",
+  "observation_level_tab",
+  "observation_level_details",
+  "sick_leave_tab",
+  "sick_leave",
+  "ip_medical_report_tab",
+  "ip_medical_report"
+ ],
+ "fields": [
+  {
+   "fieldname": "admission",
+   "fieldtype": "Link",
+   "label": "Admission",
+   "options": "Admission",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fetch_from": "admission.file_number",
+   "fieldname": "file_no",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "File No",
+   "options": "IP Patient",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_bdjf",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "file_no.patient_name",
+   "fieldname": "patient_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Patient Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "admission_history_section",
+   "fieldtype": "Section Break",
+   "label": "Admission History"
+  },
+  {
+   "fieldname": "admission_history",
+   "fieldtype": "Table",
+   "label": "Admission History Details",
+   "options": "Admission History Details"
+  },
+  {
+   "fieldname": "section_break_kpgo",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "dr_name",
+   "fieldtype": "Data",
+   "label": "Dr Name"
+  },
+  {
+   "fieldname": "column_break_izmc",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "residents",
+   "fieldtype": "Data",
+   "label": "Residents"
+  },
+  {
+   "fieldname": "doctor_progress_notes_section",
+   "fieldtype": "Section Break",
+   "label": "Doctor Progress Notes"
+  },
+  {
+   "fieldname": "doctors_orders",
+   "fieldtype": "Table",
+   "label": "Doctors Progress",
+   "options": "Doctors Order"
+  },
+  {
+   "fieldname": "medication_tab",
+   "fieldtype": "Tab Break",
+   "label": "Medication"
+  },
+  {
+   "fieldname": "ip_medication",
+   "fieldtype": "Table",
+   "label": "IP Medication",
+   "options": "IP Medication"
+  },
+  {
+   "fieldname": "given_medication_tab",
+   "fieldtype": "Tab Break",
+   "label": "Given Medication"
+  },
+  {
+   "fieldname": "table_yrwe",
+   "fieldtype": "Table",
+   "options": "Medicine Given"
+  },
+  {
+   "fieldname": "doctors_order_tab",
+   "fieldtype": "Tab Break",
+   "label": "Doctors Order"
+  },
+  {
+   "fieldname": "doctors_notes",
+   "fieldtype": "Table",
+   "label": "Doctors Notes",
+   "options": "Doctor Progress Notes"
+  },
+  {
+   "fieldname": "diagnoses_section",
+   "fieldtype": "Section Break",
+   "label": "Diagnoses"
+  },
+  {
+   "fieldname": "table_pzjk",
+   "fieldtype": "Table",
+   "options": "Diagnoses Details"
+  },
+  {
+   "fieldname": "warnings_section",
+   "fieldtype": "Section Break",
+   "label": "Warnings"
+  },
+  {
+   "fieldname": "warning_messages",
+   "fieldtype": "Table",
+   "label": "Warning Messages",
+   "options": "Warning Messages"
+  },
+  {
+   "fieldname": "psychological_section",
+   "fieldtype": "Section Break",
+   "label": "Psychological"
+  },
+  {
+   "fieldname": "psychologist_details",
+   "fieldtype": "Table",
+   "label": "Psychologist Details",
+   "options": "Psychological Details"
+  },
+  {
+   "fieldname": "nutritionist_tab",
+   "fieldtype": "Tab Break",
+   "label": "Nutritionist"
+  },
+  {
+   "fieldname": "table_nfve",
+   "fieldtype": "Table",
+   "label": "Nutritionist",
+   "options": "Nutritionist Detail"
+  },
+  {
+   "fieldname": "therapies_services_tab",
+   "fieldtype": "Tab Break",
+   "label": "Therapies Services"
+  },
+  {
+   "fieldname": "therapies",
+   "fieldtype": "Table",
+   "label": "Therapies",
+   "options": "Therapies Services Detail"
+  },
+  {
+   "fieldname": "psychological_doctors_order_tab",
+   "fieldtype": "Tab Break",
+   "label": "Psychological Doctors Order"
+  },
+  {
+   "fieldname": "table_ujjj",
+   "fieldtype": "Table",
+   "label": "Psychological Doctors Order",
+   "options": "Psychological Doctors Order"
+  },
+  {
+   "fieldname": "nursing_tab",
+   "fieldtype": "Tab Break",
+   "label": "Nursing"
+  },
+  {
+   "fieldname": "nursing_notes",
+   "fieldtype": "Table",
+   "label": "Nursing Notes",
+   "options": "Nursing Notes"
+  },
+  {
+   "fieldname": "laboratory_tab",
+   "fieldtype": "Tab Break",
+   "label": "Laboratory"
+  },
+  {
+   "fieldname": "lab_test_1",
+   "fieldtype": "Table",
+   "label": "Lab Test 1",
+   "options": "Laboratory 1st Test"
+  },
+  {
+   "fieldname": "lab_test_2_section",
+   "fieldtype": "Section Break",
+   "label": "Lab Test 2"
+  },
+  {
+   "fieldname": "lab_test_2_column",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "table_fgvw",
+   "fieldtype": "Table",
+   "options": "Laboratory 2nd Test"
+  },
+  {
+   "fieldname": "op_visits_tab",
+   "fieldtype": "Tab Break",
+   "label": "OP Visits"
+  },
+  {
+   "fieldname": "op_visit_details",
+   "fieldtype": "Table",
+   "label": "OP Visit Details",
+   "options": "OP Visit Details"
+  },
+  {
+   "fieldname": "tprvital_chart_tab",
+   "fieldtype": "Tab Break",
+   "label": "TPR/Vital Chart"
+  },
+  {
+   "fieldname": "tpr_chart",
+   "fieldtype": "Table",
+   "label": "TPR Chart",
+   "options": "TPR Chart Details"
+  },
+  {
+   "fieldname": "ect_tab",
+   "fieldtype": "Tab Break",
+   "label": "ECT"
+  },
+  {
+   "fieldname": "ect_details",
+   "fieldtype": "Table",
+   "label": "ECT Details",
+   "options": "ECT Details"
+  },
+  {
+   "fieldname": "observation_level_tab",
+   "fieldtype": "Tab Break",
+   "label": "Observation Level"
+  },
+  {
+   "fieldname": "observation_level_details",
+   "fieldtype": "Table",
+   "label": "Observation Level details",
+   "options": "Observation Level details"
+  },
+  {
+   "fieldname": "sick_leave_tab",
+   "fieldtype": "Tab Break",
+   "label": "Sick Leave"
+  },
+  {
+   "fieldname": "sick_leave",
+   "fieldtype": "Table",
+   "label": "Sick Leave",
+   "options": "Sick Leave"
+  },
+  {
+   "fieldname": "ip_medical_report_tab",
+   "fieldtype": "Tab Break",
+   "label": "IP Medical Report"
+  },
+  {
+   "fieldname": "ip_medical_report",
+   "fieldtype": "Table",
+   "label": "IP Medical Report",
+   "options": "IP Medical Report"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-12-01 11:49:40.732219",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Admission Detail",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
