@@ -1,0 +1,61 @@
+[
+ {
+  "date": "2025-12-01",
+  "discharge_checklist": [
+   {
+    "action_required": "Discharge Medication Entered ",
+    "department": null,
+    "parent": "Inpatient Discharge",
+    "parentfield": "discharge_checklist",
+    "parenttype": "Discharge Template"
+   },
+   {
+    "action_required": "Session Data Entered",
+    "department": null,
+    "parent": "Inpatient Discharge",
+    "parentfield": "discharge_checklist",
+    "parenttype": "Discharge Template"
+   },
+   {
+    "action_required": "IP Service and Other services",
+    "department": null,
+    "parent": "Inpatient Discharge",
+    "parentfield": "discharge_checklist",
+    "parenttype": "Discharge Template"
+   },
+   {
+    "action_required": "Billing Finalisation",
+    "department": null,
+    "parent": "Inpatient Discharge",
+    "parentfield": "discharge_checklist",
+    "parenttype": "Discharge Template"
+   },
+   {
+    "action_required": "Patient Exit From Hospital",
+    "department": null,
+    "parent": "Inpatient Discharge",
+    "parentfield": "discharge_checklist",
+    "parenttype": "Discharge Template"
+   },
+   {
+    "action_required": "Discharge Notes",
+    "department": null,
+    "parent": "Inpatient Discharge",
+    "parentfield": "discharge_checklist",
+    "parenttype": "Discharge Template"
+   },
+   {
+    "action_required": "Final Financial Check",
+    "department": null,
+    "parent": "Inpatient Discharge",
+    "parentfield": "discharge_checklist",
+    "parenttype": "Discharge Template"
+   }
+  ],
+  "docstatus": 0,
+  "doctype": "Discharge Template",
+  "modified": "2025-12-01 12:19:40.536339",
+  "name": "Inpatient Discharge",
+  "template_name": "Inpatient Discharge"
+ }
+]

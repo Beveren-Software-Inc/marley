@@ -15,20 +15,24 @@ required_apps = ["frappe/erpnext"]
 
 
 fixtures = [
-	{
-		"doctype": "Custom Field",
-		"filters": [
-			[
-				"name",
-				"in",
-				(
-				"Contact-custom_mobile_owner",
-    			"Contact-custom_whatsapp"
-				),
-			]
-		],
-	},
+    {
+        "doctype": "Custom Field",
+        "filters": [
+            [
+                "name",
+                "in",
+                (
+                    "Contact-custom_mobile_owner",
+                    "Contact-custom_whatsapp"
+                ),
+            ]
+        ],
+    },
+    {
+        "doctype": "Discharge Template"
+    }
 ]
+
 
 # include js, css files in header of desk.html
 # app_include_css = "/assets/healthcare/css/healthcare.css"

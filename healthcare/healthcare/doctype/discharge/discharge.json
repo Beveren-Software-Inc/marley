@@ -1,0 +1,97 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2025-12-01 12:02:03.384993",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "admission",
+  "file_no",
+  "column_break_talh",
+  "patient_name",
+  "discharge_date",
+  "section_break_nurw",
+  "discharge_template",
+  "discharge_checklist"
+ ],
+ "fields": [
+  {
+   "fieldname": "admission",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Admission",
+   "options": "Admission",
+   "reqd": 1
+  },
+  {
+   "fieldname": "file_no",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "File No",
+   "options": "Patient",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_talh",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "patient_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Patient Name"
+  },
+  {
+   "fieldname": "discharge_date",
+   "fieldtype": "Datetime",
+   "label": "Discharge Date"
+  },
+  {
+   "fieldname": "section_break_nurw",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "discharge_checklist",
+   "fieldtype": "Table",
+   "label": "Discharge Checklist",
+   "options": "Discharge Checklist Details"
+  },
+  {
+   "default": "Inpatient Discharge",
+   "fieldname": "discharge_template",
+   "fieldtype": "Link",
+   "label": "Discharge Template",
+   "options": "Discharge Template"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-12-01 12:21:21.541370",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Discharge",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
