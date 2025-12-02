@@ -30,6 +30,7 @@
   "column_break_17",
   "user_id",
   "hospital",
+  "medical_role",
   "appointments",
   "practitioner_schedules",
   "google_calendar",
@@ -353,10 +354,16 @@
    "fieldtype": "Link",
    "label": "Supplier",
    "options": "Supplier"
+  },
+  {
+   "fieldname": "medical_role",
+   "fieldtype": "Link",
+   "label": "Medical Role",
+   "options": "Medical Role"
   }
  ],
  "image_field": "image",
-  "links": [
+ "links": [
   {
    "group": "Consultations",
    "link_doctype": "Patient Appointment",
@@ -388,7 +395,7 @@
    "link_fieldname": "practitioner"
   }
  ],
- "modified": "2025-09-25 14:20:06.299954",
+ "modified": "2025-12-02 15:58:41.790062",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Practitioner",
@@ -435,6 +442,7 @@
  ],
  "quick_entry": 1,
  "restrict_to_domain": "Healthcare",
+ "row_format": "Dynamic",
  "search_fields": "practitioner_name, mobile_phone, office_phone",
  "show_name_in_global_search": 1,
  "sort_field": "modified",

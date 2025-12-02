@@ -1,6 +1,7 @@
 {
  "actions": [],
  "allow_rename": 1,
+ "autoname": "format:PV-{YY}-{#####}",
  "creation": "2025-11-30 12:34:54.234330",
  "doctype": "DocType",
  "engine": "InnoDB",
@@ -8,9 +9,11 @@
   "visit_date",
   "patient_file_no",
   "patient_name",
+  "visit_type",
   "column_break_vtwe",
   "patient_id_no",
   "patient_mobile_no",
+  "previous_visit_no",
   "is_blacklist",
   "section_break_kiko",
   "consult_doctor",
@@ -21,7 +24,9 @@
   "consultationservice_tab",
   "consultation_fee",
   "lab_tests_tab",
+  "lab_tests_charges",
   "medicines_tab",
+  "medicine_charges",
   "charges_and_payments_tab",
   "charges"
  ],
@@ -134,15 +139,39 @@
    "fieldtype": "Table",
    "label": "Charges",
    "options": "OP Charges"
+  },
+  {
+   "fieldname": "previous_visit_no",
+   "fieldtype": "Int",
+   "label": "Previous Visit No"
+  },
+  {
+   "fieldname": "lab_tests_charges",
+   "fieldtype": "Table",
+   "label": "Lab Tests Charges",
+   "options": "Lab Tests Charges"
+  },
+  {
+   "fieldname": "medicine_charges",
+   "fieldtype": "Table",
+   "label": "Medicine Charges",
+   "options": "Medicine Charges"
+  },
+  {
+   "fieldname": "visit_type",
+   "fieldtype": "Select",
+   "label": "Visit Type",
+   "options": "\nNew Visit\nFollow Up"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-11-30 18:03:47.401032",
+ "modified": "2025-12-02 15:02:32.947886",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Visit",
+ "naming_rule": "Expression",
  "owner": "Administrator",
  "permissions": [
   {

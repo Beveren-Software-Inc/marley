@@ -93,7 +93,12 @@
   "surrounding_factors",
   "other_risk_factors",
   "uploads_tab",
-  "patient_document"
+  "patient_document",
+  "patient_cprnational_id_tab",
+  "national_id",
+  "cprigama_front_photo",
+  "column_break_eodk",
+  "cprigama_back_photo"
  ],
  "fields": [
   {
@@ -643,6 +648,30 @@
    "fieldtype": "Table",
    "label": "Patient Document",
    "options": "Patient Upload Document"
+  },
+  {
+   "fieldname": "patient_cprnational_id_tab",
+   "fieldtype": "Tab Break",
+   "label": "Patient CPR/National ID"
+  },
+  {
+   "fieldname": "national_id",
+   "fieldtype": "Data",
+   "label": "National ID"
+  },
+  {
+   "fieldname": "cprigama_front_photo",
+   "fieldtype": "Attach",
+   "label": "CPR/Igama Front Photo"
+  },
+  {
+   "fieldname": "column_break_eodk",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "cprigama_back_photo",
+   "fieldtype": "Attach",
+   "label": "CPR/Igama Back Photo"
   }
  ],
  "grid_page_length": 50,
@@ -751,7 +780,7 @@
   }
  ],
  "max_attachments": 50,
- "modified": "2025-11-30 15:36:22.082344",
+ "modified": "2025-12-01 13:07:01.515204",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient",

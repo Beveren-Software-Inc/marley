@@ -6,8 +6,15 @@
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
+  "transaction_no",
   "document_name",
-  "document"
+  "document_type",
+  "file_name",
+  "column_break_zntp",
+  "file_extension",
+  "file_sizemb",
+  "document",
+  "upload_remarks"
  ],
  "fields": [
   {
@@ -15,8 +22,7 @@
    "fieldtype": "Data",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "Document Name",
-   "reqd": 1
+   "label": "Document Code"
   },
   {
    "fieldname": "document",
@@ -24,13 +30,54 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Document"
+  },
+  {
+   "fieldname": "transaction_no",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Transaction No"
+  },
+  {
+   "fieldname": "document_type",
+   "fieldtype": "Data",
+   "label": "Document Type"
+  },
+  {
+   "fieldname": "file_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "File Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_zntp",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "file_extension",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "File Extension"
+  },
+  {
+   "fieldname": "file_sizemb",
+   "fieldtype": "Data",
+   "label": "File Size(MB)"
+  },
+  {
+   "fieldname": "upload_remarks",
+   "fieldtype": "Small Text",
+   "label": "Upload Remarks"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2025-11-30 18:03:35.087157",
+ "modified": "2025-12-01 12:54:06.386911",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Upload Document",

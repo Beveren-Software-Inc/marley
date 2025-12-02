@@ -30,7 +30,10 @@ fixtures = [
     },
     {
         "doctype": "Discharge Template"
-    }
+    },
+    {
+		"doctype": "Medical Role"
+	}
 ]
 
 
