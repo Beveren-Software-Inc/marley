@@ -9,10 +9,39 @@
   "file_no",
   "column_break_talh",
   "patient_name",
+  "discharge_type",
+  "section_break_ujbp",
+  "discharged_by_user",
+  "user_name",
+  "receiving_doctors",
+  "column_break_stpu",
+  "final_discharge_user_id",
+  "final_discharger_username",
+  "section_break_tleb",
+  "discharge_time",
   "discharge_date",
+  "duration",
+  "column_break_fivt",
+  "final_discharge_date",
+  "final_discharge_time",
   "section_break_nurw",
   "discharge_template",
-  "discharge_checklist"
+  "discharge_checklist",
+  "more_infor_tab",
+  "discharge_treatment_plan",
+  "discharge_reason",
+  "discharge_diagnosis",
+  "final_exam_mental_status_summary",
+  "prognosis",
+  "column_break_thyv",
+  "discharge_conditions",
+  "discharge_instructions",
+  "discharge_medic_stopped_reason",
+  "management_in_hospital",
+  "appointment_section",
+  "next_appointment_date",
+  "column_break_kffl",
+  "next_appointment_time"
  ],
  "fields": [
   {
@@ -65,12 +94,158 @@
    "fieldtype": "Link",
    "label": "Discharge Template",
    "options": "Discharge Template"
+  },
+  {
+   "fieldname": "section_break_ujbp",
+   "fieldtype": "Section Break",
+   "label": "Discharged By"
+  },
+  {
+   "fieldname": "discharged_by_user",
+   "fieldtype": "Link",
+   "label": "Discharged By User",
+   "options": "User"
+  },
+  {
+   "fetch_from": "admission.patient_name",
+   "fieldname": "user_name",
+   "fieldtype": "Data",
+   "label": "User Name"
+  },
+  {
+   "fieldname": "more_infor_tab",
+   "fieldtype": "Tab Break",
+   "label": "More Infor"
+  },
+  {
+   "fieldname": "column_break_stpu",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "final_discharge_user_id",
+   "fieldtype": "Link",
+   "label": "Final Discharge User ID",
+   "options": "User"
+  },
+  {
+   "fetch_from": "final_discharge_user_id.full_name",
+   "fieldname": "final_discharger_username",
+   "fieldtype": "Data",
+   "label": "Final Discharger UserName"
+  },
+  {
+   "fieldname": "section_break_tleb",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "discharge_time",
+   "fieldtype": "Date",
+   "label": "Discharge Time"
+  },
+  {
+   "fieldname": "duration",
+   "fieldtype": "Data",
+   "label": "Duration"
+  },
+  {
+   "fieldname": "column_break_fivt",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "final_discharge_date",
+   "fieldtype": "Data",
+   "label": "Final Discharge Date"
+  },
+  {
+   "fieldname": "final_discharge_time",
+   "fieldtype": "Time",
+   "label": "Final Discharge Time"
+  },
+  {
+   "fieldname": "discharge_type",
+   "fieldtype": "Select",
+   "label": "Discharge Type",
+   "options": "\nHome\nDama\nHospital"
+  },
+  {
+   "fieldname": "discharge_treatment_plan",
+   "fieldtype": "Small Text",
+   "label": "Discharge Treatment Plan"
+  },
+  {
+   "fieldname": "discharge_reason",
+   "fieldtype": "Small Text",
+   "label": "Discharge Reason"
+  },
+  {
+   "fieldname": "discharge_diagnosis",
+   "fieldtype": "Small Text",
+   "label": "Discharge Diagnosis"
+  },
+  {
+   "fieldname": "column_break_thyv",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "discharge_conditions",
+   "fieldtype": "Small Text",
+   "label": "Discharge Conditions"
+  },
+  {
+   "fieldname": "discharge_instructions",
+   "fieldtype": "Small Text",
+   "label": "Discharge Instructions"
+  },
+  {
+   "fieldname": "discharge_medic_stopped_reason",
+   "fieldtype": "Small Text",
+   "label": "Discharge Medic Stopped Reason"
+  },
+  {
+   "fieldname": "final_exam_mental_status_summary",
+   "fieldtype": "Small Text",
+   "label": "Final Exam Mental Status Summary"
+  },
+  {
+   "fieldname": "management_in_hospital",
+   "fieldtype": "Small Text",
+   "label": "Management In Hospital"
+  },
+  {
+   "fieldname": "prognosis",
+   "fieldtype": "Small Text",
+   "label": "Prognosis"
+  },
+  {
+   "fieldname": "appointment_section",
+   "fieldtype": "Section Break",
+   "label": "Appointment"
+  },
+  {
+   "fieldname": "next_appointment_date",
+   "fieldtype": "Date",
+   "label": "Next appointment Date"
+  },
+  {
+   "fieldname": "column_break_kffl",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "next_appointment_time",
+   "fieldtype": "Datetime",
+   "label": "Next appointment Time"
+  },
+  {
+   "fieldname": "receiving_doctors",
+   "fieldtype": "Link",
+   "label": "Receiving Doctors",
+   "options": "User"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-12-01 12:21:21.541370",
+ "modified": "2025-12-02 17:16:53.544630",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Discharge",
