@@ -89,5 +89,12 @@
   "medical_role": "Sonographer",
   "modified": "2025-12-02 16:03:40.039224",
   "name": "Sonographer"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Medical Role",
+  "medical_role": "Psychologists",
+  "modified": "2025-12-14 14:56:29.694696",
+  "name": "Psychologists"
  }
 ]
