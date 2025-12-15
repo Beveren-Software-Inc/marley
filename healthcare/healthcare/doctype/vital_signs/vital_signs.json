@@ -21,6 +21,7 @@
   "signs_time",
   "sb_vs",
   "temperature",
+  "location_temperature",
   "pulse",
   "respiratory_rate",
   "tongue",
@@ -37,6 +38,8 @@
   "bmi",
   "column_break_14",
   "nutrition_note",
+  "others_section",
+  "spo2",
   "sb_references",
   "amended_from"
  ],
@@ -252,11 +255,26 @@
    "no_copy": 1,
    "print_hide": 1,
    "read_only": 1
+  },
+  {
+   "fieldname": "location_temperature",
+   "fieldtype": "Data",
+   "label": "Location Temperature"
+  },
+  {
+   "fieldname": "others_section",
+   "fieldtype": "Section Break",
+   "label": "Others"
+  },
+  {
+   "fieldname": "spo2",
+   "fieldtype": "Int",
+   "label": "SPO2"
   }
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2024-03-07 12:14:26.166928",
+ "modified": "2025-12-15 14:28:50.776148",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Vital Signs",
@@ -293,6 +311,7 @@
   }
  ],
  "restrict_to_domain": "Healthcare",
+ "row_format": "Dynamic",
  "search_fields": "patient, signs_date",
  "show_name_in_global_search": 1,
  "sort_field": "modified",
