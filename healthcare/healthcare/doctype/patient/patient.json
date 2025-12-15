@@ -21,6 +21,7 @@
   "dob",
   "age_html",
   "image",
+  "category",
   "column_break_14",
   "status",
   "uid",
@@ -672,6 +673,12 @@
    "fieldname": "cprigama_back_photo",
    "fieldtype": "Attach",
    "label": "CPR/Igama Back Photo"
+  },
+  {
+   "fieldname": "category",
+   "fieldtype": "Select",
+   "label": "Category",
+   "options": "\nRoyal\nAmerican Navy\nRegular"
   }
  ],
  "grid_page_length": 50,
@@ -780,7 +787,7 @@
   }
  ],
  "max_attachments": 50,
- "modified": "2025-12-01 13:07:01.515204",
+ "modified": "2025-12-15 12:43:21.166488",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient",

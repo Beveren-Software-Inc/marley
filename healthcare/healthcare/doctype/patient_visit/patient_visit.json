@@ -85,7 +85,7 @@
   {
    "fieldname": "consult_doctor",
    "fieldtype": "Link",
-   "label": "Consult Doctor",
+   "label": "Consultation Doctor",
    "options": "Healthcare Practitioner",
    "reqd": 1
   },
@@ -97,7 +97,7 @@
    "fetch_from": "consult_doctor.practitioner_name",
    "fieldname": "consult_doctor_name",
    "fieldtype": "Data",
-   "label": "Consult Doctor Name"
+   "label": "Consultion Doctor Name"
   },
   {
    "fieldname": "section_break_vubm",
@@ -167,7 +167,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-12-02 15:02:32.947886",
+ "modified": "2025-12-15 12:56:31.204592",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Visit",
