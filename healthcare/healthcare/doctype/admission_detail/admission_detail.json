@@ -19,6 +19,8 @@
   "residents",
   "doctor_progress_notes_section",
   "doctors_orders",
+  "other_details_section",
+  "ect",
   "medication_tab",
   "ip_medication",
   "given_medication_tab",
@@ -48,8 +50,6 @@
   "op_visit_details",
   "tprvital_chart_tab",
   "tpr_chart",
-  "ect_tab",
-  "ect_details",
   "observation_level_tab",
   "observation_level_details",
   "sick_leave_tab",
@@ -73,7 +73,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "File No",
-   "options": "IP Patient",
+   "options": "Patient",
    "reqd": 1
   },
   {
@@ -285,17 +285,6 @@
    "options": "TPR Chart Details"
   },
   {
-   "fieldname": "ect_tab",
-   "fieldtype": "Tab Break",
-   "label": "ECT"
-  },
-  {
-   "fieldname": "ect_details",
-   "fieldtype": "Table",
-   "label": "ECT Details",
-   "options": "ECT Details"
-  },
-  {
    "fieldname": "observation_level_tab",
    "fieldtype": "Tab Break",
    "label": "Observation Level"
@@ -327,12 +316,23 @@
    "fieldtype": "Table",
    "label": "IP Medical Report",
    "options": "IP Medical Report"
+  },
+  {
+   "fieldname": "other_details_section",
+   "fieldtype": "Section Break",
+   "label": "Other Details"
+  },
+  {
+   "fieldname": "ect",
+   "fieldtype": "Link",
+   "label": "ECT",
+   "options": "ECT Details"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-12-01 11:49:40.732219",
+ "modified": "2025-12-15 15:30:08.875286",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Admission Detail",

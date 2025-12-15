@@ -14,6 +14,8 @@
   "energy",
   "_age",
   "success",
+  "reference_doctype",
+  "reference_name",
   "column_break_yexn",
   "repeated",
   "vitals",
@@ -29,7 +31,13 @@
   "column_break_fvpq",
   "nurse_name",
   "ect_nurse_notes",
-  "n_date_and_time"
+  "n_date_and_time",
+  "other_information_section",
+  "bp_1",
+  "bp_2",
+  "column_break_mply",
+  "psychology_doctor",
+  "anaesthetic_doctor"
  ],
  "fields": [
   {
@@ -169,12 +177,55 @@
    "label": "Patient",
    "options": "Patient",
    "reqd": 1
+  },
+  {
+   "fieldname": "reference_doctype",
+   "fieldtype": "Link",
+   "label": "Reference Doctype",
+   "options": "DocType"
+  },
+  {
+   "fieldname": "reference_name",
+   "fieldtype": "Dynamic Link",
+   "label": "Reference Name",
+   "options": "reference_doctype"
+  },
+  {
+   "fieldname": "other_information_section",
+   "fieldtype": "Section Break",
+   "label": "Other Information"
+  },
+  {
+   "fieldname": "bp_1",
+   "fieldtype": "Data",
+   "label": "BP 1"
+  },
+  {
+   "fieldname": "bp_2",
+   "fieldtype": "Data",
+   "label": "BP 2"
+  },
+  {
+   "fieldname": "column_break_mply",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "psychology_doctor",
+   "fieldtype": "Link",
+   "label": "Psychology Doctor",
+   "options": "Healthcare Practitioner"
+  },
+  {
+   "fieldname": "anaesthetic_doctor",
+   "fieldtype": "Link",
+   "label": "Anaesthetic Doctor",
+   "options": "Healthcare Practitioner"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-12-14 17:33:45.860429",
+ "modified": "2025-12-15 15:56:52.785376",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "ECT Details",
