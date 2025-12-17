@@ -2,7 +2,7 @@
  "actions": [],
  "allow_rename": 1,
  "autoname": "format:{patient}-{reference_name}-{#####}",
- "creation": "2023-05-12 12:31:47.611942",
+ "creation": "2025-12-14 17:18:40.526388",
  "default_view": "List",
  "doctype": "DocType",
  "editable_grid": 1,
@@ -12,15 +12,14 @@
   "gender",
   "blood_group",
   "clinical_note_type",
-  "note_type",
   "terms_and_conditions",
   "column_break_jw2e",
   "posting_date",
   "practitioner",
   "user",
   "medical_role",
-  "note_section",
-  "note",
+  "warning_section",
+  "warning",
   "reference_section",
   "reference_doc",
   "reference_name"
@@ -51,44 +50,16 @@
    "read_only": 1
   },
   {
-   "default": "Note",
-   "fieldname": "note_type",
-   "fieldtype": "Select",
-   "in_list_view": 1,
-   "label": "Type",
-   "options": "\nNote\nOrder"
-  },
-  {
-   "allow_in_quick_entry": 1,
-   "fieldname": "note",
-   "fieldtype": "Text Editor",
-   "label": "Note"
-  },
-  {
-   "fieldname": "reference_section",
-   "fieldtype": "Section Break",
-   "label": "Reference"
-  },
-  {
-   "fieldname": "reference_doc",
+   "fieldname": "clinical_note_type",
    "fieldtype": "Link",
-   "in_list_view": 1,
-   "in_standard_filter": 1,
-   "label": "Reference Doc",
-   "options": "DocType",
-   "read_only": 1
+   "label": "Clinical Note Type",
+   "options": "Clinical Note Type"
   },
   {
-   "fieldname": "reference_name",
-   "fieldtype": "Dynamic Link",
-   "label": "Reference Name",
-   "options": "reference_doc",
-   "read_only": 1
-  },
-  {
-   "fieldname": "note_section",
-   "fieldtype": "Section Break",
-   "label": "Note"
+   "fieldname": "terms_and_conditions",
+   "fieldtype": "Link",
+   "label": "Terms and Conditions",
+   "options": "Terms and Conditions"
   },
   {
    "fieldname": "column_break_jw2e",
@@ -116,30 +87,50 @@
    "read_only": 1
   },
   {
-   "fieldname": "clinical_note_type",
-   "fieldtype": "Link",
-   "label": "Clinical Note Type",
-   "options": "Clinical Note Type"
-  },
-  {
-   "fieldname": "terms_and_conditions",
-   "fieldtype": "Link",
-   "label": "Terms and Conditions",
-   "options": "Terms and Conditions"
-  },
-  {
    "fieldname": "medical_role",
    "fieldtype": "Link",
    "label": "Medical Role",
    "options": "Medical Role"
+  },
+  {
+   "fieldname": "reference_section",
+   "fieldtype": "Section Break",
+   "label": "Reference"
+  },
+  {
+   "fieldname": "reference_doc",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Reference Doc",
+   "options": "DocType",
+   "read_only": 1
+  },
+  {
+   "fieldname": "reference_name",
+   "fieldtype": "Dynamic Link",
+   "label": "Reference Name",
+   "options": "reference_doc",
+   "read_only": 1
+  },
+  {
+   "fieldname": "warning_section",
+   "fieldtype": "Section Break",
+   "label": "Warning"
+  },
+  {
+   "allow_in_quick_entry": 1,
+   "fieldname": "warning",
+   "fieldtype": "Text Editor",
+   "label": "Warning"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-12-02 15:59:13.607361",
+ "modified": "2025-12-14 17:19:52.452342",
  "modified_by": "Administrator",
  "module": "Healthcare",
- "name": "Clinical Note",
+ "name": "Warning Message",
  "naming_rule": "Expression",
  "owner": "Administrator",
  "permissions": [

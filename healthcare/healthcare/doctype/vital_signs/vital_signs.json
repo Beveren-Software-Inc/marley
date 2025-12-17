@@ -19,8 +19,10 @@
   "company",
   "signs_date",
   "signs_time",
+  "branch",
   "sb_vs",
   "temperature",
+  "location_temperature",
   "pulse",
   "respiratory_rate",
   "tongue",
@@ -37,6 +39,11 @@
   "bmi",
   "column_break_14",
   "nutrition_note",
+  "others_section",
+  "spo2",
+  "admission_no",
+  "column_break_wpjq",
+  "remarks",
   "sb_references",
   "amended_from"
  ],
@@ -55,7 +62,7 @@
    "ignore_user_permissions": 1,
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "Patient",
+   "label": "Patient File No",
    "options": "Patient",
    "reqd": 1
   },
@@ -252,11 +259,47 @@
    "no_copy": 1,
    "print_hide": 1,
    "read_only": 1
+  },
+  {
+   "fieldname": "location_temperature",
+   "fieldtype": "Data",
+   "label": "Location Temperature"
+  },
+  {
+   "fieldname": "others_section",
+   "fieldtype": "Section Break",
+   "label": "Others"
+  },
+  {
+   "fieldname": "spo2",
+   "fieldtype": "Int",
+   "label": "SPO2"
+  },
+  {
+   "fieldname": "admission_no",
+   "fieldtype": "Link",
+   "label": "Admission No",
+   "options": "Admission"
+  },
+  {
+   "fieldname": "column_break_wpjq",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "remarks",
+   "fieldtype": "Small Text",
+   "label": "Remarks"
+  },
+  {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "label": "Branch",
+   "options": "Branch"
   }
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2024-03-07 12:14:26.166928",
+ "modified": "2025-12-17 16:44:12.771477",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Vital Signs",
@@ -293,6 +336,7 @@
   }
  ],
  "restrict_to_domain": "Healthcare",
+ "row_format": "Dynamic",
  "search_fields": "patient, signs_date",
  "show_name_in_global_search": 1,
  "sort_field": "modified",

@@ -1,0 +1,217 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2025-12-17 11:04:20.106659",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "date",
+  "admission_no",
+  "branch",
+  "column_break_lplm",
+  "file_no",
+  "patient_name",
+  "daily_records_section",
+  "brush_teeth_morning",
+  "change_clothes_morning",
+  "brush_teeth_noon",
+  "change_clothes_noon",
+  "shower",
+  "bowel",
+  "bed_wetting",
+  "column_break_whmg",
+  "breakfast",
+  "snack_1",
+  "lunch",
+  "snack_2",
+  "dinner",
+  "snack_3",
+  "column_break_kleq",
+  "weight",
+  "lmp",
+  "section_break_ztpw",
+  "admission_no_old"
+ ],
+ "fields": [
+  {
+   "default": "Today",
+   "fieldname": "date",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Date"
+  },
+  {
+   "fieldname": "admission_no",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Admission No",
+   "options": "Admission"
+  },
+  {
+   "fetch_from": "admission_no.file_number",
+   "fieldname": "file_no",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "File No",
+   "options": "Patient"
+  },
+  {
+   "fieldname": "column_break_lplm",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "file_no.patient_name",
+   "fieldname": "patient_name",
+   "fieldtype": "Data",
+   "label": "Patient Name"
+  },
+  {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Branch",
+   "options": "Branch"
+  },
+  {
+   "fieldname": "daily_records_section",
+   "fieldtype": "Section Break",
+   "label": "Daily Records"
+  },
+  {
+   "default": "0",
+   "fieldname": "brush_teeth_morning",
+   "fieldtype": "Check",
+   "label": "Brush Teeth Morning"
+  },
+  {
+   "default": "0",
+   "fieldname": "change_clothes_morning",
+   "fieldtype": "Check",
+   "label": "Change Clothes Morning"
+  },
+  {
+   "default": "0",
+   "fieldname": "brush_teeth_noon",
+   "fieldtype": "Check",
+   "label": "Brush Teeth Noon"
+  },
+  {
+   "default": "0",
+   "fieldname": "change_clothes_noon",
+   "fieldtype": "Check",
+   "label": "Change Clothes Noon"
+  },
+  {
+   "default": "0",
+   "fieldname": "shower",
+   "fieldtype": "Check",
+   "label": "Shower"
+  },
+  {
+   "default": "0",
+   "fieldname": "bowel",
+   "fieldtype": "Check",
+   "label": "Bowel"
+  },
+  {
+   "default": "0",
+   "fieldname": "bed_wetting",
+   "fieldtype": "Check",
+   "label": "Bed Wetting"
+  },
+  {
+   "fieldname": "column_break_whmg",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "breakfast",
+   "fieldtype": "Check",
+   "label": "Breakfast"
+  },
+  {
+   "default": "0",
+   "fieldname": "snack_1",
+   "fieldtype": "Check",
+   "label": "Snack 1"
+  },
+  {
+   "default": "0",
+   "fieldname": "lunch",
+   "fieldtype": "Check",
+   "label": "Lunch"
+  },
+  {
+   "default": "0",
+   "fieldname": "snack_2",
+   "fieldtype": "Check",
+   "label": "Snack 2"
+  },
+  {
+   "default": "0",
+   "fieldname": "dinner",
+   "fieldtype": "Check",
+   "label": "Dinner"
+  },
+  {
+   "default": "0",
+   "fieldname": "snack_3",
+   "fieldtype": "Check",
+   "label": "Snack 3"
+  },
+  {
+   "fieldname": "column_break_kleq",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "weight",
+   "fieldtype": "Float",
+   "label": "Weight"
+  },
+  {
+   "fieldname": "lmp",
+   "fieldtype": "Date",
+   "label": "LMP"
+  },
+  {
+   "fieldname": "section_break_ztpw",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "admission_no_old",
+   "fieldtype": "Data",
+   "label": "Admission No Old"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-12-17 11:25:13.149895",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "IP Grooming Chart",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

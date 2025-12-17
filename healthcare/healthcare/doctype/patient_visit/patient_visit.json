@@ -10,11 +10,12 @@
   "patient_file_no",
   "patient_name",
   "visit_type",
+  "is_blacklist",
   "column_break_vtwe",
   "patient_id_no",
   "patient_mobile_no",
   "previous_visit_no",
-  "is_blacklist",
+  "appointment",
   "section_break_kiko",
   "consult_doctor",
   "column_break_npir",
@@ -85,7 +86,7 @@
   {
    "fieldname": "consult_doctor",
    "fieldtype": "Link",
-   "label": "Consult Doctor",
+   "label": "Consultation Doctor",
    "options": "Healthcare Practitioner",
    "reqd": 1
   },
@@ -97,7 +98,7 @@
    "fetch_from": "consult_doctor.practitioner_name",
    "fieldname": "consult_doctor_name",
    "fieldtype": "Data",
-   "label": "Consult Doctor Name"
+   "label": "Consultion Doctor Name"
   },
   {
    "fieldname": "section_break_vubm",
@@ -162,12 +163,18 @@
    "fieldtype": "Select",
    "label": "Visit Type",
    "options": "\nNew Visit\nFollow Up"
+  },
+  {
+   "fieldname": "appointment",
+   "fieldtype": "Link",
+   "label": "Appointment",
+   "options": "Appointment"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-12-02 15:02:32.947886",
+ "modified": "2025-12-17 16:14:36.430511",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Visit",

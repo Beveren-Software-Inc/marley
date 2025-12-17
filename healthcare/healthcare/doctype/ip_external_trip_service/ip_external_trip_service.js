@@ -1,0 +1,3 @@
+// child table; no client script required for now
+
+

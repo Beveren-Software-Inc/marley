@@ -1,0 +1,154 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2025-12-17 12:30:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "branch",
+  "admission_no",
+  "file_number",
+  "column_break_gurl",
+  "patient_full_name",
+  "patient_category",
+  "section_break_dates",
+  "from_date",
+  "to_date",
+  "total_days",
+  "column_break_xljw",
+  "currency",
+  "transaction_amount",
+  "section_break_other",
+  "remarks",
+  "vch_status"
+ ],
+ "fields": [
+  {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Branch",
+   "options": "Branch"
+  },
+  {
+   "fieldname": "admission_no",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Admission No",
+   "options": "Admission"
+  },
+  {
+   "fetch_from": "admission_no.file_number",
+   "fieldname": "file_number",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "File Number",
+   "options": "Patient"
+  },
+  {
+   "fetch_from": "file_number.patient_name",
+   "fieldname": "patient_full_name",
+   "fieldtype": "Data",
+   "label": "Patient Full Name",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "file_number.category",
+   "fieldname": "patient_category",
+   "fieldtype": "Data",
+   "label": "Patient Category",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_dates",
+   "fieldtype": "Section Break",
+   "label": "Package Duration"
+  },
+  {
+   "fieldname": "from_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "From Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "to_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "To Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "total_days",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Total Days",
+   "read_only": 1
+  },
+  {
+   "fieldname": "currency",
+   "fieldtype": "Link",
+   "label": "Currency",
+   "options": "Currency"
+  },
+  {
+   "fieldname": "transaction_amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Transaction Amount",
+   "options": "Company:company:default_currency"
+  },
+  {
+   "fieldname": "section_break_other",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "remarks",
+   "fieldtype": "Small Text",
+   "label": "Remarks"
+  },
+  {
+   "fieldname": "vch_status",
+   "fieldtype": "Select",
+   "label": "VCH Status",
+   "options": "\nOpen\nClosed"
+  },
+  {
+   "fieldname": "column_break_gurl",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_xljw",
+   "fieldtype": "Column Break"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-12-17 12:10:43.467883",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Package Detail",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

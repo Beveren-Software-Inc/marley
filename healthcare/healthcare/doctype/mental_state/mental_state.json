@@ -1,0 +1,487 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2025-12-17 13:30:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "admission_no",
+  "file_no",
+  "trans_shift",
+  "column_break_header",
+  "patient_name",
+  "branch",
+  "section_break_behavior",
+  "normal_at",
+  "cooperative",
+  "aggressive",
+  "paranoid",
+  "demanding",
+  "preoccupied",
+  "defence",
+  "impulsive",
+  "sedative",
+  "normal_s",
+  "column_break_behavior2",
+  "rapid",
+  "slow",
+  "poor_sp",
+  "slurred",
+  "coherent",
+  "incoherent",
+  "talkative",
+  "anxious",
+  "angry",
+  "depressed",
+  "elated",
+  "column_break_behavior3",
+  "euthymic",
+  "irritable",
+  "twitches",
+  "hyperactive",
+  "stereotypes",
+  "restless",
+  "gait",
+  "tics",
+  "agitated",
+  "abnormal",
+  "hallucinatory_behaviour",
+  "section_break_orientation",
+  "place",
+  "time",
+  "normal_ap",
+  "person",
+  "column_break_orientation2",
+  "increased",
+  "poor_ap",
+  "reported",
+  "non_reported",
+  "normal_b",
+  "reported_type",
+  "section_break_sleep",
+  "sleep_duration",
+  "normal_sleep",
+  "disturbed",
+  "intermittent",
+  "column_break_consciousness",
+  "excessive",
+  "a_little",
+  "conscious",
+  "alert",
+  "disturbed_con",
+  "section_break_old",
+  "admission_num_old"
+ ],
+ "fields": [
+  {
+   "fieldname": "admission_no",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Admission No",
+   "options": "Admission",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "admission_no.file_number",
+   "fieldname": "file_no",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "File No",
+   "options": "Patient",
+   "reqd": 1
+  },
+  {
+   "fieldname": "trans_shift",
+   "fieldtype": "Int",
+   "label": "Trans Shift"
+  },
+  {
+   "fieldname": "column_break_header",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Branch",
+   "options": "Branch"
+  },
+  {
+   "fieldname": "section_break_behavior",
+   "fieldtype": "Section Break",
+   "label": "Behavior & Speech"
+  },
+  {
+   "fieldname": "normal_at",
+   "fieldtype": "Data",
+   "label": "Normal AT"
+  },
+  {
+   "default": "0",
+   "fieldname": "cooperative",
+   "fieldtype": "Check",
+   "label": "Cooperative"
+  },
+  {
+   "default": "0",
+   "fieldname": "aggressive",
+   "fieldtype": "Check",
+   "label": "Aggressive"
+  },
+  {
+   "default": "0",
+   "fieldname": "paranoid",
+   "fieldtype": "Check",
+   "label": "Paranoid"
+  },
+  {
+   "default": "0",
+   "fieldname": "demanding",
+   "fieldtype": "Check",
+   "label": "Demanding"
+  },
+  {
+   "default": "0",
+   "fieldname": "preoccupied",
+   "fieldtype": "Check",
+   "label": "Preoccupied"
+  },
+  {
+   "default": "0",
+   "fieldname": "defence",
+   "fieldtype": "Check",
+   "label": "Defence"
+  },
+  {
+   "default": "0",
+   "fieldname": "impulsive",
+   "fieldtype": "Check",
+   "label": "Impulsive"
+  },
+  {
+   "default": "0",
+   "fieldname": "sedative",
+   "fieldtype": "Check",
+   "label": "Sedative"
+  },
+  {
+   "fieldname": "column_break_behavior2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "normal_s",
+   "fieldtype": "Check",
+   "label": "Normal S"
+  },
+  {
+   "default": "0",
+   "fieldname": "rapid",
+   "fieldtype": "Check",
+   "label": "Rapid"
+  },
+  {
+   "default": "0",
+   "fieldname": "slow",
+   "fieldtype": "Check",
+   "label": "Slow"
+  },
+  {
+   "default": "0",
+   "fieldname": "poor_sp",
+   "fieldtype": "Check",
+   "label": "Poor SP"
+  },
+  {
+   "default": "0",
+   "fieldname": "slurred",
+   "fieldtype": "Check",
+   "label": "Slurred"
+  },
+  {
+   "default": "0",
+   "fieldname": "coherent",
+   "fieldtype": "Check",
+   "label": "Coherent"
+  },
+  {
+   "default": "0",
+   "fieldname": "incoherent",
+   "fieldtype": "Check",
+   "label": "Incoherent"
+  },
+  {
+   "default": "0",
+   "fieldname": "talkative",
+   "fieldtype": "Check",
+   "label": "Talkative"
+  },
+  {
+   "default": "0",
+   "fieldname": "anxious",
+   "fieldtype": "Check",
+   "label": "Anxious"
+  },
+  {
+   "default": "0",
+   "fieldname": "angry",
+   "fieldtype": "Check",
+   "label": "Angry"
+  },
+  {
+   "default": "0",
+   "fieldname": "depressed",
+   "fieldtype": "Check",
+   "label": "Depressed"
+  },
+  {
+   "default": "0",
+   "fieldname": "elated",
+   "fieldtype": "Check",
+   "label": "Elated"
+  },
+  {
+   "default": "0",
+   "fieldname": "euthymic",
+   "fieldtype": "Check",
+   "label": "Euthymic"
+  },
+  {
+   "default": "0",
+   "fieldname": "irritable",
+   "fieldtype": "Check",
+   "label": "Irritable"
+  },
+  {
+   "fieldname": "column_break_behavior3",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "twitches",
+   "fieldtype": "Check",
+   "label": "Twitches"
+  },
+  {
+   "default": "0",
+   "fieldname": "hyperactive",
+   "fieldtype": "Check",
+   "label": "Hyperactive"
+  },
+  {
+   "default": "0",
+   "fieldname": "stereotypes",
+   "fieldtype": "Check",
+   "label": "Stereotypes"
+  },
+  {
+   "default": "0",
+   "fieldname": "restless",
+   "fieldtype": "Check",
+   "label": "Restless"
+  },
+  {
+   "default": "0",
+   "fieldname": "gait",
+   "fieldtype": "Check",
+   "label": "Gait"
+  },
+  {
+   "default": "0",
+   "fieldname": "tics",
+   "fieldtype": "Check",
+   "label": "Tics"
+  },
+  {
+   "default": "0",
+   "fieldname": "agitated",
+   "fieldtype": "Check",
+   "label": "Agitated"
+  },
+  {
+   "default": "0",
+   "fieldname": "abnormal",
+   "fieldtype": "Check",
+   "label": "Abnormal"
+  },
+  {
+   "default": "0",
+   "fieldname": "hallucinatory_behaviour",
+   "fieldtype": "Check",
+   "label": "Hallucinatory Behaviour"
+  },
+  {
+   "fieldname": "section_break_orientation",
+   "fieldtype": "Section Break",
+   "label": "Orientation & Appetite"
+  },
+  {
+   "fieldname": "place",
+   "fieldtype": "Data",
+   "label": "Place"
+  },
+  {
+   "fieldname": "time",
+   "fieldtype": "Data",
+   "label": "Time"
+  },
+  {
+   "default": "0",
+   "fieldname": "normal_ap",
+   "fieldtype": "Check",
+   "label": "Normal AP"
+  },
+  {
+   "fieldname": "person",
+   "fieldtype": "Data",
+   "label": "Person"
+  },
+  {
+   "fieldname": "column_break_orientation2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "increased",
+   "fieldtype": "Check",
+   "label": "Increased"
+  },
+  {
+   "default": "0",
+   "fieldname": "poor_ap",
+   "fieldtype": "Check",
+   "label": "Poor AP"
+  },
+  {
+   "default": "0",
+   "fieldname": "reported",
+   "fieldtype": "Check",
+   "label": "Reported"
+  },
+  {
+   "default": "0",
+   "fieldname": "non_reported",
+   "fieldtype": "Check",
+   "label": "Non Reported"
+  },
+  {
+   "default": "0",
+   "fieldname": "normal_b",
+   "fieldtype": "Check",
+   "label": "Normal B"
+  },
+  {
+   "fieldname": "reported_type",
+   "fieldtype": "Data",
+   "label": "Reported Type"
+  },
+  {
+   "fieldname": "section_break_sleep",
+   "fieldtype": "Section Break",
+   "label": "Sleep"
+  },
+  {
+   "fieldname": "sleep_duration",
+   "fieldtype": "Int",
+   "label": "Sleep Duration"
+  },
+  {
+   "default": "0",
+   "fieldname": "normal_sleep",
+   "fieldtype": "Check",
+   "label": "Normal Sleep"
+  },
+  {
+   "default": "0",
+   "fieldname": "disturbed",
+   "fieldtype": "Check",
+   "label": "Disturbed"
+  },
+  {
+   "default": "0",
+   "fieldname": "intermittent",
+   "fieldtype": "Check",
+   "label": "Intermittent"
+  },
+  {
+   "default": "0",
+   "fieldname": "excessive",
+   "fieldtype": "Check",
+   "label": "Excessive"
+  },
+  {
+   "default": "0",
+   "fieldname": "a_little",
+   "fieldtype": "Check",
+   "label": "A Little"
+  },
+  {
+   "fieldname": "column_break_consciousness",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "conscious",
+   "fieldtype": "Check",
+   "label": "Conscious"
+  },
+  {
+   "default": "0",
+   "fieldname": "alert",
+   "fieldtype": "Check",
+   "label": "Alert"
+  },
+  {
+   "default": "0",
+   "fieldname": "disturbed_con",
+   "fieldtype": "Check",
+   "label": "Disturbed Con"
+  },
+  {
+   "fieldname": "section_break_old",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "admission_num_old",
+   "fieldtype": "Data",
+   "label": "Admission Num Old"
+  },
+  {
+   "fetch_from": "file_no.patient_name",
+   "fieldname": "patient_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Patient Name"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-12-17 14:44:47.490409",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Mental State",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

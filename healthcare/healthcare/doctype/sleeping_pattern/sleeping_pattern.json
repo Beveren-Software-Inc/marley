@@ -1,0 +1,139 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2025-12-17 12:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "date",
+  "admission_no",
+  "branch",
+  "column_break_main",
+  "file_no",
+  "patient_name",
+  "section_break_periods",
+  "morning_from",
+  "morning_to",
+  "evening_from",
+  "column_break_wsqe",
+  "evening_to",
+  "night_from",
+  "night_to",
+  "section_break_other",
+  "admission_no_old"
+ ],
+ "fields": [
+  {
+   "default": "Today",
+   "fieldname": "date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Date"
+  },
+  {
+   "fieldname": "admission_no",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Admission No",
+   "options": "Admission"
+  },
+  {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "label": "Branch",
+   "options": "Branch"
+  },
+  {
+   "fieldname": "column_break_main",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "admission_no.file_number",
+   "fieldname": "file_no",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "File No",
+   "options": "Patient"
+  },
+  {
+   "fetch_from": "file_no.patient_name",
+   "fieldname": "patient_name",
+   "fieldtype": "Data",
+   "label": "Patient Name"
+  },
+  {
+   "fieldname": "section_break_periods",
+   "fieldtype": "Section Break",
+   "label": "Sleeping Periods"
+  },
+  {
+   "fieldname": "morning_from",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Morning From"
+  },
+  {
+   "fieldname": "morning_to",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Morning To"
+  },
+  {
+   "fieldname": "evening_from",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Evening From"
+  },
+  {
+   "fieldname": "evening_to",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Evening To"
+  },
+  {
+   "fieldname": "night_from",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Night From"
+  },
+  {
+   "fieldname": "night_to",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Night To"
+  },
+  {
+   "fieldname": "section_break_other",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "admission_no_old",
+   "fieldtype": "Data",
+   "label": "Admission No Old"
+  },
+  {
+   "fieldname": "column_break_wsqe",
+   "fieldtype": "Column Break"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2025-12-17 11:51:08.746410",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Sleeping Pattern",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
