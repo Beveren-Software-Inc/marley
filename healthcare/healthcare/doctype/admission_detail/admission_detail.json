@@ -21,6 +21,8 @@
   "doctors_orders",
   "other_details_section",
   "ect",
+  "sleeping_pattern_tab",
+  "sleeping_pattern",
   "medication_tab",
   "ip_medication",
   "given_medication_tab",
@@ -128,6 +130,17 @@
    "fieldtype": "Table",
    "label": "Doctors Progress",
    "options": "Doctors Order"
+  },
+  {
+   "fieldname": "sleeping_pattern_tab",
+   "fieldtype": "Tab Break",
+   "label": "Sleeping Pattern"
+  },
+  {
+   "fieldname": "sleeping_pattern",
+   "fieldtype": "Table",
+   "label": "Sleeping Pattern",
+   "options": "Sleeping Pattern"
   },
   {
    "fieldname": "medication_tab",

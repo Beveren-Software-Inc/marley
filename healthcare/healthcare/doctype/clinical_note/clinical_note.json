@@ -12,6 +12,7 @@
   "gender",
   "blood_group",
   "clinical_note_type",
+  "note_type",
   "terms_and_conditions",
   "column_break_jw2e",
   "posting_date",
@@ -48,6 +49,14 @@
    "fieldtype": "Data",
    "label": "Blood Group",
    "read_only": 1
+  },
+  {
+   "default": "Note",
+   "fieldname": "note_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Type",
+   "options": "\nNote\nOrder"
   },
   {
    "allow_in_quick_entry": 1,
