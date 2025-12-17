@@ -1,7 +1,6 @@
 from frappe.model.document import Document
 
 
-class IPExternalTrip(Document):
+class IPExternalService(Document):
 	pass
-
 

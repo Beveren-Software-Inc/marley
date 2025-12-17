@@ -1,4 +1,4 @@
-frappe.ui.form.on('IP External Trip', {
+frappe.ui.form.on('IP External Service', {
 	refresh(frm) {
 		calculate_total_amount(frm);
 	}
@@ -39,6 +39,4 @@ function set_child_date_from_header(frm, cdt, cdn) {
 		frm.refresh_field('services');
 	}
 }
-
-
 

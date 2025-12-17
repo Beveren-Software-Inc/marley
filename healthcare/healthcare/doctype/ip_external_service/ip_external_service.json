@@ -86,7 +86,7 @@
  "modified": "2025-12-17 13:11:29.369103",
  "modified_by": "Administrator",
  "module": "Healthcare",
- "name": "IP External Trip",
+ "name": "IP External Service",
  "owner": "Administrator",
  "permissions": [
   {
@@ -107,3 +107,4 @@
  "sort_order": "DESC",
  "states": []
 }
+
