@@ -19,6 +19,7 @@
   "practitioner",
   "user",
   "medical_role",
+  "branch",
   "note_section",
   "note",
   "reference_section",
@@ -132,11 +133,17 @@
    "fieldtype": "Link",
    "label": "Medical Role",
    "options": "Medical Role"
+  },
+  {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "label": "Branch",
+   "options": "Branch"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-12-02 15:59:13.607361",
+ "modified": "2025-12-18 14:54:16.392722",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Clinical Note",
