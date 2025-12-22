@@ -2,7 +2,7 @@ import frappe
 from frappe.tests.utils import FrappeTestCase
 
 
-class TestIPExternalService(FrappeTestCase):
+class TestPatientShortLeave(FrappeTestCase):
 	pass
 
 

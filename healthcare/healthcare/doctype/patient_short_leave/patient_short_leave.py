@@ -1,7 +1,7 @@
 from frappe.model.document import Document
 
 
-class MentalState(Document):
+class PatientShortLeave(Document):
 	pass
 
 

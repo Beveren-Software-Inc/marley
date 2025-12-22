@@ -37,23 +37,25 @@
   "falls",
   "setting_fire_overelectricity_etc",
   "risk_toward_others_section",
-  "bullying",
-  "exploitation",
-  "exploitation_description",
-  "violenceaggression",
-  "violence_aggression_reason",
+  "rto_bullying",
+  "rto_exploitation",
+  "rto_exploitation_description",
+  "rto_violence_aggression",
+  "rto_violence_aggression_reason",
   "column_break_vgdc",
-  "neglect",
-  "neglect_description",
+  "rto_neglect",
+  "rto_neglect_description",
+  "risk_to_others_free",
   "risk_from_others_section",
-  "r_bullying",
-  "r_exploitation",
-  "r_exploitation_description",
-  "violence",
-  "r_violence_reason",
+  "rfo_bullying",
+  "rfo_exploitation",
+  "rfo_exploitation_description",
+  "rfo_violence",
+  "rfo_violence_reason",
   "column_break_uzji",
-  "r_neglect",
-  "r_neglect_description"
+  "rfo_neglect",
+  "rfo_neglect_description",
+  "risk_from_others_free"
  ],
  "fields": [
   {
@@ -106,6 +108,7 @@
    "fieldtype": "Column Break"
   },
   {
+   "fetch_from": "admission_no.branch",
    "fieldname": "branch",
    "fieldtype": "Link",
    "label": "Branch",
@@ -217,47 +220,8 @@
    "label": "Risk Toward Others"
   },
   {
-   "default": "0",
-   "fieldname": "bullying",
-   "fieldtype": "Check",
-   "label": "Bullying"
-  },
-  {
-   "fieldname": "exploitation",
-   "fieldtype": "Select",
-   "label": "Exploitation",
-   "options": "\nFinancial\nSexual\nOthers"
-  },
-  {
-   "fieldname": "exploitation_description",
-   "fieldtype": "Small Text",
-   "label": "Exploitation Description"
-  },
-  {
-   "default": "0",
-   "fieldname": "violenceaggression",
-   "fieldtype": "Check",
-   "label": "Violence/Aggression"
-  },
-  {
-   "fieldname": "violence_aggression_reason",
-   "fieldtype": "Small Text",
-   "label": "Violence Aggression Reason"
-  },
-  {
    "fieldname": "column_break_vgdc",
    "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "neglect",
-   "fieldtype": "Select",
-   "label": "Neglect",
-   "options": "\nChildren\nPets\nOthers"
-  },
-  {
-   "fieldname": "neglect_description",
-   "fieldtype": "Small Text",
-   "label": "Neglect Description"
   },
   {
    "fieldname": "risk_from_others_section",
@@ -265,47 +229,8 @@
    "label": "Risk From Others"
   },
   {
-   "default": "0",
-   "fieldname": "r_bullying",
-   "fieldtype": "Check",
-   "label": "R Bullying"
-  },
-  {
-   "fieldname": "r_exploitation",
-   "fieldtype": "Data",
-   "label": "R Exploitation",
-   "options": "\nFinancial\nSexual\nOthers"
-  },
-  {
-   "fieldname": "r_exploitation_description",
-   "fieldtype": "Small Text",
-   "label": "R Exploitation Description"
-  },
-  {
-   "default": "0",
-   "fieldname": "violence",
-   "fieldtype": "Check",
-   "label": "Violence"
-  },
-  {
-   "fieldname": "r_violence_reason",
-   "fieldtype": "Small Text",
-   "label": "R Violence Reason"
-  },
-  {
    "fieldname": "column_break_uzji",
    "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "r_neglect",
-   "fieldtype": "Select",
-   "label": "R Neglect",
-   "options": "\nChildren\nPets\nOthers"
-  },
-  {
-   "fieldname": "r_neglect_description",
-   "fieldtype": "Small Text",
-   "label": "R Neglect Description"
   },
   {
    "fieldname": "admission_no",
@@ -313,13 +238,103 @@
    "label": "Admission No",
    "options": "Admission",
    "reqd": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "rto_bullying",
+   "fieldtype": "Check",
+   "label": "Bullying"
+  },
+  {
+   "fieldname": "rto_exploitation",
+   "fieldtype": "Select",
+   "label": "Exploitation",
+   "options": "\nFinancial\nSexual\nOthers"
+  },
+  {
+   "fieldname": "rto_exploitation_description",
+   "fieldtype": "Small Text",
+   "label": "Exploitation Description"
+  },
+  {
+   "default": "0",
+   "fieldname": "rto_violence_aggression",
+   "fieldtype": "Check",
+   "label": "Violence/Aggression"
+  },
+  {
+   "fieldname": "rto_violence_aggression_reason",
+   "fieldtype": "Small Text",
+   "label": "Violence Aggression Reason"
+  },
+  {
+   "fieldname": "rto_neglect",
+   "fieldtype": "Select",
+   "label": "Neglect",
+   "options": "\nChildren\nPets\nOthers"
+  },
+  {
+   "fieldname": "rto_neglect_description",
+   "fieldtype": "Small Text",
+   "label": "Neglect Description"
+  },
+  {
+   "default": "0",
+   "fieldname": "rfo_bullying",
+   "fieldtype": "Check",
+   "label": "R Bullying"
+  },
+  {
+   "fieldname": "rfo_exploitation",
+   "fieldtype": "Data",
+   "label": "R Exploitation",
+   "options": "\nFinancial\nSexual\nOthers"
+  },
+  {
+   "fieldname": "rfo_exploitation_description",
+   "fieldtype": "Small Text",
+   "label": "R Exploitation Description"
+  },
+  {
+   "default": "0",
+   "fieldname": "rfo_violence",
+   "fieldtype": "Check",
+   "label": "Violence"
+  },
+  {
+   "fieldname": "rfo_violence_reason",
+   "fieldtype": "Small Text",
+   "label": "R Violence Reason"
+  },
+  {
+   "fieldname": "rfo_neglect",
+   "fieldtype": "Select",
+   "label": "R Neglect",
+   "options": "\nChildren\nPets\nOthers"
+  },
+  {
+   "fieldname": "rfo_neglect_description",
+   "fieldtype": "Small Text",
+   "label": "R Neglect Description"
+  },
+  {
+   "fieldname": "risk_to_others_free",
+   "fieldtype": "Table",
+   "label": "Risk To Others Free",
+   "options": "Risk To Others Details"
+  },
+  {
+   "fieldname": "risk_from_others_free",
+   "fieldtype": "Table",
+   "label": "Risk from Others Free",
+   "options": "Risk From Others Details"
   }
  ],
  "grid_page_length": 50,
  "icon": "fa fa-user",
  "links": [],
  "max_attachments": 50,
- "modified": "2025-12-22 11:58:52.341975",
+ "modified": "2025-12-22 12:20:55.970794",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "IP Risk Analysis",

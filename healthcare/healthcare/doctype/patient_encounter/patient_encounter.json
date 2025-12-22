@@ -19,6 +19,7 @@
   "patient_age",
   "inpatient_record",
   "inpatient_status",
+  "visit_type",
   "column_break_6",
   "company",
   "status",
@@ -387,6 +388,13 @@
    "fieldname": "order_history_html",
    "fieldtype": "HTML",
    "label": "Order History"
+  },
+  {
+   "default": "New Visit",
+   "fieldname": "visit_type",
+   "fieldtype": "Select",
+   "label": "Visit Type",
+   "options": "\nNew Visit\nFollow Up\nDiscontinue"
   }
  ],
  "is_submittable": 1,
@@ -432,7 +440,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2025-09-28 12:18:20.535746",
+ "modified": "2025-12-22 15:32:30.441939",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Encounter",

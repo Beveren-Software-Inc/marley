@@ -6,3 +6,4 @@ class TestPatientVisitPrescription(FrappeTestCase):
 	pass
 
 
+

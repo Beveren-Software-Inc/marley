@@ -12,6 +12,7 @@
   "status",
   "appointment_type",
   "appointment_for",
+  "source",
   "column_break_1",
   "company",
   "practitioner",
@@ -439,6 +440,12 @@
    "label": "Reference Docname",
    "options": "reference_doctype",
    "read_only": 1
+  },
+  {
+   "fieldname": "source",
+   "fieldtype": "Link",
+   "label": "Source",
+   "options": "Lead Source"
   }
  ],
  "grid_page_length": 50,
@@ -459,7 +466,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2025-09-25 13:27:12.862039",
+ "modified": "2025-12-22 14:58:31.803149",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Appointment",
