@@ -44,7 +44,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Patient File No",
-   "options": "IP Patient",
+   "options": "Patient",
    "reqd": 1
   },
   {
@@ -168,13 +168,13 @@
    "fieldname": "appointment",
    "fieldtype": "Link",
    "label": "Appointment",
-   "options": "Appointment"
+   "options": "Patient Appointment"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-12-17 16:14:36.430511",
+ "modified": "2025-12-22 11:11:35.129658",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Visit",

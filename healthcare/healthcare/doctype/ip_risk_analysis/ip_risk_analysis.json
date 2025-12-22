@@ -1,0 +1,386 @@
+{
+ "actions": [],
+ "allow_events_in_timeline": 1,
+ "allow_import": 1,
+ "autoname": "format:IPRA-{admission_no}-{####}",
+ "creation": "2025-12-22 11:49:27.950054",
+ "default_view": "List",
+ "description": "Patient",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "engine": "InnoDB",
+ "field_order": [
+  "basic_info",
+  "admission_no",
+  "file_number",
+  "patient_name",
+  "column_break_14",
+  "admission_type",
+  "patient_category",
+  "branch",
+  "risk_assessment_checklist_tab",
+  "risk_toward_self_section",
+  "self_harming",
+  "self_harming_description",
+  "suicidal_behaviourattempt",
+  "suicide_behaviour_description",
+  "column_break_rijd",
+  "suicidal_thoughts_plans_currently",
+  "suicidal_thoughts_description",
+  "section_break_gcpu",
+  "compliance_to_psychiatric_followup",
+  "compliance_to_psychiatric_medication",
+  "driving",
+  "self_neglect",
+  "column_break_sgkj",
+  "malnutrition__dehydration",
+  "falls",
+  "setting_fire_overelectricity_etc",
+  "risk_toward_others_section",
+  "bullying",
+  "exploitation",
+  "exploitation_description",
+  "violenceaggression",
+  "violence_aggression_reason",
+  "column_break_vgdc",
+  "neglect",
+  "neglect_description",
+  "risk_from_others_section",
+  "r_bullying",
+  "r_exploitation",
+  "r_exploitation_description",
+  "violence",
+  "r_violence_reason",
+  "column_break_uzji",
+  "r_neglect",
+  "r_neglect_description"
+ ],
+ "fields": [
+  {
+   "fieldname": "basic_info",
+   "fieldtype": "Section Break",
+   "label": "Patient Demographics",
+   "oldfieldtype": "Section Break",
+   "options": "fa fa-user"
+  },
+  {
+   "fetch_from": "admission_no.file_number",
+   "fieldname": "file_number",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "File Number",
+   "options": "Patient",
+   "reqd": 1
+  },
+  {
+   "bold": 1,
+   "fetch_from": "file_number.patient_name",
+   "fieldname": "patient_name",
+   "fieldtype": "Data",
+   "in_global_search": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Full Name",
+   "no_copy": 1,
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "default": "NORMAL-REGULAR",
+   "fieldname": "patient_category",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Patient Category",
+   "options": "\nINSURANCE - BUPA\nINSURANCE-MILITARY\nINSURANCE-OTHERS\nJAU HOSPITAL-PATIENTS\nNORMAL-REGULAR\nROYAL/VIP-REGULAR"
+  },
+  {
+   "fieldname": "admission_type",
+   "fieldtype": "Select",
+   "label": "Admission Type",
+   "options": "\n0\n1\n2\n3\n4"
+  },
+  {
+   "fieldname": "column_break_14",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "label": "Branch",
+   "options": "Branch"
+  },
+  {
+   "fieldname": "risk_assessment_checklist_tab",
+   "fieldtype": "Tab Break",
+   "label": "Risk Assessment Checklist"
+  },
+  {
+   "fieldname": "risk_toward_self_section",
+   "fieldtype": "Section Break",
+   "label": "Risk Toward Self"
+  },
+  {
+   "default": "0",
+   "fieldname": "self_harming",
+   "fieldtype": "Check",
+   "label": "Self-Harming (Parasuicide)"
+  },
+  {
+   "depends_on": "self_harming",
+   "fieldname": "self_harming_description",
+   "fieldtype": "Data",
+   "label": "Self-Harming Description"
+  },
+  {
+   "default": "0",
+   "fieldname": "suicidal_behaviourattempt",
+   "fieldtype": "Check",
+   "label": "Suicidal Behaviour/Attempt"
+  },
+  {
+   "depends_on": "suicidal_behaviourattempt",
+   "fieldname": "suicide_behaviour_description",
+   "fieldtype": "Data",
+   "label": "Suicide Behaviour Description"
+  },
+  {
+   "fieldname": "column_break_rijd",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "suicidal_thoughts_plans_currently",
+   "fieldtype": "Check",
+   "label": "Suicidal Thoughts Plans Currently"
+  },
+  {
+   "depends_on": "suicidal_thoughts_plans_currently",
+   "fieldname": "suicidal_thoughts_description",
+   "fieldtype": "Data",
+   "label": "Suicidal Thoughts Description"
+  },
+  {
+   "fieldname": "section_break_gcpu",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "compliance_to_psychiatric_followup",
+   "fieldtype": "Select",
+   "label": "Compliance to Psychiatric Followup",
+   "options": "\nYes\nNo"
+  },
+  {
+   "fieldname": "compliance_to_psychiatric_medication",
+   "fieldtype": "Select",
+   "label": "Compliance to Psychiatric Medication",
+   "options": "\nYes\nNo"
+  },
+  {
+   "fieldname": "driving",
+   "fieldtype": "Select",
+   "label": "Driving",
+   "options": "\nYes\nNo"
+  },
+  {
+   "fieldname": "self_neglect",
+   "fieldtype": "Select",
+   "label": "Self Neglect",
+   "options": "\nYes\nNo"
+  },
+  {
+   "fieldname": "column_break_sgkj",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "malnutrition__dehydration",
+   "fieldtype": "Select",
+   "label": "Malnutrition / Dehydration",
+   "options": "\nYes\nNo"
+  },
+  {
+   "fieldname": "falls",
+   "fieldtype": "Select",
+   "label": "Falls",
+   "options": "\nYes\nNo"
+  },
+  {
+   "fieldname": "setting_fire_overelectricity_etc",
+   "fieldtype": "Select",
+   "label": "Setting Fire (Over/Electricity etc)",
+   "options": "\nYes\nNo"
+  },
+  {
+   "fieldname": "risk_toward_others_section",
+   "fieldtype": "Section Break",
+   "label": "Risk Toward Others"
+  },
+  {
+   "default": "0",
+   "fieldname": "bullying",
+   "fieldtype": "Check",
+   "label": "Bullying"
+  },
+  {
+   "fieldname": "exploitation",
+   "fieldtype": "Select",
+   "label": "Exploitation",
+   "options": "\nFinancial\nSexual\nOthers"
+  },
+  {
+   "fieldname": "exploitation_description",
+   "fieldtype": "Small Text",
+   "label": "Exploitation Description"
+  },
+  {
+   "default": "0",
+   "fieldname": "violenceaggression",
+   "fieldtype": "Check",
+   "label": "Violence/Aggression"
+  },
+  {
+   "fieldname": "violence_aggression_reason",
+   "fieldtype": "Small Text",
+   "label": "Violence Aggression Reason"
+  },
+  {
+   "fieldname": "column_break_vgdc",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "neglect",
+   "fieldtype": "Select",
+   "label": "Neglect",
+   "options": "\nChildren\nPets\nOthers"
+  },
+  {
+   "fieldname": "neglect_description",
+   "fieldtype": "Small Text",
+   "label": "Neglect Description"
+  },
+  {
+   "fieldname": "risk_from_others_section",
+   "fieldtype": "Section Break",
+   "label": "Risk From Others"
+  },
+  {
+   "default": "0",
+   "fieldname": "r_bullying",
+   "fieldtype": "Check",
+   "label": "R Bullying"
+  },
+  {
+   "fieldname": "r_exploitation",
+   "fieldtype": "Data",
+   "label": "R Exploitation",
+   "options": "\nFinancial\nSexual\nOthers"
+  },
+  {
+   "fieldname": "r_exploitation_description",
+   "fieldtype": "Small Text",
+   "label": "R Exploitation Description"
+  },
+  {
+   "default": "0",
+   "fieldname": "violence",
+   "fieldtype": "Check",
+   "label": "Violence"
+  },
+  {
+   "fieldname": "r_violence_reason",
+   "fieldtype": "Small Text",
+   "label": "R Violence Reason"
+  },
+  {
+   "fieldname": "column_break_uzji",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "r_neglect",
+   "fieldtype": "Select",
+   "label": "R Neglect",
+   "options": "\nChildren\nPets\nOthers"
+  },
+  {
+   "fieldname": "r_neglect_description",
+   "fieldtype": "Small Text",
+   "label": "R Neglect Description"
+  },
+  {
+   "fieldname": "admission_no",
+   "fieldtype": "Link",
+   "label": "Admission No",
+   "options": "Admission",
+   "reqd": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "icon": "fa fa-user",
+ "links": [],
+ "max_attachments": 50,
+ "modified": "2025-12-22 11:58:52.341975",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "IP Risk Analysis",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Physician",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Laboratory User",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Nursing User",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "search_fields": "patient_name",
+ "show_name_in_global_search": 1,
+ "sort_field": "modified",
+ "sort_order": "ASC",
+ "states": [],
+ "title_field": "patient_name",
+ "track_changes": 1
+}
