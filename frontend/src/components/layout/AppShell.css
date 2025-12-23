@@ -1,0 +1,17 @@
+.app-shell {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  min-height: 100vh;
+}
+
+.sidebar {
+  background: #0a6cc2;
+  color: #fff;
+  padding: 1rem;
+}
+
+.main {
+  padding: 1rem;
+}
+
+
