@@ -34,7 +34,7 @@
    "fieldname": "admission",
    "fieldtype": "Link",
    "label": "Admission",
-   "options": "Admission"
+   "options": "Inpatient Record"
   },
   {
    "fieldname": "column_break_aoxj",

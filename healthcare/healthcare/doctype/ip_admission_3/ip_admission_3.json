@@ -53,7 +53,7 @@
    "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Admission",
-   "options": "Admission",
+   "options": "Inpatient Record",
    "reqd": 1
   },
   {

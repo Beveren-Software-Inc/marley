@@ -22,7 +22,7 @@
    "in_standard_filter": 1,
    "label": "Case No",
    "non_negative": 1,
-   "options": "Admission",
+   "options": "Inpatient Record",
    "reqd": 1
   },
   {
