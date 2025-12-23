@@ -20,7 +20,7 @@
    "fieldname": "admission_no",
    "fieldtype": "Link",
    "label": "Admission No",
-   "options": "Admission"
+   "options": "Inpatient Record"
   },
   {
    "fieldname": "trans_no",

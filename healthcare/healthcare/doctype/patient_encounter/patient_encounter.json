@@ -17,9 +17,13 @@
   "patient_name",
   "patient_sex",
   "patient_age",
+  "patient_id_no",
+  "patient_mobile_no",
+  "previous_visit_no",
   "inpatient_record",
-  "inpatient_status",
   "visit_type",
+  "inpatient_status",
+  "is_blacklist",
   "column_break_6",
   "company",
   "status",
@@ -57,7 +61,16 @@
   "order_history_html",
   "encounter_details",
   "notes_tab",
-  "clinical_notes"
+  "clinical_notes",
+  "patient_notes",
+  "consultationservice_tab",
+  "consultation_fee",
+  "lab_tests_tab",
+  "lab_tests_charges",
+  "medicines_tab",
+  "medicine_charges",
+  "charges_and_payments_tab",
+  "charges"
  ],
  "fields": [
   {
@@ -115,6 +128,33 @@
    "read_only": 1
   },
   {
+   "fetch_from": "patient.id_number",
+   "fieldname": "patient_id_no",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Patient ID No",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "patient.mobile",
+   "fieldname": "patient_mobile_no",
+   "fieldtype": "Phone",
+   "label": "Patient Mobile No",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "is_blacklist",
+   "fieldtype": "Check",
+   "label": "Is BlackList"
+  },
+  {
+   "fieldname": "previous_visit_no",
+   "fieldtype": "Int",
+   "label": "Previous Visit No"
+  },
+  {
    "fieldname": "company",
    "fieldtype": "Link",
    "label": "Company",
@@ -128,7 +168,7 @@
    "fieldname": "practitioner",
    "fieldtype": "Link",
    "in_standard_filter": 1,
-   "label": "Healthcare Practitioner",
+   "label": "Consultation Doctor",
    "options": "Healthcare Practitioner",
    "reqd": 1
   },
@@ -322,7 +362,7 @@
    "fieldname": "practitioner_name",
    "fieldtype": "Data",
    "in_list_view": 1,
-   "label": "Practitioner Name",
+   "label": "Consultation Doctor's Name",
    "read_only": 1
   },
   {
@@ -390,6 +430,55 @@
    "label": "Order History"
   },
   {
+   "fieldname": "patient_notes",
+   "fieldtype": "Small Text",
+   "label": "Patient Notes"
+  },
+  {
+   "fieldname": "consultationservice_tab",
+   "fieldtype": "Tab Break",
+   "label": "Consultation/Service"
+  },
+  {
+   "fieldname": "consultation_fee",
+   "fieldtype": "Table",
+   "label": "Consultation Fee",
+   "options": "Consultation Fee"
+  },
+  {
+   "fieldname": "lab_tests_tab",
+   "fieldtype": "Tab Break",
+   "label": "Lab Tests"
+  },
+  {
+   "fieldname": "lab_tests_charges",
+   "fieldtype": "Table",
+   "label": "Lab Tests Charges",
+   "options": "Lab Tests Charges"
+  },
+  {
+   "fieldname": "medicines_tab",
+   "fieldtype": "Tab Break",
+   "label": "Medicines"
+  },
+  {
+   "fieldname": "medicine_charges",
+   "fieldtype": "Table",
+   "label": "Medicine Charges",
+   "options": "Medicine Charges"
+  },
+  {
+   "fieldname": "charges_and_payments_tab",
+   "fieldtype": "Tab Break",
+   "label": "Charges and Payments"
+  },
+  {
+   "fieldname": "charges",
+   "fieldtype": "Table",
+   "label": "Charges",
+   "options": "OP Charges"
+  },
+  {
    "default": "New Visit",
    "fieldname": "visit_type",
    "fieldtype": "Select",
@@ -440,7 +529,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2025-12-22 15:32:30.441939",
+ "modified": "2025-12-23 10:00:30.963671",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Encounter",

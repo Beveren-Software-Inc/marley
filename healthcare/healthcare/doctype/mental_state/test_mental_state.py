@@ -6,3 +6,4 @@ class TestMentalState(FrappeTestCase):
 	pass
 
 
+

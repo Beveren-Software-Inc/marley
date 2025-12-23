@@ -47,7 +47,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Admission No",
-   "options": "Admission"
+   "options": "Inpatient Record"
   },
   {
    "fetch_from": "admission_no.file_number",

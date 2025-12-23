@@ -7,3 +7,4 @@ class TestPackageDetail(FrappeTestCase):
 
 
 
+
