@@ -116,38 +116,6 @@ export const DoctorPage = () => {
         </div>
       </section>
 
-      <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm mx-4 mb-4">
-          <div className="font-semibold mb-3">Current IP Admission Screens</div>
-        <div className="flex flex-wrap gap-2 mb-3">
-          {doctorScreens.map((tab) => (
-            <button
-              key={tab.id}
-              className={`px-3 py-1 rounded-md border text-sm ${
-                activeTab === tab.id ? 'bg-primary text-white border-primary' : 'bg-slate-100 text-slate-800 border-slate-200'
-              }`}
-              onClick={() => {
-                setActiveTab(tab.id)
-                setSearchParams({ screen: tab.id })
-              }}
-            >
-              {tab.title}
-            </button>
-          ))}
-        </div>
-        {activeTabItem && (
-          <div className="border border-slate-200 rounded-lg p-3 bg-white">
-            <div className="font-semibold mb-1">{activeTabItem.title}</div>
-            <div className="text-sm text-slate-700 mb-3">{activeTabItem.desc}</div>
-            <button
-              className="px-3 py-2 rounded-md bg-primary text-white text-sm"
-              onClick={() => setModalId(activeTabItem.id)}
-            >
-              Open details
-            </button>
-          </div>
-        )}
-      </section>
-
       {modalItem && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg p-4 shadow-xl max-w-xl w-full">
