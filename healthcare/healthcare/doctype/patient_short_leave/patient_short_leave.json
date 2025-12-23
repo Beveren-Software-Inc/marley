@@ -1,0 +1,183 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2025-12-17 17:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "admission_no",
+  "file_no",
+  "patient_name",
+  "column_break_hmdg",
+  "date",
+  "branch",
+  "section_break_period",
+  "date_from",
+  "time_from",
+  "date_to",
+  "time_to",
+  "final_come_date",
+  "section_break_details",
+  "care_of",
+  "relationship",
+  "column_break_contact",
+  "purpose_of_leave",
+  "contact_num",
+  "leave_status"
+ ],
+ "fields": [
+  {
+   "fieldname": "admission_no",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Admission No",
+   "options": "Admission",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "admission_no.file_number",
+   "fieldname": "file_no",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "File No",
+   "options": "Patient"
+  },
+  {
+   "fetch_from": "file_no.patient_name",
+   "fieldname": "patient_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Patient Name",
+   "read_only": 1
+  },
+  {
+   "default": "Today",
+   "fieldname": "date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Date"
+  },
+  {
+   "fieldname": "section_break_period",
+   "fieldtype": "Section Break",
+   "label": "Leave Period"
+  },
+  {
+   "fieldname": "date_from",
+   "fieldtype": "Date",
+   "label": "Date From"
+  },
+  {
+   "fieldname": "time_from",
+   "fieldtype": "Time",
+   "label": "Time From"
+  },
+  {
+   "fieldname": "date_to",
+   "fieldtype": "Date",
+   "label": "Date To"
+  },
+  {
+   "fieldname": "time_to",
+   "fieldtype": "Time",
+   "label": "Time To"
+  },
+  {
+   "fieldname": "final_come_date",
+   "fieldtype": "Date",
+   "label": "Final Come Date"
+  },
+  {
+   "fieldname": "section_break_details",
+   "fieldtype": "Section Break",
+   "label": "Care Details"
+  },
+  {
+   "fieldname": "care_of",
+   "fieldtype": "Data",
+   "label": "Care Of"
+  },
+  {
+   "fieldname": "relationship",
+   "fieldtype": "Data",
+   "label": "Relationship"
+  },
+  {
+   "fieldname": "column_break_contact",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "purpose_of_leave",
+   "fieldtype": "Small Text",
+   "label": "Purpose of Leave"
+  },
+  {
+   "fetch_from": "file_no.mobile",
+   "fieldname": "contact_num",
+   "fieldtype": "Data",
+   "label": "Contact Number"
+  },
+  {
+   "default": "Open",
+   "fieldname": "leave_status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Leave Status",
+   "options": "Open\nApproved\nRejected\nCancelled"
+  },
+  {
+   "fieldname": "column_break_hmdg",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "label": "Branch",
+   "options": "Branch"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-12-22 12:48:12.965086",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Patient Short Leave",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [
+  {
+   "color": "Orange",
+   "title": "Open"
+  },
+  {
+   "color": "Green",
+   "title": "Approved"
+  },
+  {
+   "color": "Red",
+   "title": "Rejected"
+  },
+  {
+   "color": "Red",
+   "title": "Cancelled"
+  }
+ ]
+}

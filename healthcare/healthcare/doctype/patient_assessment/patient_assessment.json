@@ -9,6 +9,7 @@
   "naming_series",
   "therapy_session",
   "patient",
+  "patient_name",
   "assessment_template",
   "column_break_4",
   "company",
@@ -23,7 +24,9 @@
   "total_score",
   "scale_min",
   "scale_max",
-  "amended_from"
+  "amended_from",
+  "more_info_tab",
+  "family_history"
  ],
  "fields": [
   {
@@ -31,7 +34,7 @@
    "fieldname": "patient",
    "fieldtype": "Link",
    "in_list_view": 1,
-   "label": "Patient",
+   "label": "File No",
    "options": "Patient",
    "reqd": 1
   },
@@ -40,8 +43,7 @@
    "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Assessment Template",
-   "options": "Patient Assessment Template",
-   "reqd": 1
+   "options": "Patient Assessment Template"
   },
   {
    "fieldname": "therapy_session",
@@ -136,14 +138,30 @@
    "in_standard_filter": 1,
    "label": "Company",
    "options": "Company"
+  },
+  {
+   "fieldname": "patient_name",
+   "fieldtype": "Data",
+   "label": "Patient Name"
+  },
+  {
+   "fieldname": "more_info_tab",
+   "fieldtype": "Tab Break",
+   "label": "More Info"
+  },
+  {
+   "fieldname": "family_history",
+   "fieldtype": "Small Text",
+   "label": "Family History"
   }
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2020-06-25 00:25:13.208400",
+ "modified": "2025-12-22 14:21:31.063132",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Assessment",
+ "naming_rule": "By \"Naming Series\" field",
  "owner": "Administrator",
  "permissions": [
   {
@@ -174,8 +192,10 @@
    "write": 1
   }
  ],
+ "row_format": "Dynamic",
  "sort_field": "modified",
  "sort_order": "DESC",
+ "states": [],
  "title_field": "patient",
  "track_changes": 1
 }

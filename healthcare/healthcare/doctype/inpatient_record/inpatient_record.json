@@ -35,22 +35,34 @@
   "primary_practitioner",
   "secondary_practitioner",
   "admission_instruction",
-  "encounter_details_section",
-  "chief_complaint",
-  "column_break_29",
-  "diagnosis",
-  "medication_section",
-  "drug_prescription",
-  "investigations_section",
-  "lab_test_prescription",
-  "procedures_section",
-  "procedure_prescription",
-  "rehabilitation_section",
-  "therapy_plan",
-  "therapies",
-  "sb_inpatient_occupancy",
-  "inpatient_occupancies",
-  "btn_transfer",
+  "section_break_person_contact",
+  "contact_mobile",
+  "contact_phone",
+  "admission_by_cpr",
+  "column_break_contact",
+  "contact_email",
+  "contact_relationship",
+  "guardian_name",
+  "section_break_doctors",
+  "admission_by_nm",
+  "admission_by_doctor",
+  "admission_doctor_name",
+  "column_break_doctors",
+  "psychologist_doctor",
+  "psychologist_doctor_name",
+  "escort",
+  "column_break_residents",
+  "residents_doctor_no",
+  "resident_doctor_name",
+  "reference_by",
+  "admission_charges_section",
+  "charges",
+  "costs_section",
+  "admission_cost",
+  "case_management_fee",
+  "column_break_costs",
+  "room_charges",
+  "medical_details_tab",
   "sb_discharge_details",
   "discharge_ordered_date",
   "discharge_practitioner",
@@ -59,8 +71,56 @@
   "cb_discharge",
   "discharge_instructions",
   "followup_date",
+  "encounter_details_section",
+  "chief_complaint",
+  "column_break_29",
+  "diagnosis",
   "sb_discharge_note",
-  "discharge_note"
+  "discharge_note",
+  "rehabilitation_section",
+  "therapy_plan",
+  "therapies",
+  "medication_section",
+  "drug_prescription",
+  "procedures_section",
+  "procedure_prescription",
+  "sb_inpatient_occupancy",
+  "inpatient_occupancies",
+  "btn_transfer",
+  "investigations_section",
+  "lab_test_prescription",
+  "medical_history_tab",
+  "allergy_medical_and_surgical_history",
+  "allergies",
+  "medication_history",
+  "column_break_medical",
+  "medical_history",
+  "surgical_history",
+  "visitors_allowed_tab",
+  "relatives_section",
+  "patient_relatives",
+  "section_break_visitors",
+  "patient_visitors",
+  "physical_examination_tab",
+  "basic_conditions_section",
+  "weight",
+  "height",
+  "bp",
+  "trans_no",
+  "blood_pressure",
+  "column_break_vitals",
+  "pulse",
+  "temp",
+  "resp_rate",
+  "general_condition_section",
+  "general_condition",
+  "cns",
+  "others",
+  "column_break_exam",
+  "cvs_resp",
+  "git",
+  "signature_tab",
+  "signature"
  ],
  "fields": [
   {
@@ -241,6 +301,321 @@
    "fieldtype": "Small Text",
    "label": "Admission Instructions",
    "set_only_once": 1
+  },
+  {
+   "fieldname": "section_break_person_contact",
+   "fieldtype": "Section Break",
+   "label": "Person To Contact"
+  },
+  {
+   "bold": 1,
+   "fieldname": "contact_mobile",
+   "fieldtype": "Data",
+   "label": "Contact No",
+   "no_copy": 1
+  },
+  {
+   "fieldname": "contact_phone",
+   "fieldtype": "Data",
+   "in_filter": 1,
+   "label": "Emergency Phone",
+   "no_copy": 1,
+   "options": "Phone"
+  },
+  {
+   "fieldname": "admission_by_cpr",
+   "fieldtype": "Data",
+   "label": "Admission By CPR"
+  },
+  {
+   "fieldname": "column_break_contact",
+   "fieldtype": "Column Break"
+  },
+  {
+   "bold": 1,
+   "fieldname": "contact_email",
+   "fieldtype": "Data",
+   "label": "Email",
+   "no_copy": 1
+  },
+  {
+   "fieldname": "contact_relationship",
+   "fieldtype": "Select",
+   "label": "Relationship",
+   "options": "\nFATHER\nSON\nCOLLEAGUES\nMOTHER\nAUNT\nSISTER\nBROTHER\nFRIEND\nUNCLE\nWIFE\nDAUGHTER\nHUSBAND"
+  },
+  {
+   "fieldname": "guardian_name",
+   "fieldtype": "Data",
+   "label": "Guardian Name"
+  },
+  {
+   "fieldname": "section_break_doctors",
+   "fieldtype": "Section Break",
+   "label": "Doctors Details"
+  },
+  {
+   "fieldname": "admission_by_nm",
+   "fieldtype": "Data",
+   "label": "Admission By NM"
+  },
+  {
+   "fieldname": "admission_by_doctor",
+   "fieldtype": "Link",
+   "label": "Admission By Doctor",
+   "options": "Healthcare Practitioner"
+  },
+  {
+   "fetch_from": "residents_doctor_no.practitioner_name",
+   "fieldname": "admission_doctor_name",
+   "fieldtype": "Data",
+   "label": "Admission Doctor Name"
+  },
+  {
+   "fieldname": "column_break_doctors",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "psychologist_doctor",
+   "fieldtype": "Link",
+   "label": "Psychologist Doctor",
+   "options": "Healthcare Practitioner"
+  },
+  {
+   "fetch_from": "psychologist_doctor.practitioner_name",
+   "fetch_if_empty": 1,
+   "fieldname": "psychologist_doctor_name",
+   "fieldtype": "Data",
+   "label": "Psychologist Doctor Name"
+  },
+  {
+   "default": "0",
+   "fieldname": "escort",
+   "fieldtype": "Check",
+   "label": "Escort"
+  },
+  {
+   "fieldname": "column_break_residents",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "residents_doctor_no",
+   "fieldtype": "Link",
+   "label": "Residents Doctor",
+   "options": "Healthcare Practitioner"
+  },
+  {
+   "fetch_from": "residents_doctor_no.practitioner_name",
+   "fieldname": "resident_doctor_name",
+   "fieldtype": "Data",
+   "label": "Resident Doctor Name"
+  },
+  {
+   "fieldname": "reference_by",
+   "fieldtype": "Data",
+   "label": "Reference By"
+  },
+  {
+   "fieldname": "admission_charges_section",
+   "fieldtype": "Section Break",
+   "label": "Admission Charges"
+  },
+  {
+   "fieldname": "charges",
+   "fieldtype": "Table",
+   "label": "Charges",
+   "options": "Admission Fee"
+  },
+  {
+   "fieldname": "costs_section",
+   "fieldtype": "Section Break",
+   "label": "Costs"
+  },
+  {
+   "fieldname": "admission_cost",
+   "fieldtype": "Currency",
+   "label": "Admission Cost"
+  },
+  {
+   "fieldname": "case_management_fee",
+   "fieldtype": "Currency",
+   "label": "Case Management Fee"
+  },
+  {
+   "fieldname": "column_break_costs",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "room_charges",
+   "fieldtype": "Currency",
+   "label": "Room Charges"
+  },
+  {
+   "fieldname": "medical_history_tab",
+   "fieldtype": "Tab Break",
+   "label": "Medical History"
+  },
+  {
+   "fieldname": "allergy_medical_and_surgical_history",
+   "fieldtype": "Section Break",
+   "label": "Allergies, Medical and Surgical History"
+  },
+  {
+   "fieldname": "allergies",
+   "fieldtype": "Small Text",
+   "ignore_xss_filter": 1,
+   "label": "Allergies",
+   "no_copy": 1
+  },
+  {
+   "fieldname": "medication_history",
+   "fieldtype": "Small Text",
+   "ignore_xss_filter": 1,
+   "label": "Medication",
+   "no_copy": 1
+  },
+  {
+   "fieldname": "column_break_medical",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "medical_history",
+   "fieldtype": "Small Text",
+   "ignore_xss_filter": 1,
+   "label": "Medical History",
+   "no_copy": 1
+  },
+  {
+   "fieldname": "surgical_history",
+   "fieldtype": "Small Text",
+   "ignore_xss_filter": 1,
+   "label": "Surgical History",
+   "no_copy": 1
+  },
+  {
+   "fieldname": "visitors_allowed_tab",
+   "fieldtype": "Tab Break",
+   "label": "Visitors Allowed"
+  },
+  {
+   "fieldname": "relatives_section",
+   "fieldtype": "Section Break",
+   "label": "Relatives"
+  },
+  {
+   "fieldname": "patient_relatives",
+   "fieldtype": "Table",
+   "label": "Patient Relatives",
+   "options": "IP Patient Relatives Details"
+  },
+  {
+   "fieldname": "section_break_visitors",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "patient_visitors",
+   "fieldtype": "Table",
+   "label": "Patient Visitors",
+   "options": "Patient Visitors"
+  },
+  {
+   "fieldname": "physical_examination_tab",
+   "fieldtype": "Tab Break",
+   "label": "Physical Examination"
+  },
+  {
+   "fieldname": "basic_conditions_section",
+   "fieldtype": "Section Break",
+   "label": "Basic Conditions"
+  },
+  {
+   "fieldname": "weight",
+   "fieldtype": "Float",
+   "label": "Weight"
+  },
+  {
+   "fieldname": "height",
+   "fieldtype": "Float",
+   "label": "Height"
+  },
+  {
+   "fieldname": "bp",
+   "fieldtype": "Float",
+   "label": "BP"
+  },
+  {
+   "fieldname": "trans_no",
+   "fieldtype": "Int",
+   "label": "Trans No"
+  },
+  {
+   "fieldname": "blood_pressure",
+   "fieldtype": "Data",
+   "label": "Blood Pressure"
+  },
+  {
+   "fieldname": "column_break_vitals",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "pulse",
+   "fieldtype": "Float",
+   "label": "Pulse"
+  },
+  {
+   "fieldname": "temp",
+   "fieldtype": "Float",
+   "label": "Temp"
+  },
+  {
+   "fieldname": "resp_rate",
+   "fieldtype": "Float",
+   "label": "Resp Rate"
+  },
+  {
+   "description": "Skin, Hair, Nail, Gait, Surface, Abnormalities",
+   "fieldname": "general_condition_section",
+   "fieldtype": "Section Break",
+   "label": "General Condition"
+  },
+  {
+   "fieldname": "general_condition",
+   "fieldtype": "Small Text",
+   "label": "General Condition"
+  },
+  {
+   "fieldname": "cns",
+   "fieldtype": "Small Text",
+   "label": "CNS"
+  },
+  {
+   "fieldname": "others",
+   "fieldtype": "Small Text",
+   "label": "Others"
+  },
+  {
+   "fieldname": "column_break_exam",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "cvs_resp",
+   "fieldtype": "Small Text",
+   "label": "CVS / RESP"
+  },
+  {
+   "fieldname": "git",
+   "fieldtype": "Small Text",
+   "label": "GIT"
+  },
+  {
+   "fieldname": "signature_tab",
+   "fieldtype": "Tab Break",
+   "label": "Signature"
+  },
+  {
+   "fieldname": "signature",
+   "fieldtype": "Signature",
+   "label": "Signature"
   },
   {
    "fieldname": "cb_discharge",
@@ -431,6 +806,11 @@
    "fieldtype": "Link",
    "label": "Admission Nursing Checklist Template",
    "options": "Nursing Checklist Template"
+  },
+  {
+   "fieldname": "medical_details_tab",
+   "fieldtype": "Tab Break",
+   "label": "Medical details"
   }
  ],
  "index_web_pages_for_search": 1,
@@ -440,7 +820,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2025-11-30 14:30:10.979600",
+ "modified": "2025-12-22 16:35:40.015185",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Inpatient Record",

@@ -6,3 +6,4 @@ class TestPackageDetail(FrappeTestCase):
 	pass
 
 
+

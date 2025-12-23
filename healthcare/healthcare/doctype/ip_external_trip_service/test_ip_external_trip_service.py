@@ -6,3 +6,4 @@ class TestIPExternalTripService(FrappeTestCase):
 	pass
 
 
+

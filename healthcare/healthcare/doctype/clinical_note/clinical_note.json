@@ -20,6 +20,8 @@
   "user",
   "medical_role",
   "branch",
+  "reference_doctype",
+  "reference_document",
   "note_section",
   "note",
   "reference_section",
@@ -139,11 +141,23 @@
    "fieldtype": "Link",
    "label": "Branch",
    "options": "Branch"
+  },
+  {
+   "fieldname": "reference_doctype",
+   "fieldtype": "Link",
+   "label": "Reference Doctype",
+   "options": "DocType"
+  },
+  {
+   "fieldname": "reference_document",
+   "fieldtype": "Dynamic Link",
+   "label": "Reference Document",
+   "options": "reference_doctype"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-12-18 14:54:16.392722",
+ "modified": "2025-12-22 15:42:18.543904",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Clinical Note",

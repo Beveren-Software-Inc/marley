@@ -12,6 +12,7 @@
  "field_order": [
   "basic_info",
   "naming_series",
+  "file_no",
   "first_name",
   "middle_name",
   "last_name",
@@ -679,6 +680,11 @@
    "fieldtype": "Select",
    "label": "Category",
    "options": "\nRoyal\nAmerican Navy\nRegular"
+  },
+  {
+   "fieldname": "file_no",
+   "fieldtype": "Data",
+   "label": "File No"
   }
  ],
  "grid_page_length": 50,
@@ -787,7 +793,7 @@
   }
  ],
  "max_attachments": 50,
- "modified": "2025-12-15 12:43:21.166488",
+ "modified": "2025-12-22 11:06:33.898778",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient",
