@@ -10,7 +10,7 @@ export function useAuth() {
     // TODO: hydrate from storage
   }, [])
 
-  const login = async (username: string, password: string, role: UserRole) => {
+  const login = async (username: string, _password: string, role: UserRole) => {
     // TODO: call Frappe auth
     const mock: User = { role, name: username, token: 'mock-token' }
     setUser(mock)

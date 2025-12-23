@@ -1,6 +1,4 @@
-import { useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
-import { doctorScreens } from '../config/doctorScreens'
+import { useState } from 'react'
 
 const warningMessages = [
   { id: 1, patient: 'John Doe', type: 'Allergy', details: 'Penicillin' },
@@ -16,16 +14,9 @@ const doctorNav = ['Dashboard', 'Warnings', 'Labs', 'Admissions']
 const patients = ['John Doe', 'Jane Smith', 'Mary Johnson', 'Ahmed Ali', 'Sara Khan']
 
 export const DoctorPage = () => {
-  const [searchParams, setSearchParams] = useSearchParams()
-  const initial = searchParams.get('screen') || doctorScreens[0].id
-  const [activeTab, setActiveTab] = useState(initial)
   const [selectedPatient, setSelectedPatient] = useState('John Doe')
-  const [modalId, setModalId] = useState<string | null>(null)
   const [patientQuery, setPatientQuery] = useState('')
   const [patientOpen, setPatientOpen] = useState(false)
-
-  const activeTabItem = useMemo(() => doctorScreens.find((t) => t.id === activeTab), [activeTab])
-  const modalItem = useMemo(() => doctorScreens.find((t) => t.id === modalId), [modalId])
 
   return (
     <div className="flex flex-col">
@@ -110,33 +101,17 @@ export const DoctorPage = () => {
       <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm mx-4 mb-4">
         <div className="font-semibold mb-2">Other Screens (OP / IP actions)</div>
         <div className="flex flex-wrap gap-2">
-          <span className="px-3 py-1 bg-blue-50 text-primary border border-blue-100 rounded-full text-sm">Appointment with OP</span>
-          <span className="px-3 py-1 bg-blue-50 text-primary border border-blue-100 rounded-full text-sm">New IP Admission</span>
-          <span className="px-3 py-1 bg-blue-50 text-primary border border-blue-100 rounded-full text-sm">Lab Test (Recommend / Review)</span>
+          <span className="px-3 py-1 bg-blue-50 text-primary border border-blue-100 rounded-full text-sm">
+            Appointment with OP
+          </span>
+          <span className="px-3 py-1 bg-blue-50 text-primary border border-blue-100 rounded-full text-sm">
+            New IP Admission
+          </span>
+          <span className="px-3 py-1 bg-blue-50 text-primary border border-blue-100 rounded-full text-sm">
+            Lab Test (Recommend / Review)
+          </span>
         </div>
       </section>
-
-      {modalItem && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg p-4 shadow-xl max-w-xl w-full">
-            <div className="flex justify-between items-center mb-2">
-              <div className="font-semibold text-lg">{modalItem.title}</div>
-              <button className="text-xl" onClick={() => setModalId(null)}>
-                ×
-              </button>
-            </div>
-            <p className="text-slate-700 mb-2">{modalItem.desc}</p>
-            <p className="text-slate-600 text-sm">
-              Dummy content: here you would load the {modalItem.title} view for patient {selectedPatient}.
-            </p>
-            <div className="flex justify-end mt-4">
-              <button className="px-3 py-2 rounded-md bg-primary text-white text-sm" onClick={() => setModalId(null)}>
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

@@ -1,4 +1,4 @@
-import { ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import { doctorScreens } from '../../config/doctorScreens'
 
@@ -61,11 +61,22 @@ const pharmacyScreens = [
   { id: 'p-stock', title: 'Stock Overview' }
 ]
 
+const receptionScreens = [
+  { id: 'r-new-op', title: 'New OP Registration' },
+  { id: 'r-search', title: 'Search Existing Patient' },
+  { id: 'r-appointment', title: 'Book Appointment' },
+  { id: 'r-check', title: 'Check In / Check Out' },
+  { id: 'r-ip-adm', title: 'New IP Admission' },
+  { id: 'r-reg', title: 'Admission Register' },
+  { id: 'r-print', title: 'Print Forms / Labels' }
+]
+
 const mainLinks = [
   { to: '/doctor', label: 'Doctor', screens: doctorScreens, prefix: '/doctor' },
   { to: '/nurse', label: 'Nurse', screens: nurseScreens, prefix: '/nurse' },
   { to: '/lab', label: 'Lab', screens: labScreens, prefix: '/lab' },
   { to: '/pharmacy', label: 'Pharmacy', screens: pharmacyScreens, prefix: '/pharmacy' },
+  { to: '/reception', label: 'Reception', screens: receptionScreens, prefix: '/reception' },
   { to: '/patient', label: 'Patient', screens: [], prefix: '/patient' },
   { to: '/admin', label: 'Admin', screens: [], prefix: '/admin' }
 ]
