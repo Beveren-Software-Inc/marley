@@ -15,6 +15,7 @@
   "department",
   "reference_doctype",
   "reference_document",
+  "is_outsourced",
   "column_break_26",
   "company",
   "status",
@@ -644,6 +645,12 @@
    "fieldtype": "Dynamic Link",
    "label": "Reference Document",
    "options": "reference_doctype"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_outsourced",
+   "fieldtype": "Check",
+   "label": "Is Outsourced?"
   }
  ],
  "is_submittable": 1,
@@ -653,7 +660,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2025-11-30 15:51:26.951292",
+ "modified": "2025-12-23 15:25:49.545421",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Lab Test",

@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/assets/healthcare/frontend/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="csrf-token" content="{{ csrf_token }}" />
+    <title>Marley Health</title>
+    <script type="module" crossorigin src="/assets/healthcare/frontend/assets/index.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/healthcare/frontend/assets/index.css">
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>
+      // Set CSRF token globally for the frontend
+      window.csrf_token = "{{ csrf_token }}";
+    </script>
+  </body>
+</html>
+
+

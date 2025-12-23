@@ -5,7 +5,7 @@ frappe.ui.form.on('Patient Appointment', {
 	setup: function(frm) {
 		frm.custom_make_buttons = {
 			'Vital Signs': 'Vital Signs',
-			'Patient Encounter': 'Patient Encounter'
+			'Patient Visit': 'Patient Visit'
 		};
 	},
 
@@ -108,7 +108,7 @@ frappe.ui.form.on('Patient Appointment', {
 					})
 				}, 'Create');
 			} else {
-				frm.add_custom_button(__('Patient Encounter'), function() {
+				frm.add_custom_button(__('Patient Visit'), function() {
 					frappe.model.open_mapped_doc({
 						method: 'healthcare.healthcare.doctype.patient_appointment.patient_appointment.make_encounter',
 						frm: frm,

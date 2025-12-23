@@ -268,6 +268,11 @@ global_search_doctypes = {
 	]
 }
 
+website_route_rules = [
+	{"from_route": "/health/<path:app_path>", "to_route": "health_frontend"},
+	{"from_route": "/health", "to_route": "health_frontend"},
+]
+
 domains = {
 	"Healthcare": "healthcare.setup",
 }
