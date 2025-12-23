@@ -5,7 +5,7 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "branch",
+  "company",
   "admission_no",
   "file_number",
   "column_break_gurl",
@@ -23,14 +23,6 @@
   "vch_status"
  ],
  "fields": [
-  {
-   "fieldname": "branch",
-   "fieldtype": "Link",
-   "in_list_view": 1,
-   "in_standard_filter": 1,
-   "label": "Branch",
-   "options": "Branch"
-  },
   {
    "fieldname": "admission_no",
    "fieldtype": "Link",
@@ -125,12 +117,20 @@
   {
    "fieldname": "column_break_xljw",
    "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Company",
+   "options": "Company"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-12-18 14:55:46.520693",
+ "modified": "2025-12-23 15:15:05.548550",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Package Detail",
