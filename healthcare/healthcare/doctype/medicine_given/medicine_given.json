@@ -10,10 +10,14 @@
   "medicine_code",
   "medicine_name",
   "qty",
-  "column_break_wakz",
   "unit",
+  "state_date",
   "medicine_given_timing",
-  "cost_center"
+  "column_break_wakz",
+  "frequency",
+  "is_active",
+  "dose_notes",
+  "user"
  ],
  "fields": [
   {
@@ -63,17 +67,38 @@
    "label": "Medicine Given Timing"
   },
   {
-   "fieldname": "cost_center",
+   "default": "0",
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "label": "Discontinue"
+  },
+  {
+   "fieldname": "state_date",
+   "fieldtype": "Date",
+   "label": "State Date"
+  },
+  {
+   "fieldname": "frequency",
+   "fieldtype": "Int",
+   "label": "Frequency"
+  },
+  {
+   "fieldname": "dose_notes",
+   "fieldtype": "Small Text",
+   "label": "Dose Notes"
+  },
+  {
+   "fieldname": "user",
    "fieldtype": "Link",
-   "label": "Cost Center",
-   "options": "Cost Center"
+   "label": "User",
+   "options": "User"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2025-12-01 11:49:45.719049",
+ "modified": "2025-12-24 14:14:02.571798",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Medicine Given",
