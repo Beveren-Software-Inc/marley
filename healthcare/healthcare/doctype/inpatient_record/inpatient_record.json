@@ -366,7 +366,7 @@
    "options": "Healthcare Practitioner"
   },
   {
-   "fetch_from": "residents_doctor_no.practitioner_name",
+   "fetch_from": "admission_by_doctor.practitioner_name",
    "fieldname": "admission_doctor_name",
    "fieldtype": "Data",
    "label": "Admission Doctor Name"

@@ -123,6 +123,18 @@ def schedule_inpatient(args):
 	# Admission order details
 	set_details_from_ip_order(inpatient_record, admission_order)
 
+	# Set admission doctor from primary practitioner
+	if admission_order.get("primary_practitioner"):
+		inpatient_record.admission_by_doctor = admission_order["primary_practitioner"]
+		# Fetch practitioner name
+		practitioner_name = frappe.db.get_value(
+			"Healthcare Practitioner",
+			admission_order["primary_practitioner"],
+			"practitioner_name"
+		)
+		if practitioner_name:
+			inpatient_record.admission_doctor_name = practitioner_name
+
 	# Patient details
 	patient = frappe.get_doc("Patient", admission_order["patient"])
 	inpatient_record.patient = patient.name
