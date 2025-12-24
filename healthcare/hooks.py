@@ -33,7 +33,10 @@ fixtures = [
     },
     {
 		"doctype": "Medical Role"
-	}
+	},
+    {
+		"doctype": "Prescription Dosage"
+	},
 ]
 
 

@@ -27,6 +27,8 @@
   "section_break_nurw",
   "discharge_template",
   "discharge_checklist",
+  "section_break_mwkk",
+  "medicine_given",
   "more_infor_tab",
   "discharge_treatment_plan",
   "discharge_reason",
@@ -242,12 +244,22 @@
    "fieldtype": "Link",
    "label": "Receiving Doctors",
    "options": "User"
+  },
+  {
+   "fieldname": "section_break_mwkk",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "medicine_given",
+   "fieldtype": "Table",
+   "label": "Medicine Given",
+   "options": "Medicine Given"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-12-22 10:47:19.227416",
+ "modified": "2025-12-24 14:09:18.252881",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Discharge",

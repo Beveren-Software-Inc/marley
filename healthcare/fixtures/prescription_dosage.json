@@ -1,0 +1,362 @@
+[
+ {
+  "docstatus": 0,
+  "doctype": "Prescription Dosage",
+  "dosage": "1-1-1-1",
+  "dosage_strength": [
+   {
+    "parent": "1-1-1-1",
+    "parentfield": "dosage_strength",
+    "parenttype": "Prescription Dosage",
+    "strength": 1.0,
+    "strength_time": "9:00:00"
+   },
+   {
+    "parent": "1-1-1-1",
+    "parentfield": "dosage_strength",
+    "parenttype": "Prescription Dosage",
+    "strength": 1.0,
+    "strength_time": "13:00:00"
+   },
+   {
+    "parent": "1-1-1-1",
+    "parentfield": "dosage_strength",
+    "parenttype": "Prescription Dosage",
+    "strength": 1.0,
+    "strength_time": "17:00:00"
+   },
+   {
+    "parent": "1-1-1-1",
+    "parentfield": "dosage_strength",
+    "parenttype": "Prescription Dosage",
+    "strength": 1.0,
+    "strength_time": "21:00:00"
+   }
+  ],
+  "modified": "2025-12-17 13:02:12.130629",
+  "name": "1-1-1-1"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Prescription Dosage",
+  "dosage": "0-0-1",
+  "dosage_strength": [
+   {
+    "parent": "0-0-1",
+    "parentfield": "dosage_strength",
+    "parenttype": "Prescription Dosage",
+    "strength": 1.0,
+    "strength_time": "21:00:00"
+   }
+  ],
+  "modified": "2025-12-17 13:02:12.132793",
+  "name": "0-0-1"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Prescription Dosage",
+  "dosage": "1-0-0",
+  "dosage_strength": [
+   {
+    "parent": "1-0-0",
+    "parentfield": "dosage_strength",
+    "parenttype": "Prescription Dosage",
+    "strength": 1.0,
+    "strength_time": "9:00:00"
+   }
+  ],
+  "modified": "2025-12-17 13:02:12.133674",
+  "name": "1-0-0"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Prescription Dosage",
+  "dosage": "0-1-0",
+  "dosage_strength": [
+   {
+    "parent": "0-1-0",
+    "parentfield": "dosage_strength",
+    "parenttype": "Prescription Dosage",
+    "strength": 1.0,
+    "strength_time": "14:00:00"
+   }
+  ],
+  "modified": "2025-12-17 13:02:12.134344",
+  "name": "0-1-0"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Prescription Dosage",
+  "dosage": "1-1-1",
+  "dosage_strength": [
+   {
+    "parent": "1-1-1",
+    "parentfield": "dosage_strength",
+    "parenttype": "Prescription Dosage",
+    "strength": 1.0,
+    "strength_time": "9:00:00"
+   },
+   {
+    "parent": "1-1-1",
+    "parentfield": "dosage_strength",
+    "parenttype": "Prescription Dosage",
+    "strength": 1.0,
+    "strength_time": "14:00:00"
+   },
+   {
+    "parent": "1-1-1",
+    "parentfield": "dosage_strength",
+    "parenttype": "Prescription Dosage",
+    "strength": 1.0,
+    "strength_time": "21:00:00"
+   }
+  ],
+  "modified": "2025-12-17 13:02:12.135097",
+  "name": "1-1-1"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Prescription Dosage",
+  "dosage": "1-0-1",
+  "dosage_strength": [
+   {
+    "parent": "1-0-1",
+    "parentfield": "dosage_strength",
+    "parenttype": "Prescription Dosage",
+    "strength": 1.0,
+    "strength_time": "9:00:00"
+   },
+   {
+    "parent": "1-0-1",
+    "parentfield": "dosage_strength",
+    "parenttype": "Prescription Dosage",
+    "strength": 1.0,
+    "strength_time": "21:00:00"
+   }
+  ],
+  "modified": "2025-12-17 13:02:12.136111",
+  "name": "1-0-1"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Prescription Dosage",
+  "dosage": "Once Bedtime",
+  "dosage_strength": [
+   {
+    "parent": "Once Bedtime",
+    "parentfield": "dosage_strength",
+    "parenttype": "Prescription Dosage",
+    "strength": 1.0,
+    "strength_time": "21:00:00"
+   }
+  ],
+  "modified": "2025-12-17 13:02:12.136941",
+  "name": "Once Bedtime"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Prescription Dosage",
+  "dosage": "5 times a day",
+  "dosage_strength": [
+   {
+    "parent": "5 times a day",
+    "parentfield": "dosage_strength",
+    "parenttype": "Prescription Dosage",
+    "strength": 1.0,
+    "strength_time": "5:00:00"
+   },
+   {
+    "parent": "5 times a day",
+    "parentfield": "dosage_strength",
+    "parenttype": "Prescription Dosage",
+    "strength": 1.0,
+    "strength_time": "9:00:00"
+   },
+   {
+    "parent": "5 times a day",
+    "parentfield": "dosage_strength",
+    "parenttype": "Prescription Dosage",
+    "strength": 1.0,
+    "strength_time": "13:00:00"
+   },
+   {
+    "parent": "5 times a day",
+    "parentfield": "dosage_strength",
+    "parenttype": "Prescription Dosage",
+    "strength": 1.0,
+    "strength_time": "17:00:00"
+   },
+   {
+    "parent": "5 times a day",
+    "parentfield": "dosage_strength",
+    "parenttype": "Prescription Dosage",
+    "strength": 1.0,
+    "strength_time": "21:00:00"
+   }
+  ],
+  "modified": "2025-12-17 13:02:12.137790",
+  "name": "5 times a day"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Prescription Dosage",
+  "dosage": "QID",
+  "dosage_strength": [
+   {
+    "parent": "QID",
+    "parentfield": "dosage_strength",
+    "parenttype": "Prescription Dosage",
+    "strength": 1.0,
+    "strength_time": "9:00:00"
+   },
+   {
+    "parent": "QID",
+    "parentfield": "dosage_strength",
+    "parenttype": "Prescription Dosage",
+    "strength": 1.0,
+    "strength_time": "13:00:00"
+   },
+   {
+    "parent": "QID",
+    "parentfield": "dosage_strength",
+    "parenttype": "Prescription Dosage",
+    "strength": 1.0,
+    "strength_time": "17:00:00"
+   },
+   {
+    "parent": "QID",
+    "parentfield": "dosage_strength",
+    "parenttype": "Prescription Dosage",
+    "strength": 1.0,
+    "strength_time": "21:00:00"
+   }
+  ],
+  "modified": "2025-12-17 13:02:12.139127",
+  "name": "QID"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Prescription Dosage",
+  "dosage": "TID",
+  "dosage_strength": [
+   {
+    "parent": "TID",
+    "parentfield": "dosage_strength",
+    "parenttype": "Prescription Dosage",
+    "strength": 1.0,
+    "strength_time": "9:00:00"
+   },
+   {
+    "parent": "TID",
+    "parentfield": "dosage_strength",
+    "parenttype": "Prescription Dosage",
+    "strength": 1.0,
+    "strength_time": "14:00:00"
+   },
+   {
+    "parent": "TID",
+    "parentfield": "dosage_strength",
+    "parenttype": "Prescription Dosage",
+    "strength": 1.0,
+    "strength_time": "21:00:00"
+   }
+  ],
+  "modified": "2025-12-17 13:02:12.140262",
+  "name": "TID"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Prescription Dosage",
+  "dosage": "BID",
+  "dosage_strength": [
+   {
+    "parent": "BID",
+    "parentfield": "dosage_strength",
+    "parenttype": "Prescription Dosage",
+    "strength": 1.0,
+    "strength_time": "9:00:00"
+   },
+   {
+    "parent": "BID",
+    "parentfield": "dosage_strength",
+    "parenttype": "Prescription Dosage",
+    "strength": 1.0,
+    "strength_time": "21:00:00"
+   }
+  ],
+  "modified": "2025-12-17 13:02:12.141218",
+  "name": "BID"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Prescription Dosage",
+  "dosage": "Once Daily",
+  "dosage_strength": [
+   {
+    "parent": "Once Daily",
+    "parentfield": "dosage_strength",
+    "parenttype": "Prescription Dosage",
+    "strength": 1.0,
+    "strength_time": "9:00:00"
+   }
+  ],
+  "modified": "2025-12-17 13:02:12.141986",
+  "name": "Once Daily"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Prescription Dosage",
+  "dosage": "HS",
+  "dosage_strength": [],
+  "modified": "2025-12-24 14:54:33.705432",
+  "name": "HS"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Prescription Dosage",
+  "dosage": "BD",
+  "dosage_strength": [],
+  "modified": "2025-12-24 14:54:40.369786",
+  "name": "BD"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Prescription Dosage",
+  "dosage": "OD",
+  "dosage_strength": [],
+  "modified": "2025-12-24 14:54:46.213445",
+  "name": "OD"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Prescription Dosage",
+  "dosage": "Q1W",
+  "dosage_strength": [],
+  "modified": "2025-12-24 14:54:55.467872",
+  "name": "Q1W"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Prescription Dosage",
+  "dosage": "Q2W",
+  "dosage_strength": [],
+  "modified": "2025-12-24 14:55:18.075865",
+  "name": "Q2W"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Prescription Dosage",
+  "dosage": "Q3W",
+  "dosage_strength": [],
+  "modified": "2025-12-24 14:55:25.015760",
+  "name": "Q3W"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Prescription Dosage",
+  "dosage": "Q4W",
+  "dosage_strength": [],
+  "modified": "2025-12-24 14:55:40.154067",
+  "name": "Q4W"
+ }
+]
