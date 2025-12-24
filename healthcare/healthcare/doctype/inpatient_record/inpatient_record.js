@@ -54,11 +54,30 @@ frappe.ui.form.on('Inpatient Record', {
 				"reference_name": frm.doc.name}
 					frappe.new_doc("Clinical Note");
 		},__('Create'));
+
+		frm.add_custom_button(__("Refer to External Hospital"), function() {
+			create_external_referral_from_ip(frm);
+		},__('Create'));
 	},
 	btn_transfer: function(frm) {
 		transfer_patient_dialog(frm);
 	}
 });
+
+let create_external_referral_from_ip = function(frm) {
+	if (!frm.doc.patient) {
+		frappe.msgprint(__('Please select Patient first'));
+		return;
+	}
+
+	frappe.model.open_mapped_doc({
+		method: 'healthcare.healthcare.doctype.patient_referral.patient_referral.create_referral_from_inpatient',
+		frm: frm,
+		run_after_map: function(frm) {
+			// Additional setup if needed
+		}
+	});
+}
 
 let discharge_patient = function(frm) {
 	frappe.call({
@@ -326,3 +345,4 @@ let cancel_ip_order = function(frm) {
 		});
 	}, __('Reason for Cancellation'), __('Submit'));
 }
+

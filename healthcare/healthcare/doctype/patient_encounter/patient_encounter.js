@@ -61,6 +61,10 @@ frappe.ui.form.on('Patient Encounter', {
 				create_patient_referral(frm);
 			},__("Create"));
 
+			frm.add_custom_button(__("Refer to External Hospital"), function() {
+				create_external_referral(frm);
+			},__("Create"));
+
 			frm.add_custom_button(__('Patient History'), function() {
 				if (frm.doc.patient) {
 					frappe.route_options = {'patient': frm.doc.patient};
@@ -871,4 +875,19 @@ function calculate_lab_tests_charges_net_amount(frm, cdt, cdn) {
 	}
 	
 	frappe.model.set_value(cdt, cdn, 'net_amount', net_amount);
+}
+
+let create_external_referral = function(frm) {
+	if (!frm.doc.patient) {
+		frappe.msgprint(__('Please select Patient first'));
+		return;
+	}
+
+	frappe.model.open_mapped_doc({
+		method: 'healthcare.healthcare.doctype.patient_referral.patient_referral.create_referral_from_encounter',
+		frm: frm,
+		run_after_map: function(frm) {
+			// Additional setup if needed
+		}
+	});
 }

@@ -1,0 +1,125 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2025-12-24 14:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "admission_no",
+  "patient_no",
+  "column_break_patient",
+  "orderer_number",
+  "company",
+  "section_break_details",
+  "morse_fall_scale_detail",
+  "section_break_total",
+  "total_points"
+ ],
+ "fields": [
+  {
+   "fieldname": "admission_no",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Admission No",
+   "options": "Inpatient Record",
+   "reqd": 1
+  },
+  {
+   "fieldname": "patient_no",
+   "fieldtype": "Link",
+   "fetch_from": "admission_no.patient",
+   "in_list_view": 1,
+   "label": "Patient No",
+   "options": "Patient",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_patient",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "orderer_number",
+   "fieldtype": "Data",
+   "label": "Orderer Number"
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Company",
+   "options": "Company"
+  },
+  {
+   "fieldname": "section_break_details",
+   "fieldtype": "Section Break",
+   "label": "Morse Fall Scale Details"
+  },
+  {
+   "fieldname": "morse_fall_scale_detail",
+   "fieldtype": "Table",
+   "label": "Morse Fall Scale Detail",
+   "options": "Morse Fall Scale Detail"
+  },
+  {
+   "fieldname": "section_break_total",
+   "fieldtype": "Section Break",
+   "label": "Total"
+  },
+  {
+   "fieldname": "total_points",
+   "fieldtype": "Int",
+   "label": "Total Points",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-12-24 14:00:00",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Morse Fall Scale",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Physician",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Nursing User",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "track_changes": 1
+}
+

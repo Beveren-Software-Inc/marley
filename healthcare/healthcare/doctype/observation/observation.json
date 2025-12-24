@@ -13,6 +13,8 @@
   "naming_series",
   "observation_template",
   "observation_category",
+  "start_date",
+  "dc_date",
   "column_break_7xu5",
   "company",
   "posting_date",
@@ -20,6 +22,7 @@
   "medical_department",
   "amended_from",
   "section_break_i70a",
+  "admission_no",
   "patient",
   "patient_name",
   "column_break_qxq5",
@@ -27,7 +30,13 @@
   "gender",
   "section_break_zz5k",
   "healthcare_practitioner",
+  "column_break_snbj",
   "practitioner_name",
+  "section_break_pgys",
+  "obs_code",
+  "obs_level",
+  "column_break_ebkc",
+  "serv_amount",
   "template_details_section",
   "has_component",
   "preferred_display_name",
@@ -92,7 +101,6 @@
    "in_list_view": 1,
    "label": "Observation Template",
    "options": "Observation Template",
-   "reqd": 1,
    "set_only_once": 1
   },
   {
@@ -300,8 +308,7 @@
    "label": "Observation Category",
    "options": "\nSocial History\nVital Signs\nImaging\nLaboratory\nProcedure\nSurvey\nExam\nTherapy\nActivity",
    "read_only": 1,
-   "read_only_depends_on": "observation_template",
-   "reqd": 1
+   "read_only_depends_on": "observation_template"
   },
   {
    "fieldname": "column_break_qxq5",
@@ -564,12 +571,56 @@
    "fieldtype": "Check",
    "label": "Invoiced",
    "read_only": 1
+  },
+  {
+   "fieldname": "admission_no",
+   "fieldtype": "Link",
+   "label": "Admission No",
+   "options": "Inpatient Record",
+   "reqd": 1
+  },
+  {
+   "fieldname": "start_date",
+   "fieldtype": "Date",
+   "label": "Start Date"
+  },
+  {
+   "fieldname": "dc_date",
+   "fieldtype": "Date",
+   "label": "DC Date"
+  },
+  {
+   "fieldname": "column_break_snbj",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_pgys",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "obs_code",
+   "fieldtype": "Data",
+   "label": "OBS Code"
+  },
+  {
+   "fieldname": "obs_level",
+   "fieldtype": "Data",
+   "label": "OBS Level"
+  },
+  {
+   "fieldname": "column_break_ebkc",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "serv_amount",
+   "fieldtype": "Currency",
+   "label": "Serv Amount"
   }
  ],
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2025-06-05 10:43:53.244291",
+ "modified": "2025-12-24 12:18:46.962352",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Observation",

@@ -37,30 +37,34 @@ export const DoctorPage = () => {
       <div className="grid gap-4 md:grid-cols-2 p-4">
         <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
           <div className="font-semibold mb-2">Warning Messages (Allergies etc.)</div>
-          <ul className="space-y-2">
-            {warningMessages.map((w) => (
-              <li key={w.id} className="border border-slate-200 rounded-lg p-3 bg-slate-50">
-                <div className="font-semibold">{w.patient}</div>
-                <div className="text-sm text-slate-600">{w.type}</div>
-                <div className="text-sm text-slate-700">{w.details}</div>
-              </li>
-            ))}
-          </ul>
+          <div className="overflow-x-auto">
+            <div className="flex gap-2 min-w-max">
+              {warningMessages.map((w) => (
+                <div key={w.id} className="flex-shrink-0 border border-slate-200 rounded-lg p-3 bg-slate-50 min-w-[200px]">
+                  <div className="font-semibold text-sm whitespace-nowrap">{w.patient}</div>
+                  <div className="text-xs text-slate-600 whitespace-nowrap">{w.type}</div>
+                  <div className="text-xs text-slate-700 whitespace-nowrap truncate">{w.details}</div>
+                </div>
+              ))}
+            </div>
+          </div>
         </section>
 
         <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
           <div className="font-semibold mb-2">Lab Test Reports Pending for Review</div>
-          <ul className="space-y-2">
-            {pendingLabs.map((lab) => (
-              <li key={lab.id} className="border border-slate-200 rounded-lg p-3 bg-slate-50">
-                <div className="font-semibold">
-                  {lab.id} · {lab.test}
+          <div className="overflow-x-auto">
+            <div className="flex gap-2 min-w-max">
+              {pendingLabs.map((lab) => (
+                <div key={lab.id} className="flex-shrink-0 border border-slate-200 rounded-lg p-3 bg-slate-50 min-w-[200px]">
+                  <div className="font-semibold text-sm whitespace-nowrap">
+                    {lab.id} · {lab.test}
+                  </div>
+                  <div className="text-xs text-slate-600 whitespace-nowrap">{lab.patient}</div>
+                  <div className="text-xs text-slate-700 whitespace-nowrap">Requested by {lab.requestedBy}</div>
                 </div>
-                <div className="text-sm text-slate-600">{lab.patient}</div>
-                <div className="text-sm text-slate-700">Requested by {lab.requestedBy}</div>
-              </li>
-            ))}
-          </ul>
+              ))}
+            </div>
+          </div>
         </section>
       </div>
 
