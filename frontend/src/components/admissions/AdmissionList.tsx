@@ -59,8 +59,20 @@ export const AdmissionList = () => {
 
   if (error) {
     return (
-      <div className="flex items-center justify-center p-8">
-        <div className="text-red-600">Error: {error.message}</div>
+      <div className="flex flex-col items-center justify-center p-8">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 max-w-2xl w-full">
+          <h3 className="text-red-800 font-semibold mb-2">Error Loading Admissions</h3>
+          <p className="text-red-700 text-sm mb-2">{error.message}</p>
+          <p className="text-red-600 text-xs mb-4">
+            This might be due to authentication issues. Please ensure you're logged in to Frappe.
+          </p>
+          <button
+            onClick={() => refetch()}
+            className="px-4 py-2 bg-red-600 text-white rounded-md text-sm hover:bg-red-700"
+          >
+            Retry
+          </button>
+        </div>
       </div>
     )
   }

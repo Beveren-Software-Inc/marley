@@ -13,6 +13,7 @@ export const PackageSelectionModal = ({
   onClose
 }: PackageSelectionModalProps) => {
   const [packages, setPackages] = useState<PackageDetail[]>([])
+  const [defaultCurrency, setDefaultCurrency] = useState<string>('BHD')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
 
@@ -22,7 +23,13 @@ export const PackageSelectionModal = ({
         setLoading(true)
         setError(null)
         const response = await fetchPackageDetails(admissionNo)
-        setPackages(Array.isArray(response) ? response : response?.data || [])
+        if (response.packages) {
+          setPackages(response.packages)
+          setDefaultCurrency(response.defaultCurrency || 'BHD')
+        } else {
+          // Fallback for old format
+          setPackages(Array.isArray(response) ? response : [])
+        }
       } catch (err) {
         setError(err instanceof Error ? err : new Error('Failed to fetch packages'))
       } finally {
@@ -33,7 +40,7 @@ export const PackageSelectionModal = ({
     loadPackages()
   }, [admissionNo])
 
-  // If no packages found, create dummy packages for selection
+  // If no packages found, create dummy packages for selection with company currency
   const displayPackages =
     packages.length > 0
       ? packages
@@ -47,7 +54,7 @@ export const PackageSelectionModal = ({
               .split('T')[0],
             total_days: 7,
             transaction_amount: 5000,
-            currency: 'BHD',
+            currency: defaultCurrency,
             vch_status: 'Open',
             remarks: 'Standard Package - 7 days'
           },
@@ -60,7 +67,7 @@ export const PackageSelectionModal = ({
               .split('T')[0],
             total_days: 14,
             transaction_amount: 9000,
-            currency: 'BHD',
+            currency: defaultCurrency,
             vch_status: 'Open',
             remarks: 'Extended Package - 14 days'
           },
@@ -73,7 +80,7 @@ export const PackageSelectionModal = ({
               .split('T')[0],
             total_days: 30,
             transaction_amount: 18000,
-            currency: 'BHD',
+            currency: defaultCurrency,
             vch_status: 'Open',
             remarks: 'Premium Package - 30 days'
           }

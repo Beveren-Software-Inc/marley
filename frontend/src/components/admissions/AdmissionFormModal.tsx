@@ -36,12 +36,8 @@ export const AdmissionFormModal = ({
         const recordData = await fetchInpatientRecord(admissionNo)
         setRecord(recordData)
         
-        const filters: Record<string, any> = { occupancy_status: 'Vacant' }
-        if (recordData?.admission_service_unit_type) {
-          filters.service_unit_type = recordData.admission_service_unit_type
-        }
-        
-        const unitsData = await fetchServiceUnits(filters)
+        const serviceUnitType = recordData?.admission_service_unit_type
+        const unitsData = await fetchServiceUnits(serviceUnitType, 'Vacant')
         setServiceUnits(unitsData)
       } catch (err) {
         setError(err instanceof Error ? err : new Error('Failed to load data'))

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { dummyPatients } from '../config/patients'
 import { AdmissionList } from '../components/admissions/AdmissionList'
+import { PatientList } from '../components/patients/PatientList'
 import { PatientSearch } from '../components/patients/PatientSearch'
 
 type View = 'default' | 'patient' | 'admission'
@@ -66,11 +67,14 @@ export const ReceptionistPage = () => {
         )}
 
         {currentView === 'patient' && (
-          <div className="flex flex-col gap-4 p-4">
-            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-              <h2 className="font-semibold mb-3">Patient Management</h2>
-              <p className="text-sm text-slate-600">Patient management features coming soon...</p>
-            </section>
+          <div className="p-4">
+            <div className="mb-4">
+              <h2 className="text-xl font-semibold text-slate-900">Patient Management</h2>
+              <p className="text-sm text-slate-600 mt-1">
+                View and manage patient records. Use the search box to find specific patients.
+              </p>
+            </div>
+            <PatientList />
           </div>
         )}
 
