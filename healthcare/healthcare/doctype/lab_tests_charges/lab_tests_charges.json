@@ -11,6 +11,8 @@
   "amount",
   "column_break_cjxw",
   "more",
+  "discount_type",
+  "discount_rate",
   "discount",
   "net_amount"
  ],
@@ -48,18 +50,35 @@
    "label": "Additional Charges"
   },
   {
+   "default": "Percentage",
+   "fieldname": "discount_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Discount Type",
+   "options": "Percentage\nAmount"
+  },
+  {
+   "depends_on": "eval:doc.discount_type == 'Percentage'",
+   "fieldname": "discount_rate",
+   "fieldtype": "Percent",
+   "in_list_view": 1,
+   "label": "Discount Rate"
+  },
+  {
+   "depends_on": "eval:doc.discount_type == 'Amount'",
    "fieldname": "discount",
    "fieldtype": "Currency",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "Discount"
+   "label": "Discount Amount"
   },
   {
    "fieldname": "net_amount",
    "fieldtype": "Currency",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "Net Amount"
+   "label": "Net Amount",
+   "read_only": 1
   }
  ],
  "grid_page_length": 50,

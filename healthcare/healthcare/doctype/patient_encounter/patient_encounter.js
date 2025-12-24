@@ -780,3 +780,95 @@ let create_patient_referral = function(frm) {
 
 	dialog.show();
 };
+
+// Consultation Fee child table calculations
+frappe.ui.form.on('Consultation Fee', {
+	amount: function(frm, cdt, cdn) {
+		calculate_consultation_fee_net_amount(frm, cdt, cdn);
+	},
+	
+	additional_amount: function(frm, cdt, cdn) {
+		calculate_consultation_fee_net_amount(frm, cdt, cdn);
+	},
+	
+	discount_type: function(frm, cdt, cdn) {
+		let child = locals[cdt][cdn];
+		// Clear discount and discount_rate when type changes
+		frappe.model.set_value(cdt, cdn, 'discount', 0);
+		frappe.model.set_value(cdt, cdn, 'discount_rate', 0);
+		calculate_consultation_fee_net_amount(frm, cdt, cdn);
+	},
+	
+	discount_rate: function(frm, cdt, cdn) {
+		calculate_consultation_fee_net_amount(frm, cdt, cdn);
+	},
+	
+	discount: function(frm, cdt, cdn) {
+		calculate_consultation_fee_net_amount(frm, cdt, cdn);
+	}
+});
+
+function calculate_consultation_fee_net_amount(frm, cdt, cdn) {
+	let child = locals[cdt][cdn];
+	let amount = flt(child.amount) || 0;
+	let additional_amount = flt(child.additional_amount) || 0;
+	let discount_type = child.discount_type || 'Percentage';
+	let net_amount = amount + additional_amount;
+	
+	if (discount_type === 'Percentage') {
+		let discount_rate = flt(child.discount_rate) || 0;
+		let discount_amount = (amount * discount_rate) / 100;
+		net_amount = net_amount - discount_amount;
+	} else if (discount_type === 'Amount') {
+		let discount = flt(child.discount) || 0;
+		net_amount = net_amount - discount;
+	}
+	
+	frappe.model.set_value(cdt, cdn, 'net_amount', net_amount);
+}
+
+// Lab Tests Charges child table calculations
+frappe.ui.form.on('Lab Tests Charges', {
+	amount: function(frm, cdt, cdn) {
+		calculate_lab_tests_charges_net_amount(frm, cdt, cdn);
+	},
+	
+	more: function(frm, cdt, cdn) {
+		calculate_lab_tests_charges_net_amount(frm, cdt, cdn);
+	},
+	
+	discount_type: function(frm, cdt, cdn) {
+		let child = locals[cdt][cdn];
+		// Clear discount and discount_rate when type changes
+		frappe.model.set_value(cdt, cdn, 'discount', 0);
+		frappe.model.set_value(cdt, cdn, 'discount_rate', 0);
+		calculate_lab_tests_charges_net_amount(frm, cdt, cdn);
+	},
+	
+	discount_rate: function(frm, cdt, cdn) {
+		calculate_lab_tests_charges_net_amount(frm, cdt, cdn);
+	},
+	
+	discount: function(frm, cdt, cdn) {
+		calculate_lab_tests_charges_net_amount(frm, cdt, cdn);
+	}
+});
+
+function calculate_lab_tests_charges_net_amount(frm, cdt, cdn) {
+	let child = locals[cdt][cdn];
+	let amount = flt(child.amount) || 0;
+	let more = flt(child.more) || 0;
+	let discount_type = child.discount_type || 'Percentage';
+	let net_amount = amount + more;
+	
+	if (discount_type === 'Percentage') {
+		let discount_rate = flt(child.discount_rate) || 0;
+		let discount_amount = (amount * discount_rate) / 100;
+		net_amount = net_amount - discount_amount;
+	} else if (discount_type === 'Amount') {
+		let discount = flt(child.discount) || 0;
+		net_amount = net_amount - discount;
+	}
+	
+	frappe.model.set_value(cdt, cdn, 'net_amount', net_amount);
+}
