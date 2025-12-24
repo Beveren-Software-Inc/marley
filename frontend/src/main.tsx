@@ -6,7 +6,7 @@ import './theme/global.css'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <BrowserRouter>
+    <BrowserRouter basename="/health">
       <App />
     </BrowserRouter>
   </React.StrictMode>

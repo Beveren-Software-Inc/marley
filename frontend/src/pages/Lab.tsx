@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { dummyPatients } from '../config/patients'
+import { PatientSearch } from '../components/patients/PatientSearch'
 
 const firstScreenLab = ['Pending Sample Collection', 'Pending Lab Testing']
 
@@ -16,49 +17,15 @@ const otherScreensLab = [
 
 export const LabPage = () => {
   const [selectedPatient, setSelectedPatient] = useState('John Doe')
-  const [patientQuery, setPatientQuery] = useState('')
-  const [patientOpen, setPatientOpen] = useState(false)
 
   return (
     <div className="flex flex-col">
       <header className="grid grid-cols-1 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] items-center gap-3 bg-primary text-white px-4 py-3">
-        <div className="w-full max-w-xl">
-          <div className="relative">
-            <input
-              value={patientQuery}
-              onChange={(e) => {
-                setPatientQuery(e.target.value)
-                setPatientOpen(true)
-              }}
-              onFocus={() => setPatientOpen(true)}
-              placeholder={selectedPatient || 'Search patient...'}
-              className="w-full rounded-md border border-primary/40 px-3 py-2 text-sm text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-white focus:border-white"
-            />
-            {patientOpen && (
-              <div className="absolute z-40 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-56 overflow-auto text-slate-900">
-                {dummyPatients
-                  .filter((p) => p.toLowerCase().includes(patientQuery.toLowerCase()))
-                  .map((p) => (
-                    <button
-                      key={p}
-                      type="button"
-                      className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50"
-                      onClick={() => {
-                        setSelectedPatient(p)
-                        setPatientQuery('')
-                        setPatientOpen(false)
-                      }}
-                    >
-                      {p}
-                    </button>
-                  ))}
-                {dummyPatients.filter((p) => p.toLowerCase().includes(patientQuery.toLowerCase())).length === 0 && (
-                  <div className="px-3 py-2 text-xs text-slate-500">No patients match your search.</div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
+        <PatientSearch
+          selectedPatient={selectedPatient}
+          onPatientSelect={setSelectedPatient}
+          patients={dummyPatients}
+        />
         <div className="flex justify-end text-xs opacity-80">
           <span>Branch: Main · Dummy</span>
         </div>

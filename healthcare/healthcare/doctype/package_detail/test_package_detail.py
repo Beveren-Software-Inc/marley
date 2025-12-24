@@ -10,3 +10,4 @@ class TestPackageDetail(FrappeTestCase):
 
 
 
+
