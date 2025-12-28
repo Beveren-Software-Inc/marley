@@ -7,3 +7,4 @@ from frappe.model.document import Document
 class SessionSchedule(Document):
 	pass
 
+

@@ -50,3 +50,4 @@ function calculate_net_amount(frm) {
 	frm.refresh_field('net_amount');
 }
 
+

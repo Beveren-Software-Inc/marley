@@ -1,0 +1,107 @@
+[
+ {
+  "assessment_parameter": "Headache",
+  "docstatus": 0,
+  "doctype": "Patient Assessment Parameter",
+  "modified": "2025-12-23 15:43:29.088907",
+  "name": "Headache"
+ },
+ {
+  "assessment_parameter": "Medical",
+  "docstatus": 0,
+  "doctype": "Patient Assessment Parameter",
+  "modified": "2025-12-28 14:49:20.573210",
+  "name": "Medical"
+ },
+ {
+  "assessment_parameter": "Came By",
+  "docstatus": 0,
+  "doctype": "Patient Assessment Parameter",
+  "modified": "2025-12-28 14:49:35.568144",
+  "name": "Came By"
+ },
+ {
+  "assessment_parameter": "Risk of Fall",
+  "docstatus": 0,
+  "doctype": "Patient Assessment Parameter",
+  "modified": "2025-12-28 14:49:45.249921",
+  "name": "Risk of Fall"
+ },
+ {
+  "assessment_parameter": "Diet",
+  "docstatus": 0,
+  "doctype": "Patient Assessment Parameter",
+  "modified": "2025-12-28 14:49:54.621368",
+  "name": "Diet"
+ },
+ {
+  "assessment_parameter": "Drug History",
+  "docstatus": 0,
+  "doctype": "Patient Assessment Parameter",
+  "modified": "2025-12-28 14:50:06.214076",
+  "name": "Drug History"
+ },
+ {
+  "assessment_parameter": "History DSCP",
+  "docstatus": 0,
+  "doctype": "Patient Assessment Parameter",
+  "modified": "2025-12-28 14:50:17.885161",
+  "name": "History DSCP"
+ },
+ {
+  "assessment_parameter": "Psychiatric",
+  "docstatus": 0,
+  "doctype": "Patient Assessment Parameter",
+  "modified": "2025-12-28 14:50:31.453108",
+  "name": "Psychiatric"
+ },
+ {
+  "assessment_parameter": "Oriented",
+  "docstatus": 0,
+  "doctype": "Patient Assessment Parameter",
+  "modified": "2025-12-28 14:50:40.860012",
+  "name": "Oriented"
+ },
+ {
+  "assessment_parameter": "Abnormality",
+  "docstatus": 0,
+  "doctype": "Patient Assessment Parameter",
+  "modified": "2025-12-28 14:50:53.703761",
+  "name": "Abnormality"
+ },
+ {
+  "assessment_parameter": "Others",
+  "docstatus": 0,
+  "doctype": "Patient Assessment Parameter",
+  "modified": "2025-12-28 14:51:01.787371",
+  "name": "Others"
+ },
+ {
+  "assessment_parameter": "Rest",
+  "docstatus": 0,
+  "doctype": "Patient Assessment Parameter",
+  "modified": "2025-12-28 14:55:21.866401",
+  "name": "Rest"
+ },
+ {
+  "assessment_parameter": "Introduction",
+  "docstatus": 0,
+  "doctype": "Patient Assessment Parameter",
+  "modified": "2025-12-28 14:55:31.795772",
+  "name": "Introduction"
+ },
+ {
+  "assessment_parameter": "Arrival",
+  "docstatus": 0,
+  "doctype": "Patient Assessment Parameter",
+  "modified": "2025-12-28 14:55:52.939584",
+  "name": "Arrival"
+ },
+ {
+  "assessment_parameter": "Comfortable",
+  "docstatus": 0,
+  "doctype": "Patient Assessment Parameter",
+  "modified": "2025-12-28 14:57:11.724354",
+  "name": "Comfortable"
+ }
+]

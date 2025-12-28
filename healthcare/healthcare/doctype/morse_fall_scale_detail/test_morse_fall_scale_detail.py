@@ -8,3 +8,4 @@
 # class TestMorseFallScaleDetail(FrappeTestCase):
 # 	pass
 
+

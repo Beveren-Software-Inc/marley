@@ -61,6 +61,14 @@ frappe.ui.form.on('Inpatient Record', {
 	},
 	btn_transfer: function(frm) {
 		transfer_patient_dialog(frm);
+	},
+	environmental_checklist_template: function(frm) {
+		if (frm.doc.environmental_checklist_template) {
+			load_environmental_checklist_template(frm);
+		} else {
+			frm.clear_table('environmental_checklist_detail');
+			frm.refresh_field('environmental_checklist_detail');
+		}
 	}
 });
 
@@ -344,5 +352,34 @@ let cancel_ip_order = function(frm) {
 			}
 		});
 	}, __('Reason for Cancellation'), __('Submit'));
+}
+
+let load_environmental_checklist_template = function(frm) {
+	if (!frm.doc.environmental_checklist_template) {
+		return;
+	}
+	
+	frappe.call({
+		method: 'frappe.client.get',
+		args: {
+			doctype: 'Environmental Checklist Template',
+			name: frm.doc.environmental_checklist_template
+		},
+		callback: function(r) {
+			if (r.message && r.message.checklist_items) {
+				// Clear existing items
+				frm.clear_table('environmental_checklist_detail');
+				
+				// Add items from template
+				r.message.checklist_items.forEach(function(item) {
+					let row = frm.add_child('environmental_checklist_detail');
+					row.item_name = item.item_name;
+					row.checked = 0;
+				});
+				
+				frm.refresh_field('environmental_checklist_detail');
+			}
+		}
+	});
 }
 

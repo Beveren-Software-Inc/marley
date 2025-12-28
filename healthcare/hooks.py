@@ -37,6 +37,12 @@ fixtures = [
     {
 		"doctype": "Prescription Dosage"
 	},
+    {
+		"doctype": "Patient Assessment Parameter"
+	},
+    {
+		"doctype": "Environmental Checklist Template"
+	}
 ]
 
 

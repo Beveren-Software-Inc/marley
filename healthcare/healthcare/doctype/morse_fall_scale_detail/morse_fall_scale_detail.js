@@ -4,3 +4,4 @@
 // Child table - no specific client-side logic needed here
 // Calculations are handled in the parent Morse Fall Scale form
 
+
