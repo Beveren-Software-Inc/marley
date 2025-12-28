@@ -171,7 +171,7 @@ healthcare.Orders = class Orders {
 		let cur_form_footer = this.form_wrapper.find('.form-footer');
 
 		frappe.call({
-			method: "healthcare.healthcare.doctype.patient_encounter.patient_encounter.get_encounter_details",
+			method: "healthcare.healthcare.doctype.patient_visit.patient_visit.get_encounter_details",
 			args: {
 				"doc": me.frm.doc,
 			},
@@ -311,7 +311,7 @@ healthcare.Orders = class Orders {
 				primary_action: function() {
 					var data = d.get_values();
 					frappe.call({
-						method: "healthcare.healthcare.doctype.patient_encounter.patient_encounter.create_service_request_from_widget",
+						method: "healthcare.healthcare.doctype.patient_visit.patient_visit.create_service_request_from_widget",
 						args: {
 							encounter: me.frm.doc.name,
 							data: data,
@@ -347,7 +347,7 @@ healthcare.Orders = class Orders {
 						"options": "Medication",
 						onchange: function(e) {
 							frappe.call({
-								method: "healthcare.healthcare.doctype.patient_encounter.patient_encounter.get_medications",
+								method: "healthcare.healthcare.doctype.patient_visit.patient_visit.get_medications",
 								freeze: true,
 								args: {
 									medication: d.get_value("medication")
@@ -483,7 +483,7 @@ healthcare.Orders = class Orders {
 				primary_action: function() {
 					var data = d.get_values();
 					frappe.call({
-						method: "healthcare.healthcare.doctype.patient_encounter.patient_encounter.create_service_request_from_widget",
+						method: "healthcare.healthcare.doctype.patient_visit.patient_visit.create_service_request_from_widget",
 						args: {
 							encounter: me.frm.doc.name,
 							data: data,
@@ -520,7 +520,7 @@ healthcare.Orders = class Orders {
 			frappe.confirm('Are you sure you want to proceed?',
 			() => {
 				frappe.call({
-					method: "healthcare.healthcare.doctype.patient_encounter.patient_encounter.cancel_request",
+					method: "healthcare.healthcare.doctype.patient_visit.patient_visit.cancel_request",
 						freeze: true,
 						args: {
 							doctype: doctype,

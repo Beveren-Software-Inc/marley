@@ -105,7 +105,7 @@ frappe.ui.form.on('Patient Encounter', {
 			frm.add_custom_button(__("Clinical Note"), function() {
 				frappe.route_options = {
 					"patient": frm.doc.patient,
-					"reference_doc": "Patient Encounter",
+					"reference_doc": "Patient Visit",
 					"reference_name": frm.doc.name,
 					"practitioner": frm.doc.practitioner
 				}
@@ -273,8 +273,13 @@ frappe.ui.form.on('Patient Encounter', {
 						'patient_name':data.message.patient_name,
 						'patient_sex': data.message.sex,
 						'inpatient_record': data.message.inpatient_record,
-						'inpatient_status': data.message.inpatient_status
+						'inpatient_status': data.message.inpatient_status,
+						'file_number': frm.doc.patient
 					};
+
+					// Check if this is the first encounter for this patient
+					// and generate file number if needed
+					generate_file_number_if_first_encounter(frm);
 
 					frappe.run_serially([
 						()=>frm.set_value(values),
@@ -289,7 +294,8 @@ frappe.ui.form.on('Patient Encounter', {
 				'patient_name':'',
 				'patient_sex': '',
 				'inpatient_record': '',
-				'inpatient_status': ''
+				'inpatient_status': '',
+				'file_number': ''
 			};
 			frm.set_value(values);
 		}
@@ -888,6 +894,26 @@ let create_external_referral = function(frm) {
 		frm: frm,
 		run_after_map: function(frm) {
 			// Additional setup if needed
+		}
+	});
+}
+
+let generate_file_number_if_first_encounter = function(frm) {
+	if (!frm.doc.patient || frm.doc.__islocal === 0) {
+		return; // Only for new documents
+	}
+
+	// Check if patient has any existing encounters or inpatient records
+	frappe.call({
+		method: 'healthcare.healthcare.doctype.patient_encounter.patient_encounter.check_and_generate_file_number',
+		args: {
+			patient: frm.doc.patient
+		},
+		callback: function(r) {
+			if (r && !r.exc && r.message) {
+				// File number is generated, set it in the form
+				frm.set_value('file_number', r.message.file_number);
+			}
 		}
 	});
 }

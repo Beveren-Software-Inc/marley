@@ -14,6 +14,7 @@
   "appointment",
   "appointment_type",
   "patient",
+  "file_number",
   "patient_name",
   "patient_sex",
   "patient_age",
@@ -77,8 +78,8 @@
    "allow_on_submit": 1,
    "fieldname": "inpatient_record",
    "fieldtype": "Link",
-   "label": "Inpatient Record",
-   "options": "Inpatient Record",
+   "label": "Inpatient Admission",
+   "options": "Inpatient Admission",
    "read_only": 1
   },
   {
@@ -107,6 +108,15 @@
    "options": "Patient",
    "reqd": 1,
    "search_index": 1
+  },
+  {
+   "fetch_from": "patient.name",
+   "fieldname": "file_number",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "File Number",
+   "options": "Patient",
+   "read_only": 1
   },
   {
    "fieldname": "patient_name",
@@ -298,7 +308,7 @@
    "fieldtype": "Link",
    "label": "Amended From",
    "no_copy": 1,
-   "options": "Patient Encounter",
+   "options": "Patient Visit",
    "print_hide": 1,
    "read_only": 1
   },

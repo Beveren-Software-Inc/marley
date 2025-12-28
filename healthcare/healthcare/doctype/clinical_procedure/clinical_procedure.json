@@ -52,7 +52,7 @@
    "fieldname": "inpatient_record",
    "fieldtype": "Link",
    "label": "Inpatient Record",
-   "options": "Inpatient Record",
+   "options": "Inpatient Admission",
    "read_only": 1
   },
   {
@@ -318,7 +318,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2023-04-06 04:08:43.588359",
+ "modified": "2025-12-28 16:23:26.976236",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Clinical Procedure",
@@ -354,6 +354,7 @@
   }
  ],
  "restrict_to_domain": "Healthcare",
+ "row_format": "Dynamic",
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": [],

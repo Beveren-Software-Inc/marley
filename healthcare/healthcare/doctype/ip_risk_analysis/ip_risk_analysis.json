@@ -236,7 +236,7 @@
    "fieldname": "admission_no",
    "fieldtype": "Link",
    "label": "Admission No",
-   "options": "Inpatient Record",
+   "options": "Inpatient Admission",
    "reqd": 1
   },
   {

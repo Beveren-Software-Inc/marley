@@ -13,21 +13,21 @@ class PatientReferral(Document):
 
 @frappe.whitelist()
 def create_referral_from_encounter(source_name, target_doc=None):
-	"""Create Patient Referral from Patient Encounter"""
+	"""Create Patient Referral from Patient Visit"""
 	def set_missing_values(source, target):
 		target.patient = source.patient
 		target.file_number = source.patient
-		target.referred_from_doctype = "Patient Encounter"
+		target.referred_from_doctype = "Patient Visit"
 		target.referred_from_docname = source.name
 		target.referral_date = frappe.utils.today()
 		if source.company:
 			target.company = source.company
 
 	doc = get_mapped_doc(
-		"Patient Encounter",
+		"Patient Visit",
 		source_name,
 		{
-			"Patient Encounter": {
+			"Patient Visit": {
 				"doctype": "Patient Referral",
 			}
 		},
@@ -40,21 +40,21 @@ def create_referral_from_encounter(source_name, target_doc=None):
 
 @frappe.whitelist()
 def create_referral_from_inpatient(source_name, target_doc=None):
-	"""Create Patient Referral from Inpatient Record"""
+	"""Create Patient Referral from Inpatient Admission"""
 	def set_missing_values(source, target):
 		target.patient = source.patient
 		target.file_number = source.patient
-		target.referred_from_doctype = "Inpatient Record"
+		target.referred_from_doctype = "Inpatient Admission"
 		target.referred_from_docname = source.name
 		target.referral_date = frappe.utils.today()
 		if source.company:
 			target.company = source.company
 
 	doc = get_mapped_doc(
-		"Inpatient Record",
+		"Inpatient Admission",
 		source_name,
 		{
-			"Inpatient Record": {
+			"Inpatient Admission": {
 				"doctype": "Patient Referral",
 			}
 		},

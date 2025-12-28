@@ -21,7 +21,7 @@ def get_inpatient_records(status=None):
 		filters['status'] = status
 
 	records = frappe.get_all(
-		'Inpatient Record',
+		'Inpatient Admission',
 		filters=filters,
 		fields=[
 			'name',
@@ -49,7 +49,7 @@ def get_inpatient_record(name):
 	if not name:
 		frappe.throw(_("Inpatient Record name is required"))
 
-	record = frappe.get_doc('Inpatient Record', name)
+	record = frappe.get_doc('Inpatient Admission', name)
 	
 	return {
 		'name': record.name,
@@ -74,7 +74,7 @@ def get_package_details(admission_no):
 		frappe.throw(_("Admission No is required"))
 
 	# Get company from Inpatient Record
-	inpatient_record = frappe.get_doc('Inpatient Record', admission_no)
+	inpatient_record = frappe.get_doc('Inpatient Admission', admission_no)
 	company = inpatient_record.company if hasattr(inpatient_record, 'company') and inpatient_record.company else frappe.defaults.get_user_default("Company")
 	
 	# Get company default currency
@@ -142,7 +142,7 @@ def admit_patient(name, service_unit, check_in, expected_discharge=None):
 	if not check_in:
 		frappe.throw(_("Check In datetime is required"))
 
-	record = frappe.get_doc('Inpatient Record', name)
+	record = frappe.get_doc('Inpatient Admission', name)
 	record.admit(service_unit, check_in, expected_discharge)
 	frappe.db.commit()
 

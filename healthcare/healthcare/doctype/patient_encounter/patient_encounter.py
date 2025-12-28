@@ -4,6 +4,7 @@
 
 
 import json
+import re
 
 import frappe
 from frappe import _
@@ -21,10 +22,79 @@ class PatientEncounter(Document):
 		self.validate_therapies()
 		self.validate_observations()
 		set_codification_table_from_diagnosis(self)
+		# Generate file number if this is the first encounter/inpatient record for the patient
+		if self.patient and self.is_new():
+			self.generate_file_number_for_patient()
 		if not self.is_new() and self.submit_orders_on_save:
 			self.make_service_request()
 			self.make_medication_request()
 			self.status = "Ordered"
+	
+	def generate_file_number_for_patient(self):
+		"""Generate sequential file number if this is the first encounter/inpatient record"""
+		if not self.patient:
+			return
+		
+		# Check if patient has any existing encounters or inpatient records
+		# For new documents, self.name doesn't exist yet, so we just check for any existing records
+		filters_encounter = {"patient": self.patient, "docstatus": ["!=", 2]}
+		filters_inpatient = {"patient": self.patient, "docstatus": ["!=", 2]}
+		
+		# If this is not a new document, exclude it from the check
+		if not self.is_new() and self.name:
+			filters_encounter["name"] = ["!=", self.name]
+			filters_inpatient["name"] = ["!=", self.name]
+		
+		existing_encounters = frappe.db.exists("Patient Visit", filters_encounter)
+		existing_inpatient = frappe.db.exists("Inpatient Record", filters_inpatient)
+		
+		# If no existing encounters or inpatient records, this is the first time
+		if not existing_encounters and not existing_inpatient:
+			# Get patient document
+			patient_doc = frappe.get_doc("Patient", self.patient)
+			
+			# Only generate file number if patient doesn't have one
+			if not patient_doc.get("file_no"):
+				# Get the next sequential file number
+				file_number = self.get_next_file_number()
+				
+				# Update patient's file_no field
+				frappe.db.set_value("Patient", self.patient, "file_no", file_number)
+	
+	def get_next_file_number(self):
+		"""Get the next sequential file number by checking the last number used"""
+		# Get all patients with file_no values
+		all_file_nos = frappe.db.get_all(
+			"Patient",
+			filters={"file_no": ["is", "set"]},
+			fields=["file_no"],
+			pluck="file_no"
+		)
+		
+		if not all_file_nos:
+			# No file numbers exist, start from 1
+			return "1"
+		
+		# Extract numeric values from file_no
+		max_number = 0
+		for file_no in all_file_nos:
+			if file_no:
+				# Extract all numeric parts from the file_no
+				numbers = re.findall(r'\d+', str(file_no))
+				if numbers:
+					# Get the last number found (in case there are multiple)
+					# or the largest number if multiple numbers exist
+					for num_str in numbers:
+						try:
+							num = int(num_str)
+							if num > max_number:
+								max_number = num
+						except ValueError:
+							continue
+		
+		# Increment by 1
+		next_number = max_number + 1
+		return str(next_number)
 
 	def on_update(self):
 		if self.appointment:
@@ -234,7 +304,7 @@ class PatientEncounter(Document):
 				"status": "draft-Medication Request Status" if medication_request else "draft-Request Status",
 				"patient": self.get("patient"),
 				"practitioner": self.practitioner,
-				"source_doc": "Patient Encounter",
+				"source_doc": "Patient Visit",
 				"order_group": self.name,
 				"sequence": line_item.get("sequence"),
 				"intent": line_item.get("intent"),
@@ -295,7 +365,7 @@ class PatientEncounter(Document):
 	def add_clinical_note(self, note, note_type=None):
 		clinical_note_doc = frappe.new_doc("Clinical Note")
 		clinical_note_doc.patient = self.patient
-		clinical_note_doc.reference_doc = "Patient Encounter"
+		clinical_note_doc.reference_doc = "Patient Visit"
 		clinical_note_doc.reference_name = self.name
 		clinical_note_doc.note = note
 		clinical_note_doc.clinical_note_type = note_type
@@ -345,10 +415,10 @@ def make_ip_medication_order(source_name, target_doc=None):
 				target.end_date = dates[-1]
 
 	doc = get_mapped_doc(
-		"Patient Encounter",
+		"Patient Visit",
 		source_name,
 		{
-			"Patient Encounter": {
+			"Patient Visit": {
 				"doctype": "Inpatient Medication Order",
 				"field_map": {
 					"name": "patient_encounter",
@@ -421,7 +491,7 @@ def set_codification_table_from_diagnosis(doc):
 
 @frappe.whitelist()
 def create_service_request(encounter):
-	encounter_doc = frappe.get_doc("Patient Encounter", encounter)
+	encounter_doc = frappe.get_doc("Patient Visit", encounter)
 	if not frappe.db.exists("Service Request", {"order_group": encounter}):
 		encounter_doc.make_service_request()
 
@@ -444,7 +514,7 @@ def create_service_request(encounter):
 
 @frappe.whitelist()
 def create_medication_request(encounter):
-	encounter_doc = frappe.get_doc("Patient Encounter", encounter)
+	encounter_doc = frappe.get_doc("Patient Visit", encounter)
 	if not frappe.db.exists("Medication Request", {"order_group": encounter}):
 		encounter_doc.make_medication_request()
 
@@ -504,7 +574,7 @@ def cancel_request(doctype, request):
 @frappe.whitelist()
 def create_service_request_from_widget(encounter, data, medication_request=False):
 	data = json.loads(data)
-	encounter_doc = frappe.get_doc("Patient Encounter", encounter)
+	encounter_doc = frappe.get_doc("Patient Visit", encounter)
 	if medication_request:
 		template = frappe.get_doc("Medication", data.get("medication"))
 		order = encounter_doc.get_order_details(template, data, True)
@@ -566,7 +636,7 @@ def create_patient_referral(encounter, references):
 	if isinstance(references, str):
 		references = json.loads(references)
 
-	encounter_doc = frappe.get_doc("Patient Encounter", encounter)
+	encounter_doc = frappe.get_doc("Patient Visit", encounter)
 	for ref in references:
 		order = frappe.get_doc(
 			{
@@ -575,7 +645,7 @@ def create_patient_referral(encounter, references):
 				"order_time": encounter_doc.get("encounter_time"),
 				"company": encounter_doc.get("company"),
 				"status": "draft-Request Status",
-				"source_doc": "Patient Encounter",
+				"source_doc": "Patient Visit",
 				"order_group": encounter,
 				"patient": encounter_doc.get("patient"),
 				"practitioner": encounter_doc.get("practitioner"),
@@ -588,3 +658,36 @@ def create_patient_referral(encounter, references):
 		)
 		order.insert(ignore_permissions=True, ignore_mandatory=True)
 		order.submit()
+
+
+@frappe.whitelist()
+def check_and_generate_file_number(patient):
+	"""
+	Check if this is the first encounter or inpatient record for the patient.
+	If yes, generate file number (patient name) and update patient's file_no field.
+	Returns the file_number (patient name).
+	"""
+	if not patient:
+		return {"file_number": None}
+	
+	# Check if patient has any existing encounters or inpatient records
+	existing_encounters = frappe.db.exists("Patient Visit", {"patient": patient, "docstatus": ["!=", 2]})
+	existing_inpatient = frappe.db.exists("Inpatient Record", {"patient": patient, "docstatus": ["!=", 2]})
+	
+	# If no existing encounters or inpatient records, this is the first time
+	if not existing_encounters and not existing_inpatient:
+		# Get patient document
+		patient_doc = frappe.get_doc("Patient", patient)
+		
+		# File number is the patient's name (which is auto-generated)
+		file_number = patient_doc.name
+		
+		# Update patient's file_no field if it's empty
+		if not patient_doc.get("file_no"):
+			frappe.db.set_value("Patient", patient, "file_no", file_number)
+		
+		return {"file_number": file_number}
+	else:
+		# Patient already has encounters or inpatient records, return existing file number
+		patient_doc = frappe.get_doc("Patient", patient)
+		return {"file_number": patient_doc.name}

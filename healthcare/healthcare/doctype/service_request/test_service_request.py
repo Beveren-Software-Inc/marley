@@ -31,7 +31,7 @@ from healthcare.healthcare.doctype.patient_appointment.test_patient_appointment 
 	create_patient,
 	create_practitioner,
 )
-from healthcare.healthcare.doctype.patient_encounter.patient_encounter import (
+from healthcare.healthcare.doctype.patient_visit.patient_visit import (
 	create_patient_referral,
 )
 from healthcare.healthcare.doctype.service_request.service_request import make_clinical_procedure

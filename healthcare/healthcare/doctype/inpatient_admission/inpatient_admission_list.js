@@ -1,7 +1,7 @@
 // Copyright (c) 2021, healthcare and contributors
 // For license information, please see license.txt
 
-frappe.listview_settings['Inpatient Record'] = {
+frappe.listview_settings['Inpatient Admission'] = {
 	filters: [['status', 'not in', ['Discharged']]],
 	get_indicator: function (doc) {
 		if (doc.status === 'Admission Scheduled') {

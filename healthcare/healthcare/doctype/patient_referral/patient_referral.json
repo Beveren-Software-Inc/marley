@@ -84,7 +84,7 @@
    "fieldname": "referred_from_doctype",
    "fieldtype": "Select",
    "label": "Referred From",
-   "options": "Patient Encounter\nInpatient Record",
+   "options": "Patient Visit\nInpatient Admission",
    "read_only": 1
   },
   {

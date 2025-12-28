@@ -8,7 +8,7 @@ from frappe.tests.utils import FrappeTestCase
 from frappe.utils import now_datetime, today
 from frappe.utils.make_random import get_random
 
-from healthcare.healthcare.doctype.inpatient_record.inpatient_record import (
+from healthcare.healthcare.doctype.inpatient_admission.inpatient_admission import (
 	admit_patient,
 	discharge_patient,
 	schedule_discharge,

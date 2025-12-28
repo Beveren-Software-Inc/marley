@@ -1,7 +1,7 @@
 // Copyright (c) 2018, Frappe Technologies Pvt. Ltd. and contributors
 // For license information, please see license.txt
 
-frappe.ui.form.on('Inpatient Record', {
+frappe.ui.form.on('Inpatient Admission', {
 	setup: function(frm) {
 		frm.get_field('drug_prescription').grid.editable_fields = [
 			{fieldname: 'drug_code', columns: 2},
@@ -35,11 +35,11 @@ frappe.ui.form.on('Inpatient Record', {
 				});
 			} else if (frm.doc.status == 'Admission Scheduled') {
 				frm.add_custom_button(__('Cancel Admission'), function() {
-					cancel_ip_order(frm)
-				})
+					cancel_ip_order(frm);
+				});
 				frm.add_custom_button(__('Admit'), function() {
 					admit_patient_dialog(frm);
-				} );
+				});
 			} else if (frm.doc.status == 'Discharge Scheduled') {
 				frm.add_custom_button(__('Discharge'), function() {
 					discharge_patient(frm);
@@ -50,7 +50,7 @@ frappe.ui.form.on('Inpatient Record', {
 		frm.add_custom_button(__("Clinical Note"), function() {
 			frappe.route_options = {
 				"patient": frm.doc.patient,
-				"reference_doc": "Inpatient Record",
+				"reference_doc": "Inpatient Admission",
 				"reference_name": frm.doc.name}
 					frappe.new_doc("Clinical Note");
 		},__('Create'));
@@ -382,4 +382,5 @@ let load_environmental_checklist_template = function(frm) {
 		}
 	});
 }
+
 

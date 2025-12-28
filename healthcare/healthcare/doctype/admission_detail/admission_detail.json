@@ -64,7 +64,7 @@
    "fieldname": "admission",
    "fieldtype": "Link",
    "label": "Admission",
-   "options": "Inpatient Record",
+   "options": "Inpatient Admission",
    "reqd": 1,
    "unique": 1
   },
