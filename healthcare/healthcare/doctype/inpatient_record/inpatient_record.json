@@ -122,7 +122,11 @@
   "signature_tab",
   "signature",
   "history_form_tab",
-  "history_attributes"
+  "history_attributes",
+  "environmental_checklist_tab",
+  "environmental_checklist_template",
+  "environmental_checklist_section",
+  "environmental_checklist_detail"
  ],
  "fields": [
   {
@@ -824,6 +828,28 @@
    "fieldtype": "Table",
    "label": "History Attributes",
    "options": "History Form Details"
+  },
+  {
+   "fieldname": "environmental_checklist_tab",
+   "fieldtype": "Tab Break",
+   "label": "Environmental Checklist"
+  },
+  {
+   "fieldname": "environmental_checklist_template",
+   "fieldtype": "Link",
+   "label": "Environmental Checklist Template",
+   "options": "Environmental Checklist Template"
+  },
+  {
+   "fieldname": "environmental_checklist_section",
+   "fieldtype": "Section Break",
+   "label": "Environmental Checklist Details"
+  },
+  {
+   "fieldname": "environmental_checklist_detail",
+   "fieldtype": "Table",
+   "label": "Environmental Checklist Details",
+   "options": "Environmental Checklist Detail"
   }
  ],
  "index_web_pages_for_search": 1,

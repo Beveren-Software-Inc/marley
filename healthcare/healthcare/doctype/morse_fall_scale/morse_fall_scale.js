@@ -36,3 +36,4 @@ function calculate_total_points(frm) {
 	frm.refresh_field('total_points');
 }
 
+

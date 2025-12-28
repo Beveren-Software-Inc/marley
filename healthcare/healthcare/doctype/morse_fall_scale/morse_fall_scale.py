@@ -17,3 +17,4 @@ class MorseFallScale(Document):
 					total += row.points
 		self.total_points = total
 
+

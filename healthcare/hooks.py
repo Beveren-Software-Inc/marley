@@ -39,6 +39,9 @@ fixtures = [
 	},
     {
 		"doctype": "Patient Assessment Parameter"
+	},
+    {
+		"doctype": "Environmental Checklist Template"
 	}
 ]
 

@@ -283,3 +283,4 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
   )
 }
 
+
