@@ -37,6 +37,9 @@ fixtures = [
     {
 		"doctype": "Prescription Dosage"
 	},
+    {
+		"doctype": "Patient Assessment Parameter"
+	}
 ]
 
 
