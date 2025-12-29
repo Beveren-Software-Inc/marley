@@ -1,42 +1,37 @@
 {
  "actions": [],
  "allow_rename": 1,
- "creation": "2025-12-24 15:30:00",
+ "creation": "2025-12-29 12:00:00.000000",
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
-  "item_name",
-  "checked"
+  "attribute"
  ],
  "fields": [
   {
-   "fieldname": "item_name",
-   "fieldtype": "Small Text",
+   "fieldname": "attribute",
+   "fieldtype": "Data",
    "in_list_view": 1,
-   "label": "Item Name",
-   "read_only": 1
-  },
-  {
-   "default": "0",
-   "fieldname": "checked",
-   "fieldtype": "Check",
-   "in_list_view": 1,
-   "label": "Checked"
+   "in_standard_filter": 1,
+   "label": "Attribute",
+   "reqd": 1
   }
  ],
+ "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2025-12-29 12:43:17.425423",
+ "modified": "2025-12-29 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Healthcare",
- "name": "Environmental Checklist Detail",
+ "name": "History Form Details Template Detail",
  "owner": "Administrator",
  "permissions": [],
  "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
  "sort_field": "modified",
  "sort_order": "DESC",
- "states": [],
- "track_changes": 1
+ "states": []
 }
+

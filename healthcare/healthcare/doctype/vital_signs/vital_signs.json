@@ -279,7 +279,7 @@
    "fieldname": "admission_no",
    "fieldtype": "Link",
    "label": "Admission No",
-   "options": "Inpatient Record"
+   "options": "Inpatient Admission"
   },
   {
    "fieldname": "column_break_wpjq",
@@ -299,7 +299,7 @@
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2025-12-17 16:44:12.771477",
+ "modified": "2025-12-29 12:19:10.631365",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Vital Signs",

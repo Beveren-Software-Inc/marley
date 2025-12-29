@@ -4,9 +4,7 @@
 
 from frappe.model.document import Document
 
-class SessionSchedule(Document):
+
+class HistoryFormDetailsTemplateDetail(Document):
 	pass
-
-
-
 

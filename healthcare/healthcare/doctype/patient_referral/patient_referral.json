@@ -1,10 +1,11 @@
 {
  "actions": [],
  "allow_rename": 1,
+ "autoname": "format:PR-{MM}-{####}",
  "creation": "2025-12-23 14:00:00",
  "doctype": "DocType",
  "engine": "InnoDB",
-  "field_order": [
+ "field_order": [
   "patient",
   "file_number",
   "column_break_patient",
@@ -14,15 +15,15 @@
   "referral_date",
   "referred_from_doctype",
   "referred_from_docname",
-  "column_break_referral",
   "referred_to_hospital",
   "referred_to_doctor",
+  "column_break_referral",
   "referred_to_address",
   "referred_to_contact",
   "section_break_reason",
   "reason_for_referral",
-  "column_break_status",
   "referral_status",
+  "column_break_status",
   "notes",
   "section_break_attachments",
   "attachments"
@@ -162,11 +163,11 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-12-24 12:32:56.097604",
+ "modified": "2025-12-29 12:11:00.514169",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Referral",
- "naming_rule": "By \"Naming Series\" field",
+ "naming_rule": "Expression",
  "owner": "Administrator",
  "permissions": [
   {

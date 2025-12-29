@@ -52,3 +52,5 @@ def update_doctype_name():
 if __name__ == "__main__":
 	update_doctype_name()
 
+
+

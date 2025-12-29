@@ -124,6 +124,7 @@
   "signature_tab",
   "signature",
   "history_form_tab",
+  "history_form_details_template",
   "history_attributes",
   "environmental_checklist_tab",
   "environmental_checklist_template",
@@ -824,6 +825,12 @@
    "fieldname": "history_form_tab",
    "fieldtype": "Tab Break",
    "label": "History Form"
+  },
+  {
+   "fieldname": "history_form_details_template",
+   "fieldtype": "Link",
+   "label": "History Form Details Template",
+   "options": "History Form Details Template"
   },
   {
    "fieldname": "history_attributes",

@@ -22,6 +22,12 @@ class PatientVisit(Document):
 		self.validate_therapies()
 		self.validate_observations()
 		set_codification_table_from_diagnosis(self)
+		# Validate and clear invalid inpatient_record reference
+		if self.inpatient_record:
+			if not frappe.db.exists("Inpatient Admission", self.inpatient_record):
+				# Clear the reference if the Inpatient Admission has been deleted
+				self.inpatient_record = None
+				self.inpatient_status = None
 		# Generate file number if this is the first encounter/inpatient record for the patient
 		if self.patient and self.is_new():
 			self.generate_file_number_for_patient()
@@ -46,7 +52,7 @@ class PatientVisit(Document):
 			filters_inpatient["name"] = ["!=", self.name]
 		
 		existing_encounters = frappe.db.exists("Patient Visit", filters_encounter)
-		existing_inpatient = frappe.db.exists("Inpatient Record", filters_inpatient)
+		existing_inpatient = frappe.db.exists("Inpatient Admission", filters_inpatient)
 		
 		# If no existing encounters or inpatient records, this is the first time
 		if not existing_encounters and not existing_inpatient:
@@ -672,7 +678,7 @@ def check_and_generate_file_number(patient):
 	
 	# Check if patient has any existing encounters or inpatient records
 	existing_encounters = frappe.db.exists("Patient Visit", {"patient": patient, "docstatus": ["!=", 2]})
-	existing_inpatient = frappe.db.exists("Inpatient Record", {"patient": patient, "docstatus": ["!=", 2]})
+	existing_inpatient = frappe.db.exists("Inpatient Admission", {"patient": patient, "docstatus": ["!=", 2]})
 	
 	# If no existing encounters or inpatient records, this is the first time
 	if not existing_encounters and not existing_inpatient:

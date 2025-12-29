@@ -520,7 +520,7 @@
   },
   {
    "group": "Inpatient",
-   "link_doctype": "Inpatient Record",
+   "link_doctype": "Inpatient Admission",
    "link_fieldname": "admission_encounter"
   },
   {
@@ -539,7 +539,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2025-12-28 17:11:57.924853",
+ "modified": "2025-12-29 11:03:19.341704",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Visit",

@@ -69,6 +69,14 @@ frappe.ui.form.on('Inpatient Admission', {
 			frm.clear_table('environmental_checklist_detail');
 			frm.refresh_field('environmental_checklist_detail');
 		}
+	},
+	history_form_details_template: function(frm) {
+		if (frm.doc.history_form_details_template) {
+			load_history_form_details_template(frm);
+		} else {
+			frm.clear_table('history_attributes');
+			frm.refresh_field('history_attributes');
+		}
 	}
 });
 
@@ -88,16 +96,21 @@ let create_external_referral_from_ip = function(frm) {
 }
 
 let discharge_patient = function(frm) {
-	frappe.call({
-		doc: frm.doc,
-		method: 'discharge',
-		callback: function(data) {
-			if (!data.exc) {
-				frm.reload_doc();
-			}
-		},
-		freeze: true,
-		freeze_message: __('Processing Inpatient Discharge')
+	// Check if Discharge already exists for this admission
+	frappe.db.get_value('Discharge', {admission: frm.doc.name}, 'name').then(function(r) {
+		if (r && r.message && r.message.name) {
+			// Open existing Discharge document
+			frappe.set_route('Form', 'Discharge', r.message.name);
+		} else {
+			// Create new Discharge document from Inpatient Admission
+			frappe.model.open_mapped_doc({
+				method: 'healthcare.healthcare.doctype.inpatient_admission.inpatient_admission.create_discharge_from_inpatient_admission',
+				frm: frm,
+				run_after_map: function(frm) {
+					// Additional setup if needed
+				}
+			});
+		}
 	});
 };
 
@@ -225,7 +238,7 @@ let transfer_patient_dialog = function(frm) {
 
 	dialog.fields_dict['leave_from'].get_query = function(){
 		return {
-			query : 'healthcare.healthcare.doctype.inpatient_record.inpatient_record.get_leave_from',
+			query : 'healthcare.healthcare.doctype.inpatient_admission.inpatient_admission.get_leave_from',
 			filters: {docname:frm.doc.name}
 		};
 	};
@@ -303,6 +316,7 @@ var schedule_discharge = function(frm) {
 		primary_action : function() {
 			var args = {
 				patient: frm.doc.patient,
+				inpatient_record: frm.doc.name,
 				discharge_practitioner: dialog.get_value('discharge_practitioner'),
 				discharge_ordered_datetime: dialog.get_value('discharge_ordered_datetime'),
 				followup_date: dialog.get_value('followup_date'),
@@ -310,8 +324,8 @@ var schedule_discharge = function(frm) {
 				discharge_note: dialog.get_value('discharge_note')
 			}
 			frappe.call ({
-				method: 'healthcare.healthcare.doctype.inpatient_record.inpatient_record.schedule_discharge',
-				args: {args},
+				method: 'healthcare.healthcare.doctype.inpatient_admission.inpatient_admission.schedule_discharge',
+				args: {args: args},
 				callback: function(data) {
 					if(!data.exc){
 						frm.reload_doc();
@@ -340,7 +354,7 @@ let cancel_ip_order = function(frm) {
 	],
 	function(data) {
 		frappe.call({
-			method: 'healthcare.healthcare.doctype.inpatient_record.inpatient_record.set_ip_order_cancelled',
+			method: 'healthcare.healthcare.doctype.inpatient_admission.inpatient_admission.set_ip_order_cancelled',
 			async: false,
 			freeze: true,
 			args: {
@@ -378,6 +392,36 @@ let load_environmental_checklist_template = function(frm) {
 				});
 				
 				frm.refresh_field('environmental_checklist_detail');
+			}
+		}
+	});
+}
+
+let load_history_form_details_template = function(frm) {
+	if (!frm.doc.history_form_details_template) {
+		return;
+	}
+	
+	frappe.call({
+		method: 'frappe.client.get',
+		args: {
+			doctype: 'History Form Details Template',
+			name: frm.doc.history_form_details_template
+		},
+		callback: function(r) {
+			if (r.message && r.message.attributes) {
+				// Clear existing items
+				frm.clear_table('history_attributes');
+				
+				// Add attributes from template
+				r.message.attributes.forEach(function(item) {
+					let row = frm.add_child('history_attributes');
+					row.attribute = item.attribute;
+					row.description_on_admission = '';
+					row.description_on_discharge = '';
+				});
+				
+				frm.refresh_field('history_attributes');
 			}
 		}
 	});

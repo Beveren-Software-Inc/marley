@@ -8,3 +8,5 @@ class MorseFallScaleDetail(Document):
 	pass
 
 
+
+

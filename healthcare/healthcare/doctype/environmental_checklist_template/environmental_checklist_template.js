@@ -7,3 +7,5 @@ frappe.ui.form.on('Environmental Checklist Template', {
 	}
 });
 
+
+

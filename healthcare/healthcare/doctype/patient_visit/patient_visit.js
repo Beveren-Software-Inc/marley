@@ -5,7 +5,7 @@ frappe.ui.form.on('Patient Visit', {
 	onload: function(frm) {
 		if (!frm.doc.__islocal && frm.doc.docstatus === 1 &&
 			frm.doc.inpatient_status == 'Admission Scheduled') {
-				frappe.db.get_value('Inpatient Record', frm.doc.inpatient_record,
+				frappe.db.get_value('Inpatient Admission', frm.doc.inpatient_record,
 					['admission_encounter', 'status']).then(r => {
 						if (r.message) {
 							if (r.message.admission_encounter == frm.doc.name &&
