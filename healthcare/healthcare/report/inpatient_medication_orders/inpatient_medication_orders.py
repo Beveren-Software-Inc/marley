@@ -75,8 +75,8 @@ def get_columns():
 		{
 			"fieldname": "inpatient_record",
 			"fieldtype": "Link",
-			"label": "Inpatient Record",
-			"options": "Inpatient Record",
+			"label": "Inpatient Admission",
+			"options": "Inpatient Admission",
 			"width": 200,
 		},
 	]

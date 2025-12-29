@@ -61,7 +61,7 @@
    "fieldname": "order_group",
    "fieldtype": "Link",
    "label": "Order Group",
-   "options": "Patient Encounter",
+   "options": "Patient Visit",
    "read_only": 1
   },
   {
@@ -151,7 +151,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2023-01-13 19:58:52.567460",
+ "modified": "2025-12-28 17:10:50.711850",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Treatment Plan Template",
@@ -195,6 +195,7 @@
    "write": 1
   }
  ],
+ "row_format": "Dynamic",
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": [],

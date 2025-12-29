@@ -64,8 +64,8 @@
    "fetch_from": "patient.inpatient_record",
    "fieldname": "inpatient_record",
    "fieldtype": "Link",
-   "label": "Inpatient Record",
-   "options": "Inpatient Record",
+   "label": "Inpatient Admission",
+   "options": "Inpatient Admission",
    "read_only": 1
   },
   {

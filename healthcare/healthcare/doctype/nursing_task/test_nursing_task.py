@@ -8,11 +8,11 @@ from frappe.utils import now_datetime
 from healthcare.healthcare.doctype.clinical_procedure.test_clinical_procedure import (
 	create_procedure,
 )
-from healthcare.healthcare.doctype.inpatient_record.inpatient_record import (
+from healthcare.healthcare.doctype.inpatient_admission.inpatient_admission import (
 	admit_patient,
 	discharge_patient,
 )
-from healthcare.healthcare.doctype.inpatient_record.test_inpatient_record import (
+from healthcare.healthcare.doctype.inpatient_admission.test_inpatient_admission import (
 	create_inpatient,
 	get_healthcare_service_unit,
 )

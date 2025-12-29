@@ -39,7 +39,7 @@ export interface ServiceUnit {
 }
 
 export async function fetchInpatientRecords(status?: string) {
-  const url = `/api/method/healthcare.api.inpatient_record.get_inpatient_records${status ? `?status=${encodeURIComponent(status)}` : ''}`
+  const url = `/api/method/healthcare.api.inpatient_admission.get_inpatient_records${status ? `?status=${encodeURIComponent(status)}` : ''}`
   
   const response = await fetch(url)
   console.log("Hapa",response)
@@ -54,7 +54,7 @@ export async function fetchInpatientRecords(status?: string) {
 
 export async function fetchInpatientRecord(name: string) {
   const response = await fetch(
-    `/api/method/healthcare.api.inpatient_record.get_inpatient_record?name=${encodeURIComponent(name)}`
+    `/api/method/healthcare.api.inpatient_admission.get_inpatient_record?name=${encodeURIComponent(name)}`
   )
   const resData = await response.json()
 console.log("Hapa",resData)
@@ -67,7 +67,7 @@ console.log("Hapa",resData)
 
 export async function fetchPackageDetails(admissionNo: string): Promise<PackageDetailsResponse> {
   const response = await fetch(
-    `/api/method/healthcare.api.inpatient_record.get_package_details?admission_no=${encodeURIComponent(admissionNo)}`
+    `/api/method/healthcare.api.inpatient_admission.get_package_details?admission_no=${encodeURIComponent(admissionNo)}`
   )
   const resData = await response.json()
 
@@ -96,7 +96,7 @@ export async function fetchServiceUnits(serviceUnitType?: string, occupancyStatu
   if (serviceUnitType) params.append('service_unit_type', serviceUnitType)
   if (occupancyStatus) params.append('occupancy_status', occupancyStatus)
   
-  const url = `/api/method/healthcare.api.inpatient_record.get_service_units${params.toString() ? `?${params.toString()}` : ''}`
+  const url = `/api/method/healthcare.api.inpatient_admission.get_service_units${params.toString() ? `?${params.toString()}` : ''}`
   
   const response = await fetch(url)
   const resData = await response.json()
@@ -117,7 +117,7 @@ export async function admitPatient(
   const csrf = (window as any).csrf_token
   
   const response = await fetch(
-    `/api/method/healthcare.api.inpatient_record.admit_patient`,
+    `/api/method/healthcare.api.inpatient_admission.admit_patient`,
     {
       method: 'POST',
       headers: {

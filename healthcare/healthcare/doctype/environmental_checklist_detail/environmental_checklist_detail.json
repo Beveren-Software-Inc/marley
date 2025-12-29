@@ -12,7 +12,7 @@
  "fields": [
   {
    "fieldname": "item_name",
-   "fieldtype": "Data",
+   "fieldtype": "Small Text",
    "in_list_view": 1,
    "label": "Item Name",
    "read_only": 1
@@ -28,15 +28,15 @@
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2025-12-24 15:30:00",
+ "modified": "2025-12-29 12:43:17.425423",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Environmental Checklist Detail",
  "owner": "Administrator",
  "permissions": [],
+ "row_format": "Dynamic",
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": [],
  "track_changes": 1
 }
-

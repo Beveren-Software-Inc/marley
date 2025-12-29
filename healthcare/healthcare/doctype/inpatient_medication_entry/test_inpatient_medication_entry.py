@@ -16,12 +16,12 @@ from healthcare.healthcare.doctype.inpatient_medication_order.test_inpatient_med
 	create_ipme,
 	create_ipmo,
 )
-from healthcare.healthcare.doctype.inpatient_record.inpatient_record import (
+from healthcare.healthcare.doctype.inpatient_admission.inpatient_admission import (
 	admit_patient,
 	discharge_patient,
 	schedule_discharge,
 )
-from healthcare.healthcare.doctype.inpatient_record.test_inpatient_record import (
+from healthcare.healthcare.doctype.inpatient_admission.test_inpatient_admission import (
 	create_inpatient,
 	create_patient,
 	get_healthcare_service_unit,

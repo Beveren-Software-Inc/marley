@@ -324,12 +324,12 @@ class TestPatientAppointment(FrappeTestCase):
 		self.assertEqual(frappe.db.get_value("Sales Invoice", sales_invoice_name, "status"), "Cancelled")
 
 	def test_appointment_booking_for_admission_service_unit(self):
-		from healthcare.healthcare.doctype.inpatient_record.inpatient_record import (
+		from healthcare.healthcare.doctype.inpatient_admission.inpatient_admission import (
 			admit_patient,
 			discharge_patient,
 			schedule_discharge,
 		)
-		from healthcare.healthcare.doctype.inpatient_record.test_inpatient_record import (
+		from healthcare.healthcare.doctype.inpatient_admission.test_inpatient_admission import (
 			create_inpatient,
 			get_healthcare_service_unit,
 			mark_invoiced_inpatient_occupancy,
@@ -357,12 +357,12 @@ class TestPatientAppointment(FrappeTestCase):
 		discharge_patient(ip_record1)
 
 	def test_invalid_healthcare_service_unit_validation(self):
-		from healthcare.healthcare.doctype.inpatient_record.inpatient_record import (
+		from healthcare.healthcare.doctype.inpatient_admission.inpatient_admission import (
 			admit_patient,
 			discharge_patient,
 			schedule_discharge,
 		)
-		from healthcare.healthcare.doctype.inpatient_record.test_inpatient_record import (
+		from healthcare.healthcare.doctype.inpatient_admission.test_inpatient_admission import (
 			create_inpatient,
 			get_healthcare_service_unit,
 			mark_invoiced_inpatient_occupancy,

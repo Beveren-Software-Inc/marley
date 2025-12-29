@@ -1,6 +1,7 @@
 {
  "actions": [],
  "allow_rename": 1,
+ "autoname": "field:admission",
  "creation": "2025-12-01 12:02:03.384993",
  "doctype": "DocType",
  "engine": "InnoDB",
@@ -43,7 +44,11 @@
   "appointment_section",
   "next_appointment_date",
   "column_break_kffl",
-  "next_appointment_time"
+  "next_appointment_time",
+  "history_decription_tab",
+  "history_form_details_template",
+  "history_details",
+  "amended_from"
  ],
  "fields": [
   {
@@ -52,11 +57,12 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Admission",
-   "options": "Inpatient Record",
-   "reqd": 1
+   "options": "Inpatient Admission",
+   "reqd": 1,
+   "unique": 1
   },
   {
-   "fetch_from": "admission.file_number",
+   "fetch_from": "admission.patient",
    "fieldname": "file_no",
    "fieldtype": "Link",
    "in_list_view": 1,
@@ -254,15 +260,44 @@
    "fieldtype": "Table",
    "label": "Medicine Given",
    "options": "Medicine Given"
+  },
+  {
+   "fieldname": "history_decription_tab",
+   "fieldtype": "Tab Break",
+   "label": "History Decription"
+  },
+  {
+   "fieldname": "history_form_details_template",
+   "fieldtype": "Link",
+   "label": "History Form Details Template",
+   "options": "History Form Details Template"
+  },
+  {
+   "fieldname": "history_details",
+   "fieldtype": "Table",
+   "label": "History Details",
+   "options": "History Form Details"
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Discharge",
+   "print_hide": 1,
+   "read_only": 1,
+   "search_index": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
+ "is_submittable": 1,
  "links": [],
- "modified": "2025-12-24 14:09:18.252881",
+ "modified": "2025-12-29 13:06:50.645355",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Discharge",
+ "naming_rule": "By fieldname",
  "owner": "Administrator",
  "permissions": [
   {

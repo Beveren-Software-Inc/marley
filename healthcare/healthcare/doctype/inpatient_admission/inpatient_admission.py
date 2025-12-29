@@ -4,25 +4,27 @@
 
 
 import json
+import re
 
 import frappe
 from frappe import _
 from frappe.desk.reportview import get_match_cond
 from frappe.model.document import Document
+from frappe.model.mapper import get_mapped_doc
 from frappe.utils import get_datetime, get_link_to_form, getdate, now_datetime, today
 
 from healthcare.healthcare.doctype.nursing_task.nursing_task import NursingTask
 from healthcare.healthcare.utils import validate_nursing_tasks
 
 
-class InpatientRecord(Document):
+class InpatientAdmission(Document):
 	def after_insert(self):
 		frappe.db.set_value("Patient", self.patient, "inpatient_record", self.name)
 		frappe.db.set_value("Patient", self.patient, "inpatient_status", self.status)
 
 		if self.admission_encounter:  # Update encounter
 			frappe.db.set_value(
-				"Patient Encounter",
+				"Patient Visit",
 				self.admission_encounter,
 				{"inpatient_record": self.name, "inpatient_status": self.status},
 			)
@@ -54,10 +56,79 @@ class InpatientRecord(Document):
 	def validate(self):
 		self.validate_dates()
 		self.validate_already_scheduled_or_admitted()
+		# Generate file number if this is the first encounter/inpatient record for the patient
+		if self.patient and self.is_new():
+			self.generate_file_number_for_patient()
 		if self.status in ["Discharged", "Cancelled"]:
 			frappe.db.set_value(
 				"Patient", self.patient, {"inpatient_status": None, "inpatient_record": None}
 			)
+	
+	def generate_file_number_for_patient(self):
+		"""Generate sequential file number if this is the first encounter/inpatient record"""
+		if not self.patient:
+			return
+		
+		# Check if patient has any existing encounters or inpatient records
+		# For new documents, self.name doesn't exist yet, so we just check for any existing records
+		filters_encounter = {"patient": self.patient, "docstatus": ["!=", 2]}
+		filters_inpatient = {"patient": self.patient, "docstatus": ["!=", 2]}
+		
+		# If this is not a new document, exclude it from the check
+		if not self.is_new() and self.name:
+			filters_encounter["name"] = ["!=", self.name]
+			filters_inpatient["name"] = ["!=", self.name]
+		
+		existing_encounters = frappe.db.exists("Patient Visit", filters_encounter)
+		existing_inpatient = frappe.db.exists("Inpatient Admission", filters_inpatient)
+		
+		# If no existing encounters or inpatient records, this is the first time
+		if not existing_encounters and not existing_inpatient:
+			# Get patient document
+			patient_doc = frappe.get_doc("Patient", self.patient)
+			
+			# Only generate file number if patient doesn't have one
+			if not patient_doc.get("file_no"):
+				# Get the next sequential file number
+				file_number = self.get_next_file_number()
+				
+				# Update patient's file_no field
+				frappe.db.set_value("Patient", self.patient, "file_no", file_number)
+	
+	def get_next_file_number(self):
+		"""Get the next sequential file number by checking the last number used"""
+		# Get all patients with file_no values
+		all_file_nos = frappe.db.get_all(
+			"Patient",
+			filters={"file_no": ["is", "set"]},
+			fields=["file_no"],
+			pluck="file_no"
+		)
+		
+		if not all_file_nos:
+			# No file numbers exist, start from 1
+			return "1"
+		
+		# Extract numeric values from file_no
+		max_number = 0
+		for file_no in all_file_nos:
+			if file_no:
+				# Extract all numeric parts from the file_no
+				numbers = re.findall(r'\d+', str(file_no))
+				if numbers:
+					# Get the last number found (in case there are multiple)
+					# or the largest number if multiple numbers exist
+					for num_str in numbers:
+						try:
+							num = int(num_str)
+							if num > max_number:
+								max_number = num
+						except ValueError:
+							continue
+		
+		# Increment by 1
+		next_number = max_number + 1
+		return str(next_number)
 
 	def validate_dates(self):
 		if (getdate(self.expected_discharge) < getdate(self.scheduled_date)) or (
@@ -78,7 +149,7 @@ class InpatientRecord(Document):
 	def validate_already_scheduled_or_admitted(self):
 		query = """
 			select name, status
-			from `tabInpatient Record`
+			from `tabInpatient Admission`
 			where (status = 'Admitted' or status = 'Admission Scheduled')
 			and name != %(name)s and patient = %(patient)s
 			"""
@@ -118,7 +189,7 @@ def schedule_inpatient(args):
 	):
 		frappe.throw(_("Missing required details, did not create Inpatient Record"))
 
-	inpatient_record = frappe.new_doc("Inpatient Record")
+	inpatient_record = frappe.new_doc("Inpatient Admission")
 
 	# Admission order details
 	set_details_from_ip_order(inpatient_record, admission_order)
@@ -148,7 +219,7 @@ def schedule_inpatient(args):
 	inpatient_record.scheduled_date = today()
 
 	# Set encounter details
-	encounter = frappe.get_doc("Patient Encounter", admission_order["admission_encounter"])
+	encounter = frappe.get_doc("Patient Visit", admission_order["admission_encounter"])
 	if encounter and encounter.symptoms:  # Symptoms
 		set_ip_child_records(inpatient_record, "chief_complaint", encounter.symptoms)
 
@@ -176,15 +247,29 @@ def schedule_inpatient(args):
 
 @frappe.whitelist()
 def schedule_discharge(args):
-	discharge_order = json.loads(args)
-	inpatient_record_id = frappe.db.get_value(
-		"Patient", discharge_order["patient"], "inpatient_record"
-	)
+	# Handle both dict and JSON string
+	if isinstance(args, str):
+		discharge_order = json.loads(args)
+	elif isinstance(args, dict) and "args" in args:
+		# Handle case where args is wrapped in another dict
+		discharge_order = args["args"]
+	else:
+		discharge_order = args
+	
+	# Get inpatient_record_id from the discharge_order if provided, otherwise from patient
+	if "inpatient_record" in discharge_order:
+		inpatient_record_id = discharge_order["inpatient_record"]
+	else:
+		inpatient_record_id = frappe.db.get_value(
+			"Patient", discharge_order["patient"], "inpatient_record"
+		)
 
 	if inpatient_record_id:
-
-		inpatient_record = frappe.get_doc("Inpatient Record", inpatient_record_id)
-		check_out_inpatient(inpatient_record)
+		inpatient_record = frappe.get_doc("Inpatient Admission", inpatient_record_id)
+		
+		# Don't check out yet - that happens on actual discharge
+		# check_out_inpatient(inpatient_record)  # Commented out - only check out on actual discharge
+		
 		set_details_from_ip_order(inpatient_record, discharge_order)
 		inpatient_record.status = "Discharge Scheduled"
 		inpatient_record.save(ignore_permissions=True)
@@ -194,7 +279,7 @@ def schedule_discharge(args):
 		)
 		if inpatient_record.discharge_encounter:
 			frappe.db.set_value(
-				"Patient Encounter",
+				"Patient Visit",
 				inpatient_record.discharge_encounter,
 				"inpatient_status",
 				inpatient_record.status,
@@ -206,6 +291,8 @@ def schedule_discharge(args):
 				inpatient_record,
 				start_time=now_datetime(),
 			)
+		
+		return inpatient_record
 
 
 def set_details_from_ip_order(inpatient_record, ip_order):
@@ -406,7 +493,7 @@ def get_leave_from(doctype, txt, searchfield, start, page_len, filters):
 	docname = filters["docname"]
 
 	query = """select io.service_unit
-		from `tabInpatient Occupancy` io, `tabInpatient Record` ir
+		from `tabInpatient Occupancy` io, `tabInpatient Admission` ir
 		where io.parent = '{docname}' and io.parentfield = 'inpatient_occupancies'
 		and io.left!=1 and io.parent = ir.name"""
 
@@ -433,7 +520,7 @@ def is_service_unit_billable(service_unit):
 
 @frappe.whitelist()
 def set_ip_order_cancelled(inpatient_record, reason, encounter=None):
-	inpatient_record = frappe.get_doc("Inpatient Record", inpatient_record)
+	inpatient_record = frappe.get_doc("Inpatient Admission", inpatient_record)
 	if inpatient_record.status == "Admission Scheduled":
 		inpatient_record.status = "Cancelled"
 		inpatient_record.reason_for_cancellation = reason
@@ -441,8 +528,41 @@ def set_ip_order_cancelled(inpatient_record, reason, encounter=None):
 		encounter_name = encounter if encounter else inpatient_record.admission_encounter
 		if encounter_name:
 			frappe.db.set_value(
-				"Patient Encounter", encounter_name, {"inpatient_status": None, "inpatient_record": None}
+				"Patient Visit", encounter_name, {"inpatient_status": None, "inpatient_record": None}
 			)
+
+
+@frappe.whitelist()
+def check_and_generate_file_number(patient):
+	"""
+	Check if this is the first encounter or inpatient record for the patient.
+	If yes, generate file number (patient name) and update patient's file_no field.
+	Returns the file_number (patient name).
+	"""
+	if not patient:
+		return {"file_number": None}
+	
+	# Check if patient has any existing encounters or inpatient records
+	existing_encounters = frappe.db.exists("Patient Visit", {"patient": patient, "docstatus": ["!=", 2]})
+	existing_inpatient = frappe.db.exists("Inpatient Admission", {"patient": patient, "docstatus": ["!=", 2]})
+	
+	# If no existing encounters or inpatient records, this is the first time
+	if not existing_encounters and not existing_inpatient:
+		# Get patient document
+		patient_doc = frappe.get_doc("Patient", patient)
+		
+		# File number is the patient's name (which is auto-generated)
+		file_number = patient_doc.name
+		
+		# Update patient's file_no field if it's empty
+		if not patient_doc.get("file_no"):
+			frappe.db.set_value("Patient", patient, "file_no", file_number)
+		
+		return {"file_number": file_number}
+	else:
+		# Patient already has encounters or inpatient records, return existing file number
+		patient_doc = frappe.get_doc("Patient", patient)
+		return {"file_number": patient_doc.name}
 
 
 def validate_incompleted_service_requests(inpatient_record):
@@ -461,3 +581,47 @@ def validate_incompleted_service_requests(inpatient_record):
 		message = _("There are Orders yet to be carried out<br> {0}")
 
 		frappe.throw(message.format(", ".join(service_requests)))
+
+
+@frappe.whitelist()
+def create_discharge_from_inpatient_admission(source_name, target_doc=None):
+	"""Create Discharge document from Inpatient Admission"""
+	def set_missing_values(source, target):
+		target.admission = source.name
+		target.discharge_date = now_datetime()
+		# Copy discharge-related fields from Inpatient Admission if available
+		if source.discharge_instructions:
+			target.discharge_instructions = source.discharge_instructions
+		if source.discharge_note:
+			target.discharge_diagnosis = source.discharge_note
+		if source.followup_date:
+			target.next_appointment_date = source.followup_date
+		if source.discharge_practitioner:
+			target.discharged_by_user = source.discharge_practitioner
+		# Copy history form details template and attributes
+		if source.history_form_details_template:
+			target.history_form_details_template = source.history_form_details_template
+		if source.history_attributes:
+			for attr in source.history_attributes:
+				target_row = target.append("history_details")
+				target_row.attribute = attr.attribute
+				target_row.description_on_admission = attr.description_on_admission or ""
+				target_row.description_on_discharge = ""
+
+	doc = get_mapped_doc(
+		"Inpatient Admission",
+		source_name,
+		{
+			"Inpatient Admission": {
+				"doctype": "Discharge",
+				"field_map": {
+					"patient": "file_no",
+					"patient_name": "patient_name",
+				},
+			}
+		},
+		target_doc,
+		set_missing_values,
+	)
+
+	return doc

@@ -121,10 +121,10 @@
   },
   {
    "fieldname": "inpatient_record",
-   "fieldtype": "Link",
-   "label": "Inpatient Record",
+   "fieldtype": "Data",
+   "label": "Inpatient Admission",
    "no_copy": 1,
-   "options": "Inpatient Record",
+   "options": "Inpatient Admission",
    "read_only": 1
   },
   {
@@ -748,11 +748,6 @@
   },
   {
    "group": "Admissions",
-   "link_doctype": "Inpatient Record",
-   "link_fieldname": "patient"
-  },
-  {
-   "group": "Admissions",
    "link_doctype": "Inpatient Medication Order",
    "link_fieldname": "patient"
   },
@@ -793,7 +788,7 @@
   }
  ],
  "max_attachments": 50,
- "modified": "2025-12-22 11:06:33.898778",
+ "modified": "2025-12-28 16:48:32.516229",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient",
@@ -853,7 +848,7 @@
  "restrict_to_domain": "Healthcare",
  "row_format": "Dynamic",
  "rows_threshold_for_grid_search": 20,
- "search_fields": "patient_name,mobile,email,phone,uid",
+ "search_fields": "patient_name,file_no,mobile,email,phone,uid",
  "show_name_in_global_search": 1,
  "sort_field": "modified",
  "sort_order": "ASC",

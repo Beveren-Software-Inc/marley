@@ -42,6 +42,9 @@ fixtures = [
 	},
     {
 		"doctype": "Environmental Checklist Template"
+	},
+    {
+		"doctype": "History Form Details Template"
 	}
 ]
 
