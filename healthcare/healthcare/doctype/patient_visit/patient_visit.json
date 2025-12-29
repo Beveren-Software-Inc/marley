@@ -162,7 +162,7 @@
   {
    "fetch_from": "patient.mobile",
    "fieldname": "patient_mobile_no",
-   "fieldtype": "Phone",
+   "fieldtype": "Data",
    "label": "Patient Mobile No",
    "read_only": 1
   },
@@ -539,7 +539,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2025-12-29 11:03:19.341704",
+ "modified": "2025-12-29 14:14:57.919434",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Visit",
