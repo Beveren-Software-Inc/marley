@@ -16,6 +16,7 @@
   "column_break_jw2e",
   "posting_date",
   "practitioner",
+  "practitioner_name",
   "user",
   "medical_role",
   "warning_section",
@@ -75,8 +76,7 @@
    "fieldname": "practitioner",
    "fieldtype": "Link",
    "label": "Practitioner",
-   "options": "Healthcare Practitioner",
-   "read_only": 1
+   "options": "Healthcare Practitioner"
   },
   {
    "fetch_from": "practitioner.user_id",
@@ -123,11 +123,17 @@
    "fieldname": "warning",
    "fieldtype": "Text Editor",
    "label": "Warning"
+  },
+  {
+   "fetch_from": "practitioner.practitioner_name",
+   "fieldname": "practitioner_name",
+   "fieldtype": "Data",
+   "label": "Practitioner Name"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-12-14 17:19:52.452342",
+ "modified": "2025-12-30 10:24:53.749221",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Warning Message",

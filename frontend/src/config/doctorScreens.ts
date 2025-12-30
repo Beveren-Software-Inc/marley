@@ -28,7 +28,7 @@ export const doctorScreens = [
   { id: 'ipm', title: 'IP Medication', desc: 'Inpatient medications.' },
   { id: 'pvh', title: 'Patient Visit History', desc: 'Prior encounters.' },
   { id: 'pkg', title: 'Package Detail', desc: 'Package info.' }
-]
+].sort((a, b) => a.title.localeCompare(b.title))
 
 
 
