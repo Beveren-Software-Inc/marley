@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
 import { 
-  fetchMedicalDepartments, 
   fetchHealthcarePractitioners, 
   type LinkFieldOption 
 } from '../../services/common'

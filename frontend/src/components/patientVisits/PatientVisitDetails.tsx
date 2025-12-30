@@ -123,7 +123,7 @@ export const PatientVisitDetails = ({ visitNo, onUpdate }: PatientVisitDetailsPr
       {showAdmissionModal && visit && (
         <CreateAdmissionModal
           onClose={() => setShowAdmissionModal(false)}
-          onSuccess={(admissionName) => {
+          onSuccess={() => {
             setShowAdmissionModal(false)
             // Reload visit to show updated inpatient_record
             const loadVisit = async () => {

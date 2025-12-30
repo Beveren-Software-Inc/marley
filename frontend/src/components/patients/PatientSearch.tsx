@@ -8,7 +8,7 @@ interface PatientSearchProps {
   patients?: string[]
 }
 
-export const PatientSearch = ({ selectedPatient, onPatientSelect, patients: initialPatients = [] }: PatientSearchProps) => {
+export const PatientSearch = ({ selectedPatient, onPatientSelect }: PatientSearchProps) => {
   const [patientQuery, setPatientQuery] = useState('')
   const [patientOpen, setPatientOpen] = useState(false)
   const [showCreatePatient, setShowCreatePatient] = useState(false)

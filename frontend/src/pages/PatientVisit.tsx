@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { PatientVisitList } from '../components/patientVisits/PatientVisitList'
 import { PatientVisitDetails } from '../components/patientVisits/PatientVisitDetails'

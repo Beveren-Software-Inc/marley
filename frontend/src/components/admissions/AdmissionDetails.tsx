@@ -100,7 +100,7 @@ export const AdmissionDetails = ({ admissionNo, onUpdate }: AdmissionDetailsProp
     }
   }
 
-  const handleAdmit = (recordName: string) => {
+  const handleAdmit = () => {
     setShowPackages(true)
   }
 
@@ -251,15 +251,15 @@ export const AdmissionDetails = ({ admissionNo, onUpdate }: AdmissionDetailsProp
               Schedule Discharge
             </button>
           )}
-          {admission.status === 'Admission Scheduled' && (
-            <>
-              <button
-                onClick={() => handleAdmit(admission.name)}
-                disabled={actionLoading}
-                className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-50"
-              >
-                Admit
-              </button>
+            {admission.status === 'Admission Scheduled' && (
+              <>
+                <button
+                  onClick={handleAdmit}
+                  disabled={actionLoading}
+                  className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-50"
+                >
+                  Admit
+                </button>
               <button
                 onClick={handleCancelAdmission}
                 disabled={actionLoading}
