@@ -6,6 +6,7 @@ import { LabTestReportsList } from '../components/labTests/LabTestReportsList'
 import { AdmissionDetails } from '../components/admissions/AdmissionDetails'
 import { CreateAdmissionModal } from '../components/admissions/CreateAdmissionModal'
 import { NotificationBell } from '../components/notifications/NotificationBell'
+import { UserMenu } from '../components/user/UserMenu'
 
 export const AdmissionPage = () => {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -67,7 +68,10 @@ export const AdmissionPage = () => {
             </button>
             <h1 className="text-lg font-semibold">Admission: {admissionFromUrl}</h1>
           </div>
-          <NotificationBell />
+          <div className="flex items-center gap-3">
+            <UserMenu />
+            <NotificationBell />
+          </div>
         </header>
 
         <div className="flex-1 overflow-y-auto p-4">
@@ -125,6 +129,7 @@ export const AdmissionPage = () => {
           </div>
           <div className="flex items-center justify-center gap-3">
             <h1 className="text-lg font-semibold">Inpatient Admissions</h1>
+            <UserMenu />
             <NotificationBell />
           </div>
         </header>

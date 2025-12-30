@@ -4,6 +4,7 @@ import { AdmissionList } from '../components/admissions/AdmissionList'
 import { PatientList } from '../components/patients/PatientList'
 import { PatientSearch } from '../components/patients/PatientSearch'
 import { NotificationBell } from '../components/notifications/NotificationBell'
+import { UserMenu } from '../components/user/UserMenu'
 
 type View = 'default' | 'patient' | 'admission'
 
@@ -43,6 +44,7 @@ export const ReceptionistPage = () => {
           <div className="text-xs opacity-80">
             <span>Reception · Main</span>
           </div>
+          <UserMenu />
           <NotificationBell />
         </div>
       </header>

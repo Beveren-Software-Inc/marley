@@ -4,6 +4,7 @@ import { PatientVisitList } from '../components/patientVisits/PatientVisitList'
 import { PatientVisitDetails } from '../components/patientVisits/PatientVisitDetails'
 import { CreatePatientVisitModal } from '../components/patientVisits/CreatePatientVisitModal'
 import { NotificationBell } from '../components/notifications/NotificationBell'
+import { UserMenu } from '../components/user/UserMenu'
 
 export const PatientVisitPage = () => {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -29,7 +30,10 @@ export const PatientVisitPage = () => {
             </button>
             <h1 className="text-lg font-semibold">Patient Visit: {visitFromUrl}</h1>
           </div>
-          <NotificationBell />
+          <div className="flex items-center gap-3">
+            <UserMenu />
+            <NotificationBell />
+          </div>
         </header>
 
         <div className="flex-1 overflow-y-auto p-4">
@@ -75,6 +79,7 @@ export const PatientVisitPage = () => {
           </div>
           <div className="flex items-center justify-center gap-3">
             <h1 className="text-lg font-semibold">Patient Visits</h1>
+            <UserMenu />
             <NotificationBell />
           </div>
         </header>

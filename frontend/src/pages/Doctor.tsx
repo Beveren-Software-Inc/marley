@@ -6,8 +6,9 @@ import { LabTestReportsList } from '../components/labTests/LabTestReportsList'
 import { AdmissionPage } from './Admission'
 import { PatientVisitPage } from './PatientVisit'
 import { NotificationBell } from '../components/notifications/NotificationBell'
+import { UserMenu } from '../components/user/UserMenu'
 
-const doctorNav = ['Dashboard', 'Warnings', 'Labs', 'Admissions']
+const doctorNav = ['Admission', 'Patient Visits']
 
 export const DoctorPage = () => {
   const [searchParams] = useSearchParams()
@@ -38,6 +39,7 @@ export const DoctorPage = () => {
               {item}
             </span>
           ))}
+          <UserMenu />
           <NotificationBell />
         </nav>
       </header>
