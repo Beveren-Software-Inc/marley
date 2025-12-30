@@ -6,7 +6,7 @@ export const doctorScreens = [
   { id: 'dos', title: 'Doctors Order Sheet', desc: 'Orders for labs, meds, procedures.' },
   { id: 'dn', title: 'Doctors Note', desc: 'Free-text notes.' },
   { id: 'dmc', title: 'Doctor Medication Chart', desc: 'Medication chart overview.' },
-  { id: 'af', title: 'Admission Form', desc: 'Admission assessment.' },
+  { id: 'admission', title: 'Admission', desc: 'View and manage inpatient admissions.' },
   { id: 'df', title: 'Discharge Form', desc: 'Discharge summary and instructions.' },
   { id: 'med', title: 'Medication', desc: 'Active medication list.' },
   { id: 'mr', title: 'Medical Report', desc: 'Formal reports and letters.' },
@@ -28,7 +28,7 @@ export const doctorScreens = [
   { id: 'ipm', title: 'IP Medication', desc: 'Inpatient medications.' },
   { id: 'pvh', title: 'Patient Visit History', desc: 'Prior encounters.' },
   { id: 'pkg', title: 'Package Detail', desc: 'Package info.' }
-]
+].sort((a, b) => a.title.localeCompare(b.title))
 
 
 

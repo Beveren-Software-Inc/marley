@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { dummyPatients } from '../config/patients'
 import { PatientSearch } from '../components/patients/PatientSearch'
+import { NotificationBell } from '../components/notifications/NotificationBell'
 
 const firstScreenPharma = ['Medicine Expiry Alert']
 
@@ -22,8 +23,11 @@ export const PharmacistPage = () => {
           onPatientSelect={setSelectedPatient}
           patients={dummyPatients}
         />
-        <div className="flex justify-end text-xs opacity-80">
-          <span>Branch: Main · Dummy</span>
+        <div className="flex items-center justify-end gap-3">
+          <div className="text-xs opacity-80">
+            <span>Branch: Main · Dummy</span>
+          </div>
+          <NotificationBell />
         </div>
       </header>
 

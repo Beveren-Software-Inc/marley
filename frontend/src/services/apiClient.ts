@@ -23,7 +23,7 @@ export async function apiRequest<T = any>(
       throw new Error(errorData.message || errorData.exc || `Request failed with status ${resp.status}`)
     } else {
       // If it's HTML, it's likely a redirect or error page
-      const text = await resp.text()
+      await resp.text() // Read response to avoid memory leak
       throw new Error(`Request failed with status ${resp.status}. Server returned HTML instead of JSON.`)
     }
   }

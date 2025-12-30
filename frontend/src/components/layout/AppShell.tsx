@@ -39,7 +39,7 @@ const nurseScreens = [
   { id: 'n-session', title: 'Sessions / Scheduler' },
   { id: 'n-ip-adm', title: 'IP Admission & Detail' },
   { id: 'n-reg', title: 'Admission Register' }
-]
+].sort((a, b) => a.title.localeCompare(b.title))
 
 const labScreens = [
   { id: 'l-pending', title: 'Pending Samples / Tests' },
@@ -51,7 +51,7 @@ const labScreens = [
   { id: 'l-results', title: 'Lab Test & Result' },
   { id: 'l-review', title: 'Lab Test Review' },
   { id: 'l-report', title: 'Lab Test Report History' }
-]
+].sort((a, b) => a.title.localeCompare(b.title))
 
 const pharmacyScreens = [
   { id: 'p-expiry', title: 'Medicine Expiry Alerts' },
@@ -59,7 +59,7 @@ const pharmacyScreens = [
   { id: 'p-ipm', title: 'IP Medication Orders' },
   { id: 'p-given', title: 'Given Medicines History' },
   { id: 'p-stock', title: 'Stock Overview' }
-]
+].sort((a, b) => a.title.localeCompare(b.title))
 
 const receptionScreens = [
   { id: 'r-new-op', title: 'New OP Registration' },
@@ -69,7 +69,7 @@ const receptionScreens = [
   { id: 'r-ip-adm', title: 'New IP Admission' },
   { id: 'r-reg', title: 'Admission Register' },
   { id: 'r-print', title: 'Print Forms / Labels' }
-]
+].sort((a, b) => a.title.localeCompare(b.title))
 
 const mainLinks = [
   { to: '/doctor', label: 'Doctor', screens: doctorScreens, prefix: '/doctor' },
