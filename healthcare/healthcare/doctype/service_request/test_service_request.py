@@ -161,7 +161,7 @@ class TestServiceRequest(unittest.TestCase):
 def create_encounter(
 	patient, practitioner, type, template, procedure_template=False, submit=False, obs=False
 ):
-	patient_encounter = frappe.new_doc("Patient Encounter")
+	patient_encounter = frappe.new_doc("Patient Visit")
 	patient_encounter.patient = patient
 	patient_encounter.practitioner = practitioner
 	patient_encounter.encounter_date = getdate()

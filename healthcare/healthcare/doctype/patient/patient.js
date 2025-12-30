@@ -127,7 +127,7 @@ let create_encounter = function (frm) {
 	frappe.route_options = {
 		'patient': frm.doc.name,
 	};
-	frappe.new_doc('Patient Encounter');
+	frappe.new_doc('Patient Visit');
 };
 
 let invoice_registration = function (frm) {

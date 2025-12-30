@@ -259,7 +259,7 @@ global_search_doctypes = {
 		{"doctype": "Healthcare Practitioner", "index": 4},
 		{"doctype": "Patient Appointment", "index": 5},
 		{"doctype": "Healthcare Service Unit", "index": 6},
-		{"doctype": "Patient Encounter", "index": 7},
+		{"doctype": "Patient Visit", "index": 7},
 		{"doctype": "Antibiotic", "index": 8},
 		{"doctype": "Diagnosis", "index": 9},
 		{"doctype": "Lab Test", "index": 10},
@@ -306,7 +306,7 @@ standard_portal_menu_items = [
 	{
 		"title": "Prescription",
 		"route": "/prescription",
-		"reference_doctype": "Patient Encounter",
+		"reference_doctype": "Patient Visit",
 		"role": "Patient",
 	},
 	{
@@ -319,7 +319,7 @@ standard_portal_menu_items = [
 
 has_website_permission = {
 	"Lab Test": "healthcare.healthcare.web_form.lab_test.lab_test.has_website_permission",
-	"Patient Encounter": "healthcare.healthcare.web_form.prescription.prescription.has_website_permission",
+	"Patient Visit": "healthcare.healthcare.web_form.prescription.prescription.has_website_permission",
 	"Patient Appointment": "healthcare.healthcare.web_form.patient_appointments.patient_appointments.has_website_permission",
 	"Patient": "healthcare.healthcare.web_form.personal_details.personal_details.has_website_permission",
 }

@@ -365,7 +365,7 @@
    "label": "Patient Instructions"
   },
   {
-   "default": "Patient Encounter",
+   "default": "Patient Visit",
    "fieldname": "order_group_doctype",
    "fieldtype": "Link",
    "label": "Order Group Type",

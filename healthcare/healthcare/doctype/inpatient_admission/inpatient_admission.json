@@ -1,10 +1,8 @@
 {
- "_comments": "[{\"comment\": \"Action Failed<br><br>Medication Request: Options must be a valid DocType for field Inpatient Reco...\", \"by\": \"Administrator\", \"name\": \"mts5khhst7\"}, {\"comment\": \"Action Failed<br><br>Medication Request: Options must be a valid DocType for field Inpatient Reco...\", \"by\": \"Administrator\", \"name\": \"nma26ngvm3\"}, {\"comment\": \"Action Failed<br><br>Medication Request: Options must be a valid DocType for field Inpatient Reco...\", \"by\": \"Administrator\", \"name\": \"p3a44bmkhf\"}, {\"comment\": \"Action Failed<br><br>Medication Request: Options must be a valid DocType for field Inpatient Reco...\", \"by\": \"Administrator\", \"name\": \"pidnlv5dis\"}, {\"comment\": \"Action Failed<br><br>Medication Request: Options must be a valid DocType for field Inpatient Reco...\", \"by\": \"Administrator\", \"name\": \"q8d3cohosn\"}]",
  "actions": [],
  "autoname": "format:{patient}-{MM}-{##}",
  "creation": "2018-07-11 17:48:51.404139",
  "doctype": "DocType",
- "name": "Inpatient Admission",
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
@@ -866,11 +864,16 @@
   {
    "link_doctype": "Nursing Task",
    "link_fieldname": "reference_name"
+  },
+  {
+   "link_doctype": "Discharge",
+   "link_fieldname": "admission"
   }
  ],
- "modified": "2025-12-28 16:44:35.518287",
+ "modified": "2025-12-30 10:02:04.180618",
  "modified_by": "Administrator",
  "module": "Healthcare",
+ "name": "Inpatient Admission",
  "naming_rule": "Expression",
  "owner": "Administrator",
  "permissions": [

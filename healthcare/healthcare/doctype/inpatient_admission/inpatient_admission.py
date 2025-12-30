@@ -379,7 +379,7 @@ def get_pending_invoices(inpatient_record):
 		if service_unit_names:
 			pending_invoices["Inpatient Occupancy"] = service_unit_names
 
-	docs = ["Patient Appointment", "Patient Encounter", "Lab Test", "Clinical Procedure"]
+	docs = ["Patient Appointment", "Patient Visit", "Lab Test", "Clinical Procedure"]
 
 	for doc in docs:
 		doc_name_list = get_unbilled_inpatient_docs(doc, inpatient_record)
@@ -417,7 +417,7 @@ def get_unbilled_inpatient_docs(doc, inpatient_record):
 			}
 		)
 	else:
-		if doc == "Patient Encounter":
+		if doc == "Patient Visit":
 			filters.update(
 				{
 					"appointment": "",

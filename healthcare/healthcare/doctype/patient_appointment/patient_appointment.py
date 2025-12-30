@@ -781,7 +781,7 @@ def make_encounter(source_name, target_doc=None):
 		source_name,
 		{
 			"Patient Appointment": {
-				"doctype": "Patient Encounter",
+				"doctype": "Patient Visit",
 				"field_map": [
 					["appointment", "name"],
 					["patient", "patient"],
@@ -891,7 +891,7 @@ def get_procedure_prescribed(patient):
 				pp.name, pp.procedure, pp.parent, ct.practitioner,
 				ct.encounter_date, pp.practitioner, pp.date, pp.department
 			FROM
-				`tabPatient Encounter` ct, `tabProcedure Prescription` pp
+				`tabPatient Visit` ct, `tabProcedure Prescription` pp
 			WHERE
 				ct.patient=%(patient)s and pp.parent=ct.name and pp.appointment_booked=0
 			ORDER BY
@@ -909,7 +909,7 @@ def get_prescribed_therapies(patient):
 				t.therapy_type, t.name, t.parent, e.practitioner,
 				e.encounter_date, e.therapy_plan, e.medical_department
 			FROM
-				`tabPatient Encounter` e, `tabTherapy Plan Detail` t
+				`tabPatient Visit` e, `tabTherapy Plan Detail` t
 			WHERE
 				e.patient=%(patient)s and t.parent=e.name
 			ORDER BY

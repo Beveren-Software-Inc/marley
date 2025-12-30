@@ -13,7 +13,7 @@
   {
    "hidden": 0,
    "label": "Consultation",
-   "links": "[\n\t{\n\t\t\"type\": \"doctype\",\n\t\t\"name\": \"Patient Appointment\",\n\t\t\"label\": \"Patient Appointment\"\n\t},\n\t{\n\t\t\"type\": \"doctype\",\n\t\t\"name\": \"Clinical Procedure\",\n\t\t\"label\": \"Clinical Procedure\"\n\t},\n\t{\n\t\t\"type\": \"doctype\",\n\t\t\"name\": \"Patient Encounter\",\n\t\t\"label\": \"Patient Encounter\"\n\t},\n\t{\n\t\t\"type\": \"doctype\",\n\t\t\"name\": \"Vital Signs\",\n\t\t\"label\": \"Vital Signs\"\n\t},\n\t{\n\t\t\"type\": \"doctype\",\n\t\t\"name\": \"Complaint\",\n\t\t\"label\": \"Complaint\"\n\t},\n\t{\n\t\t\"type\": \"doctype\",\n\t\t\"name\": \"Diagnosis\",\n\t\t\"label\": \"Diagnosis\"\n\t},\n\t{\n\t\t\"type\": \"doctype\",\n\t\t\"name\": \"Fee Validity\",\n\t\t\"label\": \"Fee Validity\"\n\t}\n]"
+   "links": "[\n\t{\n\t\t\"type\": \"doctype\",\n\t\t\"name\": \"Patient Appointment\",\n\t\t\"label\": \"Patient Appointment\"\n\t},\n\t{\n\t\t\"type\": \"doctype\",\n\t\t\"name\": \"Clinical Procedure\",\n\t\t\"label\": \"Clinical Procedure\"\n\t},\n\t{\n\t\t\"type\": \"doctype\",\n\t\t\"name\": \"Patient Visit\",\n\t\t\"label\": \"Patient Visit\"\n\t},\n\t{\n\t\t\"type\": \"doctype\",\n\t\t\"name\": \"Vital Signs\",\n\t\t\"label\": \"Vital Signs\"\n\t},\n\t{\n\t\t\"type\": \"doctype\",\n\t\t\"name\": \"Complaint\",\n\t\t\"label\": \"Complaint\"\n\t},\n\t{\n\t\t\"type\": \"doctype\",\n\t\t\"name\": \"Diagnosis\",\n\t\t\"label\": \"Diagnosis\"\n\t},\n\t{\n\t\t\"type\": \"doctype\",\n\t\t\"name\": \"Fee Validity\",\n\t\t\"label\": \"Fee Validity\"\n\t}\n]"
   },
   {
    "hidden": 0,

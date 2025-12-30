@@ -703,7 +703,7 @@
   },
   {
    "group": "Appointments and Encounters",
-   "link_doctype": "Patient Encounter",
+   "link_doctype": "Patient Visit",
    "link_fieldname": "patient"
   },
   {

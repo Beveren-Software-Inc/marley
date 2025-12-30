@@ -262,7 +262,7 @@ var get_drugs_to_invoice = function(frm, link_customer) {
 		title: __("Get Items from Medication Requests"),
 		fields:[
 			{ fieldtype: 'Link', options: 'Patient', label: 'Patient', fieldname: "patient", reqd: true },
-			{ fieldtype: 'Link', options: 'Patient Encounter', label: 'Patient Encounter', fieldname: "encounter", reqd: true,
+			{ fieldtype: 'Link', options: 'Patient Visit', label: 'Patient Visit', fieldname: "encounter", reqd: true,
 				description:'Quantity will be calculated only for items which has "Nos" as UoM. You may change as required for each invoice item.',
 				get_query: function(doc) {
 					return {

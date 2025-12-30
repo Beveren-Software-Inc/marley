@@ -81,7 +81,7 @@ class TestLabTest(FrappeTestCase):
 
 	def test_create_lab_tests_from_patient_encounter(self):
 		patient_encounter = create_patient_encounter()
-		create_multiple("Patient Encounter", patient_encounter.name)
+		create_multiple("Patient Visit", patient_encounter.name)
 		patient_encounter.reload()
 		service_requests = frappe.db.get_list(
 			"Service Request",
@@ -206,7 +206,7 @@ def create_patient_encounter():
 	insulin_resistance_template = create_lab_test_template()
 	blood_test_template = create_blood_test_template(medical_department)
 
-	patient_encounter = frappe.new_doc("Patient Encounter")
+	patient_encounter = frappe.new_doc("Patient Visit")
 	patient_encounter.patient = patient
 	patient_encounter.practitioner = create_practitioner()
 	patient_encounter.encounter_date = getdate()
