@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Settings, Moon, Sun, LogOut } from 'lucide-react'
 import { useTheme } from '../../hooks/useTheme'
-import { useAuth } from '../../hooks/useAuth'
+import { useAuth } from '../../providers/AuthProvider'
 
 export const UserMenu = () => {
   const [isOpen, setIsOpen] = useState(false)
