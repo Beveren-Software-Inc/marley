@@ -241,11 +241,19 @@ class HealthcareAuth {
         },
         credentials: 'include'
       })
+      
+      // Clear CSRF token
+      if ((window as any).csrf_token) {
+        delete (window as any).csrf_token
+      }
     } catch (error) {
       console.error('Logout error:', error)
+      // Even if logout fails, clear local state
     } finally {
       this.sessionId = null
       localStorage.removeItem('healthcare_sid')
+      localStorage.removeItem('healthcare_token')
+      localStorage.removeItem('user_data')
     }
   }
 

@@ -21,10 +21,10 @@ export const SettingsPage = () => {
   const handleLogout = async () => {
     try {
       await logout()
-      navigate("/login")
+      navigate("/login", { replace: true })
     } catch (error) {
       console.error('Logout error:', error)
-      navigate("/login")
+      navigate("/login", { replace: true })
     }
   }
 

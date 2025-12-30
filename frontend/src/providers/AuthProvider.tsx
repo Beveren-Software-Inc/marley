@@ -180,11 +180,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const logout = async () => {
-    await healthcareAuth.logout()
-    setUser(null)
-    localStorage.removeItem('healthcare_token')
-    localStorage.removeItem('user_data')
-    localStorage.removeItem('healthcare_sid')
+    try {
+      // Clear user state first to prevent any re-authentication
+      setUser(null)
+      localStorage.removeItem('healthcare_token')
+      localStorage.removeItem('user_data')
+      localStorage.removeItem('healthcare_sid')
+      
+      // Then call the logout API
+      await healthcareAuth.logout()
+    } catch (error) {
+      console.error('Logout error:', error)
+      // Even if logout fails, ensure state is cleared
+      setUser(null)
+      localStorage.removeItem('healthcare_token')
+      localStorage.removeItem('user_data')
+      localStorage.removeItem('healthcare_sid')
+    }
   }
 
   // Method to check if session is still valid

@@ -42,11 +42,14 @@ export const UserMenu = () => {
 
   const handleLogout = async () => {
     try {
+      setIsOpen(false) // Close dropdown first
       await logout()
-      navigate('/login')
+      // Use replace to prevent going back to previous page
+      navigate('/login', { replace: true })
     } catch (error) {
       console.error('Logout error:', error)
-      navigate('/login')
+      // Navigate even if logout fails
+      navigate('/login', { replace: true })
     }
   }
 
