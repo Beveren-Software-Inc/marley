@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Settings, Moon, Sun, LogOut } from 'lucide-react'
 import { useTheme } from '../../hooks/useTheme'
-import { useAuth } from '../../hooks/useAuth'
+import { useAuth } from '../../providers/AuthProvider'
 
 export const UserMenu = () => {
   const [isOpen, setIsOpen] = useState(false)
@@ -42,11 +42,14 @@ export const UserMenu = () => {
 
   const handleLogout = async () => {
     try {
+      setIsOpen(false) // Close dropdown first
       await logout()
-      navigate('/login')
+      // Use replace to prevent going back to previous page
+      navigate('/login', { replace: true })
     } catch (error) {
       console.error('Logout error:', error)
-      navigate('/login')
+      // Navigate even if logout fails
+      navigate('/login', { replace: true })
     }
   }
 

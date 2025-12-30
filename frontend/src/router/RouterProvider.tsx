@@ -71,7 +71,11 @@ export const RouterProvider = () => {
     },
     {
       path: '/settings',
-      element: <SettingsPage />
+      element: (
+        <RoleGuard>
+          <SettingsPage />
+        </RoleGuard>
+      )
     },
     { path: '/', element: <Navigate to="/login" replace /> },
     { path: '*', element: <div>Not found</div> }
