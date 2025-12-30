@@ -5,6 +5,7 @@ import { WarningMessagesList } from '../components/warnings/WarningMessagesList'
 import { LabTestReportsList } from '../components/labTests/LabTestReportsList'
 import { AdmissionDetails } from '../components/admissions/AdmissionDetails'
 import { CreateAdmissionModal } from '../components/admissions/CreateAdmissionModal'
+import { NotificationBell } from '../components/notifications/NotificationBell'
 
 export const AdmissionPage = () => {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -56,14 +57,17 @@ export const AdmissionPage = () => {
     // Show admission details with warnings and lab tests
     return (
       <div className="flex flex-col h-full">
-        <header className="bg-primary text-white px-4 py-3 flex items-center gap-4">
-          <button
-            onClick={handleBackToList}
-            className="px-3 py-1.5 bg-white/20 hover:bg-white/30 rounded-md text-sm transition-colors"
-          >
-            ← Back to Admissions
-          </button>
-          <h1 className="text-lg font-semibold">Admission: {admissionFromUrl}</h1>
+        <header className="bg-primary text-white px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={handleBackToList}
+              className="px-3 py-1.5 bg-white/20 hover:bg-white/30 rounded-md text-sm transition-colors"
+            >
+              ← Back to Admissions
+            </button>
+            <h1 className="text-lg font-semibold">Admission: {admissionFromUrl}</h1>
+          </div>
+          <NotificationBell />
         </header>
 
         <div className="flex-1 overflow-y-auto p-4">
@@ -119,8 +123,9 @@ export const AdmissionPage = () => {
               </button>
             </div>
           </div>
-          <div className="text-center">
+          <div className="flex items-center justify-center gap-3">
             <h1 className="text-lg font-semibold">Inpatient Admissions</h1>
+            <NotificationBell />
           </div>
         </header>
 

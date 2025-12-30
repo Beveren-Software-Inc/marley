@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { PatientSearch } from '../components/patients/PatientSearch'
 import { WarningMessagesList } from '../components/warnings/WarningMessagesList'
 import { LabTestReportsList } from '../components/labTests/LabTestReportsList'
+import { NotificationBell } from '../components/notifications/NotificationBell'
 
 export const NursePage = () => {
   const [selectedPatient, setSelectedPatient] = useState<string | undefined>(undefined)
@@ -14,8 +15,11 @@ export const NursePage = () => {
           onPatientSelect={(patient) => setSelectedPatient(patient || undefined)}
           patients={[]}
         />
-        <div className="flex justify-end text-xs opacity-80">
-          <span>Branch: Main · Dummy</span>
+        <div className="flex items-center justify-end gap-3">
+          <div className="text-xs opacity-80">
+            <span>Branch: Main · Dummy</span>
+          </div>
+          <NotificationBell />
         </div>
       </header>
 

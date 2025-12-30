@@ -4,6 +4,8 @@ import { PatientSearch } from '../components/patients/PatientSearch'
 import { WarningMessagesList } from '../components/warnings/WarningMessagesList'
 import { LabTestReportsList } from '../components/labTests/LabTestReportsList'
 import { AdmissionPage } from './Admission'
+import { PatientVisitPage } from './PatientVisit'
+import { NotificationBell } from '../components/notifications/NotificationBell'
 
 const doctorNav = ['Dashboard', 'Warnings', 'Labs', 'Admissions']
 
@@ -17,6 +19,11 @@ export const DoctorPage = () => {
     return <AdmissionPage />
   }
 
+  // Show Patient Visit page when screen=op
+  if (screen === 'op') {
+    return <PatientVisitPage />
+  }
+
   return (
     <div className="flex flex-col">
       <header className="grid grid-cols-1 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] items-center gap-3 bg-primary text-white px-4 py-3">
@@ -25,12 +32,13 @@ export const DoctorPage = () => {
           onPatientSelect={(patient) => setSelectedPatient(patient || undefined)}
           patients={[]}
         />
-        <nav className="flex gap-2 flex-wrap justify-end">
+        <nav className="flex gap-2 flex-wrap items-center justify-end">
           {doctorNav.map((item) => (
             <span key={item} className="px-3 py-1 rounded-md bg-white/15 text-sm">
               {item}
             </span>
           ))}
+          <NotificationBell />
         </nav>
       </header>
 

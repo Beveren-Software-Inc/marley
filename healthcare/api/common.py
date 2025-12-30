@@ -12,6 +12,7 @@ def get_medical_departments(search=None):
 	filters = {}
 	if search:
 		filters['department'] = ['like', f'%{search}%']
+  
 	
 	departments = frappe.get_all(
 		'Medical Department',
@@ -30,8 +31,8 @@ def get_healthcare_practitioners(search=None, department=None):
 	filters = {}
 	if search:
 		filters['practitioner_name'] = ['like', f'%{search}%']
-	if department:
-		filters['department'] = department
+	# if department:
+	# 	filters['department'] = department
 	
 	practitioners = frappe.get_all(
 		'Healthcare Practitioner',
@@ -40,7 +41,6 @@ def get_healthcare_practitioners(search=None, department=None):
 		limit=50,
 		order_by='practitioner_name'
 	)
-	
 	return [{'name': p.name, 'label': p.practitioner_name or p.name, 'department': p.department} for p in practitioners]
 
 
@@ -73,10 +73,9 @@ def get_nursing_checklist_templates(search=None):
 	templates = frappe.get_all(
 		'Nursing Checklist Template',
 		filters=filters,
-		fields=['name', 'template_name'],
+		fields=['name', 'title'],
 		limit=50,
-		order_by='template_name'
+		order_by='title'
 	)
-	
-	return [{'name': t.name, 'label': t.template_name or t.name} for t in templates]
+	return [{'name': t.name, 'label': t.title or t.name} for t in templates]
 

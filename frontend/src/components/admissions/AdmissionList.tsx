@@ -130,15 +130,17 @@ export const AdmissionList = ({ onAdmissionSelect, searchQuery: externalSearchQu
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
                   Status
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-                  Actions
-                </th>
+                {onAdmissionSelect && (
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+                    Actions
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
               {records.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-slate-500">
+                  <td colSpan={onAdmissionSelect ? 5 : 4} className="px-4 py-8 text-center text-slate-500">
                     {externalSearchQuery ? 'No admissions match your search.' : 'No admissions found'}
                   </td>
                 </tr>
@@ -166,24 +168,18 @@ export const AdmissionList = ({ onAdmissionSelect, searchQuery: externalSearchQu
                         color={statusColors[record.status] || 'default'}
                       />
                     </td>
-                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                      {record.status === 'Admission Scheduled' && (
-                        <button
-                          onClick={() => handleAdmit(record.name)}
-                          className="px-3 py-1.5 bg-primary text-white text-sm rounded-md hover:bg-primary/90"
-                        >
-                          Admit
-                        </button>
-                      )}
-                      {onAdmissionSelect && (
-                        <button
-                          onClick={() => onAdmissionSelect(record.name)}
-                          className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700"
-                        >
-                          View
-                        </button>
-                      )}
-                    </td>
+                    {onAdmissionSelect && (
+                      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                        {record.status === 'Admission Scheduled' && (
+                          <button
+                            onClick={() => handleAdmit(record.name)}
+                            className="px-3 py-1.5 bg-primary text-white text-sm rounded-md hover:bg-primary/90"
+                          >
+                            Admit
+                          </button>
+                        )}
+                      </td>
+                    )}
                   </tr>
                 ))
               )}

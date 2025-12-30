@@ -11,11 +11,15 @@ import {
 interface CreateAdmissionModalProps {
   onClose: () => void
   onSuccess: (admissionName: string) => void
+  patientName?: string
+  encounterName?: string
 }
 
-export const CreateAdmissionModal = ({ onClose, onSuccess }: CreateAdmissionModalProps) => {
-  const [patientQuery, setPatientQuery] = useState('')
-  const [selectedPatient, setSelectedPatient] = useState<PatientListItem | null>(null)
+export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounterName }: CreateAdmissionModalProps) => {
+  const [patientQuery, setPatientQuery] = useState(patientName || '')
+  const [selectedPatient, setSelectedPatient] = useState<PatientListItem | null>(
+    patientName ? { name: patientName, patient_name: patientName } as PatientListItem : null
+  )
   const [patients, setPatients] = useState<PatientListItem[]>([])
   const [patientOpen, setPatientOpen] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -207,7 +211,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess }: CreateAdmissionModa
 
       const args = {
         patient: selectedPatient.name,
-        admission_encounter: '', // Can be empty for direct admission
+        admission_encounter: encounterName || '', // Use encounter if provided
         company: '', // Will be set by backend
         medical_department: formData.medical_department,
         primary_practitioner: formData.primary_practitioner,
