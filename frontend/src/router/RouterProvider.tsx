@@ -8,6 +8,7 @@ import { LabPage } from '../pages/Lab'
 import { PharmacistPage } from '../pages/Pharmacist'
 import { AdminPage } from '../pages/Admin'
 import { ReceptionistPage } from '../pages/Receptionist'
+import { SettingsPage } from '../pages/Settings'
 
 export const RouterProvider = () => {
   const routes = useRoutes([
@@ -67,6 +68,10 @@ export const RouterProvider = () => {
           <AdminPage />
         </RoleGuard>
       )
+    },
+    {
+      path: '/settings',
+      element: <SettingsPage />
     },
     { path: '/', element: <Navigate to="/login" replace /> },
     { path: '*', element: <div>Not found</div> }

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { dummyPatients } from '../config/patients'
 import { PatientSearch } from '../components/patients/PatientSearch'
 import { NotificationBell } from '../components/notifications/NotificationBell'
+import { UserMenu } from '../components/user/UserMenu'
 
 const firstScreenLab = ['Pending Sample Collection', 'Pending Lab Testing']
 
@@ -31,6 +32,7 @@ export const LabPage = () => {
           <div className="text-xs opacity-80">
             <span>Branch: Main · Dummy</span>
           </div>
+          <UserMenu />
           <NotificationBell />
         </div>
       </header>

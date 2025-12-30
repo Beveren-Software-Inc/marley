@@ -3,6 +3,7 @@ import { PatientSearch } from '../components/patients/PatientSearch'
 import { WarningMessagesList } from '../components/warnings/WarningMessagesList'
 import { LabTestReportsList } from '../components/labTests/LabTestReportsList'
 import { NotificationBell } from '../components/notifications/NotificationBell'
+import { UserMenu } from '../components/user/UserMenu'
 
 export const NursePage = () => {
   const [selectedPatient, setSelectedPatient] = useState<string | undefined>(undefined)
@@ -19,6 +20,7 @@ export const NursePage = () => {
           <div className="text-xs opacity-80">
             <span>Branch: Main · Dummy</span>
           </div>
+          <UserMenu />
           <NotificationBell />
         </div>
       </header>
