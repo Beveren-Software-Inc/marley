@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { CreatePatientModal } from './CreatePatientModal'
+import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
 
 interface PatientSearchProps {
   selectedPatient: string
@@ -7,10 +8,44 @@ interface PatientSearchProps {
   patients?: string[]
 }
 
-export const PatientSearch = ({ selectedPatient, onPatientSelect, patients = [] }: PatientSearchProps) => {
+export const PatientSearch = ({ selectedPatient, onPatientSelect, patients: initialPatients = [] }: PatientSearchProps) => {
   const [patientQuery, setPatientQuery] = useState('')
   const [patientOpen, setPatientOpen] = useState(false)
   const [showCreatePatient, setShowCreatePatient] = useState(false)
+  const [patients, setPatients] = useState<PatientListItem[]>([])
+  const [loading, setLoading] = useState(false)
+
+  // Fetch or search patients when dropdown is open
+  useEffect(() => {
+    if (!patientOpen) return
+
+    const search = async () => {
+      setLoading(true)
+      try {
+        let results: PatientListItem[] = []
+        if (patientQuery.trim() === '') {
+          // If empty, fetch initial list
+          results = await fetchPatients(20, 0)
+        } else {
+          // Search with query
+          results = await searchPatients(patientQuery, 20)
+        }
+        setPatients(results)
+      } catch (error) {
+        console.error('Failed to fetch/search patients:', error)
+        setPatients([])
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    // Debounce search by 300ms
+    const timeoutId = setTimeout(() => {
+      search()
+    }, patientQuery.trim() === '' ? 0 : 300) // No delay for initial load
+
+    return () => clearTimeout(timeoutId)
+  }, [patientQuery, patientOpen])
 
   return (
     <>
@@ -29,24 +64,30 @@ export const PatientSearch = ({ selectedPatient, onPatientSelect, patients = [] 
             />
             {patientOpen && (
               <div className="absolute z-40 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-56 overflow-auto text-slate-900">
-                {patients
-                  .filter((p) => p.toLowerCase().includes(patientQuery.toLowerCase()))
-                  .map((p) => (
+                {loading ? (
+                  <div className="px-3 py-2 text-xs text-slate-500">Loading patients...</div>
+                ) : patients.length > 0 ? (
+                  patients.map((patient) => (
                     <button
-                      key={p}
+                      key={patient.name}
                       type="button"
                       className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50"
                       onClick={() => {
-                        onPatientSelect(p)
-                        setPatientQuery('')
+                        onPatientSelect(patient.name)
+                        setPatientQuery(patient.patient_name || patient.name)
                         setPatientOpen(false)
                       }}
                     >
-                      {p}
+                      <div className="font-medium">{patient.patient_name || patient.name}</div>
+                      {patient.mobile && (
+                        <div className="text-xs text-slate-500">{patient.mobile}</div>
+                      )}
                     </button>
-                  ))}
-                {patients.filter((p) => p.toLowerCase().includes(patientQuery.toLowerCase())).length === 0 && (
-                  <div className="px-3 py-2 text-xs text-slate-500">No patients match your search.</div>
+                  ))
+                ) : (
+                  <div className="px-3 py-2 text-xs text-slate-500">
+                    {patientQuery ? 'No patients match your search.' : 'No patients found.'}
+                  </div>
                 )}
               </div>
             )}
