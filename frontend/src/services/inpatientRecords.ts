@@ -1,3 +1,17 @@
+export interface InpatientOccupancy {
+  service_unit?: string
+  service_unit_name?: string
+  check_in?: string
+  check_out?: string
+  invoiced?: number
+}
+
+export interface AdmissionCharges {
+  admission_cost?: number
+  case_management_fee?: number
+  room_charges?: number
+}
+
 export interface InpatientRecord {
   name: string
   patient: string
@@ -11,6 +25,8 @@ export interface InpatientRecord {
   primary_practitioner?: string
   secondary_practitioner?: string
   admission_encounter?: string
+  current_occupancy?: InpatientOccupancy
+  charges?: AdmissionCharges
 }
 
 export interface PackageDetail {
@@ -38,11 +54,14 @@ export interface ServiceUnit {
   company: string
 }
 
-export async function fetchInpatientRecords(status?: string) {
-  const url = `/api/method/healthcare.api.inpatient_admission.get_inpatient_records${status ? `?status=${encodeURIComponent(status)}` : ''}`
+export async function fetchInpatientRecords(status?: string, search?: string) {
+  const params = new URLSearchParams()
+  if (status) params.append('status', status)
+  if (search) params.append('search', search)
+  
+  const url = `/api/method/healthcare.api.inpatient_admission.get_inpatient_records${params.toString() ? `?${params.toString()}` : ''}`
   
   const response = await fetch(url)
-  console.log("Hapa",response)
   const resData = await response.json()
 
   if (resData?.message && Array.isArray(resData.message)) {

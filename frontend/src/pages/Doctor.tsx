@@ -1,12 +1,21 @@
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { PatientSearch } from '../components/patients/PatientSearch'
 import { WarningMessagesList } from '../components/warnings/WarningMessagesList'
 import { LabTestReportsList } from '../components/labTests/LabTestReportsList'
+import { AdmissionPage } from './Admission'
 
 const doctorNav = ['Dashboard', 'Warnings', 'Labs', 'Admissions']
 
 export const DoctorPage = () => {
+  const [searchParams] = useSearchParams()
   const [selectedPatient, setSelectedPatient] = useState<string | undefined>(undefined)
+  const screen = searchParams.get('screen')
+
+  // Show Admission page when screen=admission
+  if (screen === 'admission') {
+    return <AdmissionPage />
+  }
 
   return (
     <div className="flex flex-col">

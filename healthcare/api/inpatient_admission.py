@@ -14,31 +14,65 @@ except ImportError:
 
 
 @frappe.whitelist()
-def get_inpatient_records(status=None):
-	"""Get list of Inpatient Records with optional status filter"""
+def get_inpatient_records(status=None, search=None):
+	"""Get list of Inpatient Records with optional status filter and search"""
 	filters = {}
 	if status:
 		filters['status'] = status
 
-	records = frappe.get_all(
-		'Inpatient Admission',
-		filters=filters,
-		fields=[
-			'name',
-			'patient',
-			'patient_name',
-			'status',
-			'scheduled_date',
-			'admitted_datetime',
-			'expected_discharge',
-			'admission_service_unit_type',
-			'medical_department',
-			'primary_practitioner',
-			'secondary_practitioner',
-			'admission_encounter'
-		],
-		order_by='scheduled_date desc'
-	)
+	if search:
+		# Search by admission number, patient name, or file number
+		records = frappe.db.sql("""
+			SELECT 
+				ia.name,
+				ia.patient,
+				ia.patient_name,
+				ia.status,
+				ia.scheduled_date,
+				ia.admitted_datetime,
+				ia.expected_discharge,
+				ia.admission_service_unit_type,
+				ia.medical_department,
+				ia.primary_practitioner,
+				ia.secondary_practitioner,
+				ia.admission_encounter
+			FROM `tabInpatient Admission` ia
+			LEFT JOIN `tabPatient` p ON ia.patient = p.name
+			WHERE 
+				ia.name LIKE %(search)s
+				OR ia.patient_name LIKE %(search)s
+				OR ia.patient LIKE %(search)s
+				OR p.file_no LIKE %(search)s
+		""", {
+			'search': f'%{search}%'
+		}, as_dict=True)
+		
+		# Apply status filter if provided
+		if status:
+			records = [r for r in records if r.status == status]
+		
+		# Sort by scheduled_date desc
+		records.sort(key=lambda x: x.scheduled_date or '', reverse=True)
+	else:
+		records = frappe.get_all(
+			'Inpatient Admission',
+			filters=filters,
+			fields=[
+				'name',
+				'patient',
+				'patient_name',
+				'status',
+				'scheduled_date',
+				'admitted_datetime',
+				'expected_discharge',
+				'admission_service_unit_type',
+				'medical_department',
+				'primary_practitioner',
+				'secondary_practitioner',
+				'admission_encounter'
+			],
+			order_by='scheduled_date desc'
+		)
 
 	return records
 
@@ -50,6 +84,31 @@ def get_inpatient_record(name):
 		frappe.throw(_("Inpatient Record name is required"))
 
 	record = frappe.get_doc('Inpatient Admission', name)
+	
+	# Get current occupancy (bed) information
+	current_occupancy = None
+	if record.inpatient_occupancies:
+		for occupancy in record.inpatient_occupancies:
+			if not occupancy.left:  # Current active occupancy
+				service_unit_name = None
+				if occupancy.service_unit:
+					service_unit_name = frappe.db.get_value('Healthcare Service Unit', occupancy.service_unit, 'healthcare_service_unit_name')
+				
+				current_occupancy = {
+					'service_unit': occupancy.service_unit,
+					'service_unit_name': service_unit_name,
+					'check_in': occupancy.check_in,
+					'check_out': occupancy.check_out,
+					'invoiced': occupancy.invoiced
+				}
+				break
+	
+	# Get charges information
+	charges_info = {
+		'admission_cost': record.admission_cost,
+		'case_management_fee': record.case_management_fee,
+		'room_charges': record.room_charges
+	}
 	
 	return {
 		'name': record.name,
@@ -63,7 +122,9 @@ def get_inpatient_record(name):
 		'medical_department': record.medical_department,
 		'primary_practitioner': record.primary_practitioner,
 		'secondary_practitioner': record.secondary_practitioner,
-		'admission_encounter': record.admission_encounter
+		'admission_encounter': record.admission_encounter,
+		'current_occupancy': current_occupancy,
+		'charges': charges_info
 	}
 
 

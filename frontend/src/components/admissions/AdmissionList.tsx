@@ -12,7 +12,12 @@ const statusColors: Record<string, string> = {
   'Cancelled': 'danger'
 }
 
-export const AdmissionList = () => {
+interface AdmissionListProps {
+  onAdmissionSelect?: (admissionName: string) => void
+  searchQuery?: string
+}
+
+export const AdmissionList = ({ onAdmissionSelect, searchQuery: externalSearchQuery = '' }: AdmissionListProps = {}) => {
   const [selectedStatus, setSelectedStatus] = useState<string>('')
   const [selectedRecord, setSelectedRecord] = useState<string | null>(null)
   const [showPackages, setShowPackages] = useState(false)
@@ -20,7 +25,8 @@ export const AdmissionList = () => {
   const [selectedPackage, setSelectedPackage] = useState<any>(null)
 
   const { records, loading, error, refetch } = useInpatientRecords(
-    selectedStatus || undefined
+    selectedStatus || undefined,
+    externalSearchQuery || undefined
   )
 
   const handleAdmit = (recordName: string) => {
@@ -133,12 +139,16 @@ export const AdmissionList = () => {
               {records.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-4 py-8 text-center text-slate-500">
-                    No admissions found
+                    {externalSearchQuery ? 'No admissions match your search.' : 'No admissions found'}
                   </td>
                 </tr>
               ) : (
                 records.map((record) => (
-                  <tr key={record.name} className="hover:bg-slate-50">
+                  <tr 
+                    key={record.name} 
+                    className="hover:bg-slate-50 cursor-pointer"
+                    onClick={() => onAdmissionSelect?.(record.name)}
+                  >
                     <td className="px-4 py-3 text-sm font-medium text-slate-900">
                       {record.name}
                     </td>
@@ -156,13 +166,21 @@ export const AdmissionList = () => {
                         color={statusColors[record.status] || 'default'}
                       />
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                       {record.status === 'Admission Scheduled' && (
                         <button
                           onClick={() => handleAdmit(record.name)}
                           className="px-3 py-1.5 bg-primary text-white text-sm rounded-md hover:bg-primary/90"
                         >
                           Admit
+                        </button>
+                      )}
+                      {onAdmissionSelect && (
+                        <button
+                          onClick={() => onAdmissionSelect(record.name)}
+                          className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700"
+                        >
+                          View
                         </button>
                       )}
                     </td>
