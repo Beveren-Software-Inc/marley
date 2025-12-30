@@ -1,14 +1,23 @@
 import { useState, useEffect } from 'react'
-import { fetchInpatientRecord, type InpatientRecord } from '../../services/inpatientRecords'
+import { fetchInpatientRecord, type InpatientRecord, scheduleDischarge, dischargePatient, cancelAdmission } from '../../services/inpatientRecords'
+import { PackageSelectionModal } from './PackageSelectionModal'
+import { AdmissionFormModal } from './AdmissionFormModal'
+import { ScheduleDischargeModal } from './ScheduleDischargeModal'
 
 interface AdmissionDetailsProps {
   admissionNo: string
+  onUpdate?: () => void
 }
 
-export const AdmissionDetails = ({ admissionNo }: AdmissionDetailsProps) => {
+export const AdmissionDetails = ({ admissionNo, onUpdate }: AdmissionDetailsProps) => {
   const [admission, setAdmission] = useState<InpatientRecord | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
+  const [showScheduleDischarge, setShowScheduleDischarge] = useState(false)
+  const [showAdmitModal, setShowAdmitModal] = useState(false)
+  const [showPackages, setShowPackages] = useState(false)
+  const [selectedPackage, setSelectedPackage] = useState<any>(null)
+  const [actionLoading, setActionLoading] = useState(false)
 
   useEffect(() => {
     const loadAdmission = async () => {
@@ -26,6 +35,89 @@ export const AdmissionDetails = ({ admissionNo }: AdmissionDetailsProps) => {
 
     loadAdmission()
   }, [admissionNo])
+
+  const handleScheduleDischarge = async (dischargeData: any) => {
+    if (!admission) return
+
+    try {
+      setActionLoading(true)
+      await scheduleDischarge({
+        patient: admission.patient,
+        inpatient_record: admission.name,
+        ...dischargeData
+      })
+      setShowScheduleDischarge(false)
+      // Reload admission data
+      const data = await fetchInpatientRecord(admissionNo)
+      setAdmission(data)
+      onUpdate?.()
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error('Failed to schedule discharge'))
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const handleDischarge = async () => {
+    if (!admission) return
+
+    if (!confirm('Are you sure you want to discharge this patient?')) {
+      return
+    }
+
+    try {
+      setActionLoading(true)
+      await dischargePatient(admission.name)
+      // Reload admission data
+      const data = await fetchInpatientRecord(admissionNo)
+      setAdmission(data)
+      onUpdate?.()
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error('Failed to discharge patient'))
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const handleCancelAdmission = async () => {
+    if (!admission) return
+
+    if (!confirm('Are you sure you want to cancel this admission?')) {
+      return
+    }
+
+    try {
+      setActionLoading(true)
+      await cancelAdmission(admission.name)
+      // Reload admission data
+      const data = await fetchInpatientRecord(admissionNo)
+      setAdmission(data)
+      onUpdate?.()
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error('Failed to cancel admission'))
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const handleAdmit = (recordName: string) => {
+    setShowPackages(true)
+  }
+
+  const handlePackageSelect = (pkg: any) => {
+    setSelectedPackage(pkg)
+    setShowPackages(false)
+    setShowAdmitModal(true)
+  }
+
+  const handleAdmissionComplete = async () => {
+    setShowAdmitModal(false)
+    setSelectedPackage(null)
+    // Reload admission data
+    const data = await fetchInpatientRecord(admissionNo)
+    setAdmission(data)
+    onUpdate?.()
+  }
 
   if (loading) {
     return (
@@ -145,6 +237,80 @@ export const AdmissionDetails = ({ admissionNo }: AdmissionDetailsProps) => {
           <p className="mt-2 text-xs">Note: Additional fields can be added based on requirements.</p>
         </div>
       </div>
+
+      {/* Action Buttons */}
+      <div className="border-t border-slate-200 pt-4">
+        <h3 className="text-sm font-semibold text-slate-700 mb-3">Actions</h3>
+        <div className="flex flex-wrap gap-2">
+          {admission.status === 'Admitted' && (
+            <button
+              onClick={() => setShowScheduleDischarge(true)}
+              disabled={actionLoading}
+              className="px-4 py-2 text-sm font-medium text-white bg-orange-600 rounded-md hover:bg-orange-700 disabled:opacity-50"
+            >
+              Schedule Discharge
+            </button>
+          )}
+          {admission.status === 'Admission Scheduled' && (
+            <>
+              <button
+                onClick={() => handleAdmit(admission.name)}
+                disabled={actionLoading}
+                className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-50"
+              >
+                Admit
+              </button>
+              <button
+                onClick={handleCancelAdmission}
+                disabled={actionLoading}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 disabled:opacity-50"
+              >
+                Cancel Admission
+              </button>
+            </>
+          )}
+          {admission.status === 'Discharge Scheduled' && (
+            <button
+              onClick={handleDischarge}
+              disabled={actionLoading}
+              className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50"
+            >
+              Discharge
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Modals */}
+      {showScheduleDischarge && admission && (
+        <ScheduleDischargeModal
+          admission={admission}
+          onClose={() => setShowScheduleDischarge(false)}
+          onSuccess={handleScheduleDischarge}
+        />
+      )}
+
+      {showPackages && admission && (
+        <PackageSelectionModal
+          admissionNo={admission.name}
+          onSelect={handlePackageSelect}
+          onClose={() => {
+            setShowPackages(false)
+          }}
+        />
+      )}
+
+      {showAdmitModal && admission && selectedPackage && (
+        <AdmissionFormModal
+          admissionNo={admission.name}
+          selectedPackage={selectedPackage}
+          onComplete={handleAdmissionComplete}
+          onClose={() => {
+            setShowAdmitModal(false)
+            setSelectedPackage(null)
+          }}
+        />
+      )}
     </div>
   )
 }
