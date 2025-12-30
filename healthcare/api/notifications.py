@@ -15,7 +15,6 @@ def get_user_notifications(unread_only=False):
 		# Get notifications from Frappe's notification system
 		# Check if Notification Log table exists
 		if not frappe.db.exists('DocType', 'Notification Log'):
-			# Fallback: return empty notifications if Notification Log doesn't exist
 			return {
 				'notifications': [],
 				'unread_count': 0

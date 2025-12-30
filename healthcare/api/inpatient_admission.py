@@ -141,9 +141,8 @@ def get_package_details(admission_no):
 	# Get company default currency
 	default_currency = frappe.db.get_value('Company', company, 'default_currency') if company else None
 	if not default_currency:
-		# Fallback to system default currency
 		from erpnext import get_default_currency
-		default_currency = get_default_currency() or 'BHD'
+		default_currency = get_default_currency() or 'SAR'
 
 	packages = frappe.get_all(
 		'Package Detail',
@@ -162,7 +161,6 @@ def get_package_details(admission_no):
 	)
 
 	# Return packages with default currency info
-	# If packages exist, they should have currency set, but we provide default for frontend use
 	return {
 		'packages': packages,
 		'default_currency': default_currency
