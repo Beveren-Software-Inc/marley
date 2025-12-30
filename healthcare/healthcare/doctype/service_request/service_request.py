@@ -258,7 +258,7 @@ def make_observation(service_request):
 				add_observation(
 					patient=service_request.patient,
 					template=comp,
-					doc="Patient Encounter",
+					doc="Patient Visit",
 					docname=service_request.order_group,
 					parent=observation.name,
 				)
@@ -369,7 +369,7 @@ def create_observation(service_request):
 	doc.posting_datetime = now_datetime()
 	doc.patient = service_request.patient
 	doc.observation_template = service_request.template_dn
-	doc.reference_doctype = "Patient Encounter"
+	doc.reference_doctype = "Patient Visit"
 	doc.reference_docname = service_request.order_group
 	doc.service_request = service_request.name
 	doc.insert()

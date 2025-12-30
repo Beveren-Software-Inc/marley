@@ -42,7 +42,7 @@ class InpatientMedicationOrder(Document):
 		)
 		if existing_mo:
 			frappe.throw(
-				_("An Inpatient Medication Order {0} against Patient Encounter {1} already exists.").format(
+				_("An Inpatient Medication Order {0} against Patient Visit {1} already exists.").format(
 					existing_mo, self.patient_encounter
 				),
 				frappe.DuplicateEntryError,
@@ -83,7 +83,7 @@ class InpatientMedicationOrder(Document):
 
 	@frappe.whitelist()
 	def get_from_encounter(self, encounter):
-		patient_encounter = frappe.get_doc("Patient Encounter", encounter)
+		patient_encounter = frappe.get_doc("Patient Visit", encounter)
 		if not patient_encounter.drug_prescription:
 			return
 		for drug in patient_encounter.drug_prescription:

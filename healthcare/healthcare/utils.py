@@ -118,13 +118,13 @@ def get_encounters_to_invoice(patient, company):
 		patient = patient.name
 	encounters_to_invoice = []
 	encounters = frappe.get_list(
-		"Patient Encounter",
+		"Patient Visit",
 		pluck="name",
 		filters={"patient": patient, "company": company, "invoiced": False, "docstatus": 1},
 	)
 	if encounters:
 		for encounter in encounters:
-			encounter = frappe.get_doc("Patient Encounter", encounter)
+			encounter = frappe.get_doc("Patient Visit", encounter)
 			if not encounter.appointment:
 				practitioner_charge = 0
 				income_account = None
@@ -142,7 +142,7 @@ def get_encounters_to_invoice(patient, company):
 
 				encounters_to_invoice.append(
 					{
-						"reference_type": "Patient Encounter",
+						"reference_type": "Patient Visit",
 						"reference_name": encounter.name,
 						"service": service_item,
 						"rate": practitioner_charge,
@@ -418,7 +418,7 @@ def get_appointment_billing_item_and_rate(doc):
 
 	service_item = None
 	practitioner_charge = None
-	department = doc.medical_department if doc.doctype == "Patient Encounter" else doc.department
+	department = doc.medical_department if doc.doctype == "Patient Visit" else doc.department
 	service_unit = doc.service_unit if doc.doctype == "Patient Appointment" else None
 
 	is_inpatient = doc.inpatient_record
@@ -623,7 +623,7 @@ def set_invoiced(item, method, ref_invoice=None):
 		if frappe.db.get_value("Patient Appointment", item.reference_dn, "procedure_template"):
 			dt_from_appointment = "Clinical Procedure"
 		else:
-			dt_from_appointment = "Patient Encounter"
+			dt_from_appointment = "Patient Visit"
 		manage_doc_for_appointment(dt_from_appointment, item.reference_dn, invoiced)
 
 	elif item.reference_dt == "Lab Prescription":
@@ -706,7 +706,7 @@ def manage_doc_for_appointment(dt_from_appointment, appointment, invoiced):
 
 @frappe.whitelist()
 def get_drugs_to_invoice(encounter, customer, link_customer=False):
-	encounter = frappe.get_doc("Patient Encounter", encounter)
+	encounter = frappe.get_doc("Patient Visit", encounter)
 	if link_customer:
 		frappe.db.set_value("Patient", encounter.patient, "customer", customer)
 	if encounter:

@@ -98,7 +98,7 @@
    "fieldtype": "Link",
    "in_standard_filter": 1,
    "label": "Order Group (Encounter)",
-   "options": "Patient Encounter"
+   "options": "Patient Visit"
   },
   {
    "fieldname": "column_break_91",

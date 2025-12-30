@@ -7,7 +7,7 @@ data = {
 	"desktop_icons": [
 		"Patient",
 		"Patient Appointment",
-		"Patient Encounter",
+		"Patient Visit",
 		"Lab Test",
 		"Healthcare",
 		"Vital Signs",
@@ -886,7 +886,7 @@ def setup_service_request_masters():
 
 def get_patient_history_config():
 	return {
-		"Patient Encounter": (
+		"Patient Visit": (
 			"encounter_date",
 			[
 				{"label": "Healthcare Practitioner", "fieldname": "practitioner", "fieldtype": "Link"},

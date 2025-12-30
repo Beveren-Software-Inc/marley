@@ -225,7 +225,7 @@ def create_sales_invoice(patient, item):
 
 
 def create_patient_encounter(patient, observation_template):
-	patient_encounter = frappe.new_doc("Patient Encounter")
+	patient_encounter = frappe.new_doc("Patient Visit")
 	patient_encounter.patient = patient
 	patient_encounter.practitioner = create_practitioner()
 	patient_encounter.encounter_date = getdate()

@@ -89,7 +89,7 @@ def create_therapy_plan(template=None, patient=None):
 
 
 def create_encounter(patient, medical_department, practitioner):
-	encounter = frappe.new_doc("Patient Encounter")
+	encounter = frappe.new_doc("Patient Visit")
 	encounter.patient = patient
 	encounter.practitioner = practitioner
 	encounter.medical_department = medical_department

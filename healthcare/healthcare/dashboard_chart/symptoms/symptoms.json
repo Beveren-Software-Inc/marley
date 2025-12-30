@@ -19,7 +19,7 @@
  "name": "Symptoms",
  "number_of_groups": 0,
  "owner": "Administrator",
- "parent_document_type": "Patient Encounter",
+ "parent_document_type": "Patient Visit",
  "roles": [],
  "timeseries": 0,
  "type": "Bar",

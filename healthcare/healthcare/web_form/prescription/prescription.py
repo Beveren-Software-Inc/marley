@@ -15,7 +15,7 @@ def get_encounter_list(
 ):
 	patient = get_patient()
 	encounters = frappe.db.sql(
-		"""select * from `tabPatient Encounter`
+		"""select * from `tabPatient Visit`
 		where patient = %s order by creation desc""",
 		patient,
 		as_dict=True,

@@ -111,7 +111,7 @@ class DiagnosisTrends(object):
 
 		if department:
 			encounters = frappe.get_all(
-				"Patient Encounter", filters={"medical_department": department}, pluck="name"
+				"Patient Visit", filters={"medical_department": department}, pluck="name"
 			)
 			if encounters:
 				_operator = OPERATOR_MAP["in"]

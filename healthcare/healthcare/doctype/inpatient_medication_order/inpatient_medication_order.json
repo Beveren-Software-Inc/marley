@@ -43,8 +43,8 @@
    "fieldname": "patient_encounter",
    "fieldtype": "Link",
    "in_list_view": 1,
-   "label": "Patient Encounter",
-   "options": "Patient Encounter"
+   "label": "Patient Visit",
+   "options": "Patient Visit"
   },
   {
    "fetch_from": "patient_encounter.patient",

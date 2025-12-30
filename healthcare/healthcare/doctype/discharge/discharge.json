@@ -19,8 +19,8 @@
   "final_discharge_user_id",
   "final_discharger_username",
   "section_break_tleb",
-  "discharge_time",
   "discharge_date",
+  "discharge_time",
   "duration",
   "column_break_fivt",
   "final_discharge_date",
@@ -163,7 +163,7 @@
   },
   {
    "fieldname": "final_discharge_date",
-   "fieldtype": "Data",
+   "fieldtype": "Date",
    "label": "Final Discharge Date"
   },
   {
@@ -293,7 +293,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2025-12-29 13:06:50.645355",
+ "modified": "2025-12-30 09:59:44.183770",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Discharge",

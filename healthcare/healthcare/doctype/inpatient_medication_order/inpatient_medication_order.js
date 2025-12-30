@@ -86,7 +86,7 @@ frappe.ui.form.on('Inpatient Medication Order', {
 	show_get_from_encounter_button: function(frm) {
 		frm.fields_dict['medication_orders'].grid.add_custom_button(__('Get From Encounter'), () => {
 			if (!frm.doc.patient_encounter) {
-				frappe.throw(__("Please select a Patient Encounter to get from"));
+				frappe.throw(__("Please select a Patient Visit to get from"));
 			}
 			frm.call({
 				doc: frm.doc,

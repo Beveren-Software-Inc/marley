@@ -39,7 +39,7 @@ frappe.ui.form.on('Lab Test', {
 		refresh_field('normal_test_items');
 		refresh_field('descriptive_test_items');
 		if (frm.doc.__islocal) {
-			frm.add_custom_button(__('Get from Patient Encounter'), function () {
+			frm.add_custom_button(__('Get from Patient Visit'), function () {
 				get_lab_test_prescribed(frm);
 			});
 		}

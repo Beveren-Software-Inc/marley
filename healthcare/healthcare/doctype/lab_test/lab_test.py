@@ -140,14 +140,14 @@ def update_status(status, name):
 def create_multiple(doctype, docname):
 	if not doctype or not docname:
 		frappe.throw(
-			_("Sales Invoice or Patient Encounter is required to create Lab Tests"),
+			_("Sales Invoice or Patient Visit is required to create Lab Tests"),
 			title=_("Insufficient Data"),
 		)
 
 	lab_test_created = False
 	if doctype == "Sales Invoice":
 		lab_test_created = create_lab_test_from_invoice(docname)
-	elif doctype == "Patient Encounter":
+	elif doctype == "Patient Visit":
 		lab_test_created = create_lab_test_from_encounter(docname)
 
 	if lab_test_created:
@@ -158,7 +158,7 @@ def create_multiple(doctype, docname):
 
 def create_lab_test_from_encounter(encounter):
 	lab_test_created = False
-	encounter = frappe.get_doc("Patient Encounter", encounter)
+	encounter = frappe.get_doc("Patient Visit", encounter)
 
 	if encounter:
 		patient = frappe.get_doc("Patient", encounter.patient)

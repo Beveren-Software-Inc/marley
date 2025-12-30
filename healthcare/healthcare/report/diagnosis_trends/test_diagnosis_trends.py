@@ -34,7 +34,7 @@ class TestDiagnosisTrends(FrappeTestCase):
 			practitioner=practitioner_name,
 		)
 		encounter = frappe.get_list(
-			"Patient Encounter",
+			"Patient Visit",
 		)[0]
 
 		try:
@@ -59,7 +59,7 @@ class TestDiagnosisTrends(FrappeTestCase):
 		except DuplicateEntryError:
 			pass
 
-		encounter = frappe.get_doc("Patient Encounter", encounter["name"])
+		encounter = frappe.get_doc("Patient Visit", encounter["name"])
 		encounter.append(
 			"diagnosis",
 			{

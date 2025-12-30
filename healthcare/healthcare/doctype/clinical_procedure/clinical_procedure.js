@@ -154,7 +154,7 @@ frappe.ui.form.on('Clinical Procedure', {
 			}
 		}
 		if(frm.doc.__islocal) {
-			frm.add_custom_button(__('Get from Patient Encounter'), function () {
+			frm.add_custom_button(__('Get from Patient Visit'), function () {
 				get_procedure_prescribed(frm);
 			});
 		}

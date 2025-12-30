@@ -24,7 +24,7 @@ class TestPatientAppointment(FrappeTestCase):
 	def setUp(self):
 		frappe.db.sql("""delete from `tabPatient Appointment`""")
 		frappe.db.sql("""delete from `tabFee Validity`""")
-		frappe.db.sql("""delete from `tabPatient Encounter`""")
+		frappe.db.sql("""delete from `tabPatient Visit`""")
 		make_pos_profile()
 		frappe.db.sql("""delete from `tabHealthcare Service Unit` where name like '_Test %'""")
 		frappe.db.sql(
@@ -696,7 +696,7 @@ def create_practitioner(id=0, medical_department=None):
 
 def create_encounter(appointment):
 	if appointment:
-		encounter = frappe.new_doc("Patient Encounter")
+		encounter = frappe.new_doc("Patient Visit")
 		encounter.appointment = appointment.name
 		encounter.patient = appointment.patient
 		encounter.practitioner = appointment.practitioner

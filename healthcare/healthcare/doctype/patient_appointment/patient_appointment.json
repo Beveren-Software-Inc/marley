@@ -451,7 +451,7 @@
  "links": [
   {
    "group": "Records",
-   "link_doctype": "Patient Encounter",
+   "link_doctype": "Patient Visit",
    "link_fieldname": "appointment"
   },
   {

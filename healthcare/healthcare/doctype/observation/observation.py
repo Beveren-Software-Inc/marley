@@ -149,7 +149,7 @@ def get_observation_details(docname):
 			},
 			order_by="creation",
 		)
-	elif reference.get("ref_doctype") == "Patient Encounter":
+	elif reference.get("ref_doctype") == "Patient Visit":
 		service_requests = frappe.get_all(
 			"Service Request",
 			filters={
