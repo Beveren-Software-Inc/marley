@@ -17,6 +17,9 @@ export const AdmissionFormModal = ({
 }: AdmissionFormModalProps) => {
   const [record, setRecord] = useState<any>(null)
   const [serviceUnits, setServiceUnits] = useState<ServiceUnit[]>([])
+  const [serviceUnitQuery, setServiceUnitQuery] = useState('')
+  const [serviceUnitOpen, setServiceUnitOpen] = useState(false)
+  const [selectedServiceUnit, setSelectedServiceUnit] = useState<ServiceUnit | null>(null)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<Error | null>(null)
@@ -27,6 +30,29 @@ export const AdmissionFormModal = ({
     expectedDischarge: selectedPackage.to_date || ''
   })
 
+  // Search service units when dropdown is open
+  useEffect(() => {
+    if (!serviceUnitOpen) return
+
+    const search = async () => {
+      try {
+        const serviceUnitType = record?.admission_service_unit_type
+        const results = await fetchServiceUnits(serviceUnitType, 'Vacant', serviceUnitQuery || undefined)
+        setServiceUnits(results)
+      } catch (err) {
+        console.error('Failed to search service units:', err)
+        setServiceUnits([])
+      }
+    }
+
+    // Debounce search, but load immediately if query is empty (to show initial list)
+    const timeoutId = setTimeout(() => {
+      search()
+    }, serviceUnitQuery.trim() === '' ? 0 : 300)
+
+    return () => clearTimeout(timeoutId)
+  }, [serviceUnitQuery, serviceUnitOpen, record?.admission_service_unit_type])
+
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -36,6 +62,7 @@ export const AdmissionFormModal = ({
         const recordData = await fetchInpatientRecord(admissionNo)
         setRecord(recordData)
         
+        // Load initial service units
         const serviceUnitType = recordData?.admission_service_unit_type
         const unitsData = await fetchServiceUnits(serviceUnitType, 'Vacant')
         setServiceUnits(unitsData)
@@ -103,7 +130,13 @@ export const AdmissionFormModal = ({
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-6 space-y-4" onClick={(e) => {
+          // Close dropdowns when clicking outside inputs
+          const target = e.target as HTMLElement
+          if (target.tagName !== 'INPUT' && !target.closest('.absolute')) {
+            setServiceUnitOpen(false)
+          }
+        }}>
           {/* Package Info */}
           <div className="bg-slate-50 rounded-lg p-4 mb-4">
             <h3 className="font-semibold text-slate-900 mb-2">Selected Package</h3>
@@ -139,23 +172,51 @@ export const AdmissionFormModal = ({
           )}
 
           {/* Service Unit */}
-          <div>
+          <div className="relative">
             <label className="block text-sm font-medium text-slate-700 mb-1">
               Service Unit / Bed <span className="text-red-500">*</span>
             </label>
-            <select
-              value={formData.serviceUnit}
-              onChange={(e) => setFormData({ ...formData, serviceUnit: e.target.value })}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-              required
-            >
-              <option value="">Select a bed/service unit</option>
-              {serviceUnits.map((unit) => (
-                <option key={unit.name} value={unit.name}>
-                  {unit.service_unit_name} ({unit.occupancy_status})
-                </option>
-              ))}
-            </select>
+            <div className="relative">
+              <input
+                type="text"
+                value={selectedServiceUnit ? selectedServiceUnit.healthcare_service_unit_name : serviceUnitQuery}
+                onChange={(e) => {
+                  setServiceUnitQuery(e.target.value)
+                  setServiceUnitOpen(true)
+                }}
+                onFocus={() => setServiceUnitOpen(true)}
+                placeholder="Search Healthcare Service Unit..."
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                required
+              />
+              {serviceUnitOpen && serviceUnits.length > 0 && (
+                <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-auto">
+                  {serviceUnits.map((unit) => (
+                    <button
+                      key={unit.name}
+                      type="button"
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50"
+                      onClick={() => {
+                        setSelectedServiceUnit(unit)
+                        setFormData({ ...formData, serviceUnit: unit.name })
+                        setServiceUnitQuery(unit.healthcare_service_unit_name)
+                        setServiceUnitOpen(false)
+                      }}
+                    >
+                      <div className="font-medium">{unit.healthcare_service_unit_name}</div>
+                      <div className="text-xs text-slate-500">
+                        {unit.occupancy_status} {unit.service_unit_type ? `• ${unit.service_unit_type}` : ''}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {serviceUnitOpen && serviceUnits.length === 0 && serviceUnitQuery && (
+                <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg">
+                  <div className="px-3 py-2 text-xs text-slate-500">No service units found</div>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Check In */}

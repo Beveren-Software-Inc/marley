@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createPatient } from '../../services/patients'
+import { fetchLeadSources, type LinkFieldOption } from '../../services/common'
 
 interface CreatePatientModalProps {
   onClose: () => void
@@ -19,16 +20,24 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
     email: '',
     id_number: '',
     nationality: '',
-    category: 'NORMAL-REGULAR'
+    category: '',
+    source: '',
+    marital_status: ''
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  
+  // Source dropdown state
+  const [sourceOptions, setSourceOptions] = useState<LinkFieldOption[]>([])
+  const [sourceOpen, setSourceOpen] = useState(false)
+  const [sourceQuery, setSourceQuery] = useState('')
+  const [selectedSource, setSelectedSource] = useState<LinkFieldOption | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (!formData.first_name || !formData.sex) {
-      setError('First Name and Gender are required')
+    if (!formData.first_name || !formData.sex || !formData.source || !formData.marital_status) {
+      setError('First Name, Gender, Source, and Marital Status are required')
       return
     }
 
@@ -54,6 +63,47 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
     setFormData(prev => ({ ...prev, [field]: value }))
   }
 
+  // Load initial source options
+  useEffect(() => {
+    const loadSources = async () => {
+      try {
+        const sources = await fetchLeadSources()
+        setSourceOptions(sources)
+      } catch (err) {
+        console.error('Failed to load sources:', err)
+      }
+    }
+    loadSources()
+  }, [])
+
+  // Search sources
+  useEffect(() => {
+    if (!sourceOpen) return
+
+    const search = async () => {
+      try {
+        const results = await fetchLeadSources(sourceQuery)
+        setSourceOptions(results)
+      } catch (err) {
+        console.error('Failed to search sources:', err)
+        setSourceOptions([])
+      }
+    }
+
+    const timeoutId = setTimeout(() => {
+      search()
+    }, sourceQuery.trim() === '' ? 0 : 300)
+
+    return () => clearTimeout(timeoutId)
+  }, [sourceQuery, sourceOpen])
+
+  const handleSourceSelect = (source: LinkFieldOption) => {
+    setSelectedSource(source)
+    setFormData(prev => ({ ...prev, source: source.name }))
+    setSourceOpen(false)
+    setSourceQuery('')
+  }
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
@@ -71,7 +121,13 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-6 space-y-4" onClick={(e) => {
+          // Close dropdowns when clicking outside inputs
+          const target = e.target as HTMLElement
+          if (target.tagName !== 'INPUT' && !target.closest('.absolute')) {
+            setSourceOpen(false)
+          }
+        }}>
           {/* Basic Information */}
           <div>
             <h3 className="text-sm font-semibold text-slate-700 mb-3">Basic Information</h3>
@@ -244,12 +300,62 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
                   onChange={(e) => handleChange('category', e.target.value)}
                   className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                 >
-                  <option value="NORMAL-REGULAR">Normal - Regular</option>
-                  <option value="INSURANCE - BUPA">Insurance - BUPA</option>
-                  <option value="INSURANCE-MILITARY">Insurance - Military</option>
-                  <option value="INSURANCE-OTHERS">Insurance - Others</option>
-                  <option value="JAU HOSPITAL-PATIENTS">JAU Hospital - Patients</option>
-                  <option value="ROYAL/VIP-REGULAR">Royal/VIP - Regular</option>
+                  <option value="">Select Category</option>
+                  <option value="Royal">Royal</option>
+                  <option value="American Navy">American Navy</option>
+                  <option value="Regular">Regular</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Source <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={selectedSource ? selectedSource.label : sourceQuery}
+                    onChange={(e) => {
+                      setSourceQuery(e.target.value)
+                      setSourceOpen(true)
+                    }}
+                    onFocus={() => setSourceOpen(true)}
+                    placeholder="Search source..."
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    required
+                  />
+                  {sourceOpen && sourceOptions.length > 0 && (
+                    <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                      {sourceOptions.map((source) => (
+                        <button
+                          key={source.name}
+                          type="button"
+                          onClick={() => handleSourceSelect(source)}
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 focus:bg-slate-100 focus:outline-none"
+                        >
+                          {source.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Marital Status <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={formData.marital_status}
+                  onChange={(e) => handleChange('marital_status', e.target.value)}
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  required
+                >
+                  <option value="">Select Marital Status</option>
+                  <option value="Single">Single</option>
+                  <option value="Married">Married</option>
+                  <option value="Divorced">Divorced</option>
+                  <option value="Widow">Widow</option>
                 </select>
               </div>
             </div>
@@ -282,6 +388,7 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
     </div>
   )
 }
+
 
 
 

@@ -34,6 +34,7 @@
   "email",
   "invite_user",
   "user_id",
+  "source",
   "customer_details_section",
   "customer",
   "customer_group",
@@ -66,7 +67,6 @@
   "ref_no",
   "more_info",
   "patient_details",
-  "dashboard_tab",
   "address_and_contact_tab",
   "address_contacts",
   "address_html",
@@ -100,7 +100,8 @@
   "national_id",
   "cprigama_front_photo",
   "column_break_eodk",
-  "cprigama_back_photo"
+  "cprigama_back_photo",
+  "dashboard_tab"
  ],
  "fields": [
   {
@@ -685,6 +686,13 @@
    "fieldname": "file_no",
    "fieldtype": "Data",
    "label": "File No"
+  },
+  {
+   "fieldname": "source",
+   "fieldtype": "Link",
+   "label": "Source",
+   "options": "Lead Source",
+   "reqd": 1
   }
  ],
  "grid_page_length": 50,
@@ -788,7 +796,7 @@
   }
  ],
  "max_attachments": 50,
- "modified": "2025-12-28 16:48:32.516229",
+ "modified": "2026-01-04 13:20:50.087984",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient",

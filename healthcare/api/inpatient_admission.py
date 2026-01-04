@@ -2,6 +2,8 @@
 # Copyright (c) 2025, Healthcare and contributors
 # For license information, please see license.txt
 
+import json
+import re
 import frappe
 from frappe import _
 
@@ -168,27 +170,137 @@ def get_package_details(admission_no):
 
 
 @frappe.whitelist()
-def get_service_units(service_unit_type=None, occupancy_status=None):
-	"""Get Healthcare Service Units with optional filters"""
+def get_service_units(service_unit_type=None, occupancy_status=None, search=None):
+	"""Get Healthcare Service Units with optional filters and search"""
 	filters = {}
 	if service_unit_type:
 		filters['service_unit_type'] = service_unit_type
 	if occupancy_status:
 		filters['occupancy_status'] = occupancy_status
 
-	units = frappe.get_all(
-		'Healthcare Service Unit',
-		filters=filters,
-		fields=[
-			'name',
-			'service_unit_name',
-			'service_unit_type',
-			'occupancy_status',
-			'company'
-		]
-	)
+	# If search is provided, search by name
+	if search:
+		units = frappe.db.sql("""
+			SELECT 
+				name,
+				healthcare_service_unit_name,
+				service_unit_type,
+				occupancy_status,
+				company
+			FROM `tabHealthcare Service Unit`
+			WHERE 
+				healthcare_service_unit_name LIKE %(search)s
+				OR name LIKE %(search)s
+		""", {
+			'search': f'%{search}%'
+		}, as_dict=True)
+		
+		# Apply additional filters
+		if service_unit_type:
+			units = [u for u in units if u.service_unit_type == service_unit_type]
+		if occupancy_status:
+			units = [u for u in units if u.occupancy_status == occupancy_status]
+		
+		# Limit results
+		units = units[:50]
+	else:
+		units = frappe.get_all(
+			'Healthcare Service Unit',
+			filters=filters,
+			fields=[
+				'name',
+				'healthcare_service_unit_name',
+				'service_unit_type',
+				'occupancy_status',
+				'company'
+			],
+			limit=50
+		)
 
 	return units
+
+
+@frappe.whitelist()
+def create_and_submit_discharge(admission_name, discharge_data):
+	"""Create and submit a Discharge document from Inpatient Admission"""
+	try:
+		# Check if discharge already exists
+		existing_discharge = frappe.db.get_value('Discharge', {'admission': admission_name}, 'name')
+		if existing_discharge:
+			frappe.throw(_("Discharge already exists for this admission: {0}").format(
+				frappe.get_desk_link("Discharge", existing_discharge)
+			))
+		
+		# Create discharge document using the mapped doc function
+		from healthcare.healthcare.doctype.inpatient_admission.inpatient_admission import create_discharge_from_inpatient_admission
+		
+		discharge_doc = create_discharge_from_inpatient_admission(admission_name)
+		
+		# Update discharge document with provided data
+		if isinstance(discharge_data, str):
+			discharge_data = json.loads(discharge_data)
+		
+		# Update fields from discharge_data
+		for key, value in discharge_data.items():
+			if hasattr(discharge_doc, key) and value is not None and value != '':
+				discharge_doc.set(key, value)
+		
+		# Save the discharge document
+		discharge_doc.save(ignore_permissions=True)
+		
+		# Submit the discharge document (this will update the admission status)
+		discharge_doc.submit()
+		
+		return {
+			'name': discharge_doc.name,
+			'message': 'Discharge created and submitted successfully'
+		}
+	except frappe.ValidationError as e:
+		# Handle specific validation errors with user-friendly messages
+		error_message = str(e)
+		
+		# Check if it's an unbilled services error
+		if "unbilled services" in error_message.lower():
+			# Extract unbilled services from the error message
+			# Try to extract service names from the error message
+			services = []
+			# Look for service unit names or document names in the error
+			service_pattern = r'Inpatient Occupancy\s+([^\s\n]+)'
+			matches = re.findall(service_pattern, error_message)
+			if matches:
+				services.extend(matches)
+			
+			# Look for Healthcare Service Documents
+			if "Healthcare Service" in error_message and "Documents" in error_message:
+				services.append("Healthcare Service Documents")
+			
+			if services:
+				services_list = ", ".join(services)
+				user_message = _(
+					"Cannot discharge patient because there are unbilled services that need to be invoiced first. "
+					"Please ensure all services are billed before discharging the patient. "
+					"Unbilled services include: {0}. "
+					"Please create invoices for these services and try again."
+				).format(services_list)
+			else:
+				user_message = _(
+					"Cannot discharge patient because there are unbilled services that need to be invoiced first. "
+					"Please ensure all services (including Inpatient Occupancy and Healthcare Services) are billed before discharging the patient. "
+					"Please create invoices for all unbilled services and try again."
+				)
+			
+			frappe.log_error(f"Error creating discharge: {error_message}", "Create Discharge Error")
+			frappe.throw(user_message, title=_("Unbilled Services"))
+		else:
+			# For other validation errors, use the original message but clean it up
+			frappe.log_error(f"Error creating discharge: {error_message}", "Create Discharge Error")
+			# Remove HTML tags and clean up the message
+			clean_message = re.sub(r'<[^>]+>', '', error_message)
+			clean_message = re.sub(r'\s+', ' ', clean_message).strip()
+			frappe.throw(_("Cannot complete discharge: {0}").format(clean_message))
+	except Exception as e:
+		frappe.log_error(f"Error creating discharge: {str(e)}", "Create Discharge Error")
+		frappe.throw(_("Failed to create discharge: {0}").format(str(e)))
 
 
 @frappe.whitelist()
