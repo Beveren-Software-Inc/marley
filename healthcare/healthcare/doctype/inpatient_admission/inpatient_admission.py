@@ -181,13 +181,21 @@ class InpatientAdmission(Document):
 
 @frappe.whitelist()
 def schedule_inpatient(args):
-	admission_order = json.loads(args)  # admission order via Encounter
-	if (
-		not admission_order
-		or not admission_order["patient"]
-		or not admission_order["admission_encounter"]
-	):
-		frappe.throw(_("Missing required details, did not create Inpatient Record"))
+	# Handle both JSON string and dict (Frappe API handler may parse JSON automatically)
+	if isinstance(args, str):
+		admission_order = json.loads(args)  # admission order via Encounter
+	else:
+		admission_order = args  # Already a dict
+	# Validate required fields
+	if not admission_order or not admission_order.get("patient"):
+		frappe.throw(_("Patient is required"))
+	
+	# If no admission_encounter, then medical_department and primary_practitioner are required
+	if not admission_order.get("admission_encounter"):
+		if not admission_order.get("medical_department"):
+			frappe.throw(_("Medical Department is required when creating admission without a Patient Visit"))
+		if not admission_order.get("primary_practitioner"):
+			frappe.throw(_("Primary Practitioner is required when creating admission without a Patient Visit"))
 
 	inpatient_record = frappe.new_doc("Inpatient Admission")
 
@@ -218,28 +226,37 @@ def schedule_inpatient(args):
 	inpatient_record.phone = patient.phone
 	inpatient_record.scheduled_date = today()
 
-	# Set encounter details
-	encounter = frappe.get_doc("Patient Visit", admission_order["admission_encounter"])
-	if encounter and encounter.symptoms:  # Symptoms
-		set_ip_child_records(inpatient_record, "chief_complaint", encounter.symptoms)
+	# Set encounter details (only if admission_encounter is provided)
+	encounter = None
+	if admission_order.get("admission_encounter"):
+		try:
+			encounter = frappe.get_doc("Patient Visit", admission_order["admission_encounter"])
+			inpatient_record.admission_encounter = encounter.name
+		except frappe.DoesNotExistError:
+			# Patient Visit not found, continue without it
+			encounter = None
+	
+	if encounter:
+		if encounter.symptoms:  # Symptoms
+			set_ip_child_records(inpatient_record, "chief_complaint", encounter.symptoms)
 
-	if encounter and encounter.diagnosis:  # Diagnosis
-		set_ip_child_records(inpatient_record, "diagnosis", encounter.diagnosis)
+		if encounter.diagnosis:  # Diagnosis
+			set_ip_child_records(inpatient_record, "diagnosis", encounter.diagnosis)
 
-	if encounter and encounter.drug_prescription:  # Medication
-		set_ip_child_records(inpatient_record, "drug_prescription", encounter.drug_prescription)
+		if encounter.drug_prescription:  # Medication
+			set_ip_child_records(inpatient_record, "drug_prescription", encounter.drug_prescription)
 
-	if encounter and encounter.lab_test_prescription:  # Lab Tests
-		set_ip_child_records(inpatient_record, "lab_test_prescription", encounter.lab_test_prescription)
+		if encounter.lab_test_prescription:  # Lab Tests
+			set_ip_child_records(inpatient_record, "lab_test_prescription", encounter.lab_test_prescription)
 
-	if encounter and encounter.procedure_prescription:  # Procedure Prescription
-		set_ip_child_records(
-			inpatient_record, "procedure_prescription", encounter.procedure_prescription
-		)
+		if encounter.procedure_prescription:  # Procedure Prescription
+			set_ip_child_records(
+				inpatient_record, "procedure_prescription", encounter.procedure_prescription
+			)
 
-	if encounter and encounter.therapies:  # Therapies
-		inpatient_record.therapy_plan = encounter.therapy_plan
-		set_ip_child_records(inpatient_record, "therapies", encounter.therapies)
+		if encounter.therapies:  # Therapies
+			inpatient_record.therapy_plan = encounter.therapy_plan
+			set_ip_child_records(inpatient_record, "therapies", encounter.therapies)
 
 	inpatient_record.status = "Admission Scheduled"
 	inpatient_record.save(ignore_permissions=True)
@@ -297,6 +314,9 @@ def schedule_discharge(args):
 
 def set_details_from_ip_order(inpatient_record, ip_order):
 	for key in ip_order:
+		# Skip empty strings for optional fields like admission_encounter
+		if key == "admission_encounter" and not ip_order[key]:
+			continue
 		inpatient_record.set(key, ip_order[key])
 
 

@@ -13,6 +13,8 @@ export interface Patient {
   id_number?: string
   nationality?: string
   category?: string
+  source?: string
+  marital_status?: string
 }
 
 export interface PatientListItem {

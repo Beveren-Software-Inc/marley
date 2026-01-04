@@ -48,7 +48,7 @@ export interface PackageDetailsResponse {
 
 export interface ServiceUnit {
   name: string
-  service_unit_name: string
+  healthcare_service_unit_name: string
   service_unit_type: string
   occupancy_status: string
   company: string
@@ -110,10 +110,11 @@ export async function fetchPackageDetails(admissionNo: string): Promise<PackageD
   return { packages: [], defaultCurrency: 'BHD' }
 }
 
-export async function fetchServiceUnits(serviceUnitType?: string, occupancyStatus?: string) {
+export async function fetchServiceUnits(serviceUnitType?: string, occupancyStatus?: string, search?: string) {
   const params = new URLSearchParams()
   if (serviceUnitType) params.append('service_unit_type', serviceUnitType)
   if (occupancyStatus) params.append('occupancy_status', occupancyStatus)
+  if (search) params.append('search', search)
   
   const url = `/api/method/healthcare.api.inpatient_admission.get_service_units${params.toString() ? `?${params.toString()}` : ''}`
   
@@ -209,6 +210,33 @@ export async function dischargePatient(inpatientRecordName: string) {
         ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {})
       },
       body: JSON.stringify({ name: inpatientRecordName })
+    }
+  )
+  
+  const resData = await response.json()
+
+  if (resData.exc || !response.ok) {
+    throw new Error(resData.exc || resData.message || `Request failed with status ${response.status}`)
+  }
+
+  return resData.message
+}
+
+export async function createDischarge(admissionName: string, dischargeData: any) {
+  const csrf = (window as any).csrf_token
+  
+  const response = await fetch(
+    `/api/method/healthcare.api.inpatient_admission.create_and_submit_discharge`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {})
+      },
+      body: JSON.stringify({
+        admission_name: admissionName,
+        discharge_data: dischargeData
+      })
     }
   )
   

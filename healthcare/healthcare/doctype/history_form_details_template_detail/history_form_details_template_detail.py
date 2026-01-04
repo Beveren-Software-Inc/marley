@@ -9,3 +9,4 @@ class HistoryFormDetailsTemplateDetail(Document):
 	pass
 
 
+

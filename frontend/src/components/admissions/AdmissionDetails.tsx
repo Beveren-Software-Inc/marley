@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
-import { fetchInpatientRecord, type InpatientRecord, scheduleDischarge, dischargePatient, cancelAdmission } from '../../services/inpatientRecords'
+import { fetchInpatientRecord, type InpatientRecord, scheduleDischarge, cancelAdmission } from '../../services/inpatientRecords'
 import { PackageSelectionModal } from './PackageSelectionModal'
 import { AdmissionFormModal } from './AdmissionFormModal'
 import { ScheduleDischargeModal } from './ScheduleDischargeModal'
+import { DischargeModal } from './DischargeModal'
+import { toast } from '../../hooks/useToast'
 
 interface AdmissionDetailsProps {
   admissionNo: string
@@ -14,6 +16,7 @@ export const AdmissionDetails = ({ admissionNo, onUpdate }: AdmissionDetailsProp
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
   const [showScheduleDischarge, setShowScheduleDischarge] = useState(false)
+  const [showDischargeModal, setShowDischargeModal] = useState(false)
   const [showAdmitModal, setShowAdmitModal] = useState(false)
   const [showPackages, setShowPackages] = useState(false)
   const [selectedPackage, setSelectedPackage] = useState<any>(null)
@@ -58,24 +61,19 @@ export const AdmissionDetails = ({ admissionNo, onUpdate }: AdmissionDetailsProp
     }
   }
 
-  const handleDischarge = async () => {
-    if (!admission) return
+  const handleDischarge = () => {
+    setShowDischargeModal(true)
+  }
 
-    if (!confirm('Are you sure you want to discharge this patient?')) {
-      return
-    }
-
+  const handleDischargeComplete = async () => {
+    setShowDischargeModal(false)
+    // Reload admission data
     try {
-      setActionLoading(true)
-      await dischargePatient(admission.name)
-      // Reload admission data
       const data = await fetchInpatientRecord(admissionNo)
       setAdmission(data)
       onUpdate?.()
     } catch (err) {
-      setError(err instanceof Error ? err : new Error('Failed to discharge patient'))
-    } finally {
-      setActionLoading(false)
+      setError(err instanceof Error ? err : new Error('Failed to reload admission data'))
     }
   }
 
@@ -272,8 +270,7 @@ export const AdmissionDetails = ({ admissionNo, onUpdate }: AdmissionDetailsProp
           {admission.status === 'Discharge Scheduled' && (
             <button
               onClick={handleDischarge}
-              disabled={actionLoading}
-              className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50"
+              className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700"
             >
               Discharge
             </button>
@@ -309,6 +306,18 @@ export const AdmissionDetails = ({ admissionNo, onUpdate }: AdmissionDetailsProp
             setShowAdmitModal(false)
             setSelectedPackage(null)
           }}
+        />
+      )}
+
+      {showDischargeModal && admission && (
+        <DischargeModal
+          admission={{
+            name: admission.name,
+            patient: admission.patient,
+            patient_name: admission.patient_name
+          }}
+          onClose={() => setShowDischargeModal(false)}
+          onSuccess={handleDischargeComplete}
         />
       )}
     </div>

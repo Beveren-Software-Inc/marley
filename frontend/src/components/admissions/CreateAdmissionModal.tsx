@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
+import { toast } from '../../hooks/useToast'
 import { 
   fetchMedicalDepartments, 
   fetchHealthcarePractitioners, 
@@ -201,26 +202,63 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
       return
     }
 
-    if (!formData.medical_department || !formData.primary_practitioner) {
-      setError('Please fill in all required fields')
-      return
+    // If no encounter, these fields are required
+    if (!encounterName) {
+      if (!formData.medical_department) {
+        setError('Medical Department is required')
+        return
+      }
+      if (!formData.primary_practitioner) {
+        setError('Primary Practitioner is required')
+        return
+      }
+      if (!formData.expected_length_of_stay) {
+        setError('Expected Length of Stay is required')
+        return
+      }
+    } else {
+      // Even with encounter, medical_department and primary_practitioner are still required
+      if (!formData.medical_department) {
+        setError('Medical Department is required')
+        return
+      }
+      if (!formData.primary_practitioner) {
+        setError('Primary Practitioner is required')
+        return
+      }
     }
 
     try {
       setSubmitting(true)
 
-      const args = {
+      const args: any = {
         patient: selectedPatient.name,
-        admission_encounter: encounterName || '', // Use encounter if provided
         company: '', // Will be set by backend
         medical_department: formData.medical_department,
         primary_practitioner: formData.primary_practitioner,
-        secondary_practitioner: formData.secondary_practitioner || undefined,
         admission_ordered_for: formData.admission_ordered_for,
-        admission_service_unit_type: formData.admission_service_unit_type || undefined,
-        expected_length_of_stay: formData.expected_length_of_stay ? parseInt(formData.expected_length_of_stay) : undefined,
-        admission_instruction: formData.admission_instruction || undefined,
-        admission_nursing_checklist_template: formData.admission_nursing_checklist_template || undefined
+      }
+      
+      // Only include admission_encounter if it's provided
+      if (encounterName) {
+        args.admission_encounter = encounterName
+      }
+      
+      // Optional fields
+      if (formData.secondary_practitioner) {
+        args.secondary_practitioner = formData.secondary_practitioner
+      }
+      if (formData.admission_service_unit_type) {
+        args.admission_service_unit_type = formData.admission_service_unit_type
+      }
+      if (formData.expected_length_of_stay) {
+        args.expected_length_of_stay = parseInt(formData.expected_length_of_stay)
+      }
+      if (formData.admission_instruction) {
+        args.admission_instruction = formData.admission_instruction
+      }
+      if (formData.admission_nursing_checklist_template) {
+        args.admission_nursing_checklist_template = formData.admission_nursing_checklist_template
       }
 
       const response = await fetch('/api/method/healthcare.healthcare.doctype.inpatient_admission.inpatient_admission.schedule_inpatient', {
@@ -234,16 +272,48 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
       const resData = await response.json()
 
       if (resData.exc) {
-        throw new Error(resData.exc || 'Failed to create admission')
+        // Parse error message to make it user-friendly
+        let errorMessage = resData.exc || 'Failed to create admission'
+        
+        // Handle specific validation errors
+        if (errorMessage.includes('Already Admission Scheduled')) {
+          // Extract patient name and admission number from error
+          // Pattern: "Already Admission Scheduled Patient <name> with Inpatient Record <record>"
+          const match = errorMessage.match(/Already Admission Scheduled Patient (.+?) with Inpatient Record (.+?)(?:\n|$)/)
+          if (match && match.length >= 3) {
+            const patientName = match[1].trim()
+            const admissionNo = match[2].trim()
+            errorMessage = `This patient (${patientName}) already has a scheduled admission (${admissionNo}). Please check the existing admission or cancel it before creating a new one.`
+          } else {
+            errorMessage = 'This patient already has a scheduled admission. Please check existing admissions or cancel the current one before creating a new admission.'
+          }
+        } else if (errorMessage.includes('Missing required details')) {
+          errorMessage = 'Please fill in all required fields: Patient, Medical Department, and Primary Practitioner are required.'
+        } else if (errorMessage.includes('Medical Department is required')) {
+          errorMessage = 'Medical Department is required when creating admission without a Patient Visit.'
+        } else if (errorMessage.includes('Primary Practitioner is required')) {
+          errorMessage = 'Primary Practitioner is required when creating admission without a Patient Visit.'
+        } else if (errorMessage.includes('Patient is required')) {
+          errorMessage = 'Please select a patient.'
+        }
+        
+        toast.error(errorMessage, 7000)
+        setError(errorMessage)
+        return
       }
 
       if (resData.message && resData.message.name) {
+        toast.success('Admission created successfully!', 3000)
         onSuccess(resData.message.name)
       } else {
-        throw new Error('Admission created but no name returned')
+        const errorMsg = 'Admission created but no name returned'
+        toast.error(errorMsg)
+        setError(errorMsg)
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create admission')
+      const errorMessage = err instanceof Error ? err.message : 'Failed to create admission'
+      toast.error(errorMessage, 5000)
+      setError(errorMessage)
     } finally {
       setSubmitting(false)
     }
@@ -522,11 +592,12 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
             {/* Expected Length of Stay */}
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
-                Expected Length of Stay (days)
+                Expected Length of Stay (days) {!encounterName && <span className="text-red-500">*</span>}
               </label>
               <input
                 type="number"
                 value={formData.expected_length_of_stay}
+                required={!encounterName}
                 onChange={(e) => setFormData({ ...formData, expected_length_of_stay: e.target.value })}
                 placeholder="Days"
                 className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"

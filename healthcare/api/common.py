@@ -79,3 +79,70 @@ def get_nursing_checklist_templates(search=None):
 	)
 	return [{'name': t.name, 'label': t.title or t.name} for t in templates]
 
+
+@frappe.whitelist()
+def get_lead_sources(search=None):
+	"""Get Lead Source options for dropdown"""
+	filters = {}
+	
+	if search:
+		filters['source_name'] = ['like', f'%{search}%']
+	
+	sources = frappe.get_all(
+		'Lead Source',
+		filters=filters,
+		fields=['name', 'source_name'],
+		limit=50,
+		order_by='source_name'
+	)
+	
+	return [{'name': s.name, 'label': s.source_name or s.name} for s in sources]
+
+
+@frappe.whitelist()
+def get_users(search=None):
+	"""Get list of Users"""
+	filters = {}
+	if search:
+		filters['full_name'] = ['like', f'%{search}%']
+		# Also search by email
+		users = frappe.db.sql("""
+			SELECT name, full_name, email
+			FROM `tabUser`
+			WHERE 
+				enabled = 1
+				AND (full_name LIKE %(search)s OR email LIKE %(search)s OR name LIKE %(search)s)
+			ORDER BY full_name
+			LIMIT 50
+		""", {
+			'search': f'%{search}%'
+		}, as_dict=True)
+	else:
+		users = frappe.get_all(
+			'User',
+			filters={**filters, 'enabled': 1},
+			fields=['name', 'full_name', 'email'],
+			limit=50,
+			order_by='full_name'
+		)
+	
+	return [{'name': u.name, 'label': u.full_name or u.email or u.name} for u in users]
+
+
+@frappe.whitelist()
+def get_discharge_templates(search=None):
+	"""Get list of Discharge Templates"""
+	filters = {}
+	if search:
+		filters['template_name'] = ['like', f'%{search}%']
+	
+	templates = frappe.get_all(
+		'Discharge Template',
+		filters=filters,
+		fields=['name', 'template_name'],
+		limit=50,
+		order_by='template_name'
+	)
+	return [{'name': t.name, 'label': t.template_name or t.name} for t in templates]
+
+

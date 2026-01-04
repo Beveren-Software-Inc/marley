@@ -1,12 +1,31 @@
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { PatientSearch } from '../components/patients/PatientSearch'
 import { WarningMessagesList } from '../components/warnings/WarningMessagesList'
 import { LabTestReportsList } from '../components/labTests/LabTestReportsList'
+import { AdmissionPage } from './Admission'
 import { NotificationBell } from '../components/notifications/NotificationBell'
 import { UserMenu } from '../components/user/UserMenu'
 
+const nurseNav = [
+  { label: 'Admission Register', screen: 'n-reg' }
+]
+
 export const NursePage = () => {
+  const [searchParams, setSearchParams] = useSearchParams()
   const [selectedPatient, setSelectedPatient] = useState<string | undefined>(undefined)
+  const screen = searchParams.get('screen')
+
+  const handleNavClick = (screenId: string) => {
+    const newSearchParams = new URLSearchParams(searchParams)
+    newSearchParams.set('screen', screenId)
+    setSearchParams(newSearchParams, { replace: true })
+  }
+
+  // Show Admission page when screen=n-reg or screen=admission
+  if (screen === 'n-reg' || screen === 'admission') {
+    return <AdmissionPage />
+  }
 
   return (
     <div className="flex flex-col">
@@ -16,13 +35,23 @@ export const NursePage = () => {
           onPatientSelect={(patient) => setSelectedPatient(patient || undefined)}
           patients={[]}
         />
-        <div className="flex items-center justify-end gap-3">
-          <div className="text-xs opacity-80">
-            <span>Branch: Main · Dummy</span>
-          </div>
+        <nav className="flex gap-2 flex-wrap items-center justify-end">
+          {nurseNav.map((item) => (
+            <button
+              key={item.screen}
+              onClick={() => handleNavClick(item.screen)}
+              className={`px-3 py-1 rounded-md text-sm transition-colors ${
+                screen === item.screen
+                  ? 'bg-white text-primary'
+                  : 'bg-white/15 hover:bg-white/25'
+              }`}
+            >
+              {item.label}
+            </button>
+          ))}
           <UserMenu />
           <NotificationBell />
-        </div>
+        </nav>
       </header>
 
       <div className="grid gap-4 md:grid-cols-2 p-4">
@@ -36,8 +65,6 @@ export const NursePage = () => {
           <LabTestReportsList patient={selectedPatient} pendingReview={true} />
         </section>
       </div>
-
-      
     </div>
   )
 }

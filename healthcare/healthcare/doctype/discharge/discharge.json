@@ -249,7 +249,7 @@
    "fieldname": "receiving_doctors",
    "fieldtype": "Link",
    "label": "Receiving Doctors",
-   "options": "User"
+   "options": "Healthcare Practitioner"
   },
   {
    "fieldname": "section_break_mwkk",
@@ -293,7 +293,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2025-12-30 09:59:44.183770",
+ "modified": "2026-01-04 15:11:19.574270",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Discharge",

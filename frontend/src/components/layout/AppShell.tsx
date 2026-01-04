@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react'
+import { useState } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
+import { ChevronDown, ChevronRight } from 'lucide-react'
 import { doctorScreens } from '../../config/doctorScreens'
 
 const nurseScreens = [
@@ -83,6 +85,20 @@ const mainLinks = [
 
 export const AppShell = ({ children }: { children: ReactNode }) => {
   const location = useLocation()
+  // Track which topics have their subtopics expanded
+  const [expandedTopics, setExpandedTopics] = useState<Set<string>>(new Set())
+
+  const toggleTopic = (linkTo: string) => {
+    setExpandedTopics((prev) => {
+      const next = new Set(prev)
+      if (next.has(linkTo)) {
+        next.delete(linkTo)
+      } else {
+        next.add(linkTo)
+      }
+      return next
+    })
+  }
 
   return (
     <div className="h-screen overflow-hidden grid grid-cols-[240px_1fr] bg-muted">
@@ -91,20 +107,42 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
         <nav className="flex flex-col gap-1 text-sm">
           {mainLinks.map((link) => {
             const isActiveGroup = location.pathname.startsWith(link.prefix)
+            const isExpanded = expandedTopics.has(link.to)
+            const hasScreens = link.screens.length > 0
+            const showSubtopics = isExpanded && hasScreens
+
             return (
               <div key={link.to} className="flex flex-col gap-1">
-                <NavLink
-                  to={link.to}
-                  className={({ isActive }) =>
-                    `px-3 py-2 rounded-md ${
-                      isActive ? 'bg-white text-primary' : 'bg-white/10 hover:bg-white/20'
-                    }`
-                  }
-                >
-                  {link.label}
-                </NavLink>
-                {isActiveGroup && link.screens.length > 0 && (
-                  <nav className="flex flex-col gap-1 mt-1 ml-2 text-xs">
+                <div className="flex items-center">
+                  {hasScreens && (
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault()
+                        toggleTopic(link.to)
+                      }}
+                      className="p-1 hover:bg-white/20 rounded mr-1"
+                      aria-label={isExpanded ? 'Collapse' : 'Expand'}
+                    >
+                      {isExpanded ? (
+                        <ChevronDown className="w-4 h-4" />
+                      ) : (
+                        <ChevronRight className="w-4 h-4" />
+                      )}
+                    </button>
+                  )}
+                  <NavLink
+                    to={link.to}
+                    className={({ isActive }) =>
+                      `flex-1 px-3 py-2 rounded-md ${
+                        isActive ? 'bg-white text-primary' : 'bg-white/10 hover:bg-white/20'
+                      }`
+                    }
+                  >
+                    {link.label}
+                  </NavLink>
+                </div>
+                {showSubtopics && (
+                  <nav className="flex flex-col gap-1 mt-1 ml-6 text-xs">
                     {link.screens.map((s) => (
                       <NavLink
                         key={s.id}

@@ -98,3 +98,4 @@ def get_patient_visit(name):
 		'company': visit.company
 	}
 
+

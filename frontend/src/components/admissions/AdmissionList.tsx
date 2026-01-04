@@ -3,6 +3,9 @@ import { useInpatientRecords } from '../../hooks/useInpatientRecords'
 import { StatusPill } from '../ui/StatusPill'
 import { PackageSelectionModal } from './PackageSelectionModal'
 import { AdmissionFormModal } from './AdmissionFormModal'
+import { ScheduleDischargeModal } from './ScheduleDischargeModal'
+import { DischargeModal } from './DischargeModal'
+import type { InpatientRecord } from '../../services/inpatientRecords'
 
 const statusColors: Record<string, string> = {
   'Admission Scheduled': 'warning',
@@ -23,6 +26,10 @@ export const AdmissionList = ({ onAdmissionSelect, searchQuery: externalSearchQu
   const [showPackages, setShowPackages] = useState(false)
   const [showAdmissionForm, setShowAdmissionForm] = useState(false)
   const [selectedPackage, setSelectedPackage] = useState<any>(null)
+  const [showScheduleDischarge, setShowScheduleDischarge] = useState(false)
+  const [selectedAdmissionForDischarge, setSelectedAdmissionForDischarge] = useState<InpatientRecord | null>(null)
+  const [showDischargeModal, setShowDischargeModal] = useState(false)
+  const [selectedAdmissionForFinalDischarge, setSelectedAdmissionForFinalDischarge] = useState<InpatientRecord | null>(null)
 
   const { records, loading, error, refetch } = useInpatientRecords(
     selectedStatus || undefined,
@@ -44,6 +51,28 @@ export const AdmissionList = ({ onAdmissionSelect, searchQuery: externalSearchQu
     setShowAdmissionForm(false)
     setSelectedRecord(null)
     setSelectedPackage(null)
+    refetch()
+  }
+
+  const handleScheduleDischarge = (record: InpatientRecord) => {
+    setSelectedAdmissionForDischarge(record)
+    setShowScheduleDischarge(true)
+  }
+
+  const handleDischargeScheduled = () => {
+    setShowScheduleDischarge(false)
+    setSelectedAdmissionForDischarge(null)
+    refetch()
+  }
+
+  const handleDischarge = (record: InpatientRecord) => {
+    setSelectedAdmissionForFinalDischarge(record)
+    setShowDischargeModal(true)
+  }
+
+  const handleDischargeComplete = () => {
+    setShowDischargeModal(false)
+    setSelectedAdmissionForFinalDischarge(null)
     refetch()
   }
 
@@ -170,14 +199,32 @@ export const AdmissionList = ({ onAdmissionSelect, searchQuery: externalSearchQu
                     </td>
                     {onAdmissionSelect && (
                       <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                        {record.status === 'Admission Scheduled' && (
-                          <button
-                            onClick={() => handleAdmit(record.name)}
-                            className="px-3 py-1.5 bg-primary text-white text-sm rounded-md hover:bg-primary/90"
-                          >
-                            Admit
-                          </button>
-                        )}
+                        <div className="flex gap-2">
+                          {record.status === 'Admission Scheduled' && (
+                            <button
+                              onClick={() => handleAdmit(record.name)}
+                              className="px-3 py-1.5 bg-primary text-white text-sm rounded-md hover:bg-primary/90"
+                            >
+                              Admit
+                            </button>
+                          )}
+                          {record.status === 'Admitted' && (
+                            <button
+                              onClick={() => handleScheduleDischarge(record)}
+                              className="px-3 py-1.5 bg-orange-600 text-white text-sm rounded-md hover:bg-orange-700"
+                            >
+                              Schedule Discharge
+                            </button>
+                          )}
+                          {record.status === 'Discharge Scheduled' && (
+                            <button
+                              onClick={() => handleDischarge(record)}
+                              className="px-3 py-1.5 bg-green-600 text-white text-sm rounded-md hover:bg-green-700"
+                            >
+                              Discharge
+                            </button>
+                          )}
+                        </div>
                       </td>
                     )}
                   </tr>
@@ -209,6 +256,36 @@ export const AdmissionList = ({ onAdmissionSelect, searchQuery: externalSearchQu
             setSelectedRecord(null)
             setSelectedPackage(null)
           }}
+        />
+      )}
+
+      {showScheduleDischarge && selectedAdmissionForDischarge && (
+        <ScheduleDischargeModal
+          admission={{
+            name: selectedAdmissionForDischarge.name,
+            patient: selectedAdmissionForDischarge.patient,
+            patient_name: selectedAdmissionForDischarge.patient_name
+          }}
+          onClose={() => {
+            setShowScheduleDischarge(false)
+            setSelectedAdmissionForDischarge(null)
+          }}
+          onSuccess={handleDischargeScheduled}
+        />
+      )}
+
+      {showDischargeModal && selectedAdmissionForFinalDischarge && (
+        <DischargeModal
+          admission={{
+            name: selectedAdmissionForFinalDischarge.name,
+            patient: selectedAdmissionForFinalDischarge.patient,
+            patient_name: selectedAdmissionForFinalDischarge.patient_name
+          }}
+          onClose={() => {
+            setShowDischargeModal(false)
+            setSelectedAdmissionForFinalDischarge(null)
+          }}
+          onSuccess={handleDischargeComplete}
         />
       )}
     </>

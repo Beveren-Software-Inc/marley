@@ -1,5 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { scheduleDischarge } from '../../services/inpatientRecords'
+import { fetchHealthcarePractitioners, type LinkFieldOption } from '../../services/common'
+import { toast } from '../../hooks/useToast'
 
 interface ScheduleDischargeModalProps {
   admission: {
@@ -14,6 +16,12 @@ interface ScheduleDischargeModalProps {
 export const ScheduleDischargeModal = ({ admission, onClose, onSuccess }: ScheduleDischargeModalProps) => {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  
+  // Discharge Practitioner dropdown state
+  const [practitioners, setPractitioners] = useState<LinkFieldOption[]>([])
+  const [practOpen, setPractOpen] = useState(false)
+  const [practQuery, setPractQuery] = useState('')
+  const [selectedPractitioner, setSelectedPractitioner] = useState<LinkFieldOption | null>(null)
 
   const [formData, setFormData] = useState({
     discharge_practitioner: '',
@@ -22,6 +30,47 @@ export const ScheduleDischargeModal = ({ admission, onClose, onSuccess }: Schedu
     discharge_instructions: '',
     discharge_note: ''
   })
+
+  // Load initial practitioners
+  useEffect(() => {
+    const loadPractitioners = async () => {
+      try {
+        const practs = await fetchHealthcarePractitioners()
+        setPractitioners(practs)
+      } catch (err) {
+        console.error('Failed to load practitioners:', err)
+      }
+    }
+    loadPractitioners()
+  }, [])
+
+  // Search practitioners
+  useEffect(() => {
+    if (!practOpen) return
+
+    const search = async () => {
+      try {
+        const results = await fetchHealthcarePractitioners(practQuery)
+        setPractitioners(results)
+      } catch (err) {
+        console.error('Failed to search practitioners:', err)
+        setPractitioners([])
+      }
+    }
+
+    const timeoutId = setTimeout(() => {
+      search()
+    }, practQuery.trim() === '' ? 0 : 300)
+
+    return () => clearTimeout(timeoutId)
+  }, [practQuery, practOpen])
+
+  const handlePractitionerSelect = (pract: LinkFieldOption) => {
+    setSelectedPractitioner(pract)
+    setFormData(prev => ({ ...prev, discharge_practitioner: pract.name }))
+    setPractQuery(pract.label)
+    setPractOpen(false)
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -41,9 +90,12 @@ export const ScheduleDischargeModal = ({ admission, onClose, onSuccess }: Schedu
       }
 
       await scheduleDischarge(dischargeData)
+      toast.success('Discharge scheduled successfully!', 3000)
       onSuccess(dischargeData)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to schedule discharge')
+      const errorMessage = err instanceof Error ? err.message : 'Failed to schedule discharge'
+      toast.error(errorMessage, 5000)
+      setError(errorMessage)
     } finally {
       setSubmitting(false)
     }
@@ -66,7 +118,13 @@ export const ScheduleDischargeModal = ({ admission, onClose, onSuccess }: Schedu
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-6 space-y-4" onClick={(e) => {
+          // Close dropdowns when clicking outside inputs
+          const target = e.target as HTMLElement
+          if (target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA' && !target.closest('.absolute')) {
+            setPractOpen(false)
+          }
+        }}>
           <div className="bg-slate-50 rounded-lg p-4 mb-4">
             <h3 className="font-semibold text-slate-900 mb-2">Patient Information</h3>
             <div className="text-sm text-slate-700">
@@ -76,17 +134,45 @@ export const ScheduleDischargeModal = ({ admission, onClose, onSuccess }: Schedu
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <div>
+            <div className="relative">
               <label className="block text-sm font-medium text-slate-700 mb-1">
                 Discharge Practitioner
               </label>
-              <input
-                type="text"
-                value={formData.discharge_practitioner}
-                onChange={(e) => setFormData({ ...formData, discharge_practitioner: e.target.value })}
-                placeholder="Healthcare Practitioner"
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-              />
+              <div className="relative">
+                <input
+                  type="text"
+                  value={selectedPractitioner ? selectedPractitioner.label : practQuery}
+                  onChange={(e) => {
+                    setPractQuery(e.target.value)
+                    setPractOpen(true)
+                  }}
+                  onFocus={() => setPractOpen(true)}
+                  placeholder="Search Healthcare Practitioner..."
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+                {practOpen && practitioners.length > 0 && (
+                  <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-auto">
+                    {practitioners.map((pract) => (
+                      <button
+                        key={pract.name}
+                        type="button"
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50"
+                        onClick={() => handlePractitionerSelect(pract)}
+                      >
+                        <div className="font-medium">{pract.label}</div>
+                        {pract.department && (
+                          <div className="text-xs text-slate-500">{pract.department}</div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {practOpen && practitioners.length === 0 && practQuery && (
+                  <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg">
+                    <div className="px-3 py-2 text-xs text-slate-500">No practitioners found</div>
+                  </div>
+                )}
+              </div>
             </div>
 
             <div>
@@ -167,4 +253,5 @@ export const ScheduleDischargeModal = ({ admission, onClose, onSuccess }: Schedu
     </div>
   )
 }
+
 

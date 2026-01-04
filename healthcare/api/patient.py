@@ -105,7 +105,16 @@ def create_patient(**kwargs):
 	patient.email = data.get('email')
 	patient.id_number = data.get('id_number')
 	patient.nationality = data.get('nationality')
-	patient.category = data.get('category', 'NORMAL-REGULAR')
+	patient.category = data.get('category', '')
+	
+	# Set required fields: Source and Marital Status
+	if not data.get('source'):
+		frappe.throw(_("Source is required"))
+	if not data.get('marital_status'):
+		frappe.throw(_("Marital Status is required"))
+	
+	patient.source = data.get('source')
+	patient.marital_status = data.get('marital_status')
 
 	# Save the patient
 	patient.insert()
