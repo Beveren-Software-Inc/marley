@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { PatientSearch } from '../components/patients/PatientSearch'
 import { WarningMessagesList } from '../components/warnings/WarningMessagesList'
@@ -17,16 +17,39 @@ const doctorNav = [
 
 export const DoctorPage = () => {
   const [searchParams, setSearchParams] = useSearchParams()
-  const [selectedPatient, setSelectedPatient] = useState<string | undefined>(undefined)
+  const patientFromUrl = searchParams.get('patient')
+  const [selectedPatient, setSelectedPatient] = useState<string | undefined>(patientFromUrl || undefined)
   const [showWarningModal, setShowWarningModal] = useState(false)
   const [showLabTestModal, setShowLabTestModal] = useState(false)
   const [warningRefreshKey, setWarningRefreshKey] = useState(0)
   const [labTestRefreshKey, setLabTestRefreshKey] = useState(0)
   const screen = searchParams.get('screen')
 
+  // Sync selectedPatient with URL on mount and when URL changes
+  useEffect(() => {
+    const patientParam = searchParams.get('patient')
+    if (patientParam && patientParam !== selectedPatient) {
+      setSelectedPatient(patientParam)
+    } else if (!patientParam && selectedPatient) {
+      // Only clear if URL doesn't have patient param
+      // Don't clear if we're just initializing
+    }
+  }, [searchParams])
+
   const handleNavClick = (screenId: string) => {
     const newSearchParams = new URLSearchParams(searchParams)
     newSearchParams.set('screen', screenId)
+    setSearchParams(newSearchParams, { replace: true })
+  }
+
+  const handlePatientSelect = (patient: string | undefined) => {
+    setSelectedPatient(patient)
+    const newSearchParams = new URLSearchParams(searchParams)
+    if (patient) {
+      newSearchParams.set('patient', patient)
+    } else {
+      newSearchParams.delete('patient')
+    }
     setSearchParams(newSearchParams, { replace: true })
   }
 
@@ -45,7 +68,7 @@ export const DoctorPage = () => {
       <header className="grid grid-cols-1 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
         <PatientSearch
           selectedPatient={selectedPatient || ''}
-          onPatientSelect={(patient) => setSelectedPatient(patient || undefined)}
+          onPatientSelect={handlePatientSelect}
           patients={[]}
         />
         <nav className="flex gap-2 flex-wrap items-center justify-end">

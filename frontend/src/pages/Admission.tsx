@@ -11,9 +11,18 @@ import { UserMenu } from '../components/user/UserMenu'
 export const AdmissionPage = () => {
   const [searchParams, setSearchParams] = useSearchParams()
   const admissionFromUrl = searchParams.get('admission')
+  const searchFromUrl = searchParams.get('search')
   const [admissionPatient, setAdmissionPatient] = useState<string | undefined>(undefined)
-  const [searchQuery, setSearchQuery] = useState<string>('')
+  const [searchQuery, setSearchQuery] = useState<string>(searchFromUrl || '')
   const [showCreateAdmission, setShowCreateAdmission] = useState(false)
+
+  // Sync searchQuery with URL
+  useEffect(() => {
+    const searchParam = searchParams.get('search')
+    if (searchParam !== searchQuery) {
+      setSearchQuery(searchParam || '')
+    }
+  }, [searchParams, searchQuery])
 
   // Load patient when admission is selected from URL
   useEffect(() => {
@@ -45,12 +54,10 @@ export const AdmissionPage = () => {
   }
 
   const handleBackToList = () => {
-    // Clear search query
-    setSearchQuery('')
-    
     // Update URL - this will trigger re-render
     const newSearchParams = new URLSearchParams(searchParams)
     newSearchParams.delete('admission')
+    // Keep search query in URL
     setSearchParams(newSearchParams, { replace: true })
   }
 
@@ -112,7 +119,18 @@ export const AdmissionPage = () => {
               <input
                 type="text"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => {
+                  const value = e.target.value
+                  setSearchQuery(value)
+                  // Update URL with debounce
+                  const newSearchParams = new URLSearchParams(searchParams)
+                  if (value.trim()) {
+                    newSearchParams.set('search', value)
+                  } else {
+                    newSearchParams.delete('search')
+                  }
+                  setSearchParams(newSearchParams, { replace: true })
+                }}
                 placeholder="Search by admission number or patient name/file number..."
                 className="flex-1 rounded-md border border-primary/40 px-3 py-2 text-sm text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-white focus:border-white"
               />

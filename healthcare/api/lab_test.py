@@ -95,6 +95,13 @@ def create_lab_test(data):
 	if not data.get('patient'):
 		frappe.throw(_("Patient is required"))
 	
+	# Fetch patient details
+	patient = frappe.get_doc('Patient', data.get('patient'))
+	patient_sex = patient.sex if patient.sex else None
+	
+	if not patient_sex:
+		frappe.throw(_("Patient gender is required. Please update the patient record with gender information."))
+	
 	# Get naming series
 	naming_series = frappe.db.get_value('Lab Test', {'naming_series': 'HLC-LAB-.YYYY.-'}, 'naming_series')
 	if not naming_series:
@@ -104,6 +111,7 @@ def create_lab_test(data):
 	lab_test = frappe.get_doc({
 		'doctype': 'Lab Test',
 		'patient': data.get('patient'),
+		'patient_sex': patient_sex,
 		'template': data.get('template'),
 		'practitioner': data.get('practitioner'),
 		'date': data.get('date') or frappe.utils.today(),

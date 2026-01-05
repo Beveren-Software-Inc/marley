@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { PatientVisitList } from '../components/patientVisits/PatientVisitList'
 import { PatientVisitDetails } from '../components/patientVisits/PatientVisitDetails'
@@ -9,8 +9,17 @@ import { UserMenu } from '../components/user/UserMenu'
 export const PatientVisitPage = () => {
   const [searchParams, setSearchParams] = useSearchParams()
   const visitFromUrl = searchParams.get('visit')
-  const [searchQuery, setSearchQuery] = useState<string>('')
+  const searchFromUrl = searchParams.get('search')
+  const [searchQuery, setSearchQuery] = useState<string>(searchFromUrl || '')
   const [showCreateVisit, setShowCreateVisit] = useState(false)
+
+  // Sync searchQuery with URL
+  useEffect(() => {
+    const searchParam = searchParams.get('search')
+    if (searchParam !== searchQuery) {
+      setSearchQuery(searchParam || '')
+    }
+  }, [searchParams, searchQuery])
 
   if (visitFromUrl) {
     // Show visit details
@@ -62,7 +71,18 @@ export const PatientVisitPage = () => {
               <input
                 type="text"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => {
+                  const value = e.target.value
+                  setSearchQuery(value)
+                  // Update URL with debounce
+                  const newSearchParams = new URLSearchParams(searchParams)
+                  if (value.trim()) {
+                    newSearchParams.set('search', value)
+                  } else {
+                    newSearchParams.delete('search')
+                  }
+                  setSearchParams(newSearchParams, { replace: true })
+                }}
                 placeholder="Search by visit number, patient name/file number, or practitioner..."
                 className="flex-1 rounded-md border border-primary/40 px-3 py-2 text-sm text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-white focus:border-white"
               />
