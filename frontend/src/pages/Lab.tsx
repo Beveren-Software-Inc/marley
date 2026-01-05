@@ -1,59 +1,66 @@
-import { useState } from 'react'
-import { dummyPatients } from '../config/patients'
+import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { PatientSearch } from '../components/patients/PatientSearch'
 import { NotificationBell } from '../components/notifications/NotificationBell'
 import { UserMenu } from '../components/user/UserMenu'
-
-const firstScreenLab = ['Pending Sample Collection', 'Pending Lab Testing']
-
-const otherScreensLab = [
-  'Patient History (Medical History)',
-  'Lab Test Setup (Admin)',
-  'Lab Test Request (By Doctor)',
-  'Lab Test (Outsourced)',
-  'Sample Collection (Lab Person)',
-  'Lab Test & Result (Lab Person)',
-  'Lab Test Review (Doctor)',
-  'Lab Test Report History (Lab & Doctor)'
-]
+import { ServiceRequestList } from '../components/serviceRequests/ServiceRequestList'
+import { LabTestList } from '../components/labTests/LabTestList'
 
 export const LabPage = () => {
-  const [selectedPatient, setSelectedPatient] = useState('John Doe')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const patientFromUrl = searchParams.get('patient')
+  const [selectedPatient, setSelectedPatient] = useState<string | undefined>(patientFromUrl || undefined)
+  const [labTestRefreshKey, setLabTestRefreshKey] = useState(0)
+
+  // Sync selectedPatient with URL on mount and when URL changes
+  useEffect(() => {
+    const patientParam = searchParams.get('patient')
+    if (patientParam && patientParam !== selectedPatient) {
+      setSelectedPatient(patientParam)
+    }
+  }, [searchParams])
+
+  const handlePatientSelect = (patient: string | undefined) => {
+    setSelectedPatient(patient)
+    const newSearchParams = new URLSearchParams(searchParams)
+    if (patient) {
+      newSearchParams.set('patient', patient)
+    } else {
+      newSearchParams.delete('patient')
+    }
+    setSearchParams(newSearchParams, { replace: true })
+  }
+
+  const handleLabTestCreated = () => {
+    setLabTestRefreshKey(prev => prev + 1)
+  }
 
   return (
     <div className="flex flex-col">
       <header className="grid grid-cols-1 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
         <PatientSearch
-          selectedPatient={selectedPatient}
-          onPatientSelect={setSelectedPatient}
-          patients={dummyPatients}
+          selectedPatient={selectedPatient || ''}
+          onPatientSelect={handlePatientSelect}
+          patients={[]}
         />
         <div className="flex items-center justify-end gap-3">
-          <div className="text-xs opacity-80">
-            <span>Branch: Main · Dummy</span>
-          </div>
           <UserMenu />
           <NotificationBell />
         </div>
       </header>
 
-      <div className="flex flex-col gap-4 p-4">
+      <div className="grid gap-4 md:grid-cols-2 p-4">
         <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-          <h2 className="font-semibold mb-2">First Screen</h2>
-          <ul className="list-disc list-inside text-sm text-slate-800">
-            {firstScreenLab.map((s) => (
-              <li key={s}>{s}</li>
-            ))}
-          </ul>
+          <div className="font-semibold mb-4">Service Requests</div>
+          <ServiceRequestList 
+            patient={selectedPatient} 
+            onLabTestCreated={handleLabTestCreated}
+          />
         </section>
 
         <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-          <h2 className="font-semibold mb-3">Other Screens</h2>
-          <ol className="list-decimal list-inside space-y-1 text-sm text-slate-800">
-            {otherScreensLab.map((s) => (
-              <li key={s}>{s}</li>
-            ))}
-          </ol>
+          <div className="font-semibold mb-4">Lab Tests</div>
+          <LabTestList patient={selectedPatient} key={labTestRefreshKey} />
         </section>
       </div>
     </div>
