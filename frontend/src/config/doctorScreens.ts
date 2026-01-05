@@ -1,7 +1,6 @@
 export const doctorScreens = [
   { id: 'mh', title: 'Medical History (Allergies)', desc: 'View allergies, past medical/surgical history.' },
   { id: 'pi', title: 'Patient Information', desc: 'Demographics and contact details.' },
-  { id: 'ah', title: 'Admission History', desc: 'Previous admissions and reasons.' },
   { id: 'dpn', title: 'Doctor Progress Note', desc: 'Daily progress notes.' },
   { id: 'dos', title: 'Doctors Order Sheet', desc: 'Orders for labs, meds, procedures.' },
   { id: 'dn', title: 'Doctors Note', desc: 'Free-text notes.' },

@@ -6,6 +6,11 @@ import { LabTestReportsList } from '../components/labTests/LabTestReportsList'
 import { LabTestList } from '../components/labTests/LabTestList'
 import { ECTDetailsList } from '../components/ect/ECTDetailsList'
 import { ClinicalNotesList } from '../components/clinicalNotes/ClinicalNotesList'
+import { ObservationList } from '../components/observations/ObservationList'
+import { VitalSignsList } from '../components/vitalSigns/VitalSignsList'
+import { CreateObservationModal } from '../components/observations/CreateObservationModal'
+import { MedicalHistoryView } from '../components/medicalHistory/MedicalHistoryView'
+import { PackageDetailsList } from '../components/packageDetails/PackageDetailsList'
 import { CreateWarningMessageModal } from '../components/warnings/CreateWarningMessageModal'
 import { CreateLabTestModal } from '../components/labTests/CreateLabTestModal'
 import { DischargeModal } from '../components/admissions/DischargeModal'
@@ -29,9 +34,11 @@ export const DoctorPage = () => {
   const [showWarningModal, setShowWarningModal] = useState(false)
   const [showLabTestModal, setShowLabTestModal] = useState(false)
   const [showDischargeModal, setShowDischargeModal] = useState(false)
+  const [showObservationModal, setShowObservationModal] = useState(false)
   const [selectedAdmission, setSelectedAdmission] = useState<{ name: string; patient: string; patient_name?: string } | null>(null)
   const [warningRefreshKey, setWarningRefreshKey] = useState(0)
   const [labTestRefreshKey, setLabTestRefreshKey] = useState(0)
+  const [observationRefreshKey, setObservationRefreshKey] = useState(0)
   const screen = searchParams.get('screen')
 
   // Sync selectedPatient with URL on mount and when URL changes
@@ -296,6 +303,109 @@ export const DoctorPage = () => {
             <ClinicalNotesList 
               patient={selectedPatient} 
               medicalRole="Nurse"
+            />
+          </section>
+        </div>
+      </div>
+    )
+  }
+
+  // Show Observation
+  if (screen === 'obs') {
+    return (
+      <div className="flex flex-col">
+        <header className="flex items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+        <div className="p-4">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+            <div className="font-semibold mb-4 flex items-center justify-between">
+              <span>Observation</span>
+              <button
+                onClick={() => setShowObservationModal(true)}
+                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
+                title="Add Observation"
+              >
+                +
+              </button>
+            </div>
+            <ObservationList patient={selectedPatient} key={observationRefreshKey} />
+          </section>
+        </div>
+        {showObservationModal && (
+          <CreateObservationModal
+            onClose={() => setShowObservationModal(false)}
+            onSuccess={() => {
+              setObservationRefreshKey(prev => prev + 1)
+              setShowObservationModal(false)
+            }}
+            initialPatient={selectedPatient}
+          />
+        )}
+      </div>
+    )
+  }
+
+  // Show Vital Signs
+  if (screen === 'tpr') {
+    return (
+      <div className="flex flex-col">
+        <header className="flex items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+        <div className="p-4">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+            <div className="font-semibold mb-4">Vital Signs</div>
+            <VitalSignsList patient={selectedPatient} />
+          </section>
+        </div>
+      </div>
+    )
+  }
+
+  // Show Nutritionist Notes (Clinical Note with Medical Role = Nutritionist)
+  if (screen === 'nut') {
+    return (
+      <div className="flex flex-col">
+        <header className="flex items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+        <div className="p-4">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+            <div className="font-semibold mb-4">Nutritionist Notes</div>
+            <ClinicalNotesList 
+              patient={selectedPatient} 
+              medicalRole="Nutritionist"
             />
           </section>
         </div>
