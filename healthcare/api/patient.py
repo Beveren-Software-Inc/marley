@@ -18,7 +18,10 @@ def search_patients(search=None, limit=20):
 			p.patient_name,
 			p.file_no as file_number,
 			p.mobile,
-			p.email
+			p.email,
+			p.sex,
+			p.id_number,
+			p.category
 		FROM `tabPatient` p
 		WHERE 
 			p.patient_name LIKE %(search)s
@@ -31,7 +34,7 @@ def search_patients(search=None, limit=20):
 		'limit': limit
 	}, as_dict=True)
 	
-	return [{'name': p.name, 'patient_name': p.patient_name or p.name, 'file_number': p.file_number, 'mobile': p.mobile, 'email': p.email} for p in patients]
+	return [{'name': p.name, 'patient_name': p.patient_name or p.name, 'file_number': p.file_number, 'mobile': p.mobile, 'email': p.email, 'sex': p.sex, 'id_number': p.id_number, 'category': p.category} for p in patients]
 
 
 @frappe.whitelist()
@@ -39,7 +42,7 @@ def get_patients(limit=50, offset=0, search=None):
 	"""Get list of patients"""
 	filters = {}
 	
-	if search:
+		if search:
 		# Search by name, file number, or patient ID
 		patients = frappe.db.sql("""
 			SELECT 
@@ -47,7 +50,10 @@ def get_patients(limit=50, offset=0, search=None):
 				p.patient_name,
 				p.file_no as file_number,
 				p.mobile,
-				p.email
+				p.email,
+				p.sex,
+				p.id_number,
+				p.category
 			FROM `tabPatient` p
 			WHERE 
 				p.patient_name LIKE %(search)s
@@ -61,18 +67,18 @@ def get_patients(limit=50, offset=0, search=None):
 			'offset': offset
 		}, as_dict=True)
 		
-		return [{'name': p.name, 'patient_name': p.patient_name or p.name, 'file_number': p.file_number, 'mobile': p.mobile, 'email': p.email} for p in patients]
+		return [{'name': p.name, 'patient_name': p.patient_name or p.name, 'file_number': p.file_number, 'mobile': p.mobile, 'email': p.email, 'sex': p.sex, 'id_number': p.id_number, 'category': p.category} for p in patients]
 	else:
 		patients = frappe.get_all(
 			'Patient',
 			filters=filters,
-			fields=['name', 'patient_name', 'file_no', 'mobile', 'email'],
+			fields=['name', 'patient_name', 'file_no', 'mobile', 'email', 'sex', 'id_number', 'category'],
 			limit=limit,
 			limit_start=offset,
 			order_by='patient_name'
 		)
 		
-		return [{'name': p.name, 'patient_name': p.patient_name or p.name, 'file_number': p.file_no, 'mobile': p.mobile, 'email': p.email} for p in patients]
+		return [{'name': p.name, 'patient_name': p.patient_name or p.name, 'file_number': p.file_no, 'mobile': p.mobile, 'email': p.email, 'sex': p.sex, 'id_number': p.id_number, 'category': p.category} for p in patients]
 
 
 @frappe.whitelist()

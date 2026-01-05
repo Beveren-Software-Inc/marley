@@ -4,6 +4,9 @@ export interface PatientListItem {
   file_number?: string
   mobile?: string
   email?: string
+  sex?: string
+  id_number?: string
+  category?: string
 }
 
 export interface PatientMedicalHistory {
