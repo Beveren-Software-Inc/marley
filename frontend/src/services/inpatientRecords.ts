@@ -277,3 +277,18 @@ export async function cancelAdmission(inpatientRecordName: string, reason?: stri
   return resData.message
 }
 
+export async function getPatientActiveAdmission(patient: string): Promise<InpatientRecord | null> {
+  const response = await fetch(
+    `/api/method/healthcare.api.inpatient_admission.get_patient_active_admission?patient=${encodeURIComponent(patient)}`
+  )
+  const resData = await response.json()
+
+  if (resData?.message) {
+    return resData.message as InpatientRecord
+  } else if (resData?.message === null) {
+    return null
+  }
+  
+  throw new Error('Invalid response format')
+}
+

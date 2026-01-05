@@ -1,4 +1,3 @@
-import frappe
 
 
 def get_context(context):
@@ -6,6 +5,7 @@ def get_context(context):
 	# for all routes under /health/*
 	context.no_cache = 1
 	return context
+
 
 
 

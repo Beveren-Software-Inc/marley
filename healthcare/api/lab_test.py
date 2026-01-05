@@ -7,7 +7,7 @@ from frappe import _
 
 
 @frappe.whitelist()
-def get_lab_tests(limit=50, offset=0, patient=None, status=None, pending_review=False):
+def get_lab_tests(limit=50, offset=0, patient=None, status=None, pending_review=False, is_outsourced=None):
 	"""Get list of Lab Tests"""
 	filters = {'docstatus': ['!=', 2]}  # Exclude cancelled
 	
@@ -20,6 +20,12 @@ def get_lab_tests(limit=50, offset=0, patient=None, status=None, pending_review=
 	if pending_review:
 		# Get lab tests that are completed but not yet reviewed/approved
 		filters['status'] = ['in', ['Completed', 'Submitted']]
+	
+	if is_outsourced is not None:
+		# Convert string '1'/'0' to boolean
+		if isinstance(is_outsourced, str):
+			is_outsourced = is_outsourced == '1'
+		filters['is_outsourced'] = 1 if is_outsourced else 0
 	
 	lab_tests = frappe.get_all(
 		'Lab Test',
@@ -37,7 +43,8 @@ def get_lab_tests(limit=50, offset=0, patient=None, status=None, pending_review=
 			'submitted_date',
 			'approved_date',
 			'invoiced',
-			'department'
+			'department',
+			'is_outsourced'
 		],
 		limit=limit,
 		limit_start=offset,

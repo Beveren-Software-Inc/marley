@@ -209,3 +209,22 @@ def get_practitioner_medical_role(practitioner):
 	return medical_role
 
 
+@frappe.whitelist()
+def get_observation_templates(search=None, department=None):
+	"""Get list of Observation Templates"""
+	filters = {}
+	if search:
+		filters['observation'] = ['like', f'%{search}%']
+	if department:
+		filters['medical_department'] = department
+	
+	templates = frappe.get_all(
+		'Observation Template',
+		filters=filters,
+		fields=['name', 'observation', 'observation_category', 'medical_department'],
+		limit=50,
+		order_by='observation'
+	)
+	return [{'name': t.name, 'label': t.observation or t.name, 'category': t.observation_category, 'department': t.medical_department} for t in templates]
+
+
