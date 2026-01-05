@@ -3,6 +3,8 @@ import { useSearchParams } from 'react-router-dom'
 import { PatientSearch } from '../components/patients/PatientSearch'
 import { WarningMessagesList } from '../components/warnings/WarningMessagesList'
 import { LabTestReportsList } from '../components/labTests/LabTestReportsList'
+import { ECTDetailsList } from '../components/ect/ECTDetailsList'
+import { ClinicalNotesList } from '../components/clinicalNotes/ClinicalNotesList'
 import { CreateWarningMessageModal } from '../components/warnings/CreateWarningMessageModal'
 import { CreateLabTestModal } from '../components/labTests/CreateLabTestModal'
 import { AdmissionPage } from './Admission'
@@ -10,7 +12,7 @@ import { NotificationBell } from '../components/notifications/NotificationBell'
 import { UserMenu } from '../components/user/UserMenu'
 
 const nurseNav = [
-  { label: 'Admission Register', screen: 'n-reg' }
+  { label: 'Admission', screen: 'n-reg' }
 ]
 
 export const NursePage = () => {
@@ -54,6 +56,93 @@ export const NursePage = () => {
   // Show Admission page when screen=n-reg or screen=admission
   if (screen === 'n-reg' || screen === 'admission') {
     return <AdmissionPage />
+  }
+
+  // Show ECT Details
+  if (screen === 'n-ect') {
+    return (
+      <div className="flex flex-col">
+        <header className="flex items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+        <div className="p-4">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+            <div className="font-semibold mb-4">ECT Details</div>
+            <ECTDetailsList patient={selectedPatient} />
+          </section>
+        </div>
+      </div>
+    )
+  }
+
+  // Show Doctors Order (Clinical Note with note_type = Order)
+  if (screen === 'dos') {
+    return (
+      <div className="flex flex-col">
+        <header className="flex items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+        <div className="p-4">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+            <div className="font-semibold mb-4">Doctors Order</div>
+            <ClinicalNotesList 
+              patient={selectedPatient} 
+              noteType="Order"
+            />
+          </section>
+        </div>
+      </div>
+    )
+  }
+
+  // Show Nursing Notes (Clinical Note with Medical Role = Nurse)
+  if (screen === 'nurse') {
+    return (
+      <div className="flex flex-col">
+        <header className="flex items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+        <div className="p-4">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+            <div className="font-semibold mb-4">Nursing Note</div>
+            <ClinicalNotesList 
+              patient={selectedPatient} 
+              medicalRole="Nurse"
+            />
+          </section>
+        </div>
+      </div>
+    )
   }
 
   return (

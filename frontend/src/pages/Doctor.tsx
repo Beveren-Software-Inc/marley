@@ -3,16 +3,23 @@ import { useSearchParams } from 'react-router-dom'
 import { PatientSearch } from '../components/patients/PatientSearch'
 import { WarningMessagesList } from '../components/warnings/WarningMessagesList'
 import { LabTestReportsList } from '../components/labTests/LabTestReportsList'
+import { LabTestList } from '../components/labTests/LabTestList'
+import { ECTDetailsList } from '../components/ect/ECTDetailsList'
+import { ClinicalNotesList } from '../components/clinicalNotes/ClinicalNotesList'
 import { CreateWarningMessageModal } from '../components/warnings/CreateWarningMessageModal'
 import { CreateLabTestModal } from '../components/labTests/CreateLabTestModal'
+import { DischargeModal } from '../components/admissions/DischargeModal'
 import { AdmissionPage } from './Admission'
 import { PatientVisitPage } from './PatientVisit'
 import { NotificationBell } from '../components/notifications/NotificationBell'
 import { UserMenu } from '../components/user/UserMenu'
+import { getPatientActiveAdmission } from '../services/inpatientRecords'
+import { toast } from '../hooks/useToast'
 
 const doctorNav = [
   { label: 'Admission', screen: 'admission' },
-  { label: 'Patient Visits', screen: 'op' }
+  { label: 'Patient Visits', screen: 'op' },
+  { label: 'Discharge', screen: 'discharge' }
 ]
 
 export const DoctorPage = () => {
@@ -21,6 +28,8 @@ export const DoctorPage = () => {
   const [selectedPatient, setSelectedPatient] = useState<string | undefined>(patientFromUrl || undefined)
   const [showWarningModal, setShowWarningModal] = useState(false)
   const [showLabTestModal, setShowLabTestModal] = useState(false)
+  const [showDischargeModal, setShowDischargeModal] = useState(false)
+  const [selectedAdmission, setSelectedAdmission] = useState<{ name: string; patient: string; patient_name?: string } | null>(null)
   const [warningRefreshKey, setWarningRefreshKey] = useState(0)
   const [labTestRefreshKey, setLabTestRefreshKey] = useState(0)
   const screen = searchParams.get('screen')
@@ -36,10 +45,36 @@ export const DoctorPage = () => {
     }
   }, [searchParams])
 
-  const handleNavClick = (screenId: string) => {
-    const newSearchParams = new URLSearchParams(searchParams)
-    newSearchParams.set('screen', screenId)
-    setSearchParams(newSearchParams, { replace: true })
+  const handleNavClick = async (screenId: string) => {
+    if (screenId === 'discharge') {
+      // Handle discharge - need to check if patient has active admission
+      if (!selectedPatient) {
+        toast.error('Please select a patient first')
+        return
+      }
+      
+      try {
+        const admission = await getPatientActiveAdmission(selectedPatient)
+        if (!admission) {
+          toast.error('No active admission found for this patient')
+          return
+        }
+        
+        setSelectedAdmission({
+          name: admission.name,
+          patient: admission.patient,
+          patient_name: admission.patient_name
+        })
+        setShowDischargeModal(true)
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Failed to fetch admission'
+        toast.error(errorMessage)
+      }
+    } else {
+      const newSearchParams = new URLSearchParams(searchParams)
+      newSearchParams.set('screen', screenId)
+      setSearchParams(newSearchParams, { replace: true })
+    }
   }
 
   const handlePatientSelect = (patient: string | undefined) => {
@@ -61,6 +96,211 @@ export const DoctorPage = () => {
   // Show Patient Visit page when screen=op
   if (screen === 'op') {
     return <PatientVisitPage />
+  }
+
+  // Show ECT Details
+  if (screen === 'ect') {
+    return (
+      <div className="flex flex-col">
+        <header className="flex items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+        <div className="p-4">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+            <div className="font-semibold mb-4">ECT Details</div>
+            <ECTDetailsList patient={selectedPatient} />
+          </section>
+        </div>
+      </div>
+    )
+  }
+
+  // Show Doctors Note (Clinical Note with Medical Role = Doctor, Clinical Note Type = Note)
+  if (screen === 'dn') {
+    return (
+      <div className="flex flex-col">
+        <header className="flex items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+        <div className="p-4">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+            <div className="font-semibold mb-4">Doctors Note</div>
+            <ClinicalNotesList 
+              patient={selectedPatient} 
+              medicalRole="Doctor"
+              noteType="Note"
+            />
+          </section>
+        </div>
+      </div>
+    )
+  }
+
+  // Show Doctors Order (Clinical Note with Clinical Note Type = Order)
+  if (screen === 'dos') {
+    return (
+      <div className="flex flex-col">
+        <header className="flex items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+        <div className="p-4">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+            <div className="font-semibold mb-4">Doctors Order</div>
+            <ClinicalNotesList 
+              patient={selectedPatient} 
+              noteType="Order"
+            />
+          </section>
+        </div>
+      </div>
+    )
+  }
+
+  // Show Laboratory (Lab Tests)
+  if (screen === 'lab') {
+    return (
+      <div className="flex flex-col">
+        <header className="flex items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+        <div className="p-4">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+            <div className="font-semibold mb-4">Laboratory</div>
+            <LabTestList patient={selectedPatient} />
+          </section>
+        </div>
+      </div>
+    )
+  }
+
+  // Show Psychologist Notes (Clinical Note with Medical Role = Psychologists)
+  if (screen === 'psy-n') {
+    return (
+      <div className="flex flex-col">
+        <header className="flex items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+        <div className="p-4">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+            <div className="font-semibold mb-4">Patient Psychologist Notes</div>
+            <ClinicalNotesList 
+              patient={selectedPatient} 
+              medicalRole="Psychologists"
+            />
+          </section>
+        </div>
+      </div>
+    )
+  }
+
+  // Show Therapist Notes (Clinical Note with Medical Role = Physiotherapist or Therapist)
+  if (screen === 'ther') {
+    return (
+      <div className="flex flex-col">
+        <header className="flex items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+        <div className="p-4">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+            <div className="font-semibold mb-4">Therapist Note</div>
+            <ClinicalNotesList 
+              patient={selectedPatient} 
+              medicalRole="Physiotherapist"
+            />
+          </section>
+        </div>
+      </div>
+    )
+  }
+
+  // Show Nursing Notes (Clinical Note with Medical Role = Nurse)
+  if (screen === 'nurse') {
+    return (
+      <div className="flex flex-col">
+        <header className="flex items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+        <div className="p-4">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+            <div className="font-semibold mb-4">Nursing Note</div>
+            <ClinicalNotesList 
+              patient={selectedPatient} 
+              medicalRole="Nurse"
+            />
+          </section>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -158,6 +398,21 @@ export const DoctorPage = () => {
             setShowLabTestModal(false)
           }}
           initialPatient={selectedPatient}
+        />
+      )}
+
+      {showDischargeModal && selectedAdmission && (
+        <DischargeModal
+          admission={selectedAdmission}
+          onClose={() => {
+            setShowDischargeModal(false)
+            setSelectedAdmission(null)
+          }}
+          onSuccess={() => {
+            setShowDischargeModal(false)
+            setSelectedAdmission(null)
+            toast.success('Discharge completed successfully')
+          }}
         />
       )}
     </div>

@@ -9,16 +9,11 @@ from frappe import _
 @frappe.whitelist()
 def get_service_requests(limit=50, offset=0, patient=None, template_dt=None, status=None):
 	"""Get list of Service Requests"""
-	filters = {'docstatus': ['!=', 2]}  # Exclude cancelled
+	filters = {'docstatus': ['!=', 2]} 
 	
 	if patient:
 		filters['patient'] = patient
-	
-	# if template_dt:
-	# 	filters['template_dt'] = template_dt
-	# else:
-	# 	# Default to Lab Test Template if not specified
-	# 	filters['template_dt'] = 'Lab Test Template'
+
 	
 	if status:
 		filters['status'] = status
@@ -71,7 +66,6 @@ def create_lab_test_from_service_request(service_request_name):
 	if not service_request_name:
 		frappe.throw(_("Service Request name is required"))
 	
-	# Check if lab test already exists for this service request
 	existing_lab_test = frappe.db.get_value('Lab Test', {'service_request': service_request_name}, 'name')
 	if existing_lab_test:
 		frappe.throw(_("Lab Test {0} already exists for this Service Request").format(existing_lab_test))

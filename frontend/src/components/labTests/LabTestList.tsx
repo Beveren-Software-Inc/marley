@@ -12,15 +12,19 @@ const statusColors: Record<string, string> = {
 }
 
 export const LabTestList = ({
-  patient
+  patient,
+  isOutsourced
 }: {
   patient?: string
+  isOutsourced?: boolean
 }) => {
   // Fetch all lab tests (no status filter, no pending review filter)
+  // If isOutsourced is true, only fetch outsourced tests
   const { labTests, loading, error, refetch } = useLabTests(
     patient,
     undefined,
-    false
+    false,
+    isOutsourced
   )
 
   if (loading) {
@@ -116,4 +120,5 @@ export const LabTestList = ({
     </div>
   )
 }
+
 

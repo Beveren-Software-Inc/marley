@@ -12,6 +12,7 @@ export interface LabTest {
   approved_date?: string
   invoiced?: number
   department?: string
+  is_outsourced?: number
 }
 
 export async function fetchLabTests(
@@ -19,7 +20,8 @@ export async function fetchLabTests(
   offset: number = 0,
   patient?: string,
   status?: string,
-  pending_review: boolean = false
+  pending_review: boolean = false,
+  is_outsourced?: boolean
 ): Promise<LabTest[]> {
   const params = new URLSearchParams()
   params.append('limit', limit.toString())
@@ -27,6 +29,7 @@ export async function fetchLabTests(
   if (patient) params.append('patient', patient)
   if (status) params.append('status', status)
   if (pending_review) params.append('pending_review', '1')
+  if (is_outsourced !== undefined) params.append('is_outsourced', is_outsourced ? '1' : '0')
 
   const response = await fetch(
     `/api/method/healthcare.api.lab_test.get_lab_tests?${params.toString()}`

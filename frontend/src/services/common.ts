@@ -167,6 +167,23 @@ export async function fetchMedicalRoles(search?: string): Promise<LinkFieldOptio
   }
 }
 
+export async function fetchObservationTemplates(search?: string, department?: string): Promise<LinkFieldOption[]> {
+  const params = new URLSearchParams()
+  if (search) params.append('search', search)
+  if (department) params.append('department', department)
+  
+  const url = `/api/method/healthcare.api.common.get_observation_templates${params.toString() ? `?${params.toString()}` : ''}`
+  
+  const response = await fetch(url)
+  const resData = await response.json()
+
+  if (resData?.message && Array.isArray(resData.message)) {
+    return resData.message as LinkFieldOption[]
+  } else {
+    return []
+  }
+}
+
 export async function getPractitionerMedicalRole(practitioner: string): Promise<string | null> {
   const response = await fetch(
     `/api/method/healthcare.api.common.get_practitioner_medical_role?practitioner=${encodeURIComponent(practitioner)}`
