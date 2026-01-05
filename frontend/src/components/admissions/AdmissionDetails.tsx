@@ -4,7 +4,6 @@ import { PackageSelectionModal } from './PackageSelectionModal'
 import { AdmissionFormModal } from './AdmissionFormModal'
 import { ScheduleDischargeModal } from './ScheduleDischargeModal'
 import { DischargeModal } from './DischargeModal'
-import { toast } from '../../hooks/useToast'
 
 interface AdmissionDetailsProps {
   admissionNo: string

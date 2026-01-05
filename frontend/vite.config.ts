@@ -6,7 +6,6 @@ export default defineConfig(({ mode, command }) => {
   // 'command' is 'serve' for dev server, 'build' for production build
   // 'mode' is 'development' or 'production'
   const isDev = command === 'serve' || mode === 'development'
-  const isProd = command === 'build' || mode === 'production'
   
   // Use '/' for development, '/assets/healthcare/frontend/' for production
   const base = isDev ? '/' : '/assets/healthcare/frontend/'

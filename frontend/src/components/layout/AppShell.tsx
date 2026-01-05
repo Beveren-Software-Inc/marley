@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { useState } from 'react'
-import { NavLink, useLocation } from 'react-router-dom'
+import { NavLink } from 'react-router-dom'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import { doctorScreens } from '../../config/doctorScreens'
 
@@ -84,7 +84,6 @@ const mainLinks = [
 ]
 
 export const AppShell = ({ children }: { children: ReactNode }) => {
-  const location = useLocation()
   // Track which topics have their subtopics expanded
   const [expandedTopics, setExpandedTopics] = useState<Set<string>>(new Set())
 
@@ -106,7 +105,6 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
         <div className="font-semibold text-lg mb-2">Healthcare</div>
         <nav className="flex flex-col gap-1 text-sm">
           {mainLinks.map((link) => {
-            const isActiveGroup = location.pathname.startsWith(link.prefix)
             const isExpanded = expandedTopics.has(link.to)
             const hasScreens = link.screens.length > 0
             const showSubtopics = isExpanded && hasScreens
