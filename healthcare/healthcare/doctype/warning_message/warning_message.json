@@ -87,6 +87,7 @@
    "read_only": 1
   },
   {
+   "fetch_from": "practitioner.medical_role",
    "fieldname": "medical_role",
    "fieldtype": "Link",
    "label": "Medical Role",
@@ -133,7 +134,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-12-30 10:24:53.749221",
+ "modified": "2026-01-05 13:13:08.541685",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Warning Message",

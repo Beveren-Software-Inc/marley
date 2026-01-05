@@ -53,6 +53,40 @@ export async function fetchLabTest(name: string): Promise<LabTest> {
   }
 }
 
+export interface CreateLabTestData {
+  patient: string
+  template?: string
+  practitioner?: string
+  date?: string
+  time?: string
+  department?: string
+  service_unit?: string
+  status?: string
+}
+
+export async function createLabTest(data: CreateLabTestData): Promise<LabTest> {
+  const response = await fetch('/api/method/healthcare.api.lab_test.create_lab_test', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ data })
+  })
+
+  const resData = await response.json()
+
+  if (!response.ok) {
+    const errorMessage = resData?.message?.message || resData?.message || 'Failed to create lab test'
+    throw new Error(errorMessage)
+  }
+
+  if (resData?.message) {
+    return resData.message as LabTest
+  } else {
+    throw new Error('Invalid response format')
+  }
+}
+
 
 
 

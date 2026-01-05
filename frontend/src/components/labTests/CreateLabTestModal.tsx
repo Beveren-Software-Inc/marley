@@ -1,0 +1,495 @@
+import { useState, useEffect } from 'react'
+import { createLabTest } from '../../services/labTests'
+import { fetchHealthcarePractitioners, fetchLabTestTemplates, fetchMedicalDepartments, type LinkFieldOption } from '../../services/common'
+import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
+
+interface CreateLabTestModalProps {
+  onClose: () => void
+  onSuccess?: () => void
+  initialPatient?: string
+}
+
+export const CreateLabTestModal = ({ onClose, onSuccess, initialPatient }: CreateLabTestModalProps) => {
+  const [formData, setFormData] = useState({
+    patient: initialPatient || '',
+    template: '',
+    practitioner: '',
+    date: new Date().toISOString().split('T')[0],
+    time: new Date().toTimeString().slice(0, 5),
+    department: '',
+    service_unit: '',
+    status: 'Draft'
+  })
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  
+  // Patient dropdown state
+  const [patientOptions, setPatientOptions] = useState<PatientListItem[]>([])
+  const [patientOpen, setPatientOpen] = useState(false)
+  const [patientQuery, setPatientQuery] = useState(initialPatient || '')
+  const [selectedPatient, setSelectedPatient] = useState<PatientListItem | null>(null)
+  const [patientLoading, setPatientLoading] = useState(false)
+
+  // Template dropdown state
+  const [templateOptions, setTemplateOptions] = useState<LinkFieldOption[]>([])
+  const [templateOpen, setTemplateOpen] = useState(false)
+  const [templateQuery, setTemplateQuery] = useState('')
+  const [selectedTemplate, setSelectedTemplate] = useState<LinkFieldOption | null>(null)
+
+  // Practitioner dropdown state
+  const [practitionerOptions, setPractitionerOptions] = useState<LinkFieldOption[]>([])
+  const [practitionerOpen, setPractitionerOpen] = useState(false)
+  const [practitionerQuery, setPractitionerQuery] = useState('')
+  const [selectedPractitioner, setSelectedPractitioner] = useState<LinkFieldOption | null>(null)
+
+  // Department dropdown state
+  const [departmentOptions, setDepartmentOptions] = useState<LinkFieldOption[]>([])
+  const [departmentOpen, setDepartmentOpen] = useState(false)
+  const [departmentQuery, setDepartmentQuery] = useState('')
+  const [selectedDepartment, setSelectedDepartment] = useState<LinkFieldOption | null>(null)
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    if (!formData.patient) {
+      setError('Patient is required')
+      return
+    }
+
+    try {
+      setLoading(true)
+      setError(null)
+
+      await createLabTest({
+        patient: formData.patient,
+        template: formData.template || undefined,
+        practitioner: formData.practitioner || undefined,
+        date: formData.date || undefined,
+        time: formData.time || undefined,
+        department: formData.department || undefined,
+        service_unit: formData.service_unit || undefined,
+        status: formData.status || undefined
+      })
+      
+      if (onSuccess) {
+        onSuccess()
+      }
+      
+      onClose()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create lab test')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleChange = (field: string, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }))
+  }
+
+  // Load initial patient if provided
+  useEffect(() => {
+    if (initialPatient) {
+      const loadInitialPatient = async () => {
+        try {
+          const patients = await fetchPatients(1, 0, initialPatient)
+          if (patients.length > 0) {
+            setSelectedPatient(patients[0])
+            setPatientQuery(patients[0].patient_name)
+          }
+        } catch (err) {
+          console.error('Failed to load initial patient:', err)
+        }
+      }
+      loadInitialPatient()
+    }
+  }, [initialPatient])
+
+  // Load initial options
+  useEffect(() => {
+    const loadOptions = async () => {
+      try {
+        const [templates, practs, depts] = await Promise.all([
+          fetchLabTestTemplates(),
+          fetchHealthcarePractitioners(),
+          fetchMedicalDepartments()
+        ])
+        setTemplateOptions(templates)
+        setPractitionerOptions(practs)
+        setDepartmentOptions(depts)
+      } catch (err) {
+        console.error('Failed to load options:', err)
+      }
+    }
+    loadOptions()
+  }, [])
+
+  // Search/fetch patients
+  useEffect(() => {
+    if (!patientOpen) return
+
+    const search = async () => {
+      setPatientLoading(true)
+      try {
+        let results: PatientListItem[] = []
+        if (patientQuery.trim() === '') {
+          results = await fetchPatients(20, 0)
+        } else {
+          results = await searchPatients(patientQuery, 20)
+        }
+        setPatientOptions(results)
+      } catch (err) {
+        console.error('Failed to fetch/search patients:', err)
+        setPatientOptions([])
+      } finally {
+        setPatientLoading(false)
+      }
+    }
+
+    const timeoutId = setTimeout(() => {
+      search()
+    }, patientQuery.trim() === '' ? 0 : 300)
+
+    return () => clearTimeout(timeoutId)
+  }, [patientQuery, patientOpen])
+
+  // Search templates
+  useEffect(() => {
+    if (!templateOpen) return
+
+    const search = async () => {
+      try {
+        const results = await fetchLabTestTemplates(templateQuery, formData.department || undefined)
+        setTemplateOptions(results)
+      } catch (err) {
+        console.error('Failed to search templates:', err)
+        setTemplateOptions([])
+      }
+    }
+
+    const timeoutId = setTimeout(() => {
+      search()
+    }, templateQuery.trim() === '' ? 0 : 300)
+
+    return () => clearTimeout(timeoutId)
+  }, [templateQuery, templateOpen, formData.department])
+
+  // Search practitioners
+  useEffect(() => {
+    if (!practitionerOpen) return
+
+    const search = async () => {
+      try {
+        const results = await fetchHealthcarePractitioners(practitionerQuery, formData.department || undefined)
+        setPractitionerOptions(results)
+      } catch (err) {
+        console.error('Failed to search practitioners:', err)
+        setPractitionerOptions([])
+      }
+    }
+
+    const timeoutId = setTimeout(() => {
+      search()
+    }, practitionerQuery.trim() === '' ? 0 : 300)
+
+    return () => clearTimeout(timeoutId)
+  }, [practitionerQuery, practitionerOpen, formData.department])
+
+  // Search departments
+  useEffect(() => {
+    if (!departmentOpen) return
+
+    const search = async () => {
+      try {
+        const results = await fetchMedicalDepartments(departmentQuery)
+        setDepartmentOptions(results)
+      } catch (err) {
+        console.error('Failed to search departments:', err)
+        setDepartmentOptions([])
+      }
+    }
+
+    const timeoutId = setTimeout(() => {
+      search()
+    }, departmentQuery.trim() === '' ? 0 : 300)
+
+    return () => clearTimeout(timeoutId)
+  }, [departmentQuery, departmentOpen])
+
+  const handlePatientSelect = (patient: PatientListItem) => {
+    setSelectedPatient(patient)
+    setFormData(prev => ({ ...prev, patient: patient.name }))
+    setPatientQuery(patient.patient_name)
+    setPatientOpen(false)
+  }
+
+  const handleTemplateSelect = (template: LinkFieldOption) => {
+    setSelectedTemplate(template)
+    setFormData(prev => ({ ...prev, template: template.name }))
+    setTemplateQuery(template.label)
+    setTemplateOpen(false)
+  }
+
+  const handlePractitionerSelect = (pract: LinkFieldOption) => {
+    setSelectedPractitioner(pract)
+    setFormData(prev => ({ ...prev, practitioner: pract.name }))
+    setPractitionerQuery(pract.label)
+    setPractitionerOpen(false)
+  }
+
+  const handleDepartmentSelect = (dept: LinkFieldOption) => {
+    setSelectedDepartment(dept)
+    setFormData(prev => ({ ...prev, department: dept.name }))
+    setDepartmentQuery(dept.label)
+    setDepartmentOpen(false)
+    // Refresh templates and practitioners when department changes
+    fetchLabTestTemplates(undefined, dept.name).then(setTemplateOptions).catch(console.error)
+    fetchHealthcarePractitioners(undefined, dept.name).then(setPractitionerOptions).catch(console.error)
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+        <div className="p-6 border-b border-slate-200">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-semibold text-slate-900">Create Lab Test</h2>
+            <button
+              onClick={onClose}
+              className="text-slate-400 hover:text-slate-600"
+            >
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-4" onClick={(e) => {
+          // Close dropdowns when clicking outside inputs
+          const target = e.target as HTMLElement
+          if (target.tagName !== 'INPUT' && !target.closest('.absolute')) {
+            setPatientOpen(false)
+            setTemplateOpen(false)
+            setPractitionerOpen(false)
+            setDepartmentOpen(false)
+          }
+        }}>
+          {/* Patient Information */}
+          <div>
+            <h3 className="text-sm font-semibold text-slate-700 mb-3">Patient Information</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Patient <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={patientQuery}
+                    onChange={(e) => {
+                      setPatientQuery(e.target.value)
+                      setPatientOpen(true)
+                    }}
+                    onFocus={() => setPatientOpen(true)}
+                    placeholder="Search patient..."
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    required
+                  />
+                  {patientLoading && (
+                    <div className="absolute right-3 top-2.5 text-slate-400 text-sm">Loading...</div>
+                  )}
+                  {patientOpen && patientOptions.length > 0 && (
+                    <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                      {patientOptions.map((patient) => (
+                        <button
+                          key={patient.name}
+                          type="button"
+                          onClick={() => handlePatientSelect(patient)}
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 focus:bg-slate-100 focus:outline-none"
+                        >
+                          <div className="font-medium">{patient.patient_name}</div>
+                          {patient.mobile && (
+                            <div className="text-xs text-slate-500">{patient.mobile}</div>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Lab Test Details */}
+          <div>
+            <h3 className="text-sm font-semibold text-slate-700 mb-3">Lab Test Details</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Lab Test Template
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={selectedTemplate ? selectedTemplate.label : templateQuery}
+                    onChange={(e) => {
+                      setTemplateQuery(e.target.value)
+                      setTemplateOpen(true)
+                    }}
+                    onFocus={() => setTemplateOpen(true)}
+                    placeholder="Search template..."
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                  {templateOpen && templateOptions.length > 0 && (
+                    <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                      {templateOptions.map((template) => (
+                        <button
+                          key={template.name}
+                          type="button"
+                          onClick={() => handleTemplateSelect(template)}
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 focus:bg-slate-100 focus:outline-none"
+                        >
+                          {template.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Department
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={selectedDepartment ? selectedDepartment.label : departmentQuery}
+                    onChange={(e) => {
+                      setDepartmentQuery(e.target.value)
+                      setDepartmentOpen(true)
+                    }}
+                    onFocus={() => setDepartmentOpen(true)}
+                    placeholder="Search department..."
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                  {departmentOpen && departmentOptions.length > 0 && (
+                    <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                      {departmentOptions.map((dept) => (
+                        <button
+                          key={dept.name}
+                          type="button"
+                          onClick={() => handleDepartmentSelect(dept)}
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 focus:bg-slate-100 focus:outline-none"
+                        >
+                          {dept.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Requesting Practitioner
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={selectedPractitioner ? selectedPractitioner.label : practitionerQuery}
+                    onChange={(e) => {
+                      setPractitionerQuery(e.target.value)
+                      setPractitionerOpen(true)
+                    }}
+                    onFocus={() => setPractitionerOpen(true)}
+                    placeholder="Search practitioner..."
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                  {practitionerOpen && practitionerOptions.length > 0 && (
+                    <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                      {practitionerOptions.map((pract) => (
+                        <button
+                          key={pract.name}
+                          type="button"
+                          onClick={() => handlePractitionerSelect(pract)}
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 focus:bg-slate-100 focus:outline-none"
+                        >
+                          {pract.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Status
+                </label>
+                <select
+                  value={formData.status}
+                  onChange={(e) => handleChange('status', e.target.value)}
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  <option value="Draft">Draft</option>
+                  <option value="Submitted">Submitted</option>
+                  <option value="Completed">Completed</option>
+                  <option value="Cancelled">Cancelled</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Date
+                </label>
+                <input
+                  type="date"
+                  value={formData.date}
+                  onChange={(e) => handleChange('date', e.target.value)}
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Time
+                </label>
+                <input
+                  type="time"
+                  value={formData.time}
+                  onChange={(e) => handleChange('time', e.target.value)}
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+            </div>
+          </div>
+
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-md p-3 text-sm text-red-700">
+              {error}
+            </div>
+          )}
+
+          <div className="flex justify-end gap-3 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-50"
+            >
+              {loading ? 'Creating...' : 'Create Lab Test'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+

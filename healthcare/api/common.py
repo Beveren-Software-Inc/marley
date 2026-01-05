@@ -37,11 +37,11 @@ def get_healthcare_practitioners(search=None, department=None):
 	practitioners = frappe.get_all(
 		'Healthcare Practitioner',
 		filters=filters,
-		fields=['name', 'practitioner_name', 'department'],
+		fields=['name', 'practitioner_name', 'department', 'medical_role'],
 		limit=50,
 		order_by='practitioner_name'
 	)
-	return [{'name': p.name, 'label': p.practitioner_name or p.name, 'department': p.department} for p in practitioners]
+	return [{'name': p.name, 'label': p.practitioner_name or p.name, 'department': p.department, 'medical_role': p.medical_role} for p in practitioners]
 
 
 @frappe.whitelist()
@@ -144,5 +144,68 @@ def get_discharge_templates(search=None):
 		order_by='template_name'
 	)
 	return [{'name': t.name, 'label': t.template_name or t.name} for t in templates]
+
+
+@frappe.whitelist()
+def get_lab_test_templates(search=None, department=None):
+	"""Get list of Lab Test Templates"""
+	filters = {'disabled': 0}  # Only get enabled templates
+	if search:
+		filters['lab_test_name'] = ['like', f'%{search}%']
+	if department:
+		filters['department'] = department
+	
+	templates = frappe.get_all(
+		'Lab Test Template',
+		filters=filters,
+		fields=['name', 'lab_test_name', 'department'],
+		limit=50,
+		order_by='lab_test_name'
+	)
+	return [{'name': t.name, 'label': t.lab_test_name or t.name, 'department': t.department} for t in templates]
+
+
+@frappe.whitelist()
+def get_clinical_note_types(search=None):
+	"""Get list of Clinical Note Types"""
+	filters = {}
+	if search:
+		filters['clinical_note_type'] = ['like', f'%{search}%']
+	
+	note_types = frappe.get_all(
+		'Clinical Note Type',
+		filters=filters,
+		fields=['name', 'clinical_note_type'],
+		limit=50,
+		order_by='clinical_note_type'
+	)
+	return [{'name': n.name, 'label': n.clinical_note_type or n.name} for n in note_types]
+
+
+@frappe.whitelist()
+def get_medical_roles(search=None):
+	"""Get list of Medical Roles"""
+	filters = {}
+	if search:
+		filters['medical_role'] = ['like', f'%{search}%']
+	
+	roles = frappe.get_all(
+		'Medical Role',
+		filters=filters,
+		fields=['name', 'medical_role'],
+		limit=50,
+		order_by='medical_role'
+	)
+	return [{'name': r.name, 'label': r.medical_role or r.name} for r in roles]
+
+
+@frappe.whitelist()
+def get_practitioner_medical_role(practitioner):
+	"""Get medical role from Healthcare Practitioner"""
+	if not practitioner:
+		return None
+	
+	medical_role = frappe.db.get_value('Healthcare Practitioner', practitioner, 'medical_role')
+	return medical_role
 
 

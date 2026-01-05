@@ -84,5 +84,50 @@ def get_lab_test(name):
 	}
 
 
+@frappe.whitelist()
+def create_lab_test(data):
+	"""Create a new Lab Test"""
+	if isinstance(data, str):
+		import json
+		data = json.loads(data)
+	
+	# Validate required fields
+	if not data.get('patient'):
+		frappe.throw(_("Patient is required"))
+	
+	# Get naming series
+	naming_series = frappe.db.get_value('Lab Test', {'naming_series': 'HLC-LAB-.YYYY.-'}, 'naming_series')
+	if not naming_series:
+		naming_series = 'HLC-LAB-.YYYY.-'
+	
+	# Create the lab test
+	lab_test = frappe.get_doc({
+		'doctype': 'Lab Test',
+		'patient': data.get('patient'),
+		'template': data.get('template'),
+		'practitioner': data.get('practitioner'),
+		'date': data.get('date') or frappe.utils.today(),
+		'time': data.get('time') or frappe.utils.now_time(),
+		'department': data.get('department'),
+		'service_unit': data.get('service_unit'),
+		'status': data.get('status') or 'Draft',
+		'naming_series': naming_series
+	})
+	
+	lab_test.insert()
+	
+	# Return the created lab test
+	return {
+		'name': lab_test.name,
+		'patient': lab_test.patient,
+		'patient_name': frappe.db.get_value('Patient', lab_test.patient, 'patient_name') or lab_test.patient,
+		'practitioner': lab_test.practitioner,
+		'practitioner_name': lab_test.practitioner_name if lab_test.practitioner else None,
+		'lab_test_name': lab_test.lab_test_name,
+		'template': lab_test.template,
+		'status': lab_test.status
+	}
+
+
 
 

@@ -3,6 +3,8 @@ import { useSearchParams } from 'react-router-dom'
 import { PatientSearch } from '../components/patients/PatientSearch'
 import { WarningMessagesList } from '../components/warnings/WarningMessagesList'
 import { LabTestReportsList } from '../components/labTests/LabTestReportsList'
+import { CreateWarningMessageModal } from '../components/warnings/CreateWarningMessageModal'
+import { CreateLabTestModal } from '../components/labTests/CreateLabTestModal'
 import { AdmissionPage } from './Admission'
 import { NotificationBell } from '../components/notifications/NotificationBell'
 import { UserMenu } from '../components/user/UserMenu'
@@ -14,6 +16,10 @@ const nurseNav = [
 export const NursePage = () => {
   const [searchParams, setSearchParams] = useSearchParams()
   const [selectedPatient, setSelectedPatient] = useState<string | undefined>(undefined)
+  const [showWarningModal, setShowWarningModal] = useState(false)
+  const [showLabTestModal, setShowLabTestModal] = useState(false)
+  const [warningRefreshKey, setWarningRefreshKey] = useState(0)
+  const [labTestRefreshKey, setLabTestRefreshKey] = useState(0)
   const screen = searchParams.get('screen')
 
   const handleNavClick = (screenId: string) => {
@@ -59,36 +65,52 @@ export const NursePage = () => {
           <div className="font-semibold mb-4 flex items-center justify-between">
             <span>IP Warning Messages / Medications / Allergy</span>
             <button
-              onClick={() => {
-                // TODO: Open create warning message modal
-                console.log('Add warning message')
-              }}
+              onClick={() => setShowWarningModal(true)}
               className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
               title="Add Warning Message"
             >
               +
             </button>
           </div>
-          <WarningMessagesList patient={selectedPatient} />
+          <WarningMessagesList patient={selectedPatient} key={warningRefreshKey} />
         </section>
 
         <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
           <div className="font-semibold mb-4 flex items-center justify-between">
             <span>Lab Reports List & Status</span>
             <button
-              onClick={() => {
-                // TODO: Open create lab test report modal
-                console.log('Add lab test report')
-              }}
+              onClick={() => setShowLabTestModal(true)}
               className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
               title="Add Lab Test Report"
             >
               +
             </button>
           </div>
-          <LabTestReportsList patient={selectedPatient} pendingReview={true} />
+          <LabTestReportsList patient={selectedPatient} pendingReview={true} key={labTestRefreshKey} />
         </section>
       </div>
+
+      {showWarningModal && (
+        <CreateWarningMessageModal
+          onClose={() => setShowWarningModal(false)}
+          onSuccess={() => {
+            setWarningRefreshKey(prev => prev + 1)
+            setShowWarningModal(false)
+          }}
+          initialPatient={selectedPatient}
+        />
+      )}
+
+      {showLabTestModal && (
+        <CreateLabTestModal
+          onClose={() => setShowLabTestModal(false)}
+          onSuccess={() => {
+            setLabTestRefreshKey(prev => prev + 1)
+            setShowLabTestModal(false)
+          }}
+          initialPatient={selectedPatient}
+        />
+      )}
     </div>
   )
 }
