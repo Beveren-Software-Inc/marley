@@ -29,7 +29,7 @@ export const NursePage = () => {
 
   return (
     <div className="flex flex-col">
-      <header className="grid grid-cols-1 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] items-center gap-3 bg-primary text-white px-4 py-3">
+      <header className="grid grid-cols-1 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
         <PatientSearch
           selectedPatient={selectedPatient || ''}
           onPatientSelect={(patient) => setSelectedPatient(patient || undefined)}
@@ -56,12 +56,36 @@ export const NursePage = () => {
 
       <div className="grid gap-4 md:grid-cols-2 p-4">
         <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-          <div className="font-semibold mb-4">IP Warning Messages / Medications / Allergy</div>
+          <div className="font-semibold mb-4 flex items-center justify-between">
+            <span>IP Warning Messages / Medications / Allergy</span>
+            <button
+              onClick={() => {
+                // TODO: Open create warning message modal
+                console.log('Add warning message')
+              }}
+              className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
+              title="Add Warning Message"
+            >
+              +
+            </button>
+          </div>
           <WarningMessagesList patient={selectedPatient} />
         </section>
 
         <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-          <div className="font-semibold mb-4">Lab Reports List & Status</div>
+          <div className="font-semibold mb-4 flex items-center justify-between">
+            <span>Lab Reports List & Status</span>
+            <button
+              onClick={() => {
+                // TODO: Open create lab test report modal
+                console.log('Add lab test report')
+              }}
+              className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
+              title="Add Lab Test Report"
+            >
+              +
+            </button>
+          </div>
           <LabTestReportsList patient={selectedPatient} pendingReview={true} />
         </section>
       </div>

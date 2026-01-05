@@ -73,3 +73,39 @@ def get_warning_message(name):
 		'blood_group': warning.blood_group if hasattr(warning, 'blood_group') else None
 	}
 
+
+@frappe.whitelist()
+def create_warning_message(data):
+	"""Create a new Warning Message"""
+	if isinstance(data, str):
+		import json
+		data = json.loads(data)
+	
+	# Validate required fields
+	if not data.get('patient'):
+		frappe.throw(_("Patient is required"))
+	
+	# Create the warning message
+	warning = frappe.get_doc({
+		'doctype': 'Warning Message',
+		'patient': data.get('patient'),
+		'warning': data.get('warning', ''),
+		'practitioner': data.get('practitioner'),
+		'posting_date': data.get('posting_date') or frappe.utils.now(),
+		'clinical_note_type': data.get('clinical_note_type'),
+		'medical_role': data.get('medical_role')
+	})
+	
+	warning.insert()
+	
+	# Return the created warning message
+	return {
+		'name': warning.name,
+		'patient': warning.patient,
+		'patient_name': frappe.db.get_value('Patient', warning.patient, 'patient_name') or warning.patient,
+		'posting_date': warning.posting_date,
+		'practitioner': warning.practitioner,
+		'practitioner_name': warning.practitioner_name if warning.practitioner else None,
+		'warning': warning.warning
+	}
+

@@ -18,7 +18,7 @@ export const PharmacistPage = () => {
 
   return (
     <div className="flex flex-col">
-      <header className="grid grid-cols-1 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] items-center gap-3 bg-primary text-white px-4 py-3">
+      <header className="grid grid-cols-1 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
         <PatientSearch
           selectedPatient={selectedPatient}
           onPatientSelect={setSelectedPatient}

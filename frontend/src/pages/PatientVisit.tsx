@@ -16,7 +16,7 @@ export const PatientVisitPage = () => {
     // Show visit details
     return (
       <div className="flex flex-col h-full">
-        <header className="bg-primary text-white px-4 py-3 flex items-center justify-between">
+        <header className="bg-primary text-white px-4 py-3 flex items-center justify-between border-b border-white/20">
           <div className="flex items-center gap-4">
             <button
               onClick={() => {
@@ -56,7 +56,7 @@ export const PatientVisitPage = () => {
   return (
     <>
       <div className="flex flex-col h-full">
-        <header className="grid grid-cols-1 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] items-center gap-3 bg-primary text-white px-4 py-3">
+        <header className="grid grid-cols-1 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
           <div className="w-full max-w-xl">
             <div className="relative flex items-center gap-2">
               <input

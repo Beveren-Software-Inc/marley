@@ -8,12 +8,21 @@ import { PatientVisitPage } from './PatientVisit'
 import { NotificationBell } from '../components/notifications/NotificationBell'
 import { UserMenu } from '../components/user/UserMenu'
 
-const doctorNav = ['Admission', 'Patient Visits']
+const doctorNav = [
+  { label: 'Admission', screen: 'admission' },
+  { label: 'Patient Visits', screen: 'op' }
+]
 
 export const DoctorPage = () => {
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [selectedPatient, setSelectedPatient] = useState<string | undefined>(undefined)
   const screen = searchParams.get('screen')
+
+  const handleNavClick = (screenId: string) => {
+    const newSearchParams = new URLSearchParams(searchParams)
+    newSearchParams.set('screen', screenId)
+    setSearchParams(newSearchParams, { replace: true })
+  }
 
   // Show Admission page when screen=admission
   if (screen === 'admission') {
@@ -27,7 +36,7 @@ export const DoctorPage = () => {
 
   return (
     <div className="flex flex-col">
-      <header className="grid grid-cols-1 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] items-center gap-3 bg-primary text-white px-4 py-3">
+      <header className="grid grid-cols-1 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
         <PatientSearch
           selectedPatient={selectedPatient || ''}
           onPatientSelect={(patient) => setSelectedPatient(patient || undefined)}
@@ -35,9 +44,17 @@ export const DoctorPage = () => {
         />
         <nav className="flex gap-2 flex-wrap items-center justify-end">
           {doctorNav.map((item) => (
-            <span key={item} className="px-3 py-1 rounded-md bg-white/15 text-sm">
-              {item}
-            </span>
+            <button
+              key={item.screen}
+              onClick={() => handleNavClick(item.screen)}
+              className={`px-3 py-1 rounded-md text-sm transition-colors ${
+                screen === item.screen
+                  ? 'bg-white text-primary'
+                  : 'bg-white/15 hover:bg-white/25'
+              }`}
+            >
+              {item.label}
+            </button>
           ))}
           <UserMenu />
           <NotificationBell />
@@ -46,12 +63,36 @@ export const DoctorPage = () => {
 
       <div className="grid gap-4 md:grid-cols-2 p-4">
         <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-          <div className="font-semibold mb-4">Warning Messages (Allergies etc.)</div>
+          <div className="font-semibold mb-4 flex items-center justify-between">
+            <span>Warning Messages (Allergies etc.)</span>
+            <button
+              onClick={() => {
+                // TODO: Open create warning message modal
+                console.log('Add warning message')
+              }}
+              className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
+              title="Add Warning Message"
+            >
+              +
+            </button>
+          </div>
           <WarningMessagesList patient={selectedPatient} />
         </section>
 
         <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-          <div className="font-semibold mb-4">Lab Test Reports Pending for Review</div>
+          <div className="font-semibold mb-4 flex items-center justify-between">
+            <span>Lab Test Reports Pending for Review</span>
+            <button
+              onClick={() => {
+                // TODO: Open create lab test report modal
+                console.log('Add lab test report')
+              }}
+              className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
+              title="Add Lab Test Report"
+            >
+              +
+            </button>
+          </div>
           <LabTestReportsList patient={selectedPatient} pendingReview={true} />
         </section>
       </div>

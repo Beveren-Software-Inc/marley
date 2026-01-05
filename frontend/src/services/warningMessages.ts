@@ -48,6 +48,38 @@ export async function fetchWarningMessage(name: string): Promise<WarningMessage>
   }
 }
 
+export interface CreateWarningMessageData {
+  patient: string
+  warning?: string
+  practitioner?: string
+  posting_date?: string
+  clinical_note_type?: string
+  medical_role?: string
+}
+
+export async function createWarningMessage(data: CreateWarningMessageData): Promise<WarningMessage> {
+  const response = await fetch('/api/method/healthcare.api.warning_message.create_warning_message', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ data })
+  })
+
+  const resData = await response.json()
+
+  if (!response.ok) {
+    const errorMessage = resData?.message?.message || resData?.message || 'Failed to create warning message'
+    throw new Error(errorMessage)
+  }
+
+  if (resData?.message) {
+    return resData.message as WarningMessage
+  } else {
+    throw new Error('Invalid response format')
+  }
+}
+
 
 
 
