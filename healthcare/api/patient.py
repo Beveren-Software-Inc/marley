@@ -7,6 +7,118 @@ from frappe import _
 
 
 @frappe.whitelist()
+def search_patients(search=None, limit=20):
+	"""Search patients by name or file number"""
+	if not search:
+		return []
+	
+	patients = frappe.db.sql("""
+		SELECT 
+			p.name,
+			p.patient_name,
+			p.file_no as file_number,
+			p.mobile,
+			p.email
+		FROM `tabPatient` p
+		WHERE 
+			p.patient_name LIKE %(search)s
+			OR p.name LIKE %(search)s
+			OR p.file_no LIKE %(search)s
+		ORDER BY p.patient_name
+		LIMIT %(limit)s
+	""", {
+		'search': f'%{search}%',
+		'limit': limit
+	}, as_dict=True)
+	
+	return [{'name': p.name, 'patient_name': p.patient_name or p.name, 'file_number': p.file_number, 'mobile': p.mobile, 'email': p.email} for p in patients]
+
+
+@frappe.whitelist()
+def get_patients(limit=50, offset=0, search=None):
+	"""Get list of patients"""
+	filters = {}
+	
+	if search:
+		# Search by name, file number, or patient ID
+		patients = frappe.db.sql("""
+			SELECT 
+				p.name,
+				p.patient_name,
+				p.file_no as file_number,
+				p.mobile,
+				p.email
+			FROM `tabPatient` p
+			WHERE 
+				p.patient_name LIKE %(search)s
+				OR p.name LIKE %(search)s
+				OR p.file_no LIKE %(search)s
+			ORDER BY p.patient_name
+			LIMIT %(limit)s OFFSET %(offset)s
+		""", {
+			'search': f'%{search}%',
+			'limit': limit,
+			'offset': offset
+		}, as_dict=True)
+		
+		return [{'name': p.name, 'patient_name': p.patient_name or p.name, 'file_number': p.file_number, 'mobile': p.mobile, 'email': p.email} for p in patients]
+	else:
+		patients = frappe.get_all(
+			'Patient',
+			filters=filters,
+			fields=['name', 'patient_name', 'file_no', 'mobile', 'email'],
+			limit=limit,
+			limit_start=offset,
+			order_by='patient_name'
+		)
+		
+		return [{'name': p.name, 'patient_name': p.patient_name or p.name, 'file_number': p.file_no, 'mobile': p.mobile, 'email': p.email} for p in patients]
+
+
+@frappe.whitelist()
+def create_patient(data):
+	"""Create a new Patient"""
+	if isinstance(data, str):
+		import json
+		data = json.loads(data)
+	
+	# Validate required fields
+	if not data.get('first_name'):
+		frappe.throw(_("First Name is required"))
+	
+	if not data.get('sex'):
+		frappe.throw(_("Gender is required"))
+	
+	# Create the patient
+	patient = frappe.get_doc({
+		'doctype': 'Patient',
+		'first_name': data.get('first_name'),
+		'middle_name': data.get('middle_name') or '',
+		'last_name': data.get('last_name') or '',
+		'sex': data.get('sex'),
+		'dob': data.get('dob') or None,
+		'blood_group': data.get('blood_group') or None,
+		'mobile': data.get('mobile') or None,
+		'phone': data.get('phone') or None,
+		'email': data.get('email') or None,
+		'id_number': data.get('id_number') or None,
+		'nationality': data.get('nationality') or None,
+		'category': data.get('category') or None,
+		'source': data.get('source') or None,
+		'marital_status': data.get('marital_status') or None
+	})
+	
+	patient.insert()
+	
+	# Return the created patient
+	return {
+		'name': patient.name,
+		'patient_name': patient.patient_name,
+		'file_no': patient.name
+	}
+
+
+@frappe.whitelist()
 def get_patient_medical_history(patient):
 	"""Get patient's medical history from the medical history tab"""
 	if not patient:

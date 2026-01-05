@@ -8,6 +8,11 @@ import { ClinicalNotesList } from '../components/clinicalNotes/ClinicalNotesList
 import { ObservationList } from '../components/observations/ObservationList'
 import { VitalSignsList } from '../components/vitalSigns/VitalSignsList'
 import { CreateObservationModal } from '../components/observations/CreateObservationModal'
+import { DischargeList } from '../components/discharges/DischargeList'
+import { DischargeModal } from '../components/admissions/DischargeModal'
+import { PackageDetailsList } from '../components/packageDetails/PackageDetailsList'
+import { getPatientActiveAdmission } from '../services/inpatientRecords'
+import { toast } from '../hooks/useToast'
 import { CreateWarningMessageModal } from '../components/warnings/CreateWarningMessageModal'
 import { CreateLabTestModal } from '../components/labTests/CreateLabTestModal'
 import { AdmissionPage } from './Admission'
@@ -25,9 +30,12 @@ export const NursePage = () => {
   const [showWarningModal, setShowWarningModal] = useState(false)
   const [showLabTestModal, setShowLabTestModal] = useState(false)
   const [showObservationModal, setShowObservationModal] = useState(false)
+  const [showDischargeModal, setShowDischargeModal] = useState(false)
+  const [selectedAdmission, setSelectedAdmission] = useState<{ name: string; patient: string; patient_name?: string } | null>(null)
   const [warningRefreshKey, setWarningRefreshKey] = useState(0)
   const [labTestRefreshKey, setLabTestRefreshKey] = useState(0)
   const [observationRefreshKey, setObservationRefreshKey] = useState(0)
+  const [dischargeRefreshKey, setDischargeRefreshKey] = useState(0)
   const screen = searchParams.get('screen')
 
   // Sync selectedPatient with URL on mount and when URL changes
@@ -217,6 +225,109 @@ export const NursePage = () => {
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
             <div className="font-semibold mb-4">Vital Signs</div>
             <VitalSignsList patient={selectedPatient} />
+          </section>
+        </div>
+      </div>
+    )
+  }
+
+  // Show Discharge Form (list of discharges with + button)
+  if (screen === 'n-discharge') {
+    const handleCreateDischarge = async () => {
+      if (!selectedPatient) {
+        toast.error('Please select a patient first')
+        return
+      }
+      
+      try {
+        const admission = await getPatientActiveAdmission(selectedPatient)
+        if (!admission) {
+          toast.error('No active admission found for this patient')
+          return
+        }
+        
+        setSelectedAdmission({
+          name: admission.name,
+          patient: admission.patient,
+          patient_name: admission.patient_name
+        })
+        setShowDischargeModal(true)
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Failed to fetch admission'
+        toast.error(errorMessage)
+      }
+    }
+
+    return (
+      <div className="flex flex-col">
+        <header className="flex items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+        <div className="p-4">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+            <div className="font-semibold mb-4 flex items-center justify-between">
+              <span>Discharge Form / Procedure</span>
+              <button
+                onClick={handleCreateDischarge}
+                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
+                title="Add Discharge"
+              >
+                +
+              </button>
+            </div>
+            <DischargeList patient={selectedPatient} key={dischargeRefreshKey} />
+          </section>
+        </div>
+        {showDischargeModal && selectedAdmission && (
+          <DischargeModal
+            admission={selectedAdmission}
+            onClose={() => {
+              setShowDischargeModal(false)
+              setSelectedAdmission(null)
+            }}
+            onSuccess={() => {
+              setShowDischargeModal(false)
+              setSelectedAdmission(null)
+              setDischargeRefreshKey(prev => prev + 1)
+              toast.success('Discharge completed successfully')
+            }}
+          />
+        )}
+      </div>
+    )
+  }
+
+  // Show Package Details
+  if (screen === 'n-package') {
+    return (
+      <div className="flex flex-col">
+        <header className="flex items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+        <div className="p-4">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+            <div className="font-semibold mb-4">Package Detail</div>
+            <PackageDetailsList patient={selectedPatient} />
           </section>
         </div>
       </div>

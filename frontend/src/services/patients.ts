@@ -23,9 +23,13 @@ export interface PatientMedicalHistory {
   file_no?: string
 }
 
-export async function searchPatients(query: string): Promise<PatientListItem[]> {
+export async function searchPatients(query: string, limit?: number): Promise<PatientListItem[]> {
+  const params = new URLSearchParams()
+  params.append('search', query)
+  if (limit) params.append('limit', limit.toString())
+  
   const response = await fetch(
-    `/api/method/healthcare.api.patient.search_patients?search=${encodeURIComponent(query)}`
+    `/api/method/healthcare.api.patient.search_patients?${params.toString()}`
   )
   const resData = await response.json()
 
@@ -55,6 +59,49 @@ export async function fetchPatients(
     return resData.message as PatientListItem[]
   } else {
     return []
+  }
+}
+
+export interface CreatePatientData {
+  first_name: string
+  middle_name?: string
+  last_name?: string
+  sex: string
+  dob?: string
+  blood_group?: string
+  mobile?: string
+  phone?: string
+  email?: string
+  id_number?: string
+  nationality?: string
+  category?: string
+  source?: string
+  marital_status?: string
+}
+
+export async function createPatient(data: CreatePatientData): Promise<{ name: string; patient_name: string; file_no: string }> {
+  const csrf = (window as any).csrf_token
+  
+  const response = await fetch('/api/method/healthcare.api.patient.create_patient', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {})
+    },
+    body: JSON.stringify({ data })
+  })
+
+  const resData = await response.json()
+
+  if (!response.ok) {
+    const errorMessage = resData?.message?.message || resData?.message || 'Failed to create patient'
+    throw new Error(errorMessage)
+  }
+
+  if (resData?.message) {
+    return resData.message as { name: string; patient_name: string; file_no: string }
+  } else {
+    throw new Error('Invalid response format')
   }
 }
 
