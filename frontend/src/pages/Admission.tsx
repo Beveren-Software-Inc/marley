@@ -113,8 +113,8 @@ export const AdmissionPage = () => {
   return (
     <>
       <div className="flex flex-col h-full">
-        <header className="grid grid-cols-1 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
-          <div className="w-full max-w-xl">
+        <header className="flex items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0 max-w-xl">
             <div className="relative flex items-center gap-2">
               <input
                 type="text"
@@ -145,8 +145,8 @@ export const AdmissionPage = () => {
               </button>
             </div>
           </div>
-          <div className="flex items-center justify-center gap-3">
-            <h1 className="text-lg font-semibold">Inpatient Admissions</h1>
+          <h1 className="text-lg font-semibold flex-shrink-0">Inpatient Admissions</h1>
+          <div className="flex items-center gap-3 flex-shrink-0">
             <UserMenu />
             <NotificationBell />
           </div>
