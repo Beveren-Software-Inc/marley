@@ -101,9 +101,12 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
 
   return (
     <div className="h-screen overflow-hidden grid grid-cols-[240px_1fr] bg-muted">
-      <aside className="bg-primary text-white p-4 flex flex-col gap-4 h-screen overflow-y-auto">
-        <div className="font-semibold text-lg mb-2">Healthcare</div>
-        <nav className="flex flex-col gap-1 text-sm">
+      <aside className="bg-primary text-white flex flex-col h-screen overflow-hidden">
+        <div className="bg-primary text-white px-4 py-3 border-b border-white/0 flex items-center h-[60px] flex-shrink-0">
+          <div className="font-semibold text-lg">Healthcare</div>
+        </div>
+        {/* Navigation section below header */}
+        <nav className="flex-1 overflow-y-auto p-4 flex flex-col gap-1 text-sm">
           {mainLinks.map((link) => {
             const isExpanded = expandedTopics.has(link.to)
             const hasScreens = link.screens.length > 0
@@ -164,7 +167,7 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
       <main className="p-0 h-screen flex flex-col">
         <div className="flex-1 overflow-y-auto">{children}</div>
         <footer className="h-9 flex items-center justify-end px-4 text-[11px] text-white bg-gradient-to-r from-primary/70 via-primary to-primary/60">
-          © 2025 Powered by <span className="font-semibold ml-1">Beveren Software Inc</span>
+          © 2025 Powered by <span className="font-semibold ml-1">Beveren Software Inc.</span>
         </footer>
       </main>
     </div>

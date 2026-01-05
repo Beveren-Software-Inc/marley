@@ -27,7 +27,7 @@ def get_user_notifications(unread_only=False):
 		notifications = frappe.get_all(
 			'Notification Log',
 			filters=filters,
-			fields=['name', 'type', 'document_type', 'document_name', 'for_user', 'read', 'creation', 'title', 'email_content'],
+			fields=['name', 'type', 'document_type', 'document_name', 'for_user', 'read', 'creation', 'subject', 'email_content'],
 			order_by='creation desc',
 			limit=50
 		)
@@ -38,7 +38,7 @@ def get_user_notifications(unread_only=False):
 			formatted_notifications.append({
 				'id': notif.name,
 				'type': notif.type or 'Info',
-				'title': notif.title or 'Notification',
+				'title': notif.subject or 'Notification',
 				'message': notif.email_content or '',
 				'document_type': notif.document_type,
 				'document_name': notif.document_name,

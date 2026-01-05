@@ -11,7 +11,7 @@ const adminSections = [
 export const AdminPage = () => {
   return (
     <div className="flex flex-col">
-      <header className="bg-primary text-white px-4 py-3 flex items-center justify-between">
+      <header className="bg-primary text-white px-4 py-3 flex items-center justify-between border-b border-white/20">
         <h1 className="font-semibold text-lg">Admin / Overall Dashboard</h1>
         <span className="text-xs opacity-80">System Overview · Dummy</span>
       </header>

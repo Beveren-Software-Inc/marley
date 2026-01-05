@@ -4,7 +4,7 @@ import { searchPatients, fetchPatients, type PatientListItem } from '../../servi
 
 interface PatientSearchProps {
   selectedPatient: string
-  onPatientSelect: (patient: string) => void
+  onPatientSelect: (patient: string | undefined) => void
   patients?: string[]
 }
 
@@ -14,6 +14,36 @@ export const PatientSearch = ({ selectedPatient, onPatientSelect }: PatientSearc
   const [showCreatePatient, setShowCreatePatient] = useState(false)
   const [patients, setPatients] = useState<PatientListItem[]>([])
   const [loading, setLoading] = useState(false)
+  const [selectedPatientName, setSelectedPatientName] = useState<string>('')
+
+  // Load patient name when selectedPatient changes (e.g., from URL)
+  useEffect(() => {
+    if (selectedPatient) {
+      const loadPatientName = async () => {
+        try {
+          const response = await fetch(
+            `/api/method/healthcare.api.patient.get_patient?name=${encodeURIComponent(selectedPatient)}`
+          )
+          const resData = await response.json()
+          if (resData?.message?.patient_name) {
+            setSelectedPatientName(resData.message.patient_name)
+            setPatientQuery(resData.message.patient_name)
+          } else {
+            setSelectedPatientName(selectedPatient)
+            setPatientQuery(selectedPatient)
+          }
+        } catch (error) {
+          console.error('Failed to load patient name:', error)
+          setSelectedPatientName(selectedPatient)
+          setPatientQuery(selectedPatient)
+        }
+      }
+      loadPatientName()
+    } else {
+      setSelectedPatientName('')
+      setPatientQuery('')
+    }
+  }, [selectedPatient])
 
   // Fetch or search patients when dropdown is open
   useEffect(() => {
@@ -55,13 +85,40 @@ export const PatientSearch = ({ selectedPatient, onPatientSelect }: PatientSearc
             <input
               value={patientQuery}
               onChange={(e) => {
-                setPatientQuery(e.target.value)
+                const value = e.target.value
+                setPatientQuery(value)
                 setPatientOpen(true)
+                // Clear selection when user clears the input or types something different
+                if (selectedPatient && (value === '' || value !== selectedPatientName)) {
+                  if (value === '') {
+                    onPatientSelect(undefined)
+                    setSelectedPatientName('')
+                  } else if (value !== selectedPatientName) {
+                    onPatientSelect(undefined)
+                  }
+                }
               }}
               onFocus={() => setPatientOpen(true)}
-              placeholder={selectedPatient || 'Search patient...'}
+              placeholder={selectedPatientName || 'Search patient...'}
               className="w-full rounded-md border border-primary/40 px-3 py-2 text-sm text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-white focus:border-white"
             />
+            {selectedPatient && patientQuery === selectedPatientName && (
+              <button
+                type="button"
+                onClick={() => {
+                  onPatientSelect(undefined)
+                  setSelectedPatientName('')
+                  setPatientQuery('')
+                  setPatientOpen(false)
+                }}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                title="Clear selection"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
             {patientOpen && (
               <div className="absolute z-40 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-56 overflow-auto text-slate-900">
                 {loading ? (
@@ -73,8 +130,10 @@ export const PatientSearch = ({ selectedPatient, onPatientSelect }: PatientSearc
                       type="button"
                       className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50"
                       onClick={() => {
+                        const patientName = patient.patient_name || patient.name
                         onPatientSelect(patient.name)
-                        setPatientQuery(patient.patient_name || patient.name)
+                        setSelectedPatientName(patientName)
+                        setPatientQuery(patientName)
                         setPatientOpen(false)
                       }}
                     >

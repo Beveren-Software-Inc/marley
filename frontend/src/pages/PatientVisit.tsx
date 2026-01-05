@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { PatientVisitList } from '../components/patientVisits/PatientVisitList'
 import { PatientVisitDetails } from '../components/patientVisits/PatientVisitDetails'
@@ -9,14 +9,23 @@ import { UserMenu } from '../components/user/UserMenu'
 export const PatientVisitPage = () => {
   const [searchParams, setSearchParams] = useSearchParams()
   const visitFromUrl = searchParams.get('visit')
-  const [searchQuery, setSearchQuery] = useState<string>('')
+  const searchFromUrl = searchParams.get('search')
+  const [searchQuery, setSearchQuery] = useState<string>(searchFromUrl || '')
   const [showCreateVisit, setShowCreateVisit] = useState(false)
+
+  // Sync searchQuery with URL
+  useEffect(() => {
+    const searchParam = searchParams.get('search')
+    if (searchParam !== searchQuery) {
+      setSearchQuery(searchParam || '')
+    }
+  }, [searchParams, searchQuery])
 
   if (visitFromUrl) {
     // Show visit details
     return (
       <div className="flex flex-col h-full">
-        <header className="bg-primary text-white px-4 py-3 flex items-center justify-between">
+        <header className="bg-primary text-white px-4 py-3 flex items-center justify-between border-b border-white/20">
           <div className="flex items-center gap-4">
             <button
               onClick={() => {
@@ -56,13 +65,24 @@ export const PatientVisitPage = () => {
   return (
     <>
       <div className="flex flex-col h-full">
-        <header className="grid grid-cols-1 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] items-center gap-3 bg-primary text-white px-4 py-3">
+        <header className="grid grid-cols-1 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
           <div className="w-full max-w-xl">
             <div className="relative flex items-center gap-2">
               <input
                 type="text"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => {
+                  const value = e.target.value
+                  setSearchQuery(value)
+                  // Update URL with debounce
+                  const newSearchParams = new URLSearchParams(searchParams)
+                  if (value.trim()) {
+                    newSearchParams.set('search', value)
+                  } else {
+                    newSearchParams.delete('search')
+                  }
+                  setSearchParams(newSearchParams, { replace: true })
+                }}
                 placeholder="Search by visit number, patient name/file number, or practitioner..."
                 className="flex-1 rounded-md border border-primary/40 px-3 py-2 text-sm text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-white focus:border-white"
               />
