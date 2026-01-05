@@ -14,20 +14,23 @@ const otherScreensPharma = [
 ]
 
 export const PharmacistPage = () => {
-  const [selectedPatient, setSelectedPatient] = useState('John Doe')
+  const [selectedPatient, setSelectedPatient] = useState<string>('John Doe')
+
+  const handlePatientSelect = (patient: string | undefined) => {
+    setSelectedPatient(patient || '')
+  }
 
   return (
     <div className="flex flex-col">
-      <header className="grid grid-cols-1 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
-        <PatientSearch
-          selectedPatient={selectedPatient}
-          onPatientSelect={setSelectedPatient}
-          patients={dummyPatients}
-        />
-        <div className="flex items-center justify-end gap-3">
-          <div className="text-xs opacity-80">
-            <span>Branch: Main · Dummy</span>
-          </div>
+      <header className="flex items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
+        <div className="flex-1 min-w-0">
+          <PatientSearch
+            selectedPatient={selectedPatient}
+            onPatientSelect={handlePatientSelect}
+            patients={dummyPatients}
+          />
+        </div>
+        <div className="flex items-center gap-3 flex-shrink-0">
           <UserMenu />
           <NotificationBell />
         </div>

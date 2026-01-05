@@ -37,13 +37,15 @@ export const LabPage = () => {
 
   return (
     <div className="flex flex-col">
-      <header className="grid grid-cols-1 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
-        <PatientSearch
-          selectedPatient={selectedPatient || ''}
-          onPatientSelect={handlePatientSelect}
-          patients={[]}
-        />
-        <div className="flex items-center justify-end gap-3">
+      <header className="flex items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
+        <div className="flex-1 min-w-0">
+          <PatientSearch
+            selectedPatient={selectedPatient || ''}
+            onPatientSelect={handlePatientSelect}
+            patients={[]}
+          />
+        </div>
+        <div className="flex items-center gap-3 flex-shrink-0">
           <UserMenu />
           <NotificationBell />
         </div>

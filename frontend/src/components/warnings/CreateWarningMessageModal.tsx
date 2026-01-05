@@ -25,7 +25,6 @@ export const CreateWarningMessageModal = ({ onClose, onSuccess, initialPatient }
   const [patientOptions, setPatientOptions] = useState<PatientListItem[]>([])
   const [patientOpen, setPatientOpen] = useState(false)
   const [patientQuery, setPatientQuery] = useState(initialPatient || '')
-  const [selectedPatient, setSelectedPatient] = useState<PatientListItem | null>(null)
   const [patientLoading, setPatientLoading] = useState(false)
 
   // Practitioner dropdown state
@@ -90,7 +89,6 @@ export const CreateWarningMessageModal = ({ onClose, onSuccess, initialPatient }
         try {
           const patients = await fetchPatients(1, 0, initialPatient)
           if (patients.length > 0) {
-            setSelectedPatient(patients[0])
             setPatientQuery(patients[0].patient_name)
           }
         } catch (err) {
@@ -213,7 +211,6 @@ export const CreateWarningMessageModal = ({ onClose, onSuccess, initialPatient }
   }, [medicalRoleQuery, medicalRoleOpen])
 
   const handlePatientSelect = (patient: PatientListItem) => {
-    setSelectedPatient(patient)
     setFormData(prev => ({ ...prev, patient: patient.name }))
     setPatientQuery(patient.patient_name)
     setPatientOpen(false)
