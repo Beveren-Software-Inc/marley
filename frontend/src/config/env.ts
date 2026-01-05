@@ -37,3 +37,5 @@ export const getRouterBasename = (): string | undefined => {
   return isDevelopment() ? undefined : '/health'
 }
 
+
+
