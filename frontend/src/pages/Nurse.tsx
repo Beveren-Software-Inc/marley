@@ -11,10 +11,14 @@ import { CreateObservationModal } from '../components/observations/CreateObserva
 import { DischargeList } from '../components/discharges/DischargeList'
 import { DischargeModal } from '../components/admissions/DischargeModal'
 import { PackageDetailsList } from '../components/packageDetails/PackageDetailsList'
+import { PatientSummaryCard } from '../components/patients/PatientSummaryCard'
+import { DoctorServiceDetailsTable } from '../components/services/DoctorServiceDetailsTable'
+import { CreateClinicalNoteModal } from '../components/clinicalNotes/CreateClinicalNoteModal'
 import { getPatientActiveAdmission } from '../services/inpatientRecords'
 import { toast } from '../hooks/useToast'
 import { CreateWarningMessageModal } from '../components/warnings/CreateWarningMessageModal'
 import { CreateLabTestModal } from '../components/labTests/CreateLabTestModal'
+import { CreateDoctorServiceModal } from '../components/services/CreateDoctorServiceModal'
 import { AdmissionPage } from './Admission'
 import { NotificationBell } from '../components/notifications/NotificationBell'
 import { UserMenu } from '../components/user/UserMenu'
@@ -31,11 +35,14 @@ export const NursePage = () => {
   const [showLabTestModal, setShowLabTestModal] = useState(false)
   const [showObservationModal, setShowObservationModal] = useState(false)
   const [showDischargeModal, setShowDischargeModal] = useState(false)
+  const [showDiagnosisModal, setShowDiagnosisModal] = useState(false)
+  const [showServiceModal, setShowServiceModal] = useState(false)
   const [selectedAdmission, setSelectedAdmission] = useState<{ name: string; patient: string; patient_name?: string } | null>(null)
   const [warningRefreshKey, setWarningRefreshKey] = useState(0)
   const [labTestRefreshKey, setLabTestRefreshKey] = useState(0)
   const [observationRefreshKey, setObservationRefreshKey] = useState(0)
   const [dischargeRefreshKey, setDischargeRefreshKey] = useState(0)
+  const [diagnosisRefreshKey, setDiagnosisRefreshKey] = useState(0)
   const screen = searchParams.get('screen')
 
   // Sync selectedPatient with URL on mount and when URL changes
@@ -75,7 +82,7 @@ export const NursePage = () => {
   if (screen === 'n-ect') {
     return (
       <div className="flex flex-col">
-        <header className="flex items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
+        <header className="sticky top-0 z-10 flex items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
           <div className="flex-1 min-w-0">
             <PatientSearch
               selectedPatient={selectedPatient || ''}
@@ -102,7 +109,7 @@ export const NursePage = () => {
   if (screen === 'dos') {
     return (
       <div className="flex flex-col">
-        <header className="flex items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
+        <header className="sticky top-0 z-10 flex items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
           <div className="flex-1 min-w-0">
             <PatientSearch
               selectedPatient={selectedPatient || ''}
@@ -132,7 +139,7 @@ export const NursePage = () => {
   if (screen === 'nurse') {
     return (
       <div className="flex flex-col">
-        <header className="flex items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
+        <header className="sticky top-0 z-10 flex items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
           <div className="flex-1 min-w-0">
             <PatientSearch
               selectedPatient={selectedPatient || ''}
@@ -162,7 +169,7 @@ export const NursePage = () => {
   if (screen === 'n-obs') {
     return (
       <div className="flex flex-col">
-        <header className="flex items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
+        <header className="sticky top-0 z-10 flex items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
           <div className="flex-1 min-w-0">
             <PatientSearch
               selectedPatient={selectedPatient || ''}
@@ -208,7 +215,7 @@ export const NursePage = () => {
   if (screen === 'n-tpr') {
     return (
       <div className="flex flex-col">
-        <header className="flex items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
+        <header className="sticky top-0 z-10 flex items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
           <div className="flex-1 min-w-0">
             <PatientSearch
               selectedPatient={selectedPatient || ''}
@@ -260,7 +267,7 @@ export const NursePage = () => {
 
     return (
       <div className="flex flex-col">
-        <header className="flex items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
+        <header className="sticky top-0 z-10 flex items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
           <div className="flex-1 min-w-0">
             <PatientSearch
               selectedPatient={selectedPatient || ''}
@@ -311,7 +318,7 @@ export const NursePage = () => {
   if (screen === 'n-package') {
     return (
       <div className="flex flex-col">
-        <header className="flex items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
+        <header className="sticky top-0 z-10 flex items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
           <div className="flex-1 min-w-0">
             <PatientSearch
               selectedPatient={selectedPatient || ''}
@@ -365,35 +372,115 @@ export const NursePage = () => {
         </div>
       </header>
 
-      <div className="grid gap-4 md:grid-cols-2 p-4">
-        <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-          <div className="font-semibold mb-4 flex items-center justify-between">
-            <span>IP Warning Messages / Medications / Allergy</span>
-            <button
-              onClick={() => setShowWarningModal(true)}
-              className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
-              title="Add Warning Message"
-            >
-              +
-            </button>
-          </div>
-          <WarningMessagesList patient={selectedPatient} key={warningRefreshKey} />
-        </section>
+      {selectedPatient ? (
+        <>
+          <div className="grid gap-4 md:grid-cols-2 p-4">
+            {/* Card 1: Patient info */}
+            <div className="overflow-auto max-h-[400px]">
+              <PatientSummaryCard patient={selectedPatient} />
+            </div>
 
-        <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-          <div className="font-semibold mb-4 flex items-center justify-between">
-            <span>Lab Reports List & Status</span>
-            <button
-              onClick={() => setShowLabTestModal(true)}
-              className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
-              title="Add Lab Test Report"
-            >
-              +
-            </button>
+            {/* Card 2: Warnings & Allergies */}
+            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
+              <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
+                <span>Warnings & Allergies</span>
+                <button
+                  onClick={() => setShowWarningModal(true)}
+                  className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
+                  title="Add Warning Message"
+                >
+                  +
+                </button>
+              </div>
+              <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
+                <WarningMessagesList patient={selectedPatient} key={warningRefreshKey} />
+              </div>
+            </section>
           </div>
-          <LabTestReportsList patient={selectedPatient} pendingReview={true} key={labTestRefreshKey} />
-        </section>
-      </div>
+
+          <div className="grid gap-4 md:grid-cols-2 px-4 pb-4">
+            {/* Card 3: Lab Test Reports */}
+            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
+              <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
+                <span>Lab Test Reports</span>
+                <button
+                  onClick={() => setShowLabTestModal(true)}
+                  className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
+                  title="Add Lab Test Report"
+                >
+                  +
+                </button>
+              </div>
+              <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
+                <LabTestReportsList patient={selectedPatient} pendingReview={true} key={labTestRefreshKey} />
+              </div>
+            </section>
+
+            {/* Card 4: Diagnosis detail (Diagnosis Notes) */}
+            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
+              <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
+                <span>Diagnosis Detail</span>
+                <button
+                  onClick={() => setShowDiagnosisModal(true)}
+                  className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
+                  title="Add Diagnosis Note"
+                >
+                  +
+                </button>
+              </div>
+              <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
+                <ClinicalNotesList 
+                  patient={selectedPatient}
+                  clinicalNoteType="Diagnosis Note"
+                  hideTypes={true}
+                  key={diagnosisRefreshKey}
+                />
+              </div>
+            </section>
+          </div>
+
+          <div className="px-4 pb-4">
+            <DoctorServiceDetailsTable 
+              patient={selectedPatient} 
+              onAddService={() => setShowServiceModal(true)}
+            />
+          </div>
+        </>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 p-4">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
+            <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
+              <span>IP Warning Messages / Medications / Allergy</span>
+              <button
+                onClick={() => setShowWarningModal(true)}
+                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
+                title="Add Warning Message"
+              >
+                +
+              </button>
+            </div>
+            <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
+              <WarningMessagesList patient={undefined} key={warningRefreshKey} />
+            </div>
+          </section>
+
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
+            <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
+              <span>Lab Reports List & Status</span>
+              <button
+                onClick={() => setShowLabTestModal(true)}
+                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
+                title="Add Lab Test Report"
+              >
+                +
+              </button>
+            </div>
+            <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
+              <LabTestReportsList patient={undefined} pendingReview={true} key={labTestRefreshKey} />
+            </div>
+          </section>
+        </div>
+      )}
 
       {showWarningModal && (
         <CreateWarningMessageModal
@@ -414,6 +501,29 @@ export const NursePage = () => {
             setShowLabTestModal(false)
           }}
           initialPatient={selectedPatient}
+        />
+      )}
+      {showDiagnosisModal && selectedPatient && (
+        <CreateClinicalNoteModal
+          onClose={() => setShowDiagnosisModal(false)}
+          onSuccess={() => {
+            setDiagnosisRefreshKey(prev => prev + 1)
+            setShowDiagnosisModal(false)
+          }}
+          initialPatient={selectedPatient}
+          defaultClinicalNoteType="Diagnosis Note"
+          title="Add Diagnosis Note"
+        />
+      )}
+
+      {showServiceModal && (
+        <CreateDoctorServiceModal
+          onClose={() => setShowServiceModal(false)}
+          onSuccess={() => {
+            setShowServiceModal(false)
+            // TODO: Refresh service details table when backend is wired
+          }}
+          patient={selectedPatient}
         />
       )}
     </div>

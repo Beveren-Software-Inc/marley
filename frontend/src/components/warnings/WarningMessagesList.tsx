@@ -50,8 +50,8 @@ export const WarningMessagesList = ({ patient }: { patient?: string }) => {
   }
 
   return (
-    <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
-      <table className="w-full">
+    <div className="min-w-full">
+      <table className="w-full min-w-[800px]">
         <thead className="bg-slate-50 border-b border-slate-200">
           <tr>
             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">

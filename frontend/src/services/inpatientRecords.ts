@@ -54,10 +54,11 @@ export interface ServiceUnit {
   company: string
 }
 
-export async function fetchInpatientRecords(status?: string, search?: string) {
+export async function fetchInpatientRecords(status?: string, search?: string, patient?: string) {
   const params = new URLSearchParams()
   if (status) params.append('status', status)
   if (search) params.append('search', search)
+  if (patient) params.append('patient', patient)
   
   const url = `/api/method/healthcare.api.inpatient_admission.get_inpatient_records${params.toString() ? `?${params.toString()}` : ''}`
   

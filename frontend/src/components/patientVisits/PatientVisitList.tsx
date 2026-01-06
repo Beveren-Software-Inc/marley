@@ -12,14 +12,16 @@ const statusColors: Record<string, string> = {
 interface PatientVisitListProps {
   onVisitSelect?: (visitName: string) => void
   searchQuery?: string
+  patient?: string
 }
 
-export const PatientVisitList = ({ onVisitSelect, searchQuery: externalSearchQuery = '' }: PatientVisitListProps = {}) => {
+export const PatientVisitList = ({ onVisitSelect, searchQuery: externalSearchQuery = '', patient }: PatientVisitListProps = {}) => {
   const [selectedStatus, setSelectedStatus] = useState<string>('')
 
   const { visits, loading, error, refetch } = usePatientVisits(
     selectedStatus || undefined,
-    externalSearchQuery || undefined
+    externalSearchQuery || undefined,
+    patient
   )
 
   const statuses = ['Open', 'Ordered', 'Completed', 'Cancelled']

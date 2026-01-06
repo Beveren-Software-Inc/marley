@@ -6,6 +6,7 @@ import { StatusPill } from '../ui/StatusPill'
 interface ServiceRequestListProps {
   patient?: string
   onLabTestCreated?: () => void
+  refreshKey?: string | number
 }
 
 const statusColors: Record<string, string> = {
@@ -17,7 +18,7 @@ const statusColors: Record<string, string> = {
   'Draft': 'warning'
 }
 
-export const ServiceRequestList = ({ patient, onLabTestCreated }: ServiceRequestListProps) => {
+export const ServiceRequestList = ({ patient, onLabTestCreated, refreshKey }: ServiceRequestListProps) => {
   const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
@@ -37,7 +38,7 @@ export const ServiceRequestList = ({ patient, onLabTestCreated }: ServiceRequest
     }
 
     loadServiceRequests()
-  }, [patient])
+  }, [patient, refreshKey])
 
   const handleCreateLabTest = async (serviceRequestName: string) => {
     try {
@@ -94,8 +95,8 @@ export const ServiceRequestList = ({ patient, onLabTestCreated }: ServiceRequest
   }
 
   return (
-    <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
-      <table className="w-full">
+    <div className="min-w-full">
+      <table className="w-full min-w-[1000px]">
         <thead className="bg-slate-50 border-b border-slate-200">
           <tr>
             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">

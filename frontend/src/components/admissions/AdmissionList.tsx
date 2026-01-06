@@ -18,9 +18,10 @@ const statusColors: Record<string, string> = {
 interface AdmissionListProps {
   onAdmissionSelect?: (admissionName: string) => void
   searchQuery?: string
+  patient?: string
 }
 
-export const AdmissionList = ({ onAdmissionSelect, searchQuery: externalSearchQuery = '' }: AdmissionListProps = {}) => {
+export const AdmissionList = ({ onAdmissionSelect, searchQuery: externalSearchQuery = '', patient }: AdmissionListProps = {}) => {
   const [selectedStatus, setSelectedStatus] = useState<string>('')
   const [selectedRecord, setSelectedRecord] = useState<string | null>(null)
   const [showPackages, setShowPackages] = useState(false)
@@ -33,7 +34,8 @@ export const AdmissionList = ({ onAdmissionSelect, searchQuery: externalSearchQu
 
   const { records, loading, error, refetch } = useInpatientRecords(
     selectedStatus || undefined,
-    externalSearchQuery || undefined
+    externalSearchQuery || undefined,
+    patient
   )
 
   const handleAdmit = (recordName: string) => {

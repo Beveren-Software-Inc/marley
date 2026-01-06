@@ -18,7 +18,7 @@ export const ReceptionistPage = () => {
 
   return (
     <div className="flex flex-col h-full">
-      <header className="flex items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
+      <header className="sticky top-0 z-10 flex items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
         <div className="flex-1 min-w-0">
           <PatientSearch
             selectedPatient={selectedPatient}
