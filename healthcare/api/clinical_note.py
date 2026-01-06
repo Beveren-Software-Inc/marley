@@ -71,3 +71,4 @@ def get_clinical_notes(limit=50, offset=0, patient=None, medical_role=None, clin
 	
 	return clinical_notes
 
+

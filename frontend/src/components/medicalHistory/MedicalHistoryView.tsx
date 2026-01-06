@@ -158,3 +158,4 @@ export const MedicalHistoryView = ({ patient }: MedicalHistoryViewProps) => {
   )
 }
 
+

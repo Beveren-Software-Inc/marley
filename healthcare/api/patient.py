@@ -42,7 +42,7 @@ def get_patients(limit=50, offset=0, search=None):
 	"""Get list of patients"""
 	filters = {}
 	
-		if search:
+	if search:
 		# Search by name, file number, or patient ID
 		patients = frappe.db.sql("""
 			SELECT 
