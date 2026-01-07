@@ -1,75 +1,652 @@
 {
  "actions": [],
  "allow_rename": 1,
+ "autoname": "naming_series:",
  "creation": "2025-12-22 11:21:06.543061",
+ "default_view": "List",
+ "description": "Comprehensive Suicidal Risk Assessment Questionnaire",
  "doctype": "DocType",
+ "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
+  "naming_series",
+  "basic_info_section",
   "admission_no",
-  "trans_no",
+  "patient",
+  "patient_name",
   "column_break_cqnx",
-  "date",
-  "branch",
-  "section_break_yoat",
-  "options",
-  "section_break_vkfd",
-  "admission_old_no"
+  "assessment_date",
+  "assessed_by",
+  "risk_factors_section",
+  "risk_factors_note",
+  "male_gender",
+  "male_gender_explanation",
+  "age_above_45",
+  "age_above_45_explanation",
+  "unemployment",
+  "unemployment_explanation",
+  "not_married",
+  "not_married_explanation",
+  "column_break_rf1",
+  "chronic_pain",
+  "chronic_pain_explanation",
+  "physical_health_condition",
+  "physical_health_condition_explanation",
+  "psychiatric_condition",
+  "psychiatric_condition_explanation",
+  "substance_misuse_history",
+  "substance_misuse_history_explanation",
+  "not_having_kids",
+  "not_having_kids_explanation",
+  "column_break_rf2",
+  "family_history_depression",
+  "family_history_depression_explanation",
+  "family_history_substance_misuse",
+  "family_history_substance_misuse_explanation",
+  "family_history_suicide",
+  "family_history_suicide_explanation",
+  "previous_self_harm",
+  "previous_self_harm_explanation",
+  "suicidal_thoughts_section",
+  "suicidal_thoughts_note",
+  "overwhelmed_thoughts_harming",
+  "overwhelmed_thoughts_explanation",
+  "column_break_st1",
+  "thoughts_occurrence_frequency",
+  "thoughts_present_duration",
+  "thoughts_becoming_stronger",
+  "thoughts_past_24_hours",
+  "active_suicidal_thoughts_plans",
+  "triggering_factors",
+  "current_plan_section",
+  "current_plan_note",
+  "made_current_plans",
+  "general_idea_harm_method",
+  "place_thinking_about",
+  "risk_timing",
+  "risk_timing_other",
+  "column_break_cp1",
+  "access_dangerous_means",
+  "access_dangerous_means_details",
+  "risk_taking_behaviors",
+  "risk_taking_behaviors_examples",
+  "coping_strategies_section",
+  "reasons_to_live",
+  "strategies_manage_crises",
+  "column_break_cs1",
+  "previous_attempts",
+  "previous_attempts_count",
+  "previous_attempts_time_ago",
+  "active_suicidal_thoughts_plans_final",
+  "external_supports_available",
+  "suicidal_attempt_tab",
+  "suicidal_attempt_section",
+  "suicidal_attempt_note",
+  "present_complaint_attempt",
+  "precipitate_trigger",
+  "planned_or_impulsive",
+  "method_used",
+  "message_note_left",
+  "internal_coping_skills",
+  "column_break_sa1",
+  "under_influence_substance",
+  "substance_details",
+  "patient_alone",
+  "actions_reduced_noticing",
+  "sought_help_afterward",
+  "patient_feelings_reflection",
+  "active_suicidal_thoughts_plans_attempt",
+  "reference_section",
+  "ip_risk_analysis_reference",
+  "additional_notes_section",
+  "additional_notes"
  ],
  "fields": [
   {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Naming Series",
+   "options": "SPA-.YYYY.-"
+  },
+  {
+   "fieldname": "basic_info_section",
+   "fieldtype": "Section Break",
+   "label": "Basic Information"
+  },
+  {
    "fieldname": "admission_no",
    "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Admission No",
    "options": "Inpatient Admission"
   },
   {
-   "fieldname": "trans_no",
+   "fetch_from": "admission_no.patient",
+   "fieldname": "patient",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Patient",
+   "options": "Patient"
+  },
+  {
+   "fetch_from": "patient.patient_name",
+   "fieldname": "patient_name",
    "fieldtype": "Data",
-   "label": "Trans No"
+   "label": "Patient Name",
+   "read_only": 1
   },
   {
    "fieldname": "column_break_cqnx",
    "fieldtype": "Column Break"
   },
   {
-   "fieldname": "date",
-   "fieldtype": "Data",
-   "label": "Date"
+   "default": "Today",
+   "fieldname": "assessment_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Assessment Date",
+   "reqd": 1
   },
   {
-   "fetch_from": "admission_no.branch",
-   "fieldname": "branch",
+   "fieldname": "assessed_by",
    "fieldtype": "Link",
-   "label": "Branch",
-   "options": "Branch"
+   "label": "Assessed By",
+   "options": "Healthcare Practitioner"
   },
   {
-   "fieldname": "section_break_yoat",
-   "fieldtype": "Section Break"
+   "fieldname": "risk_factors_section",
+   "fieldtype": "Section Break",
+   "label": "Risk Factors of Suicide"
   },
   {
-   "fieldname": "options",
-   "fieldtype": "Table",
-   "label": "Options",
-   "options": "Suicidal Patient Assessment Detail"
+   "fieldname": "risk_factors_note",
+   "fieldtype": "Small Text",
+   "label": "Note",
+   "options": "Please write Yes or No, then explain (if needed)"
   },
   {
-   "fieldname": "section_break_vkfd",
-   "fieldtype": "Section Break"
+   "fieldname": "male_gender",
+   "fieldtype": "Select",
+   "label": "Male Gender",
+   "options": "\nYes\nNo"
   },
   {
-   "fieldname": "admission_old_no",
+   "depends_on": "eval:doc.male_gender === 'Yes'",
+   "fieldname": "male_gender_explanation",
+   "fieldtype": "Small Text",
+   "label": "Explanation"
+  },
+  {
+   "fieldname": "age_above_45",
+   "fieldtype": "Select",
+   "label": "Age Above 45 Years",
+   "options": "\nYes\nNo"
+  },
+  {
+   "depends_on": "eval:doc.age_above_45 === 'Yes'",
+   "fieldname": "age_above_45_explanation",
+   "fieldtype": "Small Text",
+   "label": "Explanation"
+  },
+  {
+   "fieldname": "unemployment",
+   "fieldtype": "Select",
+   "label": "Unemployment",
+   "options": "\nYes\nNo"
+  },
+  {
+   "depends_on": "eval:doc.unemployment === 'Yes'",
+   "fieldname": "unemployment_explanation",
+   "fieldtype": "Small Text",
+   "label": "Explanation"
+  },
+  {
+   "fieldname": "not_married",
+   "fieldtype": "Select",
+   "label": "Not Married",
+   "options": "\nYes\nNo"
+  },
+  {
+   "depends_on": "eval:doc.not_married === 'Yes'",
+   "fieldname": "not_married_explanation",
+   "fieldtype": "Small Text",
+   "label": "Explanation"
+  },
+  {
+   "fieldname": "not_having_kids",
+   "fieldtype": "Select",
+   "label": "Not Having Kids",
+   "options": "\nYes\nNo"
+  },
+  {
+   "depends_on": "eval:doc.not_having_kids === 'Yes'",
+   "fieldname": "not_having_kids_explanation",
+   "fieldtype": "Small Text",
+   "label": "Explanation"
+  },
+  {
+   "fieldname": "column_break_rf1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "chronic_pain",
+   "fieldtype": "Select",
+   "label": "Presence of Chronic Pain",
+   "options": "\nYes\nNo"
+  },
+  {
+   "depends_on": "eval:doc.chronic_pain === 'Yes'",
+   "fieldname": "chronic_pain_explanation",
+   "fieldtype": "Small Text",
+   "label": "Explanation"
+  },
+  {
+   "fieldname": "physical_health_condition",
+   "fieldtype": "Select",
+   "label": "Presence of a Physical Health Condition",
+   "options": "\nYes\nNo"
+  },
+  {
+   "depends_on": "eval:doc.physical_health_condition === 'Yes'",
+   "fieldname": "physical_health_condition_explanation",
+   "fieldtype": "Small Text",
+   "label": "Explanation"
+  },
+  {
+   "fieldname": "psychiatric_condition",
+   "fieldtype": "Select",
+   "label": "Presence of a Psychiatric Condition",
+   "options": "\nYes\nNo"
+  },
+  {
+   "depends_on": "eval:doc.psychiatric_condition === 'Yes'",
+   "fieldname": "psychiatric_condition_explanation",
+   "fieldtype": "Small Text",
+   "label": "Explanation"
+  },
+  {
+   "fieldname": "substance_misuse_history",
+   "fieldtype": "Select",
+   "label": "History of Substance Misuse",
+   "options": "\nYes\nNo"
+  },
+  {
+   "depends_on": "eval:doc.substance_misuse_history === 'Yes'",
+   "fieldname": "substance_misuse_history_explanation",
+   "fieldtype": "Small Text",
+   "label": "Explanation"
+  },
+  {
+   "fieldname": "previous_self_harm",
+   "fieldtype": "Select",
+   "label": "History of Previous Self-Harm-Related Safety Concerns, or Previous Suicidal Attempts",
+   "options": "\nYes\nNo"
+  },
+  {
+   "depends_on": "eval:doc.previous_self_harm === 'Yes'",
+   "fieldname": "previous_self_harm_explanation",
+   "fieldtype": "Small Text",
+   "label": "Explanation"
+  },
+  {
+   "fieldname": "column_break_rf2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "family_history_depression",
+   "fieldtype": "Select",
+   "label": "Family History of Depression",
+   "options": "\nYes\nNo"
+  },
+  {
+   "depends_on": "eval:doc.family_history_depression === 'Yes'",
+   "fieldname": "family_history_depression_explanation",
+   "fieldtype": "Small Text",
+   "label": "Explanation"
+  },
+  {
+   "fieldname": "family_history_substance_misuse",
+   "fieldtype": "Select",
+   "label": "Family History of Substance Misuse",
+   "options": "\nYes\nNo"
+  },
+  {
+   "depends_on": "eval:doc.family_history_substance_misuse === 'Yes'",
+   "fieldname": "family_history_substance_misuse_explanation",
+   "fieldtype": "Small Text",
+   "label": "Explanation"
+  },
+  {
+   "fieldname": "family_history_suicide",
+   "fieldtype": "Select",
+   "label": "Family History of Suicide",
+   "options": "\nYes\nNo"
+  },
+  {
+   "depends_on": "eval:doc.family_history_suicide === 'Yes'",
+   "fieldname": "family_history_suicide_explanation",
+   "fieldtype": "Small Text",
+   "label": "Explanation"
+  },
+  {
+   "fieldname": "suicidal_thoughts_section",
+   "fieldtype": "Section Break",
+   "label": "Suicidal / Self-Harming Thoughts"
+  },
+  {
+   "fieldname": "suicidal_thoughts_note",
+   "fieldtype": "Small Text",
+   "label": "Note",
+   "options": "Has the patient felt so overwhelmed recently that they've had thoughts of harming themselves or not wanting to live? Examples include: Relationship breakup, Family conflict, Job loss or unemployment, Abuse or DV, Legal Issues, Chronic pain or illness, Grief or Loss, Trauma"
+  },
+  {
+   "fieldname": "overwhelmed_thoughts_harming",
+   "fieldtype": "Select",
+   "label": "Has the patient felt so overwhelmed recently that they've had thoughts of harming themselves or not wanting to live?",
+   "options": "\nYes\nNo"
+  },
+  {
+   "depends_on": "eval:doc.overwhelmed_thoughts_harming === 'Yes'",
+   "fieldname": "overwhelmed_thoughts_explanation",
+   "fieldtype": "Text Editor",
+   "label": "Explanation / Triggering Factors"
+  },
+  {
+   "depends_on": "eval:doc.overwhelmed_thoughts_harming === 'Yes'",
+   "fieldname": "thoughts_occurrence_frequency",
    "fieldtype": "Data",
-   "label": "Admission Old No"
+   "label": "How often do these thoughts occur?"
+  },
+  {
+   "depends_on": "eval:doc.overwhelmed_thoughts_harming === 'Yes'",
+   "fieldname": "thoughts_present_duration",
+   "fieldtype": "Data",
+   "label": "How long have these thoughts been present?"
+  },
+  {
+   "depends_on": "eval:doc.overwhelmed_thoughts_harming === 'Yes'",
+   "fieldname": "thoughts_becoming_stronger",
+   "fieldtype": "Select",
+   "label": "Are the thoughts becoming stronger or more frequent?",
+   "options": "\nYes\nNo\nUnknown"
+  },
+  {
+   "depends_on": "eval:doc.overwhelmed_thoughts_harming === 'Yes'",
+   "fieldname": "thoughts_past_24_hours",
+   "fieldtype": "Select",
+   "label": "Have these thoughts occurred within the past 24 hours?",
+   "options": "\nYes\nNo"
+  },
+  {
+   "depends_on": "eval:doc.overwhelmed_thoughts_harming === 'Yes'",
+   "fieldname": "active_suicidal_thoughts_plans",
+   "fieldtype": "Select",
+   "label": "Are there any active suicidal thoughts or plans?",
+   "options": "\nYes\nNo"
+  },
+  {
+   "fieldname": "column_break_st1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:doc.overwhelmed_thoughts_harming === 'Yes'",
+   "fieldname": "triggering_factors",
+   "fieldtype": "Text Editor",
+   "label": "Other Triggering Factors"
+  },
+  {
+   "fieldname": "current_plan_section",
+   "fieldtype": "Section Break",
+   "label": "Current Plan"
+  },
+  {
+   "fieldname": "current_plan_note",
+   "fieldtype": "Small Text",
+   "label": "Note",
+   "options": "Has the patient made any current plans or preparations related to harming themselves?"
+  },
+  {
+   "fieldname": "made_current_plans",
+   "fieldtype": "Select",
+   "label": "Has the patient made any current plans or preparations related to harming themselves?",
+   "options": "\nYes\nNo"
+  },
+  {
+   "depends_on": "eval:doc.made_current_plans === 'Yes'",
+   "fieldname": "general_idea_harm_method",
+   "fieldtype": "Text Editor",
+   "label": "Is there a general idea of how they might attempt to harm themselves?"
+  },
+  {
+   "depends_on": "eval:doc.made_current_plans === 'Yes'",
+   "fieldname": "place_thinking_about",
+   "fieldtype": "Data",
+   "label": "Is there a place they have been thinking about?"
+  },
+  {
+   "depends_on": "eval:doc.made_current_plans === 'Yes'",
+   "fieldname": "risk_timing",
+   "fieldtype": "Select",
+   "label": "How soon do they feel at risk of acting on these thoughts?",
+   "options": "\nImmediate / within 24 hours \u2014 requires emergency action\nWithin a week\nNon-specific timing\nOther"
+  },
+  {
+   "depends_on": "eval:doc.made_current_plans === 'Yes' && doc.risk_timing === 'Other'",
+   "fieldname": "risk_timing_other",
+   "fieldtype": "Data",
+   "label": "Other Timing (Specify)"
+  },
+  {
+   "fieldname": "column_break_cp1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "access_dangerous_means",
+   "fieldtype": "Select",
+   "label": "Access to Potentially Dangerous Means",
+   "options": "\nNo\nYes"
+  },
+  {
+   "depends_on": "eval:doc.access_dangerous_means === 'Yes'",
+   "fieldname": "access_dangerous_means_details",
+   "fieldtype": "Text Editor",
+   "label": "If yes, discuss safety measures to reduce access"
+  },
+  {
+   "fieldname": "risk_taking_behaviors",
+   "fieldtype": "Select",
+   "label": "Risk-Taking or Impulsive Behaviors",
+   "options": "\nNo\nYes"
+  },
+  {
+   "depends_on": "eval:doc.risk_taking_behaviors === 'Yes'",
+   "fieldname": "risk_taking_behaviors_examples",
+   "fieldtype": "Text Editor",
+   "label": "Examples (Increased substance use, Risky or unsafe driving, Other reckless behaviors that reduce safety)"
+  },
+  {
+   "fieldname": "coping_strategies_section",
+   "fieldtype": "Section Break",
+   "label": "Coping Strategies and Support"
+  },
+  {
+   "fieldname": "reasons_to_live",
+   "fieldtype": "Text Editor",
+   "label": "Reasons to Live"
+  },
+  {
+   "fieldname": "strategies_manage_crises",
+   "fieldtype": "Text Editor",
+   "label": "Strategies Used to Manage Previous Crises"
+  },
+  {
+   "fieldname": "external_supports_available",
+   "fieldtype": "Text Editor",
+   "label": "What External Supports are Available (family, friends, and professionals)?"
+  },
+  {
+   "fieldname": "column_break_cs1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "previous_attempts",
+   "fieldtype": "Select",
+   "label": "Have you ever tried to take your own life before?",
+   "options": "\nYes\nNo"
+  },
+  {
+   "depends_on": "eval:doc.previous_attempts === 'Yes'",
+   "fieldname": "previous_attempts_count",
+   "fieldtype": "Int",
+   "label": "How many attempts?"
+  },
+  {
+   "depends_on": "eval:doc.previous_attempts === 'Yes'",
+   "fieldname": "previous_attempts_time_ago",
+   "fieldtype": "Data",
+   "label": "How long ago?"
+  },
+  {
+   "fieldname": "active_suicidal_thoughts_plans_final",
+   "fieldtype": "Select",
+   "label": "Are there any active suicidal thoughts or plans?",
+   "options": "\nYes\nNo"
+  },
+  {
+   "fieldname": "suicidal_attempt_tab",
+   "fieldtype": "Tab Break",
+   "label": "Suicidal Attempt Details"
+  },
+  {
+   "fieldname": "suicidal_attempt_section",
+   "fieldtype": "Section Break",
+   "label": "Suicidal Attempt Details (Complete if patient is coming with present complaint of attempting suicide)"
+  },
+  {
+   "fieldname": "suicidal_attempt_note",
+   "fieldtype": "Small Text",
+   "label": "Note",
+   "options": "If the patient is coming with the present complaint of attempting suicide, please fill in the following:"
+  },
+  {
+   "default": "0",
+   "fieldname": "present_complaint_attempt",
+   "fieldtype": "Check",
+   "label": "Patient is coming with present complaint of attempting suicide"
+  },
+  {
+   "depends_on": "present_complaint_attempt",
+   "fieldname": "precipitate_trigger",
+   "fieldtype": "Text Editor",
+   "label": "What seemed to precipitate or trigger the suicide?"
+  },
+  {
+   "depends_on": "present_complaint_attempt",
+   "fieldname": "planned_or_impulsive",
+   "fieldtype": "Select",
+   "label": "Did the suicide appear planned, or was it more impulsive?",
+   "options": "\nPlanned\nImpulsive\nBoth"
+  },
+  {
+   "depends_on": "present_complaint_attempt",
+   "fieldname": "method_used",
+   "fieldtype": "Text Editor",
+   "label": "What method was used?"
+  },
+  {
+   "depends_on": "present_complaint_attempt",
+   "fieldname": "message_note_left",
+   "fieldtype": "Select",
+   "label": "Was any form of message, note or communication left before the suicide?",
+   "options": "\nYes\nNo"
+  },
+  {
+   "fieldname": "column_break_sa1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "present_complaint_attempt",
+   "fieldname": "under_influence_substance",
+   "fieldtype": "Select",
+   "label": "Was the patient under the influence of any substance at the time?",
+   "options": "\nYes\nNo"
+  },
+  {
+   "depends_on": "eval:doc.present_complaint_attempt && doc.under_influence_substance === 'Yes'",
+   "fieldname": "substance_details",
+   "fieldtype": "Text Editor",
+   "label": "Substance Details"
+  },
+  {
+   "depends_on": "present_complaint_attempt",
+   "fieldname": "patient_alone",
+   "fieldtype": "Select",
+   "label": "Was the patient alone during the suicide?",
+   "options": "\nYes\nNo"
+  },
+  {
+   "depends_on": "present_complaint_attempt",
+   "fieldname": "actions_reduced_noticing",
+   "fieldtype": "Text Editor",
+   "label": "Were there actions that reduced the likelihood of others noticing what was happening?"
+  },
+  {
+   "depends_on": "present_complaint_attempt",
+   "fieldname": "sought_help_afterward",
+   "fieldtype": "Select",
+   "label": "Did the patient seek help afterward, or were they reached by someone else?",
+   "options": "\nPatient sought help\nReached by someone else\nBoth\nNeither"
+  },
+  {
+   "depends_on": "present_complaint_attempt",
+   "fieldname": "patient_feelings_reflection",
+   "fieldtype": "Text Editor",
+   "label": "How does the patient feel when reflecting on what happened? (Examples: regret, relief to be safe now, distress, confusion.)"
+  },
+  {
+   "depends_on": "present_complaint_attempt",
+   "fieldname": "internal_coping_skills",
+   "fieldtype": "Text Editor",
+   "label": "What internal coping skills do they have to stay safe?"
+  },
+  {
+   "depends_on": "present_complaint_attempt",
+   "fieldname": "active_suicidal_thoughts_plans_attempt",
+   "fieldtype": "Select",
+   "label": "Are there any active suicidal thoughts or plans?",
+   "options": "\nYes\nNo"
+  },
+  {
+   "fieldname": "reference_section",
+   "fieldtype": "Section Break",
+   "label": "Reference"
+  },
+  {
+   "fieldname": "ip_risk_analysis_reference",
+   "fieldtype": "Link",
+   "label": "IP Risk Analysis Reference",
+   "options": "IP Risk Analysis"
+  },
+  {
+   "fieldname": "additional_notes_section",
+   "fieldtype": "Section Break",
+   "label": "Additional Notes"
+  },
+  {
+   "fieldname": "additional_notes",
+   "fieldtype": "Text Editor",
+   "label": "Additional Notes"
   }
  ],
- "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-12-22 11:26:52.503403",
+ "modified": "2026-01-07 16:49:07.982269",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Suicidal Patient Assessment",
+ "naming_rule": "By \"Naming Series\" field",
  "owner": "Administrator",
  "permissions": [
   {
@@ -82,6 +659,18 @@
    "report": 1,
    "role": "System Manager",
    "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "role": "Physician",
+   "write": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "role": "Nursing User",
    "write": 1
   }
  ],

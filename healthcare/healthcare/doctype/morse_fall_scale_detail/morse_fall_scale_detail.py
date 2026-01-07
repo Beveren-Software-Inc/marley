@@ -16,3 +16,4 @@ class MorseFallScaleDetail(Document):
 
 
 
+

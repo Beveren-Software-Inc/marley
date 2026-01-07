@@ -17,8 +17,11 @@
   "column_break_14",
   "admission_type",
   "patient_category",
-  "branch",
   "risk_assessment_checklist_tab",
+  "suicidal_assessment_reference_section",
+  "suicidal_patient_assessment",
+  "column_break_sa_ref",
+  "create_suicidal_assessment",
   "risk_toward_self_section",
   "self_harming",
   "self_harming_description",
@@ -66,7 +69,7 @@
    "options": "fa fa-user"
   },
   {
-   "fetch_from": "admission_no.file_number",
+   "fetch_from": "admission_no.patient",
    "fieldname": "file_number",
    "fieldtype": "Link",
    "in_list_view": 1,
@@ -108,16 +111,29 @@
    "fieldtype": "Column Break"
   },
   {
-   "fetch_from": "admission_no.branch",
-   "fieldname": "branch",
-   "fieldtype": "Link",
-   "label": "Branch",
-   "options": "Branch"
-  },
-  {
    "fieldname": "risk_assessment_checklist_tab",
    "fieldtype": "Tab Break",
    "label": "Risk Assessment Checklist"
+  },
+  {
+   "fieldname": "suicidal_assessment_reference_section",
+   "fieldtype": "Section Break",
+   "label": "Suicidal Risk Assessment"
+  },
+  {
+   "fieldname": "suicidal_patient_assessment",
+   "fieldtype": "Link",
+   "label": "Suicidal Patient Assessment",
+   "options": "Suicidal Patient Assessment"
+  },
+  {
+   "fieldname": "column_break_sa_ref",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "create_suicidal_assessment",
+   "fieldtype": "Button",
+   "label": "Create Suicidal Assessment"
   },
   {
    "fieldname": "risk_toward_self_section",
@@ -334,7 +350,7 @@
  "icon": "fa fa-user",
  "links": [],
  "max_attachments": 50,
- "modified": "2025-12-22 12:20:55.970794",
+ "modified": "2026-01-07 16:31:34.962553",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "IP Risk Analysis",
