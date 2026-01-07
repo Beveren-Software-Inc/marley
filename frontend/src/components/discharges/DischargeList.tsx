@@ -135,3 +135,4 @@ export const DischargeList = ({ patient, admission }: DischargeListProps) => {
 }
 
 
+

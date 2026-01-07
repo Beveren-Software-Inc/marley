@@ -1,18 +1,30 @@
 import { useState, useEffect } from 'react'
 import { fetchClinicalNotes, type ClinicalNote } from '../../services/clinicalNotes'
 
+// Helper function to strip HTML tags and decode HTML entities
+const stripHtml = (html: string): string => {
+  if (!html) return ''
+  // Create a temporary div element to parse HTML
+  const tmp = document.createElement('div')
+  tmp.innerHTML = html
+  // Get text content and clean up whitespace
+  return tmp.textContent || tmp.innerText || ''
+}
+
 interface ClinicalNotesListProps {
   patient?: string
   medicalRole?: string
   clinicalNoteType?: string
   noteType?: string
+  hideTypes?: boolean
 }
 
 export const ClinicalNotesList = ({ 
   patient, 
   medicalRole, 
   clinicalNoteType,
-  noteType 
+  noteType,
+  hideTypes = false,
 }: ClinicalNotesListProps) => {
   const [clinicalNotes, setClinicalNotes] = useState<ClinicalNote[]>([])
   const [loading, setLoading] = useState(true)
@@ -63,8 +75,8 @@ export const ClinicalNotesList = ({
   }
 
   return (
-    <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
-      <table className="w-full">
+    <div className="min-w-full">
+      <table className="w-full min-w-[800px]">
         <thead className="bg-slate-50 border-b border-slate-200">
           <tr>
             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
@@ -79,12 +91,16 @@ export const ClinicalNotesList = ({
             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
               Medical Role
             </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-              Note Type
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-              Clinical Note Type
-            </th>
+            {!hideTypes && (
+              <>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+                  Note Type
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+                  Clinical Note Type
+                </th>
+              </>
+            )}
             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
               Note
             </th>
@@ -107,15 +123,22 @@ export const ClinicalNotesList = ({
               <td className="px-4 py-3 text-sm text-slate-700">
                 {note.medical_role_name || note.medical_role || '-'}
               </td>
-              <td className="px-4 py-3 text-sm text-slate-700">
-                {note.note_type || '-'}
-              </td>
-              <td className="px-4 py-3 text-sm text-slate-700">
-                {note.clinical_note_type_name || note.clinical_note_type || '-'}
-              </td>
+              {!hideTypes && (
+                <>
+                  <td className="px-4 py-3 text-sm text-slate-700">
+                    {note.note_type || '-'}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-slate-700">
+                    {note.clinical_note_type_name || note.clinical_note_type || '-'}
+                  </td>
+                </>
+              )}
               <td className="px-4 py-3 text-sm text-slate-700 max-w-md">
-                <div className="truncate" title={note.note || ''}>
-                  {note.note ? (note.note.length > 100 ? `${note.note.substring(0, 100)}...` : note.note) : '-'}
+                <div className="truncate" title={note.note ? stripHtml(note.note) : ''}>
+                  {note.note ? (() => {
+                    const plainText = stripHtml(note.note)
+                    return plainText.length > 100 ? `${plainText.substring(0, 100)}...` : plainText
+                  })() : '-'}
                 </div>
               </td>
             </tr>

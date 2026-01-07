@@ -56,7 +56,47 @@ export async function createLabTestFromServiceRequest(serviceRequestName: string
   if (resData?.message) {
     return resData.message
   } else {
-    throw new Error('Failed to create lab test from service request')
+    // Extract error message from Frappe response
+    const errorMessage = resData?.exc_type 
+      ? `${resData.exc_type}: ${resData.exc || resData.message || 'Failed to create lab test from service request'}`
+      : resData?.exc || resData?.message || 'Failed to create lab test from service request'
+    throw new Error(errorMessage)
+  }
+}
+
+export interface CreateServiceRequestData {
+  patient: string
+  template_dt: string
+  template_dn: string
+  practitioner?: string
+  order_date?: string
+  order_time?: string
+  department?: string
+  status?: string
+  priority?: string
+  intent?: string
+  quantity?: number
+  occurrence_date?: string
+  occurrence_time?: string
+}
+
+export async function createServiceRequest(data: CreateServiceRequestData): Promise<ServiceRequest> {
+  const response = await fetch(
+    '/api/method/healthcare.api.service_request.create_service_request',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ data })
+    }
+  )
+  const resData = await response.json()
+
+  if (resData?.message) {
+    return resData.message as ServiceRequest
+  } else {
+    throw new Error(resData?.exc_type ? resData.exc : 'Failed to create service request')
   }
 }
 

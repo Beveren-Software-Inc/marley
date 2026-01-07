@@ -583,3 +583,4 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
 
 
 
+

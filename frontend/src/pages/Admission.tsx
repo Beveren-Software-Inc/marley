@@ -12,6 +12,7 @@ export const AdmissionPage = () => {
   const [searchParams, setSearchParams] = useSearchParams()
   const admissionFromUrl = searchParams.get('admission')
   const searchFromUrl = searchParams.get('search')
+  const patientFromUrl = searchParams.get('patient')
   const [admissionPatient, setAdmissionPatient] = useState<string | undefined>(undefined)
   const [searchQuery, setSearchQuery] = useState<string>(searchFromUrl || '')
   const [showCreateAdmission, setShowCreateAdmission] = useState(false)
@@ -65,7 +66,7 @@ export const AdmissionPage = () => {
     // Show admission details with warnings and lab tests
     return (
       <div className="flex flex-col h-full">
-        <header className="bg-primary text-white px-4 py-3 flex items-center justify-between border-b border-white/20">
+        <header className="sticky top-0 z-10 bg-primary text-white px-4 py-3 flex items-center justify-between border-b border-white/20">
           <div className="flex items-center gap-4">
             <button
               onClick={handleBackToList}
@@ -113,7 +114,7 @@ export const AdmissionPage = () => {
   return (
     <>
       <div className="flex flex-col h-full">
-        <header className="flex items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
+        <header className="sticky top-0 z-10 flex items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
           <div className="flex-1 min-w-0 max-w-xl">
             <div className="relative flex items-center gap-2">
               <input
@@ -153,7 +154,11 @@ export const AdmissionPage = () => {
         </header>
 
         <div className="flex-1 overflow-y-auto p-4">
-          <AdmissionList onAdmissionSelect={handleAdmissionSelect} searchQuery={searchQuery} />
+          <AdmissionList 
+            onAdmissionSelect={handleAdmissionSelect} 
+            searchQuery={searchQuery}
+            patient={patientFromUrl || undefined}
+          />
         </div>
       </div>
 

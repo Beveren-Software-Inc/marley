@@ -7,11 +7,13 @@ from frappe import _
 
 
 @frappe.whitelist()
-def get_patient_visits(status=None, search=None):
-	"""Get list of Patient Visits with optional status filter and search"""
+def get_patient_visits(status=None, search=None, patient=None):
+	"""Get list of Patient Visits with optional status, search, and patient filter"""
 	filters = {}
 	if status:
 		filters['status'] = status
+	if patient:
+		filters['patient'] = patient
 
 	if search:
 		# Search by visit name, patient name, file number, or practitioner
@@ -32,14 +34,18 @@ def get_patient_visits(status=None, search=None):
 			FROM `tabPatient Visit` pv
 			LEFT JOIN `tabPatient` p ON pv.patient = p.name
 			WHERE 
-				pv.name LIKE %(search)s
-				OR pv.patient_name LIKE %(search)s
-				OR pv.patient LIKE %(search)s
-				OR p.file_no LIKE %(search)s
-				OR pv.practitioner_name LIKE %(search)s
-				OR pv.practitioner LIKE %(search)s
+				(%(patient)s IS NULL OR pv.patient = %(patient)s)
+				AND (
+					pv.name LIKE %(search)s
+					OR pv.patient_name LIKE %(search)s
+					OR pv.patient LIKE %(search)s
+					OR p.file_no LIKE %(search)s
+					OR pv.practitioner_name LIKE %(search)s
+					OR pv.practitioner LIKE %(search)s
+				)
 		""", {
-			'search': f'%{search}%'
+			'search': f'%{search}%',
+			'patient': patient
 		}, as_dict=True)
 		
 		# Apply status filter if provided

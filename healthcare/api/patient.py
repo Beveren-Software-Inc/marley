@@ -12,6 +12,9 @@ def search_patients(search=None, limit=20):
 	if not search:
 		return []
 	
+	# Convert limit to integer (it comes as string from URL params)
+	limit = int(limit) if limit else 20
+	
 	patients = frappe.db.sql("""
 		SELECT 
 			p.name,
@@ -40,6 +43,10 @@ def search_patients(search=None, limit=20):
 @frappe.whitelist()
 def get_patients(limit=50, offset=0, search=None):
 	"""Get list of patients"""
+	# Convert limit and offset to integers (they come as strings from URL params)
+	limit = int(limit) if limit else 50
+	offset = int(offset) if offset else 0
+	
 	filters = {}
 	
 	if search:
@@ -147,4 +154,37 @@ def get_patient_medical_history(patient):
 		'other_risk_factors': patient_doc.other_risk_factors if hasattr(patient_doc, 'other_risk_factors') else None,
 		'patient_name': patient_doc.patient_name,
 		'file_no': patient_doc.name
+	}
+
+
+@frappe.whitelist()
+def get_patient_summary(patient):
+	"""Get basic patient demographic information for header cards"""
+	if not patient:
+		frappe.throw(_("Patient is required"))
+
+	patient_doc = frappe.get_doc('Patient', patient)
+
+	# Try to get blacklist info from the latest Patient Visit
+	is_blacklist = 0
+	last_visit = frappe.db.get_value(
+		'Patient Visit',
+		{'patient': patient},
+		['is_blacklist'],
+		as_dict=True,
+		order_by='creation desc'
+	)
+	if last_visit and 'is_blacklist' in last_visit:
+		is_blacklist = last_visit.get('is_blacklist') or 0
+
+	return {
+		'name': patient_doc.name,
+		'patient_name': patient_doc.patient_name,
+		'file_no': getattr(patient_doc, 'file_no', None) or patient_doc.name,
+		'dob': getattr(patient_doc, 'dob', None),
+		'sex': getattr(patient_doc, 'sex', None),
+		'marital_status': getattr(patient_doc, 'marital_status', None),
+		'mobile': getattr(patient_doc, 'mobile', None),
+		'category': getattr(patient_doc, 'category', None),
+		'is_blacklist': is_blacklist,
 	}

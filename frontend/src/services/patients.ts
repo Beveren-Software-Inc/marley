@@ -26,6 +26,18 @@ export interface PatientMedicalHistory {
   file_no?: string
 }
 
+export interface PatientSummary {
+  name: string
+  patient_name: string
+  file_no: string
+  dob?: string
+  sex?: string
+  marital_status?: string
+  mobile?: string
+  category?: string
+  is_blacklist?: number
+}
+
 export async function searchPatients(query: string, limit?: number): Promise<PatientListItem[]> {
   const params = new URLSearchParams()
   params.append('search', query)
@@ -116,6 +128,19 @@ export async function fetchPatientMedicalHistory(patient: string): Promise<Patie
 
   if (resData?.message) {
     return resData.message as PatientMedicalHistory
+  } else {
+    throw new Error('Invalid response format')
+  }
+}
+
+export async function fetchPatientSummary(patient: string): Promise<PatientSummary> {
+  const response = await fetch(
+    `/api/method/healthcare.api.patient.get_patient_summary?patient=${encodeURIComponent(patient)}`
+  )
+  const resData = await response.json()
+
+  if (resData?.message) {
+    return resData.message as PatientSummary
   } else {
     throw new Error('Invalid response format')
   }

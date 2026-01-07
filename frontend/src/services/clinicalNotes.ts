@@ -17,6 +17,16 @@ export interface ClinicalNote {
   branch?: string
 }
 
+export interface CreateClinicalNoteData {
+  patient: string
+  note: string
+  clinical_note_type?: string
+  note_type?: string
+  medical_role?: string
+  practitioner?: string
+  posting_date?: string
+}
+
 export async function fetchClinicalNotes(
   limit: number = 50,
   offset: number = 0,
@@ -43,6 +53,32 @@ export async function fetchClinicalNotes(
   } else {
     return []
   }
+}
+
+export async function createClinicalNote(data: CreateClinicalNoteData) {
+  const csrf = (window as any).csrf_token
+
+  const response = await fetch('/api/method/healthcare.api.clinical_note.create_clinical_note', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
+    },
+    body: JSON.stringify({ data }),
+  })
+
+  const resData = await response.json()
+
+  if (!response.ok || resData.exc) {
+    const message =
+      resData?.message?.message ||
+      resData?.message ||
+      resData?.exc ||
+      'Failed to create clinical note'
+    throw new Error(message)
+  }
+
+  return resData.message
 }
 
 

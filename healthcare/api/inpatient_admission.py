@@ -46,11 +46,13 @@ def get_patient_active_admission(patient):
 
 
 @frappe.whitelist()
-def get_inpatient_records(status=None, search=None):
-	"""Get list of Inpatient Records with optional status filter and search"""
+def get_inpatient_records(status=None, search=None, patient=None):
+	"""Get list of Inpatient Records with optional status, search, and patient filter"""
 	filters = {}
 	if status:
 		filters['status'] = status
+	if patient:
+		filters['patient'] = patient
 
 	if search:
 		# Search by admission number, patient name, or file number
@@ -71,12 +73,16 @@ def get_inpatient_records(status=None, search=None):
 			FROM `tabInpatient Admission` ia
 			LEFT JOIN `tabPatient` p ON ia.patient = p.name
 			WHERE 
-				ia.name LIKE %(search)s
-				OR ia.patient_name LIKE %(search)s
-				OR ia.patient LIKE %(search)s
-				OR p.file_no LIKE %(search)s
+				(%(patient)s IS NULL OR ia.patient = %(patient)s)
+				AND (
+					ia.name LIKE %(search)s
+					OR ia.patient_name LIKE %(search)s
+					OR ia.patient LIKE %(search)s
+					OR p.file_no LIKE %(search)s
+				)
 		""", {
-			'search': f'%{search}%'
+			'search': f'%{search}%',
+			'patient': patient
 		}, as_dict=True)
 		
 		# Apply status filter if provided

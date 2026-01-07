@@ -16,10 +16,11 @@ export interface PatientVisit {
   company?: string
 }
 
-export async function fetchPatientVisits(status?: string, search?: string) {
+export async function fetchPatientVisits(status?: string, search?: string, patient?: string) {
   const params = new URLSearchParams()
   if (status) params.append('status', status)
   if (search) params.append('search', search)
+  if (patient) params.append('patient', patient)
   
   const url = `/api/method/healthcare.api.patient_visit.get_patient_visits${params.toString() ? `?${params.toString()}` : ''}`
   

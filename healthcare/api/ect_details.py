@@ -62,3 +62,4 @@ def get_ect_details(limit=50, offset=0, patient=None):
 	return ect_details
 
 
+

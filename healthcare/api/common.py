@@ -5,6 +5,8 @@
 import frappe
 from frappe import _
 
+print("Module healthcare.api.common loaded")
+
 
 @frappe.whitelist()
 def get_medical_departments(search=None):
@@ -226,5 +228,189 @@ def get_observation_templates(search=None, department=None):
 		order_by='observation'
 	)
 	return [{'name': t.name, 'label': t.observation or t.name, 'category': t.observation_category, 'department': t.medical_department} for t in templates]
+
+
+@frappe.whitelist()
+def get_items(search=None):
+	"""Get list of Items for service selection"""
+	filters = {}
+	if search:
+		filters['item_name'] = ['like', f'%{search}%']
+		# Also search by item_code
+		items = frappe.db.sql("""
+			SELECT name, item_code, item_name, item_group
+			FROM `tabItem`
+			WHERE 
+				disabled = 0
+				AND (item_name LIKE %(search)s OR item_code LIKE %(search)s)
+			ORDER BY item_name
+			LIMIT 50
+		""", {
+			'search': f'%{search}%'
+		}, as_dict=True)
+	else:
+		items = frappe.get_all(
+			'Item',
+			filters={**filters, 'disabled': 0},
+			fields=['name', 'item_code', 'item_name', 'item_group'],
+			limit=50,
+			order_by='item_name'
+		)
+	
+	return [{'name': i.name, 'label': i.item_name or i.item_code or i.name, 'item_code': i.item_code, 'item_group': i.item_group} for i in items]
+
+
+@frappe.whitelist()
+def get_service_request_template_types():
+	"""Get list of valid template types for Service Request"""
+	order_template_doctypes = [
+		"Therapy Type",
+		"Lab Test Template",
+		"Clinical Procedure Template",
+		"Appointment Type",
+		"Observation Template",
+		"Healthcare Activity"
+	]
+	
+	# Get display names for these doctypes
+	doctypes = frappe.get_all(
+		'DocType',
+		filters={'name': ['in', order_template_doctypes]},
+		fields=['name'],
+		limit=50
+	)
+	
+	return [{'name': d.name, 'label': d.name} for d in doctypes]
+
+
+@frappe.whitelist()
+def get_service_request_templates(template_dt, search=None, department=None):
+	"""Get list of templates based on template_dt (Order Template Type)"""
+	if not template_dt:
+		return []
+	
+	filters = {}
+	if search:
+		# Different fields for different template types
+		if template_dt == 'Lab Test Template':
+			filters['lab_test_name'] = ['like', f'%{search}%']
+		elif template_dt == 'Clinical Procedure Template':
+			filters['procedure_name'] = ['like', f'%{search}%']
+		elif template_dt == 'Observation Template':
+			filters['observation'] = ['like', f'%{search}%']
+		elif template_dt == 'Therapy Type':
+			filters['therapy_type'] = ['like', f'%{search}%']
+		elif template_dt == 'Appointment Type':
+			filters['name'] = ['like', f'%{search}%']
+		elif template_dt == 'Healthcare Activity':
+			filters['activity_type'] = ['like', f'%{search}%']
+	
+	if department:
+		if template_dt == 'Lab Test Template':
+			filters['department'] = department
+		elif template_dt == 'Clinical Procedure Template':
+			filters['medical_department'] = department
+		elif template_dt == 'Observation Template':
+			filters['medical_department'] = department
+	
+	# Get templates based on type
+	if template_dt == 'Lab Test Template':
+		templates = frappe.get_all(
+			'Lab Test Template',
+			filters={**filters, 'disabled': 0},
+			fields=['name', 'lab_test_name', 'department'],
+			limit=50,
+			order_by='lab_test_name'
+		)
+		return [{'name': t.name, 'label': t.lab_test_name or t.name, 'department': t.department} for t in templates]
+	
+	elif template_dt == 'Clinical Procedure Template':
+		templates = frappe.get_all(
+			'Clinical Procedure Template',
+			filters=filters,
+			fields=['name', 'procedure_name', 'medical_department'],
+			limit=50,
+			order_by='procedure_name'
+		)
+		return [{'name': t.name, 'label': t.procedure_name or t.name, 'department': t.medical_department} for t in templates]
+	
+	elif template_dt == 'Observation Template':
+		templates = frappe.get_all(
+			'Observation Template',
+			filters=filters,
+			fields=['name', 'observation', 'medical_department'],
+			limit=50,
+			order_by='observation'
+		)
+		return [{'name': t.name, 'label': t.observation or t.name, 'department': t.medical_department} for t in templates]
+	
+	elif template_dt == 'Therapy Type':
+		templates = frappe.get_all(
+			'Therapy Type',
+			filters=filters,
+			fields=['name', 'therapy_type'],
+			limit=50,
+			order_by='therapy_type'
+		)
+		return [{'name': t.name, 'label': t.therapy_type or t.name} for t in templates]
+	
+	elif template_dt == 'Appointment Type':
+		templates = frappe.get_all(
+			'Appointment Type',
+			filters=filters,
+			fields=['name'],
+			limit=50,
+			order_by='name'
+		)
+		return [{'name': t.name, 'label': t.name} for t in templates]
+	
+	elif template_dt == 'Healthcare Activity':
+		templates = frappe.get_all(
+			'Healthcare Activity',
+			filters=filters,
+			fields=['name', 'activity_type'],
+			limit=50,
+			order_by='activity_type'
+		)
+		return [{'name': t.name, 'label': t.activity_type or t.name} for t in templates]
+	
+	return []
+
+
+@frappe.whitelist()
+def get_service_request_statuses(search=None):
+	"""Get list of Service Request statuses (Code Values)
+	
+	Returns Code Value records where the name is in format: {code_value}-{code_system}
+	The name field is what should be used as the Link value in Service Request status field.
+	
+	Code System uses autoname: field:code_system, so the name is the same as code_system field value.
+	"""
+	print("=" * 50)
+	print("API FUNCTION CALLED: get_service_request_statuses")
+	print("=" * 50)
+	
+	# Code System uses autoname: field:code_system, so name = code_system field value
+	# So we can use "Request Status" directly as the filter
+	filters = {'code_system': 'Request Status'}
+	
+	if search:
+		filters['display'] = ['like', f'%{search}%']
+	
+	# Filter Code Values by the Code System name (Link field)
+	statuses = frappe.get_all(
+		'Code Value',
+		filters=filters,
+		fields=['name', 'code_value', 'display', 'code_system'],
+		limit=50,
+		order_by='code_value'
+	)
+	print("Number of statuses found:", len(statuses))
+	print("Statuses:", statuses)
+	
+	# Return the name field which is the Link value (format: code_value-code_system)
+	result = [{'name': s.name, 'label': s.display or s.code_value, 'code_value': s.code_value, 'code_system': s.code_system} for s in statuses]
+	print("Returning result:", result)
+	return result
 
 

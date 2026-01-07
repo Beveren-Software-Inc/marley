@@ -4,6 +4,7 @@
 
 import frappe
 from frappe import _
+from frappe.utils import nowdate
 
 
 @frappe.whitelist()
@@ -70,5 +71,42 @@ def get_clinical_notes(limit=50, offset=0, patient=None, medical_role=None, clin
 				note['clinical_note_type_name'] = clinical_note_type_name
 	
 	return clinical_notes
+
+
+@frappe.whitelist()
+def create_clinical_note(data):
+	"""Create a new Clinical Note (used for Diagnosis Detail etc.)"""
+	if isinstance(data, str):
+		import json
+		data = json.loads(data)
+
+	patient = data.get('patient')
+	note = data.get('note')
+
+	if not patient:
+		frappe.throw(_("Patient is required"))
+	if not note:
+		frappe.throw(_("Note is required"))
+
+	doc = frappe.get_doc({
+		'doctype': 'Clinical Note',
+		'patient': patient,
+		'clinical_note_type': data.get('clinical_note_type'),
+		'note_type': data.get('note_type'),
+		'medical_role': data.get('medical_role'),
+		'practitioner': data.get('practitioner'),
+		'posting_date': data.get('posting_date') or nowdate(),
+		'note': note,
+	})
+
+	doc.insert()
+
+	return {
+		'name': doc.name,
+		'patient': doc.patient,
+		'clinical_note_type': doc.clinical_note_type,
+		'note_type': doc.note_type,
+		'medical_role': doc.medical_role,
+	}
 
 
