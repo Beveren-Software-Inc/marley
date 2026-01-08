@@ -73,3 +73,4 @@ def get_discharges(limit=50, offset=0, patient=None, admission=None):
 
 
 
+

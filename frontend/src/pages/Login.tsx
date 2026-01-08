@@ -22,27 +22,42 @@ export const LoginPage = () => {
           navigate(from, { replace: true })
         } else {
           // Determine default route based on user role
-          const userRole = (user.role || user.role_profile_name || '').toLowerCase()
-          const userName = user.name?.toLowerCase() || ''
+          const userRole = (user.role || '').toLowerCase()
+          const userRoleProfile = (user.role_profile_name || '').toLowerCase()
+          const userName = (user.name || '').toLowerCase()
           let defaultRoute = '/doctor' // Default fallback
           
-          // Administrator can access any page, default to doctor
-          if (userName === 'administrator') {
+          console.log('Determining default route for user:', { userName, userRole, userRoleProfile, role: user.role, role_profile_name: user.role_profile_name })
+          
+          // Administrator and System Manager can access any page, default to doctor
+          const isAdmin = userName === 'administrator' || 
+                        userRole.includes('administrator') || 
+                        userRoleProfile.includes('administrator') ||
+                        userRole.includes('system manager') ||
+                        userRoleProfile.includes('system manager')
+          
+          if (isAdmin) {
             defaultRoute = '/doctor'
-          } else if (userRole.includes('doctor')) {
+          } else if (userRole.includes('physician') || userRole.includes('practitioner') || userRole.includes('doctor') ||
+                     userRoleProfile.includes('physician') || userRoleProfile.includes('practitioner') || userRoleProfile.includes('doctor')) {
             defaultRoute = '/doctor'
-          } else if (userRole.includes('nurse')) {
+          } else if (userRole.includes('nursing') || userRole.includes('nurse') ||
+                     userRoleProfile.includes('nursing') || userRoleProfile.includes('nurse')) {
             defaultRoute = '/nurse'
-          } else if (userRole.includes('lab')) {
+          } else if (userRole.includes('laboratory') || userRole.includes('lab') ||
+                     userRoleProfile.includes('laboratory') || userRoleProfile.includes('lab')) {
             defaultRoute = '/lab'
-          } else if (userRole.includes('pharmacist') || userRole.includes('pharmacy')) {
+          } else if (userRole.includes('pharmacist') || userRole.includes('pharmacy') ||
+                     userRoleProfile.includes('pharmacist') || userRoleProfile.includes('pharmacy')) {
             defaultRoute = '/pharmacy'
-          } else if (userRole.includes('admin') || userRole.includes('reception')) {
+          } else if (userRole.includes('admin') || userRole.includes('reception') ||
+                     userRoleProfile.includes('admin') || userRoleProfile.includes('reception')) {
             defaultRoute = '/reception'
-          } else if (userRole.includes('patient')) {
+          } else if (userRole.includes('patient') || userRoleProfile.includes('patient')) {
             defaultRoute = '/patient'
           }
           
+          console.log('Navigating to default route:', defaultRoute)
           navigate(defaultRoute, { replace: true })
         }
       }, 100)
