@@ -22,6 +22,8 @@ import { CreateDoctorServiceModal } from '../components/services/CreateDoctorSer
 import { AdmissionPage } from './Admission'
 import { NotificationBell } from '../components/notifications/NotificationBell'
 import { UserMenu } from '../components/user/UserMenu'
+import { ServiceRequestList } from '../components/serviceRequests/ServiceRequestList'
+import { CreateServiceRequestModal } from '../components/serviceRequests/CreateServiceRequestModal'
 
 const nurseNav = [
   { label: 'Admission', screen: 'n-reg' }
@@ -43,6 +45,8 @@ export const NursePage = () => {
   const [observationRefreshKey, setObservationRefreshKey] = useState(0)
   const [dischargeRefreshKey, setDischargeRefreshKey] = useState(0)
   const [diagnosisRefreshKey, setDiagnosisRefreshKey] = useState(0)
+  const [showServiceRequestModal, setShowServiceRequestModal] = useState(false)
+  const [serviceRequestRefreshKey, setServiceRequestRefreshKey] = useState(0)
   const screen = searchParams.get('screen')
 
   // Sync selectedPatient with URL on mount and when URL changes
@@ -82,7 +86,7 @@ export const NursePage = () => {
   if (screen === 'n-ect') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
           <div className="flex-1 min-w-0">
             <PatientSearch
               selectedPatient={selectedPatient || ''}
@@ -109,7 +113,7 @@ export const NursePage = () => {
   if (screen === 'dos') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
           <div className="flex-1 min-w-0">
             <PatientSearch
               selectedPatient={selectedPatient || ''}
@@ -139,7 +143,7 @@ export const NursePage = () => {
   if (screen === 'nurse') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
           <div className="flex-1 min-w-0">
             <PatientSearch
               selectedPatient={selectedPatient || ''}
@@ -169,7 +173,7 @@ export const NursePage = () => {
   if (screen === 'n-obs') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
           <div className="flex-1 min-w-0">
             <PatientSearch
               selectedPatient={selectedPatient || ''}
@@ -215,7 +219,7 @@ export const NursePage = () => {
   if (screen === 'n-tpr') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
           <div className="flex-1 min-w-0">
             <PatientSearch
               selectedPatient={selectedPatient || ''}
@@ -267,7 +271,7 @@ export const NursePage = () => {
 
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
           <div className="flex-1 min-w-0">
             <PatientSearch
               selectedPatient={selectedPatient || ''}
@@ -318,7 +322,7 @@ export const NursePage = () => {
   if (screen === 'n-package') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
           <div className="flex-1 min-w-0">
             <PatientSearch
               selectedPatient={selectedPatient || ''}
@@ -343,7 +347,7 @@ export const NursePage = () => {
 
   return (
     <div className="flex flex-col">
-      <header className="flex items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
+      <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
         <div className="flex-1 min-w-0">
           <PatientSearch
             selectedPatient={selectedPatient || ''}
@@ -439,6 +443,28 @@ export const NursePage = () => {
             </section>
           </div>
 
+          <div className="grid gap-4 md:grid-cols-2 px-4 pb-4">
+            {/* Card 5: Service Requests */}
+            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
+              <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
+                <span>Service Requests</span>
+                <button
+                  onClick={() => setShowServiceRequestModal(true)}
+                  className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
+                  title="Add Service Request"
+                >
+                  +
+                </button>
+              </div>
+              <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
+                <ServiceRequestList 
+                  patient={selectedPatient} 
+                  refreshKey={serviceRequestRefreshKey}
+                />
+              </div>
+            </section>
+          </div>
+
           <div className="px-4 pb-4">
             <DoctorServiceDetailsTable 
               patient={selectedPatient} 
@@ -524,6 +550,18 @@ export const NursePage = () => {
             // TODO: Refresh service details table when backend is wired
           }}
           patient={selectedPatient}
+        />
+      )}
+
+      {showServiceRequestModal && (
+        <CreateServiceRequestModal
+          onClose={() => setShowServiceRequestModal(false)}
+          onSuccess={() => {
+            setServiceRequestRefreshKey(prev => prev + 1)
+            setShowServiceRequestModal(false)
+            toast.success('Service request created successfully')
+          }}
+          initialPatient={selectedPatient}
         />
       )}
     </div>

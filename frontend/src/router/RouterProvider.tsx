@@ -5,8 +5,6 @@ import { DoctorPage } from '../pages/Doctor'
 import { NursePage } from '../pages/Nurse'
 import { PatientPage } from '../pages/Patient'
 import { LabPage } from '../pages/Lab'
-import { PharmacistPage } from '../pages/Pharmacist'
-import { AdminPage } from '../pages/Admin'
 import { ReceptionistPage } from '../pages/Receptionist'
 import { SettingsPage } from '../pages/Settings'
 
@@ -46,26 +44,10 @@ export const RouterProvider = () => {
       )
     },
     {
-      path: '/pharmacy',
-      element: (
-        <RoleGuard roles={['pharmacist']}>
-          <PharmacistPage />
-        </RoleGuard>
-      )
-    },
-    {
       path: '/reception',
       element: (
         <RoleGuard roles={['admin']}>
           <ReceptionistPage />
-        </RoleGuard>
-      )
-    },
-    {
-      path: '/admin',
-      element: (
-        <RoleGuard roles={['admin']}>
-          <AdminPage />
         </RoleGuard>
       )
     },

@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
-import { ChevronDown, ChevronRight } from 'lucide-react'
+import { ChevronDown, ChevronRight, Menu, X } from 'lucide-react'
 import { doctorScreens } from '../../config/doctorScreens'
 
 const nurseScreens = [
@@ -55,14 +55,6 @@ const labScreens = [
   { id: 'l-report', title: 'Lab Test Report History' }
 ].sort((a, b) => a.title.localeCompare(b.title))
 
-const pharmacyScreens = [
-  { id: 'p-expiry', title: 'Medicine Expiry Alerts' },
-  { id: 'p-requests', title: 'Medication Requests' },
-  { id: 'p-ipm', title: 'IP Medication Orders' },
-  { id: 'p-given', title: 'Given Medicines History' },
-  { id: 'p-stock', title: 'Stock Overview' }
-].sort((a, b) => a.title.localeCompare(b.title))
-
 const receptionScreens = [
   { id: 'r-new-op', title: 'New OP Registration' },
   { id: 'r-search', title: 'Search Existing Patient' },
@@ -77,15 +69,15 @@ const mainLinks = [
   { to: '/doctor', label: 'Doctor', screens: doctorScreens, prefix: '/doctor' },
   { to: '/nurse', label: 'Nurse', screens: nurseScreens, prefix: '/nurse' },
   { to: '/lab', label: 'Lab', screens: labScreens, prefix: '/lab' },
-  { to: '/pharmacy', label: 'Pharmacy', screens: pharmacyScreens, prefix: '/pharmacy' },
   { to: '/reception', label: 'Reception', screens: receptionScreens, prefix: '/reception' },
-  { to: '/patient', label: 'Patient', screens: [], prefix: '/patient' },
-  { to: '/admin', label: 'Admin', screens: [], prefix: '/admin' }
+  { to: '/patient', label: 'Patient', screens: [], prefix: '/patient' }
 ]
 
 export const AppShell = ({ children }: { children: ReactNode }) => {
   // Track which topics have their subtopics expanded
   const [expandedTopics, setExpandedTopics] = useState<Set<string>>(new Set())
+  // Track sidebar visibility on mobile
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   const toggleTopic = (linkTo: string) => {
     setExpandedTopics((prev) => {
@@ -99,9 +91,39 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
     })
   }
 
+  const toggleSidebar = () => {
+    setSidebarOpen(!sidebarOpen)
+  }
+
+  const closeSidebar = () => {
+    setSidebarOpen(false)
+  }
+
   return (
-    <div className="h-screen overflow-hidden grid grid-cols-[240px_1fr] bg-muted">
-      <aside className="bg-primary text-white flex flex-col h-screen overflow-hidden">
+    <div className="h-screen overflow-hidden flex bg-muted">
+      {/* Mobile menu button */}
+      <button
+        onClick={toggleSidebar}
+        className="md:hidden fixed top-4 left-4 z-50 p-2 bg-primary text-white rounded-md shadow-lg hover:bg-primary/90 transition-colors"
+        aria-label="Toggle menu"
+      >
+        {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+      </button>
+
+      {/* Overlay for mobile */}
+      {sidebarOpen && (
+        <div
+          className="md:hidden fixed inset-0 bg-black/50 z-40"
+          onClick={closeSidebar}
+        />
+      )}
+
+      {/* Sidebar */}
+      <aside
+        className={`bg-primary text-white flex flex-col h-screen overflow-hidden fixed md:static z-40 transition-transform duration-300 ease-in-out ${
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+        } w-[240px]`}
+      >
         <div className="bg-primary text-white px-4 py-3 border-b border-white/0 flex items-center h-[60px] flex-shrink-0">
           <div className="font-semibold text-lg">Healthcare</div>
         </div>
@@ -133,6 +155,7 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
                   )}
                   <NavLink
                     to={link.to}
+                    onClick={closeSidebar}
                     className={({ isActive }) =>
                       `flex-1 px-3 py-2 rounded-md ${
                         isActive ? 'bg-white text-primary' : 'bg-white/10 hover:bg-white/20'
@@ -148,6 +171,7 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
                       <NavLink
                         key={s.id}
                         to={`${link.to}?screen=${s.id}`}
+                        onClick={closeSidebar}
                         className={({ isActive }) =>
                           `px-3 py-1.5 rounded-md ${
                             isActive ? 'bg-white text-primary' : 'bg-white/10 hover:bg-white/20'
@@ -164,7 +188,7 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
           })}
         </nav>
       </aside>
-      <main className="p-0 h-screen flex flex-col">
+      <main className="p-0 h-screen flex flex-col flex-1 md:ml-0">
         <div className="flex-1 overflow-y-auto">{children}</div>
         <footer className="h-9 flex items-center justify-end px-4 text-[11px] text-white bg-gradient-to-r from-primary/70 via-primary to-primary/60">
           © 2025 Powered by <span className="font-semibold ml-1">Beveren Software Inc.</span>

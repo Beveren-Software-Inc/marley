@@ -7,6 +7,7 @@ interface ServiceRequestListProps {
   patient?: string
   onLabTestCreated?: () => void
   refreshKey?: string | number
+  template_dt?: string // Optional template type filter
 }
 
 const statusColors: Record<string, string> = {
@@ -18,7 +19,7 @@ const statusColors: Record<string, string> = {
   'Draft': 'warning'
 }
 
-export const ServiceRequestList = ({ patient, onLabTestCreated, refreshKey }: ServiceRequestListProps) => {
+export const ServiceRequestList = ({ patient, onLabTestCreated, refreshKey, template_dt }: ServiceRequestListProps) => {
   const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
@@ -28,7 +29,7 @@ export const ServiceRequestList = ({ patient, onLabTestCreated, refreshKey }: Se
       try {
         setLoading(true)
         setError(null)
-        const response = await fetchServiceRequests(50, 0, patient, 'Lab Test Template')
+        const response = await fetchServiceRequests(50, 0, patient, template_dt)
         setServiceRequests(response)
       } catch (err) {
         setError(err instanceof Error ? err : new Error('Failed to fetch service requests'))
@@ -48,7 +49,7 @@ export const ServiceRequestList = ({ patient, onLabTestCreated, refreshKey }: Se
         onLabTestCreated()
       }
       // Refresh the list
-      const response = await fetchServiceRequests(50, 0, patient, 'Lab Test Template')
+      const response = await fetchServiceRequests(50, 0, patient, template_dt)
       setServiceRequests(response)
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to create lab test'
