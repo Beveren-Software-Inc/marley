@@ -118,3 +118,4 @@ export const ECTDetailsList = ({ patient }: ECTDetailsListProps) => {
 
 
 
+

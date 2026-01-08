@@ -47,3 +47,4 @@ function calculate_total_points(frm) {
 
 
 
+
