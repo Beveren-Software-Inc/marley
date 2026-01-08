@@ -20,7 +20,7 @@ interface AppointmentListProps {
   onAddAppointment?: () => void // Callback for add button
 }
 
-export const AppointmentList = ({ refreshKey, showAll = false, patient, onAddAppointment }: AppointmentListProps) => {
+export const AppointmentList = ({ refreshKey, showAll = false, patient }: AppointmentListProps) => {
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)

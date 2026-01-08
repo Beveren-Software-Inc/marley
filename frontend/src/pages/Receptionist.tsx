@@ -274,7 +274,7 @@ export const ReceptionistPage = () => {
       {showPatientVisitModal && (
         <CreatePatientVisitModal
           onClose={() => setShowPatientVisitModal(false)}
-          onSuccess={(visitName) => {
+          onSuccess={(_visitName) => {
             setPatientVisitRefreshKey(prev => prev + 1)
             setShowPatientVisitModal(false)
           }}
@@ -284,7 +284,7 @@ export const ReceptionistPage = () => {
       {showAdmissionModal && (
         <CreateAdmissionModal
           onClose={() => setShowAdmissionModal(false)}
-          onSuccess={(admissionName) => {
+          onSuccess={(_admissionName) => {
             setAdmissionRefreshKey(prev => prev + 1)
             setShowAdmissionModal(false)
           }}

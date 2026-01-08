@@ -34,13 +34,11 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
   const [appointmentTypeOptions, setAppointmentTypeOptions] = useState<LinkFieldOption[]>([])
   const [appointmentTypeOpen, setAppointmentTypeOpen] = useState(false)
   const [appointmentTypeQuery, setAppointmentTypeQuery] = useState('')
-  const [selectedAppointmentType, setSelectedAppointmentType] = useState<LinkFieldOption | null>(null)
 
   // Practitioner dropdown state
   const [practitionerOptions, setPractitionerOptions] = useState<LinkFieldOption[]>([])
   const [practitionerOpen, setPractitionerOpen] = useState(false)
   const [practitionerQuery, setPractitionerQuery] = useState('')
-  const [selectedPractitioner, setSelectedPractitioner] = useState<LinkFieldOption | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -103,7 +101,6 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
         if (initialPractitioner) {
           const pract = practs.find(p => p.name === initialPractitioner)
           if (pract) {
-            setSelectedPractitioner(pract)
             setPractitionerQuery(pract.label)
             setFormData(prev => ({ ...prev, practitioner: pract.name }))
           }
@@ -213,14 +210,12 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
   }
 
   const handleAppointmentTypeSelect = (aptType: LinkFieldOption) => {
-    setSelectedAppointmentType(aptType)
     setFormData(prev => ({ ...prev, appointment_type: aptType.name }))
     setAppointmentTypeQuery(aptType.label)
     setAppointmentTypeOpen(false)
   }
 
   const handlePractitionerSelect = (pract: LinkFieldOption) => {
-    setSelectedPractitioner(pract)
     setFormData(prev => ({ ...prev, practitioner: pract.name }))
     setPractitionerQuery(pract.label)
     setPractitionerOpen(false)
