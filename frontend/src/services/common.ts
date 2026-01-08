@@ -154,6 +154,22 @@ export async function fetchClinicalNoteTypes(search?: string): Promise<LinkField
   }
 }
 
+export async function fetchAppointmentTypes(search?: string): Promise<LinkFieldOption[]> {
+  const params = new URLSearchParams()
+  if (search) params.append('search', search)
+  
+  const url = `/api/method/healthcare.api.common.get_appointment_types${params.toString() ? `?${params.toString()}` : ''}`
+  
+  const response = await fetch(url)
+  const resData = await response.json()
+
+  if (resData?.message && Array.isArray(resData.message)) {
+    return resData.message as LinkFieldOption[]
+  } else {
+    return []
+  }
+}
+
 export async function fetchMedicalRoles(search?: string): Promise<LinkFieldOption[]> {
   const params = new URLSearchParams()
   if (search) params.append('search', search)

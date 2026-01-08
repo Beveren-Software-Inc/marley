@@ -210,6 +210,23 @@ def get_practitioner_medical_role(practitioner):
 	medical_role = frappe.db.get_value('Healthcare Practitioner', practitioner, 'medical_role')
 	return medical_role
 
+@frappe.whitelist()
+def get_appointment_types(search=None):
+	"""Get list of Appointment Types"""
+	filters = {}
+	if search:
+		filters['appointment_type'] = ['like', f'%{search}%']
+	
+	appointment_types = frappe.get_all(
+		'Appointment Type',
+		filters=filters,
+		fields=['name', 'appointment_type'],
+		limit=50,
+		order_by='appointment_type'
+	)
+	
+	return [{'name': a.name, 'label': a.appointment_type or a.name} for a in appointment_types]
+
 
 @frappe.whitelist()
 def get_observation_templates(search=None, department=None):

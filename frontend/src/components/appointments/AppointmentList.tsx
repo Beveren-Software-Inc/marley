@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { fetchPractitionerAppointments, type Appointment } from '../../services/appointments'
+import { fetchPractitionerAppointments, fetchAllAppointments, type Appointment } from '../../services/appointments'
 import { StatusPill } from '../ui/StatusPill'
 
 const statusColors: Record<string, string> = {
@@ -15,9 +15,12 @@ const statusColors: Record<string, string> = {
 
 interface AppointmentListProps {
   refreshKey?: string | number
+  showAll?: boolean // If true, show all appointments (for receptionist), otherwise show practitioner appointments
+  patient?: string // Optional patient filter
+  onAddAppointment?: () => void // Callback for add button
 }
 
-export const AppointmentList = ({ refreshKey }: AppointmentListProps) => {
+export const AppointmentList = ({ refreshKey, showAll = false, patient, onAddAppointment }: AppointmentListProps) => {
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
@@ -27,7 +30,9 @@ export const AppointmentList = ({ refreshKey }: AppointmentListProps) => {
       try {
         setLoading(true)
         setError(null)
-        const response = await fetchPractitionerAppointments(50, 0)
+        const response = showAll 
+          ? await fetchAllAppointments(50, 0, undefined, patient)
+          : await fetchPractitionerAppointments(50, 0)
         setAppointments(response)
       } catch (err) {
         setError(err instanceof Error ? err : new Error('Failed to fetch appointments'))
@@ -37,7 +42,7 @@ export const AppointmentList = ({ refreshKey }: AppointmentListProps) => {
     }
 
     loadAppointments()
-  }, [refreshKey])
+  }, [refreshKey, showAll, patient])
 
   const getStatusColor = (status?: string): string => {
     if (!status) return 'default'
@@ -99,6 +104,11 @@ export const AppointmentList = ({ refreshKey }: AppointmentListProps) => {
             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
               Patient
             </th>
+            {showAll && (
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+                Practitioner
+              </th>
+            )}
             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
               Date & Time
             </th>
@@ -119,6 +129,11 @@ export const AppointmentList = ({ refreshKey }: AppointmentListProps) => {
               <td className="px-4 py-3 text-sm text-slate-700">
                 {apt.patient_name || apt.patient || '-'}
               </td>
+              {showAll && (
+                <td className="px-4 py-3 text-sm text-slate-700">
+                  {apt.practitioner_name || apt.practitioner || '-'}
+                </td>
+              )}
               <td className="px-4 py-3 text-sm text-slate-700">
                 {formatDateTime(apt.appointment_date, apt.appointment_time)}
               </td>

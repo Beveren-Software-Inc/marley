@@ -28,6 +28,7 @@ import { toast } from '../hooks/useToast'
 import { ServiceRequestList } from '../components/serviceRequests/ServiceRequestList'
 import { CreateServiceRequestModal } from '../components/serviceRequests/CreateServiceRequestModal'
 import { AppointmentList } from '../components/appointments/AppointmentList'
+import { CreateAppointmentModal } from '../components/appointments/CreateAppointmentModal'
 
 const doctorNav = [
   { label: 'Admission', screen: 'admission' },
@@ -53,6 +54,8 @@ export const DoctorPage = () => {
   const [diagnosisRefreshKey, setDiagnosisRefreshKey] = useState(0)
   const [showServiceRequestModal, setShowServiceRequestModal] = useState(false)
   const [serviceRequestRefreshKey, setServiceRequestRefreshKey] = useState(0)
+  const [showAppointmentModal, setShowAppointmentModal] = useState(false)
+  const [appointmentRefreshKey, setAppointmentRefreshKey] = useState(0)
   const screen = searchParams.get('screen')
 
   // Sync selectedPatient with URL on mount and when URL changes
@@ -684,7 +687,7 @@ export const DoctorPage = () => {
         </>
       ) : (
         <>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 p-4">
+          <div className="grid gap-4 md:grid-cols-2 p-4">
             <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
               <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
                 <span>Warning Messages (Allergies etc.)</span>
@@ -716,13 +719,22 @@ export const DoctorPage = () => {
                 <LabTestReportsList patient={undefined} pendingReview={true} key={labTestRefreshKey} />
               </div>
             </section>
+          </div>
 
+          <div className="grid gap-4 md:grid-cols-2 px-4 pb-4">
             <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
               <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
                 <span>Appointments</span>
+                <button
+                  onClick={() => setShowAppointmentModal(true)}
+                  className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
+                  title="Add Appointment"
+                >
+                  +
+                </button>
               </div>
               <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                <AppointmentList />
+                <AppointmentList refreshKey={appointmentRefreshKey} />
               </div>
             </section>
           </div>
@@ -796,6 +808,17 @@ export const DoctorPage = () => {
             setServiceRequestRefreshKey(prev => prev + 1)
             setShowServiceRequestModal(false)
             toast.success('Service request created successfully')
+          }}
+          initialPatient={selectedPatient}
+        />
+      )}
+
+      {showAppointmentModal && (
+        <CreateAppointmentModal
+          onClose={() => setShowAppointmentModal(false)}
+          onSuccess={() => {
+            setAppointmentRefreshKey(prev => prev + 1)
+            setShowAppointmentModal(false)
           }}
           initialPatient={selectedPatient}
         />
