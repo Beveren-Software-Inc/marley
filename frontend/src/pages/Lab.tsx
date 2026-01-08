@@ -51,7 +51,7 @@ export const LabPage = () => {
     // Lab Test Requests - show service requests with Lab Test Template
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
           <div className="flex-1 min-w-0">
             <PatientSearch
               selectedPatient={selectedPatient || ''}
@@ -82,6 +82,7 @@ export const LabPage = () => {
                 patient={selectedPatient} 
                 onLabTestCreated={handleLabTestCreated}
                 refreshKey={serviceRequestRefreshKey}
+                template_dt="Lab Test Template"
               />
             </div>
           </section>
@@ -104,7 +105,7 @@ export const LabPage = () => {
     // Outsourced Tests - show only lab tests where is_outsourced = 1
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
           <div className="flex-1 min-w-0">
             <PatientSearch
               selectedPatient={selectedPatient || ''}
@@ -153,7 +154,7 @@ export const LabPage = () => {
     // Lab Test & Result - show all lab tests
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
           <div className="flex-1 min-w-0">
             <PatientSearch
               selectedPatient={selectedPatient || ''}
@@ -201,7 +202,7 @@ export const LabPage = () => {
   // Default view - Service Requests and Lab Tests side by side
   return (
     <div className="flex flex-col">
-      <header className="flex items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
+      <header className="flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
         <div className="flex-1 min-w-0">
           <PatientSearch
             selectedPatient={selectedPatient || ''}
@@ -232,6 +233,7 @@ export const LabPage = () => {
               patient={selectedPatient} 
               onLabTestCreated={handleLabTestCreated}
               refreshKey={serviceRequestRefreshKey}
+              template_dt="Lab Test Template"
             />
           </div>
         </section>

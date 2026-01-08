@@ -25,6 +25,10 @@ import { NotificationBell } from '../components/notifications/NotificationBell'
 import { UserMenu } from '../components/user/UserMenu'
 import { getPatientActiveAdmission } from '../services/inpatientRecords'
 import { toast } from '../hooks/useToast'
+import { ServiceRequestList } from '../components/serviceRequests/ServiceRequestList'
+import { CreateServiceRequestModal } from '../components/serviceRequests/CreateServiceRequestModal'
+import { AppointmentList } from '../components/appointments/AppointmentList'
+import { CreateAppointmentModal } from '../components/appointments/CreateAppointmentModal'
 
 const doctorNav = [
   { label: 'Admission', screen: 'admission' },
@@ -48,6 +52,10 @@ export const DoctorPage = () => {
   const [observationRefreshKey, setObservationRefreshKey] = useState(0)
   const [dischargeRefreshKey, setDischargeRefreshKey] = useState(0)
   const [diagnosisRefreshKey, setDiagnosisRefreshKey] = useState(0)
+  const [showServiceRequestModal, setShowServiceRequestModal] = useState(false)
+  const [serviceRequestRefreshKey, setServiceRequestRefreshKey] = useState(0)
+  const [showAppointmentModal, setShowAppointmentModal] = useState(false)
+  const [appointmentRefreshKey, setAppointmentRefreshKey] = useState(0)
   const screen = searchParams.get('screen')
 
   // Sync selectedPatient with URL on mount and when URL changes
@@ -144,7 +152,7 @@ export const DoctorPage = () => {
   if (screen === 'ect') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
           <div className="flex-1 min-w-0">
             <PatientSearch
               selectedPatient={selectedPatient || ''}
@@ -171,7 +179,7 @@ export const DoctorPage = () => {
   if (screen === 'dn') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
           <div className="flex-1 min-w-0">
             <PatientSearch
               selectedPatient={selectedPatient || ''}
@@ -202,7 +210,7 @@ export const DoctorPage = () => {
   if (screen === 'dos') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
           <div className="flex-1 min-w-0">
             <PatientSearch
               selectedPatient={selectedPatient || ''}
@@ -232,7 +240,7 @@ export const DoctorPage = () => {
   if (screen === 'lab') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
           <div className="flex-1 min-w-0">
             <PatientSearch
               selectedPatient={selectedPatient || ''}
@@ -259,7 +267,7 @@ export const DoctorPage = () => {
   if (screen === 'psy-n') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
           <div className="flex-1 min-w-0">
             <PatientSearch
               selectedPatient={selectedPatient || ''}
@@ -289,7 +297,7 @@ export const DoctorPage = () => {
   if (screen === 'ther') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
           <div className="flex-1 min-w-0">
             <PatientSearch
               selectedPatient={selectedPatient || ''}
@@ -319,7 +327,7 @@ export const DoctorPage = () => {
   if (screen === 'nurse') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
           <div className="flex-1 min-w-0">
             <PatientSearch
               selectedPatient={selectedPatient || ''}
@@ -349,7 +357,7 @@ export const DoctorPage = () => {
   if (screen === 'obs') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
           <div className="flex-1 min-w-0">
             <PatientSearch
               selectedPatient={selectedPatient || ''}
@@ -395,7 +403,7 @@ export const DoctorPage = () => {
   if (screen === 'tpr') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
           <div className="flex-1 min-w-0">
             <PatientSearch
               selectedPatient={selectedPatient || ''}
@@ -422,7 +430,7 @@ export const DoctorPage = () => {
   if (screen === 'nut') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
           <div className="flex-1 min-w-0">
             <PatientSearch
               selectedPatient={selectedPatient || ''}
@@ -452,7 +460,7 @@ export const DoctorPage = () => {
   if (screen === 'mh') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
           <div className="flex-1 min-w-0">
             <PatientSearch
               selectedPatient={selectedPatient || ''}
@@ -476,7 +484,7 @@ export const DoctorPage = () => {
   if (screen === 'pkg') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
           <div className="flex-1 min-w-0">
             <PatientSearch
               selectedPatient={selectedPatient || ''}
@@ -503,7 +511,7 @@ export const DoctorPage = () => {
   if (screen === 'df') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
           <div className="flex-1 min-w-0">
             <PatientSearch
               selectedPatient={selectedPatient || ''}
@@ -552,7 +560,7 @@ export const DoctorPage = () => {
 
   return (
     <div className="flex flex-col">
-      <header className="sticky top-0 z-10 flex items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
+      <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
         <div className="flex-1 min-w-0">
           <PatientSearch
             selectedPatient={selectedPatient || ''}
@@ -648,6 +656,28 @@ export const DoctorPage = () => {
             </section>
           </div>
 
+          <div className="grid gap-4 md:grid-cols-2 px-4 pb-4">
+            {/* Card 5: Service Requests */}
+            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
+              <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
+                <span>Service Requests</span>
+                <button
+                  onClick={() => setShowServiceRequestModal(true)}
+                  className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
+                  title="Add Service Request"
+                >
+                  +
+                </button>
+              </div>
+              <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
+                <ServiceRequestList 
+                  patient={selectedPatient} 
+                  refreshKey={serviceRequestRefreshKey}
+                />
+              </div>
+            </section>
+          </div>
+
           <div className="px-4 pb-4">
             <DoctorServiceDetailsTable 
               patient={selectedPatient} 
@@ -687,6 +717,24 @@ export const DoctorPage = () => {
               </div>
               <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
                 <LabTestReportsList patient={undefined} pendingReview={true} key={labTestRefreshKey} />
+              </div>
+            </section>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2 px-4 pb-4">
+            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
+              <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
+                <span>Appointments</span>
+                <button
+                  onClick={() => setShowAppointmentModal(true)}
+                  className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
+                  title="Add Appointment"
+                >
+                  +
+                </button>
+              </div>
+              <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
+                <AppointmentList refreshKey={appointmentRefreshKey} />
               </div>
             </section>
           </div>
@@ -750,6 +798,29 @@ export const DoctorPage = () => {
             // TODO: Refresh service details table when backend is wired
           }}
           patient={selectedPatient}
+        />
+      )}
+
+      {showServiceRequestModal && (
+        <CreateServiceRequestModal
+          onClose={() => setShowServiceRequestModal(false)}
+          onSuccess={() => {
+            setServiceRequestRefreshKey(prev => prev + 1)
+            setShowServiceRequestModal(false)
+            toast.success('Service request created successfully')
+          }}
+          initialPatient={selectedPatient}
+        />
+      )}
+
+      {showAppointmentModal && (
+        <CreateAppointmentModal
+          onClose={() => setShowAppointmentModal(false)}
+          onSuccess={() => {
+            setAppointmentRefreshKey(prev => prev + 1)
+            setShowAppointmentModal(false)
+          }}
+          initialPatient={selectedPatient}
         />
       )}
     </div>

@@ -79,7 +79,7 @@ export const PatientSearch = ({ selectedPatient, onPatientSelect }: PatientSearc
 
   return (
     <>
-      <div className="w-full max-w-xl">
+      <div className="w-full max-w-xs md:max-w-xl">
         <div className="relative flex items-center gap-2">
           <div className="flex-1 relative">
             <input
@@ -100,7 +100,7 @@ export const PatientSearch = ({ selectedPatient, onPatientSelect }: PatientSearc
               }}
               onFocus={() => setPatientOpen(true)}
               placeholder={selectedPatientName || 'Search patient...'}
-              className="w-full rounded-md border border-primary/40 px-3 py-2 text-sm text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-white focus:border-white"
+              className="w-full rounded-md border border-primary/40 px-2 md:px-3 py-1.5 md:py-2 text-xs md:text-sm text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-white focus:border-white"
             />
             {selectedPatient && patientQuery === selectedPatientName && (
               <button
@@ -153,10 +153,10 @@ export const PatientSearch = ({ selectedPatient, onPatientSelect }: PatientSearc
           </div>
           <button
             onClick={() => setShowCreatePatient(true)}
-            className="flex-shrink-0 w-10 h-10 rounded-md bg-white/20 hover:bg-white/30 text-white flex items-center justify-center transition-colors"
+            className="flex-shrink-0 w-8 h-8 md:w-10 md:h-10 rounded-md bg-white/20 hover:bg-white/30 text-white flex items-center justify-center transition-colors"
             title="Create New Patient"
           >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
           </button>

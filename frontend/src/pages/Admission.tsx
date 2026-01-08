@@ -66,7 +66,7 @@ export const AdmissionPage = () => {
     // Show admission details with warnings and lab tests
     return (
       <div className="flex flex-col h-full">
-        <header className="sticky top-0 z-10 bg-primary text-white px-4 py-3 flex items-center justify-between border-b border-white/20">
+        <header className="sticky top-0 z-10 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 flex items-center justify-between border-b border-white/20">
           <div className="flex items-center gap-4">
             <button
               onClick={handleBackToList}
@@ -114,7 +114,7 @@ export const AdmissionPage = () => {
   return (
     <>
       <div className="flex flex-col h-full">
-        <header className="sticky top-0 z-10 flex items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
           <div className="flex-1 min-w-0 max-w-xl">
             <div className="relative flex items-center gap-2">
               <input
@@ -146,7 +146,7 @@ export const AdmissionPage = () => {
               </button>
             </div>
           </div>
-          <h1 className="text-lg font-semibold flex-shrink-0">Inpatient Admissions</h1>
+          <h1 className="flex-1 text-center text-lg font-semibold hidden md:block">Inpatient Admissions</h1>
           <div className="flex items-center gap-3 flex-shrink-0">
             <UserMenu />
             <NotificationBell />

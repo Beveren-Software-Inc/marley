@@ -1,9 +1,20 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { usePatients } from '../../hooks/usePatients'
 
-export const PatientList = () => {
+interface PatientListProps {
+  refreshKey?: string | number
+}
+
+export const PatientList = ({ refreshKey }: PatientListProps = {}) => {
   const [searchQuery, setSearchQuery] = useState('')
   const { patients, loading, error, refetch } = usePatients(searchQuery || undefined)
+
+  useEffect(() => {
+    if (refreshKey !== undefined) {
+      refetch()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshKey])
 
   if (loading) {
     return (
@@ -44,8 +55,8 @@ export const PatientList = () => {
       </div>
 
       {/* Patients Table */}
-      <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
-        <table className="w-full">
+      <div className="min-w-full">
+        <table className="w-full min-w-[900px]">
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr>
               <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
@@ -105,6 +116,7 @@ export const PatientList = () => {
     </div>
   )
 }
+
 
 
 

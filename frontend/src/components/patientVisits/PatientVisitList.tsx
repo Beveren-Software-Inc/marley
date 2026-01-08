@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { usePatientVisits } from '../../hooks/usePatientVisits'
 import { StatusPill } from '../ui/StatusPill'
 
@@ -13,9 +13,10 @@ interface PatientVisitListProps {
   onVisitSelect?: (visitName: string) => void
   searchQuery?: string
   patient?: string
+  refreshKey?: string | number
 }
 
-export const PatientVisitList = ({ onVisitSelect, searchQuery: externalSearchQuery = '', patient }: PatientVisitListProps = {}) => {
+export const PatientVisitList = ({ onVisitSelect, searchQuery: externalSearchQuery = '', patient, refreshKey }: PatientVisitListProps = {}) => {
   const [selectedStatus, setSelectedStatus] = useState<string>('')
 
   const { visits, loading, error, refetch } = usePatientVisits(
@@ -23,6 +24,13 @@ export const PatientVisitList = ({ onVisitSelect, searchQuery: externalSearchQue
     externalSearchQuery || undefined,
     patient
   )
+
+  useEffect(() => {
+    if (refreshKey !== undefined) {
+      refetch()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshKey])
 
   const statuses = ['Open', 'Ordered', 'Completed', 'Cancelled']
 
@@ -81,8 +89,8 @@ export const PatientVisitList = ({ onVisitSelect, searchQuery: externalSearchQue
       </div>
 
       {/* Visits Table */}
-      <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
-        <table className="w-full">
+      <div className="min-w-full">
+        <table className="w-full min-w-[800px]">
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr>
               <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">

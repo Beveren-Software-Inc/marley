@@ -18,7 +18,7 @@ export const PatientVisitPage = () => {
     // Show visit details
     return (
       <div className="flex flex-col h-full">
-        <header className="sticky top-0 z-10 bg-primary text-white px-4 py-3 flex items-center justify-between border-b border-white/20">
+        <header className="sticky top-0 z-10 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 flex items-center justify-between border-b border-white/20">
           <div className="flex items-center gap-4">
             <button
               onClick={() => {
@@ -54,34 +54,11 @@ export const PatientVisitPage = () => {
     )
   }
 
-  // If no patient is selected, show an info message instead of all visits
-  if (!patientFromUrl) {
-    return (
-      <div className="flex flex-col h-full">
-        <header className="sticky top-0 z-10 bg-primary text-white px-4 py-3 flex items-center justify-between border-b border-white/20">
-          <h1 className="text-lg font-semibold">Patient Visits</h1>
-          <div className="flex items-center gap-3">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
-        <div className="flex-1 flex items-center justify-center p-8 bg-slate-50">
-          <div className="max-w-md text-center bg-white border border-slate-200 rounded-lg p-6 shadow-sm">
-            <h2 className="text-base font-semibold text-slate-900 mb-2">Select a patient first</h2>
-            <p className="text-slate-600 text-sm">
-              Please go back to the Doctor screen and choose a patient in the search box before opening OP Visit.
-            </p>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  // Show visit list for the selected patient only
+  // Show visit list - all visits if no patient selected, or filtered by patient if selected
   return (
     <>
       <div className="flex flex-col h-full">
-        <header className="sticky top-0 z-10 flex items-center gap-3 bg-primary text-white px-4 py-3 border-b border-white/20">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
           <div className="flex-1 min-w-0 max-w-xl">
             <div className="relative flex items-center gap-2">
               <input
@@ -113,7 +90,7 @@ export const PatientVisitPage = () => {
               </button>
             </div>
           </div>
-          <h1 className="text-lg font-semibold flex-shrink-0">Patient Visits</h1>
+          <h1 className="flex-1 text-center text-lg font-semibold hidden md:block">Patient Visits</h1>
           <div className="flex items-center gap-3 flex-shrink-0">
             <UserMenu />
             <NotificationBell />

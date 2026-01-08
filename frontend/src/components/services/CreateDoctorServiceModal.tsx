@@ -9,7 +9,7 @@ interface CreateDoctorServiceModalProps {
   patient?: string
 }
 
-export const CreateDoctorServiceModal = ({ onClose, onSuccess, patient }: CreateDoctorServiceModalProps) => {
+export const CreateDoctorServiceModal = ({ onClose, onSuccess }: CreateDoctorServiceModalProps) => {
   const [formData, setFormData] = useState({
     code: '',
     service_name: '',
@@ -25,7 +25,6 @@ export const CreateDoctorServiceModal = ({ onClose, onSuccess, patient }: Create
   const [itemOptions, setItemOptions] = useState<LinkFieldOption[]>([])
   const [itemOpen, setItemOpen] = useState(false)
   const [itemQuery, setItemQuery] = useState('')
-  const [selectedItem, setSelectedItem] = useState<LinkFieldOption | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -48,14 +47,6 @@ export const CreateDoctorServiceModal = ({ onClose, onSuccess, patient }: Create
     try {
       setLoading(true)
       setError(null)
-
-      // Calculate net amount if not provided
-      const amount = parseFloat(formData.amount) || 0
-      const additionalAmount = parseFloat(formData.additional_amount) || 0
-      const discount = parseFloat(formData.discount) || 0
-      const netAmount = formData.net_amount 
-        ? parseFloat(formData.net_amount) 
-        : (amount + additionalAmount - discount)
 
       // TODO: Wire this to actual backend API when available
       // For now, just show success message
@@ -128,7 +119,6 @@ export const CreateDoctorServiceModal = ({ onClose, onSuccess, patient }: Create
   }, [itemQuery, itemOpen])
 
   const handleItemSelect = (item: LinkFieldOption) => {
-    setSelectedItem(item)
     setFormData(prev => ({ ...prev, service_name: item.name }))
     setItemQuery(item.label)
     setItemOpen(false)

@@ -25,3 +25,4 @@ class SafetyEvent(Document):
 			else:
 				self.risk_rate = None
 
+

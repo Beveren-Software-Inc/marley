@@ -38,31 +38,26 @@ export const CreateServiceRequestModal = ({ onClose, onSuccess, initialPatient }
   const [templateTypeOptions, setTemplateTypeOptions] = useState<LinkFieldOption[]>([])
   const [templateTypeOpen, setTemplateTypeOpen] = useState(false)
   const [templateTypeQuery, setTemplateTypeQuery] = useState('')
-  const [selectedTemplateType, setSelectedTemplateType] = useState<LinkFieldOption | null>(null)
 
   // Template dropdown state
   const [templateOptions, setTemplateOptions] = useState<LinkFieldOption[]>([])
   const [templateOpen, setTemplateOpen] = useState(false)
   const [templateQuery, setTemplateQuery] = useState('')
-  const [selectedTemplate, setSelectedTemplate] = useState<LinkFieldOption | null>(null)
 
   // Practitioner dropdown state
   const [practitionerOptions, setPractitionerOptions] = useState<LinkFieldOption[]>([])
   const [practitionerOpen, setPractitionerOpen] = useState(false)
   const [practitionerQuery, setPractitionerQuery] = useState('')
-  const [selectedPractitioner, setSelectedPractitioner] = useState<LinkFieldOption | null>(null)
 
   // Department dropdown state
   const [departmentOptions, setDepartmentOptions] = useState<LinkFieldOption[]>([])
   const [departmentOpen, setDepartmentOpen] = useState(false)
   const [departmentQuery, setDepartmentQuery] = useState('')
-  const [selectedDepartment, setSelectedDepartment] = useState<LinkFieldOption | null>(null)
 
   // Status dropdown state
   const [statusOptions, setStatusOptions] = useState<LinkFieldOption[]>([])
   const [statusOpen, setStatusOpen] = useState(false)
   const [statusQuery, setStatusQuery] = useState('')
-  const [selectedStatus, setSelectedStatus] = useState<LinkFieldOption | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -167,13 +162,11 @@ export const CreateServiceRequestModal = ({ onClose, onSuccess, initialPatient }
         const defaultStatus = statuses.find(s => s.code_value === 'draft')
         console.log('Default status found:', defaultStatus)
         if (defaultStatus) {
-          setSelectedStatus(defaultStatus)
           setStatusQuery(defaultStatus.label)
           setFormData(prev => ({ ...prev, status: defaultStatus.name }))
         } else if (statuses.length > 0) {
           // If no draft, use first available status
           const firstStatus = statuses[0]
-          setSelectedStatus(firstStatus)
           setStatusQuery(firstStatus.label)
           setFormData(prev => ({ ...prev, status: firstStatus.name }))
         } else {
@@ -313,7 +306,6 @@ export const CreateServiceRequestModal = ({ onClose, onSuccess, initialPatient }
   }
 
   const handleTemplateTypeSelect = (templateType: LinkFieldOption) => {
-    setSelectedTemplateType(templateType)
     setFormData(prev => ({ 
       ...prev, 
       template_dt: templateType.name,
@@ -323,13 +315,10 @@ export const CreateServiceRequestModal = ({ onClose, onSuccess, initialPatient }
     setTemplateTypeQuery(templateType.label)
     setTemplateTypeOpen(false)
     setTemplateQuery('')
-    setSelectedTemplate(null)
     setDepartmentQuery('')
-    setSelectedDepartment(null)
   }
 
   const handleTemplateSelect = (template: LinkFieldOption) => {
-    setSelectedTemplate(template)
     setFormData(prev => ({ 
       ...prev, 
       template_dn: template.name,
@@ -344,20 +333,17 @@ export const CreateServiceRequestModal = ({ onClose, onSuccess, initialPatient }
       const dept = departmentOptions.find(d => d.name === template.department)
       if (dept) {
         setDepartmentQuery(dept.label)
-        setSelectedDepartment(dept)
       }
     }
   }
 
   const handlePractitionerSelect = (pract: LinkFieldOption) => {
-    setSelectedPractitioner(pract)
     setFormData(prev => ({ ...prev, practitioner: pract.name }))
     setPractitionerQuery(pract.label)
     setPractitionerOpen(false)
   }
 
   const handleDepartmentSelect = (dept: LinkFieldOption) => {
-    setSelectedDepartment(dept)
     setFormData(prev => ({ ...prev, department: dept.name }))
     setDepartmentQuery(dept.label)
     setDepartmentOpen(false)
@@ -369,7 +355,6 @@ export const CreateServiceRequestModal = ({ onClose, onSuccess, initialPatient }
   }
 
   const handleStatusSelect = (status: LinkFieldOption) => {
-    setSelectedStatus(status)
     setFormData(prev => ({ ...prev, status: status.name }))
     setStatusQuery(status.label)
     setStatusOpen(false)
