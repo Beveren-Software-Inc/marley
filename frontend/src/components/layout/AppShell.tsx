@@ -57,12 +57,11 @@ const labScreens = [
 
 const receptionScreens = [
   { id: 'r-new-op', title: 'New OP Registration' },
-  { id: 'r-search', title: 'Search Existing Patient' },
   { id: 'r-appointment', title: 'Book Appointment' },
-  { id: 'r-check', title: 'Check In / Check Out' },
   { id: 'r-ip-adm', title: 'New IP Admission' },
-  { id: 'r-reg', title: 'Admission Register' },
-  { id: 'r-print', title: 'Print Forms / Labels' }
+  { id: 'r-reg', title: 'Admission' },
+  { id: 'r-visit', title: 'Patient Visit' },
+  { id: 'r-new-visit', title: 'New Patient Visit' }
 ].sort((a, b) => a.title.localeCompare(b.title))
 
 const mainLinks = [

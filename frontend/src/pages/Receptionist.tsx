@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { dummyPatients } from '../config/patients'
 import { AdmissionList } from '../components/admissions/AdmissionList'
 import { PatientList } from '../components/patients/PatientList'
@@ -12,10 +13,12 @@ import { CreatePatientVisitModal } from '../components/patientVisits/CreatePatie
 import { CreateAdmissionModal } from '../components/admissions/CreateAdmissionModal'
 import { CreatePatientModal } from '../components/patients/CreatePatientModal'
 
-type View = 'default' | 'patient' | 'admission'
+type View = 'default' | 'patient' | 'admission' | 'visit'
 
 export const ReceptionistPage = () => {
-  const [selectedPatient, setSelectedPatient] = useState<string>('John Doe')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const screen = searchParams.get('screen')
+  const [selectedPatient, setSelectedPatient] = useState<string>('')
   const [currentView, setCurrentView] = useState<View>('default')
   const [showAppointmentModal, setShowAppointmentModal] = useState(false)
   const [appointmentRefreshKey, setAppointmentRefreshKey] = useState(0)
@@ -29,6 +32,45 @@ export const ReceptionistPage = () => {
   const handlePatientSelect = (patient: string | undefined) => {
     setSelectedPatient(patient || '')
   }
+
+  // Handle screen navigation from sidebar
+  useEffect(() => {
+    if (screen === 'r-reg') {
+      // Admission - show admission list
+      setCurrentView('admission')
+    } else if (screen === 'r-visit') {
+      // Patient Visit - show patient visit list
+      setCurrentView('visit')
+    } else if (screen === 'r-appointment') {
+      // Book Appointment - open appointment modal
+      setShowAppointmentModal(true)
+      // Clear screen param after opening modal
+      const newParams = new URLSearchParams(searchParams)
+      newParams.delete('screen')
+      setSearchParams(newParams, { replace: true })
+    } else if (screen === 'r-ip-adm') {
+      // New IP Admission - open admission modal
+      setShowAdmissionModal(true)
+      // Clear screen param after opening modal
+      const newParams = new URLSearchParams(searchParams)
+      newParams.delete('screen')
+      setSearchParams(newParams, { replace: true })
+    } else if (screen === 'r-new-op') {
+      // New OP Registration - open patient modal
+      setShowPatientModal(true)
+      // Clear screen param after opening modal
+      const newParams = new URLSearchParams(searchParams)
+      newParams.delete('screen')
+      setSearchParams(newParams, { replace: true })
+    } else if (screen === 'r-new-visit') {
+      // New Patient Visit - open patient visit modal
+      setShowPatientVisitModal(true)
+      // Clear screen param after opening modal
+      const newParams = new URLSearchParams(searchParams)
+      newParams.delete('screen')
+      setSearchParams(newParams, { replace: true })
+    }
+  }, [screen, searchParams, setSearchParams])
 
   return (
     <div className="flex flex-col h-full">
@@ -108,6 +150,30 @@ export const ReceptionistPage = () => {
               </button>
             </div>
             <AdmissionList refreshKey={admissionRefreshKey} />
+          </div>
+        )}
+
+        {currentView === 'visit' && (
+          <div className="p-4">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-semibold text-slate-900">Patient Visits</h2>
+                <p className="text-sm text-slate-600 mt-1">
+                  View and manage patient visits. Use the search box to find specific visits.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowPatientVisitModal(true)}
+                className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
+                title="Add Patient Visit"
+              >
+                +
+              </button>
+            </div>
+            <PatientVisitList 
+              patient={selectedPatient || undefined}
+              refreshKey={patientVisitRefreshKey}
+            />
           </div>
         )}
 
