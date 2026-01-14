@@ -8,6 +8,10 @@ frappe.ui.form.on('Digital Connect Whatsap Settings', {
 			frm.add_custom_button(__('Send Test WhatsApp'), function() {
 				show_test_message_dialog(frm);
 			});
+
+			frm.add_custom_button(__('Fetch Templates from Digital Connect'), function() {
+				show_fetch_templates_dialog_from_settings();
+			}, __('Templates'));
 		}
 	},
 });
@@ -72,5 +76,77 @@ function send_test_whatsapp_message(frm, values) {
 				}, 3);
 			}
 		},
+	});
+}
+
+function show_fetch_templates_dialog_from_settings() {
+	let dialog = new frappe.ui.Dialog({
+		title: __('Fetch Templates from Digital Connect'),
+		fields: [
+			{
+				fieldname: 'category',
+				label: __('Category'),
+				fieldtype: 'Select',
+				options: '\nAUTHENTICATION\nMARKETING\nUTILITY',
+			},
+			{
+				fieldname: 'status',
+				label: __('Status'),
+				fieldtype: 'Select',
+				options: '\nPENDING\nAPPROVED\nREJECTED\nPAUSED',
+			},
+			{
+				fieldname: 'language',
+				label: __('Language Code'),
+				fieldtype: 'Data',
+				description: __('e.g., en_US, es_ES')
+			},
+			{
+				fieldname: 'name',
+				label: __('Template Name or Content'),
+				fieldtype: 'Data',
+				description: __('Search by template name or content')
+			}
+		],
+		primary_action_label: __('Fetch'),
+		primary_action(values) {
+			fetch_templates_from_api_from_settings(values, dialog);
+		}
+	});
+
+	dialog.show();
+}
+
+function fetch_templates_from_api_from_settings(filters, dialog) {
+	frappe.call({
+		method: 'healthcare.healthcare.doctype.digital_whatsapp_template.digital_whatsapp_template.fetch_templates',
+		args: {
+			category: filters.category || null,
+			status: filters.status || null,
+			language: filters.language || null,
+			name: filters.name || null
+		},
+		freeze: true,
+		freeze_message: __('Fetching templates from Digital Connect...'),
+		callback: function(r) {
+			dialog.hide();
+			if (r.exc) {
+				frappe.msgprint({
+					title: __('Error'),
+					message: r.exc,
+					indicator: 'red'
+				});
+			} else if (r.message) {
+				frappe.msgprint({
+					title: __('Success'),
+					message: __('Successfully fetched and synced {0} template(s).', [r.message.synced_count || 0]),
+					indicator: 'green'
+				});
+				// Refresh template list view if open
+				if (cur_list && cur_list.doctype === 'Digital Whatsapp Template') {
+					cur_list.refresh();
+				}
+			}
+		}
 	});
 }
