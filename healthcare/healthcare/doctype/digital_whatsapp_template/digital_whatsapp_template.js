@@ -105,12 +105,6 @@ function show_fetch_templates_dialog(frm) {
 				options: '\nAUTHENTICATION\nMARKETING\nUTILITY',
 			},
 			{
-				fieldname: 'status',
-				label: __('Status'),
-				fieldtype: 'Select',
-				options: '\nPENDING\nAPPROVED\nREJECTED\nPAUSED',
-			},
-			{
 				fieldname: 'language',
 				label: __('Language Code'),
 				fieldtype: 'Data',
@@ -137,7 +131,6 @@ function fetch_templates_from_api(filters, dialog) {
 		method: 'healthcare.healthcare.doctype.digital_whatsapp_template.digital_whatsapp_template.fetch_templates',
 		args: {
 			category: filters.category || null,
-			status: filters.status || null,
 			language: filters.language || null,
 			name: filters.name || null
 		},
