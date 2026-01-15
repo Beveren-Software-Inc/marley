@@ -6,6 +6,7 @@ import json
 
 import frappe
 from frappe import _
+from frappe.exceptions import DuplicateEntryError
 from frappe.model.document import Document
 
 try:
@@ -43,6 +44,19 @@ class DigitalWhatsappTemplate(Document):
 		if self.template_name and (not self.actual_name or self.has_value_changed("template_name")):
 			self.actual_name = self.template_name.lower().replace(" ", "_").replace("-", "_")
 		
+		# Set default header if missing (to ensure 3+ components for Digital Connect)
+		# Only set defaults for new templates or if header is completely empty
+		if self.is_new() or (not self.header_type and not self.header_text):
+			if not self.header_type:
+				self.header_type = "TEXT"
+			if not self.header_text and self.header_type == "TEXT":
+				# Set a simple default header text
+				self.header_text = "Notification"
+		
+		# Set default footer if missing (to ensure 3+ components for Digital Connect)
+		if self.is_new() and not self.footer_text:
+			self.footer_text = "Thank you"
+		
 		# Update name if language_code changed
 		if self.template_name and self.language_code:
 			new_name = f"{self.template_name}-{self.language_code}"
@@ -62,148 +76,10 @@ class DigitalWhatsappTemplate(Document):
 			frappe.throw(_("Footer text cannot exceed 60 characters."))
 
 	def after_insert(self):
-		"""Create template in Digital Connect after insert, or link to existing one."""
-		# Skip if template already has an ID (e.g., fetched from Digital Connect)
-		if self.template_id:
-			return
-		
-		# Skip if we're syncing from fetch
-		if getattr(self, "_skip_digital_connect_update", False):
-			return
-
-		if requests is None:
-			frappe.throw(_("Python requests library is not available on this site."))
-
-		if not self.actual_name:
-			self.actual_name = self.template_name.lower().replace(" ", "_").replace("-", "_")
-
-		self.get_settings()
-		
-		# First, check if template already exists in Digital Connect
-		try:
-			# Try to fetch existing template by name and language
-			check_url = f"{self._base_url}/v2/api/outgoing/template"
-			check_params = {
-				"name": self.actual_name,
-				"language": self.language_code,
-			}
-			check_response = requests.get(
-				check_url, headers=self._headers, params=check_params, timeout=15
-			)
-			
-			if check_response.ok:
-				try:
-					check_data = check_response.json()
-					# Handle nested response structure
-					existing_templates = []
-					if isinstance(check_data, dict):
-						if "data" in check_data and isinstance(check_data.get("data"), list):
-							existing_templates = check_data.get("data", [])
-						elif "message" in check_data and isinstance(check_data.get("message"), dict):
-							message_data = check_data.get("message", {})
-							if "data" in message_data and isinstance(message_data.get("data"), list):
-								existing_templates = message_data.get("data", [])
-					
-					# Find matching template by name and language
-					for existing_template in existing_templates:
-						if (
-							existing_template.get("name") == self.actual_name
-							and existing_template.get("language") == self.language_code
-						):
-							# Link to existing template instead of creating
-							self.template_id = existing_template.get("id")
-							self.status = existing_template.get("status", "PENDING")
-							if existing_template.get("category") and not self.category:
-								self.category = existing_template.get("category")
-							# Update components from existing template
-							if existing_template.get("components"):
-								update_template_components(self, existing_template.get("components"))
-							self.db_update()
-							frappe.msgprint(
-								_("Template linked to existing Digital Connect template. Status: {0}").format(self.status),
-								indicator="blue",
-							)
-							return
-				except Exception:
-					# If parsing fails, continue to create new template
-					pass
-		except Exception:
-			# If check fails, continue to create new template
-			pass
-
-		# Template doesn't exist in Digital Connect, create it
-		components = self.build_components()
-
-		# Validate we have at least 3 components (API requirement)
-		if len(components) < 3:
-			# Short error message to avoid truncation in Error Log (140 char limit)
-			frappe.throw(
-				_("Need 3+ components. Current: {0}. Add HEADER, FOOTER, or BUTTONS.").format(len(components))
-			)
-
-		payload = {
-			"name": self.actual_name,
-			"language": self.language_code,
-			"category": self.category,
-			"components": components,
-		}
-
-		if self.allow_category_change:
-			payload["allow_category_change"] = True
-
-		try:
-			response = self.make_api_request("POST", f"{self._base_url}/v2/api/outgoing/template", payload)
-			self.template_id = response.get("id")
-			self.status = response.get("status", "PENDING")
-			self.db_update()
-			frappe.msgprint(
-				_("Template created successfully in Digital Connect. Status: {0}").format(self.status),
-				indicator="green",
-			)
-		except Exception as e:
-			# Check if error is about template already existing
-			error_str = str(e)
-			if "already" in error_str.lower() or "duplicate" in error_str.lower() or "100" in error_str:
-				# Template already exists, try to fetch and link it
-				try:
-					check_url = f"{self._base_url}/v2/api/outgoing/template"
-					check_params = {"name": self.actual_name, "language": self.language_code}
-					check_response = requests.get(
-						check_url, headers=self._headers, params=check_params, timeout=15
-					)
-					if check_response.ok:
-						check_data = check_response.json()
-						existing_templates = []
-						if isinstance(check_data, dict):
-							if "data" in check_data and isinstance(check_data.get("data"), list):
-								existing_templates = check_data.get("data", [])
-							elif "message" in check_data and isinstance(check_data.get("message"), dict):
-								message_data = check_data.get("message", {})
-								if "data" in message_data and isinstance(message_data.get("data"), list):
-									existing_templates = message_data.get("data", [])
-						
-						for existing_template in existing_templates:
-							if (
-								existing_template.get("name") == self.actual_name
-								and existing_template.get("language") == self.language_code
-							):
-								self.template_id = existing_template.get("id")
-								self.status = existing_template.get("status", "PENDING")
-								if existing_template.get("category") and not self.category:
-									self.category = existing_template.get("category")
-								if existing_template.get("components"):
-									update_template_components(self, existing_template.get("components"))
-								self.db_update()
-								frappe.msgprint(
-									_("Template already exists in Digital Connect. Linked to existing template. Status: {0}").format(self.status),
-									indicator="blue",
-								)
-								return
-				except Exception:
-					pass
-			
-			# If we can't link to existing, throw the original error
-			frappe.throw(_("Failed to create template: {0}").format(str(e)))
+		"""Skip automatic creation - user must manually register template via Register button."""
+		# Don't automatically create in Digital Connect on save
+		# User must click "Register" button to send for approval
+		pass
 
 	def on_update(self):
 		"""Update template in Digital Connect when document is updated."""
@@ -538,7 +414,6 @@ def fetch_templates(category=None, status=None, language=None, name=None):
 		base_url = base_url.split("/v2/api/outgoing/")[0]
 	base_url = base_url.rstrip("/")
 	url = f"{base_url}/v2/api/outgoing/template"
-
 	# Build query parameters
 	params = {}
 	if category:
@@ -685,73 +560,107 @@ def fetch_templates(category=None, status=None, language=None, name=None):
 
 		# Process templates and sync to local database
 		synced_count = 0
+		skipped_count = 0
 		for template in templates:
-			# Check if template exists locally
-			filters = {"actual_name": template.get("name")}
-			if template.get("language"):
-				filters["language_code"] = template.get("language")
-
+			# Check if template exists locally - check by actual_name + language_code
+			# Also check by generated name (template_name-language_code) to catch duplicates
+			template_name = template.get("name")
+			language_code = template.get("language", "en_US")
+			
+			if not template_name:
+				frappe.log_error(
+					f"Skipping template with missing name. Template data: {str(template)[:200]}",
+					"Digital Connect Template Fetch"
+				)
+				skipped_count += 1
+				continue
+			
+			# Check by actual_name and language_code
+			filters = {"actual_name": template_name}
+			if language_code:
+				filters["language_code"] = language_code
+			
 			existing = frappe.db.get_value("Digital Whatsapp Template", filters)
+			
+			# Also check by generated name format (template_name-language_code)
+			if not existing:
+				generated_name = f"{template_name}-{language_code}"
+				existing = frappe.db.get_value("Digital Whatsapp Template", generated_name)
+			
+			# Also check by template_id if available
+			if not existing and template.get("id"):
+				existing = frappe.db.get_value("Digital Whatsapp Template", {"template_id": template.get("id")})
 
 			if existing:
-				# Update existing template
-				doc = frappe.get_doc("Digital Whatsapp Template", existing)
-				# Set a flag to indicate we're syncing from fetch (skip Digital Connect update)
-				doc._skip_digital_connect_update = True
-				doc.status = template.get("status", "PENDING")
-				doc.template_id = template.get("id")
-				doc.category = template.get("category")
-				# Update components if available
-				if template.get("components"):
-					update_template_components(doc, template.get("components"))
-				doc.save(ignore_permissions=True)
-			else:
-				# Create new template - skip if missing required fields
-				if not template.get("name"):
+				# Template already exists - just update it and skip
+				try:
+					doc = frappe.get_doc("Digital Whatsapp Template", existing)
+					# Set a flag to indicate we're syncing from fetch (skip Digital Connect update)
+					doc._skip_digital_connect_update = True
+					doc.status = _extract_and_validate_status(template.get("status"))
+					doc.template_id = template.get("id")
+					doc.category = template.get("category")
+					# Update components if available
+					if template.get("components"):
+						update_template_components(doc, template.get("components"))
+					doc.save(ignore_permissions=True)
+					synced_count += 1
+				except Exception as e:
+					# If update fails, just skip - template already exists
 					frappe.log_error(
-						f"Skipping template with missing name. Template data: {str(template)[:200]}",
+						f"Skipped updating existing template {template_name}: {str(e)}",
 						"Digital Connect Template Fetch"
 					)
-					continue
-				
-				# Create new template
+					skipped_count += 1
+				continue
+			
+			# Create new template
+			try:
 				doc = frappe.new_doc("Digital Whatsapp Template")
 				# Set flag to skip Digital Connect updates during fetch sync
 				doc._skip_digital_connect_update = True
-				doc.template_name = template.get("name", "Unknown")
-				doc.actual_name = template.get("name")
-				doc.status = template.get("status", "PENDING")
+				doc.template_name = template_name
+				doc.actual_name = template_name
+				doc.status = _extract_and_validate_status(template.get("status"))
 				doc.template_id = template.get("id")  # Set ID before insert to skip after_insert hook
 				doc.category = template.get("category") or "UTILITY"  # Default category if missing
-				doc.language_code = template.get("language", "en_US")
+				doc.language_code = language_code
 				# Set language from language code
-				lang_code = template.get("language", "en_US").replace("_", "-")
+				lang_code = language_code.replace("_", "-")
 				lang_doc = frappe.db.get_value("Language", {"language_code": lang_code})
 				if lang_doc:
 					doc.language = lang_doc
 				# Update components
 				if template.get("components"):
 					update_template_components(doc, template.get("components"))
-				try:
-					doc.insert(ignore_permissions=True)
-				except Exception as e:
-					frappe.log_error(
-						f"Failed to create template {template.get('name')}: {str(e)}",
-						"Digital Connect Template Fetch"
-					)
-					# Continue with next template instead of failing completely
-					continue
+				doc.insert(ignore_permissions=True)
+				synced_count += 1
+			except frappe.exceptions.DuplicateEntryError:
+				# Template already exists (duplicate key) - just skip it
+				skipped_count += 1
+				continue
+			except Exception as e:
+				# Other errors - log and skip
+				frappe.log_error(
+					f"Failed to create template {template_name}: {str(e)}",
+					"Digital Connect Template Fetch"
+				)
+				skipped_count += 1
+				continue
 
-			synced_count += 1
+		# Show summary message
+		if synced_count > 0:
+			msg = _("Successfully fetched and synced {0} template(s) from Digital Connect.").format(synced_count)
+			if skipped_count > 0:
+				msg += " " + _("{0} template(s) skipped (already exist).").format(skipped_count)
+			frappe.msgprint(msg, indicator="green")
+		elif skipped_count > 0:
+			frappe.msgprint(
+				_("All {0} template(s) already exist locally. No new templates created.").format(skipped_count),
+				indicator="blue",
+			)
 
-		frappe.msgprint(
-			_("Successfully fetched and synced {0} template(s) from Digital Connect.").format(
-				synced_count
-			),
-			indicator="green",
-		)
-
-		return {"status": "success", "synced_count": synced_count, "data": data}
+		return {"status": "success", "synced_count": synced_count, "skipped_count": skipped_count, "data": data}
 
 	except requests.exceptions.RequestException as e:
 		frappe.throw(_("Failed to fetch templates from Digital Connect: {0}").format(str(e)))
@@ -855,3 +764,587 @@ def get_template_insights(template_id, start_date, end_date, granularity="DAILY"
 
 	except requests.exceptions.RequestException as e:
 		frappe.throw(_("Failed to get template insights: {0}").format(str(e)))
+
+
+def _extract_and_validate_status(status_value):
+	"""Extract and validate template status from API response.
+	
+	Args:
+		status_value: Status value from API (could be string, int, or None)
+	
+	Returns:
+		Valid status string: "", "PENDING", "APPROVED", "REJECTED", or "PAUSED"
+	"""
+	allowed_statuses = ["", "PENDING", "APPROVED", "REJECTED", "PAUSED"]
+	
+	if not status_value:
+		return "PENDING"
+	
+	# Convert to string and check if it's a valid status
+	status_str = str(status_value).strip().upper()
+	
+	# If it's a number (like HTTP status code 200), return PENDING
+	if status_str.isdigit():
+		return "PENDING"
+	
+	# Check if it matches an allowed status (case-insensitive)
+	for allowed in allowed_statuses:
+		if status_str == allowed.upper():
+			return allowed
+	
+	# If not valid, default to PENDING
+	return "PENDING"
+
+
+@frappe.whitelist()
+def register_template(template_name):
+	"""Register a template in Digital Connect (send for approval).
+	
+	Args:
+		template_name: Name of the template document to register
+	"""
+	doc = frappe.get_doc("Digital Whatsapp Template", template_name)
+	
+	# Check if already registered
+	if doc.template_id:
+		frappe.throw(_("Template is already registered in Digital Connect. Template ID: {0}").format(doc.template_id))
+	
+	# Validate required fields
+	if not doc.actual_name:
+		if doc.template_name:
+			doc.actual_name = doc.template_name.lower().replace(" ", "_").replace("-", "_")
+		else:
+			frappe.throw(_("Template name is required."))
+	
+	if not doc.language_code:
+		frappe.throw(_("Language code is required."))
+	
+	if not doc.category:
+		frappe.throw(_("Category is required."))
+	
+	if not doc.body_text:
+		frappe.throw(_("Body text is required."))
+	
+	# Get settings
+	settings = frappe.get_single("Digital Connect Whatsap Settings")
+	if not settings.enable:
+		frappe.throw(_("Digital Connect WhatsApp integration is disabled."))
+	
+	api_key = settings.get_password("api_key")
+	if not settings.base_url or not api_key:
+		frappe.throw(_("Base URL and API Key are required in Digital Connect Whatsap Settings."))
+	
+	# Extract base URL
+	base_url = settings.base_url
+	if "/v2/api/outgoing/" in base_url:
+		base_url = base_url.split("/v2/api/outgoing/")[0]
+	base_url = base_url.rstrip("/")
+	
+	headers = {
+		"Content-Type": "application/json",
+		"token": api_key,
+	}
+	
+	if requests is None:
+		frappe.throw(_("Python requests library is not available on this site."))
+	
+	# Build components
+	components = doc.build_components()
+	
+	# Validate we have at least 3 components (API requirement)
+	if len(components) < 3:
+		# Show what components are present and what's missing
+		component_types = [comp.get("type") for comp in components]
+		missing = []
+		
+		if "HEADER" not in component_types:
+			if not doc.header_type:
+				missing.append("HEADER (set Header Type and Header Text)")
+			else:
+				missing.append("HEADER (complete header configuration)")
+		
+		if "FOOTER" not in component_types:
+			if not doc.footer_text:
+				missing.append("FOOTER (set Footer Text)")
+			else:
+				missing.append("FOOTER")
+		
+		if "BUTTONS" not in component_types:
+			if not doc.buttons or len(doc.buttons) == 0:
+				missing.append("BUTTONS (add at least one button)")
+			else:
+				missing.append("BUTTONS (complete button configuration)")
+		
+		needed_count = 3 - len(components)
+		missing_list = missing[:needed_count]
+		missing_str = " or ".join(missing_list) if len(missing_list) > 1 else missing_list[0] if missing_list else ""
+		
+		error_msg = _(
+			"Digital Connect requires at least 3 components. "
+			"Current components ({0}): {1}. "
+			"Please add at least {2} more component(s): {3}"
+		).format(
+			len(components),
+			", ".join(component_types),
+			needed_count,
+			missing_str
+		)
+		
+		frappe.throw(error_msg)
+	
+	# First, check if template already exists in Digital Connect
+	try:
+		check_url = f"{base_url}/v2/api/outgoing/template"
+		check_params = {
+			"name": doc.actual_name,
+			"language": doc.language_code,
+		}
+		check_response = requests.get(
+			check_url, headers=headers, params=check_params, timeout=15
+		)
+		
+		if check_response.ok:
+			try:
+				check_data = check_response.json()
+				existing_templates = []
+				if isinstance(check_data, dict):
+					if "data" in check_data and isinstance(check_data.get("data"), list):
+						existing_templates = check_data.get("data", [])
+					elif "message" in check_data and isinstance(check_data.get("message"), dict):
+						message_data = check_data.get("message", {})
+						if "data" in message_data and isinstance(message_data.get("data"), list):
+							existing_templates = message_data.get("data", [])
+				
+				# Find matching template
+				for existing_template in existing_templates:
+					if (
+						existing_template.get("name") == doc.actual_name
+						and existing_template.get("language") == doc.language_code
+					):
+						# Link to existing template
+						doc.template_id = existing_template.get("id")
+						doc.status = existing_template.get("status", "PENDING")
+						if existing_template.get("category") and not doc.category:
+							doc.category = existing_template.get("category")
+						if existing_template.get("components"):
+							update_template_components(doc, existing_template.get("components"))
+						doc.save(ignore_permissions=True)
+						frappe.msgprint(
+							_("Template linked to existing Digital Connect template. Status: {0}").format(doc.status),
+							indicator="blue",
+						)
+						return {"status": "linked", "template_id": doc.template_id, "status": doc.status}
+			except Exception:
+				pass
+	except Exception:
+		pass
+	
+	# Create new template in Digital Connect
+	payload = {
+		"name": doc.actual_name,
+		"language": doc.language_code,
+		"category": doc.category,
+		"components": components,
+	}
+	
+	if doc.allow_category_change:
+		payload["allow_category_change"] = True
+	
+	try:
+		response = requests.post(
+			f"{base_url}/v2/api/outgoing/template",
+			headers=headers,
+			data=json.dumps(payload),
+			timeout=15,
+		)
+		
+		if not response.ok:
+			try:
+				error_data = response.json()
+				error_message = (
+					error_data.get("message", {}).get("error", {}).get("message")
+					or error_data.get("error", {}).get("message")
+					or error_data.get("message")
+					or str(error_data)
+				)
+			except Exception:
+				error_message = response.text
+			
+			frappe.throw(
+				_("Failed to register template in Digital Connect (HTTP {0}): {1}").format(
+					response.status_code, error_message
+				)
+			)
+		
+		response_data = response.json()
+		
+		# Extract template ID and status from response
+		# Handle different response structures
+		template_id = None
+		template_status = None
+		
+		# Try to extract from nested message structure first
+		if isinstance(response_data, dict):
+			if "message" in response_data and isinstance(response_data.get("message"), dict):
+				message_data = response_data.get("message", {})
+				template_id = message_data.get("id") or response_data.get("id")
+				template_status = message_data.get("status") or response_data.get("status")
+			else:
+				template_id = response_data.get("id")
+				template_status = response_data.get("status")
+		
+		# Validate and set status
+		doc.template_id = template_id
+		doc.status = _extract_and_validate_status(template_status)
+		doc.save(ignore_permissions=True)
+		
+		frappe.msgprint(
+			_("Template registered successfully in Digital Connect. Status: {0}").format(doc.status),
+			indicator="green",
+		)
+		
+		return {"status": "success", "template_id": doc.template_id, "status": doc.status}
+		
+	except requests.exceptions.RequestException as e:
+		# Check if error is about template already existing
+		error_str = str(e)
+		if "already" in error_str.lower() or "duplicate" in error_str.lower() or "100" in error_str:
+			# Try to fetch and link it
+			try:
+				check_url = f"{base_url}/v2/api/outgoing/template"
+				check_params = {"name": doc.actual_name, "language": doc.language_code}
+				check_response = requests.get(
+					check_url, headers=headers, params=check_params, timeout=15
+				)
+				if check_response.ok:
+					check_data = check_response.json()
+					existing_templates = []
+					if isinstance(check_data, dict):
+						if "data" in check_data and isinstance(check_data.get("data"), list):
+							existing_templates = check_data.get("data", [])
+						elif "message" in check_data and isinstance(check_data.get("message"), dict):
+							message_data = check_data.get("message", {})
+							if "data" in message_data and isinstance(message_data.get("data"), list):
+								existing_templates = message_data.get("data", [])
+					
+					for existing_template in existing_templates:
+						if (
+							existing_template.get("name") == doc.actual_name
+							and existing_template.get("language") == doc.language_code
+						):
+							doc.template_id = existing_template.get("id")
+							doc.status = _extract_and_validate_status(existing_template.get("status"))
+							if existing_template.get("category") and not doc.category:
+								doc.category = existing_template.get("category")
+							if existing_template.get("components"):
+								update_template_components(doc, existing_template.get("components"))
+							doc.save(ignore_permissions=True)
+							frappe.msgprint(
+								_("Template already exists in Digital Connect. Linked to existing template. Status: {0}").format(doc.status),
+								indicator="blue",
+							)
+							return {"status": "linked", "template_id": doc.template_id, "status": doc.status}
+			except Exception:
+				pass
+		
+		frappe.throw(_("Failed to register template: {0}").format(str(e)))
+
+
+@frappe.whitelist()
+def delete_template(template_name):
+	"""Delete a template from Digital Connect.
+	
+	Args:
+		template_name: Name of the template document to delete
+	"""
+	doc = frappe.get_doc("Digital Whatsapp Template", template_name)
+	
+	if not doc.template_id:
+		frappe.throw(_("Template is not registered in Digital Connect. Nothing to delete."))
+	
+	if not doc.actual_name:
+		frappe.throw(_("Template actual_name is required for deletion."))
+	
+	# Get settings
+	settings = frappe.get_single("Digital Connect Whatsap Settings")
+	if not settings.enable:
+		frappe.throw(_("Digital Connect WhatsApp integration is disabled."))
+	
+	api_key = settings.get_password("api_key")
+	if not settings.base_url or not api_key:
+		frappe.throw(_("Base URL and API Key are required in Digital Connect Whatsap Settings."))
+	
+	# Extract base URL
+	base_url = settings.base_url
+	if "/v2/api/outgoing/" in base_url:
+		base_url = base_url.split("/v2/api/outgoing/")[0]
+	base_url = base_url.rstrip("/")
+	
+	headers = {
+		"Content-Type": "application/json",
+		"token": api_key,
+	}
+	
+	if requests is None:
+		frappe.throw(_("Python requests library is not available on this site."))
+	
+	try:
+		url = f"{base_url}/v2/api/outgoing/template?name={doc.actual_name}"
+		response = requests.delete(url, headers=headers, timeout=15)
+		
+		if not response.ok:
+			try:
+				error_data = response.json()
+				error_message = (
+					error_data.get("message", {}).get("error", {}).get("message")
+					or error_data.get("error", {}).get("message")
+					or error_data.get("message")
+					or str(error_data)
+				)
+			except Exception:
+				error_message = response.text
+			
+			# If template not found, still consider it successful (already deleted)
+			if "not found" in error_message.lower() or response.status_code == 404:
+				# Clear local template_id and status
+				doc.template_id = ""
+				doc.status = ""
+				doc.save(ignore_permissions=True)
+				return {"status": "success", "message": "Template not found in Digital Connect. Cleared local reference."}
+			
+			frappe.throw(
+				_("Failed to delete template from Digital Connect (HTTP {0}): {1}").format(
+					response.status_code, error_message
+				)
+			)
+		
+		# Clear local template_id and status
+		doc.template_id = ""
+		doc.status = ""
+		doc.save(ignore_permissions=True)
+		
+		return {"status": "success", "message": "Template deleted successfully from Digital Connect."}
+		
+	except requests.exceptions.RequestException as e:
+		frappe.throw(_("Failed to delete template: {0}").format(str(e)))
+
+
+@frappe.whitelist()
+def update_template(template_name):
+	"""Update a template in Digital Connect.
+	
+	Args:
+		template_name: Name of the template document to update
+	"""
+	doc = frappe.get_doc("Digital Whatsapp Template", template_name)
+	
+	if not doc.template_id:
+		frappe.throw(_("Template is not registered in Digital Connect. Please register it first."))
+	
+	# Only update if template is in editable status
+	if doc.status not in ["APPROVED", "REJECTED", "PAUSED"]:
+		frappe.throw(
+			_("Template can only be edited when status is APPROVED, REJECTED, or PAUSED. Current status: {0}").format(doc.status)
+		)
+	
+	# Use the existing on_update logic by calling it programmatically
+	# But we need to trigger it manually since we're calling from a whitelisted function
+	doc.get_settings()
+	components = doc.build_components()
+	
+	# Digital Connect API requires at least 3 components for updates
+	# If we have fewer, fetch existing template and merge components to meet requirement
+	original_component_count = len(components)
+	if len(components) < 3:
+		try:
+			# Fetch current template from Digital Connect to get all existing components
+			fetch_url = f"{doc._base_url}/v2/api/outgoing/template"
+			fetch_params = {"name": doc.actual_name, "language": doc.language_code}
+			fetch_response = requests.get(
+				fetch_url, headers=doc._headers, params=fetch_params, timeout=15
+			)
+			
+			if fetch_response.ok:
+				fetch_data = fetch_response.json()
+				existing_templates = []
+				if isinstance(fetch_data, dict):
+					if "data" in fetch_data and isinstance(fetch_data.get("data"), list):
+						existing_templates = fetch_data.get("data", [])
+					elif "message" in fetch_data and isinstance(fetch_data.get("message"), dict):
+						message_data = fetch_data.get("message", {})
+						if "data" in message_data and isinstance(message_data.get("data"), list):
+							existing_templates = message_data.get("data", [])
+				
+				# Find matching template
+				for existing_template in existing_templates:
+					if (
+						existing_template.get("name") == doc.actual_name
+						and existing_template.get("language") == doc.language_code
+					):
+						existing_components = existing_template.get("components", [])
+						# Merge: use our updated components, but preserve any missing ones from existing
+						# Create a map of component types we're updating
+						our_component_types = {comp.get("type") for comp in components}
+						
+						# Add any existing components that we're not updating
+						for existing_comp in existing_components:
+							existing_comp_type = existing_comp.get("type")
+							if existing_comp_type not in our_component_types:
+								# We're not updating this component type, preserve it
+								components.append(existing_comp)
+						
+						break
+		except Exception as e:
+			frappe.log_error(
+				f"Failed to fetch existing template components for merge: {str(e)}",
+				"Digital Connect Template Update"
+			)
+
+	# Validate we have at least 3 components
+	if len(components) < 3:
+		# If still less than 3 after merging, the original template might have had fewer than 3
+		# Digital Connect API requires at least 3 components for updates
+		component_types = [comp.get("type") for comp in components]
+		missing = []
+		if "HEADER" not in component_types:
+			if not doc.header_type:
+				missing.append("HEADER (set Header Type and Header Text)")
+			else:
+				missing.append("HEADER (complete header configuration)")
+		if "FOOTER" not in component_types:
+			if not doc.footer_text:
+				missing.append("FOOTER (set Footer Text)")
+			else:
+				missing.append("FOOTER")
+		if "BUTTONS" not in component_types:
+			if not doc.buttons or len(doc.buttons) == 0:
+				missing.append("BUTTONS (add at least one button)")
+			else:
+				missing.append("BUTTONS (complete button configuration)")
+		
+		needed_count = 3 - len(components)
+		missing_list = missing[:needed_count]
+		missing_str = " or ".join(missing_list) if len(missing_list) > 1 else missing_list[0] if missing_list else ""
+		
+		error_msg = _(
+			"Digital Connect requires at least 3 components. "
+			"Current components ({0}): {1}. "
+			"Please add at least {2} more component(s): {3}"
+		).format(
+			len(components),
+			", ".join(component_types),
+			needed_count,
+			missing_str
+		)
+		
+		frappe.throw(error_msg)
+
+	payload = {
+		"templateId": doc.template_id,
+		"templateDetails": {
+			"components": components,
+		},
+	}
+
+	# Can only change category if template is not approved
+	if doc.status != "APPROVED":
+		payload["templateDetails"]["category"] = doc.category
+
+	try:
+		response = doc.make_api_request("PUT", f"{doc._base_url}/v2/api/outgoing/template", payload)
+		# After update, status might change to PENDING for review
+		doc.status = "PENDING"
+		doc.save(ignore_permissions=True)
+		
+		return {"status": "success", "message": "Template updated successfully. It will be reviewed again."}
+	except Exception as e:
+		frappe.throw(_("Failed to update template: {0}").format(str(e)))
+
+
+@frappe.whitelist()
+def get_template_library(category=None, language=None):
+	"""Get template library from Digital Connect.
+	
+	Args:
+		category: Filter by category (AUTHENTICATION, MARKETING, UTILITY)
+		language: Filter by language code
+	"""
+	settings = frappe.get_single("Digital Connect Whatsap Settings")
+	
+	if not settings.enable:
+		frappe.throw(_("Digital Connect WhatsApp integration is disabled."))
+	
+	api_key = settings.get_password("api_key")
+	if not settings.base_url or not api_key:
+		frappe.throw(_("Base URL and API Key are required in Digital Connect Whatsap Settings."))
+	
+	# Extract base URL
+	base_url = settings.base_url
+	if "/v2/api/outgoing/" in base_url:
+		base_url = base_url.split("/v2/api/outgoing/")[0]
+	base_url = base_url.rstrip("/")
+	
+	# Template library endpoint (assuming it exists - adjust if different)
+	# If Digital Connect doesn't have a library endpoint, we can use the regular template endpoint
+	url = f"{base_url}/v2/api/outgoing/template/library"
+	
+	headers = {
+		"Content-Type": "application/json",
+		"token": api_key,
+	}
+	
+	if requests is None:
+		frappe.throw(_("Python requests library is not available on this site."))
+	
+	# Build query parameters
+	params = {}
+	if category:
+		params["category"] = category.upper() if isinstance(category, str) else category
+	if language:
+		params["language"] = language
+	
+	try:
+		response = requests.get(url, headers=headers, params=params, timeout=15)
+		
+		# If library endpoint doesn't exist, fall back to regular template endpoint
+		if response.status_code == 404:
+			# Try regular template endpoint instead
+			url = f"{base_url}/v2/api/outgoing/template"
+			response = requests.get(url, headers=headers, params=params, timeout=15)
+		
+		if not response.ok:
+			try:
+				error_data = response.json()
+				error_message = (
+					error_data.get("message", {}).get("error", {}).get("message")
+					or error_data.get("error", {}).get("message")
+					or error_data.get("message")
+					or str(error_data)
+				)
+			except Exception:
+				error_message = response.text
+			
+			frappe.throw(
+				_("Failed to get template library from Digital Connect (HTTP {0}): {1}").format(
+					response.status_code, error_message
+				)
+			)
+		
+		data = response.json()
+		
+		# Extract templates from response (handle different structures)
+		templates = []
+		if isinstance(data, dict):
+			if "data" in data and isinstance(data.get("data"), list):
+				templates = data.get("data", [])
+			elif "message" in data and isinstance(data.get("message"), dict):
+				message_data = data.get("message", {})
+				if "data" in message_data and isinstance(message_data.get("data"), list):
+					templates = message_data.get("data", [])
+			elif "templates" in data and isinstance(data.get("templates"), list):
+				templates = data.get("templates", [])
+		
+		return {"status": "success", "templates": templates}
+		
+	except requests.exceptions.RequestException as e:
+		frappe.throw(_("Failed to get template library: {0}").format(str(e)))

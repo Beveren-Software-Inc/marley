@@ -9,6 +9,13 @@ frappe.ui.form.on('Digital Whatsapp Template', {
 				show_fetch_templates_dialog(frm);
 			}, __('Actions'));
 
+			// Show Register button if template is not yet registered
+			if (!frm.doc.template_id) {
+				frm.add_custom_button(__('Register in Digital Connect'), function() {
+					register_template_in_digital_connect(frm);
+				}, __('Actions'));
+			}
+
 			// Show sync button if template has ID
 			if (frm.doc.template_id) {
 				frm.add_custom_button(__('Sync from Digital Connect'), function() {
@@ -21,7 +28,24 @@ frappe.ui.form.on('Digital Whatsapp Template', {
 				frm.add_custom_button(__('View Template Insights'), function() {
 					show_template_insights_dialog(frm);
 				}, __('Analytics'));
+				
+				// Show Edit button if template is editable
+				if (frm.doc.status && ['APPROVED', 'REJECTED', 'PAUSED'].includes(frm.doc.status)) {
+					frm.add_custom_button(__('Edit in Digital Connect'), function() {
+						edit_template_in_digital_connect(frm);
+					}, __('Actions'));
+				}
+				
+				// Show Delete button
+				frm.add_custom_button(__('Delete from Digital Connect'), function() {
+					delete_template_from_digital_connect(frm);
+				}, __('Actions'));
 			}
+			
+			// Show Get Template Library button
+			frm.add_custom_button(__('Get Template Library'), function() {
+				get_template_library(frm);
+			}, __('Actions'));
 		}
 
 		// Add indicator for status
@@ -159,6 +183,116 @@ function fetch_templates_from_api(filters, dialog) {
 	});
 }
 
+function register_template_in_digital_connect(frm) {
+	// Validate required fields before registering
+	if (!frm.doc.body_text) {
+		frappe.msgprint({
+			title: __('Validation Error'),
+			message: __('Body text is required to register template.'),
+			indicator: 'red'
+		});
+		return;
+	}
+
+	if (!frm.doc.category) {
+		frappe.msgprint({
+			title: __('Validation Error'),
+			message: __('Category is required to register template.'),
+			indicator: 'red'
+		});
+		return;
+	}
+
+	if (!frm.doc.language_code) {
+		frappe.msgprint({
+			title: __('Validation Error'),
+			message: __('Language code is required to register template.'),
+			indicator: 'red'
+		});
+		return;
+	}
+
+	// Check component count (need at least 3: HEADER, BODY, FOOTER, or BUTTONS)
+	let component_count = 1; // BODY is always present if body_text exists
+	let missing_components = [];
+	
+	if (!frm.doc.header_type || !frm.doc.header_text) {
+		missing_components.push('HEADER');
+	} else {
+		component_count++;
+	}
+	
+	if (!frm.doc.footer_text) {
+		missing_components.push('FOOTER');
+	} else {
+		component_count++;
+	}
+	
+	// Check buttons
+	let has_buttons = false;
+	if (frm.doc.buttons && frm.doc.buttons.length > 0) {
+		has_buttons = true;
+		component_count++;
+	} else {
+		missing_components.push('BUTTONS');
+	}
+	
+	if (component_count < 3) {
+		let needed = 3 - component_count;
+		let missing_str = missing_components.slice(0, needed).join(' or ');
+		frappe.msgprint({
+			title: __('Component Requirement'),
+			message: __(
+				'Digital Connect requires at least 3 components. ' +
+				'Current: {0} (BODY{1}). ' +
+				'Please add at least {2} more: {3}',
+				[
+					component_count,
+					(frm.doc.header_type ? ', HEADER' : '') + 
+					(frm.doc.footer_text ? ', FOOTER' : '') + 
+					(has_buttons ? ', BUTTONS' : ''),
+					needed,
+					missing_str
+				]
+			),
+			indicator: 'orange'
+		});
+		return;
+	}
+
+	// Confirm before registering
+	frappe.confirm(
+		__('This will register the template in Digital Connect and send it for approval. Continue?'),
+		function() {
+			// User confirmed
+			frappe.call({
+				method: 'healthcare.healthcare.doctype.digital_whatsapp_template.digital_whatsapp_template.register_template',
+				args: {
+					template_name: frm.doc.name
+				},
+				freeze: true,
+				freeze_message: __('Registering template in Digital Connect...'),
+				callback: function(r) {
+					if (r.exc) {
+						frappe.msgprint({
+							title: __('Error'),
+							message: r.exc,
+							indicator: 'red'
+						});
+					} else if (r.message) {
+						frappe.msgprint({
+							title: __('Success'),
+							message: __('Template registered successfully. Status: {0}', [r.message.status || 'PENDING']),
+							indicator: 'green'
+						});
+						frm.reload_doc();
+					}
+				}
+			});
+		}
+	);
+}
+
 function sync_template_from_api(frm) {
 	if (!frm.doc.actual_name) {
 		frappe.msgprint({
@@ -282,6 +416,174 @@ function get_template_insights(frm, values, dialog) {
 					title: __('Template Insights'),
 					message: insights_html,
 					indicator: 'blue'
+				});
+			}
+		}
+	});
+}
+
+function delete_template_from_digital_connect(frm) {
+	if (!frm.doc.template_id) {
+		frappe.msgprint({
+			title: __('Error'),
+			message: __('Template is not registered in Digital Connect.'),
+			indicator: 'red'
+		});
+		return;
+	}
+
+	frappe.confirm(
+		__('This will delete the template from Digital Connect. This action cannot be undone. Continue?'),
+		function() {
+			frappe.call({
+				method: 'healthcare.healthcare.doctype.digital_whatsapp_template.digital_whatsapp_template.delete_template',
+				args: {
+					template_name: frm.doc.name
+				},
+				freeze: true,
+				freeze_message: __('Deleting template from Digital Connect...'),
+				callback: function(r) {
+					if (r.exc) {
+						frappe.msgprint({
+							title: __('Error'),
+							message: r.exc,
+							indicator: 'red'
+						});
+					} else {
+						frappe.msgprint({
+							title: __('Success'),
+							message: __('Template deleted successfully from Digital Connect.'),
+							indicator: 'green'
+						});
+						// Clear template_id and status
+						frm.set_value('template_id', '');
+						frm.set_value('status', '');
+						frm.save();
+					}
+				}
+			});
+		}
+	);
+}
+
+function edit_template_in_digital_connect(frm) {
+	if (!frm.doc.template_id) {
+		frappe.msgprint({
+			title: __('Error'),
+			message: __('Template is not registered in Digital Connect.'),
+			indicator: 'red'
+		});
+		return;
+	}
+
+	if (!frm.doc.status || !['APPROVED', 'REJECTED', 'PAUSED'].includes(frm.doc.status)) {
+		frappe.msgprint({
+			title: __('Error'),
+			message: __('Template can only be edited when status is APPROVED, REJECTED, or PAUSED. Current status: {0}', [frm.doc.status || 'Unknown']),
+			indicator: 'red'
+		});
+		return;
+	}
+
+	// Save the document first to ensure latest changes are saved
+	frm.save().then(function() {
+		frappe.call({
+			method: 'healthcare.healthcare.doctype.digital_whatsapp_template.digital_whatsapp_template.update_template',
+			args: {
+				template_name: frm.doc.name
+			},
+			freeze: true,
+			freeze_message: __('Updating template in Digital Connect...'),
+			callback: function(r) {
+				if (r.exc) {
+					frappe.msgprint({
+						title: __('Error'),
+						message: r.exc,
+						indicator: 'red'
+					});
+				} else {
+					frappe.msgprint({
+						title: __('Success'),
+						message: __('Template updated successfully in Digital Connect. It will be reviewed again.'),
+						indicator: 'green'
+					});
+					frm.reload_doc();
+				}
+			}
+		});
+	});
+}
+
+function get_template_library(frm) {
+	let dialog = new frappe.ui.Dialog({
+		title: __('Get Template Library'),
+		fields: [
+			{
+				fieldname: 'category',
+				label: __('Category'),
+				fieldtype: 'Select',
+				options: '\nAUTHENTICATION\nMARKETING\nUTILITY',
+			},
+			{
+				fieldname: 'language',
+				label: __('Language Code'),
+				fieldtype: 'Data',
+				description: __('e.g., en_US, es_ES')
+			}
+		],
+		primary_action_label: __('Get Library'),
+		primary_action(values) {
+			fetch_template_library(values, dialog);
+		}
+	});
+
+	dialog.show();
+}
+
+function fetch_template_library(filters, dialog) {
+	frappe.call({
+		method: 'healthcare.healthcare.doctype.digital_whatsapp_template.digital_whatsapp_template.get_template_library',
+		args: {
+			category: filters.category || null,
+			language: filters.language || null
+		},
+		freeze: true,
+		freeze_message: __('Fetching template library from Digital Connect...'),
+		callback: function(r) {
+			dialog.hide();
+			if (r.exc) {
+				frappe.msgprint({
+					title: __('Error'),
+					message: r.exc,
+					indicator: 'red'
+				});
+			} else if (r.message && r.message.templates) {
+				// Display template library in a formatted way
+				let templates = r.message.templates;
+				let html = '<div style="max-height: 500px; overflow-y: auto;"><table class="table table-bordered" style="width: 100%;">';
+				html += '<thead><tr><th>Template Name</th><th>Category</th><th>Language</th><th>Description</th></tr></thead><tbody>';
+				
+				templates.forEach(function(template) {
+					html += '<tr>';
+					html += '<td>' + frappe.utils.escape_html(template.name || '') + '</td>';
+					html += '<td>' + frappe.utils.escape_html(template.category || '') + '</td>';
+					html += '<td>' + frappe.utils.escape_html(template.language || '') + '</td>';
+					html += '<td>' + frappe.utils.escape_html(template.description || '') + '</td>';
+					html += '</tr>';
+				});
+				
+				html += '</tbody></table></div>';
+
+				frappe.msgprint({
+					title: __('Template Library'),
+					message: html,
+					indicator: 'blue'
+				});
+			} else {
+				frappe.msgprint({
+					title: __('No Templates'),
+					message: __('No templates found in the library.'),
+					indicator: 'orange'
 				});
 			}
 		}

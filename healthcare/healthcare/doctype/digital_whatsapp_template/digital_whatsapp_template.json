@@ -119,12 +119,14 @@
    "label": "Template Components"
   },
   {
+   "default": "TEXT",
    "fieldname": "header_type",
    "fieldtype": "Select",
    "label": "Header Type",
    "options": "\nTEXT\nIMAGE\nVIDEO\nDOCUMENT"
   },
   {
+   "default": "Notification",
    "depends_on": "eval:doc.header_type == 'TEXT'",
    "description": "Header text with variables like {{1}}, {{2}}, etc.",
    "fieldname": "header_text",
@@ -172,6 +174,7 @@
    "fieldtype": "Column Break"
   },
   {
+   "default": "Thank you",
    "description": "Optional footer text (max 60 characters)",
    "fieldname": "footer_text",
    "fieldtype": "Small Text",
