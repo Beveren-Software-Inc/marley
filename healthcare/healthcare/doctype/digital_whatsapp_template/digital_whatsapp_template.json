@@ -1,0 +1,253 @@
+{
+ "actions": [],
+ "creation": "2026-01-14 10:52:15.660326",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "template_name",
+  "actual_name",
+  "column_break_bthp",
+  "status",
+  "template_id",
+  "section_break_fxqh",
+  "category",
+  "allow_category_change",
+  "column_break_6",
+  "language",
+  "language_code",
+  "section_break_components",
+  "header_type",
+  "header_text",
+  "header_sample_values",
+  "column_break_header",
+  "header_media",
+  "body_section",
+  "body_text",
+  "body_sample_values",
+  "column_break_body",
+  "footer_text",
+  "buttons_section",
+  "buttons",
+  "section_break_metadata",
+  "for_doctype",
+  "field_names",
+  "column_break_metadata",
+  "description"
+ ],
+ "fields": [
+  {
+   "fieldname": "template_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Template Label",
+   "no_copy": 1,
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "description": "Auto-generated from template label (lowercase, underscores)",
+   "fieldname": "actual_name",
+   "fieldtype": "Data",
+   "label": "Template Name (for API)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_bthp",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "PENDING",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "\nPENDING\nAPPROVED\nREJECTED\nPAUSED",
+   "read_only": 1
+  },
+  {
+   "description": "ID returned from Digital Connect API",
+   "fieldname": "template_id",
+   "fieldtype": "Data",
+   "label": "Template ID",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_fxqh",
+   "fieldtype": "Section Break",
+   "label": "Template Details"
+  },
+  {
+   "description": "Template category as per WhatsApp Business Policy",
+   "fieldname": "category",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Category",
+   "options": "\nAUTHENTICATION\nMARKETING\nUTILITY",
+   "reqd": 1
+  },
+  {
+   "fieldname": "language",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Language",
+   "options": "Language",
+   "reqd": 1
+  },
+  {
+   "description": "Auto-generated language code (e.g., en_US)",
+   "fieldname": "language_code",
+   "fieldtype": "Data",
+   "label": "Language Code",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_6",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "description": "Allow Digital Connect to automatically assign category based on template content",
+   "fieldname": "allow_category_change",
+   "fieldtype": "Check",
+   "label": "Allow Category Change"
+  },
+  {
+   "fieldname": "section_break_components",
+   "fieldtype": "Section Break",
+   "label": "Template Components"
+  },
+  {
+   "default": "TEXT",
+   "fieldname": "header_type",
+   "fieldtype": "Select",
+   "label": "Header Type",
+   "options": "\nTEXT\nIMAGE\nVIDEO\nDOCUMENT"
+  },
+  {
+   "default": "Notification",
+   "depends_on": "eval:doc.header_type == 'TEXT'",
+   "description": "Header text with variables like {{1}}, {{2}}, etc.",
+   "fieldname": "header_text",
+   "fieldtype": "Small Text",
+   "label": "Header Text"
+  },
+  {
+   "depends_on": "eval:doc.header_type == 'TEXT'",
+   "description": "Comma-separated sample values for header variables (e.g., Summer Sale)",
+   "fieldname": "header_sample_values",
+   "fieldtype": "Small Text",
+   "label": "Header Sample Values"
+  },
+  {
+   "fieldname": "column_break_header",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:in_list(['IMAGE', 'VIDEO', 'DOCUMENT'], doc.header_type)",
+   "description": "Upload image, video, or document for header",
+   "fieldname": "header_media",
+   "fieldtype": "Attach",
+   "label": "Header Media"
+  },
+  {
+   "fieldname": "body_section",
+   "fieldtype": "Section Break",
+   "label": "Body"
+  },
+  {
+   "description": "Message body with variables like {{1}}, {{2}}, etc. Maximum 1024 characters",
+   "fieldname": "body_text",
+   "fieldtype": "Text",
+   "label": "Body Text",
+   "reqd": 1
+  },
+  {
+   "description": "Comma-separated sample values for body variables (e.g., Pablo,860198-230332)",
+   "fieldname": "body_sample_values",
+   "fieldtype": "Small Text",
+   "label": "Body Sample Values"
+  },
+  {
+   "fieldname": "column_break_body",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Thank you",
+   "description": "Optional footer text (max 60 characters)",
+   "fieldname": "footer_text",
+   "fieldtype": "Small Text",
+   "label": "Footer Text"
+  },
+  {
+   "fieldname": "buttons_section",
+   "fieldtype": "Section Break",
+   "label": "Buttons"
+  },
+  {
+   "fieldname": "buttons",
+   "fieldtype": "Table",
+   "label": "Buttons",
+   "options": "Digital Whatsapp Template Details"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "section_break_metadata",
+   "fieldtype": "Section Break",
+   "label": "Additional Information"
+  },
+  {
+   "description": "Optional: Link this template to a specific DocType",
+   "fieldname": "for_doctype",
+   "fieldtype": "Link",
+   "label": "For DocType",
+   "options": "DocType"
+  },
+  {
+   "description": "Comma-separated field names to replace values in templates",
+   "fieldname": "field_names",
+   "fieldtype": "Small Text",
+   "label": "Field Names"
+  },
+  {
+   "fieldname": "column_break_metadata",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Optional description for this template",
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-01-14 11:17:12.935389",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Digital Whatsapp Template",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "quick_entry": 1,
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

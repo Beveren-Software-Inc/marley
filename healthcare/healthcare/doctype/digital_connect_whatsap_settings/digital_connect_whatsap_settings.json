@@ -1,0 +1,71 @@
+{
+ "actions": [],
+ "creation": "2025-01-27 00:00:00",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "enable",
+  "section_break_yvoe",
+  "base_url",
+  "column_break_clyv",
+  "api_key"
+ ],
+ "fields": [
+  {
+   "default": "0",
+   "fieldname": "enable",
+   "fieldtype": "Check",
+   "label": "Enable Integration"
+  },
+  {
+   "default": "https://eoceandigitalconnect.com/v2/api/outgoing/message",
+   "fieldname": "base_url",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Base URL",
+   "reqd": 1
+  },
+  {
+   "fieldname": "api_key",
+   "fieldtype": "Password",
+   "in_list_view": 1,
+   "label": "API Key",
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_break_yvoe",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_clyv",
+   "fieldtype": "Column Break"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-01-13 12:43:31.548293",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Digital Connect Whatsap Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "quick_entry": 1,
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

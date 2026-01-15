@@ -1,0 +1,95 @@
+{
+ "actions": [],
+ "creation": "2026-01-14 10:53:16.106667",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "button_type",
+  "button_text",
+  "column_break_1",
+  "url",
+  "url_suffix_example",
+  "column_break_2",
+  "phone_number",
+  "otp_type",
+  "zero_tap_terms_accepted"
+ ],
+ "fields": [
+  {
+   "fieldname": "button_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Button Type",
+   "options": "\nQUICK_REPLY\nURL\nPHONE_NUMBER\nOTP\nMPM\nCATALOG\nFLOW\nVOICE_CALL\nAPP",
+   "reqd": 1
+  },
+  {
+   "fieldname": "button_text",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Button Text",
+   "reqd": 1,
+   "description": "Text displayed on the button"
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:doc.button_type == 'URL'",
+   "fieldname": "url",
+   "fieldtype": "Data",
+   "label": "URL",
+   "description": "Base URL for the button"
+  },
+  {
+   "depends_on": "eval:doc.button_type == 'URL'",
+   "fieldname": "url_suffix_example",
+   "fieldtype": "Data",
+   "label": "URL Suffix Example",
+   "description": "Example URL suffix (e.g., /demo)"
+  },
+  {
+   "fieldname": "column_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:doc.button_type == 'PHONE_NUMBER'",
+   "fieldname": "phone_number",
+   "fieldtype": "Data",
+   "label": "Phone Number",
+   "description": "Phone number in international format (e.g., +13057652345)"
+  },
+  {
+   "depends_on": "eval:doc.button_type == 'OTP'",
+   "fieldname": "otp_type",
+   "fieldtype": "Select",
+   "label": "OTP Type",
+   "options": "\nCOPY_CODE\nONE_TAP\nZERO_TAP"
+  },
+  {
+   "depends_on": "eval:doc.button_type == 'OTP' && doc.otp_type == 'ZERO_TAP'",
+   "fieldname": "zero_tap_terms_accepted",
+   "fieldtype": "Check",
+   "label": "Zero Tap Terms Accepted"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-01-14 10:54:25.682037",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Digital Whatsapp Template Details",
+ "owner": "Administrator",
+ "permissions": [],
+ "quick_entry": 1,
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}
