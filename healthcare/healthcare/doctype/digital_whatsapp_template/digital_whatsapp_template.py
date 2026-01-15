@@ -386,6 +386,401 @@ class DigitalWhatsappTemplate(Document):
 			frappe.throw(_("Failed to call Digital Connect API: {0}").format(str(e)))
 
 
+def _get_digital_connect_settings():
+	"""Get and validate Digital Connect settings.
+	
+	Returns:
+		tuple: (settings, api_key, base_url)
+	"""
+	settings = frappe.get_single("Digital Connect Whatsap Settings")
+	
+	if not settings.enable:
+		frappe.throw(_("Digital Connect WhatsApp integration is disabled."))
+	
+	api_key = settings.get_password("api_key")
+	
+	if not settings.base_url or not api_key:
+		frappe.throw(_("Base URL and API Key are required in Digital Connect Whatsap Settings."))
+	
+	# Extract base URL
+	base_url = settings.base_url
+	if "/v2/api/outgoing/" in base_url:
+		base_url = base_url.split("/v2/api/outgoing/")[0]
+	base_url = base_url.rstrip("/")
+	
+	return settings, api_key, base_url
+
+
+def _build_template_api_url(base_url):
+	"""Build the template API URL.
+	
+	Args:
+		base_url: Base URL for Digital Connect API
+		
+	Returns:
+		str: Full API URL for templates
+	"""
+	return f"{base_url}/v2/api/outgoing/template"
+
+
+def _build_template_query_params(category=None, language=None, name=None, status=None):
+	"""Build query parameters for template API request.
+	
+	Args:
+		category: Filter by category
+		language: Filter by language code
+		name: Filter by template name or content
+		status: Filter by status
+		
+	Returns:
+		tuple: (params, params_with_status)
+	"""
+	params = {}
+	if category:
+		params["category"] = category.upper() if isinstance(category, str) else category
+	if language:
+		params["language"] = language
+	if name:
+		params["name_or_content"] = name
+	
+	# Per docs, `status` is supported, but some tenants return: "'status' is not allowed".
+	# We'll attempt with status first, then retry without if needed.
+	params_with_status = dict(params)
+	if status:
+		params_with_status["status"] = status
+	
+	return params, params_with_status
+
+
+def _make_template_api_request(url, headers, params, status=None):
+	"""Make API request to fetch templates with adaptive retry logic.
+	
+	Args:
+		url: API URL
+		headers: Request headers
+		params: Query parameters (without status)
+		status: Optional status filter
+		
+	Returns:
+		dict: Parsed JSON response data
+	"""
+	if requests is None:
+		frappe.throw(_("Python requests library is not available on this site."))
+	
+	# Log the request for debugging
+	request_params = params.copy()
+	if status:
+		request_params["status"] = status
+	
+	frappe.log_error(
+		f"Fetching templates - URL: {url}, Params: {request_params}",
+		"Digital Connect Template Fetch Request"
+	)
+	
+	# Try with status first if provided
+	if status:
+		response = requests.get(url, headers=headers, params=request_params, timeout=15)
+		
+		# Parse response
+		try:
+			data = response.json()
+		except Exception:
+			data = response.text or {"data": [], "paging": {}}
+		
+		# Check if error is about status not being allowed
+		if not response.ok:
+			error_message = _extract_error_message(data)
+			
+			# Adaptive fallback: retry without status if it's not allowed
+			if (
+				response.status_code == 400
+				and "'status' is not allowed" in (error_message or "")
+			):
+				# Retry without status
+				response = requests.get(url, headers=headers, params=params, timeout=15)
+				try:
+					data = response.json()
+				except Exception:
+					data = response.text or {"data": [], "paging": {}}
+				
+				if not response.ok:
+					error_message = _extract_error_message(data)
+					frappe.throw(
+						_("Failed to fetch templates from Digital Connect (HTTP {0}): {1}").format(
+							response.status_code, error_message
+						)
+					)
+			else:
+				frappe.throw(
+					_("Failed to fetch templates from Digital Connect (HTTP {0}): {1}").format(
+						response.status_code, error_message
+					)
+				)
+	else:
+		# No status filter, make direct request
+		response = requests.get(url, headers=headers, params=params, timeout=15)
+		
+		try:
+			data = response.json()
+		except Exception:
+			data = response.text or {"data": [], "paging": {}}
+		
+		if not response.ok:
+			error_message = _extract_error_message(data)
+			frappe.throw(
+				_("Failed to fetch templates from Digital Connect (HTTP {0}): {1}").format(
+					response.status_code, error_message
+				)
+			)
+	
+	return data
+
+
+def _extract_error_message(data):
+	"""Extract error message from API response.
+	
+	Args:
+		data: Response data (dict or string)
+		
+	Returns:
+		str: Error message or None
+	"""
+	if isinstance(data, dict):
+		return (
+			data.get("error", {}).get("message")
+			or data.get("message", {}).get("error", {}).get("message")
+			or data.get("message")
+			or str(data)
+		)
+	return str(data)
+
+
+def _extract_templates_from_response(data):
+	"""Extract templates list from API response (handles different response structures).
+	
+	Args:
+		data: API response data
+		
+	Returns:
+		list: List of template dictionaries
+	"""
+	api_templates = []
+	
+	if isinstance(data, dict):
+		# Try standard structure first: {"data": [...]}
+		if "data" in data and isinstance(data.get("data"), list):
+			api_templates = data.get("data", [])
+		# Try nested structure: {"message": {"data": [...]}}
+		elif "message" in data and isinstance(data.get("message"), dict):
+			message_data = data.get("message", {})
+			if "data" in message_data and isinstance(message_data.get("data"), list):
+				api_templates = message_data.get("data", [])
+	# If data is a list directly (unlikely but handle it)
+	elif isinstance(data, list):
+		api_templates = data
+	
+	# Log if we couldn't extract templates
+	if not api_templates and isinstance(data, dict):
+		frappe.log_error(
+			f"Could not extract templates from response. Response keys: {list(data.keys())}",
+			"Digital Connect Template Fetch"
+		)
+	
+	return api_templates
+
+
+def _filter_templates_by_status(templates, status):
+	"""Filter templates by status if status filter is provided.
+	
+	Args:
+		templates: List of template dictionaries
+		status: Status to filter by (optional)
+		
+	Returns:
+		list: Filtered templates
+	"""
+	if status:
+		return [t for t in templates if isinstance(t, dict) and t.get("status") == status]
+	return templates
+
+
+def _find_existing_template(template_name, language_code, template_id=None):
+	"""Find existing template in local database.
+	
+	Args:
+		template_name: Template name from API
+		language_code: Language code
+		template_id: Template ID from Digital Connect (optional)
+		
+	Returns:
+		str or None: Existing template name if found, None otherwise
+	"""
+	# Check by actual_name and language_code
+	filters = {"actual_name": template_name}
+	if language_code:
+		filters["language_code"] = language_code
+	
+	existing = frappe.db.get_value("Digital Whatsapp Template", filters)
+	
+	# Also check by generated name format (template_name-language_code)
+	if not existing:
+		generated_name = f"{template_name}-{language_code}"
+		existing = frappe.db.get_value("Digital Whatsapp Template", generated_name)
+	
+	# Also check by template_id if available
+	if not existing and template_id:
+		existing = frappe.db.get_value("Digital Whatsapp Template", {"template_id": template_id})
+	
+	return existing
+
+
+def _update_existing_template(existing_name, template_data):
+	"""Update existing template with data from API.
+	
+	Args:
+		existing_name: Name of existing template document
+		template_data: Template data from API
+		
+	Returns:
+		bool: True if successful, False otherwise
+	"""
+	try:
+		doc = frappe.get_doc("Digital Whatsapp Template", existing_name)
+		# Set a flag to indicate we're syncing from fetch (skip Digital Connect update)
+		doc._skip_digital_connect_update = True
+		doc.status = _extract_and_validate_status(template_data.get("status"))
+		doc.template_id = template_data.get("id")
+		doc.category = template_data.get("category")
+		# Update components if available
+		if template_data.get("components"):
+			update_template_components(doc, template_data.get("components"))
+		doc.save(ignore_permissions=True)
+		return True
+	except Exception as e:
+		frappe.log_error(
+			f"Skipped updating existing template {template_data.get('name')}: {str(e)}",
+			"Digital Connect Template Fetch"
+		)
+		return False
+
+
+def _create_new_template(template_data):
+	"""Create new template from API data.
+	
+	Args:
+		template_data: Template data from API
+		
+	Returns:
+		bool: True if successful, False otherwise
+	"""
+	template_name = template_data.get("name")
+	language_code = template_data.get("language", "en_US")
+	
+	try:
+		doc = frappe.new_doc("Digital Whatsapp Template")
+		# Set flag to skip Digital Connect updates during fetch sync
+		doc._skip_digital_connect_update = True
+		doc.template_name = template_name
+		doc.actual_name = template_name
+		doc.status = _extract_and_validate_status(template_data.get("status"))
+		doc.template_id = template_data.get("id")  # Set ID before insert to skip after_insert hook
+		doc.category = template_data.get("category") or "UTILITY"  # Default category if missing
+		doc.language_code = language_code
+		# Set language from language code
+		lang_code = language_code.replace("_", "-")
+		lang_doc = frappe.db.get_value("Language", {"language_code": lang_code})
+		if lang_doc:
+			doc.language = lang_doc
+		# Update components
+		if template_data.get("components"):
+			update_template_components(doc, template_data.get("components"))
+		doc.insert(ignore_permissions=True)
+		return True
+	except frappe.exceptions.DuplicateEntryError:
+		# Template already exists (duplicate key) - just skip it
+		return False
+	except Exception as e:
+		frappe.log_error(
+			f"Failed to create template {template_name}: {str(e)}",
+			"Digital Connect Template Fetch"
+		)
+		return False
+
+
+def _sync_templates_to_local(templates):
+	"""Sync templates from API to local database.
+	
+	Args:
+		templates: List of template dictionaries from API
+		
+	Returns:
+		tuple: (synced_count, skipped_count)
+	"""
+	synced_count = 0
+	skipped_count = 0
+	
+	for template in templates:
+		template_name = template.get("name")
+		language_code = template.get("language", "en_US")
+		template_id = template.get("id")
+		
+		if not template_name:
+			frappe.log_error(
+				f"Skipping template with missing name. Template data: {str(template)[:200]}",
+				"Digital Connect Template Fetch"
+			)
+			skipped_count += 1
+			continue
+		
+		# Find existing template
+		existing = _find_existing_template(template_name, language_code, template_id)
+		
+		if existing:
+			# Update existing template
+			if _update_existing_template(existing, template):
+				synced_count += 1
+			else:
+				skipped_count += 1
+		else:
+			# Create new template
+			if _create_new_template(template):
+				synced_count += 1
+			else:
+				skipped_count += 1
+	
+	return synced_count, skipped_count
+
+
+def _show_fetch_summary(synced_count, skipped_count, total_templates, category, status, language, name):
+	"""Show summary message after fetching templates.
+	
+	Args:
+		synced_count: Number of templates synced
+		skipped_count: Number of templates skipped
+		total_templates: Total templates from API
+		category: Category filter used
+		status: Status filter used
+		language: Language filter used
+		name: Name filter used
+	"""
+	if synced_count > 0:
+		msg = _("Successfully fetched and synced {0} template(s) from Digital Connect.").format(synced_count)
+		if skipped_count > 0:
+			msg += " " + _("{0} template(s) skipped (already exist).").format(skipped_count)
+		frappe.msgprint(msg, indicator="green")
+	elif skipped_count > 0:
+		frappe.msgprint(
+			_("All {0} template(s) already exist locally. No new templates created.").format(skipped_count),
+			indicator="blue",
+		)
+	elif total_templates == 0:
+		response_info = f"Category: {category or 'ALL'}, Status: {status or 'ALL'}, Language: {language or 'ALL'}, Name: {name or 'ALL'}"
+		frappe.msgprint(
+			_("No templates found matching the filters. {0}").format(response_info),
+			indicator="orange",
+		)
+
+
 @frappe.whitelist()
 def fetch_templates(category=None, status=None, language=None, name=None):
 	"""Fetch templates from Digital Connect API.
@@ -398,143 +793,29 @@ def fetch_templates(category=None, status=None, language=None, name=None):
 		language: Filter by language code
 		name: Filter by template name or content
 	"""
-	settings = frappe.get_single("Digital Connect Whatsap Settings")
-
-	if not settings.enable:
-		frappe.throw(_("Digital Connect WhatsApp integration is disabled."))
-
-	api_key = settings.get_password("api_key")
-
-	if not settings.base_url or not api_key:
-		frappe.throw(_("Base URL and API Key are required in Digital Connect Whatsap Settings."))
-
-	# Extract base URL
-	base_url = settings.base_url
-	if "/v2/api/outgoing/" in base_url:
-		base_url = base_url.split("/v2/api/outgoing/")[0]
-	base_url = base_url.rstrip("/")
-	url = f"{base_url}/v2/api/outgoing/template"
-	# Build query parameters
-	params = {}
-	if category:
-		# Ensure category is uppercase as per API docs (AUTHENTICATION, MARKETING, UTILITY)
-		params["category"] = category.upper() if isinstance(category, str) else category
-	if language:
-		params["language"] = language
-	if name:
-		params["name_or_content"] = name
-	# Per docs, `status` is supported, but some tenants return: "'status' is not allowed".
-	# We'll attempt with status first, then retry without if needed.
-	params_with_status = dict(params)
-	if status:
-		params_with_status["status"] = status
-
-	headers = {
-		"Content-Type": "application/json",
-		"token": api_key,
-	}
-
-	if requests is None:
-		frappe.throw(_("Python requests library is not available on this site."))
-
 	try:
-		# Log the request for debugging
-		request_params = params_with_status if status else params
-		frappe.log_error(
-			f"Fetching templates - URL: {url}, Params: {request_params}",
-			"Digital Connect Template Fetch Request"
-		)
+		# Get settings
+		settings, api_key, base_url = _get_digital_connect_settings()
 		
-		response = requests.get(
-			url, headers=headers, params=request_params, timeout=15
-		)
-
-		# Try to parse JSON / structured error even on non-2xx
-		try:
-			data = response.json()
-		except Exception:
-			# Fall back to raw text (may contain useful error details) or default structure
-			data = response.text or {"data": [], "paging": {}}
-
-		# If API returned an error, surface the message from Digital Connect
-		if not response.ok:
-			error_message = None
-			if isinstance(data, dict):
-				# Common Digital Connect error structure: { "error": { "message": "..." } }
-				error_message = (
-					data.get("error", {}).get("message")
-					or data.get("message")
-					or str(data)
-				)
-			else:
-				error_message = str(data)
-
-			# Adaptive fallback: some tenants don't allow filtering by status even though docs mention it.
-			if (
-				status
-				and response.status_code == 400
-				and "'status' is not allowed" in (error_message or "")
-			):
-				# Retry without status, then filter locally.
-				response = requests.get(url, headers=headers, params=params, timeout=15)
-				try:
-					data = response.json()
-				except Exception:
-					data = response.text or {"data": [], "paging": {}}
-
-				if not response.ok:
-					error_message = None
-					if isinstance(data, dict):
-						error_message = (
-							data.get("error", {}).get("message")
-							or data.get("message")
-							or str(data)
-						)
-					else:
-						error_message = str(data)
-					frappe.throw(
-						_("Failed to fetch templates from Digital Connect (HTTP {0}): {1}").format(
-							response.status_code, error_message
-						)
-					)
-			else:
-				frappe.throw(
-					_("Failed to fetch templates from Digital Connect (HTTP {0}): {1}").format(
-						response.status_code, error_message
-					)
-				)
-
-		# Handle different response structures from Digital Connect API
-		# Some tenants return: {"data": [...]}
-		# Others return: {"message": {"data": [...]}}
-		api_templates = []
-		if isinstance(data, dict):
-			# Try standard structure first: {"data": [...]}
-			if "data" in data and isinstance(data.get("data"), list):
-				api_templates = data.get("data", [])
-			# Try nested structure: {"message": {"data": [...]}}
-			elif "message" in data and isinstance(data.get("message"), dict):
-				message_data = data.get("message", {})
-				if "data" in message_data and isinstance(message_data.get("data"), list):
-					api_templates = message_data.get("data", [])
-			# If data is a list directly (unlikely but handle it)
-			elif isinstance(data, list):
-				api_templates = data
+		# Build API URL and parameters
+		url = _build_template_api_url(base_url)
+		params, params_with_status = _build_template_query_params(category, language, name, status)
 		
-		# If we still couldn't find templates, log for debugging
-		if not api_templates and isinstance(data, dict):
-			frappe.log_error(
-				f"Could not extract templates from response. Response keys: {list(data.keys()) if isinstance(data, dict) else 'N/A'}",
-				"Digital Connect Template Fetch"
-			)
-
-		# If status filter was requested, apply it locally after fetching (works for both paths).
-		if status:
-			templates = [t for t in api_templates if isinstance(t, dict) and t.get("status") == status]
-		else:
-			templates = api_templates
-
-		# Debug: Log how many templates were found
+		headers = {
+			"Content-Type": "application/json",
+			"token": api_key,
+		}
+		
+		# Make API request
+		data = _make_template_api_request(url, headers, params, status)
+		
+		# Extract templates from response
+		api_templates = _extract_templates_from_response(data)
+		
+		# Filter by status if needed
+		templates = _filter_templates_by_status(api_templates, status)
+		
+		# Debug logging
 		total_templates = len(api_templates)
 		filtered_templates = len(templates)
 		frappe.log_error(
@@ -542,126 +823,33 @@ def fetch_templates(category=None, status=None, language=None, name=None):
 			f"Category filter: {category or 'ALL'}, Status filter: {status or 'ALL'}",
 			"Digital Connect Template Fetch Debug"
 		)
-
-		# If no templates found, provide helpful feedback with more details
+		
+		# If no templates found, show message and return
 		if not templates:
-			response_info = f"Category: {category or 'ALL'}, Status: {status or 'ALL'}, Language: {language or 'ALL'}, Name: {name or 'ALL'}"
-			# Show the actual response structure for debugging
-			debug_info = f"API returned {total_templates} template(s) total."
-			if total_templates > 0 and status:
-				debug_info += f" After filtering by status='{status}', {filtered_templates} template(s) remain."
-			
-			frappe.msgprint(
-				_("No templates found matching the filters. {0} {1}").format(response_info, debug_info),
-				indicator="orange",
-			)
-			# Still return success but with 0 count
-			return {"status": "success", "synced_count": 0, "data": data, "message": "No templates found", "total_from_api": total_templates}
-
-		# Process templates and sync to local database
-		synced_count = 0
-		skipped_count = 0
-		for template in templates:
-			# Check if template exists locally - check by actual_name + language_code
-			# Also check by generated name (template_name-language_code) to catch duplicates
-			template_name = template.get("name")
-			language_code = template.get("language", "en_US")
-			
-			if not template_name:
-				frappe.log_error(
-					f"Skipping template with missing name. Template data: {str(template)[:200]}",
-					"Digital Connect Template Fetch"
-				)
-				skipped_count += 1
-				continue
-			
-			# Check by actual_name and language_code
-			filters = {"actual_name": template_name}
-			if language_code:
-				filters["language_code"] = language_code
-			
-			existing = frappe.db.get_value("Digital Whatsapp Template", filters)
-			
-			# Also check by generated name format (template_name-language_code)
-			if not existing:
-				generated_name = f"{template_name}-{language_code}"
-				existing = frappe.db.get_value("Digital Whatsapp Template", generated_name)
-			
-			# Also check by template_id if available
-			if not existing and template.get("id"):
-				existing = frappe.db.get_value("Digital Whatsapp Template", {"template_id": template.get("id")})
-
-			if existing:
-				# Template already exists - just update it and skip
-				try:
-					doc = frappe.get_doc("Digital Whatsapp Template", existing)
-					# Set a flag to indicate we're syncing from fetch (skip Digital Connect update)
-					doc._skip_digital_connect_update = True
-					doc.status = _extract_and_validate_status(template.get("status"))
-					doc.template_id = template.get("id")
-					doc.category = template.get("category")
-					# Update components if available
-					if template.get("components"):
-						update_template_components(doc, template.get("components"))
-					doc.save(ignore_permissions=True)
-					synced_count += 1
-				except Exception as e:
-					# If update fails, just skip - template already exists
-					frappe.log_error(
-						f"Skipped updating existing template {template_name}: {str(e)}",
-						"Digital Connect Template Fetch"
-					)
-					skipped_count += 1
-				continue
-			
-			# Create new template
-			try:
-				doc = frappe.new_doc("Digital Whatsapp Template")
-				# Set flag to skip Digital Connect updates during fetch sync
-				doc._skip_digital_connect_update = True
-				doc.template_name = template_name
-				doc.actual_name = template_name
-				doc.status = _extract_and_validate_status(template.get("status"))
-				doc.template_id = template.get("id")  # Set ID before insert to skip after_insert hook
-				doc.category = template.get("category") or "UTILITY"  # Default category if missing
-				doc.language_code = language_code
-				# Set language from language code
-				lang_code = language_code.replace("_", "-")
-				lang_doc = frappe.db.get_value("Language", {"language_code": lang_code})
-				if lang_doc:
-					doc.language = lang_doc
-				# Update components
-				if template.get("components"):
-					update_template_components(doc, template.get("components"))
-				doc.insert(ignore_permissions=True)
-				synced_count += 1
-			except frappe.exceptions.DuplicateEntryError:
-				# Template already exists (duplicate key) - just skip it
-				skipped_count += 1
-				continue
-			except Exception as e:
-				# Other errors - log and skip
-				frappe.log_error(
-					f"Failed to create template {template_name}: {str(e)}",
-					"Digital Connect Template Fetch"
-				)
-				skipped_count += 1
-				continue
-
-		# Show summary message
-		if synced_count > 0:
-			msg = _("Successfully fetched and synced {0} template(s) from Digital Connect.").format(synced_count)
-			if skipped_count > 0:
-				msg += " " + _("{0} template(s) skipped (already exist).").format(skipped_count)
-			frappe.msgprint(msg, indicator="green")
-		elif skipped_count > 0:
-			frappe.msgprint(
-				_("All {0} template(s) already exist locally. No new templates created.").format(skipped_count),
-				indicator="blue",
-			)
-
-		return {"status": "success", "synced_count": synced_count, "skipped_count": skipped_count, "data": data}
-
+			_show_fetch_summary(0, 0, total_templates, category, status, language, name)
+			return {
+				"status": "success",
+				"synced_count": 0,
+				"skipped_count": 0,
+				"data": data,
+				"message": "No templates found",
+				"total_from_api": total_templates
+			}
+		
+		# Sync templates to local database
+		synced_count, skipped_count = _sync_templates_to_local(templates)
+		
+		# Show summary
+		_show_fetch_summary(synced_count, skipped_count, total_templates, category, status, language, name)
+		
+		return {
+			"status": "success",
+			"synced_count": synced_count,
+			"skipped_count": skipped_count,
+			"data": data,
+			"total_from_api": total_templates
+		}
+	
 	except requests.exceptions.RequestException as e:
 		frappe.throw(_("Failed to fetch templates from Digital Connect: {0}").format(str(e)))
 
@@ -1147,7 +1335,6 @@ def update_template(template_name):
 			_("Template can only be edited when status is APPROVED, REJECTED, or PAUSED. Current status: {0}").format(doc.status)
 		)
 	
-	# Use the existing on_update logic by calling it programmatically
 	# But we need to trigger it manually since we're calling from a whitelisted function
 	doc.get_settings()
 	components = doc.build_components()
