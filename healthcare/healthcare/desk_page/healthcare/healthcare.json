@@ -33,7 +33,7 @@
   {
    "hidden": 0,
    "label": "Inpatient",
-   "links": "[\n\t{\n\t\t\"type\": \"doctype\",\n\t\t\"name\": \"Inpatient Record\",\n\t\t\"label\": \"Inpatient Record\"\n\t},\n\t{\n\t\t\"type\": \"doctype\",\n\t\t\"name\": \"Inpatient Medication Order\",\n\t\t\"label\": \"Inpatient Medication Order\"\n\t},\n\t{\n\t\t\"type\": \"doctype\",\n\t\t\"name\": \"Inpatient Medication Entry\",\n\t\t\"label\": \"Inpatient Medication Entry\"\n\t}\n]"
+   "links": "[\n\t{\n\t\t\"type\": \"doctype\",\n\t\t\"name\": \"Inpatient Record\",\n\t\t\"label\": \"Inpatient Record\"\n\t},\n\t{\n\t\t\"type\": \"doctype\",\n\t\t\"name\": \"Patient Medication Order\",\n\t\t\"label\": \"Patient Medication Order\"\n\t},\n\t{\n\t\t\"type\": \"doctype\",\n\t\t\"name\": \"Inpatient Medication Entry\",\n\t\t\"label\": \"Inpatient Medication Entry\"\n\t}\n]"
   },
   {
    "hidden": 0,
@@ -48,7 +48,7 @@
   {
    "hidden": 0,
    "label": "Reports",
-   "links": "[\n\t{\n\t\t\"type\": \"report\",\n\t\t\"is_query_report\": true,\n\t\t\"name\": \"Patient Appointment Analytics\",\n\t\t\"doctype\": \"Patient Appointment\"\n\t},\n\t{\n\t\t\"type\": \"report\",\n\t\t\"is_query_report\": true,\n\t\t\"name\": \"Lab Test Report\",\n\t\t\"doctype\": \"Lab Test\",\n\t\t\"label\": \"Lab Test Report\"\n\t},\n\t{\n\t\t\"type\": \"report\",\n\t\t\"is_query_report\": true,\n\t\t\"name\": \"Inpatient Medication Orders\",\n\t\t\"doctype\": \"Inpatient Medication Order\",\n\t\t\"label\": \"Inpatient Medication Orders\"\n\t}\n]"
+   "links": "[\n\t{\n\t\t\"type\": \"report\",\n\t\t\"is_query_report\": true,\n\t\t\"name\": \"Patient Appointment Analytics\",\n\t\t\"doctype\": \"Patient Appointment\"\n\t},\n\t{\n\t\t\"type\": \"report\",\n\t\t\"is_query_report\": true,\n\t\t\"name\": \"Lab Test Report\",\n\t\t\"doctype\": \"Lab Test\",\n\t\t\"label\": \"Lab Test Report\"\n\t},\n\t{\n\t\t\"type\": \"report\",\n\t\t\"is_query_report\": true,\n\t\t\"name\": \"Inpatient Medication Orders\",\n\t\t\"doctype\": \"Patient Medication Order\",\n\t\t\"label\": \"Inpatient Medication Orders\"\n\t}\n]"
   }
  ],
  "category": "Domains",

@@ -20,7 +20,7 @@ from healthcare.healthcare.doctype.inpatient_admission.test_inpatient_admission 
 )
 
 
-class TestInpatientMedicationOrder(FrappeTestCase):
+class TestPatientMedicationOrder(FrappeTestCase):
 	def setUp(self):
 		frappe.db.sql("""delete from `tabInpatient Record`""")
 		self.patient = create_patient()
@@ -96,7 +96,7 @@ class TestInpatientMedicationOrder(FrappeTestCase):
 			self.ip_record.reload()
 			discharge_patient(self.ip_record)
 
-		for doctype in ["Inpatient Medication Entry", "Inpatient Medication Order"]:
+		for doctype in ["Inpatient Medication Entry", "Patient Medication Order"]:
 			frappe.db.sql("delete from `tab{doctype}`".format(doctype=doctype))
 
 
@@ -138,7 +138,7 @@ def get_orders():
 
 def create_ipmo(patient):
 	orders = get_orders()
-	ipmo = frappe.new_doc("Inpatient Medication Order")
+	ipmo = frappe.new_doc("Patient Medication Order")
 	ipmo.patient = patient
 	ipmo.company = "_Test Company"
 	ipmo.start_date = add_days(getdate(), -1)

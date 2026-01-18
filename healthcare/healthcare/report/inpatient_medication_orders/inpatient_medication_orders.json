@@ -16,7 +16,7 @@
  "name": "Inpatient Medication Orders",
  "owner": "Administrator",
  "prepared_report": 0,
- "ref_doctype": "Inpatient Medication Order",
+ "ref_doctype": "Patient Medication Order",
  "report_name": "Inpatient Medication Orders",
  "report_type": "Script Report",
  "roles": [

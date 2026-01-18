@@ -91,7 +91,7 @@ def get_data(filters):
 			parent.patient, parent.inpatient_record, parent.practitioner,
 			child.drug, child.drug_name, child.dosage, child.dosage_form,
 			child.date, child.time, child.is_completed, child.name
-		FROM `tabInpatient Medication Order` parent
+		FROM `tabPatient Medication Order` parent
 		INNER JOIN `tabInpatient Medication Order Entry` child
 		ON child.parent = parent.name
 		WHERE
@@ -177,7 +177,7 @@ def get_chart_data(data):
 
 	datasets.append(
 		{
-			"name": "Inpatient Medication Order Status",
+			"name": "Patient Medication Order Status",
 			"values": [status_wise_data.get("Pending"), status_wise_data.get("Completed")],
 		}
 	)

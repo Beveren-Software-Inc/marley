@@ -61,7 +61,7 @@ class InpatientMedicationEntry(Document):
 			)
 
 		self.update_medication_orders()
-		success_msg += _("Inpatient Medication Orders updated successfully")
+		success_msg += _("Patient Medication Orders updated successfully")
 		frappe.msgprint(success_msg, title=_("Success"), indicator="green")
 
 	def validate_medication_orders(self):
@@ -73,7 +73,7 @@ class InpatientMedicationEntry(Document):
 			if docstatus == 2:
 				frappe.throw(
 					_(
-						"Row {0}: Cannot create Inpatient Medication Entry against cancelled Inpatient Medication Order {1}"
+						"Row {0}: Cannot create Inpatient Medication Entry against cancelled Patient Medication Order {1}"
 					).format(entry.idx, get_link_to_form(entry.against_imo))
 				)
 
@@ -111,9 +111,9 @@ class InpatientMedicationEntry(Document):
 
 		# update status and completed orders count
 		for order, count in order_entry_map.items():
-			medication_order = frappe.get_doc("Inpatient Medication Order", order)
+			medication_order = frappe.get_doc("Patient Medication Order", order)
 			completed_orders = flt(count)
-			current_value = frappe.db.get_value("Inpatient Medication Order", order, "completed_orders")
+			current_value = frappe.db.get_value("Patient Medication Order", order, "completed_orders")
 
 			if on_cancel:
 				completed_orders = flt(current_value) - flt(count)
@@ -221,7 +221,7 @@ def get_pending_medication_orders(entry):
 			entry.name, entry.parent, entry.drug, entry.drug_name,
 			entry.dosage, entry.dosage_form, entry.date, entry.time, entry.instructions
 		FROM
-			`tabInpatient Medication Order` ip
+			`tabPatient Medication Order` ip
 		INNER JOIN
 			`tabInpatient Medication Order Entry` entry
 		ON
