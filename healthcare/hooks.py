@@ -45,6 +45,9 @@ fixtures = [
 	},
     {
 		"doctype": "History Form Details Template"
+	},
+    {
+		"doctype": "Room Category"
 	}
 ]
 

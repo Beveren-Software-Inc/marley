@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react'
-import { fetchInpatientRecord, fetchServiceUnits, admitPatient, type ServiceUnit } from '../../services/inpatientRecords'
-import type { PackageDetail } from '../../services/inpatientRecords'
+import { fetchInpatientRecord, fetchServiceUnits, admitPatient, type ServiceUnit, type InpatientPackage } from '../../services/inpatientRecords'
 
 interface AdmissionFormModalProps {
   admissionNo: string
-  selectedPackage: PackageDetail
+  selectedPackage: InpatientPackage
   onComplete: () => void
   onClose: () => void
 }
@@ -24,10 +23,21 @@ export const AdmissionFormModal = ({
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<Error | null>(null)
 
+  // Calculate expected discharge date from package days
+  const calculateExpectedDischarge = () => {
+    if (selectedPackage.no_of_days) {
+      const checkInDate = new Date()
+      const expectedDate = new Date(checkInDate)
+      expectedDate.setDate(expectedDate.getDate() + selectedPackage.no_of_days - 1)
+      return expectedDate.toISOString().split('T')[0]
+    }
+    return ''
+  }
+
   const [formData, setFormData] = useState({
     serviceUnit: '',
     checkIn: new Date().toISOString().slice(0, 16),
-    expectedDischarge: selectedPackage.to_date || ''
+    expectedDischarge: calculateExpectedDischarge()
   })
 
   // Search service units when dropdown is open
@@ -140,15 +150,21 @@ export const AdmissionFormModal = ({
           {/* Package Info */}
           <div className="bg-slate-50 rounded-lg p-4 mb-4">
             <h3 className="font-semibold text-slate-900 mb-2">Selected Package</h3>
+            <div className="mb-2">
+              <p className="font-medium text-slate-900">{selectedPackage.package_name}</p>
+              {selectedPackage.category_name && (
+                <p className="text-xs text-slate-500">{selectedPackage.category_name}</p>
+              )}
+            </div>
             <div className="grid grid-cols-2 gap-2 text-sm">
               <div>
                 <span className="text-slate-600">Duration:</span>{' '}
-                <span className="font-medium">{selectedPackage.total_days} days</span>
+                <span className="font-medium">{selectedPackage.no_of_days} days</span>
               </div>
               <div>
                 <span className="text-slate-600">Amount:</span>{' '}
                 <span className="font-medium">
-                  {selectedPackage.transaction_amount.toLocaleString()} {selectedPackage.currency}
+                  {selectedPackage.package_rate.toLocaleString()} BHD
                 </span>
               </div>
             </div>

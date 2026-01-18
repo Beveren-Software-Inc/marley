@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { fetchInpatientRecord, type InpatientRecord, scheduleDischarge, cancelAdmission } from '../../services/inpatientRecords'
+import { fetchInpatientRecord, type InpatientRecord, type InpatientPackage, scheduleDischarge, cancelAdmission } from '../../services/inpatientRecords'
 import { PackageSelectionModal } from './PackageSelectionModal'
 import { AdmissionFormModal } from './AdmissionFormModal'
 import { ScheduleDischargeModal } from './ScheduleDischargeModal'
@@ -18,7 +18,7 @@ export const AdmissionDetails = ({ admissionNo, onUpdate }: AdmissionDetailsProp
   const [showDischargeModal, setShowDischargeModal] = useState(false)
   const [showAdmitModal, setShowAdmitModal] = useState(false)
   const [showPackages, setShowPackages] = useState(false)
-  const [selectedPackage, setSelectedPackage] = useState<any>(null)
+  const [selectedPackage, setSelectedPackage] = useState<InpatientPackage | null>(null)
   const [actionLoading, setActionLoading] = useState(false)
 
   useEffect(() => {

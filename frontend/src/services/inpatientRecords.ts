@@ -111,6 +111,51 @@ export async function fetchPackageDetails(admissionNo: string): Promise<PackageD
   return { packages: [], defaultCurrency: 'BHD' }
 }
 
+export interface InpatientPackage {
+  name: string
+  package_name: string
+  package_category?: string
+  category_name?: string
+  no_of_days: number
+  package_rate: number
+  active: number
+  cost_center?: string
+}
+
+export interface InpatientPackagesResponse {
+  packages: InpatientPackage[]
+  default_currency: string
+}
+
+export async function fetchInpatientPackages(category?: string, activeOnly: boolean = true): Promise<InpatientPackagesResponse> {
+  const params = new URLSearchParams()
+  if (category) params.append('category', category)
+  if (!activeOnly) params.append('active_only', '0')
+  
+  const url = `/api/method/healthcare.api.inpatient_package.get_inpatient_packages${params.toString() ? `?${params.toString()}` : ''}`
+  
+  const response = await fetch(url)
+  
+  if (!response.ok) {
+    console.error('Failed to fetch inpatient packages:', response.status, response.statusText)
+    throw new Error(`Failed to fetch packages: ${response.statusText}`)
+  }
+  
+  const resData = await response.json()
+
+  if (resData?.message) {
+    const result = {
+      packages: resData.message.packages || [],
+      default_currency: resData.message.default_currency || 'BHD'
+    }
+    console.log('Fetched inpatient packages:', result)
+    return result
+  }
+  
+  console.warn('No packages in response:', resData)
+  return { packages: [], default_currency: 'BHD' }
+}
+
 export async function fetchServiceUnits(serviceUnitType?: string, occupancyStatus?: string, search?: string) {
   const params = new URLSearchParams()
   if (serviceUnitType) params.append('service_unit_type', serviceUnitType)

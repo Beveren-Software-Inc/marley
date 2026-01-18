@@ -1,0 +1,30 @@
+[
+ {
+  "docstatus": 0,
+  "doctype": "Room Category",
+  "modified": "2026-01-18 17:48:28.809184",
+  "name": "VIP",
+  "room_category_name": "VIP"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Room Category",
+  "modified": "2026-01-18 17:48:37.404448",
+  "name": "SIngle",
+  "room_category_name": "SIngle"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Room Category",
+  "modified": "2026-01-18 17:48:41.974649",
+  "name": "Double",
+  "room_category_name": "Double"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Room Category",
+  "modified": "2026-01-18 17:48:47.760184",
+  "name": "Triple",
+  "room_category_name": "Triple"
+ }
+]
