@@ -5,7 +5,7 @@ import { PackageSelectionModal } from './PackageSelectionModal'
 import { AdmissionFormModal } from './AdmissionFormModal'
 import { ScheduleDischargeModal } from './ScheduleDischargeModal'
 import { DischargeModal } from './DischargeModal'
-import type { InpatientRecord } from '../../services/inpatientRecords'
+import type { InpatientRecord, InpatientPackage } from '../../services/inpatientRecords'
 
 const statusColors: Record<string, string> = {
   'Admission Scheduled': 'warning',
@@ -27,7 +27,7 @@ export const AdmissionList = ({ onAdmissionSelect, searchQuery: externalSearchQu
   const [selectedRecord, setSelectedRecord] = useState<string | null>(null)
   const [showPackages, setShowPackages] = useState(false)
   const [showAdmissionForm, setShowAdmissionForm] = useState(false)
-  const [selectedPackage, setSelectedPackage] = useState<any>(null)
+  const [selectedPackage, setSelectedPackage] = useState<InpatientPackage | null>(null)
   const [showScheduleDischarge, setShowScheduleDischarge] = useState(false)
   const [selectedAdmissionForDischarge, setSelectedAdmissionForDischarge] = useState<InpatientRecord | null>(null)
   const [showDischargeModal, setShowDischargeModal] = useState(false)
@@ -51,7 +51,7 @@ export const AdmissionList = ({ onAdmissionSelect, searchQuery: externalSearchQu
     setShowPackages(true)
   }
 
-  const handlePackageSelect = (pkg: any) => {
+  const handlePackageSelect = (pkg: InpatientPackage) => {
     setSelectedPackage(pkg)
     setShowPackages(false)
     setShowAdmissionForm(true)

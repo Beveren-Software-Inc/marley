@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react'
-import { fetchPackageDetails, type PackageDetail } from '../../services/inpatientRecords'
+import { fetchInpatientPackages, type InpatientPackage } from '../../services/inpatientRecords'
 
 interface PackageSelectionModalProps {
   admissionNo: string
-  onSelect: (pkg: PackageDetail) => void
+  onSelect: (pkg: InpatientPackage) => void
   onClose: () => void
 }
 
@@ -12,7 +12,7 @@ export const PackageSelectionModal = ({
   onSelect,
   onClose
 }: PackageSelectionModalProps) => {
-  const [packages, setPackages] = useState<PackageDetail[]>([])
+  const [packages, setPackages] = useState<InpatientPackage[]>([])
   const [defaultCurrency, setDefaultCurrency] = useState<string>('BHD')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
@@ -22,15 +22,19 @@ export const PackageSelectionModal = ({
       try {
         setLoading(true)
         setError(null)
-        const response = await fetchPackageDetails(admissionNo)
-        if (response.packages) {
+        console.log('Loading inpatient packages...')
+        const response = await fetchInpatientPackages(undefined, true)
+        console.log('Package response:', response)
+        if (response && response.packages) {
           setPackages(response.packages)
-          setDefaultCurrency(response.defaultCurrency || 'BHD')
+          setDefaultCurrency(response.default_currency || 'BHD')
+          console.log('Set packages:', response.packages.length)
         } else {
-          // Fallback for old format
-          setPackages(Array.isArray(response) ? response : [])
+          console.warn('No packages in response')
+          setPackages([])
         }
       } catch (err) {
+        console.error('Error fetching packages:', err)
         setError(err instanceof Error ? err : new Error('Failed to fetch packages'))
       } finally {
         setLoading(false)
@@ -40,51 +44,7 @@ export const PackageSelectionModal = ({
     loadPackages()
   }, [admissionNo])
 
-  // If no packages found, create dummy packages for selection with company currency
-  const displayPackages =
-    packages.length > 0
-      ? packages
-      : [
-          {
-            name: 'pkg-1',
-            admission_no: admissionNo,
-            from_date: new Date().toISOString().split('T')[0],
-            to_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-              .toISOString()
-              .split('T')[0],
-            total_days: 7,
-            transaction_amount: 5000,
-            currency: defaultCurrency,
-            vch_status: 'Open',
-            remarks: 'Standard Package - 7 days'
-          },
-          {
-            name: 'pkg-2',
-            admission_no: admissionNo,
-            from_date: new Date().toISOString().split('T')[0],
-            to_date: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
-              .toISOString()
-              .split('T')[0],
-            total_days: 14,
-            transaction_amount: 9000,
-            currency: defaultCurrency,
-            vch_status: 'Open',
-            remarks: 'Extended Package - 14 days'
-          },
-          {
-            name: 'pkg-3',
-            admission_no: admissionNo,
-            from_date: new Date().toISOString().split('T')[0],
-            to_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-              .toISOString()
-              .split('T')[0],
-            total_days: 30,
-            transaction_amount: 18000,
-            currency: defaultCurrency,
-            vch_status: 'Open',
-            remarks: 'Premium Package - 30 days'
-          }
-        ]
+  const displayPackages = packages
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -107,8 +67,11 @@ export const PackageSelectionModal = ({
           {loading ? (
             <div className="text-center py-8 text-slate-600">Loading packages...</div>
           ) : error ? (
-            <div className="text-center py-8 text-red-600">Error: {error.message}</div>
-          ) : (
+            <div className="text-center py-8 text-red-600">
+              <p>Error: {error.message}</p>
+              <p className="text-sm mt-2">Please ensure Inpatient Package records exist and are active.</p>
+            </div>
+          ) : displayPackages.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {displayPackages.map((pkg) => (
                 <div
@@ -118,26 +81,29 @@ export const PackageSelectionModal = ({
                 >
                   <div className="mb-3">
                     <h3 className="font-semibold text-slate-900 mb-1">
-                      {pkg.remarks || `Package ${pkg.name}`}
+                      {pkg.package_name}
                     </h3>
+                    {pkg.category_name && (
+                      <p className="text-xs text-slate-500 mb-1">
+                        {pkg.category_name}
+                      </p>
+                    )}
                     <p className="text-sm text-slate-600">
-                      {pkg.total_days} {pkg.total_days === 1 ? 'day' : 'days'}
-                    </p>
-                  </div>
-                  <div className="mb-3">
-                    <p className="text-xs text-slate-500 mb-1">Duration</p>
-                    <p className="text-sm text-slate-700">
-                      {new Date(pkg.from_date).toLocaleDateString()} -{' '}
-                      {new Date(pkg.to_date).toLocaleDateString()}
+                      {pkg.no_of_days} {pkg.no_of_days === 1 ? 'day' : 'days'}
                     </p>
                   </div>
                   <div className="pt-3 border-t border-slate-200">
                     <p className="text-2xl font-bold text-primary">
-                      {pkg.transaction_amount.toLocaleString()} {pkg.currency}
+                      {pkg.package_rate.toLocaleString()} {defaultCurrency}
                     </p>
                   </div>
                 </div>
               ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-slate-600">
+              <p>No active packages available.</p>
+              <p className="text-sm mt-2">Please create Inpatient Package records in the system and ensure they are marked as Active.</p>
             </div>
           )}
         </div>
