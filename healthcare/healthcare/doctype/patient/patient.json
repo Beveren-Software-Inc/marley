@@ -756,7 +756,7 @@
   },
   {
    "group": "Admissions",
-   "link_doctype": "Inpatient Medication Order",
+   "link_doctype": "Patient Medication Order",
    "link_fieldname": "patient"
   },
   {

@@ -114,7 +114,7 @@ frappe.ui.form.on('Patient Visit', {
 
 
 			if (frm.doc.drug_prescription && frm.doc.inpatient_record && frm.doc.inpatient_status === "Admitted") {
-				frm.add_custom_button(__('Inpatient Medication Order'), function() {
+				frm.add_custom_button(__('Patient Medication Order'), function() {
 					frappe.model.open_mapped_doc({
 						method: 'healthcare.healthcare.doctype.patient_visit.patient_visit.make_ip_medication_order',
 						frm: frm

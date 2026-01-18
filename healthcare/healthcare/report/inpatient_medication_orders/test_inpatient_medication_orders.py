@@ -31,7 +31,7 @@ from healthcare.healthcare.report.inpatient_medication_orders.inpatient_medicati
 class TestInpatientMedicationOrders(FrappeTestCase):
 	@classmethod
 	def setUpClass(self):
-		frappe.db.sql("delete from `tabInpatient Medication Order` where company='_Test Company'")
+		frappe.db.sql("delete from `tabPatient Medication Order` where company='_Test Company'")
 		frappe.db.sql("delete from `tabInpatient Medication Entry` where company='_Test Company'")
 		self.patient = create_patient()
 		self.ip_record = create_records(self.patient)
@@ -122,8 +122,8 @@ class TestInpatientMedicationOrders(FrappeTestCase):
 			doc.cancel()
 			doc.delete()
 
-		for entry in frappe.get_all("Inpatient Medication Order"):
-			doc = frappe.get_doc("Inpatient Medication Order", entry.name)
+		for entry in frappe.get_all("Patient Medication Order"):
+			doc = frappe.get_doc("Patient Medication Order", entry.name)
 			doc.cancel()
 			doc.delete()
 

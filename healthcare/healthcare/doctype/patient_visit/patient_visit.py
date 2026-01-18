@@ -425,7 +425,7 @@ def make_ip_medication_order(source_name, target_doc=None):
 		source_name,
 		{
 			"Patient Visit": {
-				"doctype": "Inpatient Medication Order",
+				"doctype": "Patient Medication Order",
 				"field_map": {
 					"name": "patient_encounter",
 					"patient": "patient",
@@ -472,9 +472,9 @@ def create_therapy_plan(encounter):
 
 
 def delete_ip_medication_order(encounter):
-	record = frappe.db.exists("Inpatient Medication Order", {"patient_encounter": encounter.name})
+	record = frappe.db.exists("Patient Medication Order", {"patient_encounter": encounter.name})
 	if record:
-		frappe.delete_doc("Inpatient Medication Order", record, force=1)
+		frappe.delete_doc("Patient Medication Order", record, force=1)
 
 
 def set_codification_table_from_diagnosis(doc):

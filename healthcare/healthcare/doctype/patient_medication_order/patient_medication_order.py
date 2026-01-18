@@ -13,7 +13,7 @@ from healthcare.healthcare.doctype.patient_visit.patient_visit import (
 )
 
 
-class InpatientMedicationOrder(Document):
+class PatientMedicationOrder(Document):
 	def validate(self):
 		self.validate_inpatient()
 		self.validate_duplicate()
@@ -33,7 +33,7 @@ class InpatientMedicationOrder(Document):
 
 	def validate_duplicate(self):
 		existing_mo = frappe.db.exists(
-			"Inpatient Medication Order",
+			"Patient Medication Order",
 			{
 				"patient_encounter": self.patient_encounter,
 				"docstatus": ("!=", 2),
@@ -42,7 +42,7 @@ class InpatientMedicationOrder(Document):
 		)
 		if existing_mo:
 			frappe.throw(
-				_("An Inpatient Medication Order {0} against Patient Visit {1} already exists.").format(
+				_("A Patient Medication Order {0} against Patient Visit {1} already exists.").format(
 					existing_mo, self.patient_encounter
 				),
 				frappe.DuplicateEntryError,

@@ -185,7 +185,7 @@
    "is_child_table": 1,
    "link_doctype": "Inpatient Medication Entry Detail",
    "link_fieldname": "against_imoe",
-   "parent_doctype": "Inpatient Medication Order",
+   "parent_doctype": "Patient Medication Order",
    "table_fieldname": "medication_orders"
   }
  ],

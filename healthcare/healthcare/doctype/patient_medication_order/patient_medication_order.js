@@ -1,7 +1,7 @@
 // Copyright (c) 2020, Frappe Technologies Pvt. Ltd. and contributors
 // For license information, please see license.txt
 
-frappe.ui.form.on('Inpatient Medication Order', {
+frappe.ui.form.on('Patient Medication Order', {
 	refresh: function(frm) {
 		if (frm.doc.docstatus === 1) {
 			frm.trigger("show_progress");

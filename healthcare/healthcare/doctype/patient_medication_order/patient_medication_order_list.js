@@ -1,4 +1,4 @@
-frappe.listview_settings['Inpatient Medication Order'] = {
+frappe.listview_settings['Patient Medication Order'] = {
 	add_fields: ["status"],
 	filters: [["status", "!=", "Cancelled"]],
 	get_indicator: function(doc) {

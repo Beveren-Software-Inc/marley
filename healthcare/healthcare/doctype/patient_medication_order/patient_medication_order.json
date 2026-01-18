@@ -128,7 +128,7 @@
    "fieldtype": "Link",
    "label": "Amended From",
    "no_copy": 1,
-   "options": "Inpatient Medication Order",
+   "options": "Patient Medication Order",
    "print_hide": 1,
    "read_only": 1
   },
@@ -172,7 +172,7 @@
  "modified": "2020-09-30 21:53:27.128591",
  "modified_by": "Administrator",
  "module": "Healthcare",
- "name": "Inpatient Medication Order",
+ "name": "Patient Medication Order",
  "owner": "Administrator",
  "permissions": [
   {

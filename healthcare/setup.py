@@ -964,7 +964,7 @@ def get_patient_history_config():
 				{"label": "BMI", "fieldname": "bmi", "fieldtype": "Float"},
 			],
 		),
-		"Inpatient Medication Order": (
+		"Patient Medication Order": (
 			"start_date",
 			[
 				{"label": "Healthcare Practitioner", "fieldname": "practitioner", "fieldtype": "Link"},
