@@ -5,13 +5,13 @@
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
- "field_order": [
-  "duration_class",
-  "from_day",
-  "column_break_jbcf",
-  "to_day",
-  "rate_per_day"
- ],
+  "field_order": [
+    "duration_class",
+    "from_day",
+    "column_break_jbcf",
+    "to_day",
+    "amount"
+  ],
  "fields": [
   {
    "fieldname": "duration_class",
@@ -39,11 +39,12 @@
    "read_only": 1
   },
   {
-   "fieldname": "rate_per_day",
-   "fieldtype": "Currency",
-   "in_list_view": 1,
-   "label": "Rate Per Day",
-   "reqd": 1
+    "fieldname": "amount",
+    "fieldtype": "Currency",
+    "in_list_view": 1,
+    "label": "Amount",
+    "reqd": 1,
+    "description": "Total amount for this duration period (e.g., amount for first week)"
   },
   {
    "fieldname": "column_break_jbcf",

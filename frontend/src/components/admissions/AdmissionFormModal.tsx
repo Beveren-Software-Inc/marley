@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { fetchInpatientRecord, fetchServiceUnits, admitPatient, type ServiceUnit, type InpatientPackage } from '../../services/inpatientRecords'
+import { fetchInpatientRecord, fetchServiceUnits, admitPatient, calculatePackagePrice, createAdmissionSalesOrder, type ServiceUnit, type InpatientPackage } from '../../services/inpatientRecords'
 
 interface AdmissionFormModalProps {
   admissionNo: string
@@ -22,13 +22,19 @@ export const AdmissionFormModal = ({
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<Error | null>(null)
+  const [daysInput, setDaysInput] = useState<string>(String(selectedPackage.no_of_days || 1))
+  const [days, setDays] = useState<number>(selectedPackage.no_of_days || 1)
+  const [calculatedPrice, setCalculatedPrice] = useState<number | null>(null)
+  const [calculatingPrice, setCalculatingPrice] = useState(false)
+  const [creatingSalesOrder, setCreatingSalesOrder] = useState(false)
+  const [salesOrderCreated, setSalesOrderCreated] = useState<string | null>(null)
 
-  // Calculate expected discharge date from package days
-  const calculateExpectedDischarge = () => {
-    if (selectedPackage.no_of_days) {
+  // Calculate expected discharge date from days
+  const calculateExpectedDischarge = (numDays: number) => {
+    if (numDays > 0) {
       const checkInDate = new Date()
       const expectedDate = new Date(checkInDate)
-      expectedDate.setDate(expectedDate.getDate() + selectedPackage.no_of_days - 1)
+      expectedDate.setDate(expectedDate.getDate() + numDays - 1)
       return expectedDate.toISOString().split('T')[0]
     }
     return ''
@@ -37,17 +43,61 @@ export const AdmissionFormModal = ({
   const [formData, setFormData] = useState({
     serviceUnit: '',
     checkIn: new Date().toISOString().slice(0, 16),
-    expectedDischarge: calculateExpectedDischarge()
+    expectedDischarge: calculateExpectedDischarge(selectedPackage.no_of_days || 1)
   })
 
-  // Search service units when dropdown is open
+  // Update days number when input changes (debounced)
+  useEffect(() => {
+    const numValue = parseInt(daysInput) || 0
+    if (numValue > 0 && numValue !== days) {
+      setDays(numValue)
+    } else if (daysInput === '' || numValue === 0) {
+      // If empty or 0, set days to 0 to clear price calculation
+      setDays(0)
+    }
+  }, [daysInput])
+
+  // Calculate price when days change
+  useEffect(() => {
+    const calculatePrice = async () => {
+      if (days > 0 && selectedPackage.name) {
+        try {
+          setCalculatingPrice(true)
+          const result = await calculatePackagePrice(selectedPackage.name, days)
+          setCalculatedPrice(result.total_price)
+          // Update expected discharge date
+          setFormData(prev => ({
+            ...prev,
+            expectedDischarge: calculateExpectedDischarge(days)
+          }))
+        } catch (err) {
+          console.error('Failed to calculate price:', err)
+          setCalculatedPrice(null)
+        } finally {
+          setCalculatingPrice(false)
+        }
+      } else {
+        setCalculatedPrice(null)
+      }
+    }
+
+    calculatePrice()
+  }, [days, selectedPackage.name])
+
+  // Search service units when dropdown is open - filter by room category
   useEffect(() => {
     if (!serviceUnitOpen) return
 
     const search = async () => {
       try {
         const serviceUnitType = record?.admission_service_unit_type
-        const results = await fetchServiceUnits(serviceUnitType, 'Vacant', serviceUnitQuery || undefined)
+        const roomCategory = selectedPackage.package_category // Filter by package's room category
+        const results = await fetchServiceUnits(
+          serviceUnitType, 
+          'Vacant', 
+          serviceUnitQuery || undefined,
+          roomCategory
+        )
         setServiceUnits(results)
       } catch (err) {
         console.error('Failed to search service units:', err)
@@ -61,7 +111,7 @@ export const AdmissionFormModal = ({
     }, serviceUnitQuery.trim() === '' ? 0 : 300)
 
     return () => clearTimeout(timeoutId)
-  }, [serviceUnitQuery, serviceUnitOpen, record?.admission_service_unit_type])
+  }, [serviceUnitQuery, serviceUnitOpen, record?.admission_service_unit_type, selectedPackage.package_category])
 
   useEffect(() => {
     const loadData = async () => {
@@ -72,9 +122,10 @@ export const AdmissionFormModal = ({
         const recordData = await fetchInpatientRecord(admissionNo)
         setRecord(recordData)
         
-        // Load initial service units
+        // Load initial service units - filter by package room category
         const serviceUnitType = recordData?.admission_service_unit_type
-        const unitsData = await fetchServiceUnits(serviceUnitType, 'Vacant')
+        const roomCategory = selectedPackage.package_category
+        const unitsData = await fetchServiceUnits(serviceUnitType, 'Vacant', undefined, roomCategory)
         setServiceUnits(unitsData)
       } catch (err) {
         setError(err instanceof Error ? err : new Error('Failed to load data'))
@@ -86,11 +137,47 @@ export const AdmissionFormModal = ({
     loadData()
   }, [admissionNo])
 
+  const handleCreateSalesOrder = async () => {
+    if (!calculatedPrice || calculatedPrice <= 0) {
+      setError(new Error('Please calculate price first by entering number of days'))
+      return
+    }
+
+    if (!formData.serviceUnit) {
+      setError(new Error('Please select a service unit (room) first'))
+      return
+    }
+
+    try {
+      setCreatingSalesOrder(true)
+      setError(null)
+
+      const result = await createAdmissionSalesOrder(
+        admissionNo,
+        selectedPackage.name,
+        days,
+        calculatedPrice,
+        formData.serviceUnit
+      )
+
+      setSalesOrderCreated(result.sales_order_name)
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error('Failed to create sales order'))
+    } finally {
+      setCreatingSalesOrder(false)
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
     if (!formData.serviceUnit) {
       setError(new Error('Please select a service unit (bed)'))
+      return
+    }
+
+    if (days <= 0) {
+      setError(new Error('Number of days must be greater than 0'))
       return
     }
 
@@ -153,22 +240,78 @@ export const AdmissionFormModal = ({
             <div className="mb-2">
               <p className="font-medium text-slate-900">{selectedPackage.package_name}</p>
               {selectedPackage.category_name && (
-                <p className="text-xs text-slate-500">{selectedPackage.category_name}</p>
+                <p className="text-xs text-slate-500">
+                  <span className="font-medium">Room Category:</span> {selectedPackage.category_name}
+                </p>
               )}
             </div>
-            <div className="grid grid-cols-2 gap-2 text-sm">
+            <div className="grid grid-cols-2 gap-2 text-sm mb-2">
               <div>
-                <span className="text-slate-600">Duration:</span>{' '}
-                <span className="font-medium">{selectedPackage.no_of_days} days</span>
-              </div>
-              <div>
-                <span className="text-slate-600">Amount:</span>{' '}
+                <span className="text-slate-600">Base Rate:</span>{' '}
                 <span className="font-medium">
-                  {selectedPackage.package_rate.toLocaleString()} BHD
+                  {selectedPackage.package_rate.toLocaleString()} BHD / day
                 </span>
               </div>
             </div>
+            {selectedPackage.duration_pricing && selectedPackage.duration_pricing.length > 0 && (
+              <div className="mt-2 pt-2 border-t border-slate-300">
+                <p className="text-xs font-medium text-slate-700 mb-1">Duration Pricing:</p>
+                <div className="space-y-1">
+                  {selectedPackage.duration_pricing.map((dp, idx) => (
+                    <div key={idx} className="text-xs text-slate-600">
+                      <span className="font-medium">{dp.duration_name || 'Duration'}:</span>{' '}
+                      Day {dp.from_day}{dp.to_day ? ` - ${dp.to_day}` : '+'} = {dp.amount.toLocaleString()} BHD
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
+
+          {/* Days Input */}
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              Number of Days <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="number"
+              min="1"
+              value={daysInput}
+              onChange={(e) => {
+                // Allow empty string and any number input
+                setDaysInput(e.target.value)
+              }}
+              onBlur={(e) => {
+                // When field loses focus, ensure it has a valid value
+                const numValue = parseInt(e.target.value)
+                if (!numValue || numValue < 1) {
+                  setDaysInput('1')
+                  setDays(1)
+                }
+              }}
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              required
+            />
+          </div>
+
+          {/* Calculated Price */}
+          {calculatingPrice ? (
+            <div className="bg-blue-50 border border-blue-200 rounded-md p-3 text-sm text-blue-700">
+              Calculating price...
+            </div>
+          ) : calculatedPrice !== null ? (
+            <div className="bg-green-50 border border-green-200 rounded-md p-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-green-900">Total Price:</span>
+                <span className="text-lg font-bold text-green-900">
+                  {calculatedPrice.toLocaleString()} BHD
+                </span>
+              </div>
+              <p className="text-xs text-green-700 mt-1">
+                For {days} {days === 1 ? 'day' : 'days'}
+              </p>
+            </div>
+          ) : null}
 
           {/* Patient Info */}
           {record && (
@@ -268,21 +411,38 @@ export const AdmissionFormModal = ({
             </div>
           )}
 
-          <div className="flex justify-end gap-3 pt-4">
+          {salesOrderCreated && (
+            <div className="bg-green-50 border border-green-200 rounded-md p-3 text-sm text-green-700">
+              <p className="font-medium">Sales Order Created Successfully!</p>
+              <p className="text-xs mt-1">Sales Order: {salesOrderCreated}</p>
+            </div>
+          )}
+
+          <div className="flex justify-between items-center pt-4">
             <button
               type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50"
+              onClick={handleCreateSalesOrder}
+              disabled={creatingSalesOrder || !calculatedPrice || calculatedPrice <= 0}
+              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Cancel
+              {creatingSalesOrder ? 'Creating Sales Order...' : 'Create Sales Order'}
             </button>
-            <button
-              type="submit"
-              disabled={submitting}
-              className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-50"
-            >
-              {submitting ? 'Admitting...' : 'Admit Patient'}
-            </button>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={submitting}
+                className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-50"
+              >
+                {submitting ? 'Admitting...' : 'Admit Patient'}
+              </button>
+            </div>
           </div>
         </form>
       </div>

@@ -84,18 +84,27 @@ export const PackageSelectionModal = ({
                       {pkg.package_name}
                     </h3>
                     {pkg.category_name && (
-                      <p className="text-xs text-slate-500 mb-1">
-                        {pkg.category_name}
+                      <p className="text-xs text-slate-500 mb-2">
+                        <span className="font-medium">Room Category:</span> {pkg.category_name}
                       </p>
                     )}
-                    <p className="text-sm text-slate-600">
-                      {pkg.no_of_days} {pkg.no_of_days === 1 ? 'day' : 'days'}
+                    <p className="text-sm text-slate-600 mb-2">
+                      <span className="font-medium">Base Rate:</span> {pkg.package_rate.toLocaleString()} {defaultCurrency} / day
                     </p>
-                  </div>
-                  <div className="pt-3 border-t border-slate-200">
-                    <p className="text-2xl font-bold text-primary">
-                      {pkg.package_rate.toLocaleString()} {defaultCurrency}
-                    </p>
+                    {pkg.duration_pricing && pkg.duration_pricing.length > 0 && (
+                      <div className="mt-2 pt-2 border-t border-slate-200">
+                        <p className="text-xs font-medium text-slate-700 mb-1">Duration Pricing:</p>
+                        <div className="space-y-1">
+                          {pkg.duration_pricing.map((dp, idx) => (
+                            <div key={idx} className="text-xs text-slate-600">
+                              <span className="font-medium">{dp.duration_name || 'Duration'}:</span>{' '}
+                              Day {dp.from_day}
+                              {dp.to_day ? ` - ${dp.to_day}` : '+'} = {dp.amount.toLocaleString()} {defaultCurrency}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
