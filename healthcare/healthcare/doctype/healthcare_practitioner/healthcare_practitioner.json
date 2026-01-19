@@ -386,7 +386,7 @@
   },
   {
    "group": "Admissions",
-   "link_doctype": "Inpatient Record",
+   "link_doctype": "Inpatient Admission",
    "link_fieldname": "practitioner"
   },
   {

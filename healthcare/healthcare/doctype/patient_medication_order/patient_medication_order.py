@@ -29,7 +29,7 @@ class PatientMedicationOrder(Document):
 
 	def validate_inpatient(self):
 		if not self.inpatient_record:
-			frappe.throw(_("No Inpatient Record found against patient {0}").format(self.patient))
+			frappe.throw(_("No Inpatient Admission found against patient {0}").format(self.patient))
 
 	def validate_duplicate(self):
 		existing_mo = frappe.db.exists(

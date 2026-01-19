@@ -52,6 +52,7 @@ export interface ServiceUnit {
   service_unit_type: string
   occupancy_status: string
   company: string
+  room_category?: string
 }
 
 export async function fetchInpatientRecords(status?: string, search?: string, patient?: string) {
@@ -111,6 +112,14 @@ export async function fetchPackageDetails(admissionNo: string): Promise<PackageD
   return { packages: [], defaultCurrency: 'BHD' }
 }
 
+export interface DurationPricing {
+  duration_class: string
+  duration_name?: string
+  from_day: number
+  to_day?: number
+  amount: number
+}
+
 export interface InpatientPackage {
   name: string
   package_name: string
@@ -120,6 +129,7 @@ export interface InpatientPackage {
   package_rate: number
   active: number
   cost_center?: string
+  duration_pricing?: DurationPricing[]
 }
 
 export interface InpatientPackagesResponse {
@@ -156,11 +166,12 @@ export async function fetchInpatientPackages(category?: string, activeOnly: bool
   return { packages: [], default_currency: 'BHD' }
 }
 
-export async function fetchServiceUnits(serviceUnitType?: string, occupancyStatus?: string, search?: string) {
+export async function fetchServiceUnits(serviceUnitType?: string, occupancyStatus?: string, search?: string, roomCategory?: string) {
   const params = new URLSearchParams()
   if (serviceUnitType) params.append('service_unit_type', serviceUnitType)
   if (occupancyStatus) params.append('occupancy_status', occupancyStatus)
   if (search) params.append('search', search)
+  if (roomCategory) params.append('room_category', roomCategory)
   
   const url = `/api/method/healthcare.api.inpatient_admission.get_service_units${params.toString() ? `?${params.toString()}` : ''}`
   
@@ -172,6 +183,63 @@ export async function fetchServiceUnits(serviceUnitType?: string, occupancyStatu
   } else {
     return [] // Return empty array on error
   }
+}
+
+export async function calculatePackagePrice(packageName: string, days: number): Promise<{ total_price: number; base_rate: number; days: number }> {
+  const params = new URLSearchParams()
+  params.append('package_name', packageName)
+  params.append('days', days.toString())
+  
+  const url = `/api/method/healthcare.api.inpatient_package.calculate_package_price?${params.toString()}`
+  
+  const response = await fetch(url)
+  const resData = await response.json()
+
+  if (resData?.message) {
+    return resData.message
+  } else {
+    throw new Error('Failed to calculate package price')
+  }
+}
+
+export async function createAdmissionSalesOrder(
+  admissionName: string,
+  packageName: string,
+  days: number,
+  totalAmount: number,
+  serviceUnit?: string
+): Promise<{ success: boolean; sales_order_name: string; message: string }> {
+  const csrf = (window as any).csrf_token
+  
+  const response = await fetch(
+    `/api/method/healthcare.api.inpatient_admission.create_admission_sales_order`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {})
+      },
+      body: JSON.stringify({
+        admission_name: admissionName,
+        package_name: packageName,
+        days: days,
+        total_amount: totalAmount,
+        service_unit: serviceUnit || null
+      })
+    }
+  )
+  
+  const resData = await response.json()
+
+  if (!response.ok) {
+    throw new Error(resData.message || resData.exc || `Request failed with status ${response.status}`)
+  }
+
+  if (resData?.message) {
+    return resData.message
+  }
+  
+  throw new Error('Invalid response format')
 }
 
 export async function admitPatient(

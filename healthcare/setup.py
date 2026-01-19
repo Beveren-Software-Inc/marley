@@ -12,7 +12,7 @@ data = {
 		"Healthcare",
 		"Vital Signs",
 		"Clinical Procedure",
-		"Inpatient Record",
+		"Inpatient Admission",
 		"Accounts",
 		"Buying",
 		"Stock",

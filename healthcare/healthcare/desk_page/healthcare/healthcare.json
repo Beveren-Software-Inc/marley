@@ -33,7 +33,7 @@
   {
    "hidden": 0,
    "label": "Inpatient",
-   "links": "[\n\t{\n\t\t\"type\": \"doctype\",\n\t\t\"name\": \"Inpatient Record\",\n\t\t\"label\": \"Inpatient Record\"\n\t},\n\t{\n\t\t\"type\": \"doctype\",\n\t\t\"name\": \"Patient Medication Order\",\n\t\t\"label\": \"Patient Medication Order\"\n\t},\n\t{\n\t\t\"type\": \"doctype\",\n\t\t\"name\": \"Inpatient Medication Entry\",\n\t\t\"label\": \"Inpatient Medication Entry\"\n\t}\n]"
+  "links": "[\n\t{\n\t\t\"type\": \"doctype\",\n\t\t\"name\": \"Inpatient Admission\",\n\t\t\"label\": \"Inpatient Admission\"\n\t},\n\t{\n\t\t\"type\": \"doctype\",\n\t\t\"name\": \"Patient Medication Order\",\n\t\t\"label\": \"Patient Medication Order\"\n\t},\n\t{\n\t\t\"type\": \"doctype\",\n\t\t\"name\": \"Inpatient Medication Entry\",\n\t\t\"label\": \"Inpatient Medication Entry\"\n\t}\n]"
   },
   {
    "hidden": 0,

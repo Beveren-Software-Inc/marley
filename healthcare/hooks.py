@@ -48,6 +48,9 @@ fixtures = [
 	},
     {
 		"doctype": "Room Category"
+	},
+    {
+		"doctype":"Package Duration Class"
 	}
 ]
 
@@ -267,7 +270,7 @@ global_search_doctypes = {
 		{"doctype": "Diagnosis", "index": 9},
 		{"doctype": "Lab Test", "index": 10},
 		{"doctype": "Clinical Procedure", "index": 11},
-		{"doctype": "Inpatient Record", "index": 12},
+		{"doctype": "Inpatient Admission", "index": 12},
 		{"doctype": "Sample Collection", "index": 13},
 		{"doctype": "Patient Medical Record", "index": 14},
 		{"doctype": "Appointment Type", "index": 15},
