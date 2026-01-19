@@ -20,6 +20,7 @@
   "column_break_9",
   "company",
   "warehouse",
+  "room_category",
   "tree_details_section",
   "parent_healthcare_service_unit",
   "lft",
@@ -239,6 +240,13 @@
    "fieldtype": "Tab Break",
    "label": "Connections",
    "show_dashboard": 1
+  },
+  {
+   "depends_on": "inpatient_occupancy",
+   "fieldname": "room_category",
+   "fieldtype": "Link",
+   "label": "Room Category",
+   "options": "Room Category"
   }
  ],
  "is_tree": 1,
@@ -247,7 +255,7 @@
    "is_child_table": 1,
    "link_doctype": "Inpatient Occupancy",
    "link_fieldname": "service_unit",
-   "parent_doctype": "Inpatient Record",
+   "parent_doctype": "Inpatient Admission",
    "table_fieldname": "inpatient_occupancies"
   },
   {
@@ -258,7 +266,7 @@
    "table_fieldname": "practitioner_schedules"
   }
  ],
- "modified": "2025-09-25 15:03:07.339676",
+ "modified": "2026-01-19 13:06:28.957680",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Service Unit",

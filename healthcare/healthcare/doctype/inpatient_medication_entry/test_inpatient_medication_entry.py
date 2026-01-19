@@ -31,7 +31,7 @@ from healthcare.healthcare.doctype.inpatient_admission.test_inpatient_admission 
 
 class TestInpatientMedicationEntry(FrappeTestCase):
 	def setUp(self):
-		frappe.db.sql("""delete from `tabInpatient Record`""")
+		frappe.db.sql("""delete from `tabInpatient Admission`""")
 		frappe.db.sql("""delete from `tabPatient Medication Order`""")
 		frappe.db.sql("""delete from `tabInpatient Medication Entry`""")
 		self.patient = create_patient()

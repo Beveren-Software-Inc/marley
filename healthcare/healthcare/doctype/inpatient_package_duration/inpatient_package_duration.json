@@ -1,0 +1,67 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-01-19 00:00:00",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "duration_class",
+  "from_day",
+  "column_break_jbcf",
+  "to_day",
+  "rate_per_day"
+ ],
+ "fields": [
+  {
+   "fieldname": "duration_class",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Duration",
+   "options": "Package Duration Class",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "duration_class.from_day",
+   "fieldname": "from_day",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "From Day",
+   "read_only": 1
+  },
+  {
+   "description": "Leave blank for open-ended (e.g. from this day onwards)",
+   "fetch_from": "duration_class.to_day",
+   "fieldname": "to_day",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "To Day",
+   "read_only": 1
+  },
+  {
+   "fieldname": "rate_per_day",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Rate Per Day",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_jbcf",
+   "fieldtype": "Column Break"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-01-19 12:47:39.847442",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Inpatient Package Duration",
+ "owner": "Administrator",
+ "permissions": [],
+ "restrict_to_domain": "Healthcare",
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

@@ -54,7 +54,7 @@
    "fieldtype": "Link",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "Inpatient Record",
+   "label": "Inpatient Admission",
    "options": "Inpatient Admission"
   },
   {

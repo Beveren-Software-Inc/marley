@@ -158,8 +158,8 @@ class InpatientAdmission(Document):
 
 		if ip_record:
 			msg = _(
-				("Already {0} Patient {1} with Inpatient Record ").format(ip_record[0].status, self.patient)
-				+ """ <b><a href="/app/Form/Inpatient Record/{0}">{0}</a></b>""".format(ip_record[0].name)
+				("Already {0} Patient {1} with Inpatient Admission ").format(ip_record[0].status, self.patient)
+				+ """ <b><a href="/app/Form/Inpatient Admission/{0}">{0}</a></b>""".format(ip_record[0].name)
 			)
 			frappe.throw(msg)
 
@@ -358,7 +358,7 @@ def validate_inpatient_invoicing(inpatient_record):
 	pending_invoices = get_pending_invoices(inpatient_record)
 
 	if pending_invoices:
-		message = _("Cannot mark Inpatient Record as Discharged since there are unbilled services. ")
+		message = _("Cannot mark Inpatient Admission as Discharged since there are unbilled services. ")
 
 		formatted_doc_rows = ""
 

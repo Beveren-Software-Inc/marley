@@ -335,7 +335,7 @@ class TestPatientAppointment(FrappeTestCase):
 			mark_invoiced_inpatient_occupancy,
 		)
 
-		frappe.db.sql("""delete from `tabInpatient Record`""")
+		frappe.db.sql("""delete from `tabInpatient Admission`""")
 		patient = create_patient()
 		practitioner = create_practitioner()
 		# Schedule Admission
@@ -352,7 +352,7 @@ class TestPatientAppointment(FrappeTestCase):
 
 		# Discharge
 		schedule_discharge(frappe.as_json({"patient": patient}))
-		ip_record1 = frappe.get_doc("Inpatient Record", ip_record.name)
+		ip_record1 = frappe.get_doc("Inpatient Admission", ip_record.name)
 		mark_invoiced_inpatient_occupancy(ip_record1)
 		discharge_patient(ip_record1)
 
@@ -368,7 +368,7 @@ class TestPatientAppointment(FrappeTestCase):
 			mark_invoiced_inpatient_occupancy,
 		)
 
-		frappe.db.sql("""delete from `tabInpatient Record`""")
+		frappe.db.sql("""delete from `tabInpatient Admission`""")
 		patient, practitioner = create_healthcare_docs()
 		patient = create_patient()
 		# Schedule Admission
@@ -390,7 +390,7 @@ class TestPatientAppointment(FrappeTestCase):
 
 		# Discharge
 		schedule_discharge(frappe.as_json({"patient": patient}))
-		ip_record1 = frappe.get_doc("Inpatient Record", ip_record.name)
+		ip_record1 = frappe.get_doc("Inpatient Admission", ip_record.name)
 		mark_invoiced_inpatient_occupancy(ip_record1)
 		discharge_patient(ip_record1)
 

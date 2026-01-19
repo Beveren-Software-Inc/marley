@@ -1,0 +1,38 @@
+[
+ {
+  "docstatus": 0,
+  "doctype": "Package Duration Class",
+  "duration_name": "First Week",
+  "from_day": 1,
+  "modified": "2026-01-19 12:45:33.290405",
+  "name": "First Week",
+  "to_day": 7
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Package Duration Class",
+  "duration_name": "Second Week",
+  "from_day": 8,
+  "modified": "2026-01-19 12:45:51.787356",
+  "name": "Second Week",
+  "to_day": 14
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Package Duration Class",
+  "duration_name": "Third Week",
+  "from_day": 15,
+  "modified": "2026-01-19 12:46:10.357505",
+  "name": "Third Week",
+  "to_day": 21
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Package Duration Class",
+  "duration_name": "First Month",
+  "from_day": 1,
+  "modified": "2026-01-19 12:46:38.234630",
+  "name": "First Month",
+  "to_day": 30
+ }
+]

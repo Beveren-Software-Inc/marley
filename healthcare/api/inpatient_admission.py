@@ -47,7 +47,7 @@ def get_patient_active_admission(patient):
 
 @frappe.whitelist()
 def get_inpatient_records(status=None, search=None, patient=None):
-	"""Get list of Inpatient Records with optional status, search, and patient filter"""
+"""Get list of Inpatient Admissions with optional status, search, and patient filter"""
 	filters = {}
 	if status:
 		filters['status'] = status
@@ -117,9 +117,9 @@ def get_inpatient_records(status=None, search=None, patient=None):
 
 @frappe.whitelist()
 def get_inpatient_record(name):
-	"""Get single Inpatient Record by name"""
+"""Get single Inpatient Admission by name"""
 	if not name:
-		frappe.throw(_("Inpatient Record name is required"))
+		frappe.throw(_("Inpatient Admission name is required"))
 
 	record = frappe.get_doc('Inpatient Admission', name)
 	
@@ -168,11 +168,11 @@ def get_inpatient_record(name):
 
 @frappe.whitelist()
 def get_package_details(admission_no):
-	"""Get Package Details for an Inpatient Record"""
+"""Get Package Details for an Inpatient Admission"""
 	if not admission_no:
 		frappe.throw(_("Admission No is required"))
 
-	# Get company from Inpatient Record
+	# Get company from Inpatient Admission
 	inpatient_record = frappe.get_doc('Inpatient Admission', admission_no)
 	company = inpatient_record.company if hasattr(inpatient_record, 'company') and inpatient_record.company else frappe.defaults.get_user_default("Company")
 	
@@ -343,7 +343,7 @@ def create_and_submit_discharge(admission_name, discharge_data):
 def admit_patient(name, service_unit, check_in, expected_discharge=None):
 	"""Admit a patient - wrapper for the DocType method"""
 	if not name:
-		frappe.throw(_("Inpatient Record name is required"))
+		frappe.throw(_("Inpatient Admission name is required"))
 	if not service_unit:
 		frappe.throw(_("Service Unit is required"))
 	if not check_in:

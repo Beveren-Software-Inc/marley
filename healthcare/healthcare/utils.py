@@ -265,7 +265,7 @@ def get_inpatient_services_to_invoice(patient, company):
 			SELECT
 				io.*
 			FROM
-				`tabInpatient Record` ip, `tabInpatient Occupancy` io
+				`tabInpatient Admission` ip, `tabInpatient Occupancy` io
 			WHERE
 				ip.patient=%s
 				and ip.company=%s

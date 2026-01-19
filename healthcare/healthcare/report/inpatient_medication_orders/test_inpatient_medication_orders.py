@@ -129,7 +129,7 @@ class TestInpatientMedicationOrders(FrappeTestCase):
 
 
 def create_records(patient):
-	frappe.db.sql("""delete from `tabInpatient Record`""")
+	frappe.db.sql("""delete from `tabInpatient Admission`""")
 
 	# Admit
 	ip_record = create_inpatient(patient)
