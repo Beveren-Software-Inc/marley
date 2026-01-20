@@ -69,7 +69,8 @@ def get_inpatient_records(status=None, search=None, patient=None):
 				ia.medical_department,
 				ia.primary_practitioner,
 				ia.secondary_practitioner,
-				ia.admission_encounter
+				ia.admission_encounter,
+				ia.expected_length_of_stay
 			FROM `tabInpatient Admission` ia
 			LEFT JOIN `tabPatient` p ON ia.patient = p.name
 			WHERE 
@@ -107,7 +108,8 @@ def get_inpatient_records(status=None, search=None, patient=None):
 				'medical_department',
 				'primary_practitioner',
 				'secondary_practitioner',
-				'admission_encounter'
+				'admission_encounter',
+				'expected_length_of_stay'
 			],
 			order_by='scheduled_date desc'
 		)
@@ -161,6 +163,7 @@ def get_inpatient_record(name):
 		'primary_practitioner': record.primary_practitioner,
 		'secondary_practitioner': record.secondary_practitioner,
 		'admission_encounter': record.admission_encounter,
+		'expected_length_of_stay': record.expected_length_of_stay,
 		'current_occupancy': current_occupancy,
 		'charges': charges_info
 	}
