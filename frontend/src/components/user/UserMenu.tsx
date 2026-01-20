@@ -57,11 +57,11 @@ export const UserMenu = () => {
     <div className="relative flex flex-col items-center" ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="w-8 h-8 bg-primary rounded-full flex items-center justify-center hover:bg-primary/80 transition-colors focus:outline-none focus:ring-2 focus:ring-white/50 cursor-pointer"
+        className="w-8 h-8 bg-white rounded-full flex items-center justify-center text-primary hover:bg-gray-100 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40 cursor-pointer"
         aria-label="User menu"
         type="button"
       >
-        <span className="text-white text-sm font-medium pointer-events-none">{initials}</span>
+        <span className="text-primary text-sm font-medium pointer-events-none">{initials}</span>
       </button>
       <div className="text-xs text-white mt-1 text-center max-w-[60px] truncate" title={displayName}>
         {displayName}
@@ -73,8 +73,8 @@ export const UserMenu = () => {
           {/* User info header */}
           <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-700">
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center flex-shrink-0">
-                <span className="text-white font-medium text-sm">{initials}</span>
+              <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center flex-shrink-0 border border-gray-200">
+                <span className="text-primary font-medium text-sm">{initials}</span>
               </div>
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-gray-900 dark:text-white truncate">{displayName}</p>

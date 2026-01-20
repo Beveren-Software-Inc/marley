@@ -4,6 +4,7 @@ import {
   fetchHealthcarePractitioners, 
   type LinkFieldOption 
 } from '../../services/common'
+import { CreatePatientModal } from '../patients/CreatePatientModal'
 
 interface CreatePatientVisitModalProps {
   onClose: () => void
@@ -18,6 +19,7 @@ export const CreatePatientVisitModal = ({ onClose, onSuccess }: CreatePatientVis
   const [loading, setLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showCreatePatient, setShowCreatePatient] = useState(false)
 
   // Link field options
   const [practitioners, setPractitioners] = useState<LinkFieldOption[]>([])
@@ -180,8 +182,16 @@ export const CreatePatientVisitModal = ({ onClose, onSuccess }: CreatePatientVis
                 }}
                 onFocus={() => setPatientOpen(true)}
                 placeholder="Search patient..."
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full rounded-md border border-slate-300 pr-9 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               />
+              <button
+                type="button"
+                onClick={() => setShowCreatePatient(true)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center text-xs hover:bg-primary/90"
+                title="Add Patient"
+              >
+                +
+              </button>
               {patientOpen && (
                 <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-auto">
                   {loading ? (
@@ -191,7 +201,7 @@ export const CreatePatientVisitModal = ({ onClose, onSuccess }: CreatePatientVis
                       <button
                         key={patient.name}
                         type="button"
-                        className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50"
+                        className="w-full text-left px-[11px] py-2 text-sm hover:bg-blue-50"
                         onClick={() => {
                           setSelectedPatient(patient)
                           setPatientQuery(patient.patient_name || patient.name)
@@ -330,6 +340,18 @@ export const CreatePatientVisitModal = ({ onClose, onSuccess }: CreatePatientVis
           </div>
         </form>
       </div>
+      {showCreatePatient && (
+        <CreatePatientModal
+          onClose={() => setShowCreatePatient(false)}
+          onSuccess={(patientName) => {
+            const newPatient: PatientListItem = { name: patientName, patient_name: patientName }
+            setSelectedPatient(newPatient)
+            setPatientQuery(newPatient.patient_name)
+            setPatientOpen(false)
+            setShowCreatePatient(false)
+          }}
+        />
+      )}
     </div>
   )
 }
