@@ -1,3 +1,5 @@
+import { apiRequest } from './apiClient'
+
 export interface Discharge {
   name: string
   admission: string
@@ -28,16 +30,11 @@ export async function fetchDischarges(
   if (patient) params.append('patient', patient)
   if (admission) params.append('admission', admission)
 
-  const response = await fetch(
+  const result = await apiRequest<Discharge[]>(
     `/api/method/healthcare.api.discharge.get_discharges?${params.toString()}`
   )
-  const resData = await response.json()
 
-  if (resData?.message && Array.isArray(resData.message)) {
-    return resData.message as Discharge[]
-  } else {
-    return []
-  }
+  return Array.isArray(result) ? result : []
 }
 
 

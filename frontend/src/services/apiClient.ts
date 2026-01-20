@@ -1,7 +1,45 @@
-export async function apiRequest<T = any>(
-  path: string,
-  options: RequestInit = {}
-): Promise<T> {
+let csrfFetchInFlight: Promise<string | null> | null = null
+
+async function ensureCSRFToken(): Promise<string | null> {
+  const existing = (window as any).csrf_token
+  if (existing) return existing
+
+  if (!csrfFetchInFlight) {
+    csrfFetchInFlight = (async () => {
+      try {
+        const resp = await fetch('/api/method/frappe.sessions.get_csrf_token', {
+          method: 'GET',
+          credentials: 'include',
+          headers: {
+            'Accept': 'application/json'
+          }
+        })
+
+        if (!resp.ok) return null
+
+        const data = await resp.json().catch(() => ({} as any))
+        const token = data?.message || data?.data || null
+        if (token) {
+          ;(window as any).csrf_token = token
+        }
+        return token
+      } catch {
+        return null
+      } finally {
+        csrfFetchInFlight = null
+      }
+    })()
+  }
+
+  return await csrfFetchInFlight
+}
+
+function isUnsafeMethod(method?: string) {
+  const m = (method || 'GET').toUpperCase()
+  return m !== 'GET' && m !== 'HEAD' && m !== 'OPTIONS'
+}
+
+async function doApiRequest<T = any>(path: string, options: RequestInit = {}): Promise<T> {
   const csrf = (window as any).csrf_token
 
   const resp = await fetch(path, {
@@ -44,6 +82,32 @@ export async function apiRequest<T = any>(
     return data.message as T
   }
   return data as T
+}
+
+export async function apiRequest<T = any>(
+  path: string,
+  options: RequestInit = {}
+): Promise<T> {
+  // Ensure CSRF token exists for unsafe methods.
+  if (isUnsafeMethod(options.method)) {
+    await ensureCSRFToken()
+  }
+
+  try {
+    return await doApiRequest<T>(path, options)
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+
+    // If CSRF is invalid/expired, fetch a fresh token and retry once.
+    if (isUnsafeMethod(options.method) && msg.toLowerCase().includes('invalid request')) {
+      // force refresh token
+      delete (window as any).csrf_token
+      await ensureCSRFToken()
+      return await doApiRequest<T>(path, options)
+    }
+
+    throw e
+  }
 }
 
 
