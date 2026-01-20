@@ -261,6 +261,9 @@ def schedule_inpatient(args):
 	inpatient_record.status = "Admission Scheduled"
 	inpatient_record.save(ignore_permissions=True)
 
+	# Return created admission name for API consumers (frontend expects a name)
+	return {"name": inpatient_record.name}
+
 
 @frappe.whitelist()
 def schedule_discharge(args):
