@@ -135,15 +135,6 @@ export const AdmissionPage = () => {
                 placeholder="Search by admission number or patient name/file number..."
                 className="flex-1 rounded-md border border-primary/40 px-3 py-2 text-sm text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-white focus:border-white"
               />
-              <button
-                onClick={() => setShowCreateAdmission(true)}
-                className="flex-shrink-0 w-10 h-10 rounded-md bg-white/20 hover:bg-white/30 text-white flex items-center justify-center transition-colors"
-                title="Create New Admission"
-              >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-              </button>
             </div>
           </div>
           <h1 className="flex-1 text-center text-lg font-semibold hidden md:block">Inpatient Admissions</h1>
@@ -154,6 +145,21 @@ export const AdmissionPage = () => {
         </header>
 
         <div className="flex-1 overflow-y-auto p-4">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-semibold text-slate-900">Admission Management</h2>
+              <p className="text-sm text-slate-600 mt-1">
+                Manage patient admissions. Click "Admit" on scheduled admissions to proceed.
+              </p>
+            </div>
+            <button
+              onClick={() => setShowCreateAdmission(true)}
+              className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
+              title="Add Admission"
+            >
+              +
+            </button>
+          </div>
           <AdmissionList 
             onAdmissionSelect={handleAdmissionSelect} 
             searchQuery={searchQuery}

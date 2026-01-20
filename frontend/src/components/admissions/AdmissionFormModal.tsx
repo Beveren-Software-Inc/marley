@@ -22,12 +22,23 @@ export const AdmissionFormModal = ({
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<Error | null>(null)
-  const [daysInput, setDaysInput] = useState<string>(String(selectedPackage.no_of_days || 1))
-  const [days, setDays] = useState<number>(selectedPackage.no_of_days || 1)
+  // Will be set from Inpatient Admission.expected_length_of_stay when the record loads.
+  // If doctor didn't set it, the field will remain empty and user must enter manually.
+  const [daysInput, setDaysInput] = useState<string>('')
+  const [days, setDays] = useState<number>(0)
   const [calculatedPrice, setCalculatedPrice] = useState<number | null>(null)
+  const [discountPercentInput, setDiscountPercentInput] = useState<string>('0')
   const [calculatingPrice, setCalculatingPrice] = useState(false)
   const [creatingSalesOrder, setCreatingSalesOrder] = useState(false)
   const [salesOrderCreated, setSalesOrderCreated] = useState<string | null>(null)
+
+  const discountPercent = Math.min(
+    100,
+    Math.max(0, parseFloat(discountPercentInput || '0') || 0)
+  )
+
+  const discountedPrice =
+    calculatedPrice !== null ? calculatedPrice * (1 - discountPercent / 100) : null
 
   // Calculate expected discharge date from days
   const calculateExpectedDischarge = (numDays: number) => {
@@ -43,7 +54,7 @@ export const AdmissionFormModal = ({
   const [formData, setFormData] = useState({
     serviceUnit: '',
     checkIn: new Date().toISOString().slice(0, 16),
-    expectedDischarge: calculateExpectedDischarge(selectedPackage.no_of_days || 1)
+    expectedDischarge: '' as string
   })
 
   // Update days number when input changes (debounced)
@@ -121,7 +132,34 @@ export const AdmissionFormModal = ({
         
         const recordData = await fetchInpatientRecord(admissionNo)
         setRecord(recordData)
-        
+        console.log("Here", recordData)
+        // Use expected_length_of_stay from the admission (scheduled by doctor) as the ONLY source
+        // for the default number of days. If it's not set or <= 0, leave the field empty.
+        const rawExpected = (recordData as any)?.expected_length_of_stay
+        const expectedDays =
+          typeof rawExpected === 'number'
+            ? rawExpected
+            : rawExpected
+            ? parseInt(String(rawExpected), 10)
+            : 0
+
+        if (expectedDays && expectedDays > 0) {
+          setDays(expectedDays)
+          setDaysInput(String(expectedDays))
+          setFormData(prev => ({
+            ...prev,
+            expectedDischarge: calculateExpectedDischarge(expectedDays)
+          }))
+        } else {
+          // No expected_length_of_stay set by doctor; keep days empty and no expected discharge.
+          setDays(0)
+          setDaysInput('')
+          setFormData(prev => ({
+            ...prev,
+            expectedDischarge: ''
+          }))
+        }
+
         // Load initial service units - filter by package room category
         const serviceUnitType = recordData?.admission_service_unit_type
         const roomCategory = selectedPackage.package_category
@@ -138,7 +176,7 @@ export const AdmissionFormModal = ({
   }, [admissionNo])
 
   const handleCreateSalesOrder = async () => {
-    if (!calculatedPrice || calculatedPrice <= 0) {
+    if (!discountedPrice || discountedPrice <= 0) {
       setError(new Error('Please calculate price first by entering number of days'))
       return
     }
@@ -156,7 +194,7 @@ export const AdmissionFormModal = ({
         admissionNo,
         selectedPackage.name,
         days,
-        calculatedPrice,
+        discountedPrice,
         formData.serviceUnit
       )
 
@@ -268,30 +306,47 @@ export const AdmissionFormModal = ({
             )}
           </div>
 
-          {/* Days Input */}
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              Number of Days <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="number"
-              min="1"
-              value={daysInput}
-              onChange={(e) => {
-                // Allow empty string and any number input
-                setDaysInput(e.target.value)
-              }}
-              onBlur={(e) => {
-                // When field loses focus, ensure it has a valid value
-                const numValue = parseInt(e.target.value)
-                if (!numValue || numValue < 1) {
-                  setDaysInput('1')
-                  setDays(1)
-                }
-              }}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-              required
-            />
+          {/* Days + Discount */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Number of Days <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="number"
+                min="1"
+                value={daysInput}
+                onChange={(e) => {
+                  // Allow empty string and any number input
+                  setDaysInput(e.target.value)
+                }}
+                onBlur={(e) => {
+                  // When field loses focus, ensure it has a valid value
+                  const numValue = parseInt(e.target.value)
+                  if (!numValue || numValue < 1) {
+                    setDaysInput('1')
+                    setDays(1)
+                  }
+                }}
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Discount (%) 
+              </label>
+              <input
+                type="number"
+                min="0"
+                max="100"
+                step="0.01"
+                value={discountPercentInput}
+                onChange={(e) => setDiscountPercentInput(e.target.value)}
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+            </div>
           </div>
 
           {/* Calculated Price */}
@@ -304,9 +359,14 @@ export const AdmissionFormModal = ({
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-green-900">Total Price:</span>
                 <span className="text-lg font-bold text-green-900">
-                  {calculatedPrice.toLocaleString()} BHD
+                  {(discountedPrice ?? calculatedPrice).toLocaleString()} BHD
                 </span>
               </div>
+              {discountPercent > 0 && (
+                <p className="text-xs text-green-800 mt-1">
+                  Discount {discountPercent}% applied (original {calculatedPrice.toLocaleString()} BHD)
+                </p>
+              )}
               <p className="text-xs text-green-700 mt-1">
                 For {days} {days === 1 ? 'day' : 'days'}
               </p>

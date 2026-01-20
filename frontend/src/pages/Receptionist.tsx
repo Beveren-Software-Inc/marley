@@ -149,7 +149,10 @@ export const ReceptionistPage = () => {
                 +
               </button>
             </div>
-            <AdmissionList refreshKey={admissionRefreshKey} />
+            <AdmissionList 
+              refreshKey={admissionRefreshKey}
+              onAdmissionSelect={() => {}} 
+            />
           </div>
         )}
 
@@ -252,6 +255,7 @@ export const ReceptionistPage = () => {
                   <AdmissionList 
                     patient={selectedPatient || undefined}
                     refreshKey={admissionRefreshKey}
+                    onAdmissionSelect={() => {}} 
                   />
                 </div>
               </section>

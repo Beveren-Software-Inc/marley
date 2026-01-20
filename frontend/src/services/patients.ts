@@ -101,11 +101,12 @@ export async function createPatient(data: CreatePatientData): Promise<{ name: st
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {})
+      'X-Frappe-CSRF-Token': csrf
     },
-    body: JSON.stringify({ data })
+    body: JSON.stringify({ data }),
+    credentials: 'include'
   })
-
+  console.log("Huku mana")
   const resData = await response.json()
 
   if (!response.ok) {

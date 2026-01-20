@@ -1,3 +1,5 @@
+import { apiRequest } from './apiClient'
+
 export interface InpatientOccupancy {
   service_unit?: string
   service_unit_name?: string
@@ -289,78 +291,36 @@ export async function scheduleDischarge(dischargeData: {
   discharge_instructions?: string
   discharge_note?: string
 }) {
-  const csrf = (window as any).csrf_token
-  
-  const response = await fetch(
+  return await apiRequest(
     `/api/method/healthcare.healthcare.doctype.inpatient_admission.inpatient_admission.schedule_discharge`,
     {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {})
-      },
       body: JSON.stringify({ args: dischargeData })
     }
   )
-  
-  const resData = await response.json()
-
-  if (resData.exc || !response.ok) {
-    throw new Error(resData.exc || resData.message || `Request failed with status ${response.status}`)
-  }
-
-  return resData.message
 }
 
 export async function dischargePatient(inpatientRecordName: string) {
-  const csrf = (window as any).csrf_token
-  
-  const response = await fetch(
+  return await apiRequest(
     `/api/method/healthcare.healthcare.doctype.inpatient_admission.inpatient_admission.discharge_patient`,
     {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {})
-      },
       body: JSON.stringify({ name: inpatientRecordName })
     }
   )
-  
-  const resData = await response.json()
-
-  if (resData.exc || !response.ok) {
-    throw new Error(resData.exc || resData.message || `Request failed with status ${response.status}`)
-  }
-
-  return resData.message
 }
 
 export async function createDischarge(admissionName: string, dischargeData: any) {
-  const csrf = (window as any).csrf_token
-  
-  const response = await fetch(
+  return await apiRequest(
     `/api/method/healthcare.api.inpatient_admission.create_and_submit_discharge`,
     {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {})
-      },
       body: JSON.stringify({
         admission_name: admissionName,
         discharge_data: dischargeData
       })
     }
   )
-  
-  const resData = await response.json()
-
-  if (resData.exc || !response.ok) {
-    throw new Error(resData.exc || resData.message || `Request failed with status ${response.status}`)
-  }
-
-  return resData.message
 }
 
 export async function cancelAdmission(inpatientRecordName: string, reason?: string) {

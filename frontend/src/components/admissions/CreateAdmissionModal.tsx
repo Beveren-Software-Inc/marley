@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
 import { toast } from '../../hooks/useToast'
+import { apiRequest } from '../../services/apiClient'
 import { 
   fetchMedicalDepartments, 
   fetchHealthcarePractitioners, 
@@ -261,19 +262,20 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
         args.admission_nursing_checklist_template = formData.admission_nursing_checklist_template
       }
 
-      const response = await fetch('/api/method/healthcare.healthcare.doctype.inpatient_admission.inpatient_admission.schedule_inpatient', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ args })
-      })
+      const resData = await apiRequest<any>(
+        '/api/method/healthcare.healthcare.doctype.inpatient_admission.inpatient_admission.schedule_inpatient',
+        {
+          method: 'POST',
+          body: JSON.stringify({ args })
+        }
+      )
 
-      const resData = await response.json()
+      // apiRequest returns `message` already when present, but older codepaths may return raw objects.
+      const message = resData
 
-      if (resData.exc) {
+      if ((message as any)?.exc) {
         // Parse error message to make it user-friendly
-        let errorMessage = resData.exc || 'Failed to create admission'
+        let errorMessage = (message as any).exc || 'Failed to create admission'
         
         // Handle specific validation errors
         if (errorMessage.includes('Already Admission Scheduled')) {
@@ -302,9 +304,14 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
         return
       }
 
-      if (resData.message && resData.message.name) {
+      const admissionName =
+        (typeof message === 'string' && message) ||
+        (typeof message === 'object' && message && (message as any).name) ||
+        null
+
+      if (admissionName) {
         toast.success('Admission created successfully!', 3000)
-        onSuccess(resData.message.name)
+        onSuccess(admissionName)
       } else {
         const errorMsg = 'Admission created but no name returned'
         toast.error(errorMsg)
