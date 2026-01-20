@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { createWarningMessage } from '../../services/warningMessages'
 import { fetchHealthcarePractitioners, fetchClinicalNoteTypes, fetchMedicalRoles, getPractitionerMedicalRole, type LinkFieldOption } from '../../services/common'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
+import { CreatePractitionerModal } from '../practitioners/CreatePractitionerModal'
 
 interface CreateWarningMessageModalProps {
   onClose: () => void
@@ -20,6 +21,7 @@ export const CreateWarningMessageModal = ({ onClose, onSuccess, initialPatient }
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showCreatePractitioner, setShowCreatePractitioner] = useState(false)
   
   // Patient dropdown state
   const [patientOptions, setPatientOptions] = useState<PatientListItem[]>([])
@@ -385,7 +387,7 @@ export const CreateWarningMessageModal = ({ onClose, onSuccess, initialPatient }
                 <label className="block text-sm font-medium text-slate-700 mb-1">
                   Practitioner
                 </label>
-                <div className="relative">
+                <div className="relative flex items-center">
                   <input
                     type="text"
                     value={selectedPractitioner ? selectedPractitioner.label : practitionerQuery}
@@ -395,10 +397,23 @@ export const CreateWarningMessageModal = ({ onClose, onSuccess, initialPatient }
                     }}
                     onFocus={() => setPractitionerOpen(true)}
                     placeholder="Search practitioner..."
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                   />
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setShowCreatePractitioner(true)
+                    }}
+                    className="absolute right-2 p-1 text-primary hover:text-primary/80 rounded"
+                    title="Create New Practitioner"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                  </button>
                   {practitionerOpen && practitionerOptions.length > 0 && (
-                    <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                    <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto top-full">
                       {practitionerOptions.map((pract) => (
                         <button
                           key={pract.name}
@@ -506,6 +521,24 @@ export const CreateWarningMessageModal = ({ onClose, onSuccess, initialPatient }
           </div>
         </form>
       </div>
+      {showCreatePractitioner && (
+        <CreatePractitionerModal
+          onClose={() => setShowCreatePractitioner(false)}
+          onSuccess={(practitionerName) => {
+            setFormData({ ...formData, practitioner: practitionerName })
+            const newPract = practitionerOptions.find(p => p.name === practitionerName)
+            if (newPract) {
+              setSelectedPractitioner(newPract)
+              setPractitionerQuery(newPract.label)
+            } else {
+              fetchHealthcarePractitioners().then(setPractitionerOptions).catch(console.error)
+              setPractitionerQuery(practitionerName)
+            }
+            setPractitionerOpen(false)
+            setShowCreatePractitioner(false)
+          }}
+        />
+      )}
     </div>
   )
 }

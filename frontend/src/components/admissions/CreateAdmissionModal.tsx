@@ -10,6 +10,7 @@ import {
   type LinkFieldOption 
 } from '../../services/common'
 import { CreatePatientModal } from '../patients/CreatePatientModal'
+import { CreatePractitionerModal } from '../practitioners/CreatePractitionerModal'
 
 interface CreateAdmissionModalProps {
   onClose: () => void
@@ -29,6 +30,8 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showCreatePatient, setShowCreatePatient] = useState(false)
+  const [showCreatePractitioner, setShowCreatePractitioner] = useState(false)
+  const [practitionerFieldType, setPractitionerFieldType] = useState<'primary' | 'secondary' | null>(null)
   
   // Link field options
   const [medicalDepartments, setMedicalDepartments] = useState<LinkFieldOption[]>([])
@@ -465,7 +468,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
               <label className="block text-sm font-medium text-slate-700 mb-1">
                 Primary Practitioner <span className="text-red-500">*</span>
               </label>
-              <div className="relative">
+              <div className="relative flex items-center">
                 <input
                   type="text"
                   value={formData.primary_practitioner ? primaryPractitioners.find(p => p.name === formData.primary_practitioner)?.label || formData.primary_practitioner : primaryPractQuery}
@@ -475,11 +478,25 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                   }}
                   onFocus={() => setPrimaryPractOpen(true)}
                   placeholder="Search Healthcare Practitioner..."
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                   required
                 />
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setPractitionerFieldType('primary')
+                    setShowCreatePractitioner(true)
+                  }}
+                  className="absolute right-2 p-1 text-primary hover:text-primary/80 rounded"
+                  title="Create New Practitioner"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                </button>
                 {primaryPractOpen && (
-                  <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-auto">
+                  <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-auto top-full">
                     {primaryPractitioners.length > 0 ? (
                       primaryPractitioners.map((pract) => (
                         <button
@@ -511,7 +528,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
               <label className="block text-sm font-medium text-slate-700 mb-1">
                 Secondary Practitioner
               </label>
-              <div className="relative">
+              <div className="relative flex items-center">
                 <input
                   type="text"
                   value={formData.secondary_practitioner ? secondaryPractitioners.find(p => p.name === formData.secondary_practitioner)?.label || formData.secondary_practitioner : secondaryPractQuery}
@@ -521,10 +538,24 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                   }}
                   onFocus={() => setSecondaryPractOpen(true)}
                   placeholder="Search Healthcare Practitioner (Optional)..."
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                 />
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setPractitionerFieldType('secondary')
+                    setShowCreatePractitioner(true)
+                  }}
+                  className="absolute right-2 p-1 text-primary hover:text-primary/80 rounded"
+                  title="Create New Practitioner"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                </button>
                 {secondaryPractOpen && (
-                  <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-auto">
+                  <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-auto top-full">
                     {secondaryPractitioners.length > 0 ? (
                       secondaryPractitioners.map((pract) => (
                         <button
@@ -712,6 +743,39 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
             setPatientQuery(newPatient.patient_name)
             setPatientOpen(false)
             setShowCreatePatient(false)
+          }}
+        />
+      )}
+      {showCreatePractitioner && (
+        <CreatePractitionerModal
+          onClose={() => {
+            setShowCreatePractitioner(false)
+            setPractitionerFieldType(null)
+          }}
+          onSuccess={(practitionerName) => {
+            if (practitionerFieldType === 'primary') {
+              setFormData({ ...formData, primary_practitioner: practitionerName })
+              const newPract = primaryPractitioners.find(p => p.name === practitionerName)
+              if (newPract) {
+                setPrimaryPractQuery(newPract.label)
+              } else {
+                fetchHealthcarePractitioners(formData.medical_department).then(setPrimaryPractitioners).catch(console.error)
+                setPrimaryPractQuery(practitionerName)
+              }
+              setPrimaryPractOpen(false)
+            } else if (practitionerFieldType === 'secondary') {
+              setFormData({ ...formData, secondary_practitioner: practitionerName })
+              const newPract = secondaryPractitioners.find(p => p.name === practitionerName)
+              if (newPract) {
+                setSecondaryPractQuery(newPract.label)
+              } else {
+                fetchHealthcarePractitioners(formData.medical_department).then(setSecondaryPractitioners).catch(console.error)
+                setSecondaryPractQuery(practitionerName)
+              }
+              setSecondaryPractOpen(false)
+            }
+            setShowCreatePractitioner(false)
+            setPractitionerFieldType(null)
           }}
         />
       )}
