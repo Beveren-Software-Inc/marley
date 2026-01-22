@@ -5,10 +5,24 @@ app_title = "Marley Health"
 app_publisher = "earthians Health Informatics Pvt. Ltd."
 app_description = "Modern, Open Source HIS built on Frappe and ERPNext"
 app_icon = "octicon octicon-file-directory"
+app_icon_url = "/assets/healthcare/images/healthcare.svg"
 app_color = "grey"
 app_email = "info@earthianslive.com"
 app_license = "GNU GPL V3"
 required_apps = ["frappe/erpnext"]
+
+# Apps
+# ------------------
+
+add_to_apps_screen = [
+	{
+		"name": "healthcare",
+		"logo": "/assets/healthcare/images/healthcare.svg",
+		"title": "Healthcare",
+		"route": "/health",
+		"has_permission": "healthcare.api.check_app_permission",
+	}
+]
 
 # Includes in <head>
 # ------------------

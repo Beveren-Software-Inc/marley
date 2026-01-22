@@ -3,6 +3,9 @@ import { createWarningMessage } from '../../services/warningMessages'
 import { fetchHealthcarePractitioners, fetchClinicalNoteTypes, fetchMedicalRoles, getPractitionerMedicalRole, type LinkFieldOption } from '../../services/common'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
 import { CreatePractitionerModal } from '../practitioners/CreatePractitionerModal'
+import { CreatePatientModal } from '../patients/CreatePatientModal'
+import { CreateClinicalNoteTypeModal } from '../clinicalNotes/CreateClinicalNoteTypeModal'
+import { CreateMedicalRoleModal } from '../clinicalNotes/CreateMedicalRoleModal'
 
 interface CreateWarningMessageModalProps {
   onClose: () => void
@@ -22,6 +25,9 @@ export const CreateWarningMessageModal = ({ onClose, onSuccess, initialPatient }
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showCreatePractitioner, setShowCreatePractitioner] = useState(false)
+  const [showCreatePatient, setShowCreatePatient] = useState(false)
+  const [showCreateClinicalNoteType, setShowCreateClinicalNoteType] = useState(false)
+  const [showCreateMedicalRole, setShowCreateMedicalRole] = useState(false)
   
   // Patient dropdown state
   const [patientOptions, setPatientOptions] = useState<PatientListItem[]>([])
@@ -316,7 +322,7 @@ export const CreateWarningMessageModal = ({ onClose, onSuccess, initialPatient }
                 <label className="block text-sm font-medium text-slate-700 mb-1">
                   Patient <span className="text-red-500">*</span>
                 </label>
-                <div className="relative">
+                <div className="relative flex items-center">
                   <input
                     type="text"
                     value={patientQuery}
@@ -326,14 +332,27 @@ export const CreateWarningMessageModal = ({ onClose, onSuccess, initialPatient }
                     }}
                     onFocus={() => setPatientOpen(true)}
                     placeholder="Search patient..."
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                     required
                   />
                   {patientLoading && (
-                    <div className="absolute right-3 top-2.5 text-slate-400 text-sm">Loading...</div>
+                    <div className="absolute right-10 top-2.5 text-slate-400 text-sm">Loading...</div>
                   )}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setShowCreatePatient(true)
+                    }}
+                    className="absolute right-2 p-1 text-primary hover:text-primary/80 rounded"
+                    title="Create New Patient"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                  </button>
                   {patientOpen && patientOptions.length > 0 && (
-                    <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                    <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto top-full">
                       {patientOptions.map((patient) => (
                         <button
                           key={patient.name}
@@ -433,7 +452,7 @@ export const CreateWarningMessageModal = ({ onClose, onSuccess, initialPatient }
                 <label className="block text-sm font-medium text-slate-700 mb-1">
                   Medical Role
                 </label>
-                <div className="relative">
+                <div className="relative flex items-center">
                   <input
                     type="text"
                     value={selectedMedicalRole ? selectedMedicalRole.label : medicalRoleQuery}
@@ -443,10 +462,23 @@ export const CreateWarningMessageModal = ({ onClose, onSuccess, initialPatient }
                     }}
                     onFocus={() => setMedicalRoleOpen(true)}
                     placeholder="Search medical role..."
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                   />
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setShowCreateMedicalRole(true)
+                    }}
+                    className="absolute right-2 p-1 text-primary hover:text-primary/80 rounded"
+                    title="Create New Medical Role"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                  </button>
                   {medicalRoleOpen && medicalRoleOptions.length > 0 && (
-                    <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                    <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto top-full">
                       {medicalRoleOptions.map((role) => (
                         <button
                           key={role.name}
@@ -466,7 +498,7 @@ export const CreateWarningMessageModal = ({ onClose, onSuccess, initialPatient }
                 <label className="block text-sm font-medium text-slate-700 mb-1">
                   Clinical Note Type
                 </label>
-                <div className="relative">
+                <div className="relative flex items-center">
                   <input
                     type="text"
                     value={selectedClinicalNoteType ? selectedClinicalNoteType.label : clinicalNoteTypeQuery}
@@ -476,10 +508,23 @@ export const CreateWarningMessageModal = ({ onClose, onSuccess, initialPatient }
                     }}
                     onFocus={() => setClinicalNoteTypeOpen(true)}
                     placeholder="Search clinical note type..."
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                   />
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setShowCreateClinicalNoteType(true)
+                    }}
+                    className="absolute right-2 p-1 text-primary hover:text-primary/80 rounded"
+                    title="Create New Clinical Note Type"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                  </button>
                   {clinicalNoteTypeOpen && clinicalNoteTypeOptions.length > 0 && (
-                    <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                    <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto top-full">
                       {clinicalNoteTypeOptions.map((noteType) => (
                         <button
                           key={noteType.name}
@@ -536,6 +581,52 @@ export const CreateWarningMessageModal = ({ onClose, onSuccess, initialPatient }
             }
             setPractitionerOpen(false)
             setShowCreatePractitioner(false)
+          }}
+        />
+      )}
+      {showCreatePatient && (
+        <CreatePatientModal
+          onClose={() => setShowCreatePatient(false)}
+          onSuccess={(patientName) => {
+            const newPatient: PatientListItem = { name: patientName, patient_name: patientName }
+            setFormData((prev) => ({ ...prev, patient: newPatient.name }))
+            setPatientQuery(newPatient.patient_name)
+            setPatientOpen(false)
+            setShowCreatePatient(false)
+          }}
+        />
+      )}
+      {showCreateMedicalRole && (
+        <CreateMedicalRoleModal
+          onClose={() => setShowCreateMedicalRole(false)}
+          onSuccess={(created) => {
+            const option: LinkFieldOption = {
+              name: created.name,
+              label: created.medical_role,
+            }
+            setMedicalRoleOptions((prev) => [option, ...prev])
+            setSelectedMedicalRole(option)
+            setFormData((prev) => ({ ...prev, medical_role: created.name }))
+            setMedicalRoleQuery(option.label)
+            setMedicalRoleOpen(false)
+            setShowCreateMedicalRole(false)
+          }}
+        />
+      )}
+      {showCreateClinicalNoteType && (
+        <CreateClinicalNoteTypeModal
+          onClose={() => setShowCreateClinicalNoteType(false)}
+          onSuccess={(created) => {
+            const option: LinkFieldOption = {
+              name: created.name,
+              label: created.clinical_note_type,
+            }
+            setClinicalNoteTypeOptions((prev) => [option, ...prev])
+            setSelectedClinicalNoteType(option)
+            setFormData((prev) => ({ ...prev, clinical_note_type: created.name }))
+            setClinicalNoteTypeQuery(option.label)
+            setClinicalNoteTypeOpen(false)
+            setShowCreateClinicalNoteType(false)
           }}
         />
       )}
