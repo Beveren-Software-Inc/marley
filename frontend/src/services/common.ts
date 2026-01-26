@@ -6,6 +6,7 @@ export interface LinkFieldOption {
   item_code?: string
   item_group?: string
   code_value?: string
+  country?: string
 }
 
 export async function fetchMedicalDepartments(search?: string): Promise<LinkFieldOption[]> {
@@ -87,6 +88,56 @@ export async function fetchLeadSources(search?: string): Promise<LinkFieldOption
   } else {
     return []
   }
+}
+
+export async function fetchNationalities(search?: string): Promise<LinkFieldOption[]> {
+  const params = new URLSearchParams()
+  // Get specific fields from Nationality DocType
+  params.append('fields', JSON.stringify(['name', 'nationality', 'country']))
+  if (search) {
+    params.append(
+      'filters',
+      JSON.stringify([['Nationality', 'nationality', 'like', `%${search}%`]])
+    )
+  }
+  params.append('limit_page_length', '50')
+
+  const url = `/api/resource/Nationality?${params.toString()}`
+
+  const response = await fetch(url)
+  const resData = await response.json()
+
+  const data = (resData?.data || resData?.message) as any
+
+  if (Array.isArray(data)) {
+    return data.map((n: any) => ({
+      name: n.name,
+      label: n.nationality || n.name,
+      country: n.country,
+    })) as LinkFieldOption[]
+  } else {
+    return []
+  }
+}
+
+export interface CreateLeadSourceData {
+  source_name: string
+}
+
+export async function createLeadSource(
+  data: CreateLeadSourceData
+): Promise<{ name: string; source_name: string }> {
+  const { apiRequest } = await import('./apiClient')
+
+  const created = await apiRequest<{ name: string; source_name: string }>(
+    '/api/resource/Lead%20Source',
+    {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }
+  )
+
+  return created
 }
 
 export async function fetchUsers(search?: string): Promise<LinkFieldOption[]> {
@@ -296,6 +347,33 @@ export async function fetchServiceRequestStatuses(search?: string): Promise<Link
       console.error('Error details:', error.message, error.stack)
     }
     return []
+  }
+}
+
+export interface CreatePractitionerData {
+  first_name: string
+  middle_name?: string
+  last_name?: string
+  gender?: string
+  status?: string
+  mobile_phone?: string
+  office_phone?: string
+  department?: string
+  medical_role?: string
+}
+
+export async function createPractitioner(data: CreatePractitionerData): Promise<{ name: string; practitioner_name: string }> {
+  const { apiRequest } = await import('./apiClient')
+  
+  const response = await apiRequest('/api/method/healthcare.api.common.create_healthcare_practitioner', {
+    method: 'POST',
+    body: JSON.stringify({ data }),
+  })
+  
+  if (response?.message) {
+    return response.message as { name: string; practitioner_name: string }
+  } else {
+    throw new Error('Invalid response format')
   }
 }
 

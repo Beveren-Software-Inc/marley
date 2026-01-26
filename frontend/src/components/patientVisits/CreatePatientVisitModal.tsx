@@ -4,6 +4,8 @@ import {
   fetchHealthcarePractitioners, 
   type LinkFieldOption 
 } from '../../services/common'
+import { CreatePatientModal } from '../patients/CreatePatientModal'
+import { CreatePractitionerModal } from '../practitioners/CreatePractitionerModal'
 
 interface CreatePatientVisitModalProps {
   onClose: () => void
@@ -18,6 +20,8 @@ export const CreatePatientVisitModal = ({ onClose, onSuccess }: CreatePatientVis
   const [loading, setLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showCreatePatient, setShowCreatePatient] = useState(false)
+  const [showCreatePractitioner, setShowCreatePractitioner] = useState(false)
 
   // Link field options
   const [practitioners, setPractitioners] = useState<LinkFieldOption[]>([])
@@ -180,8 +184,16 @@ export const CreatePatientVisitModal = ({ onClose, onSuccess }: CreatePatientVis
                 }}
                 onFocus={() => setPatientOpen(true)}
                 placeholder="Search patient..."
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full rounded-md border border-slate-300 pr-9 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               />
+              <button
+                type="button"
+                onClick={() => setShowCreatePatient(true)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center text-xs hover:bg-primary/90"
+                title="Add Patient"
+              >
+                +
+              </button>
               {patientOpen && (
                 <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-auto">
                   {loading ? (
@@ -191,7 +203,7 @@ export const CreatePatientVisitModal = ({ onClose, onSuccess }: CreatePatientVis
                       <button
                         key={patient.name}
                         type="button"
-                        className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50"
+                        className="w-full text-left px-[11px] py-2 text-sm hover:bg-blue-50"
                         onClick={() => {
                           setSelectedPatient(patient)
                           setPatientQuery(patient.patient_name || patient.name)
@@ -220,7 +232,7 @@ export const CreatePatientVisitModal = ({ onClose, onSuccess }: CreatePatientVis
               <label className="block text-sm font-medium text-slate-700 mb-1">
                 Practitioner <span className="text-red-500">*</span>
               </label>
-              <div className="relative">
+              <div className="relative flex items-center">
                 <input
                   type="text"
                   value={formData.practitioner ? practitioners.find(p => p.name === formData.practitioner)?.label || formData.practitioner : practQuery}
@@ -230,11 +242,24 @@ export const CreatePatientVisitModal = ({ onClose, onSuccess }: CreatePatientVis
                   }}
                   onFocus={() => setPractOpen(true)}
                   placeholder="Search Healthcare Practitioner..."
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                   required
                 />
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setShowCreatePractitioner(true)
+                  }}
+                  className="absolute right-2 p-1 text-primary hover:text-primary/80 rounded"
+                  title="Create New Practitioner"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                </button>
                 {practOpen && (
-                  <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-auto">
+                  <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-auto top-full">
                     {practitioners.length > 0 ? (
                       practitioners.map((pract) => (
                         <button
@@ -330,6 +355,36 @@ export const CreatePatientVisitModal = ({ onClose, onSuccess }: CreatePatientVis
           </div>
         </form>
       </div>
+      {showCreatePatient && (
+        <CreatePatientModal
+          onClose={() => setShowCreatePatient(false)}
+          onSuccess={(patientName) => {
+            const newPatient: PatientListItem = { name: patientName, patient_name: patientName }
+            setSelectedPatient(newPatient)
+            setPatientQuery(newPatient.patient_name)
+            setPatientOpen(false)
+            setShowCreatePatient(false)
+          }}
+        />
+      )}
+      {showCreatePractitioner && (
+        <CreatePractitionerModal
+          onClose={() => setShowCreatePractitioner(false)}
+          onSuccess={(practitionerName) => {
+            setFormData({ ...formData, practitioner: practitionerName })
+            const newPract = practitioners.find(p => p.name === practitionerName)
+            if (newPract) {
+              setPractQuery(newPract.label)
+            } else {
+              // Refresh practitioners list to get the new one
+              fetchHealthcarePractitioners().then(setPractitioners).catch(console.error)
+              setPractQuery(practitionerName)
+            }
+            setPractOpen(false)
+            setShowCreatePractitioner(false)
+          }}
+        />
+      )}
     </div>
   )
 }

@@ -4,6 +4,8 @@ import { fetchHealthcarePractitioners, fetchAppointmentTypes, type LinkFieldOpti
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
 import { toast } from '../../hooks/useToast'
 import { X } from 'lucide-react'
+import { CreatePractitionerModal } from '../practitioners/CreatePractitionerModal'
+import { CreatePatientModal } from '../patients/CreatePatientModal'
 
 interface CreateAppointmentModalProps {
   onClose: () => void
@@ -22,6 +24,9 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showCreatePractitioner, setShowCreatePractitioner] = useState(false)
+  const [showCreatePatient, setShowCreatePatient] = useState(false)
+  const [showCreateAppointmentType, setShowCreateAppointmentType] = useState(false)
   
   // Patient dropdown state
   const [patientOptions, setPatientOptions] = useState<PatientListItem[]>([])
@@ -252,7 +257,7 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
             <label className="block text-sm font-medium text-slate-700 mb-1">
               Patient <span className="text-red-500">*</span>
             </label>
-            <div className="relative">
+            <div className="relative flex items-center">
               <input
                 type="text"
                 value={patientQuery}
@@ -266,14 +271,27 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
                 }}
                 onFocus={() => setPatientOpen(true)}
                 placeholder="Search patient..."
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                className="w-full rounded-md border border-slate-300 px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
                 required
               />
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setShowCreatePatient(true)
+                }}
+                className="absolute right-2 p-1 text-primary hover:text-primary/80 rounded"
+                title="Create New Patient"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+              </button>
               {patientLoading && (
-                <div className="absolute right-3 top-2.5 text-slate-400 text-sm">Loading...</div>
+                <div className="absolute right-10 top-2.5 text-slate-400 text-sm">Loading...</div>
               )}
               {patientOpen && patientOptions.length > 0 && (
-                <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto top-full">
                   {patientOptions.map((patient) => (
                     <button
                       key={patient.name}
@@ -296,7 +314,7 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
             <label className="block text-sm font-medium text-slate-700 mb-1">
               Appointment Type <span className="text-red-500">*</span>
             </label>
-            <div className="relative">
+            <div className="relative flex items-center">
               <input
                 type="text"
                 value={appointmentTypeQuery}
@@ -306,11 +324,24 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
                 }}
                 onFocus={() => setAppointmentTypeOpen(true)}
                 placeholder="Select appointment type..."
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                className="w-full rounded-md border border-slate-300 px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
                 required
               />
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setShowCreateAppointmentType(true)
+                }}
+                className="absolute right-2 p-1 text-primary hover:text-primary/80 rounded"
+                title="Create New Appointment Type"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+              </button>
               {appointmentTypeOpen && appointmentTypeOptions.length > 0 && (
-                <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto top-full">
                   {appointmentTypeOptions.map((aptType) => (
                     <button
                       key={aptType.name}
@@ -357,7 +388,7 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
             <label className="block text-sm font-medium text-slate-700 mb-1">
               Healthcare Practitioner
             </label>
-            <div className="relative">
+            <div className="relative flex items-center">
               <input
                 type="text"
                 value={practitionerQuery}
@@ -367,10 +398,23 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
                 }}
                 onFocus={() => setPractitionerOpen(true)}
                 placeholder="Select practitioner..."
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                className="w-full rounded-md border border-slate-300 px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
               />
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setShowCreatePractitioner(true)
+                }}
+                className="absolute right-2 p-1 text-primary hover:text-primary/80 rounded"
+                title="Create New Practitioner"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+              </button>
               {practitionerOpen && practitionerOptions.length > 0 && (
-                <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto top-full">
                   {practitionerOptions.map((pract) => (
                     <button
                       key={pract.name}
@@ -407,6 +451,62 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
           </div>
         </form>
       </div>
+      {showCreatePatient && (
+        <CreatePatientModal
+          onClose={() => setShowCreatePatient(false)}
+          onSuccess={(patientName) => {
+            const newPatient: PatientListItem = { name: patientName, patient_name: patientName }
+            setSelectedPatient(newPatient)
+            setPatientQuery(newPatient.patient_name)
+            setFormData({ ...formData, patient: patientName })
+            setPatientOpen(false)
+            setShowCreatePatient(false)
+          }}
+        />
+      )}
+      {showCreatePractitioner && (
+        <CreatePractitionerModal
+          onClose={() => setShowCreatePractitioner(false)}
+          onSuccess={(practitionerName) => {
+            setFormData({ ...formData, practitioner: practitionerName })
+            const newPract = practitionerOptions.find(p => p.name === practitionerName)
+            if (newPract) {
+              setPractitionerQuery(newPract.label)
+            } else {
+              fetchHealthcarePractitioners().then(setPractitionerOptions).catch(console.error)
+              setPractitionerQuery(practitionerName)
+            }
+            setPractitionerOpen(false)
+            setShowCreatePractitioner(false)
+          }}
+        />
+      )}
+      {showCreateAppointmentType && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold text-slate-900">Create Appointment Type</h2>
+              <button
+                onClick={() => setShowCreateAppointmentType(false)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <p className="text-sm text-slate-600 mb-4">
+              Appointment Type creation is not yet implemented. Please create it from the Appointment Type DocType in Frappe.
+            </p>
+            <div className="flex justify-end">
+              <button
+                onClick={() => setShowCreateAppointmentType(false)}
+                className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

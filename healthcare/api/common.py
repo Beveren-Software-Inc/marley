@@ -431,3 +431,37 @@ def get_service_request_statuses(search=None):
 	return result
 
 
+@frappe.whitelist()
+def create_healthcare_practitioner(data):
+	"""Create a new Healthcare Practitioner"""
+	if isinstance(data, str):
+		import json
+		data = json.loads(data)
+	
+	# Validate required fields
+	if not data.get('first_name'):
+		frappe.throw(_("First Name is required"))
+	
+	# Create the practitioner
+	practitioner = frappe.get_doc({
+		'doctype': 'Healthcare Practitioner',
+		'first_name': data.get('first_name'),
+		'middle_name': data.get('middle_name') or '',
+		'last_name': data.get('last_name') or '',
+		'gender': data.get('gender') or None,
+		'status': data.get('status') or 'Active',
+		'mobile_phone': data.get('mobile_phone') or None,
+		'office_phone': data.get('office_phone') or None,
+		'department': data.get('department') or None,
+		'medical_role': data.get('medical_role') or None
+	})
+	
+	practitioner.insert()
+	
+	# Return the created practitioner
+	return {
+		'name': practitioner.name,
+		'practitioner_name': practitioner.practitioner_name
+	}
+
+

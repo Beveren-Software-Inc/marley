@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { scheduleDischarge } from '../../services/inpatientRecords'
 import { fetchHealthcarePractitioners, type LinkFieldOption } from '../../services/common'
 import { toast } from '../../hooks/useToast'
+import { CreatePractitionerModal } from '../practitioners/CreatePractitionerModal'
 
 interface ScheduleDischargeModalProps {
   admission: {
@@ -16,6 +17,7 @@ interface ScheduleDischargeModalProps {
 export const ScheduleDischargeModal = ({ admission, onClose, onSuccess }: ScheduleDischargeModalProps) => {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showCreatePractitioner, setShowCreatePractitioner] = useState(false)
   
   // Discharge Practitioner dropdown state
   const [practitioners, setPractitioners] = useState<LinkFieldOption[]>([])
@@ -138,7 +140,7 @@ export const ScheduleDischargeModal = ({ admission, onClose, onSuccess }: Schedu
               <label className="block text-sm font-medium text-slate-700 mb-1">
                 Discharge Practitioner
               </label>
-              <div className="relative">
+              <div className="relative flex items-center">
                 <input
                   type="text"
                   value={selectedPractitioner ? selectedPractitioner.label : practQuery}
@@ -148,10 +150,23 @@ export const ScheduleDischargeModal = ({ admission, onClose, onSuccess }: Schedu
                   }}
                   onFocus={() => setPractOpen(true)}
                   placeholder="Search Healthcare Practitioner..."
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                 />
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setShowCreatePractitioner(true)
+                  }}
+                  className="absolute right-2 p-1 text-primary hover:text-primary/80 rounded"
+                  title="Create New Practitioner"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                </button>
                 {practOpen && practitioners.length > 0 && (
-                  <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-auto">
+                  <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-auto top-full">
                     {practitioners.map((pract) => (
                       <button
                         key={pract.name}
@@ -168,7 +183,7 @@ export const ScheduleDischargeModal = ({ admission, onClose, onSuccess }: Schedu
                   </div>
                 )}
                 {practOpen && practitioners.length === 0 && practQuery && (
-                  <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg">
+                  <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg top-full">
                     <div className="px-3 py-2 text-xs text-slate-500">No practitioners found</div>
                   </div>
                 )}
@@ -250,6 +265,24 @@ export const ScheduleDischargeModal = ({ admission, onClose, onSuccess }: Schedu
           </div>
         </form>
       </div>
+      {showCreatePractitioner && (
+        <CreatePractitionerModal
+          onClose={() => setShowCreatePractitioner(false)}
+          onSuccess={(practitionerName) => {
+            setFormData({ ...formData, discharge_practitioner: practitionerName })
+            const newPract = practitioners.find(p => p.name === practitionerName)
+            if (newPract) {
+              setSelectedPractitioner(newPract)
+              setPractQuery(newPract.label)
+            } else {
+              fetchHealthcarePractitioners().then(setPractitioners).catch(console.error)
+              setPractQuery(practitionerName)
+            }
+            setPractOpen(false)
+            setShowCreatePractitioner(false)
+          }}
+        />
+      )}
     </div>
   )
 }

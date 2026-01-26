@@ -2,6 +2,10 @@ import { useState, useEffect } from 'react'
 import { createLabTest } from '../../services/labTests'
 import { fetchHealthcarePractitioners, fetchLabTestTemplates, fetchMedicalDepartments, type LinkFieldOption } from '../../services/common'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
+import { CreatePatientModal } from '../patients/CreatePatientModal'
+import { CreatePractitionerModal } from '../practitioners/CreatePractitionerModal'
+import { CreateLabTestTemplateModal } from './CreateLabTestTemplateModal'
+import { CreateDepartmentModal } from './CreateDepartmentModal'
 
 interface CreateLabTestModalProps {
   onClose: () => void
@@ -46,6 +50,12 @@ export const CreateLabTestModal = ({ onClose, onSuccess, initialPatient }: Creat
   const [departmentOpen, setDepartmentOpen] = useState(false)
   const [departmentQuery, setDepartmentQuery] = useState('')
   const [selectedDepartment, setSelectedDepartment] = useState<LinkFieldOption | null>(null)
+
+  // Create modals
+  const [showCreatePatient, setShowCreatePatient] = useState(false)
+  const [showCreatePractitioner, setShowCreatePractitioner] = useState(false)
+  const [showCreateTemplate, setShowCreateTemplate] = useState(false)
+  const [showCreateDepartment, setShowCreateDepartment] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -261,16 +271,20 @@ export const CreateLabTestModal = ({ onClose, onSuccess, initialPatient }: Creat
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4" onClick={(e) => {
-          // Close dropdowns when clicking outside inputs
-          const target = e.target as HTMLElement
-          if (target.tagName !== 'INPUT' && !target.closest('.absolute')) {
-            setPatientOpen(false)
-            setTemplateOpen(false)
-            setPractitionerOpen(false)
-            setDepartmentOpen(false)
-          }
-        }}>
+        <form
+          onSubmit={handleSubmit}
+          className="p-6 space-y-4"
+          onClick={(e) => {
+            // Close dropdowns when clicking outside inputs
+            const target = e.target as HTMLElement
+            if (target.tagName !== 'INPUT' && !target.closest('.absolute')) {
+              setPatientOpen(false)
+              setTemplateOpen(false)
+              setPractitionerOpen(false)
+              setDepartmentOpen(false)
+            }
+          }}
+        >
           {/* Patient Information */}
           <div>
             <h3 className="text-sm font-semibold text-slate-700 mb-3">Patient Information</h3>
@@ -279,7 +293,7 @@ export const CreateLabTestModal = ({ onClose, onSuccess, initialPatient }: Creat
                 <label className="block text-sm font-medium text-slate-700 mb-1">
                   Patient <span className="text-red-500">*</span>
                 </label>
-                <div className="relative">
+                <div className="relative flex items-center">
                   <input
                     type="text"
                     value={patientQuery}
@@ -289,14 +303,27 @@ export const CreateLabTestModal = ({ onClose, onSuccess, initialPatient }: Creat
                     }}
                     onFocus={() => setPatientOpen(true)}
                     placeholder="Search patient..."
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                     required
                   />
                   {patientLoading && (
-                    <div className="absolute right-3 top-2.5 text-slate-400 text-sm">Loading...</div>
+                    <div className="absolute right-10 top-2.5 text-slate-400 text-sm">Loading...</div>
                   )}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setShowCreatePatient(true)
+                    }}
+                    className="absolute right-2 p-1 text-primary hover:text-primary/80 rounded"
+                    title="Create New Patient"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                  </button>
                   {patientOpen && patientOptions.length > 0 && (
-                    <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                    <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto top-full">
                       {patientOptions.map((patient) => (
                         <button
                           key={patient.name}
@@ -325,7 +352,7 @@ export const CreateLabTestModal = ({ onClose, onSuccess, initialPatient }: Creat
                 <label className="block text-sm font-medium text-slate-700 mb-1">
                   Lab Test Template
                 </label>
-                <div className="relative">
+                <div className="relative flex items-center">
                   <input
                     type="text"
                     value={selectedTemplate ? selectedTemplate.label : templateQuery}
@@ -335,10 +362,23 @@ export const CreateLabTestModal = ({ onClose, onSuccess, initialPatient }: Creat
                     }}
                     onFocus={() => setTemplateOpen(true)}
                     placeholder="Search template..."
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                   />
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setShowCreateTemplate(true)
+                    }}
+                    className="absolute right-2 p-1 text-primary hover:text-primary/80 rounded"
+                    title="Create New Lab Test Template"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                  </button>
                   {templateOpen && templateOptions.length > 0 && (
-                    <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                    <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto top-full">
                       {templateOptions.map((template) => (
                         <button
                           key={template.name}
@@ -358,7 +398,7 @@ export const CreateLabTestModal = ({ onClose, onSuccess, initialPatient }: Creat
                 <label className="block text-sm font-medium text-slate-700 mb-1">
                   Department
                 </label>
-                <div className="relative">
+                <div className="relative flex items-center">
                   <input
                     type="text"
                     value={selectedDepartment ? selectedDepartment.label : departmentQuery}
@@ -368,10 +408,23 @@ export const CreateLabTestModal = ({ onClose, onSuccess, initialPatient }: Creat
                     }}
                     onFocus={() => setDepartmentOpen(true)}
                     placeholder="Search department..."
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                   />
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setShowCreateDepartment(true)
+                    }}
+                    className="absolute right-2 p-1 text-primary hover:text-primary/80 rounded"
+                    title="Create New Department"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                  </button>
                   {departmentOpen && departmentOptions.length > 0 && (
-                    <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                    <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto top-full">
                       {departmentOptions.map((dept) => (
                         <button
                           key={dept.name}
@@ -401,10 +454,23 @@ export const CreateLabTestModal = ({ onClose, onSuccess, initialPatient }: Creat
                     }}
                     onFocus={() => setPractitionerOpen(true)}
                     placeholder="Search practitioner..."
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                   />
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setShowCreatePractitioner(true)
+                    }}
+                    className="absolute right-2 p-1 text-primary hover:text-primary/80 rounded"
+                    title="Create New Practitioner"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                  </button>
                   {practitionerOpen && practitionerOptions.length > 0 && (
-                    <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                    <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto top-full">
                       {practitionerOptions.map((pract) => (
                         <button
                           key={pract.name}
@@ -486,6 +552,73 @@ export const CreateLabTestModal = ({ onClose, onSuccess, initialPatient }: Creat
           </div>
         </form>
       </div>
+      {showCreatePatient && (
+        <CreatePatientModal
+          onClose={() => setShowCreatePatient(false)}
+          onSuccess={(patientName) => {
+            const newPatient: PatientListItem = { name: patientName, patient_name: patientName }
+            setFormData((prev) => ({ ...prev, patient: newPatient.name }))
+            setPatientQuery(newPatient.patient_name)
+            setPatientOpen(false)
+            setShowCreatePatient(false)
+          }}
+        />
+      )}
+      {showCreatePractitioner && (
+        <CreatePractitionerModal
+          onClose={() => setShowCreatePractitioner(false)}
+          onSuccess={(practitionerName) => {
+            setFormData((prev) => ({ ...prev, practitioner: practitionerName }))
+            const newPract = practitionerOptions.find((p) => p.name === practitionerName)
+            if (newPract) {
+              setSelectedPractitioner(newPract)
+              setPractitionerQuery(newPract.label)
+            } else {
+              fetchHealthcarePractitioners(undefined, formData.department || undefined)
+                .then(setPractitionerOptions)
+                .catch(console.error)
+              setPractitionerQuery(practitionerName)
+            }
+            setPractitionerOpen(false)
+            setShowCreatePractitioner(false)
+          }}
+        />
+      )}
+      {showCreateTemplate && (
+        <CreateLabTestTemplateModal
+          onClose={() => setShowCreateTemplate(false)}
+          onSuccess={(created) => {
+            const option: LinkFieldOption = {
+              name: created.name,
+              label: created.lab_test_name,
+              department: created.department,
+            }
+            setTemplateOptions((prev) => [option, ...prev])
+            setSelectedTemplate(option)
+            setFormData((prev) => ({ ...prev, template: created.name }))
+            setTemplateQuery(option.label)
+            setTemplateOpen(false)
+            setShowCreateTemplate(false)
+          }}
+        />
+      )}
+      {showCreateDepartment && (
+        <CreateDepartmentModal
+          onClose={() => setShowCreateDepartment(false)}
+          onSuccess={(created) => {
+            const option: LinkFieldOption = {
+              name: created.name,
+              label: created.department,
+            }
+            setDepartmentOptions((prev) => [option, ...prev])
+            setSelectedDepartment(option)
+            setFormData((prev) => ({ ...prev, department: created.name }))
+            setDepartmentQuery(option.label)
+            setDepartmentOpen(false)
+            setShowCreateDepartment(false)
+          }}
+        />
+      )}
     </div>
   )
 }

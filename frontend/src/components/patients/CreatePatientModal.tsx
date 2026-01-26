@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { createPatient } from '../../services/patients'
-import { fetchLeadSources, type LinkFieldOption } from '../../services/common'
+import { fetchLeadSources, fetchNationalities, type LinkFieldOption } from '../../services/common'
+import { CreateLeadSourceModal } from './CreateLeadSourceModal'
+import { CreateNationalityModal } from './CreateNationalityModal'
 
 interface CreatePatientModalProps {
   onClose: () => void
@@ -32,6 +34,14 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
   const [sourceOpen, setSourceOpen] = useState(false)
   const [sourceQuery, setSourceQuery] = useState('')
   const [selectedSource, setSelectedSource] = useState<LinkFieldOption | null>(null)
+  const [showCreateSource, setShowCreateSource] = useState(false)
+
+  // Nationality dropdown state
+  const [nationalityOptions, setNationalityOptions] = useState<LinkFieldOption[]>([])
+  const [nationalityOpen, setNationalityOpen] = useState(false)
+  const [nationalityQuery, setNationalityQuery] = useState('')
+  const [selectedNationality, setSelectedNationality] = useState<LinkFieldOption | null>(null)
+  const [showCreateNationality, setShowCreateNationality] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -63,17 +73,21 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
     setFormData(prev => ({ ...prev, [field]: value }))
   }
 
-  // Load initial source options
+  // Load initial options (source + nationalities)
   useEffect(() => {
-    const loadSources = async () => {
+    const loadOptions = async () => {
       try {
-        const sources = await fetchLeadSources()
+        const [sources, nationalities] = await Promise.all([
+          fetchLeadSources(),
+          fetchNationalities(),
+        ])
         setSourceOptions(sources)
+        setNationalityOptions(nationalities)
       } catch (err) {
-        console.error('Failed to load sources:', err)
+        console.error('Failed to load options:', err)
       }
     }
-    loadSources()
+    loadOptions()
   }, [])
 
   // Search sources
@@ -104,6 +118,34 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
     setSourceQuery('')
   }
 
+  // Search nationalities
+  useEffect(() => {
+    if (!nationalityOpen) return
+
+    const search = async () => {
+      try {
+        const results = await fetchNationalities(nationalityQuery)
+        setNationalityOptions(results)
+      } catch (err) {
+        console.error('Failed to search nationalities:', err)
+        setNationalityOptions([])
+      }
+    }
+
+    const timeoutId = setTimeout(() => {
+      search()
+    }, nationalityQuery.trim() === '' ? 0 : 300)
+
+    return () => clearTimeout(timeoutId)
+  }, [nationalityQuery, nationalityOpen])
+
+  const handleNationalitySelect = (nat: LinkFieldOption) => {
+    setSelectedNationality(nat)
+    setFormData((prev) => ({ ...prev, nationality: nat.name }))
+    setNationalityOpen(false)
+    setNationalityQuery('')
+  }
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
@@ -121,13 +163,18 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4" onClick={(e) => {
-          // Close dropdowns when clicking outside inputs
-          const target = e.target as HTMLElement
-          if (target.tagName !== 'INPUT' && !target.closest('.absolute')) {
-            setSourceOpen(false)
-          }
-        }}>
+        <form
+          onSubmit={handleSubmit}
+          className="p-6 space-y-4"
+          onClick={(e) => {
+            // Close dropdowns when clicking outside inputs
+            const target = e.target as HTMLElement
+            if (target.tagName !== 'INPUT' && !target.closest('.absolute')) {
+              setSourceOpen(false)
+              setNationalityOpen(false)
+            }
+          }}
+        >
           {/* Basic Information */}
           <div>
             <h3 className="text-sm font-semibold text-slate-700 mb-3">Basic Information</h3>
@@ -283,12 +330,49 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
                 <label className="block text-sm font-medium text-slate-700 mb-1">
                   Nationality
                 </label>
-                <input
-                  type="text"
-                  value={formData.nationality}
-                  onChange={(e) => handleChange('nationality', e.target.value)}
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                />
+                <div className="relative flex items-center">
+                  <input
+                    type="text"
+                    value={selectedNationality ? selectedNationality.label : nationalityQuery}
+                    onChange={(e) => {
+                      setNationalityQuery(e.target.value)
+                      setNationalityOpen(true)
+                    }}
+                    onFocus={() => setNationalityOpen(true)}
+                    placeholder="Search nationality..."
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setShowCreateNationality(true)
+                    }}
+                    className="absolute right-2 p-1 text-primary hover:text-primary/80 rounded"
+                    title="Create New Nationality"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                  </button>
+                  {nationalityOpen && nationalityOptions.length > 0 && (
+                    <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto top-full">
+                      {nationalityOptions.map((nat) => (
+                        <button
+                          key={nat.name}
+                          type="button"
+                          onClick={() => handleNationalitySelect(nat)}
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 focus:bg-slate-100 focus:outline-none"
+                        >
+                          <div className="font-medium">{nat.label}</div>
+                          {nat.country && (
+                            <div className="text-xs text-slate-500">{nat.country}</div>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div>
@@ -311,7 +395,7 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
                 <label className="block text-sm font-medium text-slate-700 mb-1">
                   Source <span className="text-red-500">*</span>
                 </label>
-                <div className="relative">
+                <div className="relative flex items-center">
                   <input
                     type="text"
                     value={selectedSource ? selectedSource.label : sourceQuery}
@@ -321,11 +405,24 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
                     }}
                     onFocus={() => setSourceOpen(true)}
                     placeholder="Search source..."
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                     required
                   />
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setShowCreateSource(true)
+                    }}
+                    className="absolute right-2 p-1 text-primary hover:text-primary/80 rounded"
+                    title="Create New Source"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                  </button>
                   {sourceOpen && sourceOptions.length > 0 && (
-                    <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                    <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto top-full">
                       {sourceOptions.map((source) => (
                         <button
                           key={source.name}
@@ -385,12 +482,42 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
           </div>
         </form>
       </div>
+      {showCreateSource && (
+        <CreateLeadSourceModal
+          onClose={() => setShowCreateSource(false)}
+          onSuccess={(created) => {
+            const option: LinkFieldOption = {
+              name: created.name,
+              label: created.source_name,
+            }
+            setSourceOptions((prev) => [option, ...prev])
+            setSelectedSource(option)
+            setFormData((prev) => ({ ...prev, source: created.name }))
+            setSourceQuery('')
+            setSourceOpen(false)
+            setShowCreateSource(false)
+          }}
+        />
+      )}
+      {showCreateNationality && (
+        <CreateNationalityModal
+          onClose={() => setShowCreateNationality(false)}
+          onSuccess={(created) => {
+            const option: LinkFieldOption = {
+              name: created.name,
+              label: created.nationality,
+              country: created.country,
+            }
+            setNationalityOptions((prev) => [option, ...prev])
+            setSelectedNationality(option)
+            setFormData((prev) => ({ ...prev, nationality: created.name }))
+            setNationalityQuery('')
+            setNationalityOpen(false)
+            setShowCreateNationality(false)
+          }}
+        />
+      )}
     </div>
   )
 }
-
-
-
-
-
 
