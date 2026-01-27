@@ -11,12 +11,14 @@
   "patient_encounter",
   "patient",
   "patient_name",
+  "nationality",
   "patient_age",
   "inpatient_record",
   "column_break_6",
   "company",
   "status",
   "practitioner",
+  "healthcare_practitioner_name",
   "start_date",
   "end_date",
   "medication_orders_section",
@@ -79,8 +81,7 @@
    "in_list_view": 1,
    "label": "Inpatient Admission",
    "options": "Inpatient Admission",
-   "read_only": 1,
-   "reqd": 1
+   "read_only": 1
   },
   {
    "fetch_from": "patient_encounter.practitioner",
@@ -164,15 +165,29 @@
    "label": "Completed Orders",
    "no_copy": 1,
    "read_only": 1
+  },
+  {
+   "fetch_from": "patient.nationality",
+   "fieldname": "nationality",
+   "fieldtype": "Link",
+   "label": "Nationality",
+   "options": "Nationality"
+  },
+  {
+   "fetch_from": "practitioner.practitioner_name",
+   "fieldname": "healthcare_practitioner_name",
+   "fieldtype": "Data",
+   "label": "Healthcare Practitioner Name"
   }
  ],
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2020-09-30 21:53:27.128591",
+ "modified": "2026-01-27 14:16:19.218062",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Medication Order",
+ "naming_rule": "By \"Naming Series\" field",
  "owner": "Administrator",
  "permissions": [
   {
@@ -188,9 +203,11 @@
    "write": 1
   }
  ],
+ "row_format": "Dynamic",
  "search_fields": "patient_encounter, patient",
  "sort_field": "modified",
  "sort_order": "DESC",
+ "states": [],
  "title_field": "patient",
  "track_changes": 1
 }

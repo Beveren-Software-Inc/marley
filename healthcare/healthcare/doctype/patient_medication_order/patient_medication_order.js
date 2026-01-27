@@ -10,14 +10,14 @@ frappe.ui.form.on('Patient Medication Order', {
 		frm.events.show_medication_order_button(frm);
 		frm.events.show_get_from_encounter_button(frm);
 
-		frm.set_query('patient', () => {
-			return {
-				filters: {
-					'inpatient_record': ['!=', ''],
-					'inpatient_status': 'Admitted'
-				}
-			};
-		});
+		// frm.set_query('patient', () => {
+		// 	return {
+		// 		filters: {
+		// 			'inpatient_record': ['!=', ''],
+		// 			'inpatient_status': 'Admitted'
+		// 		}
+		// 	};
+		// });
 	},
 
 	show_medication_order_button: function(frm) {

@@ -545,7 +545,7 @@
    "fieldname": "nationality",
    "fieldtype": "Link",
    "label": "Nationality",
-   "options": "Country"
+   "options": "Nationality"
   },
   {
    "fieldname": "id_number",
@@ -796,7 +796,7 @@
   }
  ],
  "max_attachments": 50,
- "modified": "2026-01-27 12:35:11.621737",
+ "modified": "2026-01-27 14:35:15.717600",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient",

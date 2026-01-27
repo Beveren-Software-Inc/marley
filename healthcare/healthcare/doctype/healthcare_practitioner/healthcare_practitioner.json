@@ -21,6 +21,7 @@
   "mobile_phone",
   "residence_phone",
   "office_phone",
+  "licence_no",
   "employee_and_user_details_section",
   "practitioner_type",
   "employee",
@@ -360,6 +361,11 @@
    "fieldtype": "Link",
    "label": "Medical Role",
    "options": "Medical Role"
+  },
+  {
+   "fieldname": "licence_no",
+   "fieldtype": "Data",
+   "label": "Licence No"
   }
  ],
  "image_field": "image",
@@ -368,11 +374,6 @@
    "group": "Consultations",
    "link_doctype": "Patient Appointment",
    "link_fieldname": "practitioner"
-  },
-  {
-   "group": "Consultations",
-   "link_doctype": "Patient Visit",
-   "link_fieldname": "practitioner "
   },
   {
    "group": "Orders",
@@ -395,7 +396,7 @@
    "link_fieldname": "practitioner"
   }
  ],
- "modified": "2025-12-02 15:58:41.790062",
+ "modified": "2026-01-27 14:23:44.956335",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Practitioner",
