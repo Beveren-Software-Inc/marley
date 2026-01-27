@@ -1,0 +1,72 @@
+[
+ {
+  "docstatus": 0,
+  "doctype": "Patient Source",
+  "modified": "2026-01-27 12:30:07.383468",
+  "name": "Walk In",
+  "source": "Walk In"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Source",
+  "modified": "2026-01-27 12:30:19.982520",
+  "name": "Campaign",
+  "source": "Campaign"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Source",
+  "modified": "2026-01-27 12:30:29.610845",
+  "name": "Customer's Vendor",
+  "source": "Customer's Vendor"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Source",
+  "modified": "2026-01-27 12:30:36.089566",
+  "name": "Mass Mailing",
+  "source": "Mass Mailing"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Source",
+  "modified": "2026-01-27 12:30:47.528628",
+  "name": "Supplier Reference",
+  "source": "Supplier Reference"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Source",
+  "modified": "2026-01-27 12:30:54.091132",
+  "name": "Exhibition",
+  "source": "Exhibition"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Source",
+  "modified": "2026-01-27 12:31:00.836350",
+  "name": "Cold Calling",
+  "source": "Cold Calling"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Source",
+  "modified": "2026-01-27 12:31:08.946022",
+  "name": "Advertisement",
+  "source": "Advertisement"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Source",
+  "modified": "2026-01-27 12:31:14.046186",
+  "name": "Reference",
+  "source": "Reference"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Source",
+  "modified": "2026-01-27 12:31:22.185681",
+  "name": "Existing Customer",
+  "source": "Existing Customer"
+ }
+]

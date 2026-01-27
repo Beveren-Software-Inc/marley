@@ -4,52 +4,31 @@
   "discharge_checklist": [
    {
     "action_required": "Discharge Medication Entered ",
-    "department": null,
-    "parent": "Inpatient Discharge",
-    "parentfield": "discharge_checklist",
-    "parenttype": "Discharge Template"
+    "department": null
    },
    {
     "action_required": "Session Data Entered",
-    "department": null,
-    "parent": "Inpatient Discharge",
-    "parentfield": "discharge_checklist",
-    "parenttype": "Discharge Template"
+    "department": null
    },
    {
     "action_required": "IP Service and Other services",
-    "department": null,
-    "parent": "Inpatient Discharge",
-    "parentfield": "discharge_checklist",
-    "parenttype": "Discharge Template"
+    "department": null
    },
    {
     "action_required": "Billing Finalisation",
-    "department": null,
-    "parent": "Inpatient Discharge",
-    "parentfield": "discharge_checklist",
-    "parenttype": "Discharge Template"
+    "department": null
    },
    {
     "action_required": "Patient Exit From Hospital",
-    "department": null,
-    "parent": "Inpatient Discharge",
-    "parentfield": "discharge_checklist",
-    "parenttype": "Discharge Template"
+    "department": null
    },
    {
     "action_required": "Discharge Notes",
-    "department": null,
-    "parent": "Inpatient Discharge",
-    "parentfield": "discharge_checklist",
-    "parenttype": "Discharge Template"
+    "department": null
    },
    {
     "action_required": "Final Financial Check",
-    "department": null,
-    "parent": "Inpatient Discharge",
-    "parentfield": "discharge_checklist",
-    "parenttype": "Discharge Template"
+    "department": null
    }
   ],
   "docstatus": 0,

@@ -5,30 +5,18 @@
   "dosage": "1-1-1-1",
   "dosage_strength": [
    {
-    "parent": "1-1-1-1",
-    "parentfield": "dosage_strength",
-    "parenttype": "Prescription Dosage",
     "strength": 1.0,
     "strength_time": "9:00:00"
    },
    {
-    "parent": "1-1-1-1",
-    "parentfield": "dosage_strength",
-    "parenttype": "Prescription Dosage",
     "strength": 1.0,
     "strength_time": "13:00:00"
    },
    {
-    "parent": "1-1-1-1",
-    "parentfield": "dosage_strength",
-    "parenttype": "Prescription Dosage",
     "strength": 1.0,
     "strength_time": "17:00:00"
    },
    {
-    "parent": "1-1-1-1",
-    "parentfield": "dosage_strength",
-    "parenttype": "Prescription Dosage",
     "strength": 1.0,
     "strength_time": "21:00:00"
    }
@@ -42,9 +30,6 @@
   "dosage": "0-0-1",
   "dosage_strength": [
    {
-    "parent": "0-0-1",
-    "parentfield": "dosage_strength",
-    "parenttype": "Prescription Dosage",
     "strength": 1.0,
     "strength_time": "21:00:00"
    }
@@ -58,9 +43,6 @@
   "dosage": "1-0-0",
   "dosage_strength": [
    {
-    "parent": "1-0-0",
-    "parentfield": "dosage_strength",
-    "parenttype": "Prescription Dosage",
     "strength": 1.0,
     "strength_time": "9:00:00"
    }
@@ -74,9 +56,6 @@
   "dosage": "0-1-0",
   "dosage_strength": [
    {
-    "parent": "0-1-0",
-    "parentfield": "dosage_strength",
-    "parenttype": "Prescription Dosage",
     "strength": 1.0,
     "strength_time": "14:00:00"
    }
@@ -90,23 +69,14 @@
   "dosage": "1-1-1",
   "dosage_strength": [
    {
-    "parent": "1-1-1",
-    "parentfield": "dosage_strength",
-    "parenttype": "Prescription Dosage",
     "strength": 1.0,
     "strength_time": "9:00:00"
    },
    {
-    "parent": "1-1-1",
-    "parentfield": "dosage_strength",
-    "parenttype": "Prescription Dosage",
     "strength": 1.0,
     "strength_time": "14:00:00"
    },
    {
-    "parent": "1-1-1",
-    "parentfield": "dosage_strength",
-    "parenttype": "Prescription Dosage",
     "strength": 1.0,
     "strength_time": "21:00:00"
    }
@@ -120,16 +90,10 @@
   "dosage": "1-0-1",
   "dosage_strength": [
    {
-    "parent": "1-0-1",
-    "parentfield": "dosage_strength",
-    "parenttype": "Prescription Dosage",
     "strength": 1.0,
     "strength_time": "9:00:00"
    },
    {
-    "parent": "1-0-1",
-    "parentfield": "dosage_strength",
-    "parenttype": "Prescription Dosage",
     "strength": 1.0,
     "strength_time": "21:00:00"
    }
@@ -143,9 +107,6 @@
   "dosage": "Once Bedtime",
   "dosage_strength": [
    {
-    "parent": "Once Bedtime",
-    "parentfield": "dosage_strength",
-    "parenttype": "Prescription Dosage",
     "strength": 1.0,
     "strength_time": "21:00:00"
    }
@@ -159,37 +120,22 @@
   "dosage": "5 times a day",
   "dosage_strength": [
    {
-    "parent": "5 times a day",
-    "parentfield": "dosage_strength",
-    "parenttype": "Prescription Dosage",
     "strength": 1.0,
     "strength_time": "5:00:00"
    },
    {
-    "parent": "5 times a day",
-    "parentfield": "dosage_strength",
-    "parenttype": "Prescription Dosage",
     "strength": 1.0,
     "strength_time": "9:00:00"
    },
    {
-    "parent": "5 times a day",
-    "parentfield": "dosage_strength",
-    "parenttype": "Prescription Dosage",
     "strength": 1.0,
     "strength_time": "13:00:00"
    },
    {
-    "parent": "5 times a day",
-    "parentfield": "dosage_strength",
-    "parenttype": "Prescription Dosage",
     "strength": 1.0,
     "strength_time": "17:00:00"
    },
    {
-    "parent": "5 times a day",
-    "parentfield": "dosage_strength",
-    "parenttype": "Prescription Dosage",
     "strength": 1.0,
     "strength_time": "21:00:00"
    }
@@ -203,30 +149,18 @@
   "dosage": "QID",
   "dosage_strength": [
    {
-    "parent": "QID",
-    "parentfield": "dosage_strength",
-    "parenttype": "Prescription Dosage",
     "strength": 1.0,
     "strength_time": "9:00:00"
    },
    {
-    "parent": "QID",
-    "parentfield": "dosage_strength",
-    "parenttype": "Prescription Dosage",
     "strength": 1.0,
     "strength_time": "13:00:00"
    },
    {
-    "parent": "QID",
-    "parentfield": "dosage_strength",
-    "parenttype": "Prescription Dosage",
     "strength": 1.0,
     "strength_time": "17:00:00"
    },
    {
-    "parent": "QID",
-    "parentfield": "dosage_strength",
-    "parenttype": "Prescription Dosage",
     "strength": 1.0,
     "strength_time": "21:00:00"
    }
@@ -240,23 +174,14 @@
   "dosage": "TID",
   "dosage_strength": [
    {
-    "parent": "TID",
-    "parentfield": "dosage_strength",
-    "parenttype": "Prescription Dosage",
     "strength": 1.0,
     "strength_time": "9:00:00"
    },
    {
-    "parent": "TID",
-    "parentfield": "dosage_strength",
-    "parenttype": "Prescription Dosage",
     "strength": 1.0,
     "strength_time": "14:00:00"
    },
    {
-    "parent": "TID",
-    "parentfield": "dosage_strength",
-    "parenttype": "Prescription Dosage",
     "strength": 1.0,
     "strength_time": "21:00:00"
    }
@@ -270,16 +195,10 @@
   "dosage": "BID",
   "dosage_strength": [
    {
-    "parent": "BID",
-    "parentfield": "dosage_strength",
-    "parenttype": "Prescription Dosage",
     "strength": 1.0,
     "strength_time": "9:00:00"
    },
    {
-    "parent": "BID",
-    "parentfield": "dosage_strength",
-    "parenttype": "Prescription Dosage",
     "strength": 1.0,
     "strength_time": "21:00:00"
    }
@@ -293,9 +212,6 @@
   "dosage": "Once Daily",
   "dosage_strength": [
    {
-    "parent": "Once Daily",
-    "parentfield": "dosage_strength",
-    "parenttype": "Prescription Dosage",
     "strength": 1.0,
     "strength_time": "9:00:00"
    }

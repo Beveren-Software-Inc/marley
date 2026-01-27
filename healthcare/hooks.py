@@ -65,6 +65,9 @@ fixtures = [
 	},
     {
 		"doctype":"Package Duration Class"
+	},
+    {
+		"doctype":"Patient Source"
 	}
 ]
 

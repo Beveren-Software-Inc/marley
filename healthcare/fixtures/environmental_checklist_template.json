@@ -2,58 +2,31 @@
  {
   "checklist_items": [
    {
-    "item_name": "Visual contact with the patinet at all times and document that visua; contact was made in the patinet observation shet",
-    "parent": "Default Environmental Checklist",
-    "parentfield": "checklist_items",
-    "parenttype": "Environmental Checklist Template"
+    "item_name": "Visual contact with the patinet at all times and document that visua; contact was made in the patinet observation shet"
    },
    {
-    "item_name": "Complete Behavioural assessment once every nursing shift",
-    "parent": "Default Environmental Checklist",
-    "parentfield": "checklist_items",
-    "parenttype": "Environmental Checklist Template"
+    "item_name": "Complete Behavioural assessment once every nursing shift"
    },
    {
-    "item_name": "Patient is placed near the nursing station of the unit or within clear unobstructed view",
-    "parent": "Default Environmental Checklist",
-    "parentfield": "checklist_items",
-    "parenttype": "Environmental Checklist Template"
+    "item_name": "Patient is placed near the nursing station of the unit or within clear unobstructed view"
    },
    {
-    "item_name": "Assess patient room for items that might facilitate use for self-harm and arrange for the movement and removal of items",
-    "parent": "Default Environmental Checklist",
-    "parentfield": "checklist_items",
-    "parenttype": "Environmental Checklist Template"
+    "item_name": "Assess patient room for items that might facilitate use for self-harm and arrange for the movement and removal of items"
    },
    {
-    "item_name": "Ensure removal of any flammable items, lighters, plastic items, shopping bags, pens, keys, belts, Neckties or any other small objects that can choke etc.",
-    "parent": "Default Environmental Checklist",
-    "parentfield": "checklist_items",
-    "parenttype": "Environmental Checklist Template"
+    "item_name": "Ensure removal of any flammable items, lighters, plastic items, shopping bags, pens, keys, belts, Neckties or any other small objects that can choke etc."
    },
    {
-    "item_name": "Order isolation trays for high-risk suicidal patients and inspect food items thoroughly",
-    "parent": "Default Environmental Checklist",
-    "parentfield": "checklist_items",
-    "parenttype": "Environmental Checklist Template"
+    "item_name": "Order isolation trays for high-risk suicidal patients and inspect food items thoroughly"
    },
    {
-    "item_name": "Monitoring of bathroom use for a patient with serious suicidal ideation",
-    "parent": "Default Environmental Checklist",
-    "parentfield": "checklist_items",
-    "parenttype": "Environmental Checklist Template"
+    "item_name": "Monitoring of bathroom use for a patient with serious suicidal ideation"
    },
    {
-    "item_name": "Security informed about the visitors allowed for the specific patients.",
-    "parent": "Default Environmental Checklist",
-    "parentfield": "checklist_items",
-    "parenttype": "Environmental Checklist Template"
+    "item_name": "Security informed about the visitors allowed for the specific patients."
    },
    {
-    "item_name": "Security personnel conduct searches of all items brought to the patient's room by the family or any outside orders",
-    "parent": "Default Environmental Checklist",
-    "parentfield": "checklist_items",
-    "parenttype": "Environmental Checklist Template"
+    "item_name": "Security personnel conduct searches of all items brought to the patient's room by the family or any outside orders"
    }
   ],
   "docstatus": 0,
