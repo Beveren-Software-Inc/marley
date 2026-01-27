@@ -691,7 +691,7 @@
    "fieldname": "source",
    "fieldtype": "Link",
    "label": "Source",
-   "options": "Lead Source",
+   "options": "Patient Source",
    "reqd": 1
   }
  ],
@@ -796,7 +796,7 @@
   }
  ],
  "max_attachments": 50,
- "modified": "2026-01-07 16:28:06.961594",
+ "modified": "2026-01-27 12:35:11.621737",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient",
