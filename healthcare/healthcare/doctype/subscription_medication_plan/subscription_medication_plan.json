@@ -80,7 +80,8 @@
   {
    "fieldname": "end_date",
    "fieldtype": "Date",
-   "label": "End Date"
+   "label": "End Date",
+   "allow_on_submit": 1
   },
   {
    "fieldname": "next_run_date",

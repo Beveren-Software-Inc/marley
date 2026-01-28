@@ -78,7 +78,8 @@ class LabTest(Document):
 
 		template = frappe.get_doc("Lab Test Template", self.template)
 		default_warehouse = frappe.get_cached_value("Healthcare Settings", None, "lab_default_warehouse")
-		cost_center = frappe.get_cached_value("Healthcare Settings", None, "lab_default_cost_center")
+		# Use company default cost center instead of a lab-specific setting
+		cost_center = frappe.get_cached_value("Company", self.company, "cost_center") if self.company else None
 
 		if not default_warehouse:
 			# Do not block submission if configuration is incomplete

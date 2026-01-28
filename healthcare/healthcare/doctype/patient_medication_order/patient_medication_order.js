@@ -22,7 +22,6 @@ frappe.ui.form.on('Patient Medication Order', {
 	},
 
 	show_medication_order_button: function(frm) {
-		frm.fields_dict['medication_orders'].grid.wrapper.find('.grid-add-row').hide();
 		frm.fields_dict['medication_orders'].grid.add_custom_button(__('Add Medication Orders'), () => {
 			let d = new frappe.ui.Dialog({
 				title: __('Add Medication Orders'),
