@@ -1,3 +1,5 @@
+"""Public API module for Healthcare app."""
+
 # API endpoints for healthcare app
 import frappe
 

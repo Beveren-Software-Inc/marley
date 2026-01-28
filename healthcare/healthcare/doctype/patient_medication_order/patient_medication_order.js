@@ -9,6 +9,7 @@ frappe.ui.form.on('Patient Medication Order', {
 
 		frm.events.show_medication_order_button(frm);
 		frm.events.show_get_from_encounter_button(frm);
+		frm.events.show_subscription_button(frm);
 
 		// frm.set_query('patient', () => {
 		// 	return {
@@ -101,6 +102,171 @@ frappe.ui.form.on('Patient Medication Order', {
 				}
 			});
 		});
+	},
+
+	show_subscription_button: function(frm) {
+		if (!frm.doc.patient || !frm.doc.medication_orders?.length) {
+			return;
+		}
+
+		frm.add_custom_button(__('Medication Subscription Plan'), () => {
+			const data = (frm.doc.medication_orders || []).map(row => ({
+				medication_order_entry: row.name,
+				drug: row.drug,
+				drug_name: row.drug_name,
+				dosage: row.dosage,
+				dosage_form: row.dosage_form,
+				instructions: row.instructions,
+				patient_frequency: row.patient_frequency,
+				date: row.date,
+				time: row.time,
+				qty_per_cycle: 1,
+				is_active: 1,
+			}));
+
+			let d = new frappe.ui.Dialog({
+				title: __('Medication Subscription Plan'),
+				fields: [
+					{
+						fieldname: 'info',
+						fieldtype: 'HTML',
+						options:
+							'<div class="text-muted mb-2">' +
+							__('Select medications to include in this subscription plan. You can edit full details in the Subscription Medication Plan after it is created.') +
+							'</div>',
+					},
+					{
+						fieldname: 'medications',
+						fieldtype: 'Table',
+						label: __('Medications'),
+						in_place_edit: true,
+						data: data,
+						fields: [
+							{
+								fieldname: 'medication_order_entry',
+								fieldtype: 'Data',
+								hidden: 1,
+							},
+							{
+								fieldname: 'drug',
+								fieldtype: 'Link',
+								label: __('Drug'),
+								options: 'Item',
+								in_list_view: 1,
+								reqd: 1,
+							},
+							{
+								fieldname: 'drug_name',
+								fieldtype: 'Data',
+								label: __('Drug Name'),
+								read_only: 1,
+								in_list_view: 1,
+							},
+							{
+								fieldname: 'dosage',
+								fieldtype: 'Float',
+								label: __('Dosage'),
+								in_list_view: 1,
+							},
+							{
+								fieldname: 'dosage_form',
+								fieldtype: 'Link',
+								label: __('Dosage Form'),
+								options: 'Dosage Form',
+								in_list_view: 1,
+							},
+							{
+								fieldname: 'patient_frequency',
+								fieldtype: 'Link',
+								label: __('Patient Frequency'),
+								options: 'Prescription Dosage',
+								in_list_view: 1,
+							},
+							{
+								fieldname: 'date',
+								fieldtype: 'Date',
+								label: __('Date'),
+							},
+							{
+								fieldname: 'time',
+								fieldtype: 'Time',
+								label: __('Time'),
+							},
+							{
+								fieldname: 'qty_per_cycle',
+								fieldtype: 'Float',
+								label: __('Qty per Cycle'),
+								in_list_view: 1,
+							},
+							{
+								fieldname: 'is_active',
+								fieldtype: 'Check',
+								label: __('Include'),
+								default: 1,
+								in_list_view: 1,
+							},
+						],
+					},
+					{
+						fieldname: 'frequency',
+						fieldtype: 'Select',
+						label: __('Frequency'),
+						options: ['Monthly', 'Every 2 Months', 'Every 3 Months'],
+						default: 'Monthly',
+						reqd: 1,
+					},
+					{
+						fieldname: 'start_date',
+						fieldtype: 'Date',
+						label: __('Start Date'),
+						default: frm.doc.start_date || frappe.datetime.get_today(),
+					},
+					{
+						fieldname: 'end_date',
+						fieldtype: 'Date',
+						label: __('End Date'),
+					},
+				],
+				primary_action_label: __('Create Plan'),
+				primary_action: () => {
+					const values = d.get_values();
+					const meds = (values.medications || []).filter(row => row.drug && row.is_active);
+
+					if (!meds.length) {
+						frappe.msgprint(__('Please add at least one medication (or mark Include = 1).'));
+						return;
+					}
+
+					frm.call({
+						method: 'create_subscription_plan',
+						doc: frm.doc,
+						args: {
+							medications: meds,
+							frequency: values.frequency,
+							start_date: values.start_date,
+							end_date: values.end_date,
+						},
+						freeze: true,
+						freeze_message: __('Creating Subscription Medication Plan'),
+						callback: (r) => {
+							if (r && r.message) {
+								frappe.msgprint(
+									__('Subscription Medication Plan {0} created. Next run date: {1}', [
+										r.message.name,
+										r.message.next_run_date || '',
+									])
+								);
+								// Go to the plan so user can see/edit the child table
+								frappe.set_route('Form', 'Subscription Medication Plan', r.message.name);
+							}
+							d.hide();
+						},
+					});
+				},
+			});
+
+			d.show();
+		}, __('Create'));
 	},
 
 	show_progress: function(frm) {

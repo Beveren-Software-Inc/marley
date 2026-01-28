@@ -27,6 +27,9 @@ class LabTest(Document):
 		self.db_set("submitted_date", getdate())
 		self.db_set("status", "Completed")
 
+		# Inventory integration: auto issue lab consumables as material issue
+		self.create_inventory_consumption()
+
 		if self.service_request:
 			frappe.db.set_value(
 				"Service Request", self.service_request, "status", "completed-Request Status"
@@ -60,6 +63,84 @@ class LabTest(Document):
 			template = frappe.db.get_value("Lab Test Template", self.template, "nursing_checklist_template")
 			if template:
 				NursingTask.create_nursing_tasks_from_template(template, self, start_time=now_datetime())
+
+	def create_inventory_consumption(self):
+		"""Create Stock Entry (Material Issue) for lab consumables based on template mapping."""
+		# Check if lab inventory integration is enabled and auto-issue is turned on
+		if not frappe.get_cached_value("Healthcare Settings", None, "lab_inventory_integration_enabled"):
+			return
+
+		if not frappe.get_cached_value("Healthcare Settings", None, "lab_auto_issue_on_submit"):
+			return
+
+		if not self.template:
+			return
+
+		template = frappe.get_doc("Lab Test Template", self.template)
+		default_warehouse = frappe.get_cached_value("Healthcare Settings", None, "lab_default_warehouse")
+		cost_center = frappe.get_cached_value("Healthcare Settings", None, "lab_default_cost_center")
+
+		if not default_warehouse:
+			# Do not block submission if configuration is incomplete
+			frappe.logger().warning("Healthcare Settings: lab_default_warehouse not set, skipping lab inventory issue")
+			return
+
+		stock_entry = frappe.new_doc("Stock Entry")
+		stock_entry.stock_entry_type = "Material Issue"
+		if self.company:
+			stock_entry.company = self.company
+
+		stock_entry.set(
+			"items",
+			[],
+		)
+
+		# 1) Standard consumables from template
+		if template.get("consumables"):
+			for row in template.consumables:
+				if not row.item_code or not row.qty_per_test:
+					continue
+
+				item_row = stock_entry.append("items")
+				item_row.item_code = row.item_code
+				item_row.qty = row.qty_per_test
+				item_row.s_warehouse = row.warehouse or default_warehouse
+
+				if row.uom:
+					item_row.uom = row.uom
+					item_row.stock_uom = row.uom
+
+				if cost_center:
+					item_row.cost_center = cost_center
+
+		# 2) Additional/requested consumables captured on the Lab Test
+		if self.get("requested_consumables"):
+			for row in self.requested_consumables:
+				if not row.item_code or not row.qty_per_test:
+					continue
+
+				item_row = stock_entry.append("items")
+				item_row.item_code = row.item_code
+				item_row.qty = row.qty_per_test
+				item_row.s_warehouse = row.warehouse or default_warehouse
+
+				if row.uom:
+					item_row.uom = row.uom
+					item_row.stock_uom = row.uom
+
+				if cost_center:
+					item_row.cost_center = cost_center
+
+		# If no valid rows, do nothing
+		if not stock_entry.items:
+			return
+
+		stock_entry.insert(ignore_permissions=True)
+		stock_entry.submit()
+		stock_entry.add_comment(
+			"Comment",
+			_("Created automatically for Lab Test {0}").format(self.name),
+		)
 
 	def load_test_from_template(self):
 		lab_test = self
@@ -128,6 +209,50 @@ def create_test_from_template(lab_test):
 
 	lab_test = create_sample_collection(lab_test, template, patient, None)
 	load_result_format(lab_test, template, None, None)
+
+
+@frappe.whitelist()
+def get_consumables_for_lab_test(lab_test_name):
+	"""Return default consumables for a Lab Test (from its template), including any already requested ones."""
+	if not lab_test_name:
+		frappe.throw(_("Lab Test name is required"))
+
+	lab_test = frappe.get_doc("Lab Test", lab_test_name)
+	if not lab_test.template:
+		return []
+
+	template = frappe.get_doc("Lab Test Template", lab_test.template)
+	items = []
+
+	# From template
+	for row in template.get("consumables", []):
+		if not row.item_code:
+			continue
+		items.append(
+			{
+				"item_code": row.item_code,
+				"item_name": row.item_name,
+				"qty": row.qty_per_test,
+				"uom": row.uom,
+				"warehouse": row.warehouse,
+			}
+		)
+
+	# Already requested on this lab test (if any)
+	for row in lab_test.get("requested_consumables", []):
+		if not row.item_code:
+			continue
+		items.append(
+			{
+				"item_code": row.item_code,
+				"item_name": row.item_name,
+				"qty": row.qty_per_test,
+				"uom": row.uom,
+				"warehouse": row.warehouse,
+			}
+		)
+
+	return items
 
 
 @frappe.whitelist()

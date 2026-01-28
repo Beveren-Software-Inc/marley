@@ -22,6 +22,8 @@
   "column_break_buub",
   "is_billable",
   "lab_test_rate",
+  "inventory_section",
+  "consumables",
   "section_break_description",
   "lab_test_description",
   "result_format_tab",
@@ -266,6 +268,18 @@
   },
   {
    "collapsible": 1,
+   "fieldname": "inventory_section",
+   "fieldtype": "Section Break",
+   "label": "Inventory Integration"
+  },
+  {
+   "fieldname": "consumables",
+   "fieldtype": "Table",
+   "label": "Consumables",
+   "options": "Lab Test Consumable"
+  },
+  {
+   "collapsible": 1,
    "description": "Information to help easily interpret the test report, will be printed as part of the Lab Test result.",
    "fieldname": "result_legend_section",
    "fieldtype": "Section Break",
@@ -418,7 +432,7 @@
    "link_fieldname": "template"
   }
  ],
- "modified": "2025-09-25 13:34:46.895774",
+ "modified": "2026-01-27 17:15:15.589604",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Lab Test Template",

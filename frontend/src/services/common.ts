@@ -283,6 +283,34 @@ export async function fetchItems(search?: string): Promise<LinkFieldOption[]> {
   }
 }
 
+export async function fetchWarehouses(search?: string): Promise<LinkFieldOption[]> {
+  const params = new URLSearchParams()
+  params.append('fields', JSON.stringify(['name', 'warehouse_name']))
+  if (search) {
+    params.append(
+      'filters',
+      JSON.stringify([['Warehouse', 'warehouse_name', 'like', `%${search}%`]])
+    )
+  }
+  params.append('limit_page_length', '50')
+
+  const url = `/api/resource/Warehouse?${params.toString()}`
+
+  const response = await fetch(url)
+  const resData = await response.json()
+
+  const data = (resData?.data || resData?.message) as any
+
+  if (Array.isArray(data)) {
+    return data.map((w: any) => ({
+      name: w.name,
+      label: w.warehouse_name || w.name
+    })) as LinkFieldOption[]
+  } else {
+    return []
+  }
+}
+
 export async function fetchServiceRequestTemplateTypes(): Promise<LinkFieldOption[]> {
   const response = await fetch('/api/method/healthcare.api.common.get_service_request_template_types')
   const resData = await response.json()

@@ -7,6 +7,7 @@ import { PatientPage } from '../pages/Patient'
 import { LabPage } from '../pages/Lab'
 import { ReceptionistPage } from '../pages/Receptionist'
 import { SettingsPage } from '../pages/Settings'
+import { EmployeePage } from '../pages/Employee'
 
 export const RouterProvider = () => {
   const routes = useRoutes([
@@ -48,6 +49,14 @@ export const RouterProvider = () => {
       element: (
         <RoleGuard roles={['admin']}>
           <ReceptionistPage />
+        </RoleGuard>
+      )
+    },
+    {
+      path: '/employee',
+      element: (
+        <RoleGuard>
+          <EmployeePage />
         </RoleGuard>
       )
     },

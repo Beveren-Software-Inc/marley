@@ -1,5 +1,6 @@
 export interface LabTest {
   name: string
+  docstatus?: number
   patient: string
   patient_name?: string
   practitioner?: string
@@ -13,6 +14,18 @@ export interface LabTest {
   invoiced?: number
   department?: string
   is_outsourced?: number
+  material_request?: string
+  custom_result?: string
+  lab_test_comment?: string
+  worksheet_instructions?: string
+}
+
+export interface LabConsumableRow {
+  item_code: string
+  item_name?: string
+  qty: number
+  uom?: string
+  warehouse?: string
 }
 
 export async function fetchLabTests(
@@ -56,6 +69,22 @@ export async function fetchLabTest(name: string): Promise<LabTest> {
   }
 }
 
+export async function getLabTestConsumables(name: string): Promise<LabConsumableRow[]> {
+  const response = await fetch(
+    `/api/method/healthcare.healthcare.doctype.lab_test.lab_test.get_consumables_for_lab_test?lab_test_name=${encodeURIComponent(
+      name
+    )}`
+  )
+  const resData = await response.json()
+
+  if (resData?.message && Array.isArray(resData.message)) {
+    // Backend returns objects with item_code, item_name, qty, uom, warehouse
+    return resData.message as LabConsumableRow[]
+  } else {
+    return []
+  }
+}
+
 export interface CreateLabTestData {
   patient: string
   template?: string
@@ -88,6 +117,60 @@ export async function createLabTest(data: CreateLabTestData): Promise<LabTest> {
   } else {
     throw new Error('Invalid response format')
   }
+}
+
+export async function requestLabConsumables(
+  labTestName: string,
+  items: LabConsumableRow[],
+  company?: string
+): Promise<string> {
+  const { apiRequest } = await import('./apiClient')
+
+  const payload: any = {
+    lab_test: labTestName,
+    items,
+  }
+
+  if (company) {
+    payload.company = company
+  }
+
+  const mrName = await apiRequest<string>(
+    '/api/method/healthcare.api.lab_test.request_lab_consumables',
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }
+  )
+
+  return mrName
+}
+
+export interface SaveAndSubmitLabTestInput {
+  custom_result?: string
+  lab_test_comment?: string
+  worksheet_instructions?: string
+  submit?: boolean
+}
+
+export async function saveAndSubmitLabTest(
+  labTestName: string,
+  payload: SaveAndSubmitLabTestInput
+): Promise<LabTest> {
+  const { apiRequest } = await import('./apiClient')
+
+  const data = await apiRequest<LabTest>(
+    '/api/method/healthcare.api.lab_test.save_and_submit_lab_test',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        name: labTestName,
+        ...payload,
+      }),
+    }
+  )
+
+  return data
 }
 
 

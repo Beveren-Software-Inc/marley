@@ -32,6 +32,7 @@ def get_lab_tests(limit=50, offset=0, patient=None, status=None, pending_review=
 		filters=filters,
 		fields=[
 			'name',
+			'docstatus',
 			'patient',
 			'patient_name',
 			'practitioner',
@@ -44,7 +45,8 @@ def get_lab_tests(limit=50, offset=0, patient=None, status=None, pending_review=
 			'approved_date',
 			'invoiced',
 			'department',
-			'is_outsourced'
+			'is_outsourced',
+			'material_request',
 		],
 		limit=limit,
 		limit_start=offset,
@@ -76,18 +78,156 @@ def get_lab_test(name):
 	
 	return {
 		'name': lab_test.name,
+		'docstatus': lab_test.docstatus,
 		'patient': lab_test.patient,
 		'patient_name': lab_test.patient_name,
 		'practitioner': lab_test.practitioner,
-		'practitioner_name': lab_test.practitioner_name if hasattr(lab_test, 'practitioner_name') else None,
+		'practitioner_name': getattr(lab_test, 'practitioner_name', None),
 		'lab_test_name': lab_test.lab_test_name,
 		'template': lab_test.template,
 		'status': lab_test.status,
 		'result_date': lab_test.result_date,
 		'submitted_date': lab_test.submitted_date,
-		'approved_date': lab_test.approved_date if hasattr(lab_test, 'approved_date') else None,
+		'approved_date': getattr(lab_test, 'approved_date', None),
 		'invoiced': lab_test.invoiced,
-		'department': lab_test.department
+		'department': lab_test.department,
+		'custom_result': getattr(lab_test, 'custom_result', None),
+		'lab_test_comment': getattr(lab_test, 'lab_test_comment', None),
+		'worksheet_instructions': getattr(lab_test, 'worksheet_instructions', None),
+		'material_request': getattr(lab_test, 'material_request', None),
+	}
+
+
+@frappe.whitelist()
+def create_lab_material_request(items, company=None, schedule_date=None):
+	"""Create a Material Request for lab consumables.
+
+	`items` is expected to be a JSON list of objects with:
+	- item_code
+	- qty
+	- warehouse (optional)
+	"""
+	import json
+
+	if isinstance(items, str):
+		items = json.loads(items)
+
+	if not items:
+		frappe.throw(_("No items provided to create Material Request"))
+
+	mr = frappe.new_doc("Material Request")
+	mr.material_request_type = "Material Transfer"
+
+	if company:
+		mr.company = company
+
+	for row in items:
+		if not row.get("item_code") or not row.get("qty"):
+			continue
+
+		mr_item = mr.append("items")
+		mr_item.item_code = row.get("item_code")
+		mr_item.qty = row.get("qty")
+		if row.get("warehouse"):
+			mr_item.warehouse = row.get("warehouse")
+		if schedule_date:
+			mr_item.schedule_date = schedule_date
+
+	if not mr.items:
+		frappe.throw(_("No valid items to create Material Request"))
+
+	mr.insert(ignore_permissions=True)
+	return mr.name
+
+
+@frappe.whitelist()
+def request_lab_consumables(lab_test, items, company=None, schedule_date=None):
+	"""Persist requested consumables on a Lab Test and create a Material Request.
+
+	This is intended for use from the frontend React UI.
+	"""
+	import json
+
+	if isinstance(items, str):
+		items = json.loads(items)
+
+	if not lab_test:
+		frappe.throw(_("Lab Test is required"))
+
+	if not items:
+		frappe.throw(_("No items provided to request consumables"))
+
+	doc = frappe.get_doc("Lab Test", lab_test)
+
+	# Update requested_consumables child table on Lab Test
+	doc.set("requested_consumables", [])
+	for row in items:
+		if not row.get("item_code") or not row.get("qty"):
+			continue
+
+		child = doc.append("requested_consumables", {})
+		child.item_code = row.get("item_code")
+		child.item_name = row.get("item_name")
+		child.qty_per_test = row.get("qty")
+		child.uom = row.get("uom")
+		child.warehouse = row.get("warehouse")
+
+	doc.save(ignore_permissions=True)
+
+	# Use Lab Test company if not explicitly provided
+	if not company:
+		company = doc.company
+
+	if not schedule_date:
+		schedule_date = frappe.utils.today()
+
+	mr_name = create_lab_material_request(items, company=company, schedule_date=schedule_date)
+
+	# Link MR back to Lab Test
+	if mr_name:
+		frappe.db.set_value("Lab Test", doc.name, "material_request", mr_name)
+
+	return mr_name
+
+
+@frappe.whitelist()
+def save_and_submit_lab_test(
+	name,
+	custom_result=None,
+	lab_test_comment=None,
+	worksheet_instructions=None,
+	submit: bool = False,
+):
+	"""Save custom result/comment/worksheet fields on Lab Test and optionally submit it."""
+	if not name:
+		frappe.throw(_("Lab Test name is required"))
+
+	doc = frappe.get_doc("Lab Test", name)
+
+	if custom_result is not None:
+		doc.custom_result = custom_result
+	if lab_test_comment is not None:
+		doc.lab_test_comment = lab_test_comment
+	if worksheet_instructions is not None:
+		doc.worksheet_instructions = worksheet_instructions
+
+	if submit:
+		if doc.docstatus == 0:
+			doc.save(ignore_permissions=True)
+			doc.submit()
+		else:
+			# If already submitted, just save changes
+			doc.save(ignore_permissions=True)
+	else:
+		doc.save(ignore_permissions=True)
+
+	return {
+		"name": doc.name,
+		"docstatus": doc.docstatus,
+		"status": doc.status,
+		"custom_result": getattr(doc, "custom_result", None),
+		"lab_test_comment": getattr(doc, "lab_test_comment", None),
+		"worksheet_instructions": getattr(doc, "worksheet_instructions", None),
 	}
 
 

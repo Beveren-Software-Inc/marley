@@ -44,6 +44,12 @@ frappe.ui.form.on('Lab Test', {
 			});
 		}
 
+		if (!frm.doc.__islocal && frm.doc.docstatus === 0) {
+			frm.add_custom_button(__('Request Consumables'), function () {
+				open_request_consumables_dialog(frm);
+			}, __('Inventory'));
+		}
+
 		frm.set_query("code_value", "codification_table", function(doc, cdt, cdn) {
 			let row = frappe.get_doc(cdt, cdn);
 			if (row.code_system) {
@@ -170,6 +176,113 @@ var status_update = function (approve, frm) {
 		args: { status: status, name: doc.name },
 		callback: function () {
 			cur_frm.reload_doc();
+		}
+	});
+};
+
+var open_request_consumables_dialog = function (frm) {
+	if (!frm.doc.template) {
+		frappe.msgprint(__('Please select a Test Template before requesting consumables.'));
+		return;
+	}
+
+	frappe.call({
+		method: 'healthcare.healthcare.doctype.lab_test.lab_test.get_consumables_for_lab_test',
+		args: {
+			lab_test_name: frm.doc.name
+		},
+		callback: function (r) {
+			if (r.exc) return;
+
+			var data = r.message || [];
+
+			var d = new frappe.ui.Dialog({
+				title: __('Request Consumables'),
+				fields: [
+					{
+						fieldname: 'items',
+						fieldtype: 'Table',
+						label: 'Items',
+						in_place_edit: true,
+						data: data,
+						fields: [
+							{
+								fieldname: 'item_code',
+								fieldtype: 'Link',
+								in_list_view: 1,
+								label: 'Item',
+								options: 'Item',
+								reqd: 1
+							},
+							{
+								fieldname: 'item_name',
+								fieldtype: 'Data',
+								in_list_view: 1,
+								read_only: 1,
+								label: 'Item Name'
+							},
+							{
+								fieldname: 'qty',
+								fieldtype: 'Float',
+								in_list_view: 1,
+								reqd: 1,
+								label: 'Qty'
+							},
+							{
+								fieldname: 'warehouse',
+								fieldtype: 'Link',
+								in_list_view: 1,
+								label: 'Warehouse',
+								options: 'Warehouse'
+							}
+						]
+					}
+				],
+				primary_action_label: __('Create Material Request'),
+				primary_action: function (values) {
+					var items = (values.items || []).filter(function (row) {
+						return row.item_code && row.qty;
+					});
+
+					if (!items.length) {
+						frappe.msgprint(__('Please add at least one item with quantity.'));
+						return;
+					}
+
+					// Persist requested consumables on the Lab Test for later stock issue
+					frm.clear_table('requested_consumables');
+					items.forEach(function (row) {
+						var child = frm.add_child('requested_consumables');
+						child.item_code = row.item_code;
+						child.item_name = row.item_name;
+						child.qty_per_test = row.qty;
+						child.uom = row.uom;
+						child.warehouse = row.warehouse;
+					});
+
+					frm.save().then(function () {
+						frappe.call({
+							method: 'healthcare.api.lab_test.create_lab_material_request',
+							args: {
+								items: items,
+								company: frm.doc.company,
+								schedule_date: frappe.datetime.get_today()
+							},
+							callback: function (r) {
+								if (!r.exc) {
+									var mr_name = r.message;
+									frm.set_value('material_request', mr_name);
+									frm.save();
+									frappe.msgprint(__('Material Request {0} created').format(mr_name));
+									d.hide();
+								}
+							}
+						});
+					});
+				}
+			});
+
+			d.show();
 		}
 	});
 };

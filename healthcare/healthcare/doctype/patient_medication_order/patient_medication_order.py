@@ -89,3 +89,49 @@ class PatientMedicationOrder(Document):
 			return
 		for drug in patient_encounter.drug_prescription:
 			self.add_order_entries(drug)
+
+	@frappe.whitelist()
+	def create_subscription_plan(self, medications, frequency, start_date=None, end_date=None):
+		"""Create a Subscription Medication Plan from this Medication Order.
+
+		:medications: list of row dicts coming from the dialog Table
+		"""
+		if not medications:
+			frappe.throw(_("Please add at least one medication"))
+
+		start_date = start_date or self.start_date
+
+		plan = frappe.new_doc("Subscription Medication Plan")
+		plan.patient = self.patient
+		plan.practitioner = self.practitioner
+		plan.company = self.company
+		plan.frequency = frequency
+		plan.start_date = start_date
+		plan.end_date = end_date
+		plan.next_run_date = start_date
+
+		for row in medications:
+			if not row.get("drug"):
+				continue
+			child = plan.append("medications")
+			# optional link back to original entry if provided
+			child.medication_order_entry = row.get("medication_order_entry")
+			child.drug = row.get("drug")
+			child.drug_name = row.get("drug_name")
+			child.dosage = row.get("dosage")
+			child.dosage_form = row.get("dosage_form")
+			child.instructions = row.get("instructions")
+			child.patient_frequency = row.get("patient_frequency")
+			child.date = row.get("date")
+			child.time = row.get("time")
+			child.qty_per_cycle = row.get("qty_per_cycle") or 1
+			child.is_active = row.get("is_active", 1)
+
+		plan.insert()
+		plan.submit()
+
+		return {
+			"name": plan.name,
+			"patient": plan.patient,
+			"next_run_date": plan.next_run_date,
+		}

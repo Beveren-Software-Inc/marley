@@ -29,6 +29,10 @@
   "default_priority",
   "laboratory_tab",
   "sb_lab_settings",
+  "lab_inventory_integration_enabled",
+  "lab_auto_issue_on_submit",
+  "lab_default_warehouse",
+  "lab_default_cost_center",
   "create_lab_test_on_si_submit",
   "create_observation_on_si_submit",
   "create_sample_collection_for_lab_test",
@@ -156,6 +160,33 @@
    "fieldname": "sb_lab_settings",
    "fieldtype": "Section Break",
    "label": "Laboratory Settings"
+  },
+  {
+   "default": "0",
+   "fieldname": "lab_inventory_integration_enabled",
+   "fieldtype": "Check",
+   "label": "Enable Lab Inventory Integration"
+  },
+  {
+   "depends_on": "lab_inventory_integration_enabled",
+   "default": "0",
+   "fieldname": "lab_auto_issue_on_submit",
+   "fieldtype": "Check",
+   "label": "Auto Issue Consumables on Lab Test Submit"
+  },
+  {
+   "depends_on": "lab_inventory_integration_enabled",
+   "fieldname": "lab_default_warehouse",
+   "fieldtype": "Link",
+   "label": "Default Lab Warehouse",
+   "options": "Warehouse"
+  },
+  {
+   "depends_on": "lab_inventory_integration_enabled",
+   "fieldname": "lab_default_cost_center",
+   "fieldtype": "Link",
+   "label": "Default Lab Cost Center",
+   "options": "Cost Center"
   },
   {
    "fieldname": "column_break_34",

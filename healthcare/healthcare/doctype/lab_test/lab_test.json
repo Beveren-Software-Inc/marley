@@ -69,6 +69,9 @@
   "legend_print_position",
   "result_legend",
   "more_information_section",
+  "inventory_section",
+  "requested_consumables",
+  "material_request",
   "service_request",
   "invoiced",
   "section_break_50",
@@ -604,6 +607,25 @@
    "fieldname": "more_information_section",
    "fieldtype": "Section Break",
    "label": "More Information"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "inventory_section",
+   "fieldtype": "Section Break",
+   "label": "Inventory"
+  },
+  {
+   "fieldname": "requested_consumables",
+   "fieldtype": "Table",
+   "label": "Requested Consumables",
+   "options": "Lab Test Consumable"
+  },
+  {
+   "fieldname": "material_request",
+   "fieldtype": "Link",
+   "label": "Material Request",
+   "options": "Material Request",
+   "read_only": 1
   },
   {
    "collapsible": 1,
