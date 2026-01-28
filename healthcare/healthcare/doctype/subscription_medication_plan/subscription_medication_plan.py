@@ -4,14 +4,40 @@ from frappe.model.document import Document
 
 class SubscriptionMedicationPlan(Document):
 	def before_insert(self):
-		# initialise next_run_date to start_date if not set
-		if not self.next_run_date:
-			self.next_run_date = self.start_date
+		# Initialise next_run_date based on frequency for new docs
+		if self.start_date and self.frequency:
+			self.next_run_date = self._compute_next_run_date()
+
+	def validate(self):
+		# Recalculate next_run_date whenever start_date or frequency changes
+		if self.start_date and self.frequency:
+			self.next_run_date = self._compute_next_run_date()
 
 	def on_submit(self):
 		# mark as Active on submit if not manually set
 		if self.status in (None, "", "Draft"):
 			self.db_set("status", "Active")
+
+	def _compute_next_run_date(self):
+		"""Compute next_run_date from start_date and frequency.
+
+		For now:
+		- Monthly => +30 days
+		- Every 2 Months => +60 days
+		- Every 3 Months => +90 days
+		"""
+		if not self.start_date:
+			return None
+
+		from frappe.utils import add_days
+
+		freq_map = {
+			"Monthly": 30,
+			"Every 2 Months": 60,
+			"Every 3 Months": 90,
+		}
+		days = freq_map.get(self.frequency) or 30
+		return add_days(self.start_date, days)
 
 	@frappe.whitelist()
 	def create_medication_order_now(self):

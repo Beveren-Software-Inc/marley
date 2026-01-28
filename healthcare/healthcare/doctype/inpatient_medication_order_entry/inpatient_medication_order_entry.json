@@ -8,7 +8,9 @@
   "drug",
   "drug_name",
   "dosage",
+  "no_of_days",
   "dosage_form",
+  "quantity",
   "instructions",
   "column_break_4",
   "date",
@@ -34,10 +36,16 @@
   },
   {
    "fieldname": "dosage",
-   "fieldtype": "Float",
+   "fieldtype": "Data",
    "in_list_view": 1,
    "label": "Dosage",
    "reqd": 1
+  },
+  {
+   "fieldname": "no_of_days",
+   "fieldtype": "Float",
+   "label": "No. of Days",
+   "in_list_view": 1
   },
   {
    "fieldname": "dosage_form",
@@ -46,6 +54,13 @@
    "label": "Dosage Form",
    "options": "Dosage Form",
    "reqd": 1
+  },
+  {
+   "fieldname": "quantity",
+   "fieldtype": "Float",
+   "label": "Quantity",
+   "in_list_view": 1,
+   "read_only": 1
   },
   {
    "fieldname": "column_break_4",

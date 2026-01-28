@@ -32,7 +32,6 @@
   "lab_inventory_integration_enabled",
   "lab_auto_issue_on_submit",
   "lab_default_warehouse",
-  "lab_default_cost_center",
   "create_lab_test_on_si_submit",
   "create_observation_on_si_submit",
   "create_sample_collection_for_lab_test",
@@ -180,13 +179,6 @@
    "fieldtype": "Link",
    "label": "Default Lab Warehouse",
    "options": "Warehouse"
-  },
-  {
-   "depends_on": "lab_inventory_integration_enabled",
-   "fieldname": "lab_default_cost_center",
-   "fieldtype": "Link",
-   "label": "Default Lab Cost Center",
-   "options": "Cost Center"
   },
   {
    "fieldname": "column_break_34",

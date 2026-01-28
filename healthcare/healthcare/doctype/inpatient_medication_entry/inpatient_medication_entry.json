@@ -88,6 +88,13 @@
    "options": "Warehouse"
   },
   {
+   "fieldname": "cost_center",
+   "fieldtype": "Link",
+   "label": "Cost Center",
+   "options": "Cost Center",
+   "in_standard_filter": 1
+  },
+  {
    "fieldname": "patient",
    "fieldtype": "Link",
    "label": "Patient",
