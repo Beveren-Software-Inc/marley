@@ -26,6 +26,16 @@ def get_batches_expiring_in_week(limit=200):
 
 
 @frappe.whitelist()
+def get_batches_expiring_in_days(days=7, limit=200):
+	"""Batches expiring within the next N days (from today through today + days)."""
+	limit = cint(limit) or 200
+	days = cint(days) or 7
+	today = getdate()
+	to_date = add_days(today, days)
+	return _get_batches_in_date_range(today, to_date, limit)
+
+
+@frappe.whitelist()
 def get_low_stock_items(limit=100, threshold=None):
 	"""
 	Items with low stock. Uses Bin.actual_qty.
@@ -103,10 +113,12 @@ def _get_batches_in_date_range(from_date, to_date, limit):
 	"""Batches expiring between from_date and to_date (inclusive)."""
 	if not frappe.db.exists("DocType", "Batch"):
 		return []
+	from_str = from_date.strftime("%Y-%m-%d")
+	to_str = to_date.strftime("%Y-%m-%d")
 	batches = frappe.get_all(
 		"Batch",
 		filters={
-			"expiry_date": ["between", [from_date, to_date]],
+			"expiry_date": ["between", [from_str, to_str]],
 			"disabled": 0,
 		},
 		fields=["name", "item", "item_name", "expiry_date", "batch_qty", "stock_uom"],
@@ -221,3 +233,94 @@ def search_item_or_batch(query="", limit=100):
 				return out
 
 	return out
+
+
+@frappe.whitelist()
+def get_material_request_options():
+	"""Return companies, warehouses and cost centers for Material Request modal."""
+	companies = []
+	if frappe.db.exists("DocType", "Company"):
+		filters = {}
+		try:
+			if frappe.get_meta("Company").has_field("enabled"):
+				filters["enabled"] = 1
+		except Exception:
+			pass
+		companies = frappe.get_all("Company", filters=filters or None, fields=["name"], order_by="name")
+	warehouses = []
+	if frappe.db.exists("DocType", "Warehouse"):
+		warehouses = frappe.get_all("Warehouse", filters={"is_group": 0}, fields=["name"], order_by="name")
+	cost_centers = []
+	if frappe.db.exists("DocType", "Cost Center"):
+		try:
+			if frappe.get_meta("Cost Center").has_field("is_group"):
+				cost_centers = frappe.get_all(
+					"Cost Center",
+					filters={"is_group": 0},
+					fields=["name"],
+					order_by="name"
+				)
+			else:
+				cost_centers = frappe.get_all("Cost Center", fields=["name"], order_by="name")
+		except Exception:
+			pass
+	return {
+		"companies": [c.get("name") for c in companies],
+		"warehouses": [w.get("name") for w in warehouses],
+		"cost_centers": [cc.get("name") for cc in cost_centers],
+	}
+
+
+@frappe.whitelist()
+def create_material_request(
+	company,
+	material_request_type,
+	schedule_date=None,
+	items=None,
+	set_warehouse=None,
+	cost_center=None,
+):
+	"""Create a Material Request. items: list of {item_code, qty, warehouse}."""
+	if not frappe.db.exists("DocType", "Material Request"):
+		frappe.throw("Material Request doctype not found")
+	company = (company or "").strip()
+	material_request_type = (material_request_type or "Purchase").strip()
+	items = frappe.parse_json(items) if isinstance(items, str) else (items or [])
+	set_warehouse = (set_warehouse or "").strip() or None
+	cost_center = (cost_center or "").strip() or None
+	if not company:
+		frappe.throw("Company is required")
+	if not items or not isinstance(items, list):
+		frappe.throw("At least one item is required")
+	from frappe.utils import getdate
+	doc = frappe.new_doc("Material Request")
+	doc.company = company
+	doc.material_request_type = material_request_type
+	doc.transaction_date = getdate()
+	doc.schedule_date = getdate(schedule_date) if schedule_date else doc.transaction_date
+	if set_warehouse and hasattr(doc, "set_warehouse"):
+		doc.set_warehouse = set_warehouse
+	if cost_center and hasattr(doc, "cost_center"):
+		doc.cost_center = cost_center
+	for row in items:
+		item_code = (row.get("item_code") or "").strip()
+		qty = flt(row.get("qty")) or 0
+		if not item_code or qty <= 0:
+			continue
+		warehouse = (row.get("warehouse") or "").strip() or set_warehouse
+		doc.append("items", {
+			"item_code": item_code,
+			"qty": qty,
+			"warehouse": warehouse or None,
+			"schedule_date": doc.schedule_date,
+		})
+	if not doc.items:
+		frappe.throw("Add at least one item with quantity")
+	doc.insert(ignore_permissions=True)
+	try:
+		doc.submit()
+	except Exception:
+		frappe.db.rollback()
+		raise
+	frappe.db.commit()
+	return {"name": doc.name}
