@@ -26,6 +26,16 @@ def get_batches_expiring_in_week(limit=200):
 
 
 @frappe.whitelist()
+def get_batches_expiring_in_days(days=7, limit=200):
+	"""Batches expiring within the next N days (from today through today + days)."""
+	limit = cint(limit) or 200
+	days = cint(days) or 7
+	today = getdate()
+	to_date = add_days(today, days)
+	return _get_batches_in_date_range(today, to_date, limit)
+
+
+@frappe.whitelist()
 def get_low_stock_items(limit=100, threshold=None):
 	"""
 	Items with low stock. Uses Bin.actual_qty.
@@ -103,10 +113,12 @@ def _get_batches_in_date_range(from_date, to_date, limit):
 	"""Batches expiring between from_date and to_date (inclusive)."""
 	if not frappe.db.exists("DocType", "Batch"):
 		return []
+	from_str = from_date.strftime("%Y-%m-%d")
+	to_str = to_date.strftime("%Y-%m-%d")
 	batches = frappe.get_all(
 		"Batch",
 		filters={
-			"expiry_date": ["between", [from_date, to_date]],
+			"expiry_date": ["between", [from_str, to_str]],
 			"disabled": 0,
 		},
 		fields=["name", "item", "item_name", "expiry_date", "batch_qty", "stock_uom"],

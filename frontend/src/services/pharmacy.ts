@@ -29,6 +29,11 @@ export async function getBatchesExpiringInWeek(limit = 200): Promise<BatchRow[]>
   return Array.isArray(data) ? data : []
 }
 
+export async function getBatchesExpiringInDays(days = 7, limit = 200): Promise<BatchRow[]> {
+  const data = await apiRequest<BatchRow[]>(`${BASE}.get_batches_expiring_in_days?days=${days}&limit=${limit}`)
+  return Array.isArray(data) ? data : []
+}
+
 export async function getLowStockItems(limit = 100, threshold?: number): Promise<LowStockRow[]> {
   const params = new URLSearchParams({ limit: String(limit) })
   if (threshold != null) params.set('threshold', String(threshold))
