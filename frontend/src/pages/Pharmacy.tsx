@@ -10,7 +10,8 @@ import {
   type LowStockRow,
   type ItemBatchSearchRow
 } from '../services/pharmacy'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, Plus } from 'lucide-react'
+import { CreateMaterialRequestModal } from '../components/pharmacy/CreateMaterialRequestModal'
 
 const PHARM_POS_URL = '/klik_pos/pos'
 
@@ -33,6 +34,7 @@ export const PharmacyPage = () => {
   const [searchResults, setSearchResults] = useState<ItemBatchSearchRow[] | null>(null)
 
   const [fullScreenView, setFullScreenView] = useState<FullScreenView>(null)
+  const [showMaterialRequestModal, setShowMaterialRequestModal] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -227,6 +229,7 @@ export const PharmacyPage = () => {
                 </div>
               }
               onArrowClick={() => { setSearchResults(null); setFullScreenView('low-stock') }}
+              onAddClick={() => setShowMaterialRequestModal(true)}
             >
               <LowStockTable rows={lowStock.slice(0, CARD_MAX)} />
               {lowStock.length > CARD_MAX && (
@@ -236,6 +239,13 @@ export const PharmacyPage = () => {
           </div>
         )}
       </div>
+
+      {showMaterialRequestModal && (
+        <CreateMaterialRequestModal
+          onClose={() => setShowMaterialRequestModal(false)}
+          onSuccess={() => setShowMaterialRequestModal(false)}
+        />
+      )}
     </div>
   )
 }
@@ -362,6 +372,7 @@ function Card({
   emptyMessage,
   headerRight,
   onArrowClick,
+  onAddClick,
   children
 }: {
   title: string
@@ -369,12 +380,18 @@ function Card({
   emptyMessage: string
   headerRight?: React.ReactNode
   onArrowClick?: () => void
+  onAddClick?: () => void
   children: React.ReactNode
 }) {
   return (
     <section className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden flex flex-col min-h-[200px]">
       <div className="px-4 py-3 bg-primary/20 border-b border-slate-100 flex items-center justify-between gap-2 flex-shrink-0">
-        <h2 className="font-semibold text-slate-800">{title}</h2>
+        <h2 className="font-semibold text-slate-800 flex items-center gap-1.5">
+          {title}
+          <span className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-red-500 text-white text-xs font-medium">
+            {count}
+          </span>
+        </h2>
         <div className="flex items-center gap-2 flex-shrink-0">
           {headerRight}
           {onArrowClick && (
@@ -387,7 +404,16 @@ function Card({
               <ChevronRight className="w-5 h-5" />
             </button>
           )}
-          <span className="text-sm text-slate-500 bg-slate-100 px-2 py-0.5 rounded">{count}</span>
+          {onAddClick && (
+            <button
+              type="button"
+              onClick={onAddClick}
+              className="p-1.5 rounded-md text-slate-600 hover:bg-primary/20 hover:text-primary transition-colors"
+              title="Create Material Request"
+            >
+              <Plus className="w-5 h-5" />
+            </button>
+          )}
         </div>
       </div>
       <div className="p-4 flex-1 overflow-y-auto min-h-0">
