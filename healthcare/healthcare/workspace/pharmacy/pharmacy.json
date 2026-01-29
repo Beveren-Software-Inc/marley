@@ -1,0 +1,47 @@
+{
+ "charts": [],
+ "content": "[]",
+ "creation": "2026-01-29 00:00:00",
+ "custom_blocks": [],
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "for_user": "",
+ "hide_custom": 0,
+ "icon": "prescription",
+ "idx": 0,
+ "is_hidden": 0,
+ "label": "Pharmacy Dashboard",
+ "links": [
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Batches (expiring soon)",
+   "link_count": 0,
+   "link_to": "Batch",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "Stock Balance",
+   "link_count": 0,
+   "link_to": "Stock Balance",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  }
+ ],
+ "modified": "2026-01-29 00:00:00",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Pharmacy Dashboard",
+ "owner": "Administrator",
+ "pin_to_top": 0,
+ "public": 1,
+ "roles": [],
+ "sequence_id": 0,
+ "shortcuts": [],
+ "title": "Pharmacy Dashboard"
+}
