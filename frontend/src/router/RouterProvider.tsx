@@ -5,6 +5,7 @@ import { DoctorPage } from '../pages/Doctor'
 import { NursePage } from '../pages/Nurse'
 import { PatientPage } from '../pages/Patient'
 import { LabPage } from '../pages/Lab'
+import { PharmacyPage } from '../pages/Pharmacy'
 import { ReceptionistPage } from '../pages/Receptionist'
 import { SettingsPage } from '../pages/Settings'
 import { EmployeePage } from '../pages/Employee'
@@ -41,6 +42,14 @@ export const RouterProvider = () => {
       element: (
         <RoleGuard roles={['lab']}>
           <LabPage />
+        </RoleGuard>
+      )
+    },
+    {
+      path: '/pharmacy',
+      element: (
+        <RoleGuard>
+          <PharmacyPage />
         </RoleGuard>
       )
     },
