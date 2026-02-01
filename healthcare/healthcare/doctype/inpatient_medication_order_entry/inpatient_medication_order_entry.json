@@ -16,7 +16,9 @@
   "date",
   "time",
   "is_completed",
-  "patient_frequency"
+  "patient_frequency",
+  "frequency_in_a_day",
+  "uom"
  ],
  "fields": [
   {
@@ -44,8 +46,8 @@
   {
    "fieldname": "no_of_days",
    "fieldtype": "Float",
-   "label": "No. of Days",
-   "in_list_view": 1
+   "in_list_view": 1,
+   "label": "No. of Days"
   },
   {
    "fieldname": "dosage_form",
@@ -58,8 +60,8 @@
   {
    "fieldname": "quantity",
    "fieldtype": "Float",
-   "label": "Quantity",
    "in_list_view": 1,
+   "label": "Quantity",
    "read_only": 1
   },
   {
@@ -100,12 +102,26 @@
    "in_standard_filter": 1,
    "label": "Patient Frequency",
    "options": "Prescription Dosage"
+  },
+  {
+   "fetch_from": "patient_frequency.frequency_in_a_day",
+   "fieldname": "frequency_in_a_day",
+   "fieldtype": "Int",
+   "label": "How Many Times a Day?",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "drug.stock_uom",
+   "fieldname": "uom",
+   "fieldtype": "Link",
+   "label": "UOM",
+   "options": "UOM"
   }
  ],
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-01-18 13:51:53.499884",
+ "modified": "2026-02-01 11:08:42.729304",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Inpatient Medication Order Entry",

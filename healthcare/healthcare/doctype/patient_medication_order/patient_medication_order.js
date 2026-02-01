@@ -1,6 +1,34 @@
 // Copyright (c) 2020, Frappe Technologies Pvt. Ltd. and contributors
 // For license information, please see license.txt
 
+function update_quantity_for_row(frm, cdt, cdn) {
+	let row = locals[cdt][cdn];
+	if (!row) return;
+	let no_of_days = flt(row.no_of_days);
+	let dosage = flt(row.dosage);
+	let frequency_in_a_day = flt(row.frequency_in_a_day);
+	let quantity = no_of_days * dosage * frequency_in_a_day;
+	frappe.model.set_value(cdt, cdn, 'quantity', quantity);
+}
+
+frappe.ui.form.on('Inpatient Medication Order Entry', {
+	no_of_days: function(frm, cdt, cdn) {
+		update_quantity_for_row(frm, cdt, cdn);
+	},
+	dosage: function(frm, cdt, cdn) {
+		update_quantity_for_row(frm, cdt, cdn);
+	},
+	frequency_in_a_day: function(frm, cdt, cdn) {
+		update_quantity_for_row(frm, cdt, cdn);
+	},
+	patient_frequency: function(frm, cdt, cdn) {
+		// frequency_in_a_day is fetched from Prescription Dosage; update quantity after fetch
+		setTimeout(function() {
+			update_quantity_for_row(frm, cdt, cdn);
+		}, 100);
+	}
+});
+
 frappe.ui.form.on('Patient Medication Order', {
 	refresh: function(frm) {
 		if (frm.doc.docstatus === 1) {
@@ -10,6 +38,11 @@ frappe.ui.form.on('Patient Medication Order', {
 		frm.events.show_medication_order_button(frm);
 		frm.events.show_get_from_encounter_button(frm);
 		frm.events.show_subscription_button(frm);
+
+		// Recalculate quantity for all rows (no_of_days * dosage * frequency_in_a_day)
+		(frm.doc.medication_orders || []).forEach(function(row) {
+			update_quantity_for_row(frm, 'Inpatient Medication Order Entry', row.name);
+		});
 
 		// frm.set_query('patient', () => {
 		// 	return {

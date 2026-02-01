@@ -37,7 +37,11 @@ fixtures = [
                 "in",
                 (
                     "Contact-custom_mobile_owner",
-                    "Contact-custom_whatsapp"
+                    "Contact-custom_whatsapp",
+                    "Sales Invoice Item-custom_prescription",
+                    "Sales Invoice Item-custom_dosage",
+                    "Sales Invoice Item-custom_column_break_wqds5",
+                    "Sales Invoice Item-custom_prescription_dosage",
                 ),
             ]
         ],
