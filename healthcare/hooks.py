@@ -42,6 +42,10 @@ fixtures = [
                     "Sales Invoice Item-custom_dosage",
                     "Sales Invoice Item-custom_column_break_wqds5",
                     "Sales Invoice Item-custom_prescription_dosage",
+                    "Sales Order Item-custom_prescription",
+                    "Sales Order Item-custom_dosage",
+                    "Sales Order Item-custom_column_break_3vdka",
+                    "Sales Order Item-custom_prescription_frequency"
                 ),
             ]
         ],
