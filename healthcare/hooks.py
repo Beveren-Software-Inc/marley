@@ -57,7 +57,7 @@ fixtures = [
 		"doctype": "Medical Role"
 	},
     {
-		"doctype": "Prescription Dosage"
+		"doctype": "Prescription Frequency"
 	},
     {
 		"doctype": "Patient Assessment Parameter"
@@ -304,7 +304,7 @@ global_search_doctypes = {
 		{"doctype": "Dosage Form", "index": 18},
 		{"doctype": "Lab Test Sample", "index": 19},
 		{"doctype": "Prescription Duration", "index": 20},
-		{"doctype": "Prescription Dosage", "index": 21},
+		{"doctype": "Prescription Frequency", "index": 21},
 		{"doctype": "Sensitivity", "index": 22},
 		{"doctype": "Complaint", "index": 23},
 		{"doctype": "Medical Code", "index": 24},

@@ -6,5 +6,5 @@
 from frappe.tests.utils import FrappeTestCase
 
 
-class TestPrescriptionDosage(FrappeTestCase):
+class TestPrescriptionFrequency(FrappeTestCase):
 	pass

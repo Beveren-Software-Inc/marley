@@ -406,7 +406,7 @@ def make_ip_medication_order(source_name, target_doc=None):
 		target.start_date = source.encounter_date
 		for entry in source.drug_prescription:
 			if entry.drug_code:
-				dosage = frappe.get_doc("Prescription Dosage", entry.dosage)
+				dosage = frappe.get_doc("Prescription Frequency", entry.dosage)
 				dates = get_prescription_dates(entry.period, target.start_date)
 				for date in dates:
 					for dose in dosage.dosage_strength:

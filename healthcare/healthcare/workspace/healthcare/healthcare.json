@@ -337,9 +337,9 @@
    "dependencies": "",
    "hidden": 0,
    "is_query_report": 0,
-   "label": "Prescription Dosage",
+   "label": "Prescription Frequency",
    "link_count": 0,
-   "link_to": "Prescription Dosage",
+   "link_to": "Prescription Frequency",
    "link_type": "DocType",
    "onboard": 0,
    "type": "Link"

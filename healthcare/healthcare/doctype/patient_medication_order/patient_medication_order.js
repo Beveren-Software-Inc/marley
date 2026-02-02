@@ -22,7 +22,7 @@ frappe.ui.form.on('Inpatient Medication Order Entry', {
 		update_quantity_for_row(frm, cdt, cdn);
 	},
 	patient_frequency: function(frm, cdt, cdn) {
-		// frequency_in_a_day is fetched from Prescription Dosage; update quantity after fetch
+		// frequency_in_a_day is fetched from Prescription Frequency; update quantity after fetch
 		setTimeout(function() {
 			update_quantity_for_row(frm, cdt, cdn);
 		}, 100);
@@ -30,6 +30,16 @@ frappe.ui.form.on('Inpatient Medication Order Entry', {
 });
 
 frappe.ui.form.on('Patient Medication Order', {
+	is_pink: function(frm) {
+		// When parent Is Pink? is checked, update all line items to checked
+		if (frm.doc.is_pink) {
+			(frm.doc.medication_orders || []).forEach(function(row) {
+				frappe.model.set_value('Inpatient Medication Order Entry', row.name, 'is_pink', 1);
+			});
+		}
+		// When unchecked, leave line items as is (user manages per line item)
+	},
+
 	refresh: function(frm) {
 		if (frm.doc.docstatus === 1) {
 			frm.trigger("show_progress");
@@ -75,7 +85,7 @@ frappe.ui.form.on('Patient Medication Order', {
 						fieldname: 'dosage',
 						label: __('Dosage'),
 						fieldtype: 'Link',
-						options: 'Prescription Dosage',
+						options: 'Prescription Frequency',
 						reqd: 1
 					},
 					{
@@ -211,7 +221,7 @@ frappe.ui.form.on('Patient Medication Order', {
 								fieldname: 'patient_frequency',
 								fieldtype: 'Link',
 								label: __('Patient Frequency'),
-								options: 'Prescription Dosage',
+								options: 'Prescription Frequency',
 								in_list_view: 1,
 							},
 							{

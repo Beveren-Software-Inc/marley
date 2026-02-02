@@ -29,17 +29,17 @@
   {
    "fieldname": "drug",
    "fieldtype": "Link",
+   "in_list_view": 1,
    "label": "Drug",
    "options": "Item",
-   "in_list_view": 1,
    "reqd": 1
   },
   {
    "fieldname": "drug_name",
    "fieldtype": "Data",
+   "in_list_view": 1,
    "label": "Drug Name",
-   "read_only": 1,
-   "in_list_view": 1
+   "read_only": 1
   },
   {
    "fieldname": "dosage",
@@ -61,7 +61,7 @@
    "fieldname": "patient_frequency",
    "fieldtype": "Link",
    "label": "Patient Frequency",
-   "options": "Prescription Dosage"
+   "options": "Prescription Frequency"
   },
   {
    "fieldname": "column_break_1",
@@ -78,29 +78,28 @@
    "label": "Time"
   },
   {
+   "default": "1",
    "fieldname": "qty_per_cycle",
    "fieldtype": "Float",
-   "label": "Qty per Cycle",
-   "default": 1
+   "label": "Qty per Cycle"
   },
   {
-   "default": 1,
+   "default": "1",
    "fieldname": "is_active",
    "fieldtype": "Check",
    "label": "Active"
   }
  ],
- "index_web_pages_for_search": 0,
  "istable": 1,
  "links": [],
- "modified": "2026-01-28 00:00:00",
+ "modified": "2026-02-02 10:23:52.107027",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Subscription Medication Plan Item",
  "owner": "Administrator",
  "permissions": [],
+ "row_format": "Dynamic",
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": []
 }
-

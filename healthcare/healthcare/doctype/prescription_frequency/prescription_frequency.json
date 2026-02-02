@@ -19,7 +19,7 @@
    "fieldtype": "Data",
    "ignore_xss_filter": 1,
    "in_list_view": 1,
-   "label": "Dosage",
+   "label": "Frequency",
    "reqd": 1,
    "unique": 1
   },
@@ -29,6 +29,7 @@
    "options": "Dosage Strength"
   },
   {
+   "default": "1",
    "fieldname": "frequency_in_a_day",
    "fieldtype": "Int",
    "label": "How Many Times a Day?"
@@ -39,10 +40,10 @@
   }
  ],
  "links": [],
- "modified": "2026-02-01 10:54:00.381769",
+ "modified": "2026-02-02 10:29:05.221475",
  "modified_by": "Administrator",
  "module": "Healthcare",
- "name": "Prescription Dosage",
+ "name": "Prescription Frequency",
  "naming_rule": "By fieldname",
  "owner": "Administrator",
  "permissions": [

@@ -8,7 +8,7 @@
   {
    "hidden": 0,
    "label": "Consultation Setup",
-   "links": "[\n\t{\n\t\t\"type\": \"doctype\",\n\t\t\"name\": \"Appointment Type\",\n\t\t\"label\": \"Appointment Type\"\n    },\n\t{\n\t\t\"type\": \"doctype\",\n\t\t\"name\": \"Clinical Procedure Template\",\n\t\t\"label\": \"Clinical Procedure Template\"\n\t},\n\t{\n\t\t\"type\": \"doctype\",\n\t\t\"name\": \"Prescription Dosage\",\n\t\t\"label\": \"Prescription Dosage\"\n\t},\n\t{\n\t\t\"type\": \"doctype\",\n\t\t\"name\": \"Prescription Duration\",\n\t\t\"label\": \"Prescription Duration\"\n\t},\n\t{\n\t    \"type\": \"doctype\",\n\t\t\"name\": \"Antibiotic\",\n\t\t\"label\": \"Antibiotic\"\n\t}\n]"
+   "links": "[\n\t{\n\t\t\"type\": \"doctype\",\n\t\t\"name\": \"Appointment Type\",\n\t\t\"label\": \"Appointment Type\"\n    },\n\t{\n\t\t\"type\": \"doctype\",\n\t\t\"name\": \"Clinical Procedure Template\",\n\t\t\"label\": \"Clinical Procedure Template\"\n\t},\n\t{\n\t\t\"type\": \"doctype\",\n\t\t\"name\": \"Prescription Frequency\",\n\t\t\"label\": \"Prescription Frequency\"\n\t},\n\t{\n\t\t\"type\": \"doctype\",\n\t\t\"name\": \"Prescription Duration\",\n\t\t\"label\": \"Prescription Duration\"\n\t},\n\t{\n\t    \"type\": \"doctype\",\n\t\t\"name\": \"Antibiotic\",\n\t\t\"label\": \"Antibiotic\"\n\t}\n]"
   },
   {
    "hidden": 0,

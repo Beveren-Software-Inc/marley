@@ -18,7 +18,8 @@
   "is_completed",
   "patient_frequency",
   "frequency_in_a_day",
-  "uom"
+  "uom",
+  "is_pink"
  ],
  "fields": [
   {
@@ -100,8 +101,8 @@
    "fieldtype": "Link",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "Patient Frequency",
-   "options": "Prescription Dosage"
+   "label": "Prescription Frequency",
+   "options": "Prescription Frequency"
   },
   {
    "fetch_from": "patient_frequency.frequency_in_a_day",
@@ -116,12 +117,18 @@
    "fieldtype": "Link",
    "label": "UOM",
    "options": "UOM"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_pink",
+   "fieldtype": "Check",
+   "label": "Is Pink"
   }
  ],
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-02-01 11:08:42.729304",
+ "modified": "2026-02-02 10:32:00.817225",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Inpatient Medication Order Entry",
