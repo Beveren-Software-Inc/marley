@@ -17,6 +17,7 @@
   "is_pink",
   "patient_age",
   "column_break_6",
+  "posting_date",
   "company",
   "status",
   "practitioner",
@@ -30,7 +31,13 @@
   "total_orders",
   "column_break_18",
   "completed_orders",
-  "amended_from"
+  "amended_from",
+  "references_section",
+  "reference_doctype",
+  "reference_document_name",
+  "column_break_azig",
+  "user",
+  "healthcare_practitioner"
  ],
  "fields": [
   {
@@ -206,12 +213,55 @@
    "fieldname": "healthcare_practitioner_name",
    "fieldtype": "Data",
    "label": "Healthcare Practitioner Name"
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "references_section",
+   "fieldtype": "Section Break",
+   "label": "References"
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "reference_doctype",
+   "fieldtype": "Link",
+   "label": "Reference Doctype",
+   "options": "DocType"
+  },
+  {
+   "fieldname": "column_break_azig",
+   "fieldtype": "Column Break"
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "user",
+   "fieldtype": "Link",
+   "label": "User",
+   "options": "User"
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "reference_document_name",
+   "fieldtype": "Dynamic Link",
+   "label": "Reference Document Name",
+   "options": "reference_doctype"
+  },
+  {
+   "fieldname": "healthcare_practitioner",
+   "fieldtype": "Link",
+   "label": "Healthcare Practitioner",
+   "options": "Healthcare Practitioner"
+  },
+  {
+   "default": "Today",
+   "fieldname": "posting_date",
+   "fieldtype": "Date",
+   "label": "Posting Date"
   }
  ],
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-01-28 17:41:37.066454",
+ "modified": "2026-02-02 10:45:51.085990",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Medication Order",
