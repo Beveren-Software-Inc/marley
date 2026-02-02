@@ -563,6 +563,36 @@ def manage_invoice_submit_cancel(doc, method):
 						status = "Active" if method == "on_submit" else "Disabled"
 						frappe.db.set_value("Patient", item.reference_dn, "status", status)
 
+		# If invoice is submitted and linked to Patient Medication Orders via
+		# the custom Table MultiSelect `custom_medication_order`, mark those
+		# Patient Medication Orders as Completed.
+		#
+		# The field `custom_medication_order` is a child table of doctype
+		# \"Medication Details\" (in klik_pos app) and has a Link field
+		# `medication_order` pointing to `Patient Medication Order`.
+		if method == "on_submit" and getattr(doc, "custom_medication_order", None):
+			for row in doc.custom_medication_order:
+				order_name = getattr(row, "medication_order", None)
+				if not order_name:
+					continue
+				if not frappe.db.exists("Patient Medication Order", order_name):
+					continue
+
+				try:
+					pmo = frappe.get_doc("Patient Medication Order", order_name)
+					# Set completed_orders to total_orders (or child row count) and
+					# let set_status() compute the status as Completed.
+					total = pmo.total_orders or len(pmo.medication_orders or [])
+					pmo.completed_orders = total
+					pmo.db_set("completed_orders", total, update_modified=False)
+					pmo.set_status()
+				except Exception:
+					# Don't break invoice submission if a linked order cannot be updated.
+					frappe.log_error(
+						title="Failed to update Patient Medication Order from Sales Invoice",
+						message=frappe.get_traceback(),
+					)
+
 		if method == "on_submit" and frappe.db.get_single_value(
 			"Healthcare Settings", "create_observation_on_si_submit"
 		):
