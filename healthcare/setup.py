@@ -551,7 +551,7 @@ def create_duration():
 def create_dosage():
 	records = [
 		{
-			"doctype": "Prescription Dosage",
+			"doctype": "Prescription Frequency",
 			"name": "1-1-1-1",
 			"dosage": "1-1-1-1",
 			"dosage_strength": [
@@ -562,25 +562,25 @@ def create_dosage():
 			],
 		},
 		{
-			"doctype": "Prescription Dosage",
+			"doctype": "Prescription Frequency",
 			"name": "0-0-1",
 			"dosage": "0-0-1",
 			"dosage_strength": [{"strength": "1.0", "strength_time": "21:00:00"}],
 		},
 		{
-			"doctype": "Prescription Dosage",
+			"doctype": "Prescription Frequency",
 			"name": "1-0-0",
 			"dosage": "1-0-0",
 			"dosage_strength": [{"strength": "1.0", "strength_time": "9:00:00"}],
 		},
 		{
-			"doctype": "Prescription Dosage",
+			"doctype": "Prescription Frequency",
 			"name": "0-1-0",
 			"dosage": "0-1-0",
 			"dosage_strength": [{"strength": "1.0", "strength_time": "14:00:00"}],
 		},
 		{
-			"doctype": "Prescription Dosage",
+			"doctype": "Prescription Frequency",
 			"name": "1-1-1",
 			"dosage": "1-1-1",
 			"dosage_strength": [
@@ -590,7 +590,7 @@ def create_dosage():
 			],
 		},
 		{
-			"doctype": "Prescription Dosage",
+			"doctype": "Prescription Frequency",
 			"name": "1-0-1",
 			"dosage": "1-0-1",
 			"dosage_strength": [
@@ -599,13 +599,13 @@ def create_dosage():
 			],
 		},
 		{
-			"doctype": "Prescription Dosage",
+			"doctype": "Prescription Frequency",
 			"name": "Once Bedtime",
 			"dosage": "Once Bedtime",
 			"dosage_strength": [{"strength": "1.0", "strength_time": "21:00:00"}],
 		},
 		{
-			"doctype": "Prescription Dosage",
+			"doctype": "Prescription Frequency",
 			"name": "5 times a day",
 			"dosage": "5 times a day",
 			"dosage_strength": [
@@ -617,7 +617,7 @@ def create_dosage():
 			],
 		},
 		{
-			"doctype": "Prescription Dosage",
+			"doctype": "Prescription Frequency",
 			"name": "QID",
 			"dosage": "QID",
 			"dosage_strength": [
@@ -628,7 +628,7 @@ def create_dosage():
 			],
 		},
 		{
-			"doctype": "Prescription Dosage",
+			"doctype": "Prescription Frequency",
 			"name": "TID",
 			"dosage": "TID",
 			"dosage_strength": [
@@ -638,7 +638,7 @@ def create_dosage():
 			],
 		},
 		{
-			"doctype": "Prescription Dosage",
+			"doctype": "Prescription Frequency",
 			"name": "BID",
 			"dosage": "BID",
 			"dosage_strength": [
@@ -647,7 +647,7 @@ def create_dosage():
 			],
 		},
 		{
-			"doctype": "Prescription Dosage",
+			"doctype": "Prescription Frequency",
 			"name": "Once Daily",
 			"dosage": "Once Daily",
 			"dosage_strength": [{"strength": "1.0", "strength_time": "9:00:00"}],

@@ -419,7 +419,7 @@ healthcare.Orders = class Orders {
 						"fieldtype": "Link",
 						"label": "Dosage",
 						"mandatory_depends_on": "eval:!doc.dosage_by_interval",
-						"options": "Prescription Dosage"
+						"options": "Prescription Frequency"
 					},
 					{
 						"fieldname": "column_break_7",

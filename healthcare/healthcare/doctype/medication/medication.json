@@ -87,7 +87,7 @@
    "fieldtype": "Link",
    "label": "Default Prescription Dosage",
    "mandatory_depends_on": "!dosage_by_interval",
-   "options": "Prescription Dosage"
+   "options": "Prescription Frequency"
   },
   {
    "fieldname": "default_prescription_duration",
@@ -219,7 +219,7 @@
  ],
  "grid_page_length": 50,
  "links": [],
- "modified": "2025-09-02 12:26:22.513604",
+ "modified": "2026-02-02 10:23:53.116775",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Medication",

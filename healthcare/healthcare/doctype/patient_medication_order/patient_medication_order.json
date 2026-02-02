@@ -14,6 +14,7 @@
   "patient",
   "patient_name",
   "nationality",
+  "is_pink",
   "patient_age",
   "column_break_6",
   "company",
@@ -193,6 +194,12 @@
    "fieldtype": "Link",
    "label": "Nationality",
    "options": "Nationality"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_pink",
+   "fieldtype": "Check",
+   "label": "Is Pink?"
   },
   {
    "fetch_from": "practitioner.practitioner_name",

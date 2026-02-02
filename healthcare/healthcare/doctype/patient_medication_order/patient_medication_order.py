@@ -68,7 +68,7 @@ class PatientMedicationOrder(Document):
 	@frappe.whitelist()
 	def add_order_entries(self, order):
 		if order.get("drug_code"):
-			dosage = frappe.get_doc("Prescription Dosage", order.get("dosage"))
+			dosage = frappe.get_doc("Prescription Frequency", order.get("dosage"))
 			dates = get_prescription_dates(order.get("period"), self.start_date)
 			for date in dates:
 				for dose in dosage.dosage_strength:

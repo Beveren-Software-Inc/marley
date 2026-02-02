@@ -43,7 +43,7 @@ class TestPatientMedicationOrder(FrappeTestCase):
 		self.assertEqual(len(ipmo.medication_orders), 6)
 		self.assertEqual(ipmo.medication_orders[0].date, add_days(getdate(), -1))
 
-		prescription_dosage = frappe.get_doc("Prescription Dosage", "1-1-1")
+		prescription_dosage = frappe.get_doc("Prescription Frequency", "1-1-1")
 		for i in range(len(prescription_dosage.dosage_strength)):
 			self.assertEqual(
 				ipmo.medication_orders[i].time, prescription_dosage.dosage_strength[i].strength_time

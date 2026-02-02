@@ -6,5 +6,5 @@
 from frappe.model.document import Document
 
 
-class PrescriptionDosage(Document):
+class PrescriptionFrequency(Document):
 	pass

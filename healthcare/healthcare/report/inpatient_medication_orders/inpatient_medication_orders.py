@@ -45,7 +45,7 @@ def get_columns():
 			"fieldname": "dosage",
 			"fieldtype": "Link",
 			"label": "Dosage",
-			"options": "Prescription Dosage",
+			"options": "Prescription Frequency",
 			"width": 80,
 		},
 		{

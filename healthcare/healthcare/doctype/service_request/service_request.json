@@ -328,7 +328,7 @@
    "fieldtype": "Link",
    "label": "Dosage",
    "mandatory_depends_on": "eval:doc.order_doctype===\"Medication\";",
-   "options": "Prescription Dosage"
+   "options": "Prescription Frequency"
   },
   {
    "fieldname": "referred_to_practitioner",
@@ -544,7 +544,7 @@
    "link_fieldname": "service_request"
   }
  ],
- "modified": "2024-01-09 13:03:51.377653",
+ "modified": "2026-02-02 10:23:52.355704",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Service Request",
@@ -597,6 +597,7 @@
   }
  ],
  "restrict_to_domain": "Healthcare",
+ "row_format": "Dynamic",
  "search_fields": "patient, order_group",
  "sort_field": "modified",
  "sort_order": "DESC",
