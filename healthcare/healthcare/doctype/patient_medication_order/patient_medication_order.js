@@ -147,7 +147,7 @@ frappe.ui.form.on('Patient Medication Order', {
 	},
 
 	show_subscription_button: function(frm) {
-		if (!frm.doc.patient || !frm.doc.medication_orders?.length) {
+		if (frm.doc.docstatus !== 1 || !frm.doc.patient || !frm.doc.medication_orders?.length) {
 			return;
 		}
 

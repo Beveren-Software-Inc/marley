@@ -76,9 +76,9 @@
   "patient_relation",
   "medical_history_tab",
   "personal_and_social_history",
-  "occupation",
   "column_break_25",
   "marital_status",
+  "column_break_kwir",
   "allergy_medical_and_surgical_history",
   "allergies",
   "medication",
@@ -304,13 +304,6 @@
    "fieldname": "personal_and_social_history",
    "fieldtype": "Section Break",
    "label": "Personal and Social History"
-  },
-  {
-   "fieldname": "occupation",
-   "fieldtype": "Data",
-   "ignore_xss_filter": 1,
-   "label": "Occupation",
-   "no_copy": 1
   },
   {
    "fieldname": "column_break_25",
@@ -693,6 +686,10 @@
    "label": "Source",
    "options": "Patient Source",
    "reqd": 1
+  },
+  {
+   "fieldname": "column_break_kwir",
+   "fieldtype": "Column Break"
   }
  ],
  "grid_page_length": 50,
@@ -796,7 +793,7 @@
   }
  ],
  "max_attachments": 50,
- "modified": "2026-01-27 14:35:15.717600",
+ "modified": "2026-02-08 11:27:33.333283",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient",
