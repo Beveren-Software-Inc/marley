@@ -33,18 +33,24 @@ class PatientMedicationOrder(Document):
 		# 	frappe.throw(_("No Inpatient Admission found against patient {0}").format(self.patient))
 
 	def validate_duplicate(self):
-		existing_mo = frappe.db.exists(
-			"Patient Medication Order",
-			{
-				"patient_encounter": self.patient_encounter,
-				"docstatus": ("!=", 2),
-				"name": ("!=", self.name),
-			},
+		# Allow creating a new order when the existing one is Completed
+		# Only block if there's an active (non-cancelled, non-completed) order for this visit
+		existing_mo = frappe.db.sql(
+			"""
+			SELECT name FROM `tabPatient Medication Order`
+			WHERE patient_encounter = %(patient_encounter)s
+				AND docstatus != 2
+				AND (status IS NULL OR status != 'Completed')
+				AND (name != %(name)s OR %(name)s IS NULL OR %(name)s = '')
+			LIMIT 1
+			""",
+			{"patient_encounter": self.patient_encounter, "name": self.name or ""},
+			as_dict=True,
 		)
 		if existing_mo:
 			frappe.throw(
 				_("A Patient Medication Order {0} against Patient Visit {1} already exists.").format(
-					existing_mo, self.patient_encounter
+					existing_mo[0].name, self.patient_encounter
 				),
 				frappe.DuplicateEntryError,
 			)

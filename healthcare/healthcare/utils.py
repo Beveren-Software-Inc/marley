@@ -580,12 +580,13 @@ def manage_invoice_submit_cancel(doc, method):
 
 				try:
 					pmo = frappe.get_doc("Patient Medication Order", order_name)
+					pmo.flags.ignore_permissions = True
 					# Set completed_orders to total_orders (or child row count) and
 					# let set_status() compute the status as Completed.
 					total = pmo.total_orders or len(pmo.medication_orders or [])
 					pmo.completed_orders = total
 					pmo.db_set("completed_orders", total, update_modified=False)
-					pmo.set_status()
+					pmo.run_method("set_status")
 				except Exception:
 					# Don't break invoice submission if a linked order cannot be updated.
 					frappe.log_error(
