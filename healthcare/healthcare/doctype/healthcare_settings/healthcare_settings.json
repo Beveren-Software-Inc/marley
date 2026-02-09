@@ -64,7 +64,9 @@
   "laboratory_sms_alerts",
   "sms_printed",
   "column_break_28",
-  "sms_emailed"
+  "sms_emailed",
+  "stock_tab",
+  "default_expiry_warehouse"
  ],
  "fields": [
   {
@@ -167,8 +169,8 @@
    "label": "Enable Lab Inventory Integration"
   },
   {
-   "depends_on": "lab_inventory_integration_enabled",
    "default": "0",
+   "depends_on": "lab_inventory_integration_enabled",
    "fieldname": "lab_auto_issue_on_submit",
    "fieldtype": "Check",
    "label": "Auto Issue Consumables on Lab Test Submit"
@@ -433,11 +435,22 @@
    "label": "Registration Item",
    "mandatory_depends_on": "eval:doc.collect_registration_fee == 1",
    "options": "Item"
+  },
+  {
+   "fieldname": "stock_tab",
+   "fieldtype": "Tab Break",
+   "label": "Stock"
+  },
+  {
+   "fieldname": "default_expiry_warehouse",
+   "fieldtype": "Link",
+   "label": "Default Expiry Warehouse",
+   "options": "Warehouse"
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2025-11-05 15:45:05.268654",
+ "modified": "2026-02-09 21:27:24.065540",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Settings",
@@ -456,6 +469,7 @@
  ],
  "quick_entry": 1,
  "restrict_to_domain": "Healthcare",
+ "row_format": "Dynamic",
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": [],
