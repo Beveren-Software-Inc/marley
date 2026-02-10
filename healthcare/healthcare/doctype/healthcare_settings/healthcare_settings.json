@@ -23,6 +23,8 @@
   "inpatient_settings_section",
   "allow_discharge_despite_unbilled_services",
   "do_not_bill_inpatient_encounters",
+  "discount_section",
+  "discount_limit",
   "orders_tab",
   "default_intent",
   "column_break_1oy0",
@@ -446,11 +448,22 @@
    "fieldtype": "Link",
    "label": "Default Expiry Warehouse",
    "options": "Warehouse"
+  },
+  {
+   "fieldname": "discount_section",
+   "fieldtype": "Section Break",
+   "label": "Discount"
+  },
+  {
+   "default": "20",
+   "fieldname": "discount_limit",
+   "fieldtype": "Percent",
+   "label": "Discount Limit"
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-02-09 21:27:24.065540",
+ "modified": "2026-02-10 10:36:41.556151",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Settings",
