@@ -19,7 +19,8 @@
   "patient_frequency",
   "frequency_in_a_day",
   "uom",
-  "is_pink"
+  "is_pink",
+  "reference_no"
  ],
  "fields": [
   {
@@ -123,12 +124,17 @@
    "fieldname": "is_pink",
    "fieldtype": "Check",
    "label": "Is Pink"
+  },
+  {
+   "fieldname": "reference_no",
+   "fieldtype": "Data",
+   "label": "Reference No"
   }
  ],
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-02-02 10:32:00.817225",
+ "modified": "2026-02-10 10:50:06.108270",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Inpatient Medication Order Entry",
