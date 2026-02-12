@@ -92,33 +92,26 @@ export async function fetchLeadSources(search?: string): Promise<LinkFieldOption
 
 export async function fetchNationalities(search?: string): Promise<LinkFieldOption[]> {
   const params = new URLSearchParams()
-  // Get specific fields from Nationality DocType
-  params.append('fields', JSON.stringify(['name', 'nationality', 'country']))
-  if (search) {
-    params.append(
-      'filters',
-      JSON.stringify([['Nationality', 'nationality', 'like', `%${search}%`]])
-    )
-  }
-  params.append('limit_page_length', '50')
+  if (search) params.append('search', search)
 
-  const url = `/api/resource/Nationality?${params.toString()}`
+  const url = `/api/method/healthcare.api.common.get_nationalities${
+    params.toString() ? `?${params.toString()}` : ''
+  }`
 
   const response = await fetch(url)
   const resData = await response.json()
 
-  const data = (resData?.data || resData?.message) as any
-
-  if (Array.isArray(data)) {
-    return data.map((n: any) => ({
+  if (resData?.message && Array.isArray(resData.message)) {
+    return resData.message.map((n: any) => ({
       name: n.name,
       label: n.nationality || n.name,
       country: n.country,
-    })) as LinkFieldOption[]
-  } else {
-    return []
+    }))
   }
+
+  return []
 }
+
 
 export interface CreateLeadSourceData {
   source_name: string
