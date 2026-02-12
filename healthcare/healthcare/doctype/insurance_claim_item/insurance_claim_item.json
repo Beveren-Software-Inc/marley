@@ -1,0 +1,134 @@
+{
+ "actions": [],
+ "creation": "2026-02-10 00:00:00",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "service_section",
+  "service_type",
+  "reference_doctype",
+  "reference_name",
+  "sales_invoice",
+  "column_break_bmfz",
+  "sales_invoice_item",
+  "item_code",
+  "description",
+  "amounts_section",
+  "gross_amount",
+  "covered_amount",
+  "co_pay_amount",
+  "column_break_kfre",
+  "non_covered_amount",
+  "patient_liability"
+ ],
+ "fields": [
+  {
+   "fieldname": "service_section",
+   "fieldtype": "Section Break",
+   "label": "Service"
+  },
+  {
+   "fieldname": "service_type",
+   "fieldtype": "Select",
+   "label": "Service Type",
+   "options": "\nOP\nIP\nLab\nPharmacy\nOther"
+  },
+  {
+   "fieldname": "reference_doctype",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Reference Doctype",
+   "options": "DocType"
+  },
+  {
+   "fieldname": "reference_name",
+   "fieldtype": "Dynamic Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Reference Name",
+   "options": "reference_doctype"
+  },
+  {
+   "fieldname": "sales_invoice",
+   "fieldtype": "Link",
+   "label": "Sales Invoice",
+   "options": "Sales Invoice"
+  },
+  {
+   "fieldname": "sales_invoice_item",
+   "fieldtype": "Data",
+   "label": "Sales Invoice Item"
+  },
+  {
+   "fieldname": "item_code",
+   "fieldtype": "Link",
+   "label": "Item",
+   "options": "Item"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description"
+  },
+  {
+   "fieldname": "amounts_section",
+   "fieldtype": "Section Break",
+   "label": "Amounts"
+  },
+  {
+   "fieldname": "gross_amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Gross Amount"
+  },
+  {
+   "fieldname": "covered_amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Covered Amount"
+  },
+  {
+   "fieldname": "co_pay_amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Co-pay Amount"
+  },
+  {
+   "fieldname": "non_covered_amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Non-covered Amount"
+  },
+  {
+   "fieldname": "patient_liability",
+   "fieldtype": "Currency",
+   "label": "Patient Liability"
+  },
+  {
+   "fieldname": "column_break_bmfz",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_kfre",
+   "fieldtype": "Column Break"
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-02-10 12:19:27.468357",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Insurance Claim Item",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

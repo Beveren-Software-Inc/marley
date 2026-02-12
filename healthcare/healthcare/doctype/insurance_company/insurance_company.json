@@ -1,6 +1,7 @@
 {
  "actions": [],
  "allow_rename": 1,
+ "autoname": "field:name1",
  "creation": "2026-02-01 11:49:37.202613",
  "doctype": "DocType",
  "engine": "InnoDB",
@@ -11,16 +12,18 @@
   {
    "fieldname": "name1",
    "fieldtype": "Data",
-   "label": "Name"
+   "label": "Name",
+   "unique": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-02-01 11:49:47.582591",
+ "modified": "2026-02-10 11:35:51.731206",
  "modified_by": "Administrator",
  "module": "Healthcare",
- "name": "Insurance Payor",
+ "name": "Insurance Company",
+ "naming_rule": "By fieldname",
  "owner": "Administrator",
  "permissions": [
   {

@@ -1,6 +1,7 @@
 {
  "actions": [],
  "allow_rename": 1,
+ "autoname": "HI-.######",
  "creation": "2025-11-30 14:39:43.386492",
  "doctype": "DocType",
  "engine": "InnoDB",
@@ -23,8 +24,11 @@
   },
   {
    "fieldname": "insurance_company",
-   "fieldtype": "Data",
-   "label": "Insurance Company"
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Insurance Company",
+   "options": "Insurance Company"
   },
   {
    "fieldname": "policy_no",
@@ -34,7 +38,8 @@
   {
    "fieldname": "insurance_no",
    "fieldtype": "Data",
-   "label": "Insurance No"
+   "label": "Insurance No",
+   "reqd": 1
   },
   {
    "fieldname": "employee_code",
@@ -64,10 +69,11 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-11-30 18:04:05.567579",
+ "modified": "2026-02-10 12:30:57.560586",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Health Insurance",
+ "naming_rule": "Expression",
  "owner": "Administrator",
  "permissions": [
   {

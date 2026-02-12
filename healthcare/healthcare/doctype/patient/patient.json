@@ -3,7 +3,7 @@
  "allow_events_in_timeline": 1,
  "allow_import": 1,
  "allow_rename": 1,
- "autoname": "naming_series:",
+ "autoname": "field:file_no",
  "creation": "2017-01-23 14:03:49.084370",
  "description": "Patient",
  "doctype": "DocType",
@@ -678,7 +678,8 @@
   {
    "fieldname": "file_no",
    "fieldtype": "Data",
-   "label": "File No"
+   "label": "File No",
+   "unique": 1
   },
   {
    "fieldname": "source",
@@ -793,11 +794,11 @@
   }
  ],
  "max_attachments": 50,
- "modified": "2026-02-08 11:27:33.333283",
+ "modified": "2026-02-12 13:56:11.003142",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient",
- "naming_rule": "By \"Naming Series\" field",
+ "naming_rule": "By fieldname",
  "owner": "Administrator",
  "permissions": [
   {
