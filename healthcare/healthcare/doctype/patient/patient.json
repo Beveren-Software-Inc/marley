@@ -33,6 +33,7 @@
   "phone",
   "email",
   "invite_user",
+  "is_black_list",
   "user_id",
   "source",
   "customer_details_section",
@@ -61,6 +62,7 @@
   "insurance_section",
   "is_insurance",
   "insurance",
+  "insurance_type",
   "insurance_company_no",
   "column_break_eqbb",
   "insurance_policy_no",
@@ -72,6 +74,13 @@
   "address_html",
   "column_break_22",
   "contact_html",
+  "primary_address_and_contact_section",
+  "patient_primary_address",
+  "primary_address",
+  "column_break_rnog",
+  "patient_primary_contact",
+  "mobile_no",
+  "email_id",
   "sb_relation",
   "patient_relation",
   "medical_history_tab",
@@ -232,7 +241,8 @@
    "in_standard_filter": 1,
    "label": "Mobile",
    "no_copy": 1,
-   "options": "Phone"
+   "options": "Phone",
+   "reqd": 1
   },
   {
    "bold": 1,
@@ -511,6 +521,7 @@
    "label": "Medical History"
   },
   {
+   "collapsible": 1,
    "fieldname": "occupation_section",
    "fieldtype": "Section Break",
    "label": "Occupation"
@@ -593,6 +604,7 @@
    "label": "Show Allergy"
   },
   {
+   "collapsible": 1,
    "fieldname": "insurance_section",
    "fieldtype": "Section Break",
    "label": "Insurance"
@@ -673,7 +685,8 @@
    "fieldname": "category",
    "fieldtype": "Select",
    "label": "Category",
-   "options": "\nRoyal\nAmerican Navy\nRegular"
+   "options": "\nRoyal\nAmerican Navy\nRegular",
+   "reqd": 1
   },
   {
    "fieldname": "file_no",
@@ -691,6 +704,57 @@
   {
    "fieldname": "column_break_kwir",
    "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "insurance.insurance_type",
+   "fieldname": "insurance_type",
+   "fieldtype": "Select",
+   "label": "Insurance Type",
+   "options": "\nTRICARE\nBUPA"
+  },
+  {
+   "fieldname": "primary_address_and_contact_section",
+   "fieldtype": "Section Break",
+   "label": "Primary Address and Contact"
+  },
+  {
+   "fieldname": "patient_primary_address",
+   "fieldtype": "Link",
+   "label": "Patient Primary Address",
+   "options": "Address"
+  },
+  {
+   "fieldname": "primary_address",
+   "fieldtype": "Text Editor",
+   "label": "Primary Address"
+  },
+  {
+   "fieldname": "column_break_rnog",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "patient_primary_contact",
+   "fieldtype": "Link",
+   "label": "Patient Primary Contact",
+   "options": "Contact"
+  },
+  {
+   "fetch_from": "patient_primary_contact.mobile_no",
+   "fieldname": "mobile_no",
+   "fieldtype": "Data",
+   "label": "Mobile No"
+  },
+  {
+   "fetch_from": "patient_primary_contact.email_id",
+   "fieldname": "email_id",
+   "fieldtype": "Data",
+   "label": "Email Id"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_black_list",
+   "fieldtype": "Check",
+   "label": "Is Black List?"
   }
  ],
  "grid_page_length": 50,
@@ -794,7 +858,7 @@
   }
  ],
  "max_attachments": 50,
- "modified": "2026-02-12 13:56:11.003142",
+ "modified": "2026-02-15 10:07:49.964171",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient",
