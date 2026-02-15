@@ -75,6 +75,9 @@ fixtures = [
 	},
     {
 		"doctype":"Patient Source"
+	},
+    {
+		"doctype":"Patient Visit Type"
 	}
 ]
 
@@ -208,6 +211,9 @@ scheduler_events = {
 	"daily": [
 		"healthcare.healthcare.doctype.patient_appointment.patient_appointment.update_appointment_status",
 		"healthcare.healthcare.doctype.fee_validity.fee_validity.update_validity_status",
+	],
+	"monthly": [
+		"healthcare.healthcare.doctype.patient_follow_up.follow_up_crm_messages.send_follow_up_mid_end_year_messages",
 	],
 }
 

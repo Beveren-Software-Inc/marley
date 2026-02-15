@@ -1,0 +1,82 @@
+{
+ "charts": [],
+ "content": "[]",
+ "creation": "2026-02-15 14:00:00.000000",
+ "custom_blocks": [],
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "for_user": "",
+ "hide_custom": 0,
+ "icon": "calendar-check",
+ "idx": 0,
+ "is_hidden": 0,
+ "label": "Follow Up Dashboard",
+ "links": [
+  {
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "Follow Up List (OP & IP)",
+   "link_count": 0,
+   "link_to": "Follow Up List",
+   "link_type": "Report",
+   "onboard": 1,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "All Follow Ups",
+   "link_count": 0,
+   "link_to": "Patient Follow Up",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "New Follow Up",
+   "link_count": 0,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Patient Follow Up",
+   "link_count": 0,
+   "link_to": "Patient Follow Up",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  }
+ ],
+ "modified": "2026-02-15 14:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Follow Up Dashboard",
+ "owner": "Administrator",
+ "parent_page": "",
+ "pin_to_top": 0,
+ "public": 1,
+ "quick_lists": [],
+ "roles": [],
+ "sequence_id": 0,
+ "shortcuts": [
+  {
+   "color": "Blue",
+   "doc_view": "List",
+   "label": "Follow Up List",
+   "link_to": "Follow Up List",
+   "type": "Report"
+  },
+  {
+   "color": "Green",
+   "doc_view": "List",
+   "label": "Patient Follow Up",
+   "link_to": "Patient Follow Up",
+   "type": "DocType"
+  }
+ ],
+ "title": "Follow Up Dashboard"
+}

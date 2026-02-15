@@ -8,6 +8,7 @@
  "field_order": [
   "admission",
   "file_no",
+  "cost_center",
   "column_break_talh",
   "patient_name",
   "discharge_type",
@@ -30,6 +31,13 @@
   "discharge_checklist",
   "section_break_mwkk",
   "medicine_given",
+  "appointment_section",
+  "next_appointment_date",
+  "column_break_kffl",
+  "next_appointment_time",
+  "follow_up_crm_section",
+  "follow_up_date",
+  "allow_follow_up",
   "more_infor_tab",
   "discharge_treatment_plan",
   "discharge_reason",
@@ -41,10 +49,6 @@
   "discharge_instructions",
   "discharge_medic_stopped_reason",
   "management_in_hospital",
-  "appointment_section",
-  "next_appointment_date",
-  "column_break_kffl",
-  "next_appointment_time",
   "history_decription_tab",
   "history_form_details_template",
   "history_details",
@@ -229,7 +233,7 @@
   {
    "fieldname": "appointment_section",
    "fieldtype": "Section Break",
-   "label": "Appointment"
+   "label": "Next Appointment"
   },
   {
    "fieldname": "next_appointment_date",
@@ -244,6 +248,26 @@
    "fieldname": "next_appointment_time",
    "fieldtype": "Datetime",
    "label": "Next appointment Time"
+  },
+  {
+   "fieldname": "follow_up_crm_section",
+   "fieldtype": "Section Break",
+   "label": "Follow Up"
+  },
+  {
+   "description": "Used to create Patient Follow Up after submit. Fetched from Inpatient Admission; if empty, Next Appointment Date above is used.",
+   "fetch_from": "admission.followup_date",
+   "fieldname": "follow_up_date",
+   "fieldtype": "Date",
+   "label": "Follow Up Date"
+  },
+  {
+   "default": "0",
+   "fetch_from": "file_no.is_follow_up",
+   "fieldname": "allow_follow_up",
+   "fieldtype": "Check",
+   "label": "Patient: Allow Follow up?",
+   "read_only": 1
   },
   {
    "fieldname": "receiving_doctors",
@@ -287,13 +311,19 @@
    "print_hide": 1,
    "read_only": 1,
    "search_index": 1
+  },
+  {
+   "fieldname": "cost_center",
+   "fieldtype": "Link",
+   "label": "Cost Center",
+   "options": "Cost Center"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-01-04 15:11:19.574270",
+ "modified": "2026-02-15 11:42:37.842477",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Discharge",

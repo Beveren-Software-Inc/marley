@@ -12,7 +12,9 @@
   "column_break_cgsl",
   "name1",
   "date_time",
-  "click"
+  "click",
+  "more_information_section",
+  "description"
  ],
  "fields": [
   {
@@ -25,10 +27,11 @@
   },
   {
    "fieldname": "department",
-   "fieldtype": "Data",
+   "fieldtype": "Link",
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Department",
+   "options": "Department",
    "reqd": 1
   },
   {
@@ -37,8 +40,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "User",
-   "options": "User",
-   "reqd": 1
+   "options": "User"
   },
   {
    "fieldname": "column_break_cgsl",
@@ -64,13 +66,23 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Click"
+  },
+  {
+   "fieldname": "more_information_section",
+   "fieldtype": "Section Break",
+   "label": "More information"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Text Editor",
+   "label": "Description"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2025-12-01 12:06:40.836302",
+ "modified": "2026-02-15 12:24:50.484592",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Discharge Checklist Details",

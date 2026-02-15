@@ -1,0 +1,90 @@
+{
+ "charts": [],
+ "content": "[]",
+ "creation": "2026-02-15 12:00:00.000000",
+ "custom_blocks": [],
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "for_user": "",
+ "hide_custom": 0,
+ "icon": "calendar",
+ "idx": 0,
+ "is_hidden": 0,
+ "label": "IOP Dashboard",
+ "links": [
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "IOP",
+   "link_count": 0,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "IOP Day",
+   "link_count": 0,
+   "link_to": "IOP Day",
+   "link_type": "DocType",
+   "onboard": 1,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "IOP Enrollment",
+   "link_count": 0,
+   "link_to": "IOP Enrollment",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Setup",
+   "link_count": 0,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "IOP Session Type",
+   "link_count": 0,
+   "link_to": "IOP Session Type",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  }
+ ],
+ "modified": "2026-02-15 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "IOP Dashboard",
+ "owner": "Administrator",
+ "parent_page": "",
+ "pin_to_top": 0,
+ "public": 1,
+ "quick_lists": [],
+ "roles": [],
+ "sequence_id": 0,
+ "shortcuts": [
+  {
+   "color": "Blue",
+   "doc_view": "List",
+   "label": "IOP Day",
+   "link_to": "IOP Day",
+   "type": "DocType"
+  },
+  {
+   "color": "Green",
+   "doc_view": "List",
+   "label": "IOP Enrollment",
+   "link_to": "IOP Enrollment",
+   "type": "DocType"
+  }
+ ],
+ "title": "IOP Dashboard"
+}
