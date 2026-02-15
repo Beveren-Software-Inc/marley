@@ -56,8 +56,8 @@ const labScreens = [
 ].sort((a, b) => a.title.localeCompare(b.title))
 
 const receptionScreens = [
-  { id: 'r-new-op', title: 'New OP Registration' },
-  { id: 'r-appointment', title: 'Book Appointment' },
+  { id: 'r-new-op', title: 'New Patient Registration' },
+  { id: 'r-appointment', title: 'New Appointment' },
   { id: 'r-ip-adm', title: 'New IP Admission' },
   { id: 'r-reg', title: 'Admission' },
   { id: 'r-visit', title: 'Patient Visit' },
@@ -66,9 +66,9 @@ const receptionScreens = [
   { id: 'r-iop', title: 'IOP Dashboard' },
   { id: 'r-appointments-freeze', title: 'Appointments' },
   { id: 'r-service-requests', title: 'Service Requests / Booked Lab' },
-  { id: 'r-receipt-voucher', title: 'Receipt Voucher' },
-  { id: 'r-op-dashboard', title: 'OP Dashboard' },
-  { id: 'r-ip-dashboard', title: 'IP Dashboard' }
+  // { id: 'r-receipt-voucher', title: 'Receipt Voucher' },
+  // { id: 'r-op-dashboard', title: 'OP Dashboard' },
+  // { id: 'r-ip-dashboard', title: 'IP Dashboard' }
 ].sort((a, b) => a.title.localeCompare(b.title))
 
 const mainLinks = [

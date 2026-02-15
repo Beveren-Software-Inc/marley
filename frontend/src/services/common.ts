@@ -112,6 +112,13 @@ export async function fetchNationalities(search?: string): Promise<LinkFieldOpti
   return []
 }
 
+/** Fetch Country list for link field (e.g. Patient address). */
+export async function fetchCountries(): Promise<{ name: string }[]> {
+  const res = await fetch('/api/resource/Country?fields=["name"]&limit_page_length=300')
+  const data = await res.json()
+  return Array.isArray(data?.data) ? data.data : []
+}
+
 
 export interface CreateLeadSourceData {
   source_name: string

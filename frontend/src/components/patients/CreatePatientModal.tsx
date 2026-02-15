@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import { createPatient } from '../../services/patients'
-import { fetchLeadSources, fetchNationalities, type LinkFieldOption } from '../../services/common'
+import { fetchLeadSources, fetchNationalities, fetchCountries, type LinkFieldOption } from '../../services/common'
 import { CreateLeadSourceModal } from './CreateLeadSourceModal'
 import { CreateNationalityModal } from './CreateNationalityModal'
+import { toast } from '../../hooks/useToast'
 
 interface CreatePatientModalProps {
   onClose: () => void
@@ -50,6 +51,7 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
   const [nationalityQuery, setNationalityQuery] = useState('')
   const [selectedNationality, setSelectedNationality] = useState<LinkFieldOption | null>(null)
   const [showCreateNationality, setShowCreateNationality] = useState(false)
+  const [countries, setCountries] = useState<{ name: string }[]>([])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -85,11 +87,11 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
         remarks: formData.remarks || undefined,
       }
       const patient = await createPatient(payload)
-      
+      const successMsg = patient.server_message || 'Patient created'
+      toast.success(successMsg)
       if (onSuccess) {
-        onSuccess(patient.name || patient.patient_name)
+        onSuccess(patient.name || patient.patient_name || '')
       }
-      
       onClose()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create patient')
@@ -102,16 +104,18 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
     setFormData(prev => ({ ...prev, [field]: value }))
   }
 
-  // Load initial options (source + nationalities)
+  // Load initial options (source + nationalities + countries)
   useEffect(() => {
     const loadOptions = async () => {
       try {
-        const [sources, nationalities] = await Promise.all([
+        const [sources, nationalities, countryList] = await Promise.all([
           fetchLeadSources(),
           fetchNationalities(),
+          fetchCountries(),
         ])
         setSourceOptions(sources)
         setNationalityOptions(nationalities)
+        setCountries(countryList)
       } catch (err) {
         console.error('Failed to load options:', err)
       }
@@ -198,7 +202,7 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
           onClick={(e) => {
             // Close dropdowns when clicking outside inputs
             const target = e.target as HTMLElement
-            if (target.tagName !== 'INPUT' && !target.closest('.absolute')) {
+            if (target.tagName !== 'INPUT' && target.tagName !== 'SELECT' && !target.closest('.absolute')) {
               setSourceOpen(false)
               setNationalityOpen(false)
             }
@@ -550,12 +554,16 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
                 <label className="block text-sm font-medium text-slate-700 mb-1">
                   Country
                 </label>
-                <input
-                  type="text"
+                <select
                   value={formData.country}
                   onChange={(e) => handleChange('country', e.target.value)}
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                />
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+                >
+                  <option value="">Select country</option>
+                  {countries.map((c) => (
+                    <option key={c.name} value={c.name}>{c.name}</option>
+                  ))}
+                </select>
               </div>
 
               <div>

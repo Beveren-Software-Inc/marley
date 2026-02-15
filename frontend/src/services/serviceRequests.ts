@@ -16,6 +16,9 @@ export interface ServiceRequest {
   billing_status?: string
   priority?: string
   intent?: string
+  patient_accepted_cost?: boolean | number
+  booked?: boolean | number
+  order_group?: string
 }
 
 export async function fetchServiceRequests(
@@ -98,6 +101,45 @@ export async function createServiceRequest(data: CreateServiceRequestData): Prom
   } else {
     throw new Error(resData?.exc_type ? resData.exc : 'Failed to create service request')
   }
+}
+
+/** Confirm payment (patient accepted cost). Required before Book Lab for Lab Test Template. */
+export async function confirmPayment(serviceRequestName: string): Promise<{ ok: boolean; patient_accepted_cost: number }> {
+  const csrf = (window as any).csrf_token
+  const response = await fetch(
+    `/api/method/healthcare.api.service_request.confirm_payment?service_request_name=${encodeURIComponent(serviceRequestName)}`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {})
+      },
+      credentials: 'include'
+    }
+  )
+  const resData = await response.json()
+  if (resData?.message) return resData.message
+  throw new Error(resData?.exc || 'Failed to confirm payment')
+}
+
+/** Book Lab: forward to laboratory and reflect approved amount on Patient Visit. Only for Lab Test Template when payment confirmed. */
+export async function bookLabAndForward(serviceRequestName: string): Promise<{ lab_test: string; patient_visit?: string }> {
+  const csrf = (window as any).csrf_token
+  const response = await fetch(
+    '/api/method/healthcare.healthcare.doctype.service_request.service_request.book_lab_and_forward',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {})
+      },
+      body: JSON.stringify({ service_request_name: serviceRequestName }),
+      credentials: 'include'
+    }
+  )
+  const resData = await response.json()
+  if (resData?.message) return resData.message
+  throw new Error(resData?.exc || 'Failed to book lab')
 }
 
 

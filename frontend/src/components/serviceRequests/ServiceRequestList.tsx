@@ -1,5 +1,11 @@
 import { useState, useEffect } from 'react'
-import { fetchServiceRequests, createLabTestFromServiceRequest, type ServiceRequest } from '../../services/serviceRequests'
+import {
+  fetchServiceRequests,
+  createLabTestFromServiceRequest,
+  confirmPayment,
+  bookLabAndForward,
+  type ServiceRequest
+} from '../../services/serviceRequests'
 import { toast } from '../../hooks/useToast'
 import { StatusPill } from '../ui/StatusPill'
 
@@ -19,41 +25,71 @@ const statusColors: Record<string, string> = {
   'Draft': 'warning'
 }
 
+const refetch = (
+  setLoading: (v: boolean) => void,
+  setServiceRequests: (v: ServiceRequest[]) => void,
+  setError: (v: Error | null) => void,
+  patient?: string,
+  template_dt?: string
+) => {
+  setLoading(true)
+  fetchServiceRequests(50, 0, patient, template_dt)
+    .then(setServiceRequests)
+    .catch((err) => setError(err instanceof Error ? err : new Error('Failed to fetch service requests')))
+    .finally(() => setLoading(false))
+}
+
 export const ServiceRequestList = ({ patient, onLabTestCreated, refreshKey, template_dt }: ServiceRequestListProps) => {
   const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
+  const [actionLoading, setActionLoading] = useState<string | null>(null)
 
   useEffect(() => {
-    const loadServiceRequests = async () => {
-      try {
-        setLoading(true)
-        setError(null)
-        const response = await fetchServiceRequests(50, 0, patient, template_dt)
-        setServiceRequests(response)
-      } catch (err) {
-        setError(err instanceof Error ? err : new Error('Failed to fetch service requests'))
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    loadServiceRequests()
+    setError(null)
+    refetch(setLoading, setServiceRequests, setError, patient, template_dt)
   }, [patient, refreshKey])
 
+  const doRefetch = () => refetch(setLoading, setServiceRequests, setError, patient, template_dt)
+
   const handleCreateLabTest = async (serviceRequestName: string) => {
+    setActionLoading(serviceRequestName)
     try {
       const result = await createLabTestFromServiceRequest(serviceRequestName)
       toast.success(`Lab Test ${result.name} created successfully`)
-      if (onLabTestCreated) {
-        onLabTestCreated()
-      }
-      // Refresh the list
-      const response = await fetchServiceRequests(50, 0, patient, template_dt)
-      setServiceRequests(response)
+      onLabTestCreated?.()
+      doRefetch()
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to create lab test'
-      toast.error(errorMessage)
+      toast.error(err instanceof Error ? err.message : 'Failed to create lab test')
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const handleConfirmPayment = async (sr: ServiceRequest) => {
+    setActionLoading(sr.name)
+    try {
+      await confirmPayment(sr.name)
+      toast.success('Payment confirmed')
+      doRefetch()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to confirm payment')
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const handleBookLab = async (sr: ServiceRequest) => {
+    setActionLoading(sr.name)
+    try {
+      const result = await bookLabAndForward(sr.name)
+      toast.success(result?.lab_test ? `Lab Test ${result.lab_test} created and forwarded` : 'Forwarded to laboratory')
+      onLabTestCreated?.()
+      doRefetch()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to book lab')
+    } finally {
+      setActionLoading(null)
     }
   }
 
@@ -118,56 +154,87 @@ export const ServiceRequestList = ({ patient, onLabTestCreated, refreshKey, temp
             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
               Order Date
             </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-              Action
+            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase w-[220px]">
+              Actions
             </th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-200">
-          {serviceRequests.map((sr) => (
-            <tr key={sr.name} className="hover:bg-slate-50">
-              <td className="px-4 py-3 text-sm font-medium text-slate-900">
-                {sr.name}
-              </td>
-              <td className="px-4 py-3 text-sm text-slate-700">
-                {sr.patient_name || sr.patient || '-'}
-              </td>
-              <td className="px-4 py-3 text-sm text-slate-700">
-                {sr.template_name || sr.template_dn || '-'}
-              </td>
-              <td className="px-4 py-3 text-sm text-slate-700">
-                {sr.practitioner_name || sr.practitioner || '-'}
-              </td>
-              <td className="px-4 py-3">
-                {sr.status ? (
-                  <StatusPill
-                    status={sr.status}
-                    color={getStatusColor(sr.status)}
-                  />
-                ) : (
-                  <span className="text-sm text-slate-500">-</span>
-                )}
-              </td>
-              <td className="px-4 py-3 text-sm text-slate-700">
-                {sr.order_date
-                  ? new Date(sr.order_date).toLocaleDateString()
-                  : '-'}
-              </td>
-              <td className="px-4 py-3">
-                {sr.status && !sr.status.toLowerCase().includes('completed') ? (
-                  <button
-                    onClick={() => handleCreateLabTest(sr.name)}
-                    className="px-3 py-1.5 bg-primary text-white text-xs rounded-md hover:bg-primary/90 transition-colors whitespace-nowrap"
-                    title="Create Lab Test from Service Request"
-                  >
-                    Create Lab Test
-                  </button>
-                ) : (
-                  <span className="text-sm text-slate-400">-</span>
-                )}
-              </td>
-            </tr>
-          ))}
+          {serviceRequests.map((sr) => {
+            const isLab = sr.template_dt === 'Lab Test Template'
+            const accepted = !!sr.patient_accepted_cost
+            const booked = !!sr.booked
+            const loadingThis = actionLoading === sr.name
+            return (
+              <tr key={sr.name} className="hover:bg-slate-50">
+                <td className="px-4 py-3 text-sm font-medium text-slate-900">
+                  {sr.name}
+                </td>
+                <td className="px-4 py-3 text-sm text-slate-700">
+                  {sr.patient_name || sr.patient || '-'}
+                </td>
+                <td className="px-4 py-3 text-sm text-slate-700">
+                  {sr.template_name || sr.template_dn || '-'}
+                </td>
+                <td className="px-4 py-3 text-sm text-slate-700">
+                  {sr.practitioner_name || sr.practitioner || '-'}
+                </td>
+                <td className="px-4 py-3">
+                  {sr.status ? (
+                    <StatusPill
+                      status={sr.status}
+                      color={getStatusColor(sr.status)}
+                    />
+                  ) : (
+                    <span className="text-sm text-slate-500">-</span>
+                  )}
+                </td>
+                <td className="px-4 py-3 text-sm text-slate-700">
+                  {sr.order_date
+                    ? new Date(sr.order_date).toLocaleDateString()
+                    : '-'}
+                </td>
+                <td className="px-4 py-3">
+                  <div className="flex flex-wrap gap-1.5">
+                    {isLab && !accepted && (
+                      <button
+                        type="button"
+                        onClick={() => handleConfirmPayment(sr)}
+                        disabled={loadingThis}
+                        className="px-2.5 py-1 bg-amber-600 text-white text-xs rounded-md hover:bg-amber-700 disabled:opacity-50 whitespace-nowrap"
+                        title="Confirm payment (patient accepted cost)"
+                      >
+                        {loadingThis ? '…' : 'Confirm Payment'}
+                      </button>
+                    )}
+                    {isLab && accepted && !booked && (
+                      <button
+                        type="button"
+                        onClick={() => handleBookLab(sr)}
+                        disabled={loadingThis}
+                        className="px-2.5 py-1 bg-primary text-white text-xs rounded-md hover:bg-primary/90 disabled:opacity-50 whitespace-nowrap"
+                        title="Forward to lab and add approved amount to visit"
+                      >
+                        {loadingThis ? '…' : 'Book Lab'}
+                      </button>
+                    )}
+                    {!isLab && sr.status && !sr.status.toLowerCase().includes('completed') && (
+                      <button
+                        type="button"
+                        onClick={() => handleCreateLabTest(sr.name)}
+                        disabled={loadingThis}
+                        className="px-2.5 py-1 bg-primary text-white text-xs rounded-md hover:bg-primary/90 disabled:opacity-50 whitespace-nowrap"
+                        title="Create Lab Test from Service Request"
+                      >
+                        {loadingThis ? '…' : 'Create Lab Test'}
+                      </button>
+                    )}
+                    {isLab && booked && <span className="text-xs text-slate-500">Booked</span>}
+                  </div>
+                </td>
+              </tr>
+            )
+          })}
         </tbody>
       </table>
     </div>

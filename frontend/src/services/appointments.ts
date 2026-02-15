@@ -139,6 +139,14 @@ function appBase(): string {
   return `${base}/app`
 }
 
+/** Base URL for healthcare app (same origin, with router basename in production). */
+function healthcareAppBase(): string {
+  if (typeof window === 'undefined') return ''
+  const base = window.location.origin
+  const basename = (window as any).__HEALTHCARE_ROUTER_BASENAME__ as string | undefined
+  return `${base}${basename || ''}`
+}
+
 /** Open Patient Appointment form in new tab (for Reschedule). */
 export function getAppointmentFormUrl(appointmentName: string): string {
   return `${appBase()}/patient-appointment/${encodeURIComponent(appointmentName)}`
@@ -153,9 +161,9 @@ export function getVitalSignsNewUrl(patient: string, appointment: string, compan
   return `${appBase()}/vital-signs/new?${params.toString()}`
 }
 
-/** Open Patient Visit form in new tab. */
+/** Open Patient Visit form in same app (new tab). Uses /patient-visit/:name route. */
 export function getPatientVisitFormUrl(visitName: string): string {
-  return `${appBase()}/patient-visit/${encodeURIComponent(visitName)}`
+  return `${healthcareAppBase()}/patient-visit/${encodeURIComponent(visitName)}`
 }
 
 /** Availability slot from get_availability_data (one time slot). */

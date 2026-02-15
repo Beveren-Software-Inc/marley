@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
 import { usePatients } from '../../hooks/usePatients'
+import { EditPatientModal } from './EditPatientModal'
+import { Pencil } from 'lucide-react'
 
 interface PatientListProps {
   refreshKey?: string | number
@@ -7,6 +9,7 @@ interface PatientListProps {
 
 export const PatientList = ({ refreshKey }: PatientListProps = {}) => {
   const [searchQuery, setSearchQuery] = useState('')
+  const [editPatientName, setEditPatientName] = useState<string | null>(null)
   const { patients, loading, error, refetch } = usePatients(searchQuery || undefined)
 
   useEffect(() => {
@@ -77,12 +80,15 @@ export const PatientList = ({ refreshKey }: PatientListProps = {}) => {
               <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
                 Category
               </th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase w-[80px]">
+                Actions
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200">
             {patients.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
+                <td colSpan={7} className="px-4 py-8 text-center text-slate-500">
                   {searchQuery ? 'No patients match your search.' : 'No patients found.'}
                 </td>
               </tr>
@@ -107,12 +113,32 @@ export const PatientList = ({ refreshKey }: PatientListProps = {}) => {
                   <td className="px-4 py-3 text-sm text-slate-700">
                     {patient.category || '-'}
                   </td>
+                  <td className="px-4 py-3">
+                    <button
+                      type="button"
+                      onClick={() => setEditPatientName(patient.name)}
+                      className="p-2 text-slate-500 hover:text-primary hover:bg-slate-100 rounded-md"
+                      title="Edit patient"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                  </td>
                 </tr>
               ))
             )}
           </tbody>
         </table>
       </div>
+      {editPatientName && (
+        <EditPatientModal
+          patientName={editPatientName}
+          onClose={() => setEditPatientName(null)}
+          onSuccess={() => {
+            refetch()
+            setEditPatientName(null)
+          }}
+        />
+      )}
     </div>
   )
 }

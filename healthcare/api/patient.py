@@ -110,7 +110,7 @@ def create_patient(data):
 	if not data.get('category'):
 		frappe.throw(_("Patient type is required"))
 
-	# Build doc; address is set via primary address or separate API
+	# Build doc; address and contact created below and linked to Patient (Customer created if setting enabled)
 	patient = frappe.get_doc({
 		'doctype': 'Patient',
 		'first_name': data.get('first_name'),
@@ -131,26 +131,60 @@ def create_patient(data):
 	})
 	patient.insert()
 
-	# Set address if provided (BRD: Address required at registration)
-	address_line1 = data.get('address_line1')
-	city = data.get('city')
-	if (address_line1 or city) and frappe.db.exists("DocType", "Address"):
+	# 1) Create Address doctype and link to Patient; set as primary address
+	address_title = (patient.patient_name or patient.name or "").strip() or patient.name
+	address_line1 = (data.get("address_line1") or "").strip()
+	address_line2 = (data.get("address_line2") or "").strip()
+	city = (data.get("city") or "").strip()
+	state = (data.get("state") or "").strip()
+	country = (data.get("country") or "").strip()
+	pincode = (data.get("pincode") or "").strip()
+	if frappe.db.exists("DocType", "Address") and (address_line1 or city):
+		# Address doctype requires address_line1, city, country, address_type
+		if not country:
+			country = frappe.db.get_single_value("System Settings", "country") or ""
+		if address_line1 and city and country:
+			try:
+				addr = frappe.get_doc({
+					"doctype": "Address",
+					"address_title": address_title,
+					"address_type": "Billing",
+					"address_line1": address_line1,
+					"address_line2": address_line2,
+					"city": city,
+					"state": state,
+					"country": country,
+					"pincode": pincode,
+					"is_primary_address": 1,
+					"links": [{"link_doctype": "Patient", "link_name": patient.name}],
+				})
+				addr.insert(ignore_permissions=True)
+				frappe.db.set_value("Patient", patient.name, "patient_primary_address", addr.name)
+			except Exception:
+				frappe.log_error(frappe.get_traceback(), "Create Patient Address")
+				# Do not block patient creation; address can be added later
+				pass
+
+	# 2) Create Customer and link to Patient if Healthcare Settings "Link Customer to Patient" is enabled
+	patient.reload()
+	if frappe.db.get_single_value("Healthcare Settings", "link_customer_to_patient") and not patient.customer:
 		try:
-			addr = frappe.get_doc({
-				"doctype": "Address",
-				"address_line1": address_line1 or "",
-				"city": city or "",
-				"state": data.get("state") or "",
-				"country": data.get("country") or "",
-				"pincode": data.get("pincode") or "",
-				"address_type": "Billing",
-				"links": [{"link_doctype": "Patient", "link_name": patient.name}],
-			})
-			addr.insert(ignore_permissions=True)
-			frappe.db.set_value("Patient", patient.name, "patient_primary_address", addr.name)
+			from healthcare.healthcare.doctype.patient.patient import create_customer
+			create_customer(patient)
+			patient.reload()
 		except Exception:
 			pass
-	
+
+	# 3) Create Contact doctype and link to Patient (and to Customer if linked); set as primary contact
+	try:
+		patient.set_contact()
+		from frappe.contacts.doctype.contact.contact import get_default_contact
+		primary_contact = get_default_contact("Patient", patient.name)
+		if primary_contact:
+			frappe.db.set_value("Patient", patient.name, "patient_primary_contact", primary_contact)
+	except Exception:
+		pass
+
 	# Return the created patient
 	return {
 		'name': patient.name,

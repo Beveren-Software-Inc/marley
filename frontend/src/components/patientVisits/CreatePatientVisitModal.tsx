@@ -11,10 +11,14 @@ import { CreatePractitionerModal } from '../practitioners/CreatePractitionerModa
 interface CreatePatientVisitModalProps {
   onClose: () => void
   onSuccess: (visitName: string) => void
+  /** Pre-fill patient (e.g. from IOP enrollment). */
+  initialPatient?: string
+  /** Link new visit to this IOP Enrollment. */
+  initialIOPEnrollment?: string
 }
 
-export const CreatePatientVisitModal = ({ onClose, onSuccess }: CreatePatientVisitModalProps) => {
-  const [patientQuery, setPatientQuery] = useState('')
+export const CreatePatientVisitModal = ({ onClose, onSuccess, initialPatient, initialIOPEnrollment }: CreatePatientVisitModalProps) => {
+  const [patientQuery, setPatientQuery] = useState(initialPatient || '')
   const [selectedPatient, setSelectedPatient] = useState<PatientListItem | null>(null)
   const [patients, setPatients] = useState<PatientListItem[]>([])
   const [patientOpen, setPatientOpen] = useState(false)
@@ -33,10 +37,17 @@ export const CreatePatientVisitModal = ({ onClose, onSuccess }: CreatePatientVis
     practitioner: '',
     encounter_date: new Date().toISOString().split('T')[0],
     encounter_time: new Date().toTimeString().slice(0, 5),
-    visit_type: '',
+    visit_type: initialIOPEnrollment ? 'IOP' : '',
     appointment: ''
   })
   const [visitTypeOptions, setVisitTypeOptions] = useState<PatientVisitTypeOption[]>([])
+
+  // When opening from IOP enrollment, default visit type to IOP
+  useEffect(() => {
+    if (initialIOPEnrollment) {
+      setFormData((prev) => (prev.visit_type === '' ? { ...prev, visit_type: 'IOP' } : prev))
+    }
+  }, [initialIOPEnrollment])
 
   // Load initial options (practitioners + visit types)
   useEffect(() => {
@@ -54,6 +65,20 @@ export const CreatePatientVisitModal = ({ onClose, onSuccess }: CreatePatientVis
     }
     loadOptions()
   }, [])
+
+  // Pre-fill patient when initialPatient (e.g. from IOP enrollment) is provided
+  useEffect(() => {
+    if (!initialPatient) return
+    fetchPatients(1, 0, initialPatient).then((list) => {
+      if (list.length > 0) {
+        const p = list[0]
+        setSelectedPatient(p)
+        setPatientQuery((p as { patient_name?: string }).patient_name || p.name)
+      } else {
+        setPatientQuery(initialPatient)
+      }
+    }).catch(() => setPatientQuery(initialPatient))
+  }, [initialPatient])
 
   // Search/fetch patients
   useEffect(() => {
@@ -131,6 +156,7 @@ export const CreatePatientVisitModal = ({ onClose, onSuccess }: CreatePatientVis
           encounter_time: formData.encounter_time,
           visit_type: formData.visit_type,
           appointment: formData.appointment || undefined,
+          iop_enrollment: initialIOPEnrollment || undefined,
           status: 'Open'
         })
       })

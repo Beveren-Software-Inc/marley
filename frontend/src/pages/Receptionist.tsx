@@ -13,7 +13,10 @@ import { CreatePatientVisitModal } from '../components/patientVisits/CreatePatie
 import { CreateAdmissionModal } from '../components/admissions/CreateAdmissionModal'
 import { CreatePatientModal } from '../components/patients/CreatePatientModal'
 import { ServiceRequestList } from '../components/serviceRequests/ServiceRequestList'
+import { CreateServiceRequestModal } from '../components/serviceRequests/CreateServiceRequestModal'
 import { FollowUpList } from '../components/followUp/FollowUpList'
+import { IOPDayListWithHeader } from '../components/iop/IOPDayList'
+import { IOPEnrollmentListWithHeader } from '../components/iop/IOPEnrollmentList'
 
 type View = 'default' | 'patient' | 'admission' | 'visit' | 'followup' | 'iop' | 'appointments-freeze' | 'service-requests' | 'receipt-voucher' | 'op-dashboard' | 'ip-dashboard'
 
@@ -26,6 +29,8 @@ export const ReceptionistPage = () => {
   const [appointmentRefreshKey, setAppointmentRefreshKey] = useState(0)
   const [showPatientVisitModal, setShowPatientVisitModal] = useState(false)
   const [patientVisitRefreshKey, setPatientVisitRefreshKey] = useState(0)
+  const [showCreateServiceRequest, setShowCreateServiceRequest] = useState(false)
+  const [serviceRequestRefreshKey, setServiceRequestRefreshKey] = useState(0)
   const [showAdmissionModal, setShowAdmissionModal] = useState(false)
   const [admissionRefreshKey, setAdmissionRefreshKey] = useState(0)
   const [showPatientModal, setShowPatientModal] = useState(false)
@@ -35,32 +40,24 @@ export const ReceptionistPage = () => {
     setSelectedPatient(patient || '')
   }
 
-  // Handle screen navigation from sidebar
+  // Sync view with URL: when screen param is missing or unknown, show reception homepage
   useEffect(() => {
     if (screen === 'r-reg') {
-      // Admission - show admission list
       setCurrentView('admission')
     } else if (screen === 'r-visit') {
-      // Patient Visit - show patient visit list
       setCurrentView('visit')
     } else if (screen === 'r-appointment') {
-      // Book Appointment - open appointment modal
       setShowAppointmentModal(true)
-      // Clear screen param after opening modal
       const newParams = new URLSearchParams(searchParams)
       newParams.delete('screen')
       setSearchParams(newParams, { replace: true })
     } else if (screen === 'r-ip-adm') {
-      // New IP Admission - open admission modal
       setShowAdmissionModal(true)
-      // Clear screen param after opening modal
       const newParams = new URLSearchParams(searchParams)
       newParams.delete('screen')
       setSearchParams(newParams, { replace: true })
     } else if (screen === 'r-new-op') {
-      // New OP Registration - open patient modal
       setShowPatientModal(true)
-      // Clear screen param after opening modal
       const newParams = new URLSearchParams(searchParams)
       newParams.delete('screen')
       setSearchParams(newParams, { replace: true })
@@ -83,6 +80,9 @@ export const ReceptionistPage = () => {
       setCurrentView('op-dashboard')
     } else if (screen === 'r-ip-dashboard') {
       setCurrentView('ip-dashboard')
+    } else {
+      // No screen param or unknown: show reception homepage (e.g. after "Back to Reception" or sidebar Home)
+      setCurrentView('default')
     }
   }, [screen, searchParams, setSearchParams])
 
@@ -211,19 +211,12 @@ export const ReceptionistPage = () => {
             <div className="mb-4">
               <h2 className="text-xl font-semibold text-slate-900">IOP Dashboard</h2>
               <p className="text-sm text-slate-600 mt-1">
-                Intensive Outpatient: schedule sessions per day and manage IOP enrollments.
+                Intensive Outpatient: schedule IOP days (slots) and enroll patients. Create a Patient Visit from an enrollment to link the visit.
               </p>
             </div>
-            <div className="bg-white border border-slate-200 rounded-lg p-6 shadow-sm">
-              <p className="text-slate-600 mb-4">Open the IOP Dashboard in the backend to manage IOP Days and Enrollments.</p>
-              <a
-                href="/app/IOP%20Dashboard"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center px-4 py-2 bg-primary text-white rounded-md text-sm font-medium hover:bg-primary/90"
-              >
-                Open IOP Dashboard
-              </a>
+            <div className="grid gap-6 md:grid-cols-2">
+              <IOPDayListWithHeader refreshKey={patientVisitRefreshKey} />
+              <IOPEnrollmentListWithHeader refreshKey={patientVisitRefreshKey} />
             </div>
           </div>
         )}
@@ -258,19 +251,39 @@ export const ReceptionistPage = () => {
 
         {currentView === 'service-requests' && (
           <div className="p-4">
-            <div className="mb-4">
-              <h2 className="text-xl font-semibold text-slate-900">Service Requests / Booked Lab</h2>
-              <p className="text-sm text-slate-600 mt-1">
-                Lab and procedure requests. After patient accepts cost, use &quot;Booked Lab&quot; to forward to laboratory and reflect approved price on visit.
-              </p>
+            <div className="mb-4 flex items-center justify-between gap-4 flex-wrap">
+              <div>
+                <h2 className="text-xl font-semibold text-slate-900">Service Requests / Booked Lab</h2>
+                <p className="text-sm text-slate-600 mt-1">
+                  Lab and procedure requests. Create with +, then Confirm Payment and Book Lab to forward to laboratory.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCreateServiceRequest(true)}
+                className="w-10 h-10 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 text-lg font-bold shrink-0"
+                title="Create Service Request"
+              >
+                +
+              </button>
             </div>
             <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[500px]">
               <ServiceRequestList
                 patient={selectedPatient || undefined}
-                refreshKey={patientVisitRefreshKey}
+                refreshKey={serviceRequestRefreshKey}
                 template_dt="Lab Test Template"
               />
             </div>
+            {showCreateServiceRequest && (
+              <CreateServiceRequestModal
+                onClose={() => setShowCreateServiceRequest(false)}
+                onSuccess={() => {
+                  setServiceRequestRefreshKey((k) => k + 1)
+                  setShowCreateServiceRequest(false)
+                }}
+                initialPatient={selectedPatient || undefined}
+              />
+            )}
           </div>
         )}
 
