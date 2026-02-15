@@ -18,6 +18,7 @@
   "phone",
   "column_break_8",
   "company",
+  "cost_center",
   "status",
   "scheduled_date",
   "admitted_datetime",
@@ -728,6 +729,14 @@
    "in_standard_filter": 1,
    "label": "Company",
    "options": "Company"
+  },
+  {
+   "description": "Current cost center (hospital). Updated when patient is transferred to another cost center.",
+   "fieldname": "cost_center",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Cost Center",
+   "options": "Cost Center"
   },
   {
    "collapsible": 1,

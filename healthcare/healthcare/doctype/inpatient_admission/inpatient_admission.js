@@ -30,9 +30,12 @@ frappe.ui.form.on('Inpatient Admission', {
 		});
 		if (!frm.doc.__islocal) {
 			if (frm.doc.status == 'Admitted') {
+				frm.add_custom_button(__('Transfer to Another Cost Center'), function() {
+					transfer_to_cost_center_dialog(frm);
+				}, __('Actions'));
 				frm.add_custom_button(__('Schedule Discharge'), function() {
 					schedule_discharge(frm);
-				});
+				}, __('Actions'));
 			} else if (frm.doc.status == 'Admission Scheduled') {
 				frm.add_custom_button(__('Cancel Admission'), function() {
 					cancel_ip_order(frm);
@@ -271,6 +274,85 @@ let transfer_patient_dialog = function(frm) {
 	dialog.set_values({
 		'leave_from': not_left_service_unit
 	});
+};
+
+let transfer_to_cost_center_dialog = function(frm) {
+	let dialog = new frappe.ui.Dialog({
+		title: __('Transfer to Another Cost Center'),
+		width: 450,
+		fields: [
+			{
+				fieldtype: 'Link',
+				label: __('To Cost Center'),
+				fieldname: 'to_cost_center',
+				options: 'Cost Center',
+				reqd: 1,
+			},
+			{
+				fieldtype: 'Link',
+				label: __('To Service Unit (optional)'),
+				fieldname: 'to_service_unit',
+				options: 'Healthcare Service Unit',
+			},
+			{
+				fieldtype: 'Small Text',
+				label: __('Reason'),
+				fieldname: 'reason',
+			},
+		],
+		primary_action_label: __('Transfer'),
+		primary_action: function() {
+			let to_cost_center = dialog.get_value('to_cost_center');
+			if (!to_cost_center) {
+				frappe.msgprint({ title: __('Required'), message: __('To Cost Center is required'), indicator: 'red' });
+				return;
+			}
+			frappe.call({
+				method: 'healthcare.healthcare.doctype.inpatient_admission.inpatient_admission.transfer_to_another_cost_center',
+				args: {
+					inpatient_admission: frm.doc.name,
+					to_cost_center: to_cost_center,
+					to_service_unit: dialog.get_value('to_service_unit') || undefined,
+					reason: dialog.get_value('reason') || undefined,
+				},
+				freeze: true,
+				freeze_message: __('Transferring to cost center…'),
+				callback: function(r) {
+					if (!r.exc && r.message) {
+						dialog.hide();
+						frm.reload_doc();
+						frappe.show_alert({
+							message: __('Transferred to {0}', [r.message.cost_center]),
+							indicator: 'green',
+						});
+					}
+				},
+			});
+		},
+	});
+
+	dialog.fields_dict.to_cost_center.get_query = function() {
+		return {
+			filters: [
+				['company', '=', frm.doc.company],
+				['name', '!=', frm.doc.cost_center || ''],
+			],
+		};
+	};
+	dialog.fields_dict.to_service_unit.get_query = function() {
+		let to_cc = dialog.get_value('to_cost_center');
+		if (!to_cc) return { filters: { name: '__no_such_unit__' } };
+		return {
+			filters: {
+				cost_center: to_cc,
+				is_group: 0,
+				inpatient_occupancy: 1,
+				occupancy_status: 'Vacant',
+			},
+		};
+	};
+
+	dialog.show();
 };
 
 var schedule_discharge = function(frm) {
