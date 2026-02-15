@@ -9,6 +9,7 @@ export interface Appointment {
   department?: string
   practitioner?: string
   practitioner_name?: string
+  company?: string
 }
 
 export interface CreateAppointmentData {
@@ -83,5 +84,184 @@ export async function createAppointment(data: CreateAppointmentData): Promise<Ap
   } else {
     throw new Error(resData?.exc_type ? resData.exc : 'Failed to create appointment')
   }
+}
+
+/** Update appointment status (e.g. Cancelled, Confirmed). Uses healthcare doctype method. */
+export async function updateAppointmentStatus(
+  appointmentId: string,
+  status: string
+): Promise<void> {
+  const response = await fetch(
+    '/api/method/healthcare.healthcare.doctype.patient_appointment.patient_appointment.update_status',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        appointment_id: appointmentId,
+        status
+      })
+    }
+  )
+  const resData = await response.json()
+  if (resData?.exc) {
+    throw new Error(resData.exc_type ? `${resData.exc_type}: ${resData.exc}` : resData.exc)
+  }
+}
+
+/** Create Patient Visit from appointment; returns new Patient Visit name. */
+export async function createEncounterFromAppointment(appointmentId: string): Promise<string> {
+  const response = await fetch(
+    '/api/method/healthcare.healthcare.doctype.patient_appointment.patient_appointment.create_encounter_from_appointment',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ appointment_id: appointmentId })
+    }
+  )
+  const resData = await response.json()
+  if (resData?.exc) {
+    throw new Error(resData.exc_type ? `${resData.exc_type}: ${resData.exc}` : resData.exc)
+  }
+  if (typeof resData?.message === 'string') {
+    return resData.message
+  }
+  throw new Error('Invalid response from create_encounter_from_appointment')
+}
+
+/** Base URL for Frappe app (same origin). */
+function appBase(): string {
+  if (typeof window === 'undefined') return '/app'
+  const base = window.location.origin
+  return `${base}/app`
+}
+
+/** Open Patient Appointment form in new tab (for Reschedule). */
+export function getAppointmentFormUrl(appointmentName: string): string {
+  return `${appBase()}/patient-appointment/${encodeURIComponent(appointmentName)}`
+}
+
+/** Open new Vital Signs form with patient and appointment pre-filled. */
+export function getVitalSignsNewUrl(patient: string, appointment: string, company?: string): string {
+  const params = new URLSearchParams()
+  params.set('patient', patient)
+  params.set('appointment', appointment)
+  if (company) params.set('company', company)
+  return `${appBase()}/vital-signs/new?${params.toString()}`
+}
+
+/** Open Patient Visit form in new tab. */
+export function getPatientVisitFormUrl(visitName: string): string {
+  return `${appBase()}/patient-visit/${encodeURIComponent(visitName)}`
+}
+
+/** Availability slot from get_availability_data (one time slot). */
+export interface AvailabilitySlotInfo {
+  from_time: string
+  to_time: string
+  duration?: number
+  maximum_appointments?: number
+}
+
+/** Booked appointment in a slot detail. */
+export interface SlotAppointment {
+  name: string
+  appointment_time: string
+  duration: number
+  appointment_date?: string
+}
+
+/** One schedule block from get_availability_data. */
+export interface SlotDetail {
+  slot_name: string
+  service_unit: string | null
+  avail_slot: AvailabilitySlotInfo[]
+  appointments: SlotAppointment[]
+  allow_overlap?: number
+  service_unit_capacity?: number
+  tele_conf?: number
+}
+
+export interface GetAvailabilityDataResponse {
+  slot_details: SlotDetail[]
+  fee_validity: unknown
+}
+
+/** Extract a short user-facing message from Frappe exception (avoid full traceback). */
+function messageFromExc(exc: string, excType?: string): string {
+  if (!exc || typeof exc !== 'string') return excType ? String(excType) : 'Request failed'
+  const trimmed = exc.trim()
+  const lastLine = trimmed.split('\n').filter(Boolean).pop() || trimmed
+  const match = lastLine.match(/^(?:[\w.]+\.)?ValidationError:\s*(.+)$/) || lastLine.match(/^(.+)$/)
+  return (match ? match[1].trim() : lastLine) || (excType ? String(excType) : 'Request failed')
+}
+
+/** Fetch available slots for a practitioner on a date (for reschedule/book). */
+export async function getAvailabilityData(
+  date: string,
+  practitioner: string,
+  appointmentName: string
+): Promise<GetAvailabilityDataResponse> {
+  const response = await fetch(
+    '/api/method/healthcare.healthcare.doctype.patient_appointment.patient_appointment.get_availability_data',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        date,
+        practitioner,
+        appointment: JSON.stringify({ doctype: 'Patient Appointment', name: appointmentName })
+      })
+    }
+  )
+  const resData = await response.json()
+  if (resData?.exc) {
+    throw new Error(messageFromExc(resData.exc, resData.exc_type))
+  }
+  if (resData?.message && Array.isArray((resData.message as GetAvailabilityDataResponse)?.slot_details)) {
+    return resData.message as GetAvailabilityDataResponse
+  }
+  throw new Error('Invalid response from get_availability_data')
+}
+
+/** Reschedule an appointment to a new date and time (and optional slot duration/service_unit). */
+export async function rescheduleAppointment(
+  appointmentId: string,
+  appointmentDate: string,
+  appointmentTime?: string,
+  duration?: number,
+  serviceUnit?: string
+): Promise<{ name: string; appointment_date: string; appointment_time: string }> {
+  const body: Record<string, unknown> = {
+    appointment_id: appointmentId,
+    appointment_date: appointmentDate,
+    appointment_time: appointmentTime || undefined
+  }
+  if (duration != null) body.duration = duration
+  if (serviceUnit != null) body.service_unit = serviceUnit
+
+  const response = await fetch(
+    '/api/method/healthcare.healthcare.doctype.patient_appointment.patient_appointment.reschedule_appointment',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(body)
+    }
+  )
+  const resData = await response.json()
+  if (resData?.exc) {
+    throw new Error(resData.exc_type ? `${resData.exc_type}: ${resData.exc}` : resData.exc)
+  }
+  if (resData?.message && typeof resData.message === 'object' && (resData.message as { name?: string }).name) {
+    return resData.message as { name: string; appointment_date: string; appointment_time: string }
+  }
+  throw new Error('Invalid response from reschedule_appointment')
 }
 

@@ -12,8 +12,10 @@ import { PatientVisitList } from '../components/patientVisits/PatientVisitList'
 import { CreatePatientVisitModal } from '../components/patientVisits/CreatePatientVisitModal'
 import { CreateAdmissionModal } from '../components/admissions/CreateAdmissionModal'
 import { CreatePatientModal } from '../components/patients/CreatePatientModal'
+import { ServiceRequestList } from '../components/serviceRequests/ServiceRequestList'
+import { FollowUpList } from '../components/followUp/FollowUpList'
 
-type View = 'default' | 'patient' | 'admission' | 'visit'
+type View = 'default' | 'patient' | 'admission' | 'visit' | 'followup' | 'iop' | 'appointments-freeze' | 'service-requests' | 'receipt-voucher' | 'op-dashboard' | 'ip-dashboard'
 
 export const ReceptionistPage = () => {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -63,12 +65,24 @@ export const ReceptionistPage = () => {
       newParams.delete('screen')
       setSearchParams(newParams, { replace: true })
     } else if (screen === 'r-new-visit') {
-      // New Patient Visit - open patient visit modal
       setShowPatientVisitModal(true)
-      // Clear screen param after opening modal
       const newParams = new URLSearchParams(searchParams)
       newParams.delete('screen')
       setSearchParams(newParams, { replace: true })
+    } else if (screen === 'r-followup') {
+      setCurrentView('followup')
+    } else if (screen === 'r-iop') {
+      setCurrentView('iop')
+    } else if (screen === 'r-appointments-freeze') {
+      setCurrentView('appointments-freeze')
+    } else if (screen === 'r-service-requests') {
+      setCurrentView('service-requests')
+    } else if (screen === 'r-receipt-voucher') {
+      setCurrentView('receipt-voucher')
+    } else if (screen === 'r-op-dashboard') {
+      setCurrentView('op-dashboard')
+    } else if (screen === 'r-ip-dashboard') {
+      setCurrentView('ip-dashboard')
     }
   }, [screen, searchParams, setSearchParams])
 
@@ -177,6 +191,146 @@ export const ReceptionistPage = () => {
               patient={selectedPatient || undefined}
               refreshKey={patientVisitRefreshKey}
             />
+          </div>
+        )}
+
+        {currentView === 'followup' && (
+          <div className="p-4">
+            <div className="mb-4">
+              <h2 className="text-xl font-semibold text-slate-900">Follow-up Dashboard</h2>
+              <p className="text-sm text-slate-600 mt-1">
+                OP &amp; IP discharged follow-up list. Filter by status (default: Open) and cost center. Send reminder per row or send all reminders.
+              </p>
+            </div>
+            <FollowUpList refreshKey={patientVisitRefreshKey} />
+          </div>
+        )}
+
+        {currentView === 'iop' && (
+          <div className="p-4">
+            <div className="mb-4">
+              <h2 className="text-xl font-semibold text-slate-900">IOP Dashboard</h2>
+              <p className="text-sm text-slate-600 mt-1">
+                Intensive Outpatient: schedule sessions per day and manage IOP enrollments.
+              </p>
+            </div>
+            <div className="bg-white border border-slate-200 rounded-lg p-6 shadow-sm">
+              <p className="text-slate-600 mb-4">Open the IOP Dashboard in the backend to manage IOP Days and Enrollments.</p>
+              <a
+                href="/app/IOP%20Dashboard"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center px-4 py-2 bg-primary text-white rounded-md text-sm font-medium hover:bg-primary/90"
+              >
+                Open IOP Dashboard
+              </a>
+            </div>
+          </div>
+        )}
+
+        {currentView === 'appointments-freeze' && (
+          <div className="p-4">
+            <div className="mb-4">
+              <h2 className="text-xl font-semibold text-slate-900">Appointments Freeze / Release</h2>
+              <p className="text-sm text-slate-600 mt-1">
+                When doctors are not available or on leave, freeze or cancel slots. Release when they return.
+              </p>
+            </div>
+            <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[500px]">
+              <AppointmentList showAll={true} patient={selectedPatient || undefined} refreshKey={appointmentRefreshKey} />
+            </div>
+            <div className="mt-4 bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-800">
+              To freeze or release practitioner schedules, use the backend: Healthcare → Practitioner Schedule, or open Appointments in the backend.
+              <a href="/app/Patient%20Appointment" target="_blank" rel="noopener noreferrer" className="ml-2 underline font-medium">Open Appointments</a>
+            </div>
+          </div>
+        )}
+
+        {currentView === 'service-requests' && (
+          <div className="p-4">
+            <div className="mb-4">
+              <h2 className="text-xl font-semibold text-slate-900">Service Requests / Booked Lab</h2>
+              <p className="text-sm text-slate-600 mt-1">
+                Lab and procedure requests. After patient accepts cost, use &quot;Booked Lab&quot; to forward to laboratory and reflect approved price on visit.
+              </p>
+            </div>
+            <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[500px]">
+              <ServiceRequestList
+                patient={selectedPatient || undefined}
+                refreshKey={patientVisitRefreshKey}
+                template_dt="Lab Test Template"
+              />
+            </div>
+          </div>
+        )}
+
+        {currentView === 'receipt-voucher' && (
+          <div className="p-4">
+            <div className="mb-4">
+              <h2 className="text-xl font-semibold text-slate-900">Receipt Voucher</h2>
+              <p className="text-sm text-slate-600 mt-1">
+                For employee (pharmacy) and OP other branches.
+              </p>
+            </div>
+            <div className="bg-white border border-slate-200 rounded-lg p-6 shadow-sm">
+              <p className="text-slate-600 mb-4">Receipt vouchers are managed in the backend (Accounts / Journal Entry).</p>
+              <a
+                href="/app/Journal%20Entry"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center px-4 py-2 bg-primary text-white rounded-md text-sm font-medium hover:bg-primary/90"
+              >
+                Open Journal Entry
+              </a>
+            </div>
+          </div>
+        )}
+
+        {(currentView === 'op-dashboard' || currentView === 'ip-dashboard') && (
+          <div className="p-4">
+            <div className="mb-4">
+              <h2 className="text-xl font-semibold text-slate-900">
+                {currentView === 'op-dashboard' ? 'OP Dashboard' : 'IP Dashboard'}
+              </h2>
+              <p className="text-sm text-slate-600 mt-1">
+                {currentView === 'op-dashboard'
+                  ? 'Outpatient: patients, appointments, visits. Change user for entry and receipt voucher as needed.'
+                  : 'Inpatient: admissions, transfers, discharge. Cost center per hospital.'}
+              </p>
+            </div>
+            {currentView === 'op-dashboard' && (
+              <div className="grid gap-4 md:grid-cols-2">
+                <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
+                  <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
+                    <span>Patient List</span>
+                    <button onClick={() => setShowPatientModal(true)} className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 text-sm font-bold" title="Add Patient">+</button>
+                  </div>
+                  <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
+                    <PatientList refreshKey={patientRefreshKey} />
+                  </div>
+                </section>
+                <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
+                  <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
+                    <span>Appointments</span>
+                    <button onClick={() => setShowAppointmentModal(true)} className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 text-sm font-bold" title="Add Appointment">+</button>
+                  </div>
+                  <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
+                    <AppointmentList showAll={true} patient={selectedPatient || undefined} refreshKey={appointmentRefreshKey} />
+                  </div>
+                </section>
+              </div>
+            )}
+            {currentView === 'ip-dashboard' && (
+              <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[500px]">
+                <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
+                  <span>IP Admission List</span>
+                  <button onClick={() => setShowAdmissionModal(true)} className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 text-sm font-bold" title="Add Admission">+</button>
+                </div>
+                <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
+                  <AdmissionList patient={selectedPatient || undefined} refreshKey={admissionRefreshKey} onAdmissionSelect={() => {}} />
+                </div>
+              </div>
+            )}
           </div>
         )}
 

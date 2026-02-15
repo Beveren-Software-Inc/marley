@@ -102,7 +102,15 @@ def create_patient(data):
 	if not data.get('sex'):
 		frappe.throw(_("Gender is required"))
 	
-	# Create the patient
+	# Validate BRD: Contact No., Address, Patient Referral/Source, Patient type required
+	if not data.get('mobile') and not data.get('phone'):
+		frappe.throw(_("At least one Contact No. (Mobile or Phone) is required"))
+	if not data.get('source'):
+		frappe.throw(_("Patient Referral or Source is required"))
+	if not data.get('category'):
+		frappe.throw(_("Patient type is required"))
+
+	# Build doc; address is set via primary address or separate API
 	patient = frappe.get_doc({
 		'doctype': 'Patient',
 		'first_name': data.get('first_name'),
@@ -118,10 +126,30 @@ def create_patient(data):
 		'nationality': data.get('nationality') or None,
 		'category': data.get('category') or None,
 		'source': data.get('source') or None,
-		'marital_status': data.get('marital_status') or None
+		'marital_status': data.get('marital_status') or None,
+		'is_black_list': 1 if data.get('is_black_list') else 0,
 	})
-	
 	patient.insert()
+
+	# Set address if provided (BRD: Address required at registration)
+	address_line1 = data.get('address_line1')
+	city = data.get('city')
+	if (address_line1 or city) and frappe.db.exists("DocType", "Address"):
+		try:
+			addr = frappe.get_doc({
+				"doctype": "Address",
+				"address_line1": address_line1 or "",
+				"city": city or "",
+				"state": data.get("state") or "",
+				"country": data.get("country") or "",
+				"pincode": data.get("pincode") or "",
+				"address_type": "Billing",
+				"links": [{"link_doctype": "Patient", "link_name": patient.name}],
+			})
+			addr.insert(ignore_permissions=True)
+			frappe.db.set_value("Patient", patient.name, "patient_primary_address", addr.name)
+		except Exception:
+			pass
 	
 	# Return the created patient
 	return {

@@ -92,6 +92,14 @@ export interface CreatePatientData {
   category?: string
   source?: string
   marital_status?: string
+  is_black_list?: boolean
+  remarks?: string
+  address_line1?: string
+  address_line2?: string
+  city?: string
+  state?: string
+  country?: string
+  pincode?: string
 }
 
 export async function createPatient(data: CreatePatientData): Promise<{ name: string; patient_name: string; file_no: string }> {

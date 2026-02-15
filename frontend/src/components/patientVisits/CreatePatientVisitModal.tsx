@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
+import { fetchPatientVisitTypes, type PatientVisitTypeOption } from '../../services/patientVisits'
 import { 
   fetchHealthcarePractitioners, 
   type LinkFieldOption 
@@ -32,16 +33,21 @@ export const CreatePatientVisitModal = ({ onClose, onSuccess }: CreatePatientVis
     practitioner: '',
     encounter_date: new Date().toISOString().split('T')[0],
     encounter_time: new Date().toTimeString().slice(0, 5),
-    visit_type: 'New Visit',
+    visit_type: '',
     appointment: ''
   })
+  const [visitTypeOptions, setVisitTypeOptions] = useState<PatientVisitTypeOption[]>([])
 
-  // Load initial options
+  // Load initial options (practitioners + visit types)
   useEffect(() => {
     const loadOptions = async () => {
       try {
-        const practs = await fetchHealthcarePractitioners()
+        const [practs, visitTypes] = await Promise.all([
+          fetchHealthcarePractitioners(),
+          fetchPatientVisitTypes()
+        ])
         setPractitioners(practs)
+        setVisitTypeOptions(visitTypes)
       } catch (err) {
         console.error('Failed to load options:', err)
       }
@@ -286,7 +292,7 @@ export const CreatePatientVisitModal = ({ onClose, onSuccess }: CreatePatientVis
               </div>
             </div>
 
-            {/* Visit Type */}
+            {/* Visit Type (ECG, ECT, IOP, follow-up, lab visit, etc.) */}
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
                 Visit Type
@@ -296,9 +302,12 @@ export const CreatePatientVisitModal = ({ onClose, onSuccess }: CreatePatientVis
                 onChange={(e) => setFormData({ ...formData, visit_type: e.target.value })}
                 className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               >
-                <option value="New Visit">New Visit</option>
-                <option value="Follow Up">Follow Up</option>
-                <option value="Discontinue">Discontinue</option>
+                <option value="">Select visit type</option>
+                {visitTypeOptions.map((vt) => (
+                  <option key={vt.name} value={vt.name}>
+                    {vt.visit_type || vt.name}
+                  </option>
+                ))}
               </select>
             </div>
 

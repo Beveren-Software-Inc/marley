@@ -62,7 +62,8 @@ def get_all_appointments(limit=50, offset=0, status=None, patient=None):
 			'appointment_type',
 			'department',
 			'practitioner',
-			'practitioner_name'
+			'practitioner_name',
+			'company',
 		],
 		limit=limit,
 		limit_start=offset,

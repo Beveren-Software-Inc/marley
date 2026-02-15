@@ -2,7 +2,84 @@
 # For license information, please see license.txt
 
 import frappe
+from frappe import _
 from frappe.model.document import Document
+
+
+@frappe.whitelist()
+def get_follow_ups(status=None, cost_center=None, limit=100, offset=0):
+	"""List Patient Follow Up for UI with filters. Excludes no_follow_up_required by default."""
+	filters = [["no_follow_up_required", "=", 0]]
+	if status:
+		filters.append(["status", "=", status])
+	if cost_center:
+		filters.append(["cost_center", "=", cost_center])
+	fields = [
+		"name", "patient", "patient_name", "follow_up_type", "follow_up_date",
+		"status", "cost_center", "remarks", "company",
+	]
+	out = frappe.get_all(
+		"Patient Follow Up",
+		filters=filters,
+		fields=fields,
+		order_by="follow_up_date asc",
+		limit=int(limit) if limit else 100,
+		start=int(offset) if offset else 0,
+	)
+	return out
+
+
+@frappe.whitelist()
+def send_follow_up_reminder(patient_follow_up_name):
+	"""Send one reminder (SMS) for the given Patient Follow Up."""
+	if not patient_follow_up_name:
+		return {"sent": False, "message": "No follow-up specified"}
+	doc = frappe.db.get_value(
+		"Patient Follow Up",
+		patient_follow_up_name,
+		["patient", "patient_name", "follow_up_date"],
+		as_dict=True,
+	)
+	if not doc:
+		return {"sent": False, "message": "Follow-up not found"}
+	mobile = frappe.db.get_value("Patient", doc.patient, "mobile")
+	if not mobile:
+		return {"sent": False, "message": "Patient has no mobile number"}
+	message = _("Follow-up reminder: Dear {0}, your follow-up date is {1}. Please contact the hospital.").format(
+		doc.patient_name or doc.patient,
+		doc.follow_up_date,
+	)
+	try:
+		from frappe.core.doctype.sms_settings.sms_settings import send_sms
+		send_sms([mobile], message)
+		return {"sent": True}
+	except Exception as e:
+		frappe.log_error(title="Follow-up reminder failed", message=frappe.get_traceback())
+		return {"sent": False, "message": str(e)}
+
+
+@frappe.whitelist()
+def send_follow_up_reminders_bulk(status=None, cost_center=None):
+	"""Send reminders for all follow-ups matching filters (default status Open)."""
+	filters = [["no_follow_up_required", "=", 0]]
+	if status:
+		filters.append(["status", "=", status])
+	else:
+		filters.append(["status", "=", "Open"])
+	if cost_center:
+		filters.append(["cost_center", "=", cost_center])
+	names = frappe.get_all(
+		"Patient Follow Up",
+		filters=filters,
+		pluck="name",
+		limit=200,
+	)
+	sent = 0
+	for name in names:
+		res = send_follow_up_reminder(name)
+		if res.get("sent"):
+			sent += 1
+	return {"sent": sent, "total": len(names)}
 
 
 class PatientFollowUp(Document):

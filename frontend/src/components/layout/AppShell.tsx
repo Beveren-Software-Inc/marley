@@ -61,7 +61,14 @@ const receptionScreens = [
   { id: 'r-ip-adm', title: 'New IP Admission' },
   { id: 'r-reg', title: 'Admission' },
   { id: 'r-visit', title: 'Patient Visit' },
-  { id: 'r-new-visit', title: 'New Patient Visit' }
+  { id: 'r-new-visit', title: 'New Patient Visit' },
+  { id: 'r-followup', title: 'Follow-up Dashboard' },
+  { id: 'r-iop', title: 'IOP Dashboard' },
+  { id: 'r-appointments-freeze', title: 'Appointments Freeze / Release' },
+  { id: 'r-service-requests', title: 'Service Requests / Booked Lab' },
+  { id: 'r-receipt-voucher', title: 'Receipt Voucher' },
+  { id: 'r-op-dashboard', title: 'OP Dashboard' },
+  { id: 'r-ip-dashboard', title: 'IP Dashboard' }
 ].sort((a, b) => a.title.localeCompare(b.title))
 
 const mainLinks = [
