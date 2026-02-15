@@ -1,11 +1,101 @@
 import { useState, useEffect } from 'react'
-import { createAppointment } from '../../services/appointments'
+import {
+  createAppointment,
+  getAvailabilityData,
+  type SlotDetail,
+  type AvailabilitySlotInfo
+} from '../../services/appointments'
 import { fetchHealthcarePractitioners, fetchAppointmentTypes, type LinkFieldOption } from '../../services/common'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
 import { toast } from '../../hooks/useToast'
 import { X } from 'lucide-react'
 import { CreatePractitionerModal } from '../practitioners/CreatePractitionerModal'
 import { CreatePatientModal } from '../patients/CreatePatientModal'
+
+function getTimePart(t: string | number | null | undefined): string {
+  const s = String(t ?? '').trim()
+  const spaceIdx = s.lastIndexOf(' ')
+  return spaceIdx >= 0 ? s.slice(spaceIdx + 1) : s
+}
+function timeToMinutes(t: string | number | null | undefined): number {
+  const timeStr = getTimePart(t)
+  const parts = timeStr.split(':').filter(Boolean)
+  const h = parseInt(parts[0] || '0', 10)
+  const m = parseInt(parts[1] || '0', 10)
+  return (Number.isFinite(h) && Number.isFinite(m) ? h * 60 + m : 0)
+}
+function formatSlotTime(t: string | number | null | undefined): string {
+  const timeStr = getTimePart(t)
+  const parts = timeStr.split(':').filter(Boolean)
+  return `${(parts[0] ?? '0').padStart(2, '0')}:${(parts[1] ?? '0').padStart(2, '0')}`
+}
+function getAvailSlots(slotInfo: SlotDetail): AvailabilitySlotInfo[] {
+  const raw = slotInfo.avail_slot
+  if (Array.isArray(raw)) return raw
+  if (raw && typeof raw === 'object') return Object.values(raw) as AvailabilitySlotInfo[]
+  return []
+}
+
+/** Whether a slot is disabled for new booking: past (today) or overlaps with any existing appointment (same as doctype). */
+function isSlotDisabledForNew(
+  slot: AvailabilitySlotInfo,
+  slotInfo: SlotDetail,
+  appointmentDate: string
+): boolean {
+  const slotStart = timeToMinutes(slot.from_time)
+  const slotEnd = slot.to_time ? timeToMinutes(slot.to_time) : slotStart + (slot.duration ?? 60)
+  const today = new Date().toISOString().split('T')[0]
+  if (appointmentDate === today) {
+    const nowMin = new Date().getHours() * 60 + new Date().getMinutes()
+    if (slotStart < nowMin) return true
+  }
+  const appointmentsList = Array.isArray(slotInfo.appointments) ? slotInfo.appointments : []
+  const others = appointmentsList.filter(
+    (a) => a != null && String(a.name || '').trim() !== ''
+  )
+  const allowOverlap = slotInfo.allow_overlap === 1
+  const capacity = Math.max(1, Number(slotInfo.service_unit_capacity) || 1)
+  let overlappingCount = 0
+  for (const app of others) {
+    const appStart = timeToMinutes(app.appointment_time || '0:0')
+    const appDuration = Number(app.duration)
+    const appEnd = appStart + (Number.isFinite(appDuration) ? appDuration : 0)
+    const overlaps = slotStart < appEnd && slotEnd > appStart
+    if (overlaps) {
+      if (!allowOverlap) return true
+      overlappingCount++
+    }
+  }
+  if (allowOverlap && overlappingCount >= capacity) return true
+  if (slot.maximum_appointments != null && slot.maximum_appointments > 0) {
+    const sameSlotCount = others.filter(
+      (a) => a.appointment_date === appointmentDate && timeToMinutes(a.appointment_time || '0:0') === slotStart
+    ).length
+    if (sameSlotCount >= slot.maximum_appointments) return true
+  }
+  return false
+}
+
+function flattenSlotsForNew(slotDetails: SlotDetail[], appointmentDate: string): { slot: AvailabilitySlotInfo; slotInfo: SlotDetail; disabled: boolean }[] {
+  const out: { slot: AvailabilitySlotInfo; slotInfo: SlotDetail; disabled: boolean }[] = []
+  for (const slotInfo of slotDetails) {
+    for (const slot of getAvailSlots(slotInfo)) {
+      if (slot && (slot.from_time != null || slot.to_time != null)) {
+        out.push({
+          slot,
+          slotInfo,
+          disabled: isSlotDisabledForNew(slot, slotInfo, appointmentDate)
+        })
+      }
+    }
+  }
+  return out.sort((a, b) => timeToMinutes(a.slot.from_time) - timeToMinutes(b.slot.from_time))
+}
+function toApiTime(t: string | number | null | undefined): string {
+  const timeStr = getTimePart(t)
+  const parts = timeStr.split(':').filter(Boolean)
+  return `${(parts[0] ?? '0').padStart(2, '0')}:${(parts[1] ?? '0').padStart(2, '0')}:${(parts[2] ?? '0').padStart(2, '0')}`
+}
 
 interface CreateAppointmentModalProps {
   onClose: () => void
@@ -45,6 +135,17 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
   const [practitionerOpen, setPractitionerOpen] = useState(false)
   const [practitionerQuery, setPractitionerQuery] = useState('')
 
+  // Slots (Check Availability) state
+  const [slotsLoading, setSlotsLoading] = useState(false)
+  const [slotDetails, setSlotDetails] = useState<SlotDetail[] | null>(null)
+  const [slotsError, setSlotsError] = useState<string | null>(null)
+  const [selectedSlot, setSelectedSlot] = useState<{ from_time: string; duration?: number } | null>(null)
+
+  const flatSlots =
+    slotDetails && formData.appointment_date
+      ? flattenSlotsForNew(slotDetails, formData.appointment_date)
+      : []
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
@@ -63,6 +164,12 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
       return
     }
 
+    const appointmentTime = selectedSlot ? toApiTime(selectedSlot.from_time) : undefined
+    if (formData.practitioner && !appointmentTime) {
+      setError('Select a slot')
+      return
+    }
+
     try {
       setLoading(true)
       setError(null)
@@ -71,7 +178,7 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
         patient: formData.patient,
         appointment_type: formData.appointment_type,
         appointment_date: formData.appointment_date,
-        appointment_time: formData.appointment_time || undefined,
+        appointment_time: appointmentTime,
         practitioner: formData.practitioner || undefined
       })
       
@@ -83,7 +190,10 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
       
       onClose()
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to create appointment'
+      const raw = err instanceof Error ? err.message : 'Failed to create appointment'
+      const errorMessage = /overlap|OverlapError/i.test(raw)
+        ? 'This slot is no longer available. Please select another slot.'
+        : raw
       setError(errorMessage)
       toast.error(errorMessage)
     } finally {
@@ -116,6 +226,37 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
     }
     loadOptions()
   }, [initialPractitioner])
+
+  // Auto-load slots when practitioner and date are set
+  useEffect(() => {
+    if (!formData.practitioner || !formData.appointment_date) {
+      setSlotDetails(null)
+      setSelectedSlot(null)
+      setSlotsError(null)
+      return
+    }
+    let cancelled = false
+    setSlotsLoading(true)
+    setSlotsError(null)
+    setSlotDetails(null)
+    setSelectedSlot(null)
+    getAvailabilityData(formData.appointment_date, formData.practitioner, 'new')
+      .then((res) => {
+        if (!cancelled) {
+          setSlotDetails(res.slot_details || [])
+          if (!res.slot_details?.length) setSlotsError('No slots available for this date.')
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) setSlotsError(err instanceof Error ? err.message : 'Failed to load slots')
+      })
+      .finally(() => {
+        if (!cancelled) setSlotsLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [formData.practitioner, formData.appointment_date])
 
   // Load initial patient if provided
   useEffect(() => {
@@ -224,6 +365,9 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
     setFormData(prev => ({ ...prev, practitioner: pract.name }))
     setPractitionerQuery(pract.label)
     setPractitionerOpen(false)
+    setSlotDetails(null)
+    setSelectedSlot(null)
+    setSlotsError(null)
   }
 
   return (
@@ -356,37 +500,9 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
               )}
             </div>
           </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Appointment Date <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="date"
-                value={formData.appointment_date}
-                onChange={(e) => setFormData(prev => ({ ...prev, appointment_date: e.target.value }))}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Appointment Time
-              </label>
-              <input
-                type="time"
-                value={formData.appointment_time}
-                onChange={(e) => setFormData(prev => ({ ...prev, appointment_time: e.target.value }))}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
-              />
-            </div>
-          </div>
-
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">
-              Healthcare Practitioner
+              Healthcare Practitioner <span className="text-red-500">*</span>
             </label>
             <div className="relative flex items-center">
               <input
@@ -395,6 +511,9 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
                 onChange={(e) => {
                   setPractitionerQuery(e.target.value)
                   setPractitionerOpen(true)
+                  setSlotDetails(null)
+                  setSelectedSlot(null)
+                  setSlotsError(null)
                 }}
                 onFocus={() => setPractitionerOpen(true)}
                 placeholder="Select practitioner..."
@@ -432,6 +551,62 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
               )}
             </div>
           </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              Appointment Date <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="date"
+              value={formData.appointment_date}
+              onChange={(e) => {
+                setFormData(prev => ({ ...prev, appointment_date: e.target.value }))
+                setSlotDetails(null)
+                setSelectedSlot(null)
+                setSlotsError(null)
+              }}
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">Appointment time (slot)</label>
+            {slotsLoading && <p className="text-sm text-slate-500">Loading slots…</p>}
+            {slotsError && !slotsLoading && (
+              <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-md p-2">{slotsError}</p>
+            )}
+            {!slotsLoading && !slotsError && flatSlots.length > 0 && (
+              <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto">
+                {flatSlots.map(({ slot, disabled }, idx) => {
+                  const isSelected = selectedSlot?.from_time === slot.from_time
+                  return (
+                    <button
+                      key={`${slot.from_time}-${idx}`}
+                      type="button"
+                      disabled={disabled}
+                      onClick={() => setSelectedSlot({ from_time: slot.from_time, duration: slot.duration })}
+                      className={`rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
+                        disabled
+                          ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed'
+                          : isSelected
+                            ? 'border-primary bg-primary text-white'
+                            : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      {formatSlotTime(slot.from_time)}
+                      {slot.to_time ? ` – ${formatSlotTime(slot.to_time)}` : ''}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+            {(!formData.practitioner || !formData.appointment_date) && !slotsLoading && (
+              <p className="text-sm text-slate-500">Select practitioner and date to see slots.</p>
+            )}
+          </div>
+
+          
 
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
             <button

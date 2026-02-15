@@ -64,7 +64,7 @@ const receptionScreens = [
   { id: 'r-new-visit', title: 'New Patient Visit' },
   { id: 'r-followup', title: 'Follow-up Dashboard' },
   { id: 'r-iop', title: 'IOP Dashboard' },
-  { id: 'r-appointments-freeze', title: 'Appointments Freeze / Release' },
+  { id: 'r-appointments-freeze', title: 'Appointments' },
   { id: 'r-service-requests', title: 'Service Requests / Booked Lab' },
   { id: 'r-receipt-voucher', title: 'Receipt Voucher' },
   { id: 'r-op-dashboard', title: 'OP Dashboard' },

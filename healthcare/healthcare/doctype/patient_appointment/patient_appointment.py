@@ -612,19 +612,26 @@ def get_availability_data(date, practitioner, appointment):
 		return {"slot_details": [], "fee_validity": "Disabled"}
 
 	if isinstance(appointment, str):
-		if appointment.strip().startswith("{"):
+		s = appointment.strip()
+		if s.lower() in ("", "new"):
+			appointment = frappe.new_doc("Patient Appointment")
+		elif s.startswith("{"):
 			appointment = json.loads(appointment)
 			appointment = frappe.get_doc(appointment)
 		else:
 			appointment = frappe.get_doc("Patient Appointment", appointment)
+	elif appointment is None:
+		appointment = frappe.new_doc("Patient Appointment")
 
 	fee_validity = "Disabled"
 	if frappe.db.get_single_value("Healthcare Settings", "enable_free_follow_ups"):
 		fee_validity = check_fee_validity(appointment, date, practitioner)
-		if not fee_validity and not appointment.get("__islocal"):
-			fee_validity = get_fee_validity(appointment.get("name"), date) or None
+		if not fee_validity and not getattr(appointment, "__islocal", True):
+			name = getattr(appointment, "name", None)
+			if name:
+				fee_validity = get_fee_validity(name, date) or None
 
-	if appointment.invoiced:
+	if getattr(appointment, "invoiced", False):
 		fee_validity = "Disabled"
 
 	return {"slot_details": slot_details, "fee_validity": fee_validity}

@@ -230,11 +230,21 @@ export const ReceptionistPage = () => {
 
         {currentView === 'appointments-freeze' && (
           <div className="p-4">
-            <div className="mb-4">
-              <h2 className="text-xl font-semibold text-slate-900">Appointments Freeze / Release</h2>
-              <p className="text-sm text-slate-600 mt-1">
-                When doctors are not available or on leave, freeze or cancel slots. Release when they return.
-              </p>
+            <div className="mb-4 flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-semibold text-slate-900">Appointments</h2>
+                <p className="text-sm text-slate-600 mt-1">
+                  When doctors are not available or on leave, freeze or cancel slots. Release when they return.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAppointmentModal(true)}
+                className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 text-sm font-bold flex-shrink-0"
+                title="New Appointment"
+              >
+                +
+              </button>
             </div>
             <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[500px]">
               <AppointmentList showAll={true} patient={selectedPatient || undefined} refreshKey={appointmentRefreshKey} />

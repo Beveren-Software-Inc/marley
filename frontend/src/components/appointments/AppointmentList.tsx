@@ -204,11 +204,9 @@ export const AppointmentList = ({ refreshKey, showAll = false, patient }: Appoin
             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
               Status
             </th>
-            {showAll && (
-              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase w-[100px]">
-                Actions
-              </th>
-            )}
+            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase w-[100px]">
+              Actions
+            </th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-200">
@@ -241,8 +239,7 @@ export const AppointmentList = ({ refreshKey, showAll = false, patient }: Appoin
                   <span className="text-sm text-slate-500">-</span>
                 )}
               </td>
-              {showAll && (
-                <td className="px-4 py-2 align-middle">
+              <td className="px-4 py-2 align-middle">
                   <div className="relative" ref={openActionRow === apt.name ? menuRef : undefined}>
                     <button
                       type="button"
@@ -285,7 +282,7 @@ export const AppointmentList = ({ refreshKey, showAll = false, patient }: Appoin
                             Reschedule
                           </button>
                         )}
-                        {canCancel(apt.status) && (
+                        {apt.patient && (
                           <>
                             <button
                               type="button"
@@ -305,10 +302,9 @@ export const AppointmentList = ({ refreshKey, showAll = false, patient }: Appoin
                           </>
                         )}
                       </div>
-                    )}
-                  </div>
+                        )}
+                      </div>
                 </td>
-              )}
             </tr>
           ))}
         </tbody>

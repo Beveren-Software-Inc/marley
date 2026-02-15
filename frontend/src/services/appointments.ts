@@ -199,12 +199,16 @@ function messageFromExc(exc: string, excType?: string): string {
   return (match ? match[1].trim() : lastLine) || (excType ? String(excType) : 'Request failed')
 }
 
-/** Fetch available slots for a practitioner on a date (for reschedule/book). */
+/** Fetch available slots for a practitioner on a date (for reschedule/book or new booking). Pass appointmentName "new" for new appointment. */
 export async function getAvailabilityData(
   date: string,
   practitioner: string,
   appointmentName: string
 ): Promise<GetAvailabilityDataResponse> {
+  const appointmentParam =
+    !appointmentName || appointmentName.trim().toLowerCase() === 'new'
+      ? 'new'
+      : JSON.stringify({ doctype: 'Patient Appointment', name: appointmentName })
   const response = await fetch(
     '/api/method/healthcare.healthcare.doctype.patient_appointment.patient_appointment.get_availability_data',
     {
@@ -215,7 +219,7 @@ export async function getAvailabilityData(
       body: JSON.stringify({
         date,
         practitioner,
-        appointment: JSON.stringify({ doctype: 'Patient Appointment', name: appointmentName })
+        appointment: appointmentParam
       })
     }
   )
