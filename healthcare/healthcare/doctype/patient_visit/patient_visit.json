@@ -23,6 +23,7 @@
   "previous_visit_no",
   "inpatient_record",
   "visit_type",
+  "iop_enrollment",
   "inpatient_status",
   "is_blacklist",
   "column_break_6",
@@ -180,11 +181,18 @@
    "read_only": 1
   },
   {
-   "default": "New Visit",
    "fieldname": "visit_type",
-   "fieldtype": "Select",
+   "fieldtype": "Link",
    "label": "Visit Type",
-   "options": "\nNew Visit\nFollow Up\nDiscontinue"
+   "options": "Patient Visit Type"
+  },
+  {
+   "depends_on": "eval:doc.visit_type==\"IOP\"",
+   "description": "Optional: link to IOP Enrollment when Visit Type is IOP",
+   "fieldname": "iop_enrollment",
+   "fieldtype": "Link",
+   "label": "IOP Enrollment",
+   "options": "IOP Enrollment"
   },
   {
    "allow_on_submit": 1,
@@ -539,7 +547,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2026-01-06 12:34:45.916413",
+ "modified": "2026-02-15 11:11:57.602087",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Visit",

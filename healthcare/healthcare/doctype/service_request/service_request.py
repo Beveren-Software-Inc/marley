@@ -175,6 +175,66 @@ def make_lab_test(service_request):
 
 
 @frappe.whitelist()
+def book_lab_and_forward(service_request_name):
+	"""
+	Booked Lab: after patient has accepted cost, forward the lab request to the laboratory.
+	Creates the Lab Test, marks Service Request as forwarded, and reflects approved amount on Patient Visit.
+	"""
+	if not service_request_name:
+		frappe.throw(_("Service Request name is required"))
+	sr = frappe.get_doc("Service Request", service_request_name)
+	if sr.template_dt != "Lab Test Template":
+		frappe.throw(_("Booked Lab is only for Lab Test Template requests."))
+	if not sr.patient_accepted_cost:
+		frappe.throw(_("Patient must accept cost before using Booked Lab."))
+	if sr.booked:
+		frappe.throw(_("This request has already been forwarded to the laboratory."))
+	existing = frappe.db.get_value("Lab Test", {"service_request": sr.name, "docstatus": ["!=", 2]}, "name")
+	if existing:
+		frappe.throw(_("Lab Test {0} already exists for this request.").format(existing))
+
+	# Create Lab Test (Booked Lab flow does not require prior invoicing)
+	lab_test = frappe.new_doc("Lab Test")
+	lab_test.template = sr.template_dn
+	lab_test.service_request = sr.name
+	lab_test.company = sr.company
+	lab_test.patient = sr.patient
+	lab_test.patient_name = sr.patient_name
+	lab_test.patient_sex = sr.patient_gender
+	lab_test.patient_age = sr.patient_age_data
+	lab_test.inpatient_record = sr.inpatient_record
+	lab_test.email = sr.patient_email
+	lab_test.mobile = sr.patient_mobile
+	lab_test.practitioner = sr.practitioner
+	lab_test.requesting_department = sr.medical_department
+	lab_test.date = sr.occurrence_date
+	lab_test.time = sr.occurrence_time
+	lab_test.invoiced = sr.get("invoiced") or 0
+	lab_test.lab_test_name = frappe.db.get_value("Lab Test Template", sr.template_dn, "lab_test_name") or sr.template_dn
+	lab_test.insert(ignore_permissions=True)
+
+	# Mark Service Request as forwarded to lab
+	sr.db_set("booked", 1)
+
+	# Reflect approved amount on Patient Visit (order_group = encounter)
+	if sr.order_group and frappe.db.exists("Patient Visit", sr.order_group):
+		visit = frappe.get_doc("Patient Visit", sr.order_group)
+		visit.append(
+			"lab_tests_charges",
+			{
+				"test_code": lab_test.name,
+				"test_name": lab_test.lab_test_name or sr.template_dn,
+				"amount": sr.amount or 0,
+				"net_amount": sr.amount or 0,
+			},
+		)
+		visit.save(ignore_permissions=True)
+
+	frappe.db.commit()
+	return {"lab_test": lab_test.name, "patient_visit": sr.order_group}
+
+
+@frappe.whitelist()
 def make_therapy_session(service_request):
 	if isinstance(service_request, string_types):
 		service_request = json.loads(service_request)

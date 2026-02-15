@@ -1,0 +1,79 @@
+[
+ {
+  "docstatus": 0,
+  "doctype": "Patient Visit Type",
+  "modified": "2026-02-15 10:32:43.693711",
+  "name": "Nutritionist",
+  "visit_type": "Nutritionist"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Visit Type",
+  "modified": "2026-02-15 10:28:40.311983",
+  "name": "ECG Session",
+  "visit_type": "ECG Session"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Visit Type",
+  "modified": "2026-02-15 10:29:01.854770",
+  "name": "ECT Session,",
+  "visit_type": "ECT Session,"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Visit Type",
+  "modified": "2026-02-15 10:29:12.566133",
+  "name": "EEG Session",
+  "visit_type": "EEG Session"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Visit Type",
+  "modified": "2026-02-15 10:29:33.984939",
+  "name": "Follow-up for the Psychiatrist",
+  "visit_type": "Follow-up for the Psychiatrist"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Visit Type",
+  "modified": "2026-02-15 10:29:51.802169",
+  "name": "Home Visit",
+  "visit_type": "Home Visit"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Visit Type",
+  "modified": "2026-02-15 10:30:03.702775",
+  "name": "IOP",
+  "visit_type": "IOP"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Visit Type",
+  "modified": "2026-02-15 10:30:23.230593",
+  "name": "Lab Visit",
+  "visit_type": "Lab Visit"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Visit Type",
+  "modified": "2026-02-15 10:30:41.370100",
+  "name": "Pharmacy",
+  "visit_type": "Pharmacy"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Visit Type",
+  "modified": "2026-02-15 10:31:33.653408",
+  "name": "Medical Report,",
+  "visit_type": "Medical Report,"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Visit Type",
+  "modified": "2026-02-15 10:32:00.583598",
+  "name": "Psychologist",
+  "visit_type": "Psychologist"
+ }
+]

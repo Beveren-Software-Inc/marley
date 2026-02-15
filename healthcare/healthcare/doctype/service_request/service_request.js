@@ -55,6 +55,12 @@ frappe.ui.form.on('Service Request', {
 
 
 		} else if (frm.doc.template_dt === 'Lab Test Template') {
+			// Booked Lab: patient accepted cost → forward to lab and reflect approved amount on visit
+			if (frm.doc.patient_accepted_cost && !frm.doc.booked) {
+				frm.add_custom_button(__('Booked Lab'), function() {
+					frm.trigger('book_lab_and_forward');
+				}, __('Actions')).addClass('btn-primary');
+			}
 			frm.add_custom_button(__('Lab Test'), function() {
 				frappe.db.get_value("Lab Test", {"service_request": frm.doc.name, "docstatus":["!=", 2]}, "name")
 				.then(r => {
@@ -131,6 +137,26 @@ frappe.ui.form.on('Service Request', {
 				frappe.set_route('Form', doclist[0].doctype, doclist[0].name);
 			}
 		});
+	},
+
+	book_lab_and_forward: function(frm) {
+		frappe.confirm(
+			__('Forward this lab request to the laboratory and add the approved amount to the patient visit?'),
+			function() {
+				frappe.call({
+					method: 'healthcare.healthcare.doctype.service_request.service_request.book_lab_and_forward',
+					args: { service_request_name: frm.doc.name },
+					freeze: true,
+					callback: function(r) {
+						if (r.message && r.message.lab_test) {
+							frm.reload_doc();
+							frappe.show_alert({ message: __('Forwarded to laboratory'), indicator: 'green' });
+							frappe.set_route('Form', 'Lab Test', r.message.lab_test);
+						}
+					}
+				});
+			}
+		);
 	},
 
 	make_lab_test: function(frm) {

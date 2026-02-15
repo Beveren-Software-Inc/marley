@@ -1,0 +1,158 @@
+{
+ "actions": [],
+ "autoname": "naming_series:",
+ "creation": "2026-02-15 14:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "patient",
+  "patient_name",
+  "follow_up_type",
+  "column_break_jlfv",
+  "reference_doctype",
+  "reference_name",
+  "follow_up_date",
+  "status",
+  "section_remarks",
+  "remarks",
+  "column_break_1",
+  "company",
+  "cost_center",
+  "contacted_on",
+  "no_follow_up_required"
+ ],
+ "fields": [
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "Series",
+   "options": "PFU-.YYYY.-"
+  },
+  {
+   "fieldname": "patient",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Patient",
+   "options": "Patient",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "patient.patient_name",
+   "fieldname": "patient_name",
+   "fieldtype": "Data",
+   "label": "Patient Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "follow_up_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Type",
+   "options": "OP\nIP",
+   "reqd": 1
+  },
+  {
+   "fieldname": "reference_doctype",
+   "fieldtype": "Link",
+   "label": "Reference DocType",
+   "options": "DocType",
+   "read_only": 1
+  },
+  {
+   "fieldname": "reference_name",
+   "fieldtype": "Dynamic Link",
+   "label": "Reference",
+   "options": "reference_doctype",
+   "read_only": 1
+  },
+  {
+   "fieldname": "follow_up_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Follow Up Date",
+   "reqd": 1
+  },
+  {
+   "default": "Open",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Open\nContacted\nCompleted\nNo Follow Up Required"
+  },
+  {
+   "fieldname": "section_remarks",
+   "fieldtype": "Section Break",
+   "label": "Follow-up Remarks"
+  },
+  {
+   "fieldname": "remarks",
+   "fieldtype": "Text Editor",
+   "label": "Remarks"
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company"
+  },
+  {
+   "fieldname": "contacted_on",
+   "fieldtype": "Datetime",
+   "label": "Contacted On"
+  },
+  {
+   "default": "0",
+   "description": "When checked, this follow-up will not appear in the Follow-up Dashboard list",
+   "fieldname": "no_follow_up_required",
+   "fieldtype": "Check",
+   "label": "No Follow Up Required"
+  },
+  {
+   "fieldname": "column_break_jlfv",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "cost_center",
+   "fieldtype": "Link",
+   "label": "Cost Center",
+   "options": "Cost Center"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-02-15 11:30:40.409469",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Patient Follow Up",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Healthcare Administrator",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

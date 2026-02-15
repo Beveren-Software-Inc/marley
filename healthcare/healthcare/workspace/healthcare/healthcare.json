@@ -717,6 +717,16 @@
   {
    "hidden": 0,
    "is_query_report": 0,
+   "label": "Transfer Admission Event",
+   "link_count": 0,
+   "link_to": "Transfer Admission Event",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
    "label": "Patient Medication Order",
    "link_count": 0,
    "link_to": "Patient Medication Order",

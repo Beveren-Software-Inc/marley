@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import { createPatient } from '../../services/patients'
-import { fetchLeadSources, fetchNationalities, type LinkFieldOption } from '../../services/common'
+import { fetchLeadSources, fetchNationalities, fetchCountries, type LinkFieldOption } from '../../services/common'
 import { CreateLeadSourceModal } from './CreateLeadSourceModal'
 import { CreateNationalityModal } from './CreateNationalityModal'
+import { toast } from '../../hooks/useToast'
 
 interface CreatePatientModalProps {
   onClose: () => void
@@ -25,6 +26,8 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
     category: '',
     source: '',
     marital_status: '',
+    is_black_list: false,
+    remarks: '',
     address_line1: '',
     address_line2: '',
     city: '',
@@ -48,17 +51,29 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
   const [nationalityQuery, setNationalityQuery] = useState('')
   const [selectedNationality, setSelectedNationality] = useState<LinkFieldOption | null>(null)
   const [showCreateNationality, setShowCreateNationality] = useState(false)
+  const [countries, setCountries] = useState<{ name: string }[]>([])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (!formData.first_name || !formData.sex || !formData.source || !formData.marital_status) {
-      setError('First Name, Gender, Source, and Marital Status are required')
+    if (!formData.first_name || !formData.sex) {
+      setError('First Name and Gender are required')
       return
     }
-
+    if (!formData.mobile && !formData.phone) {
+      setError('At least one Contact No. (Mobile or Phone) is required')
+      return
+    }
     if (!formData.address_line1 || !formData.city) {
-      setError('Address Line 1 and City are required')
+      setError('Address (Line 1 and City) is required')
+      return
+    }
+    if (!formData.source) {
+      setError('Patient Referral or Source is required')
+      return
+    }
+    if (!formData.category) {
+      setError('Patient type is required')
       return
     }
 
@@ -66,12 +81,17 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
       setLoading(true)
       setError(null)
 
-      const patient = await createPatient(formData)
-      
-      if (onSuccess) {
-        onSuccess(patient.name || patient.patient_name)
+      const payload = {
+        ...formData,
+        is_black_list: formData.is_black_list,
+        remarks: formData.remarks || undefined,
       }
-      
+      const patient = await createPatient(payload)
+      const successMsg = patient.server_message || 'Patient created'
+      toast.success(successMsg)
+      if (onSuccess) {
+        onSuccess(patient.name || patient.patient_name || '')
+      }
       onClose()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create patient')
@@ -84,16 +104,18 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
     setFormData(prev => ({ ...prev, [field]: value }))
   }
 
-  // Load initial options (source + nationalities)
+  // Load initial options (source + nationalities + countries)
   useEffect(() => {
     const loadOptions = async () => {
       try {
-        const [sources, nationalities] = await Promise.all([
+        const [sources, nationalities, countryList] = await Promise.all([
           fetchLeadSources(),
           fetchNationalities(),
+          fetchCountries(),
         ])
         setSourceOptions(sources)
         setNationalityOptions(nationalities)
+        setCountries(countryList)
       } catch (err) {
         console.error('Failed to load options:', err)
       }
@@ -180,7 +202,7 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
           onClick={(e) => {
             // Close dropdowns when clicking outside inputs
             const target = e.target as HTMLElement
-            if (target.tagName !== 'INPUT' && !target.closest('.absolute')) {
+            if (target.tagName !== 'INPUT' && target.tagName !== 'SELECT' && !target.closest('.absolute')) {
               setSourceOpen(false)
               setNationalityOpen(false)
             }
@@ -328,12 +350,13 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">
-                  ID Number
+                  CPR / ID / Passport No.
                 </label>
                 <input
                   type="text"
                   value={formData.id_number}
                   onChange={(e) => handleChange('id_number', e.target.value)}
+                  placeholder="CPR / ID / Passport (unlimited digits)"
                   className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                 />
               </div>
@@ -389,7 +412,7 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
 
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Category <span className="text-red-500">*</span>
+                  Patient type <span className="text-red-500">*</span>
                 </label>
                 <select
                   value={formData.category}
@@ -397,7 +420,7 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
                   required
                   className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                 >
-                  <option value="">Select Category</option>
+                  <option value="">Select Patient type</option>
                   <option value="Royal">Royal</option>
                   <option value="American Navy">American Navy</option>
                   <option value="Regular">Regular</option>
@@ -406,7 +429,7 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
 
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Source <span className="text-red-500">*</span>
+                  Patient Referral or Source <span className="text-red-500">*</span>
                 </label>
                 <div className="relative flex items-center">
                   <input
@@ -531,12 +554,16 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
                 <label className="block text-sm font-medium text-slate-700 mb-1">
                   Country
                 </label>
-                <input
-                  type="text"
+                <select
                   value={formData.country}
                   onChange={(e) => handleChange('country', e.target.value)}
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                />
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+                >
+                  <option value="">Select country</option>
+                  {countries.map((c) => (
+                    <option key={c.name} value={c.name}>{c.name}</option>
+                  ))}
+                </select>
               </div>
 
               <div>
@@ -547,6 +574,36 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
                   type="text"
                   value={formData.pincode}
                   onChange={(e) => handleChange('pincode', e.target.value)}
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Is Black List & Remarks (BRD) */}
+          <div>
+            <h3 className="text-sm font-semibold text-slate-700 mb-3">Other Information</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="is_black_list"
+                  checked={formData.is_black_list}
+                  onChange={(e) => handleChange('is_black_list', e.target.checked)}
+                  className="rounded border-slate-300 text-primary focus:ring-primary"
+                />
+                <label htmlFor="is_black_list" className="text-sm font-medium text-slate-700">
+                  Is Black List?
+                </label>
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Any Other Information / Remarks
+                </label>
+                <textarea
+                  value={formData.remarks}
+                  onChange={(e) => handleChange('remarks', e.target.value)}
+                  rows={2}
                   className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                 />
               </div>

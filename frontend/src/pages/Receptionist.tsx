@@ -12,8 +12,13 @@ import { PatientVisitList } from '../components/patientVisits/PatientVisitList'
 import { CreatePatientVisitModal } from '../components/patientVisits/CreatePatientVisitModal'
 import { CreateAdmissionModal } from '../components/admissions/CreateAdmissionModal'
 import { CreatePatientModal } from '../components/patients/CreatePatientModal'
+import { ServiceRequestList } from '../components/serviceRequests/ServiceRequestList'
+import { CreateServiceRequestModal } from '../components/serviceRequests/CreateServiceRequestModal'
+import { FollowUpList } from '../components/followUp/FollowUpList'
+import { IOPDayListWithHeader } from '../components/iop/IOPDayList'
+import { IOPEnrollmentListWithHeader } from '../components/iop/IOPEnrollmentList'
 
-type View = 'default' | 'patient' | 'admission' | 'visit'
+type View = 'default' | 'patient' | 'admission' | 'visit' | 'followup' | 'iop' | 'appointments-freeze' | 'service-requests' | 'receipt-voucher' | 'op-dashboard' | 'ip-dashboard'
 
 export const ReceptionistPage = () => {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -24,6 +29,8 @@ export const ReceptionistPage = () => {
   const [appointmentRefreshKey, setAppointmentRefreshKey] = useState(0)
   const [showPatientVisitModal, setShowPatientVisitModal] = useState(false)
   const [patientVisitRefreshKey, setPatientVisitRefreshKey] = useState(0)
+  const [showCreateServiceRequest, setShowCreateServiceRequest] = useState(false)
+  const [serviceRequestRefreshKey, setServiceRequestRefreshKey] = useState(0)
   const [showAdmissionModal, setShowAdmissionModal] = useState(false)
   const [admissionRefreshKey, setAdmissionRefreshKey] = useState(0)
   const [showPatientModal, setShowPatientModal] = useState(false)
@@ -33,42 +40,49 @@ export const ReceptionistPage = () => {
     setSelectedPatient(patient || '')
   }
 
-  // Handle screen navigation from sidebar
+  // Sync view with URL: when screen param is missing or unknown, show reception homepage
   useEffect(() => {
     if (screen === 'r-reg') {
-      // Admission - show admission list
       setCurrentView('admission')
     } else if (screen === 'r-visit') {
-      // Patient Visit - show patient visit list
       setCurrentView('visit')
     } else if (screen === 'r-appointment') {
-      // Book Appointment - open appointment modal
       setShowAppointmentModal(true)
-      // Clear screen param after opening modal
       const newParams = new URLSearchParams(searchParams)
       newParams.delete('screen')
       setSearchParams(newParams, { replace: true })
     } else if (screen === 'r-ip-adm') {
-      // New IP Admission - open admission modal
       setShowAdmissionModal(true)
-      // Clear screen param after opening modal
       const newParams = new URLSearchParams(searchParams)
       newParams.delete('screen')
       setSearchParams(newParams, { replace: true })
     } else if (screen === 'r-new-op') {
-      // New OP Registration - open patient modal
       setShowPatientModal(true)
-      // Clear screen param after opening modal
       const newParams = new URLSearchParams(searchParams)
       newParams.delete('screen')
       setSearchParams(newParams, { replace: true })
     } else if (screen === 'r-new-visit') {
-      // New Patient Visit - open patient visit modal
       setShowPatientVisitModal(true)
-      // Clear screen param after opening modal
       const newParams = new URLSearchParams(searchParams)
       newParams.delete('screen')
       setSearchParams(newParams, { replace: true })
+    } else if (screen === 'r-followup') {
+      setCurrentView('followup')
+    } else if (screen === 'r-iop') {
+      setCurrentView('iop')
+    } else if (screen === 'r-appointments-freeze') {
+      setCurrentView('appointments-freeze')
+    } else if (screen === 'r-service-requests') {
+      setCurrentView('service-requests')
+    } else if (screen === 'r-receipt-voucher') {
+      setCurrentView('receipt-voucher')
+    } else if (screen === 'r-op-dashboard') {
+      setCurrentView('op-dashboard')
+    } else if (screen === 'r-ip-dashboard') {
+      setCurrentView('ip-dashboard')
+    } else {
+      // No screen param or unknown: show reception homepage (e.g. after "Back to Reception" or sidebar Home)
+      setCurrentView('default')
     }
   }, [screen, searchParams, setSearchParams])
 
@@ -177,6 +191,169 @@ export const ReceptionistPage = () => {
               patient={selectedPatient || undefined}
               refreshKey={patientVisitRefreshKey}
             />
+          </div>
+        )}
+
+        {currentView === 'followup' && (
+          <div className="p-4">
+            <div className="mb-4">
+              <h2 className="text-xl font-semibold text-slate-900">Follow-up Dashboard</h2>
+              <p className="text-sm text-slate-600 mt-1">
+                OP &amp; IP discharged follow-up list. Filter by status (default: Open) and cost center. Send reminder per row or send all reminders.
+              </p>
+            </div>
+            <FollowUpList refreshKey={patientVisitRefreshKey} />
+          </div>
+        )}
+
+        {currentView === 'iop' && (
+          <div className="p-4">
+            <div className="mb-4">
+              <h2 className="text-xl font-semibold text-slate-900">IOP Dashboard</h2>
+              <p className="text-sm text-slate-600 mt-1">
+                Intensive Outpatient: schedule IOP days (slots) and enroll patients. Create a Patient Visit from an enrollment to link the visit.
+              </p>
+            </div>
+            <div className="grid gap-6 md:grid-cols-2">
+              <IOPDayListWithHeader refreshKey={patientVisitRefreshKey} />
+              <IOPEnrollmentListWithHeader refreshKey={patientVisitRefreshKey} />
+            </div>
+          </div>
+        )}
+
+        {currentView === 'appointments-freeze' && (
+          <div className="p-4">
+            <div className="mb-4 flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-semibold text-slate-900">Appointments</h2>
+                <p className="text-sm text-slate-600 mt-1">
+                  When doctors are not available or on leave, freeze or cancel slots. Release when they return.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAppointmentModal(true)}
+                className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 text-sm font-bold flex-shrink-0"
+                title="New Appointment"
+              >
+                +
+              </button>
+            </div>
+            <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[500px]">
+              <AppointmentList showAll={true} patient={selectedPatient || undefined} refreshKey={appointmentRefreshKey} />
+            </div>
+            <div className="mt-4 bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-800">
+              To freeze or release practitioner schedules, use the backend: Healthcare → Practitioner Schedule, or open Appointments in the backend.
+              <a href="/app/Patient%20Appointment" target="_blank" rel="noopener noreferrer" className="ml-2 underline font-medium">Open Appointments</a>
+            </div>
+          </div>
+        )}
+
+        {currentView === 'service-requests' && (
+          <div className="p-4">
+            <div className="mb-4 flex items-center justify-between gap-4 flex-wrap">
+              <div>
+                <h2 className="text-xl font-semibold text-slate-900">Service Requests / Booked Lab</h2>
+                <p className="text-sm text-slate-600 mt-1">
+                  Lab and procedure requests. Create with +, then Confirm Payment and Book Lab to forward to laboratory.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCreateServiceRequest(true)}
+                className="w-10 h-10 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 text-lg font-bold shrink-0"
+                title="Create Service Request"
+              >
+                +
+              </button>
+            </div>
+            <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[500px]">
+              <ServiceRequestList
+                patient={selectedPatient || undefined}
+                refreshKey={serviceRequestRefreshKey}
+                template_dt="Lab Test Template"
+              />
+            </div>
+            {showCreateServiceRequest && (
+              <CreateServiceRequestModal
+                onClose={() => setShowCreateServiceRequest(false)}
+                onSuccess={() => {
+                  setServiceRequestRefreshKey((k) => k + 1)
+                  setShowCreateServiceRequest(false)
+                }}
+                initialPatient={selectedPatient || undefined}
+              />
+            )}
+          </div>
+        )}
+
+        {currentView === 'receipt-voucher' && (
+          <div className="p-4">
+            <div className="mb-4">
+              <h2 className="text-xl font-semibold text-slate-900">Receipt Voucher</h2>
+              <p className="text-sm text-slate-600 mt-1">
+                For employee (pharmacy) and OP other branches.
+              </p>
+            </div>
+            <div className="bg-white border border-slate-200 rounded-lg p-6 shadow-sm">
+              <p className="text-slate-600 mb-4">Receipt vouchers are managed in the backend (Accounts / Journal Entry).</p>
+              <a
+                href="/app/Journal%20Entry"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center px-4 py-2 bg-primary text-white rounded-md text-sm font-medium hover:bg-primary/90"
+              >
+                Open Journal Entry
+              </a>
+            </div>
+          </div>
+        )}
+
+        {(currentView === 'op-dashboard' || currentView === 'ip-dashboard') && (
+          <div className="p-4">
+            <div className="mb-4">
+              <h2 className="text-xl font-semibold text-slate-900">
+                {currentView === 'op-dashboard' ? 'OP Dashboard' : 'IP Dashboard'}
+              </h2>
+              <p className="text-sm text-slate-600 mt-1">
+                {currentView === 'op-dashboard'
+                  ? 'Outpatient: patients, appointments, visits. Change user for entry and receipt voucher as needed.'
+                  : 'Inpatient: admissions, transfers, discharge. Cost center per hospital.'}
+              </p>
+            </div>
+            {currentView === 'op-dashboard' && (
+              <div className="grid gap-4 md:grid-cols-2">
+                <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
+                  <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
+                    <span>Patient List</span>
+                    <button onClick={() => setShowPatientModal(true)} className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 text-sm font-bold" title="Add Patient">+</button>
+                  </div>
+                  <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
+                    <PatientList refreshKey={patientRefreshKey} />
+                  </div>
+                </section>
+                <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
+                  <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
+                    <span>Appointments</span>
+                    <button onClick={() => setShowAppointmentModal(true)} className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 text-sm font-bold" title="Add Appointment">+</button>
+                  </div>
+                  <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
+                    <AppointmentList showAll={true} patient={selectedPatient || undefined} refreshKey={appointmentRefreshKey} />
+                  </div>
+                </section>
+              </div>
+            )}
+            {currentView === 'ip-dashboard' && (
+              <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[500px]">
+                <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
+                  <span>IP Admission List</span>
+                  <button onClick={() => setShowAdmissionModal(true)} className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 text-sm font-bold" title="Add Admission">+</button>
+                </div>
+                <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
+                  <AdmissionList patient={selectedPatient || undefined} refreshKey={admissionRefreshKey} onAdmissionSelect={() => {}} />
+                </div>
+              </div>
+            )}
           </div>
         )}
 

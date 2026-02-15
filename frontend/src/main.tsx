@@ -8,6 +8,9 @@ import { getRouterBasename } from './config/env'
 
 // Dynamically determine basename based on environment
 const basename = getRouterBasename()
+if (typeof window !== 'undefined') {
+  (window as any).__HEALTHCARE_ROUTER_BASENAME__ = basename ?? ''
+}
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

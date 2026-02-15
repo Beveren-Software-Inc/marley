@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
+import { fetchPatientVisitTypes, type PatientVisitTypeOption } from '../../services/patientVisits'
 import { 
   fetchHealthcarePractitioners, 
   type LinkFieldOption 
@@ -10,10 +11,14 @@ import { CreatePractitionerModal } from '../practitioners/CreatePractitionerModa
 interface CreatePatientVisitModalProps {
   onClose: () => void
   onSuccess: (visitName: string) => void
+  /** Pre-fill patient (e.g. from IOP enrollment). */
+  initialPatient?: string
+  /** Link new visit to this IOP Enrollment. */
+  initialIOPEnrollment?: string
 }
 
-export const CreatePatientVisitModal = ({ onClose, onSuccess }: CreatePatientVisitModalProps) => {
-  const [patientQuery, setPatientQuery] = useState('')
+export const CreatePatientVisitModal = ({ onClose, onSuccess, initialPatient, initialIOPEnrollment }: CreatePatientVisitModalProps) => {
+  const [patientQuery, setPatientQuery] = useState(initialPatient || '')
   const [selectedPatient, setSelectedPatient] = useState<PatientListItem | null>(null)
   const [patients, setPatients] = useState<PatientListItem[]>([])
   const [patientOpen, setPatientOpen] = useState(false)
@@ -32,22 +37,48 @@ export const CreatePatientVisitModal = ({ onClose, onSuccess }: CreatePatientVis
     practitioner: '',
     encounter_date: new Date().toISOString().split('T')[0],
     encounter_time: new Date().toTimeString().slice(0, 5),
-    visit_type: 'New Visit',
+    visit_type: initialIOPEnrollment ? 'IOP' : '',
     appointment: ''
   })
+  const [visitTypeOptions, setVisitTypeOptions] = useState<PatientVisitTypeOption[]>([])
 
-  // Load initial options
+  // When opening from IOP enrollment, default visit type to IOP
+  useEffect(() => {
+    if (initialIOPEnrollment) {
+      setFormData((prev) => (prev.visit_type === '' ? { ...prev, visit_type: 'IOP' } : prev))
+    }
+  }, [initialIOPEnrollment])
+
+  // Load initial options (practitioners + visit types)
   useEffect(() => {
     const loadOptions = async () => {
       try {
-        const practs = await fetchHealthcarePractitioners()
+        const [practs, visitTypes] = await Promise.all([
+          fetchHealthcarePractitioners(),
+          fetchPatientVisitTypes()
+        ])
         setPractitioners(practs)
+        setVisitTypeOptions(visitTypes)
       } catch (err) {
         console.error('Failed to load options:', err)
       }
     }
     loadOptions()
   }, [])
+
+  // Pre-fill patient when initialPatient (e.g. from IOP enrollment) is provided
+  useEffect(() => {
+    if (!initialPatient) return
+    fetchPatients(1, 0, initialPatient).then((list) => {
+      if (list.length > 0) {
+        const p = list[0]
+        setSelectedPatient(p)
+        setPatientQuery((p as { patient_name?: string }).patient_name || p.name)
+      } else {
+        setPatientQuery(initialPatient)
+      }
+    }).catch(() => setPatientQuery(initialPatient))
+  }, [initialPatient])
 
   // Search/fetch patients
   useEffect(() => {
@@ -125,6 +156,7 @@ export const CreatePatientVisitModal = ({ onClose, onSuccess }: CreatePatientVis
           encounter_time: formData.encounter_time,
           visit_type: formData.visit_type,
           appointment: formData.appointment || undefined,
+          iop_enrollment: initialIOPEnrollment || undefined,
           status: 'Open'
         })
       })
@@ -286,7 +318,7 @@ export const CreatePatientVisitModal = ({ onClose, onSuccess }: CreatePatientVis
               </div>
             </div>
 
-            {/* Visit Type */}
+            {/* Visit Type (ECG, ECT, IOP, follow-up, lab visit, etc.) */}
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
                 Visit Type
@@ -296,9 +328,12 @@ export const CreatePatientVisitModal = ({ onClose, onSuccess }: CreatePatientVis
                 onChange={(e) => setFormData({ ...formData, visit_type: e.target.value })}
                 className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               >
-                <option value="New Visit">New Visit</option>
-                <option value="Follow Up">Follow Up</option>
-                <option value="Discontinue">Discontinue</option>
+                <option value="">Select visit type</option>
+                {visitTypeOptions.map((vt) => (
+                  <option key={vt.name} value={vt.name}>
+                    {vt.visit_type || vt.name}
+                  </option>
+                ))}
               </select>
             </div>
 

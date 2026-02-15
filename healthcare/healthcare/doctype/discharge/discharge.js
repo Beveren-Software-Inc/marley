@@ -2,6 +2,17 @@
 // For license information, please see license.txt
 
 frappe.ui.form.on("Discharge", {
+	refresh: function(frm) {
+		// Sync Follow Up Date from Next Appointment Date when empty (for CRM Patient Follow Up)
+		if (!frm.doc.follow_up_date && frm.doc.next_appointment_date) {
+			frm.set_value("follow_up_date", frm.doc.next_appointment_date);
+		}
+	},
+	next_appointment_date: function(frm) {
+		if (frm.doc.next_appointment_date && !frm.doc.follow_up_date) {
+			frm.set_value("follow_up_date", frm.doc.next_appointment_date);
+		}
+	},
 	admission: function(frm) {
 		if (frm.doc.admission) {
 			load_history_from_inpatient_admission(frm);
@@ -22,7 +33,42 @@ frappe.ui.form.on("Discharge", {
 				frm.refresh_field('history_details');
 			}
 		}
-	}
+	},
+	discharge_template: function(frm) {
+
+        if (!frm.doc.discharge_template) {
+            return;
+        }
+
+        // clear existing rows
+        frm.clear_table('discharge_checklist');
+
+        frappe.call({
+            method: "frappe.client.get",
+            args: {
+                doctype: "Discharge Template",
+                name: frm.doc.discharge_template
+            },
+            callback: function(r) {
+
+                if (!r.message) return;
+
+                let template = r.message;
+
+                (template.discharge_checklist || []).forEach(row => {
+
+                    let child = frm.add_child('discharge_checklist');
+
+                    // auto-fill only required fields
+                    child.action_required = row.action_required;
+                    child.department = row.department;
+
+                });
+
+                frm.refresh_field('discharge_checklist');
+            }
+        });
+    }
 });
 
 let load_history_from_inpatient_admission = function(frm) {

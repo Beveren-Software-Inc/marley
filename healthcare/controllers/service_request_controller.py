@@ -47,9 +47,13 @@ class ServiceRequestController(Document):
 				self.db_set("status", "cancelled-Medication Request Status")
 
 	def set_patient_age(self):
+		if not self.patient or not frappe.db.exists("Patient", self.patient):
+			return
 		patient = frappe.get_doc("Patient", self.patient)
 		self.patient_age_data = patient.get_age()
-		self.patient_age = dateutil.relativedelta.relativedelta(getdate(), getdate(patient.dob))
+		# Store age in years (int) for DB/versioning; relativedelta is not serializable
+		delta = dateutil.relativedelta.relativedelta(getdate(), getdate(patient.dob))
+		self.patient_age = delta.years if delta else 0
 
 
 @frappe.whitelist()

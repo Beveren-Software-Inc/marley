@@ -1,0 +1,42 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-02-15 12:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": ["session_type", "from_time", "to_time"],
+ "fields": [
+  {
+   "fieldname": "session_type",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Session Type",
+   "options": "IOP Session Type",
+   "reqd": 1
+  },
+  {
+   "fieldname": "from_time",
+   "fieldtype": "Time",
+   "in_list_view": 1,
+   "label": "From Time"
+  },
+  {
+   "fieldname": "to_time",
+   "fieldtype": "Time",
+   "in_list_view": 1,
+   "label": "To Time"
+  }
+ ],
+ "idx": 0,
+ "increment": 0,
+ "istable": 1,
+ "links": [],
+ "module": "Healthcare",
+ "name": "IOP Day Session",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

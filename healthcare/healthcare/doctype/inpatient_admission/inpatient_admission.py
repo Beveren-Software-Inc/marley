@@ -477,6 +477,10 @@ def admit_patient(inpatient_record, service_unit, check_in, expected_discharge=N
 	inpatient_record.admitted_datetime = check_in
 	inpatient_record.status = "Admitted"
 	inpatient_record.expected_discharge = expected_discharge
+	# Set cost center from the service unit (hospital) so future charges use it
+	service_unit_cost_center = frappe.db.get_value("Healthcare Service Unit", service_unit, "cost_center")
+	if service_unit_cost_center:
+		inpatient_record.cost_center = service_unit_cost_center
 
 	inpatient_record.set("inpatient_occupancies", [])
 	transfer_patient(inpatient_record, service_unit, check_in)
@@ -508,6 +512,123 @@ def patient_leave_service_unit(inpatient_record, check_out, leave_from):
 					"Healthcare Service Unit", inpatient_occupancy.service_unit, "occupancy_status", "Vacant"
 				)
 	inpatient_record.save(ignore_permissions=True)
+
+
+def _get_current_occupancy_service_unit(inpatient_record):
+	"""Return the first non-left service unit (current bed), if any."""
+	if not inpatient_record.inpatient_occupancies:
+		return None
+	for occ in inpatient_record.inpatient_occupancies:
+		if occ.left != 1 and occ.service_unit:
+			return occ.service_unit
+	return None
+
+
+@frappe.whitelist()
+def transfer_to_another_cost_center(
+	inpatient_admission,
+	to_cost_center,
+	to_service_unit=None,
+	reason=None,
+	transfer_datetime=None,
+):
+	"""
+	Transfer an inpatient admission from current cost center (hospital) to another.
+	Creates a Transfer Admission Event for audit trail, checks out from current bed,
+	updates admission cost_center, and optionally checks in to a bed in the new cost center.
+	"""
+	inpatient_record = frappe.get_doc("Inpatient Admission", inpatient_admission)
+	if inpatient_record.status != "Admitted":
+		frappe.throw(
+			_("Only Admitted patients can be transferred to another cost center. Current status: {0}").format(
+				inpatient_record.status
+			)
+		)
+
+	company = inpatient_record.company
+	# Resolve current cost center from admission or from current bed
+	from_cost_center = inpatient_record.cost_center
+	from_service_unit = _get_current_occupancy_service_unit(inpatient_record)
+	if not from_cost_center and from_service_unit:
+		from_cost_center = frappe.db.get_value("Healthcare Service Unit", from_service_unit, "cost_center")
+	if not from_cost_center:
+		frappe.throw(_("Current cost center could not be determined for this admission."))
+
+	to_cost_center = to_cost_center.strip()
+	if to_cost_center == from_cost_center:
+		frappe.throw(_("Target cost center must be different from current cost center."))
+
+	# Validate to_cost_center belongs to same company
+	cc_company = frappe.db.get_value("Cost Center", to_cost_center, "company")
+	if cc_company and cc_company != company:
+		frappe.throw(
+			_("Cost Center {0} belongs to company {1}. Admission is under {2}.").format(
+				to_cost_center, cc_company, company
+			)
+		)
+
+	# If target bed provided, validate it is in the target cost center and vacant
+	if to_service_unit:
+		su_cost_center = frappe.db.get_value("Healthcare Service Unit", to_service_unit, "cost_center")
+		if su_cost_center != to_cost_center:
+			frappe.throw(
+				_("Service Unit {0} is not in cost center {1}.").format(to_service_unit, to_cost_center)
+			)
+		occupancy_status = frappe.db.get_value("Healthcare Service Unit", to_service_unit, "occupancy_status")
+		if occupancy_status == "Occupied":
+			frappe.throw(_("Service Unit {0} is already occupied.").format(to_service_unit))
+		inpatient_occupancy = frappe.db.get_value(
+			"Healthcare Service Unit", to_service_unit, "inpatient_occupancy"
+		)
+		if not inpatient_occupancy:
+			frappe.throw(_("Service Unit {0} is not an inpatient unit.").format(to_service_unit))
+
+	transfer_dt = get_datetime(transfer_datetime) if transfer_datetime else now_datetime()
+
+	# 1) Check out from current bed(s) – leave all current occupancies
+	if inpatient_record.inpatient_occupancies:
+		for occ in inpatient_record.inpatient_occupancies:
+			if occ.left != 1 and occ.service_unit:
+				occ.left = True
+				occ.check_out = transfer_dt
+				frappe.db.set_value(
+					"Healthcare Service Unit", occ.service_unit, "occupancy_status", "Vacant"
+				)
+
+	# 2) Update admission cost center
+	inpatient_record.cost_center = to_cost_center
+	inpatient_record.save(ignore_permissions=True)
+
+	# 3) If target service unit provided, check in there
+	if to_service_unit:
+		transfer_patient(inpatient_record, to_service_unit, transfer_dt)
+
+	# 4) Create audit trail
+	event = frappe.get_doc(
+		{
+			"doctype": "Transfer Admission Event",
+			"inpatient_admission": inpatient_admission,
+			"patient": inpatient_record.patient,
+			"patient_name": inpatient_record.patient_name,
+			"transfer_datetime": transfer_dt,
+			"from_cost_center": from_cost_center,
+			"to_cost_center": to_cost_center,
+			"from_service_unit": from_service_unit or None,
+			"to_service_unit": to_service_unit or None,
+			"transferred_by": frappe.session.user,
+			"reason": reason or None,
+			"company": company,
+		}
+	)
+	event.insert(ignore_permissions=True)
+
+	frappe.db.commit()
+	return {
+		"transfer_admission_event": event.name,
+		"inpatient_admission": inpatient_admission,
+		"cost_center": to_cost_center,
+		"to_service_unit": to_service_unit,
+	}
 
 
 @frappe.whitelist()

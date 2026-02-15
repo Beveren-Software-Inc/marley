@@ -47,6 +47,23 @@ export async function fetchPatientVisit(name: string) {
   }
 }
 
+export interface PatientVisitTypeOption {
+  name: string
+  visit_type: string
+}
+
+/** Fetch Patient Visit Type list for dropdown (ECG, ECT, IOP, follow-up, etc.) */
+export async function fetchPatientVisitTypes(): Promise<PatientVisitTypeOption[]> {
+  const response = await fetch(
+    '/api/resource/Patient%20Visit%20Type?fields=["name","visit_type"]&limit_page_length=100'
+  )
+  const resData = await response.json()
+  if (resData?.data && Array.isArray(resData.data)) {
+    return resData.data as PatientVisitTypeOption[]
+  }
+  return []
+}
+
 
 
 

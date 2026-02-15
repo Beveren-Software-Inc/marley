@@ -72,7 +72,12 @@
   "service_details_section",
   "template_dt",
   "template_dn",
+  "amount",
+  "booked_lab_section",
+  "patient_accepted_cost",
+  "booked",
   "sample_collection_required",
+  "column_break_vcmb",
   "qty_invoiced",
   "billing_status"
  ],
@@ -526,6 +531,39 @@
    "fieldtype": "Data",
    "label": "Practitioner Email",
    "read_only": 1
+  },
+  {
+   "fieldname": "column_break_vcmb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Approved/agreed price for this order; reflected in patient visit when Booked Lab is used.",
+   "fieldname": "amount",
+   "fieldtype": "Currency",
+   "label": "Approved Amount"
+  },
+  {
+   "collapsible": 1,
+   "depends_on": "eval:doc.template_dt === 'Lab Test Template'",
+   "fieldname": "booked_lab_section",
+   "fieldtype": "Section Break",
+   "label": "Booked Lab"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.template_dt === 'Lab Test Template'",
+   "description": "Check when patient has confirmed acceptance of the cost. Enables 'Booked Lab' to forward to laboratory.",
+   "fieldname": "patient_accepted_cost",
+   "fieldtype": "Check",
+   "label": "Patient Accepted Cost"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.template_dt === 'Lab Test Template'",
+   "fieldname": "booked",
+   "fieldtype": "Check",
+   "label": "Forwarded to Lab",
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,
@@ -544,7 +582,7 @@
    "link_fieldname": "service_request"
   }
  ],
- "modified": "2026-02-02 10:23:52.355704",
+ "modified": "2026-02-15 11:55:01.817915",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Service Request",

@@ -64,6 +64,12 @@ class Discharge(Document):
 			# Check out from service unit
 			check_out_inpatient(admission)
 
+			# Create Patient Follow Up (IP) for CRM if Follow Up Date is set
+			from healthcare.healthcare.doctype.patient_follow_up.patient_follow_up import (
+				create_patient_follow_up_from_discharge,
+			)
+			create_patient_follow_up_from_discharge(self.admission, discharge_doc=self)
+
 	def on_cancel(self):
 		"""Revert Inpatient Admission status when Discharge is cancelled"""
 		if self.admission:

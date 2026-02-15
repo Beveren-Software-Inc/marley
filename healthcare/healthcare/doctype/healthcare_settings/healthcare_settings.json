@@ -67,6 +67,10 @@
   "sms_printed",
   "column_break_28",
   "sms_emailed",
+  "follow_up_section",
+  "enable_follow_up_mid_end_year_message",
+  "follow_up_mid_year_message",
+  "follow_up_end_year_message",
   "stock_tab",
   "default_expiry_warehouse"
  ],
@@ -223,6 +227,32 @@
    "fieldtype": "Small Text",
    "ignore_xss_filter": 1,
    "label": "Result Emailed Message"
+  },
+  {
+   "fieldname": "follow_up_section",
+   "fieldtype": "Section Break",
+   "label": "Follow Up / CRM"
+  },
+  {
+   "default": "0",
+   "description": "Send SMS/reminder to patients (OP and IP discharged) at mid-year and end of year",
+   "fieldname": "enable_follow_up_mid_end_year_message",
+   "fieldtype": "Check",
+   "label": "Enable Mid & End of Year Follow-up Message"
+  },
+  {
+   "depends_on": "eval:doc.enable_follow_up_mid_end_year_message == 1",
+   "fieldname": "follow_up_mid_year_message",
+   "fieldtype": "Small Text",
+   "label": "Mid-Year Message (e.g. June)",
+   "description": "Jinja: {{ doc.patient_name }} available. Sent around June."
+  },
+  {
+   "depends_on": "eval:doc.enable_follow_up_mid_end_year_message == 1",
+   "fieldname": "follow_up_end_year_message",
+   "fieldtype": "Small Text",
+   "label": "End of Year Message (e.g. December)",
+   "description": "Jinja: {{ doc.patient_name }} available. Sent around December."
   },
   {
    "default": "0",

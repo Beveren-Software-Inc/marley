@@ -13,8 +13,8 @@ def get_service_requests(limit=50, offset=0, patient=None, template_dt=None, sta
 	
 	if patient:
 		filters['patient'] = patient
-
-	
+	if template_dt:
+		filters['template_dt'] = template_dt
 	if status:
 		filters['status'] = status
 	
@@ -36,14 +36,15 @@ def get_service_requests(limit=50, offset=0, patient=None, template_dt=None, sta
 			'medical_department',
 			'billing_status',
 			'priority',
-			'intent'
+			'intent',
+			'patient_accepted_cost',
+			'booked',
+			'order_group'
 		],
 		limit=limit,
 		limit_start=offset,
 		order_by='order_date desc, order_time desc'
 	)
-	print("here is me", service_requests)
-	# frappe.throw(str(service_requests))
 	# Get practitioner names and template names
 	for sr in service_requests:
 		if sr.practitioner:
@@ -60,7 +61,6 @@ def get_service_requests(limit=50, offset=0, patient=None, template_dt=None, sta
 	return service_requests
 
 
-@frappe.whitelist()
 @frappe.whitelist()
 def create_lab_test_from_service_request(service_request):
 	"""Create a Lab Test from a Service Request"""
@@ -172,4 +172,17 @@ def create_service_request(data):
 		'status': service_request.status,
 		'order_date': service_request.order_date
 	}
+
+
+@frappe.whitelist()
+def confirm_payment(service_request_name):
+	"""Mark Service Request as payment confirmed (patient accepted cost). Required before Book Lab for Lab Test Template."""
+	if not service_request_name:
+		frappe.throw(_("Service Request name is required"))
+	sr = frappe.get_doc("Service Request", service_request_name)
+	if not sr:
+		frappe.throw(_("Service Request not found"))
+	sr.db_set("patient_accepted_cost", 1)
+	frappe.db.commit()
+	return {"ok": True, "patient_accepted_cost": 1}
 
