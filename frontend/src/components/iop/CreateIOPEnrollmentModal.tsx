@@ -15,7 +15,6 @@ export const CreateIOPEnrollmentModal = ({ onClose, onSuccess, initialPatient }:
   const [patientQuery, setPatientQuery] = useState('')
   const [patientOptions, setPatientOptions] = useState<PatientListItem[]>([])
   const [patientOpen, setPatientOpen] = useState(false)
-  const [patientName, setPatientName] = useState('')
   const [iop_day, setIopDay] = useState('')
   const [iopDays, setIopDays] = useState<IOPDay[]>([])
   const [status, setStatus] = useState('Scheduled')
@@ -45,7 +44,6 @@ export const CreateIOPEnrollmentModal = ({ onClose, onSuccess, initialPatient }:
 
   const handleSelectPatient = (p: PatientListItem) => {
     setPatient(p.name)
-    setPatientName((p as { patient_name?: string }).patient_name || p.name)
     setPatientQuery((p as { patient_name?: string }).patient_name || p.name)
     setPatientOpen(false)
   }
