@@ -24,7 +24,13 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
     nationality: '',
     category: '',
     source: '',
-    marital_status: ''
+    marital_status: '',
+    address_line1: '',
+    address_line2: '',
+    city: '',
+    state: '',
+    country: '',
+    pincode: ''
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -48,6 +54,11 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
     
     if (!formData.first_name || !formData.sex || !formData.source || !formData.marital_status) {
       setError('First Name, Gender, Source, and Marital Status are required')
+      return
+    }
+
+    if (!formData.address_line1 || !formData.city) {
+      setError('Address Line 1 and City are required')
       return
     }
 
@@ -274,12 +285,13 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Mobile
+                  Mobile <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="tel"
                   value={formData.mobile}
                   onChange={(e) => handleChange('mobile', e.target.value)}
+                  required
                   className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                 />
               </div>
@@ -377,11 +389,12 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
 
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Category
+                  Category <span className="text-red-500">*</span>
                 </label>
                 <select
                   value={formData.category}
                   onChange={(e) => handleChange('category', e.target.value)}
+                  required
                   className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                 >
                   <option value="">Select Category</option>
@@ -458,6 +471,88 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
             </div>
           </div>
 
+          {/* Address */}
+          <div>
+            <h3 className="text-sm font-semibold text-slate-700 mb-3">Address</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Address Line 1 <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.address_line1}
+                  onChange={(e) => handleChange('address_line1', e.target.value)}
+                  placeholder="Street address, P.O. box, company name"
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  required
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Address Line 2
+                </label>
+                <input
+                  type="text"
+                  value={formData.address_line2}
+                  onChange={(e) => handleChange('address_line2', e.target.value)}
+                  placeholder="Apartment, suite, unit, building, floor, etc."
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  City <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.city}
+                  onChange={(e) => handleChange('city', e.target.value)}
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  State/Province
+                </label>
+                <input
+                  type="text"
+                  value={formData.state}
+                  onChange={(e) => handleChange('state', e.target.value)}
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Country
+                </label>
+                <input
+                  type="text"
+                  value={formData.country}
+                  onChange={(e) => handleChange('country', e.target.value)}
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Pincode/ZIP
+                </label>
+                <input
+                  type="text"
+                  value={formData.pincode}
+                  onChange={(e) => handleChange('pincode', e.target.value)}
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+            </div>
+          </div>
+
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-md p-3 text-sm text-red-700">
               {error}
@@ -520,4 +615,3 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
     </div>
   )
 }
-

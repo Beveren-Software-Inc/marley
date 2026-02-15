@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { fetchInpatientRecord, fetchServiceUnits, admitPatient, calculatePackagePrice, createAdmissionSalesOrder, type ServiceUnit, type InpatientPackage } from '../../services/inpatientRecords'
+import { fetchInpatientRecord, fetchServiceUnits, admitPatient, calculatePackagePrice, type ServiceUnit, type InpatientPackage, createAdmissionQuotation, checkAdmissionQuotation } from '../../services/inpatientRecords'
 
 interface AdmissionFormModalProps {
   admissionNo: string
@@ -31,6 +31,8 @@ export const AdmissionFormModal = ({
   const [calculatingPrice, setCalculatingPrice] = useState(false)
   const [creatingSalesOrder, setCreatingSalesOrder] = useState(false)
   const [salesOrderCreated, setSalesOrderCreated] = useState<string | null>(null)
+  const [existingQuotation, setExistingQuotation] = useState<string | null>(null)
+  const [checkingQuotation, setCheckingQuotation] = useState(false)
 
   const discountPercent = Math.min(
     100,
@@ -175,6 +177,28 @@ export const AdmissionFormModal = ({
     loadData()
   }, [admissionNo])
 
+
+ useEffect(() => {
+    const checkQuotation = async () => {
+      try {
+        setCheckingQuotation(true)
+        const result = await checkAdmissionQuotation(admissionNo, selectedPackage.name)
+        if (result.exists && result.quotation_name) {
+          setExistingQuotation(result.quotation_name)
+          setSalesOrderCreated(result.quotation_name) // Show the success message
+        }
+      } catch (err) {
+        console.error('Failed to check quotation:', err)
+      } finally {
+        setCheckingQuotation(false)
+      }
+    }
+
+    if (admissionNo && selectedPackage.name) {
+      checkQuotation()
+    }
+  }, [admissionNo, selectedPackage.name])
+  
   const handleCreateSalesOrder = async () => {
     if (!discountedPrice || discountedPrice <= 0) {
       setError(new Error('Please calculate price first by entering number of days'))
@@ -190,7 +214,7 @@ export const AdmissionFormModal = ({
       setCreatingSalesOrder(true)
       setError(null)
 
-      const result = await createAdmissionSalesOrder(
+      const result = await createAdmissionQuotation(
         admissionNo,
         selectedPackage.name,
         days,
@@ -200,7 +224,7 @@ export const AdmissionFormModal = ({
 
       setSalesOrderCreated(result.sales_order_name)
     } catch (err) {
-      setError(err instanceof Error ? err : new Error('Failed to create sales order'))
+      setError(err instanceof Error ? err : new Error('Failed to create Quotation'))
     } finally {
       setCreatingSalesOrder(false)
     }
@@ -473,37 +497,39 @@ export const AdmissionFormModal = ({
 
           {salesOrderCreated && (
             <div className="bg-green-50 border border-green-200 rounded-md p-3 text-sm text-green-700">
-              <p className="font-medium">Sales Order Created Successfully!</p>
-              <p className="text-xs mt-1">Sales Order: {salesOrderCreated}</p>
+              <p className="font-medium">Quotation Created Successfully!</p>
+              <p className="text-xs mt-1">Quotation: {salesOrderCreated}</p>
             </div>
           )}
 
           <div className="flex justify-between items-center pt-4">
-            <button
-              type="button"
-              onClick={handleCreateSalesOrder}
-              disabled={creatingSalesOrder || !calculatedPrice || calculatedPrice <= 0}
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {creatingSalesOrder ? 'Creating Sales Order...' : 'Create Sales Order'}
-            </button>
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={submitting}
-                className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-50"
-              >
-                {submitting ? 'Admitting...' : 'Admit Patient'}
-              </button>
-            </div>
-          </div>
+      {!existingQuotation && !salesOrderCreated && (
+        <button
+          type="button"
+          onClick={handleCreateSalesOrder}
+          disabled={creatingSalesOrder || checkingQuotation || !calculatedPrice || calculatedPrice <= 0}
+          className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {creatingSalesOrder ? 'Creating Quotation...' : checkingQuotation ? 'Checking...' : 'Create Quotation'}
+        </button>
+      )}
+      <div className="flex gap-3 ml-auto">
+        <button
+          type="button"
+          onClick={onClose}
+          className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          disabled={submitting}
+          className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-50"
+        >
+          {submitting ? 'Admitting...' : 'Admit Patient'}
+        </button>
+      </div>
+    </div>
         </form>
       </div>
     </div>

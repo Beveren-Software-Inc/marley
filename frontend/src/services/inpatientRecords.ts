@@ -176,7 +176,7 @@ export async function fetchServiceUnits(serviceUnitType?: string, occupancyStatu
   if (roomCategory) params.append('room_category', roomCategory)
   
   const url = `/api/method/healthcare.api.inpatient_admission.get_service_units${params.toString() ? `?${params.toString()}` : ''}`
-  
+  console.log('Fetching service units with URL:', url)
   const response = await fetch(url)
   const resData = await response.json()
 
@@ -204,7 +204,7 @@ export async function calculatePackagePrice(packageName: string, days: number): 
   }
 }
 
-export async function createAdmissionSalesOrder(
+export async function createAdmissionQuotation(
   admissionName: string,
   packageName: string,
   days: number,
@@ -214,7 +214,7 @@ export async function createAdmissionSalesOrder(
   const csrf = (window as any).csrf_token
   
   const response = await fetch(
-    `/api/method/healthcare.api.inpatient_admission.create_admission_sales_order`,
+    `/api/method/healthcare.api.inpatient_admission.create_admission_quotation`,
     {
       method: 'POST',
       headers: {
@@ -242,6 +242,26 @@ export async function createAdmissionSalesOrder(
   }
   
   throw new Error('Invalid response format')
+}
+
+export async function checkAdmissionQuotation(
+  admissionName: string,
+  packageName: string
+): Promise<{ exists: boolean; quotation_name?: string }> {
+  const params = new URLSearchParams()
+  params.append('admission_name', admissionName)
+  params.append('package_name', packageName)
+  
+  const url = `/api/method/healthcare.api.inpatient_admission.check_admission_quotation?${params.toString()}`
+  
+  const response = await fetch(url)
+  const resData = await response.json()
+
+  if (resData?.message) {
+    return resData.message
+  }
+  
+  return { exists: false }
 }
 
 export async function admitPatient(

@@ -5,5 +5,5 @@
 from frappe.model.document import Document
 
 
-class InsurancePayor(Document):
+class InsuranceCompany(Document):
 	pass

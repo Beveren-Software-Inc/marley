@@ -146,6 +146,17 @@ def setup_healthcare():
 
 	setup_domain()
 
+	# Ensure Healthcare app icon appears on desk (v15/v16)
+	try:
+		from frappe.desk.doctype.desktop_icon.desktop_icon import (
+			create_desktop_icons_from_installed_apps,
+			clear_desktop_icons_cache,
+		)
+		create_desktop_icons_from_installed_apps()
+		clear_desktop_icons_cache()
+	except Exception:
+		pass
+
 	frappe.clear_cache()
 
 

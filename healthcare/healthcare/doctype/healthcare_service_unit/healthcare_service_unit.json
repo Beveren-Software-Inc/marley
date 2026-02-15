@@ -21,6 +21,7 @@
   "company",
   "warehouse",
   "room_category",
+  "cost_center",
   "tree_details_section",
   "parent_healthcare_service_unit",
   "lft",
@@ -247,6 +248,12 @@
    "fieldtype": "Link",
    "label": "Room Category",
    "options": "Room Category"
+  },
+  {
+   "fieldname": "cost_center",
+   "fieldtype": "Link",
+   "label": "Cost Center",
+   "options": "Cost Center"
   }
  ],
  "is_tree": 1,
@@ -266,7 +273,7 @@
    "table_fieldname": "practitioner_schedules"
   }
  ],
- "modified": "2026-01-19 13:06:28.957680",
+ "modified": "2026-02-12 13:55:02.615561",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Service Unit",

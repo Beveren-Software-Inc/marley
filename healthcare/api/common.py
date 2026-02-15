@@ -28,6 +28,24 @@ def get_medical_departments(search=None):
 
 
 @frappe.whitelist()
+def get_nationalities(search=None):
+	filters = {}
+
+	if search:
+		filters = {
+			"nationality": ["like", f"%{search}%"]
+		}
+
+	nationalities = frappe.get_all(
+		"Nationality",
+		filters=filters,
+		fields=["name", "nationality", "country"],
+		limit_page_length=50,
+		order_by="nationality asc"
+	)
+	return nationalities
+
+@frappe.whitelist()
 def get_healthcare_practitioners(search=None, department=None):
 	"""Get list of Healthcare Practitioners"""
 	filters = {}
@@ -91,14 +109,13 @@ def get_lead_sources(search=None):
 		filters['source_name'] = ['like', f'%{search}%']
 	
 	sources = frappe.get_all(
-		'Lead Source',
+		'Patient Source',
 		filters=filters,
-		fields=['name', 'source_name'],
+		fields=['name', 'source'],
 		limit=50,
-		order_by='source_name'
+		order_by='source'
 	)
-	
-	return [{'name': s.name, 'label': s.source_name or s.name} for s in sources]
+	return [{'name': s.name, 'label': s.source or s.name} for s in sources]
 
 
 @frappe.whitelist()

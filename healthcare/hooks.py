@@ -1,7 +1,7 @@
 from . import __version__ as app_version  # noqa
 
 app_name = "healthcare"
-app_title = "Marley Health"
+app_title = "Healthcare"
 app_publisher = "earthians Health Informatics Pvt. Ltd."
 app_description = "Modern, Open Source HIS built on Frappe and ERPNext"
 app_icon = "octicon octicon-file-directory"
@@ -20,7 +20,6 @@ add_to_apps_screen = [
 		"logo": "/assets/healthcare/images/healthcare.svg",
 		"title": "Healthcare",
 		"route": "/desk/healthcare",
-		"has_permission": "healthcare.api.check_app_permission",
 	}
 ]
 
