@@ -185,6 +185,34 @@ def create_patient(data):
 	except Exception:
 		pass
 
+	# 4) Patient Documents (child table)
+	patient.reload()
+	patient_documents = data.get("patient_document") or data.get("documents") or []
+	if isinstance(patient_documents, str):
+		import json
+		patient_documents = json.loads(patient_documents) if patient_documents.strip() else []
+	for row in patient_documents:
+		if not isinstance(row, dict):
+			continue
+		file_name = (row.get("file_name") or "").strip()
+		if not file_name:
+			continue
+		try:
+			patient.append("patient_document", {
+				"file_name": file_name,
+				"document_type": (row.get("document_type") or "").strip() or None,
+				"transaction_no": (row.get("transaction_no") or "").strip() or None,
+				"upload_remarks": (row.get("upload_remarks") or "").strip() or None,
+				"document": (row.get("document") or "").strip() or None,
+			})
+		except Exception:
+			pass
+	if patient.get("patient_document"):
+		try:
+			patient.save(ignore_permissions=True)
+		except Exception:
+			frappe.log_error(frappe.get_traceback(), "Create Patient Documents")
+
 	# Return the created patient
 	return {
 		'name': patient.name,
