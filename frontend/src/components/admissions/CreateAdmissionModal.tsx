@@ -7,10 +7,17 @@ import {
   fetchHealthcarePractitioners, 
   fetchServiceUnitTypes, 
   fetchNursingChecklistTemplates,
+  fetchCompanies,
+  fetchCostCenters,
   type LinkFieldOption 
 } from '../../services/common'
 import { CreatePatientModal } from '../patients/CreatePatientModal'
 import { CreatePractitionerModal } from '../practitioners/CreatePractitionerModal'
+
+interface Company {
+  name: string
+  company_name: string
+}
 
 interface CreateAdmissionModalProps {
   onClose: () => void
@@ -32,6 +39,17 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
   const [showCreatePatient, setShowCreatePatient] = useState(false)
   const [showCreatePractitioner, setShowCreatePractitioner] = useState(false)
   const [practitionerFieldType, setPractitionerFieldType] = useState<'primary' | 'secondary' | null>(null)
+
+  // Company state
+  const [companies, setCompanies] = useState<Company[]>([])
+  const [isSingleCompany, setIsSingleCompany] = useState(false)
+  const [companyOpen, setCompanyOpen] = useState(false)
+  const [companyQuery, setCompanyQuery] = useState('')
+
+  // Cost center state
+  const [costCenters, setCostCenters] = useState<LinkFieldOption[]>([])
+  const [costCenterOpen, setCostCenterOpen] = useState(false)
+  const [costCenterQuery, setCostCenterQuery] = useState('')
   
   // Link field options
   const [medicalDepartments, setMedicalDepartments] = useState<LinkFieldOption[]>([])
@@ -55,6 +73,8 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
   const [nursingTemplateQuery, setNursingTemplateQuery] = useState('')
 
   const [formData, setFormData] = useState({
+    company: '',
+    cost_center: '',
     medical_department: '',
     primary_practitioner: '',
     secondary_practitioner: '',
@@ -64,6 +84,49 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
     admission_instruction: '',
     admission_nursing_checklist_template: ''
   })
+
+  // Load companies on mount
+  useEffect(() => {
+    const loadCompanies = async () => {
+      try {
+        const list = await fetchCompanies()
+        // fetchCompanies returns LinkFieldOption[] — map to Company shape
+        const mapped: Company[] = list.map(c => ({ name: c.name, company_name: c.label }))
+        setCompanies(mapped)
+
+        if (mapped.length === 1) {
+          // Single company — hide the field but store the value
+          setIsSingleCompany(true)
+          setFormData(prev => ({ ...prev, company: mapped[0].name }))
+          setCompanyQuery(mapped[0].company_name)
+          // Load cost centers for the single company immediately
+          loadCostCenters(mapped[0].name)
+        }
+      } catch (err) {
+        console.error('Failed to load companies:', err)
+      }
+    }
+    loadCompanies()
+  }, [])
+
+  // Load cost centers filtered by selected company
+  const loadCostCenters = async (companyName?: string, query?: string) => {
+    try {
+      const list = await fetchCostCenters(companyName, query)
+      setCostCenters(list)
+    } catch (err) {
+      console.error('Failed to load cost centers:', err)
+    }
+  }
+
+  // Re-fetch cost centers when company changes or search query changes
+  useEffect(() => {
+    if (!formData.company && !isSingleCompany) return
+    const timeoutId = setTimeout(() => {
+      loadCostCenters(formData.company || undefined, costCenterQuery || undefined)
+    }, 300)
+    return () => clearTimeout(timeoutId)
+  }, [formData.company, costCenterQuery, costCenterOpen])
 
   // Load initial options
   useEffect(() => {
@@ -91,10 +154,8 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
       try {
         let results: PatientListItem[] = []
         if (patientQuery.trim() === '') {
-          // If empty, fetch initial list
           results = await fetchPatients(20, 0)
         } else {
-          // Search with query
           results = await searchPatients(patientQuery, 20)
         }
         setPatients(results)
@@ -106,7 +167,6 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
       }
     }
 
-    // Debounce search by 300ms
     const timeoutId = setTimeout(() => {
       search()
     }, patientQuery.trim() === '' ? 0 : 300)
@@ -208,30 +268,29 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
       return
     }
 
-    // If no encounter, these fields are required
-    if (!encounterName) {
-      if (!formData.medical_department) {
-        setError('Medical Department is required')
-        return
-      }
-      if (!formData.primary_practitioner) {
-        setError('Primary Practitioner is required')
-        return
-      }
-      if (!formData.expected_length_of_stay) {
-        setError('Expected Length of Stay is required')
-        return
-      }
-    } else {
-      // Even with encounter, medical_department and primary_practitioner are still required
-      if (!formData.medical_department) {
-        setError('Medical Department is required')
-        return
-      }
-      if (!formData.primary_practitioner) {
-        setError('Primary Practitioner is required')
-        return
-      }
+    if (!formData.company) {
+      setError('Company is required')
+      return
+    }
+
+    if (!formData.cost_center) {
+      setError('Cost Center is required')
+      return
+    }
+
+    if (!formData.medical_department) {
+      setError('Medical Department is required')
+      return
+    }
+
+    if (!formData.primary_practitioner) {
+      setError('Primary Practitioner is required')
+      return
+    }
+
+    if (!encounterName && !formData.expected_length_of_stay) {
+      setError('Expected Length of Stay is required')
+      return
     }
 
     try {
@@ -239,18 +298,17 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
 
       const args: any = {
         patient: selectedPatient.name,
-        company: '', // Will be set by backend
+        company: formData.company,
+        cost_center: formData.cost_center,
         medical_department: formData.medical_department,
         primary_practitioner: formData.primary_practitioner,
         admission_ordered_for: formData.admission_ordered_for,
       }
       
-      // Only include admission_encounter if it's provided
       if (encounterName) {
         args.admission_encounter = encounterName
       }
       
-      // Optional fields
       if (formData.secondary_practitioner) {
         args.secondary_practitioner = formData.secondary_practitioner
       }
@@ -275,17 +333,12 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
         }
       )
 
-      // apiRequest returns `message` already when present, but older codepaths may return raw objects.
       const message = resData
 
       if ((message as any)?.exc) {
-        // Parse error message to make it user-friendly
         let errorMessage = (message as any).exc || 'Failed to create admission'
         
-        // Handle specific validation errors
         if (errorMessage.includes('Already Admission Scheduled')) {
-          // Extract patient name and admission number from error
-          // Pattern: "Already Admission Scheduled Patient <name> with Inpatient Record <record>"
           const match = errorMessage.match(/Already Admission Scheduled Patient (.+?) with Inpatient Record (.+?)(?:\n|$)/)
           if (match && match.length >= 3) {
             const patientName = match[1].trim()
@@ -331,6 +384,17 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
     }
   }
 
+  const closeAllDropdowns = () => {
+    setPatientOpen(false)
+    setCompanyOpen(false)
+    setCostCenterOpen(false)
+    setDeptOpen(false)
+    setPrimaryPractOpen(false)
+    setSecondaryPractOpen(false)
+    setServiceUnitOpen(false)
+    setNursingTemplateOpen(false)
+  }
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full mx-4 max-h-[90vh] overflow-y-auto">
@@ -349,15 +413,9 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4" onClick={(e) => {
-          // Close dropdowns when clicking outside inputs
           const target = e.target as HTMLElement
           if (target.tagName !== 'INPUT' && !target.closest('.absolute')) {
-            setPatientOpen(false)
-            setDeptOpen(false)
-            setPrimaryPractOpen(false)
-            setSecondaryPractOpen(false)
-            setServiceUnitOpen(false)
-            setNursingTemplateOpen(false)
+            closeAllDropdowns()
           }
         }}>
           {/* Patient Selection */}
@@ -417,6 +475,101 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
             </div>
           </div>
 
+          {/* Company + Cost Center row — company hidden when single */}
+          <div className={`grid gap-4 ${isSingleCompany ? 'grid-cols-1' : 'grid-cols-2'}`}>
+            {/* Company — only shown when multiple companies exist */}
+            {!isSingleCompany && (
+              <div className="relative">
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Company <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.company ? (companies.find(c => c.name === formData.company)?.company_name ?? formData.company) : companyQuery}
+                  onChange={(e) => {
+                    setCompanyQuery(e.target.value)
+                    setCompanyOpen(true)
+                    // Clear cost center when company changes
+                    setFormData(prev => ({ ...prev, company: '', cost_center: '' }))
+                    setCostCenterQuery('')
+                  }}
+                  onFocus={() => setCompanyOpen(true)}
+                  placeholder="Select Company..."
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+                {companyOpen && (
+                  <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-auto">
+                    {companies.filter(c =>
+                      !companyQuery || c.company_name.toLowerCase().includes(companyQuery.toLowerCase())
+                    ).length > 0 ? (
+                      companies
+                        .filter(c => !companyQuery || c.company_name.toLowerCase().includes(companyQuery.toLowerCase()))
+                        .map((company) => (
+                          <button
+                            key={company.name}
+                            type="button"
+                            className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50"
+                            onClick={() => {
+                              setFormData(prev => ({ ...prev, company: company.name, cost_center: '' }))
+                              setCompanyQuery(company.company_name)
+                              setCostCenterQuery('')
+                              setCompanyOpen(false)
+                            }}
+                          >
+                            {company.company_name}
+                          </button>
+                        ))
+                    ) : (
+                      <div className="px-3 py-2 text-xs text-slate-500">No companies found</div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Cost Center — always shown, mandatory */}
+            <div className="relative">
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Cost Center <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={formData.cost_center ? (costCenters.find(c => c.name === formData.cost_center)?.label ?? formData.cost_center) : costCenterQuery}
+                onChange={(e) => {
+                  setCostCenterQuery(e.target.value)
+                  setCostCenterOpen(true)
+                  setFormData(prev => ({ ...prev, cost_center: '' }))
+                }}
+                onFocus={() => setCostCenterOpen(true)}
+                placeholder={!formData.company && !isSingleCompany ? 'Select a company first...' : 'Search Cost Center...'}
+                disabled={!formData.company && !isSingleCompany}
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed"
+              />
+              {costCenterOpen && (formData.company || isSingleCompany) && (
+                <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-auto">
+                  {costCenters.length > 0 ? (
+                    costCenters.map((cc) => (
+                      <button
+                        key={cc.name}
+                        type="button"
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50"
+                        onClick={() => {
+                          setFormData(prev => ({ ...prev, cost_center: cc.name }))
+                          setCostCenterQuery(cc.label)
+                          setCostCenterOpen(false)
+                        }}
+                      >
+                        {cc.label}
+                      </button>
+                    ))
+                  ) : (
+                    <div className="px-3 py-2 text-xs text-slate-500">No cost centers found</div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             {/* Medical Department */}
             <div className="relative">
@@ -445,11 +598,9 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                           type="button"
                           className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50"
                           onClick={() => {
-                            setFormData({ ...formData, medical_department: dept.name })
+                            setFormData(prev => ({ ...prev, medical_department: dept.name, primary_practitioner: '', secondary_practitioner: '' }))
                             setDeptQuery(dept.label)
                             setDeptOpen(false)
-                            // Clear practitioners when department changes
-                            setFormData(prev => ({ ...prev, primary_practitioner: '', secondary_practitioner: '' }))
                           }}
                         >
                           {dept.label}
@@ -504,7 +655,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                           type="button"
                           className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50"
                           onClick={() => {
-                            setFormData({ ...formData, primary_practitioner: pract.name })
+                            setFormData(prev => ({ ...prev, primary_practitioner: pract.name }))
                             setPrimaryPractQuery(pract.label)
                             setPrimaryPractOpen(false)
                           }}
@@ -563,7 +714,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                           type="button"
                           className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50"
                           onClick={() => {
-                            setFormData({ ...formData, secondary_practitioner: pract.name })
+                            setFormData(prev => ({ ...prev, secondary_practitioner: pract.name }))
                             setSecondaryPractQuery(pract.label)
                             setSecondaryPractOpen(false)
                           }}
@@ -585,7 +736,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
             {/* Service Unit Type */}
             <div className="relative">
               <label className="block text-sm font-medium text-slate-700 mb-1">
-                Service Unit Type
+                Bed
               </label>
               <div className="relative">
                 <input
@@ -608,7 +759,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                           type="button"
                           className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50"
                           onClick={() => {
-                            setFormData({ ...formData, admission_service_unit_type: unit.name })
+                            setFormData(prev => ({ ...prev, admission_service_unit_type: unit.name }))
                             setServiceUnitQuery(unit.label)
                             setServiceUnitOpen(false)
                           }}
@@ -632,7 +783,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
               <input
                 type="date"
                 value={formData.admission_ordered_for}
-                onChange={(e) => setFormData({ ...formData, admission_ordered_for: e.target.value })}
+                onChange={(e) => setFormData(prev => ({ ...prev, admission_ordered_for: e.target.value }))}
                 className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
@@ -646,7 +797,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                 type="number"
                 value={formData.expected_length_of_stay}
                 required={!encounterName}
-                onChange={(e) => setFormData({ ...formData, expected_length_of_stay: e.target.value })}
+                onChange={(e) => setFormData(prev => ({ ...prev, expected_length_of_stay: e.target.value }))}
                 placeholder="Days"
                 className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               />
@@ -679,7 +830,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                         type="button"
                         className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50"
                         onClick={() => {
-                          setFormData({ ...formData, admission_nursing_checklist_template: template.name })
+                          setFormData(prev => ({ ...prev, admission_nursing_checklist_template: template.name }))
                           setNursingTemplateQuery(template.label)
                           setNursingTemplateOpen(false)
                         }}
@@ -702,7 +853,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
             </label>
             <textarea
               value={formData.admission_instruction}
-              onChange={(e) => setFormData({ ...formData, admission_instruction: e.target.value })}
+              onChange={(e) => setFormData(prev => ({ ...prev, admission_instruction: e.target.value }))}
               rows={3}
               placeholder="Admission instructions..."
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
@@ -754,7 +905,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
           }}
           onSuccess={(practitionerName) => {
             if (practitionerFieldType === 'primary') {
-              setFormData({ ...formData, primary_practitioner: practitionerName })
+              setFormData(prev => ({ ...prev, primary_practitioner: practitionerName }))
               const newPract = primaryPractitioners.find(p => p.name === practitionerName)
               if (newPract) {
                 setPrimaryPractQuery(newPract.label)
@@ -764,7 +915,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
               }
               setPrimaryPractOpen(false)
             } else if (practitionerFieldType === 'secondary') {
-              setFormData({ ...formData, secondary_practitioner: practitionerName })
+              setFormData(prev => ({ ...prev, secondary_practitioner: practitionerName }))
               const newPract = secondaryPractitioners.find(p => p.name === practitionerName)
               if (newPract) {
                 setSecondaryPractQuery(newPract.label)
@@ -782,4 +933,3 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
     </div>
   )
 }
-

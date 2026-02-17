@@ -20,6 +20,7 @@ interface EditPatientModalProps {
 
 const emptyForm = {
   first_name: '',
+  file_no: '',
   middle_name: '',
   last_name: '',
   sex: '',

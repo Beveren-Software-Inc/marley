@@ -175,7 +175,7 @@ export const AdmissionDetails = ({ admissionNo, onUpdate }: AdmissionDetailsProp
 
         {admission.admission_service_unit_type && (
           <div>
-            <h3 className="text-sm font-semibold text-slate-700 mb-2">Service Unit Type</h3>
+            <h3 className="text-sm font-semibold text-slate-700 mb-2">Bed</h3>
             <div className="text-sm">{admission.admission_service_unit_type}</div>
           </div>
         )}

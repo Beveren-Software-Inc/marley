@@ -8,6 +8,7 @@
   "naming_series",
   "patient",
   "patient_name",
+  "doctor",
   "column_break_xmye",
   "iop_day",
   "posting_date",
@@ -74,11 +75,17 @@
    "fieldname": "more_information_section",
    "fieldtype": "Section Break",
    "label": "More Information"
+  },
+  {
+   "fieldname": "doctor",
+   "fieldtype": "Link",
+   "label": "Doctor",
+   "options": "Healthcare Practitioner"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-02-15 11:05:12.698074",
+ "modified": "2026-02-17 13:37:53.915099",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "IOP Enrollment",

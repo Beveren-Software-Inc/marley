@@ -81,6 +81,8 @@
   "patient_primary_contact",
   "mobile_no",
   "email_id",
+  "alter_mobile_no",
+  "alter_2_mobile_no",
   "sb_relation",
   "patient_relation",
   "medical_history_tab",
@@ -740,12 +742,14 @@
   },
   {
    "fetch_from": "patient_primary_contact.mobile_no",
+   "fetch_if_empty": 1,
    "fieldname": "mobile_no",
    "fieldtype": "Data",
    "label": "Mobile No"
   },
   {
    "fetch_from": "patient_primary_contact.email_id",
+   "fetch_if_empty": 1,
    "fieldname": "email_id",
    "fieldtype": "Data",
    "label": "Email Id"
@@ -755,6 +759,16 @@
    "fieldname": "is_black_list",
    "fieldtype": "Check",
    "label": "Is Black List?"
+  },
+  {
+   "fieldname": "alter_mobile_no",
+   "fieldtype": "Data",
+   "label": "Alter Mobile No"
+  },
+  {
+   "fieldname": "alter_2_mobile_no",
+   "fieldtype": "Data",
+   "label": "Alter 2 Mobile No"
   }
  ],
  "grid_page_length": 50,
@@ -858,7 +872,7 @@
   }
  ],
  "max_attachments": 50,
- "modified": "2026-02-15 10:07:49.964171",
+ "modified": "2026-02-17 16:19:10.249508",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient",
