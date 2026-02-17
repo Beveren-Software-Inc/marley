@@ -77,6 +77,14 @@ export async function fetchPatients(
   }
 }
 
+export interface PatientDocumentRow {
+  file_name: string
+  document_type?: string
+  transaction_no?: string
+  upload_remarks?: string
+  document?: string
+}
+
 export interface CreatePatientData {
   first_name: string
   middle_name?: string
@@ -100,6 +108,59 @@ export interface CreatePatientData {
   state?: string
   country?: string
   pincode?: string
+  patient_document?: PatientDocumentRow[]
+}
+
+/** Upload a file for Patient (e.g. for Patient Upload Document). Returns file_url to store in document field. */
+export async function uploadPatientFile(file: File): Promise<string> {
+  const csrf = (window as any).csrf_token
+  const form = new FormData()
+  form.append('file', file)
+  form.append('is_private', '0')
+  form.append('folder', 'Home/Attachments')
+  // Do NOT append doctype/docname — Frappe rejects upload_file when docname is
+  // an empty string. For pre-save patient docs we upload as a standalone file
+  // and attach the returned file_url to the document row instead.
+  if (csrf) form.append('csrf_token', csrf)
+
+  const res = await fetch('/api/method/upload_file', {
+    method: 'POST',
+    headers: csrf ? { 'X-Frappe-CSRF-Token': csrf } : {},
+    body: form,
+    credentials: 'include',
+  })
+
+  let data: any = {}
+  try {
+    data = await res.json()
+  } catch {
+    throw new Error(`Upload failed: server returned non-JSON (status ${res.status})`)
+  }
+
+  // Frappe surfaces exceptions as data.exc (stringified traceback).
+  // data._server_messages or data.message may hold the user-facing reason.
+  if (data?.exc) {
+    let reason = 'Upload failed'
+    try {
+      // _server_messages is a JSON-encoded array of JSON-encoded objects
+      const msgs = JSON.parse(data._server_messages || '[]')
+      const first = JSON.parse(msgs[0] || '{}')
+      reason = first?.message || data?.message || reason
+    } catch {
+      reason = data?.message || reason
+    }
+    throw new Error(reason)
+  }
+
+  if (!res.ok) {
+    throw new Error(`Upload failed: HTTP ${res.status}`)
+  }
+
+  const doc = data?.message
+  if (doc && typeof doc === 'object' && doc.file_url) return doc.file_url
+  if (typeof doc === 'string' && doc.startsWith('/')) return doc
+
+  throw new Error('Upload failed: no file URL in response')
 }
 
 export type CreatePatientResult = { name: string; patient_name: string; file_no: string; server_message?: string }

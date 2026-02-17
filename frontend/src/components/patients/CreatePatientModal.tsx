@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { createPatient } from '../../services/patients'
+import { createPatient, uploadPatientFile, type PatientDocumentRow } from '../../services/patients'
 import { fetchLeadSources, fetchNationalities, fetchCountries, type LinkFieldOption } from '../../services/common'
 import { CreateLeadSourceModal } from './CreateLeadSourceModal'
 import { CreateNationalityModal } from './CreateNationalityModal'
@@ -52,6 +52,46 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
   const [selectedNationality, setSelectedNationality] = useState<LinkFieldOption | null>(null)
   const [showCreateNationality, setShowCreateNationality] = useState(false)
   const [countries, setCountries] = useState<{ name: string }[]>([])
+  const [documents, setDocuments] = useState<PatientDocumentRow[]>([])
+  const [documentUploading, setDocumentUploading] = useState<number | null>(null)
+
+  const addDocumentRow = () => {
+    setDocuments((prev) => [...prev, { file_name: '', document_type: '', transaction_no: '', upload_remarks: '' }])
+  }
+  const removeDocumentRow = (idx: number) => {
+    setDocuments((prev) => prev.filter((_, i) => i !== idx))
+  }
+  const updateDocumentRow = (idx: number, field: keyof PatientDocumentRow, value: string) => {
+    setDocuments((prev) => {
+      const next = [...prev]
+      next[idx] = { ...next[idx], [field]: value }
+      return next
+    })
+  }
+
+  // FIX: upload — capture idx in closure before async call, reset on any outcome
+  const handleDocumentFile = async (idx: number, file: File | null) => {
+    if (!file) return
+    setDocumentUploading(idx)
+    try {
+      const file_url = await uploadPatientFile(file)
+      if (!file_url) throw new Error('No URL returned from upload')
+      setDocuments((prev) => {
+        const next = [...prev]
+        next[idx] = {
+          ...next[idx],
+          document: file_url,
+          file_name: next[idx].file_name?.trim() || file.name,
+        }
+        return next
+      })
+      toast.success('File uploaded')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'File upload failed')
+    } finally {
+      setDocumentUploading(null)
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -85,6 +125,15 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
         ...formData,
         is_black_list: formData.is_black_list,
         remarks: formData.remarks || undefined,
+        patient_document: documents
+          .filter((r) => (r.file_name || '').trim())
+          .map((r) => ({
+            file_name: r.file_name.trim(),
+            document_type: (r.document_type || '').trim() || undefined,
+            transaction_no: (r.transaction_no || '').trim() || undefined,
+            upload_remarks: (r.upload_remarks || '').trim() || undefined,
+            document: (r.document || '').trim() || undefined,
+          })),
       }
       const patient = await createPatient(payload)
       const successMsg = patient.server_message || 'Patient created'
@@ -210,7 +259,7 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
         >
           {/* Basic Information */}
           <div>
-            <h3 className="text-sm font-semibold text-slate-700 mb-3">Basic Information</h3>
+            <h3 className="text-xs font-bold uppercase tracking-widest text-blue-600 mb-3 mt-2">Basic Information</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -303,7 +352,7 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
 
           {/* Contact Information */}
           <div>
-            <h3 className="text-sm font-semibold text-slate-700 mb-3">Contact Information</h3>
+            <h3 className="text-xs font-bold uppercase tracking-widest text-blue-600 mb-3 mt-2">Contact Information</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -346,7 +395,7 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
 
           {/* Identification */}
           <div>
-            <h3 className="text-sm font-semibold text-slate-700 mb-3">Identification</h3>
+            <h3 className="text-xs font-bold uppercase tracking-widest text-blue-600 mb-3 mt-2">Identification</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -496,7 +545,7 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
 
           {/* Address */}
           <div>
-            <h3 className="text-sm font-semibold text-slate-700 mb-3">Address</h3>
+            <h3 className="text-xs font-bold uppercase tracking-widest text-blue-600 mb-3 mt-2">Address</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -580,9 +629,9 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
             </div>
           </div>
 
-          {/* Is Black List & Remarks (BRD) */}
+          {/* Other Information */}
           <div>
-            <h3 className="text-sm font-semibold text-slate-700 mb-3">Other Information</h3>
+            <h3 className="text-xs font-bold uppercase tracking-widest text-blue-600 mb-3 mt-2">Other Information</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="flex items-center gap-2">
                 <input
@@ -607,6 +656,94 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
                   className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                 />
               </div>
+            </div>
+          </div>
+
+          {/* Patient Documents — rendered once only (FIX: removed duplicate section) */}
+          <div>
+            <h3 className="text-xs font-bold uppercase tracking-widest text-blue-600 mb-3 mt-2">Patient Documents</h3>
+            <div className="space-y-3">
+              {documents.map((row, idx) => (
+                <div
+                  key={idx}
+                  className="grid grid-cols-1 md:grid-cols-12 gap-2 items-end rounded border border-slate-200 p-3 bg-slate-50/50"
+                >
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-medium text-slate-600 mb-0.5">File name</label>
+                    <input
+                      value={row.file_name}
+                      onChange={(e) => updateDocumentRow(idx, 'file_name', e.target.value)}
+                      placeholder="File name"
+                      className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-medium text-slate-600 mb-0.5">Document type</label>
+                    <input
+                      value={row.document_type || ''}
+                      onChange={(e) => updateDocumentRow(idx, 'document_type', e.target.value)}
+                      placeholder="Type"
+                      className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-medium text-slate-600 mb-0.5">Transaction no</label>
+                    <input
+                      value={row.transaction_no || ''}
+                      onChange={(e) => updateDocumentRow(idx, 'transaction_no', e.target.value)}
+                      placeholder="Transaction no"
+                      className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-medium text-slate-600 mb-0.5">Upload remarks</label>
+                    <input
+                      value={row.upload_remarks || ''}
+                      onChange={(e) => updateDocumentRow(idx, 'upload_remarks', e.target.value)}
+                      placeholder="Remarks"
+                      className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                    />
+                  </div>
+                  <div className="md:col-span-3 flex gap-2 items-end">
+                    <div className="flex-1">
+                      <label className="block text-xs font-medium text-slate-600 mb-0.5">Attachment</label>
+                      <input
+                        type="file"
+                        disabled={documentUploading === idx}
+                        onChange={(e) => {
+                          const f = e.target.files?.[0]
+                          if (f) handleDocumentFile(idx, f)
+                          e.target.value = ''
+                        }}
+                        className="w-full text-sm file:mr-2 file:rounded file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-white file:text-sm"
+                      />
+                      {documentUploading === idx && (
+                        <span className="text-xs text-slate-500">Uploading...</span>
+                      )}
+                      {row.document && documentUploading !== idx && (
+                        <span className="text-xs text-green-600 block truncate" title={row.document}>
+                          ✓ Attached
+                        </span>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeDocumentRow(idx)}
+                      className="p-1.5 rounded border border-slate-300 text-slate-600 hover:bg-slate-100 text-sm"
+                      title="Remove row"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={addDocumentRow}
+                className="text-sm text-primary font-medium hover:underline"
+              >
+                + Add document
+              </button>
             </div>
           </div>
 
