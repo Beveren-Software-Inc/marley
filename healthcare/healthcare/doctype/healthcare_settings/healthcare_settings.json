@@ -71,6 +71,7 @@
   "enable_follow_up_mid_end_year_message",
   "follow_up_mid_year_message",
   "follow_up_end_year_message",
+  "follow_up_reminder_after_discharge",
   "stock_tab",
   "default_expiry_warehouse"
  ],
@@ -242,17 +243,17 @@
   },
   {
    "depends_on": "eval:doc.enable_follow_up_mid_end_year_message == 1",
+   "description": "Jinja: {{ doc.patient_name }} available. Sent around June.",
    "fieldname": "follow_up_mid_year_message",
    "fieldtype": "Small Text",
-   "label": "Mid-Year Message (e.g. June)",
-   "description": "Jinja: {{ doc.patient_name }} available. Sent around June."
+   "label": "Mid-Year Message (e.g. June)"
   },
   {
    "depends_on": "eval:doc.enable_follow_up_mid_end_year_message == 1",
+   "description": "Jinja: {{ doc.patient_name }} available. Sent around December.",
    "fieldname": "follow_up_end_year_message",
    "fieldtype": "Small Text",
-   "label": "End of Year Message (e.g. December)",
-   "description": "Jinja: {{ doc.patient_name }} available. Sent around December."
+   "label": "End of Year Message (e.g. December)"
   },
   {
    "default": "0",
@@ -489,11 +490,19 @@
    "fieldname": "discount_limit",
    "fieldtype": "Percent",
    "label": "Discount Limit"
+  },
+  {
+   "default": "60",
+   "description": "Enter the uration in days(eg 60)",
+   "fieldname": "follow_up_reminder_after_discharge",
+   "fieldtype": "Data",
+   "label": "Follow up Reminder After Discharge(Days)",
+   "options": "\n"
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-02-10 10:36:41.556151",
+ "modified": "2026-02-17 17:06:11.164066",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Settings",

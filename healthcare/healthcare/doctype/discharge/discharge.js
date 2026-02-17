@@ -68,7 +68,28 @@ frappe.ui.form.on("Discharge", {
                 frm.refresh_field('discharge_checklist');
             }
         });
-    }
+    },
+
+	before_save: function(frm) {
+		
+		// only set if still empty
+		if (!frm.doc.follow_up_date) {
+			
+			frappe.db.get_single_value(
+				"Healthcare Settings",
+				"follow_up_reminder_after_discharge"
+			).then(days => {
+				console.log("Okay, got days for follow up reminder after discharge:", days);
+				if (days) {
+					let follow_up = frappe.datetime.add_days(
+						frappe.datetime.get_today(),
+						days
+					);
+					frm.set_value("follow_up_date", follow_up);
+				}
+			});
+		}
+	}
 });
 
 let load_history_from_inpatient_admission = function(frm) {
