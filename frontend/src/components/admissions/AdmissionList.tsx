@@ -5,7 +5,9 @@ import { PackageSelectionModal } from './PackageSelectionModal'
 import { AdmissionFormModal } from './AdmissionFormModal'
 import { ScheduleDischargeModal } from './ScheduleDischargeModal'
 import { DischargeModal } from './DischargeModal'
+import { InpatientAdmissionDetails } from './InpatientAdmissionDetails'
 import type { InpatientRecord, InpatientPackage } from '../../services/inpatientRecords'
+// const [admissionRefreshKey, setAdmissionRefreshKey] = useState(0)
 
 const statusColors: Record<string, string> = {
   'Admission Scheduled': 'warning',
@@ -33,6 +35,9 @@ export const AdmissionList = ({ onAdmissionSelect, searchQuery: externalSearchQu
   const [showDischargeModal, setShowDischargeModal] = useState(false)
   const [selectedAdmissionForFinalDischarge, setSelectedAdmissionForFinalDischarge] = useState<InpatientRecord | null>(null)
 
+  // Slide-over detail panel
+  const [detailAdmission, setDetailAdmission] = useState<string | null>(null)
+
   const { records, loading, error, refetch } = useInpatientRecords(
     selectedStatus || undefined,
     externalSearchQuery || undefined,
@@ -40,9 +45,7 @@ export const AdmissionList = ({ onAdmissionSelect, searchQuery: externalSearchQu
   )
 
   useEffect(() => {
-    if (refreshKey !== undefined) {
-      refetch()
-    }
+    if (refreshKey !== undefined) refetch()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshKey])
 
@@ -86,13 +89,7 @@ export const AdmissionList = ({ onAdmissionSelect, searchQuery: externalSearchQu
     refetch()
   }
 
-  const statuses = [
-    'Admission Scheduled',
-    'Admitted',
-    'Discharge Scheduled',
-    'Discharged',
-    'Cancelled'
-  ]
+  const statuses = ['Admission Scheduled', 'Admitted', 'Discharge Scheduled', 'Discharged', 'Cancelled']
 
   if (loading) {
     return (
@@ -111,10 +108,7 @@ export const AdmissionList = ({ onAdmissionSelect, searchQuery: externalSearchQu
           <p className="text-red-600 text-xs mb-4">
             This might be due to authentication issues. Please ensure you're logged in to Frappe.
           </p>
-          <button
-            onClick={() => refetch()}
-            className="px-4 py-2 bg-red-600 text-white rounded-md text-sm hover:bg-red-700"
-          >
+          <button onClick={() => refetch()} className="px-4 py-2 bg-red-600 text-white rounded-md text-sm hover:bg-red-700">
             Retry
           </button>
         </div>
@@ -130,9 +124,7 @@ export const AdmissionList = ({ onAdmissionSelect, searchQuery: externalSearchQu
           <button
             onClick={() => setSelectedStatus('')}
             className={`px-4 py-2 rounded-md text-sm font-medium ${
-              selectedStatus === ''
-                ? 'bg-primary text-white'
-                : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-50'
+              selectedStatus === '' ? 'bg-primary text-white' : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-50'
             }`}
           >
             All
@@ -142,9 +134,7 @@ export const AdmissionList = ({ onAdmissionSelect, searchQuery: externalSearchQu
               key={status}
               onClick={() => setSelectedStatus(status)}
               className={`px-4 py-2 rounded-md text-sm font-medium ${
-                selectedStatus === status
-                  ? 'bg-primary text-white'
-                  : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-50'
+                selectedStatus === status ? 'bg-primary text-white' : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-50'
               }`}
             >
               {status}
@@ -157,22 +147,12 @@ export const AdmissionList = ({ onAdmissionSelect, searchQuery: externalSearchQu
           <table className="w-full min-w-[900px]">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-                  Admission No
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-                  Patient
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-                  Scheduled Date
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-                  Status
-                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Admission No</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Patient</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Scheduled Date</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Status</th>
                 {onAdmissionSelect && (
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-                    Actions
-                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Actions</th>
                 )}
               </tr>
             </thead>
@@ -185,28 +165,33 @@ export const AdmissionList = ({ onAdmissionSelect, searchQuery: externalSearchQu
                 </tr>
               ) : (
                 records.map((record) => (
-                  <tr 
-                    key={record.name} 
-                    className="hover:bg-slate-50 cursor-pointer"
-                    onClick={() => onAdmissionSelect?.(record.name)}
-                  >
-                    <td className="px-4 py-3 text-sm font-medium text-slate-900">
-                      {record.name}
+                  <tr key={record.name} className="hover:bg-slate-50">
+
+                    {/* Clickable Admission No → opens detail slide-over */}
+                    <td className="px-4 py-3 text-sm font-medium">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDetailAdmission(record.name)
+                          onAdmissionSelect?.(record.name)
+                        }}
+                        className="text-primary hover:underline text-left focus:outline-none"
+                        title="View admission details"
+                      >
+                        {record.name}
+                      </button>
                     </td>
+
                     <td className="px-4 py-3 text-sm text-slate-700">
                       {record.patient_name || record.patient}
                     </td>
                     <td className="px-4 py-3 text-sm text-slate-700">
-                      {record.scheduled_date
-                        ? new Date(record.scheduled_date).toLocaleDateString()
-                        : '-'}
+                      {record.scheduled_date ? new Date(record.scheduled_date).toLocaleDateString() : '-'}
                     </td>
                     <td className="px-4 py-3">
-                      <StatusPill
-                        status={record.status}
-                        color={statusColors[record.status] || 'default'}
-                      />
+                      <StatusPill status={record.status} color={statusColors[record.status] || 'default'} />
                     </td>
+
                     {onAdmissionSelect && (
                       <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                         <div className="flex gap-2">
@@ -245,14 +230,52 @@ export const AdmissionList = ({ onAdmissionSelect, searchQuery: externalSearchQu
         </div>
       </div>
 
+      {/* ── Admission Detail Slide-over ── */}
+      {detailAdmission && (
+        <div
+          className="fixed inset-0 z-50 flex items-start justify-end"
+          onClick={(e) => { if (e.target === e.currentTarget) setDetailAdmission(null) }}
+        >
+          {/* Backdrop */}
+          <div className="absolute inset-0 bg-black/30" />
+
+          {/* Panel */}
+          <div className="relative z-10 h-full w-full max-w-2xl bg-white shadow-xl flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50 shrink-0">
+              <div>
+                <p className="text-xs text-slate-500 uppercase tracking-wide">Inpatient Admission</p>
+                <p className="text-sm font-semibold text-slate-800">{detailAdmission}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDetailAdmission(null)}
+                className="inline-flex items-center justify-center w-8 h-8 rounded-md text-slate-500 hover:text-slate-800 hover:bg-slate-200"
+                aria-label="Close"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Scrollable content */}
+            <div className="flex-1 overflow-y-auto p-6">
+              <InpatientAdmissionDetails
+                admissionName={detailAdmission}
+                onUpdate={() => refetch()}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Existing modals ── */}
       {showPackages && selectedRecord && (
         <PackageSelectionModal
           admissionNo={selectedRecord}
           onSelect={handlePackageSelect}
-          onClose={() => {
-            setShowPackages(false)
-            setSelectedRecord(null)
-          }}
+          onClose={() => { setShowPackages(false); setSelectedRecord(null) }}
         />
       )}
 
@@ -261,11 +284,7 @@ export const AdmissionList = ({ onAdmissionSelect, searchQuery: externalSearchQu
           admissionNo={selectedRecord}
           selectedPackage={selectedPackage}
           onComplete={handleAdmissionComplete}
-          onClose={() => {
-            setShowAdmissionForm(false)
-            setSelectedRecord(null)
-            setSelectedPackage(null)
-          }}
+          onClose={() => { setShowAdmissionForm(false); setSelectedRecord(null); setSelectedPackage(null) }}
         />
       )}
 
@@ -276,10 +295,7 @@ export const AdmissionList = ({ onAdmissionSelect, searchQuery: externalSearchQu
             patient: selectedAdmissionForDischarge.patient,
             patient_name: selectedAdmissionForDischarge.patient_name
           }}
-          onClose={() => {
-            setShowScheduleDischarge(false)
-            setSelectedAdmissionForDischarge(null)
-          }}
+          onClose={() => { setShowScheduleDischarge(false); setSelectedAdmissionForDischarge(null) }}
           onSuccess={handleDischargeScheduled}
         />
       )}
@@ -291,14 +307,10 @@ export const AdmissionList = ({ onAdmissionSelect, searchQuery: externalSearchQu
             patient: selectedAdmissionForFinalDischarge.patient,
             patient_name: selectedAdmissionForFinalDischarge.patient_name
           }}
-          onClose={() => {
-            setShowDischargeModal(false)
-            setSelectedAdmissionForFinalDischarge(null)
-          }}
+          onClose={() => { setShowDischargeModal(false); setSelectedAdmissionForFinalDischarge(null) }}
           onSuccess={handleDischargeComplete}
         />
       )}
     </>
   )
 }
-
