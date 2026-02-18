@@ -444,3 +444,28 @@ export async function createPractitioner(data: CreatePractitionerData): Promise<
 }
 
 
+
+export const fetchDischargeChecklist = async (templateName: string): Promise<ChecklistItem[]> => {
+  const response = await fetch(
+    `/api/resource/Discharge Template/${encodeURIComponent(templateName)}`,
+    { headers: { 'Content-Type': 'application/json' } }
+  )
+  if (!response.ok) throw new Error('Failed to fetch discharge template')
+  const data = await response.json()
+
+  // The child table field name on your Discharge Template doctype —
+  // adjust `discharge_checklist` to whatever the actual fieldname is.
+  const rows = data?.data?.discharge_checklist ?? []
+
+  return rows.map((row: any) => ({
+    name: row.name,
+    action_required: row.action_required,
+    department: row.department,
+    department_label: row.department, // If you have a display label, map it here
+    user: row.user ?? '',
+    name1: row.name1 ?? '',
+    date_time: row.date_time ?? '',
+    click: row.click === 1 || row.click === true,
+    description: row.description ?? '',
+  }))
+}
