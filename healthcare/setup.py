@@ -146,18 +146,43 @@ def setup_healthcare():
 
 	setup_domain()
 
-	# Ensure Healthcare app icon appears on desk (v15/v16)
+	# Ensure Healthcare app icon appears on desk for all users (v15/v16)
 	try:
 		from frappe.desk.doctype.desktop_icon.desktop_icon import (
 			create_desktop_icons_from_installed_apps,
 			clear_desktop_icons_cache,
 		)
 		create_desktop_icons_from_installed_apps()
+		_ensure_healthcare_desktop_icon_visible()
 		clear_desktop_icons_cache()
 	except Exception:
 		pass
 
 	frappe.clear_cache()
+
+
+def _ensure_healthcare_desktop_icon_visible():
+	"""Set Healthcare Desktop Icon to standard and set logo_url/icon so it shows for all users."""
+	icon_name = frappe.db.get_value(
+		"Desktop Icon",
+		{"icon_type": "App", "app": "healthcare"},
+		"name",
+	)
+	if not icon_name:
+		return
+	app_details = frappe.get_hooks("add_to_apps_screen", app_name="healthcare")
+	app_icon = frappe.get_hooks("app_icon", app_name="healthcare")
+	app_icon_url = frappe.get_hooks("app_icon_url", app_name="healthcare")
+	app_title = frappe.get_hooks("app_title", app_name="healthcare")[0]
+	logo_url = app_details[0].get("logo") if app_details else (app_icon_url[0] if app_icon_url else None)
+	icon_class = app_icon[0] if app_icon else "octicon octicon-file-directory"
+	frappe.db.set_value("Desktop Icon", icon_name, "standard", 1)
+	if logo_url:
+		frappe.db.set_value("Desktop Icon", icon_name, "logo_url", logo_url)
+	frappe.db.set_value("Desktop Icon", icon_name, "icon", icon_class)
+	frappe.db.set_value("Desktop Icon", icon_name, "label", app_title)
+	if app_details:
+		frappe.db.set_value("Desktop Icon", icon_name, "link", app_details[0].get("route", "/desk/healthcare"))
 
 
 def setup_domain():
