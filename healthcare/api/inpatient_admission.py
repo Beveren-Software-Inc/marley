@@ -209,7 +209,7 @@ def get_package_details(admission_no):
 
 
 @frappe.whitelist()
-def get_service_units(service_unit_type=None, occupancy_status=None, search=None, room_category=None):
+def get_service_units(service_unit_type=None, occupancy_status=None, search=None, room_category=None, cost_center=None):
 	"""Get Healthcare Service Units with optional filters and search.
 
 	Used by the React Admit Patient modal to pick a room/bed.
@@ -223,6 +223,8 @@ def get_service_units(service_unit_type=None, occupancy_status=None, search=None
 		filters['occupancy_status'] = occupancy_status
 	if room_category:
 		filters['room_category'] = room_category
+	if cost_center:
+		filters['cost_center'] = cost_center
 	# If search is provided, search by name
 	if search:
 		query = """
@@ -232,7 +234,8 @@ def get_service_units(service_unit_type=None, occupancy_status=None, search=None
 				service_unit_type,
 				occupancy_status,
 				company,
-				room_category
+				room_category,
+				cost_center
 			FROM `tabHealthcare Service Unit`
 			WHERE 
 				inpatient_occupancy = 1
@@ -251,23 +254,28 @@ def get_service_units(service_unit_type=None, occupancy_status=None, search=None
 		if room_category:
 			query += " AND room_category = %(room_category)s"
 			params['room_category'] = room_category
+		if cost_center:
+			query += " AND cost_center = %(cost_center)s"
+			params['cost_center'] = cost_center
 		
 		units = frappe.db.sql(query, params, as_dict=True)
 		
 		# Limit results
 		units = units[:50]
 	else:
+		fields = [
+			'name',
+			'healthcare_service_unit_name',
+			'service_unit_type',
+			'occupancy_status',
+			'company',
+			'room_category',
+			'cost_center'
+		]
 		units = frappe.get_all(
 			'Healthcare Service Unit',
 			filters=filters,
-			fields=[
-				'name',
-				'healthcare_service_unit_name',
-				'service_unit_type',
-				'occupancy_status',
-				'company',
-				'room_category'
-			],
+			fields=fields,
 			limit=50
 		)
 

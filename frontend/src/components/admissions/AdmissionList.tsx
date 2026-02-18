@@ -1,13 +1,13 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useInpatientRecords } from '../../hooks/useInpatientRecords'
 import { StatusPill } from '../ui/StatusPill'
 import { PackageSelectionModal } from './PackageSelectionModal'
 import { AdmissionFormModal } from './AdmissionFormModal'
 import { ScheduleDischargeModal } from './ScheduleDischargeModal'
 import { DischargeModal } from './DischargeModal'
+import { TransferCostCenterModal } from './TransferCostCenterModal'
 import { InpatientAdmissionDetails } from './InpatientAdmissionDetails'
 import type { InpatientRecord, InpatientPackage } from '../../services/inpatientRecords'
-// const [admissionRefreshKey, setAdmissionRefreshKey] = useState(0)
 
 const statusColors: Record<string, string> = {
   'Admission Scheduled': 'warning',
@@ -34,8 +34,14 @@ export const AdmissionList = ({ onAdmissionSelect, searchQuery: externalSearchQu
   const [selectedAdmissionForDischarge, setSelectedAdmissionForDischarge] = useState<InpatientRecord | null>(null)
   const [showDischargeModal, setShowDischargeModal] = useState(false)
   const [selectedAdmissionForFinalDischarge, setSelectedAdmissionForFinalDischarge] = useState<InpatientRecord | null>(null)
+  const [showTransferCostCenter, setShowTransferCostCenter] = useState(false)
+  const [selectedAdmissionForTransfer, setSelectedAdmissionForTransfer] = useState<InpatientRecord | null>(null)
 
-  // Slide-over detail panel
+  // Actions dropdown (three-dot menu) — one row open at a time
+  const [openActionRow, setOpenActionRow] = useState<string | null>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  // Slide-over detail panel (unchanged — opens on row click)
   const [detailAdmission, setDetailAdmission] = useState<string | null>(null)
 
   const { records, loading, error, refetch } = useInpatientRecords(
@@ -88,6 +94,29 @@ export const AdmissionList = ({ onAdmissionSelect, searchQuery: externalSearchQu
     setSelectedAdmissionForFinalDischarge(null)
     refetch()
   }
+
+  const handleTransferCostCenter = (record: InpatientRecord) => {
+    setSelectedAdmissionForTransfer(record)
+    setShowTransferCostCenter(true)
+    setOpenActionRow(null)
+  }
+
+  const handleTransferComplete = () => {
+    setShowTransferCostCenter(false)
+    setSelectedAdmissionForTransfer(null)
+    refetch()
+  }
+
+  // Close actions dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setOpenActionRow(null)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   const statuses = ['Admission Scheduled', 'Admitted', 'Discharge Scheduled', 'Discharged', 'Cancelled']
 
@@ -194,30 +223,56 @@ export const AdmissionList = ({ onAdmissionSelect, searchQuery: externalSearchQu
 
                     {onAdmissionSelect && (
                       <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex gap-2">
-                          {record.status === 'Admission Scheduled' && (
-                            <button
-                              onClick={() => handleAdmit(record.name)}
-                              className="px-3 py-1.5 bg-primary text-white text-sm rounded-md hover:bg-primary/90"
-                            >
-                              Admit
-                            </button>
-                          )}
-                          {record.status === 'Admitted' && (
-                            <button
-                              onClick={() => handleScheduleDischarge(record)}
-                              className="px-3 py-1.5 bg-orange-600 text-white text-sm rounded-md hover:bg-orange-700"
-                            >
-                              Schedule Discharge
-                            </button>
-                          )}
-                          {record.status === 'Discharge Scheduled' && (
-                            <button
-                              onClick={() => handleDischarge(record)}
-                              className="px-3 py-1.5 bg-green-600 text-white text-sm rounded-md hover:bg-green-700"
-                            >
-                              Discharge
-                            </button>
+                        <div className="relative inline-block" ref={openActionRow === record.name ? menuRef : undefined}>
+                          <button
+                            type="button"
+                            onClick={() => setOpenActionRow((prev) => (prev === record.name ? null : record.name))}
+                            className="inline-flex items-center justify-center w-8 h-8 rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                            aria-label="Actions"
+                          >
+                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                              <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+                            </svg>
+                          </button>
+                          {openActionRow === record.name && (
+                            <div className="absolute right-0 top-full mt-1 z-10 min-w-[200px] rounded-md border border-slate-200 bg-white py-1 shadow-lg">
+                              {record.status === 'Admission Scheduled' && (
+                                <button
+                                  type="button"
+                                  onClick={() => { handleAdmit(record.name); setOpenActionRow(null) }}
+                                  className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                                >
+                                  Admit
+                                </button>
+                              )}
+                              {record.status === 'Admitted' && (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => { handleScheduleDischarge(record); setOpenActionRow(null) }}
+                                    className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                                  >
+                                    Schedule Discharge
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleTransferCostCenter(record)}
+                                    className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                                  >
+                                    Transfer to Another Cost Center
+                                  </button>
+                                </>
+                              )}
+                              {record.status === 'Discharge Scheduled' && (
+                                <button
+                                  type="button"
+                                  onClick={() => { handleDischarge(record); setOpenActionRow(null) }}
+                                  className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                                >
+                                  Discharge
+                                </button>
+                              )}
+                            </div>
                           )}
                         </div>
                       </td>
@@ -309,6 +364,20 @@ export const AdmissionList = ({ onAdmissionSelect, searchQuery: externalSearchQu
           }}
           onClose={() => { setShowDischargeModal(false); setSelectedAdmissionForFinalDischarge(null) }}
           onSuccess={handleDischargeComplete}
+        />
+      )}
+
+      {showTransferCostCenter && selectedAdmissionForTransfer && (
+        <TransferCostCenterModal
+          admission={{
+            name: selectedAdmissionForTransfer.name,
+            patient: selectedAdmissionForTransfer.patient,
+            patient_name: selectedAdmissionForTransfer.patient_name,
+            company: selectedAdmissionForTransfer.company,
+            cost_center: selectedAdmissionForTransfer.cost_center
+          }}
+          onClose={() => { setShowTransferCostCenter(false); setSelectedAdmissionForTransfer(null) }}
+          onSuccess={handleTransferComplete}
         />
       )}
     </>

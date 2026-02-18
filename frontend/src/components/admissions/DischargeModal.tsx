@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { createDischarge } from '../../services/inpatientRecords'
-import { fetchHealthcarePractitioners, fetchUsers, fetchDischargeTemplates, fetchDischargeChecklist, type LinkFieldOption } from '../../services/common'
+import { fetchHealthcarePractitioners, fetchUsers, fetchDischargeTemplates, fetchDischargeChecklist, fetchDepartments, type LinkFieldOption } from '../../services/common'
 import { toast } from '../../hooks/useToast'
 import { X, CheckCircle2, Circle, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react'
 
@@ -67,6 +67,30 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
   const [selectedFinalDischarge, setSelectedFinalDischarge] = useState<LinkFieldOption | null>(null)
   const [selectedReceivingDoctor, setSelectedReceivingDoctor] = useState<LinkFieldOption | null>(null)
   const [selectedDischargeTemplate, setSelectedDischargeTemplate] = useState<LinkFieldOption | null>(null)
+
+  // Department dropdown for checklist (ERPNext Department)
+  const [departmentOptions, setDepartmentOptions] = useState<LinkFieldOption[]>([])
+  const [departmentQuery, setDepartmentQuery] = useState('')
+  const [departmentOpenForItem, setDepartmentOpenForItem] = useState<string | null>(null)
+
+  // Normalize any datetime string to Frappe/MySQL-friendly format: YYYY-MM-DD HH:MM:SS
+  const toFrappeDateTime = (value?: string) => {
+    if (!value) return ''
+    let s = value.trim()
+    if (s.includes('T')) {
+      if (s.endsWith('Z')) {
+        s = s.slice(0, -1)
+      }
+      s = s.replace('T', ' ')
+    }
+    if (s.length > 19) {
+      s = s.slice(0, 19)
+    }
+    if (s.length === 16) {
+      s += ':00'
+    }
+    return s
+  }
 
   const [formData, setFormData] = useState({
     discharge_type: '',
@@ -190,6 +214,21 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
     return () => clearTimeout(id)
   }, [dischargeTemplateQuery, dischargeTemplateOpen])
 
+  // Load ERPNext Departments for checklist Department dropdown
+  useEffect(() => {
+    if (!departmentOpenForItem) return
+    const search = async () => {
+      try {
+        const results = await fetchDepartments(departmentQuery || undefined)
+        setDepartmentOptions(results)
+      } catch {
+        setDepartmentOptions([])
+      }
+    }
+    const id = setTimeout(search, departmentQuery.trim() === '' ? 0 : 300)
+    return () => clearTimeout(id)
+  }, [departmentQuery, departmentOpenForItem])
+
   // Checklist helpers
   const toggleDept = (dept: string) => setExpandedDepts(prev => ({ ...prev, [dept]: !prev[dept] }))
   const toggleItem = (itemName: string) => setExpandedItems(prev => ({ ...prev, [itemName]: !prev[itemName] }))
@@ -198,7 +237,12 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
     setChecklistItems(prev =>
       prev.map(item =>
         item.name === itemName
-          ? { ...item, click: !item.click, date_time: !item.click ? new Date().toISOString() : '' }
+          ? {
+              ...item,
+              click: !item.click,
+              // Store MySQL/Frappe-friendly datetime (YYYY-MM-DD HH:MM:SS), not ISO with Z
+              date_time: !item.click ? toFrappeDateTime(new Date().toISOString()) : ''
+            }
           : item
       )
     )
@@ -235,7 +279,7 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
           department: item.department,
           user: item.user,
           name1: item.name1,
-          date_time: item.date_time,
+          date_time: item.date_time ? toFrappeDateTime(item.date_time) : '',
           click: item.click ? 1 : 0,
           description: item.description || ''
         }))
@@ -638,7 +682,7 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
 
                                         {/* Inline fields (shown when checked) */}
                                         {item.click && (
-                                          <div className="mt-3 grid grid-cols-2 gap-3">
+                                          <div className="mt-3 grid grid-cols-2 md:grid-cols-3 gap-3">
                                             <div>
                                               <label className="block text-xs font-medium text-slate-600 mb-1">User</label>
                                               <input
@@ -654,9 +698,51 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
                                               <input
                                                 type="datetime-local"
                                                 value={item.date_time ? item.date_time.slice(0, 16) : ''}
-                                                onChange={(e) => updateChecklistItem(item.name, 'date_time', e.target.value)}
+                                                onChange={(e) => {
+                                                  const dbValue = toFrappeDateTime(e.target.value)
+                                                  updateChecklistItem(item.name, 'date_time', dbValue)
+                                                }}
                                                 className="w-full rounded border border-slate-200 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-green-400"
                                               />
+                                            </div>
+                                            <div className="relative">
+                                              <label className="block text-xs font-medium text-slate-600 mb-1">Department</label>
+                                              <input
+                                                type="text"
+                                                value={
+                                                  item.department
+                                                    ? departmentOptions.find(d => d.name === item.department)?.label || item.department
+                                                    : (departmentOpenForItem === item.name ? departmentQuery : '')
+                                                }
+                                                onChange={(e) => {
+                                                  setDepartmentQuery(e.target.value)
+                                                  setDepartmentOpenForItem(item.name)
+                                                }}
+                                                onFocus={() => {
+                                                  setDepartmentOpenForItem(item.name)
+                                                  setDepartmentQuery(item.department || '')
+                                                }}
+                                                placeholder="Select Department..."
+                                                className="w-full rounded border border-slate-200 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-green-400"
+                                              />
+                                              {departmentOpenForItem === item.name && departmentOptions.length > 0 && (
+                                                <div className="absolute z-20 mt-1 w-full rounded border border-slate-200 bg-white shadow-lg max-h-40 overflow-auto">
+                                                  {departmentOptions.map((dept) => (
+                                                    <button
+                                                      key={dept.name}
+                                                      type="button"
+                                                      className="w-full text-left px-2 py-1.5 text-xs hover:bg-green-50"
+                                                      onClick={() => {
+                                                        updateChecklistItem(item.name, 'department', dept.name)
+                                                        setDepartmentQuery(dept.label)
+                                                        setDepartmentOpenForItem(null)
+                                                      }}
+                                                    >
+                                                      {dept.label}
+                                                    </button>
+                                                  ))}
+                                                </div>
+                                              )}
                                             </div>
                                           </div>
                                         )}

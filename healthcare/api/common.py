@@ -502,22 +502,20 @@ def get_companies(search=None):
 
 
 @frappe.whitelist()
-def get_cost_centers(search=None):
-	"""Get list of Cost Centers"""
+def get_cost_centers(search=None, company=None):
+	"""Get list of Cost Centers. Optionally filter by company (e.g. for transfer admission)."""
 
-	filters = {
-		# "is_group": 0  # optional: only selectable cost centers
-	}
-
+	filters = {}
 	if search:
 		filters["name"] = ["like", f"%{search}%"]
-	
+	if company:
+		filters["company"] = company
+
 	cost_centers = frappe.get_all(
 		"Cost Center",
-		# filters=filters,
+		filters=filters if filters else None,
 		fields=["name"],
 		order_by="name asc",
 		limit=50
 	)
-	print("HUku nafika kweli get_cost_centers", str(cost_centers))
 	return [{"name": c.name, "label": c.name} for c in cost_centers]
