@@ -697,8 +697,7 @@
    "fieldtype": "Link",
    "label": "Admission Service Unit Type",
    "mandatory_depends_on": "eval:!doc.admission_encounter;",
-   "options": "Healthcare Service Unit Type",
-   "set_only_once": 1
+   "options": "Healthcare Service Unit Type"
   },
   {
    "fieldname": "inpatient_occupancies",
@@ -886,7 +885,7 @@
    "link_fieldname": "admission"
   }
  ],
- "modified": "2026-02-18 12:22:15.960275",
+ "modified": "2026-02-18 16:39:53.677529",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Inpatient Admission",

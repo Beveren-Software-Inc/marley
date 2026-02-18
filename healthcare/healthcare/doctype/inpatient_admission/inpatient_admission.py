@@ -740,8 +740,10 @@ def create_discharge_from_inpatient_admission(source_name, target_doc=None):
 			target.discharge_diagnosis = source.discharge_note
 		if source.followup_date:
 			target.next_appointment_date = source.followup_date
-		if source.discharge_practitioner:
-			target.discharged_by_user = source.discharge_practitioner
+		# Discharged By should be a User, not a Healthcare Practitioner.
+		# Default to the current session user if not already set.
+		if not getattr(target, "discharged_by_user", None):
+			target.discharged_by_user = frappe.session.user
 		# Copy history form details template and attributes
 		if source.history_form_details_template:
 			target.history_form_details_template = source.history_form_details_template

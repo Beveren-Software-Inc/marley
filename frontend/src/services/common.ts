@@ -334,6 +334,35 @@ export async function fetchItems(search?: string): Promise<LinkFieldOption[]> {
   }
 }
 
+/** Fetch ERPNext Departments (Link to `Department`). */
+export async function fetchDepartments(search?: string): Promise<LinkFieldOption[]> {
+  const params = new URLSearchParams()
+  params.append('fields', JSON.stringify(['name', 'department_name']))
+  if (search) {
+    params.append(
+      'filters',
+      JSON.stringify([
+        ['Department', 'name', 'like', `%${search}%`],
+        ['Department', 'department_name', 'like', `%${search}%`],
+      ])
+    )
+  }
+  params.append('limit_page_length', '50')
+
+  const url = `/api/resource/Department?${params.toString()}`
+  const res = await fetch(url)
+  const data = await res.json()
+
+  const rows = (data?.data || data?.message) as any
+  if (Array.isArray(rows)) {
+    return rows.map((d: any) => ({
+      name: d.name,
+      label: d.department_name || d.name,
+    })) as LinkFieldOption[]
+  }
+  return []
+}
+
 export async function fetchWarehouses(search?: string): Promise<LinkFieldOption[]> {
   const params = new URLSearchParams()
   params.append('fields', JSON.stringify(['name', 'warehouse_name']))

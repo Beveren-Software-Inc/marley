@@ -107,6 +107,7 @@ export interface ServiceUnit {
   occupancy_status: string
   company: string
   room_category?: string
+  cost_center?: string
 }
 
 export async function fetchInpatientRecords(status?: string, search?: string, patient?: string) {
@@ -220,23 +221,56 @@ export async function fetchInpatientPackages(category?: string, activeOnly: bool
   return { packages: [], default_currency: 'BHD' }
 }
 
-export async function fetchServiceUnits(serviceUnitType?: string, occupancyStatus?: string, search?: string, roomCategory?: string) {
+export async function fetchServiceUnits(
+  serviceUnitType?: string,
+  occupancyStatus?: string,
+  search?: string,
+  roomCategory?: string,
+  costCenter?: string
+) {
   const params = new URLSearchParams()
   if (serviceUnitType) params.append('service_unit_type', serviceUnitType)
   if (occupancyStatus) params.append('occupancy_status', occupancyStatus)
   if (search) params.append('search', search)
   if (roomCategory) params.append('room_category', roomCategory)
-  
+  if (costCenter) params.append('cost_center', costCenter)
+
   const url = `/api/method/healthcare.api.inpatient_admission.get_service_units${params.toString() ? `?${params.toString()}` : ''}`
-  console.log('Fetching service units with URL:', url)
   const response = await fetch(url)
   const resData = await response.json()
 
   if (resData?.message && Array.isArray(resData.message)) {
     return resData.message as ServiceUnit[]
   } else {
-    return [] // Return empty array on error
+    return []
   }
+}
+
+export interface TransferToCostCenterResult {
+  transfer_admission_event: string
+  inpatient_admission: string
+  cost_center: string
+  to_service_unit?: string
+}
+
+export async function transferToAnotherCostCenter(
+  inpatientAdmission: string,
+  toCostCenter: string,
+  options?: { toServiceUnit?: string; reason?: string; transferDatetime?: string }
+): Promise<TransferToCostCenterResult> {
+  const body: Record<string, unknown> = {
+    inpatient_admission: inpatientAdmission,
+    to_cost_center: toCostCenter.trim(),
+  }
+  if (options?.toServiceUnit) body.to_service_unit = options.toServiceUnit
+  if (options?.reason) body.reason = options.reason
+  if (options?.transferDatetime) body.transfer_datetime = options.transferDatetime
+
+  const res = await apiRequest<TransferToCostCenterResult>(
+    '/api/method/healthcare.healthcare.doctype.inpatient_admission.inpatient_admission.transfer_to_another_cost_center',
+    { method: 'POST', body: JSON.stringify(body) }
+  )
+  return res
 }
 
 export async function calculatePackagePrice(packageName: string, days: number): Promise<{ total_price: number; base_rate: number; days: number }> {
