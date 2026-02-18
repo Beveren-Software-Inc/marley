@@ -2,6 +2,12 @@
 // For license information, please see license.txt
 
 frappe.ui.form.on('Healthcare Settings', {
+	onload: function(frm) {
+		// Keep Healthcare workspace sidebar visible when viewing Settings (e.g. after refresh)
+		if (frappe.boot.workspace_sidebar_item && frappe.boot.workspace_sidebar_item.healthcare) {
+			frappe.app.sidebar && frappe.app.sidebar.setup('Healthcare');
+		}
+	},
 	setup: function(frm) {
 		frm.set_query('default_google_calendar', function(doc) {
 			return {
