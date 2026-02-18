@@ -465,23 +465,27 @@
    "label": "Consultation/Service"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "consultation_fee",
    "fieldtype": "Table",
    "label": "Consultation Fee",
    "options": "Consultation Fee"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "lab_tests_tab",
    "fieldtype": "Tab Break",
    "label": "Lab Tests"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "lab_tests_charges",
    "fieldtype": "Table",
    "label": "Lab Tests Charges",
    "options": "Lab Tests Charges"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "medicines_tab",
    "fieldtype": "Tab Break",
    "label": "Medicines"
@@ -493,6 +497,7 @@
    "options": "Medicine Charges"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "charges_and_payments_tab",
    "fieldtype": "Tab Break",
    "label": "Charges and Payments"
@@ -547,7 +552,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2026-02-15 11:11:57.602087",
+ "modified": "2026-02-18 23:45:42.519074",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Visit",

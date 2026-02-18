@@ -275,6 +275,51 @@ export const CreateServiceRequestModal = ({
           </div>
         </div>
 
+        {/* ================= PRACTITIONER ================= */}
+<div>
+  <label className="block text-sm font-medium text-slate-700 mb-1">
+    Practitioner
+  </label>
+
+  <div className="relative">
+    <input
+      type="text"
+      value={formData.practitioner}
+      onChange={(e) => {
+        setFormData({ ...formData, practitioner: e.target.value })
+        setPractQuery(e.target.value)
+        setPractOpen(true)
+      }}
+      onFocus={() => setPractOpen(true)}
+      placeholder="Search practitioner..."
+      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+    />
+
+    {practOpen && (
+      <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-auto">
+        {practitioners.length ? (
+          practitioners.map((p) => (
+            <button
+              key={p.name}
+              type="button"
+              className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50"
+              onClick={() => {
+                setFormData({ ...formData, practitioner: p.name })
+                setPractOpen(false)
+              }}
+            >
+              {p.label || p.name}
+            </button>
+          ))
+        ) : (
+          <div className="px-3 py-2 text-xs text-slate-500">
+            No practitioners found
+          </div>
+        )}
+      </div>
+    )}
+  </div>
+</div>
         {/* ================= TEMPLATE ================= */}
         <div className="grid grid-cols-2 gap-4">
           <div>
@@ -361,6 +406,41 @@ export const CreateServiceRequestModal = ({
             </select>
           </div>
         </div>
+
+
+
+
+{/* ================= ORDER DATE & TIME ================= */}
+<div className="grid grid-cols-2 gap-4">
+  <div>
+    <label className="block text-sm font-medium text-slate-700 mb-1">
+      Order Date <span className="text-red-500">*</span>
+    </label>
+    <input
+      type="date"
+      value={formData.order_date}
+      onChange={(e) =>
+        setFormData({ ...formData, order_date: e.target.value })
+      }
+      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary"
+    />
+  </div>
+
+  <div>
+    <label className="block text-sm font-medium text-slate-700 mb-1">
+      Order Time <span className="text-red-500">*</span>
+    </label>
+    <input
+      type="time"
+      value={formData.order_time}
+      onChange={(e) =>
+        setFormData({ ...formData, order_time: e.target.value })
+      }
+      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary"
+    />
+  </div>
+</div>
+
 
         {/* ================= ACTIONS ================= */}
         <div className="flex justify-end gap-3 pt-5 border-t border-slate-200">

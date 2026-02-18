@@ -640,14 +640,15 @@
    "options": "Healthcare Service Unit"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "service_request",
    "fieldtype": "Link",
+   "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Service Request",
    "no_copy": 1,
    "options": "Service Request",
    "print_hide": 1,
-   "read_only": 1,
    "search_index": 1
   },
   {
@@ -682,7 +683,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2026-02-18 12:14:21.018231",
+ "modified": "2026-02-18 23:35:23.489739",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Lab Test",

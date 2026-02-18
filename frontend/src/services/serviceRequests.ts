@@ -72,6 +72,8 @@ export interface CreateServiceRequestData {
   template_dt: string
   template_dn: string
   practitioner?: string
+  patient_visit?: string
+  inpatient_record?: string
   order_date?: string
   order_time?: string
   department?: string
