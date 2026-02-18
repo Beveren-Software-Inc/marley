@@ -78,7 +78,10 @@ export async function updateFollowUpStatus(patientFollowUpName: string, newStatu
       'Content-Type': 'application/json',
       ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
     },
-    body: JSON.stringify({ patient_follow_up_name: patientFollowUpName, new_status: newStatus }),
+body: JSON.stringify({
+  patient_follow_up_name: patientFollowUpName,
+  status: newStatus,   // ✅ correct
+}),
     credentials: 'include',
   })
   const data = await res.json()

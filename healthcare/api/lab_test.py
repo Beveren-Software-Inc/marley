@@ -19,7 +19,7 @@ def get_lab_tests(limit=50, offset=0, patient=None, status=None, pending_review=
 	
 	if pending_review:
 		# Get lab tests that are completed but not yet reviewed/approved
-		filters['status'] = ['in', ['Completed', 'Submitted']]
+		filters['status'] = ['in', ['Pending Review', 'Submitted']]
 	
 	if is_outsourced is not None:
 		# Convert string '1'/'0' to boolean
@@ -283,6 +283,54 @@ def create_lab_test(data):
 		'status': lab_test.status
 	}
 
+@frappe.whitelist()
+def update_lab_test_status(lab_test_name: str, new_status: str):
+	"""
+	Update Lab Test review status (Approved / Rejected)
+	for already submitted Lab Tests.
+	"""
 
+	if not lab_test_name:
+		frappe.throw(_("Lab Test name is required"))
 
+	if not new_status:
+		frappe.throw(_("New status is required"))
 
+	allowed_statuses = ["Approved", "Rejected"]
+	if new_status not in allowed_statuses:
+		frappe.throw(_("Invalid status change"))
+
+	doc = frappe.get_doc("Lab Test", lab_test_name)
+
+	# Prevent updates on cancelled docs
+	if doc.docstatus == 2:
+		frappe.throw(_("Cannot update a cancelled Lab Test"))
+
+	# Allow review only after submission
+	if doc.docstatus != 1:
+		frappe.throw(_("Only submitted Lab Tests can be reviewed"))
+
+	update_values = {
+		"status": new_status,
+		"reviewed_by": frappe.session.user,
+	}
+
+	if new_status == "Approved":
+		update_values["approved_date"] = frappe.utils.now_datetime()
+
+	# ✅ Direct DB update (safe for submitted docs)
+	frappe.db.set_value(
+		"Lab Test",
+		doc.name,
+		update_values,
+		update_modified=True
+	)
+
+	frappe.db.commit()
+
+	return {
+		"name": doc.name,
+		"status": new_status,
+		"approved_date": update_values.get("approved_date"),
+		"reviewed_by": frappe.session.user,
+	}

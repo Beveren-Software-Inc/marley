@@ -211,6 +211,7 @@ def book_lab_and_forward(service_request_name):
 	lab_test.time = sr.occurrence_time
 	lab_test.invoiced = sr.get("invoiced") or 0
 	lab_test.lab_test_name = frappe.db.get_value("Lab Test Template", sr.template_dn, "lab_test_name") or sr.template_dn
+	lab_test.status = "Requested"
 	lab_test.insert(ignore_permissions=True)
 
 	# Mark Service Request as forwarded to lab

@@ -15,6 +15,7 @@ const statusColors: Record<string, string> = {
   'Approved': 'success',
   'Rejected': 'danger',
   'Completed': 'success',
+  'Pending Review': 'warning',
   'Submitted': 'info',
   'Cancelled': 'default',
   'Draft': 'warning',

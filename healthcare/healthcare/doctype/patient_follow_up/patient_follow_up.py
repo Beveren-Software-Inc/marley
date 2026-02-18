@@ -150,6 +150,7 @@ def create_patient_follow_up_from_discharge(admission_name, discharge_doc=None):
 	doc.insert(ignore_permissions=True)
 	return doc.name
 
+@frappe.whitelist()
 def update_follow_up_status(patient_follow_up_name, status):
 	"""Update status of a Patient Follow Up. Call from UI or API."""
 	if not patient_follow_up_name:
