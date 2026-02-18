@@ -68,3 +68,23 @@ export async function getCostCenters(): Promise<{ name: string; display?: string
   if (data.data && Array.isArray(data.data)) return data.data
   return []
 }
+
+
+export async function updateFollowUpStatus(patientFollowUpName: string, newStatus: string): Promise<void> {
+  const csrf = (window as any).csrf_token
+  const res = await fetch('/api/method/healthcare.healthcare.doctype.patient_follow_up.patient_follow_up.update_follow_up_status', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
+    },
+body: JSON.stringify({
+  patient_follow_up_name: patientFollowUpName,
+  status: newStatus,   // ✅ correct
+}),
+    credentials: 'include',
+  })
+  const data = await res.json()
+  if (data.exc) throw new Error(data._server_messages ? JSON.parse(data._server_messages)[0] : 'Failed to update status')
+  
+}

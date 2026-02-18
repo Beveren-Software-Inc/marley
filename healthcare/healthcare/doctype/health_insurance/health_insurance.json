@@ -68,15 +68,15 @@
   },
   {
    "fieldname": "insurance_type",
-   "fieldtype": "Select",
+   "fieldtype": "Link",
    "label": "Insurance Type",
-   "options": "\nTRICARE\nBUPA"
+   "options": "Insurance Type"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-02-15 09:57:56.563540",
+ "modified": "2026-02-17 14:16:11.090422",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Health Insurance",

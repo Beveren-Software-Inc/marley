@@ -35,6 +35,7 @@ export const ReceptionistPage = () => {
   const [admissionRefreshKey, setAdmissionRefreshKey] = useState(0)
   const [showPatientModal, setShowPatientModal] = useState(false)
   const [patientRefreshKey, setPatientRefreshKey] = useState(0)
+  const [showBulkScheduleModal, setShowBulkScheduleModal] = useState(false)
 
   const handlePatientSelect = (patient: string | undefined) => {
     setSelectedPatient(patient || '')
@@ -208,11 +209,20 @@ export const ReceptionistPage = () => {
 
         {currentView === 'iop' && (
           <div className="p-4">
-            <div className="mb-4">
-              <h2 className="text-xl font-semibold text-slate-900">IOP Dashboard</h2>
-              <p className="text-sm text-slate-600 mt-1">
-                Intensive Outpatient: schedule IOP days (slots) and enroll patients. Create a Patient Visit from an enrollment to link the visit.
-              </p>
+            <div className="mb-4 flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-semibold text-slate-900">IOP Dashboard</h2>
+                <p className="text-sm text-slate-600 mt-1">
+                  Intensive Outpatient: schedule IOP days (slots) and enroll patients. Create a Patient Visit from an enrollment to link the visit.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowBulkScheduleModal(true)}
+                className="flex-shrink-0 px-4 py-2 rounded-md bg-primary text-white text-sm font-medium hover:bg-primary/90 transition-colors whitespace-nowrap"
+              >
+                Bulk Schedule
+              </button>
             </div>
             <div className="grid gap-6 md:grid-cols-2">
               <IOPDayListWithHeader refreshKey={patientVisitRefreshKey} />
@@ -484,9 +494,34 @@ export const ReceptionistPage = () => {
           }}
         />
       )}
+
+      {/* TODO: replace with your BulkScheduleModal component */}
+      {showBulkScheduleModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-slate-900">Bulk Schedule</h2>
+              <button
+                onClick={() => setShowBulkScheduleModal(false)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <p className="text-sm text-slate-500">Bulk Schedule modal coming soon.</p>
+            <div className="mt-4 flex justify-end">
+              <button
+                onClick={() => setShowBulkScheduleModal(false)}
+                className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
-
-
-

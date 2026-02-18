@@ -67,7 +67,7 @@ def get_healthcare_practitioners(search=None, department=None):
 @frappe.whitelist()
 def get_service_unit_types(search=None):
 	"""Get list of Healthcare Service Unit Types with inpatient occupancy"""
-	filters = {'inpatient_occupancy': 1, 'allow_appointments': 0}
+	filters = {'inpatient_occupancy': 1, 'allow_appointments': 0, 'is_group': 0}  # Only get leaf service unit types that are for inpatient occupancy and not for appointments
 	
 	service_unit_types = frappe.get_all(
 		'Healthcare Service Unit Type',
@@ -482,3 +482,42 @@ def create_healthcare_practitioner(data):
 	}
 
 
+@frappe.whitelist()
+def get_companies(search=None):
+	"""Get list of Companies"""
+
+	filters = {}
+	if search:
+		filters["name"] = ["like", f"%{search}%"]
+
+	companies = frappe.get_all(
+		"Company",
+		filters=filters,
+		fields=["name"],
+		order_by="name asc",
+		limit=50
+	)
+
+	return [{"name": c.name, "label": c.name} for c in companies]
+
+
+@frappe.whitelist()
+def get_cost_centers(search=None):
+	"""Get list of Cost Centers"""
+
+	filters = {
+		# "is_group": 0  # optional: only selectable cost centers
+	}
+
+	if search:
+		filters["name"] = ["like", f"%{search}%"]
+	
+	cost_centers = frappe.get_all(
+		"Cost Center",
+		# filters=filters,
+		fields=["name"],
+		order_by="name asc",
+		limit=50
+	)
+	print("HUku nafika kweli get_cost_centers", str(cost_centers))
+	return [{"name": c.name, "label": c.name} for c in cost_centers]

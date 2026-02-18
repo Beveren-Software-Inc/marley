@@ -173,16 +173,65 @@ def create_service_request(data):
 		'order_date': service_request.order_date
 	}
 
+import frappe
+from frappe import _
+from frappe.utils import nowdate
+
 
 @frappe.whitelist()
 def confirm_payment(service_request_name):
-	"""Mark Service Request as payment confirmed (patient accepted cost). Required before Book Lab for Lab Test Template."""
+
 	if not service_request_name:
 		frappe.throw(_("Service Request name is required"))
-	sr = frappe.get_doc("Service Request", service_request_name)
-	if not sr:
-		frappe.throw(_("Service Request not found"))
-	sr.db_set("patient_accepted_cost", 1)
-	frappe.db.commit()
-	return {"ok": True, "patient_accepted_cost": 1}
 
+	sr = frappe.get_doc("Service Request", service_request_name)
+
+	# Prevent duplicate execution
+	if sr.patient_accepted_cost:
+		return {"ok": True, "patient_accepted_cost": 1}
+
+	# Validate dynamic template
+	if not sr.template_dt or not sr.template_dn:
+		frappe.throw(_("Template is required"))
+
+	# Load dynamic template document
+	template_doc = frappe.get_doc(sr.template_dt, sr.template_dn)
+	delivery_date = sr.expected_date or nowdate()
+	
+
+	# ---- IMPORTANT PART ----
+	# We assume template has an `item` field
+	if not hasattr(template_doc, "item") or not template_doc.item:
+		frappe.throw(_(f"{sr.template_dt} must have an Item field"))
+
+	item_code = template_doc.item
+
+	# ------------------------
+	# Create Sales Order
+	# ------------------------
+	so = frappe.new_doc("Sales Order")
+	so.customer = sr.patient   # adjust if mapped via Customer
+	so.transaction_date = nowdate()
+	so.delivery_date = delivery_date
+	so.append("items", {
+		"item_code": item_code,
+		"qty": 1,
+		"rate": sr.amount or 0,
+		"description": f"Service Request {sr.name}"
+	})
+
+	so.insert(ignore_permissions=True)
+	so.submit()
+
+	# Update Service Request
+	sr.db_set("patient_accepted_cost", 1)
+	sr.db_set("reference_document_type", "Sales Order")
+	sr.db_set("reference_document_name", so.name)
+
+	frappe.db.commit()
+
+	return {
+		"ok": True,
+		"patient_accepted_cost": 1,
+		"sales_order": so.name
+	}

@@ -73,6 +73,9 @@
   "template_dt",
   "template_dn",
   "amount",
+  "column_break_uafs",
+  "reference_document_type",
+  "reference_document_name",
   "booked_lab_section",
   "patient_accepted_cost",
   "booked",
@@ -564,6 +567,22 @@
    "fieldtype": "Check",
    "label": "Forwarded to Lab",
    "read_only": 1
+  },
+  {
+   "fieldname": "column_break_uafs",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "reference_document_type",
+   "fieldtype": "Link",
+   "label": "Reference Document Type",
+   "options": "DocType"
+  },
+  {
+   "fieldname": "reference_document_name",
+   "fieldtype": "Dynamic Link",
+   "label": "Reference Document Name",
+   "options": "reference_document_type"
   }
  ],
  "index_web_pages_for_search": 1,
@@ -582,7 +601,7 @@
    "link_fieldname": "service_request"
   }
  ],
- "modified": "2026-02-15 11:55:01.817915",
+ "modified": "2026-02-18 11:18:34.925437",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Service Request",

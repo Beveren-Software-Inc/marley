@@ -174,5 +174,25 @@ export async function saveAndSubmitLabTest(
 }
 
 
+import { apiRequest } from './apiClient'
+
+export async function updateLabTestStatus(
+  lab_test_name: string,
+  new_status: 'Approved' | 'Rejected'
+): Promise<void> {
+  await apiRequest<void>(
+    '/api/method/healthcare.api.lab_test.update_lab_test_status',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        lab_test_name,
+        new_status,
+      }),
+    }
+  )
+}
 
 
+export function getLabTestUrl(name: string): string {
+  return `/healthcare/lab-test/${name}`
+}

@@ -122,6 +122,7 @@
   "git",
   "signature_tab",
   "signature",
+  "e_signatures",
   "history_form_tab",
   "history_form_details_template",
   "history_attributes",
@@ -866,6 +867,12 @@
    "fieldtype": "Table",
    "label": "Environmental Checklist Details",
    "options": "Environmental Checklist Detail"
+  },
+  {
+   "fieldname": "e_signatures",
+   "fieldtype": "Table",
+   "label": "e-Signatures",
+   "options": "Patient Upload Document"
   }
  ],
  "index_web_pages_for_search": 1,
@@ -879,11 +886,11 @@
    "link_fieldname": "admission"
   }
  ],
- "modified": "2025-12-30 10:02:04.180618",
+ "modified": "2026-02-18 12:22:15.960275",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Inpatient Admission",
- "naming_rule": "Expression",
+ "naming_rule": "Expression (old style)",
  "owner": "Administrator",
  "permissions": [
   {

@@ -68,12 +68,12 @@
   "result_legend_section",
   "legend_print_position",
   "result_legend",
-  "more_information_section",
   "inventory_section",
   "requested_consumables",
   "material_request",
   "service_request",
   "invoiced",
+  "reviewed_by",
   "section_break_50",
   "email_sent",
   "sms_sent",
@@ -212,7 +212,7 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Status",
-   "options": "Draft\nCompleted\nApproved\nRejected\nCancelled",
+   "options": "\nDraft\nRequested\nCompleted\nPending Review\nApproved\nRejected\nCancelled",
    "read_only": 1,
    "search_index": 1
   },
@@ -604,12 +604,6 @@
   },
   {
    "collapsible": 1,
-   "fieldname": "more_information_section",
-   "fieldtype": "Section Break",
-   "label": "More Information"
-  },
-  {
-   "collapsible": 1,
    "fieldname": "inventory_section",
    "fieldtype": "Section Break",
    "label": "Inventory"
@@ -673,6 +667,12 @@
    "fieldname": "is_outsourced",
    "fieldtype": "Check",
    "label": "Is Outsourced?"
+  },
+  {
+   "fieldname": "reviewed_by",
+   "fieldtype": "Link",
+   "label": "Reviewed By",
+   "options": "User"
   }
  ],
  "is_submittable": 1,
@@ -682,7 +682,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2025-12-23 15:25:49.545421",
+ "modified": "2026-02-18 12:14:21.018231",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Lab Test",

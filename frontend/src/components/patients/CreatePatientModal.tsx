@@ -13,12 +13,16 @@ interface CreatePatientModalProps {
 export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalProps) => {
   const [formData, setFormData] = useState({
     first_name: '',
+    title: '',
+    file_no: '',
     middle_name: '',
     last_name: '',
     sex: '',
     dob: '',
     blood_group: '',
     mobile: '',
+    alternative_mobile_no_1: '',
+    alternative_mobile_no_2: '',
     phone: '',
     email: '',
     id_number: '',
@@ -261,6 +265,30 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
           <div>
             <h3 className="text-xs font-bold uppercase tracking-widest text-blue-600 mb-3 mt-2">Basic Information</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Title
+                </label>
+                <input
+                  type="text"
+                  value={formData.title}
+                  onChange={(e) => handleChange('title', e.target.value)}
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  required
+                />
+              </div>
+               <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  File No <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.file_no}
+                  onChange={(e) => handleChange('file_no', e.target.value)}
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  required
+                />
+              </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">
                   First Name <span className="text-red-500">*</span>
@@ -375,6 +403,28 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
                   type="tel"
                   value={formData.phone}
                   onChange={(e) => handleChange('phone', e.target.value)}
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+                <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Alternative Mobile No
+                </label>
+                <input
+                  type="tel"
+                  value={formData.alternative_mobile_no_1}
+                  onChange={(e) => handleChange('alternative_mobile_no_1', e.target.value)}
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+                <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Alternative Mobile No 2
+                </label>
+                <input
+                  type="tel"
+                  value={formData.alternative_mobile_no_2}
+                  onChange={(e) => handleChange('alternative_mobile_no_2', e.target.value)}
                   className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                 />
               </div>
