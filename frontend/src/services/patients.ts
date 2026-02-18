@@ -224,6 +224,7 @@ export async function fetchPatientSummary(patient: string): Promise<PatientSumma
 export interface PatientDoc {
   name: string
   patient_name?: string
+  file_no?: string
   first_name?: string
   middle_name?: string
   last_name?: string

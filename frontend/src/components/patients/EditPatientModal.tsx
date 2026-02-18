@@ -81,6 +81,7 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
 
         setFormData({
           first_name: patient.first_name ?? '',
+          file_no: patient.file_no ?? '',
           middle_name: patient.middle_name ?? '',
           last_name: patient.last_name ?? '',
           sex: patient.sex ?? '',

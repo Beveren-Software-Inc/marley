@@ -3,21 +3,47 @@ export interface LabTest {
   docstatus?: number
   patient: string
   patient_name?: string
+  patient_age?: string
+  patient_sex?: string
   practitioner?: string
   practitioner_name?: string
   lab_test_name?: string
   template?: string
   status?: string
+  date?: string
   result_date?: string
   submitted_date?: string
   approved_date?: string
+  expected_result_date?: string
+  printed_on?: string
   invoiced?: number
+  email_sent?: number | boolean
+  sms_sent?: number | boolean
+  printed?: number | boolean
+  amended_from?: string
+  sample?: string
   department?: string
   is_outsourced?: number
+  email?: string
+  mobile?: string
+  report_preference?: string
+  inpatient_record?: string
+  service_unit?: string
+  company?: string
+  requesting_department?: string
+  service_request?: string
+  reference_document?: string
+  employee_name?: string
+  employee?: string
+  employee_designation?: string
+  reviewed_by?: string
   material_request?: string
+  descriptive_result?: string
   custom_result?: string
   lab_test_comment?: string
   worksheet_instructions?: string
+  normal_test_items?: any[]
+  sensitivity_test_items?: any[]
 }
 
 export interface LabConsumableRow {
