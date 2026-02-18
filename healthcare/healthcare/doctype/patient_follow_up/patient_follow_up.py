@@ -9,7 +9,7 @@ from frappe.model.document import Document
 @frappe.whitelist()
 def get_follow_ups(status=None, cost_center=None, limit=100, offset=0):
 	"""List Patient Follow Up for UI with filters. Excludes no_follow_up_required by default."""
-	filters = [["no_follow_up_required", "=", 0]]
+	filters = []
 	if status:
 		filters.append(["status", "=", status])
 	if cost_center:
@@ -26,6 +26,7 @@ def get_follow_ups(status=None, cost_center=None, limit=100, offset=0):
 		limit=int(limit) if limit else 100,
 		start=int(offset) if offset else 0,
 	)
+	print("Follow up here ", len(out))
 	return out
 
 
@@ -148,3 +149,20 @@ def create_patient_follow_up_from_discharge(admission_name, discharge_doc=None):
 	)
 	doc.insert(ignore_permissions=True)
 	return doc.name
+
+def update_follow_up_status(patient_follow_up_name, status):
+	"""Update status of a Patient Follow Up. Call from UI or API."""
+	if not patient_follow_up_name:
+		return {"updated": False, "message": "No follow-up specified"}
+	if status not in ["Open", "Completed", "No Follow Up Required"]:
+		return {"updated": False, "message": "Invalid status"}
+	try:
+		doc = frappe.get_doc("Patient Follow Up", patient_follow_up_name)
+		doc.status = status
+		if status == "No Follow Up Required":
+			doc.no_follow_up_required = 1
+		doc.save()
+		return {"updated": True}
+	except Exception as e:
+		frappe.log_error(title="Follow-up status update failed", message=frappe.get_traceback())
+		return {"updated": False, "message": str(e)}
