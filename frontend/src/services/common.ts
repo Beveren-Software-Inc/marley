@@ -9,6 +9,18 @@ export interface LinkFieldOption {
   country?: string
 }
 
+export interface ChecklistItem {
+  name: string
+  action_required: string
+  department: string
+  department_label?: string
+  user: string
+  name1: string
+  date_time: string
+  click: boolean
+  description?: string
+}
+
 export async function fetchMedicalDepartments(search?: string): Promise<LinkFieldOption[]> {
   const params = new URLSearchParams()
   if (search) params.append('search', search)
@@ -269,11 +281,11 @@ export async function getPractitionerMedicalRole(practitioner: string): Promise<
 
 export async function fetchCompanies(search?: string): Promise<LinkFieldOption[]> {
   const params = new URLSearchParams()
-  if (search) params.append("search", search)
+  if (search) params.append('search', search)
 
   const url =
     `/api/method/healthcare.api.common.get_companies` +
-    (params.toString() ? `?${params.toString()}` : "")
+    (params.toString() ? `?${params.toString()}` : '')
 
   const response = await fetch(url)
   const resData = await response.json()
@@ -285,13 +297,14 @@ export async function fetchCompanies(search?: string): Promise<LinkFieldOption[]
   return []
 }
 
-export async function fetchCostCenters(search?: string): Promise<LinkFieldOption[]> {
+export async function fetchCostCenters(company?: string, search?: string): Promise<LinkFieldOption[]> {
   const params = new URLSearchParams()
-  if (search) params.append("search", search)
+  if (company) params.append('company', company)
+  if (search) params.append('search', search)
 
   const url =
     `/api/method/healthcare.api.common.get_cost_centers` +
-    (params.toString() ? `?${params.toString()}` : "")
+    (params.toString() ? `?${params.toString()}` : '')
 
   const response = await fetch(url)
   const resData = await response.json()

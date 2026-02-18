@@ -22,13 +22,65 @@ export interface InpatientRecord {
   scheduled_date: string
   admitted_datetime?: string
   expected_discharge?: string
+  gender?: string
+  blood_group?: string
+  dob?: string
+  mobile?: string
+  email?: string
+  phone?: string
+  expected_length_of_stay?: number
+  admission_ordered_for?: string
+  company?: string
+  cost_center?: string
+  admission_by_cpr?: string
+  reference_by?: string
   admission_service_unit_type?: string
   medical_department?: string
   primary_practitioner?: string
   secondary_practitioner?: string
+  admission_doctor_name?: string
+  admission_by_doctor?: string
+  admission_by_nm?: string
+  psychologist_doctor_name?: string
+  psychologist_doctor?: string
+  resident_doctor_name?: string
+  residents_doctor_no?: string
+  escort?: boolean | number
+  guardian_name?: string
+  contact_relationship?: string
+  contact_mobile?: string
+  contact_phone?: string
+  contact_email?: string
   admission_encounter?: string
   current_occupancy?: InpatientOccupancy
   charges?: AdmissionCharges
+  admission_cost?: number
+  case_management_fee?: number
+  room_charges?: number
+  admission_practitioner?: string
+  admission_instruction?: string
+  weight?: number
+  height?: number
+  blood_pressure?: string
+  pulse?: number
+  temp?: number
+  resp_rate?: number
+  general_condition?: string
+  cns?: string
+  cvs_resp?: string
+  git?: string
+  others?: string
+  allergies?: string
+  medication_history?: string
+  medical_history?: string
+  surgical_history?: string
+  discharge_ordered_date?: string
+  discharge_datetime?: string
+  discharge_instructions?: string
+  discharge_note?: string
+  followup_date?: string
+  discharge_practitioner?: string
+  inpatient_occupancies?: InpatientOccupancy[]
 }
 
 export interface PackageDetail {
