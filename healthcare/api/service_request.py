@@ -121,6 +121,8 @@ def create_service_request(data):
 	service_request = frappe.get_doc({
 		'doctype': 'Service Request',
 		'patient': data.get('patient'),
+		'patient_visit': data.get('patient_visit'),
+		'inpatient_record': data.get('inpatient_record'),
 		'template_dt': data.get('template_dt'),
 		'template_dn': data.get('template_dn'),
 		'practitioner': data.get('practitioner'),
@@ -177,7 +179,6 @@ import frappe
 from frappe import _
 from frappe.utils import nowdate
 
-
 @frappe.whitelist()
 def confirm_payment(service_request_name):
 
@@ -197,7 +198,6 @@ def confirm_payment(service_request_name):
 	# Load dynamic template document
 	template_doc = frappe.get_doc(sr.template_dt, sr.template_dn)
 	delivery_date = sr.expected_date or nowdate()
-	
 
 	# ---- IMPORTANT PART ----
 	# We assume template has an `item` field
@@ -205,6 +205,8 @@ def confirm_payment(service_request_name):
 		frappe.throw(_(f"{sr.template_dt} must have an Item field"))
 
 	item_code = template_doc.item
+		
+	amount = template_doc.lab_test_rate if hasattr(template_doc, "lab_test_rate") else 0
 
 	# ------------------------
 	# Create Sales Order
@@ -227,6 +229,39 @@ def confirm_payment(service_request_name):
 	sr.db_set("patient_accepted_cost", 1)
 	sr.db_set("reference_document_type", "Sales Order")
 	sr.db_set("reference_document_name", so.name)
+
+	
+	patient_visit_name = getattr(sr, "patient_visit", None)
+	
+	if patient_visit_name:
+		try:
+			visit = frappe.get_doc("Patient Visit", patient_visit_name)
+
+			# Avoid duplicate entries for the same service request
+			already_added = any(
+				row.get("test_code") == sr.name
+				for row in visit.get("lab_tests_charges", [])
+			)
+			print("amount ni: ", sr.amount)
+			if not already_added:
+				visit.append("lab_tests_charges", {
+					"test_code": lab_test.name,                         
+					# "test_name": sr.template_dn or "", 
+					# # Fetched from template
+					"amount": amount or 0,
+					"discount_type": "Percentage",
+					"discount_rate": 0,
+					"net_amount": amount or 0
+				})
+				visit.save(ignore_permissions=True)
+				frappe.db.commit()
+
+		except Exception as e:
+			frappe.log_error(
+				title="Failed to update Patient Visit lab charges",
+				message=frappe.get_traceback()
+			)
+			# We don't throw here — SO was already created, don't block the flow
 
 	frappe.db.commit()
 

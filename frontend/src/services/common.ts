@@ -485,8 +485,6 @@ export async function createPractitioner(data: CreatePractitionerData): Promise<
   }
 }
 
-
-
 export const fetchDischargeChecklist = async (templateName: string): Promise<ChecklistItem[]> => {
   const response = await fetch(
     `/api/resource/Discharge Template/${encodeURIComponent(templateName)}`,
@@ -511,3 +509,40 @@ export const fetchDischargeChecklist = async (templateName: string): Promise<Che
     description: row.description ?? '',
   }))
 }
+
+
+export async function fetchPatientVisits(
+  patient?: string,
+  search?: string
+): Promise<LinkFieldOption[]> {
+console.log("fetchPatientVisits called with patient:", patient, "search:", search)
+  const params = new URLSearchParams()
+  if (patient) params.append('patient', patient)
+  if (search) params.append('search', search)
+    
+  const res = await fetch(
+    `/api/method/healthcare.api.common.get_patient_visits?${params}`
+  )
+  console.log("response", res)
+  const data = await res.json()
+  return Array.isArray(data?.message) ? data.message : []
+}
+
+
+export async function fetchInpatientAdmissions(
+  patient?: string,
+  search?: string
+): Promise<LinkFieldOption[]> {
+
+  const params = new URLSearchParams()
+  if (patient) params.append('patient', patient)
+  if (search) params.append('search', search)
+
+  const res = await fetch(
+    `/api/method/healthcare.api.common.get_inpatient_admissions?${params}`
+  )
+
+  const data = await res.json()
+  return Array.isArray(data?.message) ? data.message : []
+}
+

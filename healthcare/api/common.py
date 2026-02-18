@@ -519,3 +519,56 @@ def get_cost_centers(search=None, company=None):
 		limit=50
 	)
 	return [{"name": c.name, "label": c.name} for c in cost_centers]
+
+
+@frappe.whitelist()
+def get_patient_visits(search=None, patient=None, limit=20):
+	filters = {"docstatus": ["!=", 2]}
+
+	if patient:
+		filters["patient"] = patient
+
+	if search:
+		filters["name"] = ["like", f"%{search}%"]
+	
+	visits = frappe.get_all(
+		"Patient Visit",
+		filters=filters,
+		fields=["name", "patient", "practitioner"],
+		limit=limit,
+		order_by="creation desc",
+	)
+	
+	return [
+		{
+			"name": v.name,
+			"label": f"{v.name} - {v.patient or ''}"
+		}
+		for v in visits
+	]
+
+
+@frappe.whitelist()
+def get_inpatient_admissions(search=None, patient=None, limit=20):
+	# filters = {"docstatus": ["!=", 2]}
+	filters = {}
+
+	if patient:
+		filters["patient"] = patient
+
+	if search:
+		filters["name"] = ["like", f"%{search}%"]
+	admissions = frappe.get_all(
+		"Inpatient Admission",
+		filters=filters,
+		fields=["name", "patient", "admitted_datetime"],
+		limit=limit,
+		order_by="creation desc",
+	)
+	return [
+		{
+			"name": a.name,
+			"label": f"{a.name} ({a.admission_date})"
+		}
+		for a in admissions
+	]
