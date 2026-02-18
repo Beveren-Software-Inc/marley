@@ -29,6 +29,7 @@
   "patient_mobile",
   "inpatient_record",
   "inpatient_status",
+  "patient_visit",
   "order_source_section",
   "practitioner",
   "practitioner_email",
@@ -583,6 +584,12 @@
    "fieldtype": "Dynamic Link",
    "label": "Reference Document Name",
    "options": "reference_document_type"
+  },
+  {
+   "fieldname": "patient_visit",
+   "fieldtype": "Link",
+   "label": "Patient Visit",
+   "options": "Patient Visit"
   }
  ],
  "index_web_pages_for_search": 1,
@@ -601,7 +608,7 @@
    "link_fieldname": "service_request"
   }
  ],
- "modified": "2026-02-18 11:18:34.925437",
+ "modified": "2026-02-18 22:12:31.940164",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Service Request",
