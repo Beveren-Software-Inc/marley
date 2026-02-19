@@ -67,7 +67,7 @@ def get_healthcare_practitioners(search=None, department=None):
 @frappe.whitelist()
 def get_service_unit_types(search=None):
 	"""Get list of Healthcare Service Unit Types with inpatient occupancy"""
-	filters = {'inpatient_occupancy': 1, 'allow_appointments': 0, 'is_group': 0}  # Only get leaf service unit types that are for inpatient occupancy and not for appointments
+	filters = {'inpatient_occupancy': 1, 'allow_appointments': 0}  # Only get leaf service unit types that are for inpatient occupancy and not for appointments
 	
 	service_unit_types = frappe.get_all(
 		'Healthcare Service Unit Type',
