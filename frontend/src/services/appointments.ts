@@ -67,12 +67,16 @@ export async function fetchAllAppointments(
 }
 
 export async function createAppointment(data: CreateAppointmentData): Promise<Appointment> {
+  const csrf = (window as any).csrf_token
   const response = await fetch(
     '/api/method/healthcare.api.patient_appointment.create_appointment',
     {
       method: 'POST',
+      credentials: 'include',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {})
       },
       body: JSON.stringify({ data })
     }
@@ -91,12 +95,16 @@ export async function updateAppointmentStatus(
   appointmentId: string,
   status: string
 ): Promise<void> {
+  const csrf = (window as any).csrf_token
   const response = await fetch(
     '/api/method/healthcare.healthcare.doctype.patient_appointment.patient_appointment.update_status',
     {
       method: 'POST',
+      credentials: 'include',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {})
       },
       body: JSON.stringify({
         appointment_id: appointmentId,
@@ -112,12 +120,16 @@ export async function updateAppointmentStatus(
 
 /** Create Patient Visit from appointment; returns new Patient Visit name. */
 export async function createEncounterFromAppointment(appointmentId: string): Promise<string> {
+  const csrf = (window as any).csrf_token
   const response = await fetch(
     '/api/method/healthcare.healthcare.doctype.patient_appointment.patient_appointment.create_encounter_from_appointment',
     {
       method: 'POST',
+      credentials: 'include',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {})
       },
       body: JSON.stringify({ appointment_id: appointmentId })
     }
@@ -207,6 +219,27 @@ function messageFromExc(exc: string, excType?: string): string {
   return (match ? match[1].trim() : lastLine) || (excType ? String(excType) : 'Request failed')
 }
 
+/** Ensure CSRF token exists (fetch from API if missing). Required for POST on 8000/live. */
+async function ensureCSRF(): Promise<string | null> {
+  let token = (window as any).csrf_token
+  if (token) return token
+  const base = (typeof window !== 'undefined' && window.location?.origin) ? window.location.origin : ''
+  try {
+    const resp = await fetch(`${base}/api/method/frappe.sessions.get_csrf_token`, {
+      method: 'GET',
+      credentials: 'include',
+      headers: { Accept: 'application/json' }
+    })
+    if (!resp.ok) return null
+    const data = await resp.json().catch(() => ({} as any))
+    token = data?.message ?? data?.data ?? null
+    if (token) (window as any).csrf_token = token
+    return token
+  } catch {
+    return null
+  }
+}
+
 /** Fetch available slots for a practitioner on a date (for reschedule/book or new booking). Pass appointmentName "new" for new appointment. */
 export async function getAvailabilityData(
   date: string,
@@ -217,20 +250,22 @@ export async function getAvailabilityData(
     !appointmentName || appointmentName.trim().toLowerCase() === 'new'
       ? 'new'
       : JSON.stringify({ doctype: 'Patient Appointment', name: appointmentName })
-  const response = await fetch(
-    '/api/method/healthcare.healthcare.doctype.patient_appointment.patient_appointment.get_availability_data',
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        date,
-        practitioner,
-        appointment: appointmentParam
-      })
-    }
-  )
+  const path = '/api/method/healthcare.healthcare.doctype.patient_appointment.patient_appointment.get_availability_data'
+  const csrf = await ensureCSRF()
+  const response = await fetch(path, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {})
+    },
+    body: JSON.stringify({
+      date,
+      practitioner,
+      appointment: appointmentParam
+    })
+  })
   const resData = await response.json()
   if (resData?.exc) {
     throw new Error(messageFromExc(resData.exc, resData.exc_type))
@@ -257,12 +292,16 @@ export async function rescheduleAppointment(
   if (duration != null) body.duration = duration
   if (serviceUnit != null) body.service_unit = serviceUnit
 
+  const csrf = (window as any).csrf_token
   const response = await fetch(
     '/api/method/healthcare.healthcare.doctype.patient_appointment.patient_appointment.reschedule_appointment',
     {
       method: 'POST',
+      credentials: 'include',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {})
       },
       body: JSON.stringify(body)
     }
