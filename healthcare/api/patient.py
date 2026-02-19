@@ -4,6 +4,7 @@
 
 import frappe
 from frappe import _
+from frappe.utils import cint
 
 
 @frappe.whitelist()
@@ -88,177 +89,361 @@ def get_patients(limit=50, offset=0, search=None):
 		return [{'name': p.name, 'patient_name': p.patient_name or p.name, 'file_number': p.file_no, 'mobile': p.mobile, 'email': p.email, 'sex': p.sex, 'id_number': p.id_number, 'category': p.category} for p in patients]
 
 
+# @frappe.whitelist()
+# def create_patient(data):
+# 	"""Create a new Patient"""
+# 	if isinstance(data, str):
+# 		import json
+# 		data = json.loads(data)
+	
+# 	# Validate required fields
+# 	if not data.get('first_name'):
+# 		frappe.throw(_("First Name is required"))
+	
+# 	if not data.get('sex'):
+# 		frappe.throw(_("Gender is required"))
+	
+# 	# Validate BRD: Contact No., Address, Patient Referral/Source, Patient type required
+# 	if not data.get('mobile') and not data.get('phone'):
+# 		frappe.throw(_("At least one Contact No. (Mobile or Phone) is required"))
+# 	if not data.get('source'):
+# 		frappe.throw(_("Patient Referral or Source is required"))
+# 	if not data.get('category'):
+# 		frappe.throw(_("Patient type is required"))
+
+# 	# Build doc; address and contact created below and linked to Patient (Customer created if setting enabled)
+# 	patient = frappe.get_doc({
+# 		'doctype': 'Patient',
+# 		'first_name': data.get('first_name'),
+# 		'file_no': data.get('file_no') or None,
+# 		'middle_name': data.get('middle_name') or '',
+# 		'last_name': data.get('last_name') or '',
+# 		'sex': data.get('sex'),
+# 		'dob': data.get('dob') or None,
+# 		'blood_group': data.get('blood_group') or None,
+# 		'mobile': data.get('mobile') or None,
+# 		'phone': data.get('phone') or None,
+# 		'email': data.get('email') or None,
+# 		'id_number': data.get('id_number') or None,
+# 		'nationality': data.get('nationality') or None,
+# 		'category': data.get('category') or None,
+# 		'source': data.get('source') or None,
+# 		'marital_status': data.get('marital_status') or None,
+# 		'is_black_list': 1 if data.get('is_black_list') else 0,
+# 		"alter_mobile_no": data.get("alternative_mobile_no_1") or None,
+# 		"alter_2_mobile_no": data.get("alternative_mobile_no_2") or None,
+# 	})
+
+# 	patient.insert()
+
+# 	# Next of Kin / Patient Relation (child table) — add after insert so we can set patient link
+# 	patient_relations = data.get("patient_relation") or []
+# 	if isinstance(patient_relations, str):
+# 		import json
+# 		patient_relations = json.loads(patient_relations) if patient_relations.strip() else []
+# 	if patient_relations:
+# 		patient.reload()
+# 		for row in patient_relations:
+# 			if not isinstance(row, dict):
+# 				continue
+# 			relation = (row.get("relation") or "").strip()
+# 			mobile_no = (row.get("mobile_no") or "").strip() or None
+# 			email = (row.get("email") or "").strip() or None
+# 			description = (row.get("description") or "").strip() or None
+# 			full_name = (row.get("full_name") or "").strip() or None
+# 			is_next_of_kin = cint(row.get("is_next_of_kin"))
+# 			if relation or mobile_no or email or full_name or is_next_of_kin:
+# 				patient.append("patient_relation", {
+# 					"patient": patient.name,
+# 					"relation": relation or None,
+# 					"mobile_no": mobile_no,
+# 					"email": email,
+# 					"description": description,
+# 					"full_name": full_name,
+# 					"is_next_of_kin": is_next_of_kin,
+# 				})
+# 		try:
+# 			patient.save(ignore_permissions=True)
+# 		except Exception:
+# 			frappe.log_error(frappe.get_traceback(), "Create Patient Relations")
+
+# 	# 1) Create Address doctype and link to Patient; set as primary address
+# 	address_title = (patient.patient_name or patient.name or "").strip() or patient.name
+# 	address_line1 = (data.get("address_line1") or "").strip()
+# 	address_line2 = (data.get("address_line2") or "").strip()
+# 	city = (data.get("city") or "").strip()
+# 	state = (data.get("state") or "").strip()
+# 	country = (data.get("country") or "").strip()
+# 	pincode = (data.get("pincode") or "").strip()
+# 	if frappe.db.exists("DocType", "Address") and (address_line1 or city):
+# 		# Address doctype requires address_line1, city, country, address_type
+# 		if not country:
+# 			country = frappe.db.get_single_value("System Settings", "country") or ""
+# 		if address_line1 and city and country:
+# 			try:
+# 				addr = frappe.get_doc({
+# 					"doctype": "Address",
+# 					"address_title": address_title,
+# 					"address_type": "Billing",
+# 					"address_line1": address_line1,
+# 					"address_line2": address_line2,
+# 					"city": city,
+# 					"state": state,
+# 					"country": country,
+# 					"pincode": pincode,
+# 					"is_primary_address": 1,
+# 					"links": [{"link_doctype": "Patient", "link_name": patient.name}],
+# 				})
+# 				addr.insert(ignore_permissions=True)
+# 				frappe.db.set_value("Patient", patient.name, "patient_primary_address", addr.name)
+# 			except Exception:
+# 				frappe.log_error(frappe.get_traceback(), "Create Patient Address")
+# 				# Do not block patient creation; address can be added later
+# 				pass
+
+# 	# 2) Create Customer and link to Patient if Healthcare Settings "Link Customer to Patient" is enabled
+# 	patient.reload()
+# 	if frappe.db.get_single_value("Healthcare Settings", "link_customer_to_patient") and not patient.customer:
+# 		try:
+# 			from healthcare.healthcare.doctype.patient.patient import create_customer
+# 			create_customer(patient)
+# 			patient.reload()
+# 		except Exception:
+# 			pass
+
+# 	# 3) Create Contact doctype and link to Patient (and to Customer if linked); set as primary contact
+# 	try:
+# 		patient.set_contact()
+# 		from frappe.contacts.doctype.contact.contact import get_default_contact
+# 		primary_contact = get_default_contact("Patient", patient.name)
+# 		if primary_contact:
+# 			frappe.db.set_value("Patient", patient.name, "patient_primary_contact", primary_contact)
+# 	except Exception:
+# 		pass
+
+# 	# 4) Patient Documents (child table)
+# 	# Note: Patient Upload Document has "file_name" as Link to Document Type, so we pass document_type
+# 	# for that field; the display name goes in "document_name" (Document Code).
+# 	patient.reload()
+# 	patient_documents = data.get("patient_document") or data.get("documents") or []
+# 	if isinstance(patient_documents, str):
+# 		import json
+# 		patient_documents = json.loads(patient_documents) if patient_documents.strip() else []
+# 	for row in patient_documents:
+# 		if not isinstance(row, dict):
+# 			continue
+# 		# Need at least an attachment URL or a file name to add a row
+# 		display_name = (row.get("file_name") or "").strip()
+# 		document_url = (row.get("document") or "").strip() or None
+# 		document_type = (row.get("document_type") or "").strip() or None
+# 		if not display_name and not document_url:
+# 			continue
+# 		if not display_name and document_url:
+# 			display_name = document_url.split("/")[-1] or "Attachment"
+# 		try:
+# 			# file_name in Patient Upload Document is Link to "Document Type"; use document_type so it validates
+# 			patient.append("patient_document", {
+# 				"document_name": display_name,
+# 				"file_name": document_type,
+# 				"document_type": document_type,
+# 				"transaction_no": (row.get("transaction_no") or "").strip() or None,
+# 				"upload_remarks": (row.get("upload_remarks") or "").strip() or None,
+# 				"document": document_url,
+# 			})
+# 		except Exception as e:
+# 			frappe.log_error(frappe.get_traceback(), "Create Patient Document Row")
+# 	if patient.get("patient_document"):
+# 		try:
+# 			patient.save(ignore_permissions=True)
+# 		except Exception:
+# 			frappe.log_error(frappe.get_traceback(), "Create Patient Documents")
+
+# 	# Return the created patient
+# 	return {
+# 		'name': patient.name,
+# 		'patient_name': patient.patient_name,
+# 		'file_no': patient.name
+# 	}
 @frappe.whitelist()
 def create_patient(data):
-	"""Create a new Patient"""
-	if isinstance(data, str):
-		import json
-		data = json.loads(data)
-	
-	# Validate required fields
-	if not data.get('first_name'):
-		frappe.throw(_("First Name is required"))
-	
-	if not data.get('sex'):
-		frappe.throw(_("Gender is required"))
-	
-	# Validate BRD: Contact No., Address, Patient Referral/Source, Patient type required
-	if not data.get('mobile') and not data.get('phone'):
-		frappe.throw(_("At least one Contact No. (Mobile or Phone) is required"))
-	if not data.get('source'):
-		frappe.throw(_("Patient Referral or Source is required"))
-	if not data.get('category'):
-		frappe.throw(_("Patient type is required"))
+    """Create a new Patient"""
 
-	# Build doc; address and contact created below and linked to Patient (Customer created if setting enabled)
-	patient = frappe.get_doc({
-		'doctype': 'Patient',
-		'first_name': data.get('first_name'),
-		'file_no': data.get('file_no') or None,
-		'middle_name': data.get('middle_name') or '',
-		'last_name': data.get('last_name') or '',
-		'sex': data.get('sex'),
-		'dob': data.get('dob') or None,
-		'blood_group': data.get('blood_group') or None,
-		'mobile': data.get('mobile') or None,
-		'phone': data.get('phone') or None,
-		'email': data.get('email') or None,
-		'id_number': data.get('id_number') or None,
-		'nationality': data.get('nationality') or None,
-		'category': data.get('category') or None,
-		'source': data.get('source') or None,
-		'marital_status': data.get('marital_status') or None,
-		'is_black_list': 1 if data.get('is_black_list') else 0,
-		"alter_mobile_no": data.get("alternative_mobile_no_1") or None,
-		"alter_2_mobile_no": data.get("alternative_mobile_no_2") or None,
-	})
+    if isinstance(data, str):
+        import json
+        data = json.loads(data)
 
-	patient.insert()
+    _validate_patient_payload(data)
 
-	# Next of Kin / Patient Relation (child table) — add after insert so we can set patient link
-	patient_relations = data.get("patient_relation") or []
-	if isinstance(patient_relations, str):
-		import json
-		patient_relations = json.loads(patient_relations) if patient_relations.strip() else []
-	if patient_relations:
-		patient.reload()
-		for row in patient_relations:
-			if not isinstance(row, dict):
-				continue
-			relation = (row.get("relation") or "").strip()
-			mobile_no = (row.get("mobile_no") or "").strip() or None
-			email = (row.get("email") or "").strip() or None
-			description = (row.get("description") or "").strip() or None
-			if relation or mobile_no or email:
-				patient.append("patient_relation", {
-					"patient": patient.name,
-					"relation": relation or None,
-					"mobile_no": mobile_no,
-					"email": email,
-					"description": description,
-				})
-		try:
-			patient.save(ignore_permissions=True)
-		except Exception:
-			frappe.log_error(frappe.get_traceback(), "Create Patient Relations")
+    patient = frappe.get_doc({
+        "doctype": "Patient",
+        "first_name": data.get("first_name"),
+        "file_no": data.get("file_no") or None,
+        "middle_name": data.get("middle_name") or "",
+        "last_name": data.get("last_name") or "",
+        "sex": data.get("sex"),
+        "dob": data.get("dob") or None,
+        "blood_group": data.get("blood_group") or None,
+        "mobile": data.get("mobile") or None,
+        "phone": data.get("phone") or None,
+        "email": data.get("email") or None,
+        "id_number": data.get("id_number") or None,
+        "nationality": data.get("nationality") or None,
+        "category": data.get("category") or None,
+        "source": data.get("source") or None,
+        "marital_status": data.get("marital_status") or None,
+        "is_black_list": 1 if data.get("is_black_list") else 0,
+        "alter_mobile_no": data.get("alternative_mobile_no_1") or None,
+        "alter_2_mobile_no": data.get("alternative_mobile_no_2") or None,
+    })
 
-	# 1) Create Address doctype and link to Patient; set as primary address
-	address_title = (patient.patient_name or patient.name or "").strip() or patient.name
-	address_line1 = (data.get("address_line1") or "").strip()
-	address_line2 = (data.get("address_line2") or "").strip()
-	city = (data.get("city") or "").strip()
-	state = (data.get("state") or "").strip()
-	country = (data.get("country") or "").strip()
-	pincode = (data.get("pincode") or "").strip()
-	if frappe.db.exists("DocType", "Address") and (address_line1 or city):
-		# Address doctype requires address_line1, city, country, address_type
-		if not country:
-			country = frappe.db.get_single_value("System Settings", "country") or ""
-		if address_line1 and city and country:
-			try:
-				addr = frappe.get_doc({
-					"doctype": "Address",
-					"address_title": address_title,
-					"address_type": "Billing",
-					"address_line1": address_line1,
-					"address_line2": address_line2,
-					"city": city,
-					"state": state,
-					"country": country,
-					"pincode": pincode,
-					"is_primary_address": 1,
-					"links": [{"link_doctype": "Patient", "link_name": patient.name}],
-				})
-				addr.insert(ignore_permissions=True)
-				frappe.db.set_value("Patient", patient.name, "patient_primary_address", addr.name)
-			except Exception:
-				frappe.log_error(frappe.get_traceback(), "Create Patient Address")
-				# Do not block patient creation; address can be added later
-				pass
+    patient.insert(ignore_permissions=True)
 
-	# 2) Create Customer and link to Patient if Healthcare Settings "Link Customer to Patient" is enabled
-	patient.reload()
-	if frappe.db.get_single_value("Healthcare Settings", "link_customer_to_patient") and not patient.customer:
-		try:
-			from healthcare.healthcare.doctype.patient.patient import create_customer
-			create_customer(patient)
-			patient.reload()
-		except Exception:
-			pass
+    _add_patient_relations(patient, data)
+    _setup_patient_links(patient, data)
+    _add_patient_documents(patient, data)
 
-	# 3) Create Contact doctype and link to Patient (and to Customer if linked); set as primary contact
-	try:
-		patient.set_contact()
-		from frappe.contacts.doctype.contact.contact import get_default_contact
-		primary_contact = get_default_contact("Patient", patient.name)
-		if primary_contact:
-			frappe.db.set_value("Patient", patient.name, "patient_primary_contact", primary_contact)
-	except Exception:
-		pass
+    return {
+        "name": patient.name,
+        "patient_name": patient.patient_name,
+        "file_no": patient.name,
+    }
 
-	# 4) Patient Documents (child table)
-	# Note: Patient Upload Document has "file_name" as Link to Document Type, so we pass document_type
-	# for that field; the display name goes in "document_name" (Document Code).
-	patient.reload()
-	patient_documents = data.get("patient_document") or data.get("documents") or []
-	if isinstance(patient_documents, str):
-		import json
-		patient_documents = json.loads(patient_documents) if patient_documents.strip() else []
-	for row in patient_documents:
-		if not isinstance(row, dict):
-			continue
-		# Need at least an attachment URL or a file name to add a row
-		display_name = (row.get("file_name") or "").strip()
-		document_url = (row.get("document") or "").strip() or None
-		document_type = (row.get("document_type") or "").strip() or None
-		if not display_name and not document_url:
-			continue
-		if not display_name and document_url:
-			display_name = document_url.split("/")[-1] or "Attachment"
-		try:
-			# file_name in Patient Upload Document is Link to "Document Type"; use document_type so it validates
-			patient.append("patient_document", {
-				"document_name": display_name,
-				"file_name": document_type,
-				"document_type": document_type,
-				"transaction_no": (row.get("transaction_no") or "").strip() or None,
-				"upload_remarks": (row.get("upload_remarks") or "").strip() or None,
-				"document": document_url,
-			})
-		except Exception as e:
-			frappe.log_error(frappe.get_traceback(), "Create Patient Document Row")
-	if patient.get("patient_document"):
-		try:
-			patient.save(ignore_permissions=True)
-		except Exception:
-			frappe.log_error(frappe.get_traceback(), "Create Patient Documents")
+def _validate_patient_payload(data):
 
-	# Return the created patient
-	return {
-		'name': patient.name,
-		'patient_name': patient.patient_name,
-		'file_no': patient.name
-	}
+    if not data.get("first_name"):
+        frappe.throw(_("First Name is required"))
+
+    if not data.get("sex"):
+        frappe.throw(_("Gender is required"))
+
+    if not data.get("mobile") and not data.get("phone"):
+        frappe.throw(_("At least one Contact No. is required"))
+
+    if not data.get("source"):
+        frappe.throw(_("Patient Referral or Source is required"))
+
+    if not data.get("category"):
+        frappe.throw(_("Patient type is required"))
+
+
+from frappe.utils import cint
+
+def _add_patient_relations(patient, data):
+
+    relations = data.get("patient_relation") or []
+
+    if isinstance(relations, str):
+        import json
+        relations = json.loads(relations) if relations.strip() else []
+
+    for row in relations:
+        if not isinstance(row, dict):
+            continue
+
+        relation = (row.get("relation") or "").strip()
+        mobile_no = (row.get("mobile_no") or "").strip() or None
+        email = (row.get("email") or "").strip() or None
+        description = (row.get("description") or "").strip() or None
+        full_name = (row.get("full_name") or "").strip() or None
+        is_next_of_kin = cint(row.get("is_next_of_kin"))
+
+        if relation or mobile_no or email or full_name or is_next_of_kin:
+            patient.append("patient_relation", {
+                "patient": patient.name,
+                "relation": relation,
+                "mobile_no": mobile_no,
+                "email": email,
+                "description": description,
+                "full_name": full_name,
+                "is_next_of_kin": is_next_of_kin,
+            })
+
+    if patient.get("patient_relation"):
+        patient.save(ignore_permissions=True)
+
+def _setup_patient_links(patient, data):
+
+    address_line1 = (data.get("address_line1") or "").strip()
+    city = (data.get("city") or "").strip()
+    country = (data.get("country") or "").strip()
+
+    if address_line1 and city:
+        if not country:
+            country = frappe.db.get_single_value("System Settings", "country")
+
+        try:
+            addr = frappe.get_doc({
+                "doctype": "Address",
+                "address_title": patient.patient_name or patient.name,
+                "address_type": "Billing",
+                "address_line1": address_line1,
+                "address_line2": data.get("address_line2"),
+                "city": city,
+                "state": data.get("state"),
+                "country": country,
+                "pincode": data.get("pincode"),
+                "is_primary_address": 1,
+                "links": [{"link_doctype": "Patient", "link_name": patient.name}],
+            })
+            addr.insert(ignore_permissions=True)
+
+            frappe.db.set_value(
+                "Patient", patient.name,
+                "patient_primary_address", addr.name
+            )
+        except Exception:
+            frappe.log_error(frappe.get_traceback(), "Create Patient Address")
+
+    # Customer Auto Link
+    if frappe.db.get_single_value(
+        "Healthcare Settings", "link_customer_to_patient"
+    ) and not patient.customer:
+        try:
+            from healthcare.healthcare.doctype.patient.patient import create_customer
+            create_customer(patient)
+        except Exception:
+            pass
+
+    # Contact
+    try:
+        patient.set_contact()
+    except Exception:
+        pass
+
+def _add_patient_documents(patient, data):
+
+    documents = data.get("patient_document") or data.get("documents") or []
+
+    if isinstance(documents, str):
+        import json
+        documents = json.loads(documents) if documents.strip() else []
+
+    for row in documents:
+        if not isinstance(row, dict):
+            continue
+
+        display_name = (row.get("file_name") or "").strip()
+        document_url = (row.get("document") or "").strip() or None
+        document_type = (row.get("document_type") or "").strip() or None
+
+        if not display_name and not document_url:
+            continue
+
+        if not display_name and document_url:
+            display_name = document_url.split("/")[-1]
+
+        patient.append("patient_document", {
+            "document_name": display_name,
+            "file_name": document_type,
+            "document_type": document_type,
+            "transaction_no": row.get("transaction_no"),
+            "upload_remarks": row.get("upload_remarks"),
+            "document": document_url,
+        })
+
+    if patient.get("patient_document"):
+        patient.save(ignore_permissions=True)
+
 
 
 @frappe.whitelist()
