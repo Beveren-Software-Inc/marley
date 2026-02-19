@@ -132,7 +132,35 @@ def create_patient(data):
 		"alter_mobile_no": data.get("alternative_mobile_no_1") or None,
 		"alter_2_mobile_no": data.get("alternative_mobile_no_2") or None,
 	})
+
 	patient.insert()
+
+	# Next of Kin / Patient Relation (child table) — add after insert so we can set patient link
+	patient_relations = data.get("patient_relation") or []
+	if isinstance(patient_relations, str):
+		import json
+		patient_relations = json.loads(patient_relations) if patient_relations.strip() else []
+	if patient_relations:
+		patient.reload()
+		for row in patient_relations:
+			if not isinstance(row, dict):
+				continue
+			relation = (row.get("relation") or "").strip()
+			mobile_no = (row.get("mobile_no") or "").strip() or None
+			email = (row.get("email") or "").strip() or None
+			description = (row.get("description") or "").strip() or None
+			if relation or mobile_no or email:
+				patient.append("patient_relation", {
+					"patient": patient.name,
+					"relation": relation or None,
+					"mobile_no": mobile_no,
+					"email": email,
+					"description": description,
+				})
+		try:
+			patient.save(ignore_permissions=True)
+		except Exception:
+			frappe.log_error(frappe.get_traceback(), "Create Patient Relations")
 
 	# 1) Create Address doctype and link to Patient; set as primary address
 	address_title = (patient.patient_name or patient.name or "").strip() or patient.name
@@ -189,6 +217,8 @@ def create_patient(data):
 		pass
 
 	# 4) Patient Documents (child table)
+	# Note: Patient Upload Document has "file_name" as Link to Document Type, so we pass document_type
+	# for that field; the display name goes in "document_name" (Document Code).
 	patient.reload()
 	patient_documents = data.get("patient_document") or data.get("documents") or []
 	if isinstance(patient_documents, str):
@@ -197,19 +227,26 @@ def create_patient(data):
 	for row in patient_documents:
 		if not isinstance(row, dict):
 			continue
-		file_name = (row.get("file_name") or "").strip()
-		if not file_name:
+		# Need at least an attachment URL or a file name to add a row
+		display_name = (row.get("file_name") or "").strip()
+		document_url = (row.get("document") or "").strip() or None
+		document_type = (row.get("document_type") or "").strip() or None
+		if not display_name and not document_url:
 			continue
+		if not display_name and document_url:
+			display_name = document_url.split("/")[-1] or "Attachment"
 		try:
+			# file_name in Patient Upload Document is Link to "Document Type"; use document_type so it validates
 			patient.append("patient_document", {
-				"file_name": file_name,
-				"document_type": (row.get("document_type") or "").strip() or None,
+				"document_name": display_name,
+				"file_name": document_type,
+				"document_type": document_type,
 				"transaction_no": (row.get("transaction_no") or "").strip() or None,
 				"upload_remarks": (row.get("upload_remarks") or "").strip() or None,
-				"document": (row.get("document") or "").strip() or None,
+				"document": document_url,
 			})
-		except Exception:
-			pass
+		except Exception as e:
+			frappe.log_error(frappe.get_traceback(), "Create Patient Document Row")
 	if patient.get("patient_document"):
 		try:
 			patient.save(ignore_permissions=True)

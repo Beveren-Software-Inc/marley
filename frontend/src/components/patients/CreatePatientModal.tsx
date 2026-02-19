@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { createPatient, uploadPatientFile, type PatientDocumentRow } from '../../services/patients'
-import { fetchLeadSources, fetchNationalities, fetchCountries, type LinkFieldOption } from '../../services/common'
+import { fetchLeadSources, fetchNationalities, fetchCountries, fetchDocumentTypes, type LinkFieldOption } from '../../services/common'
 import { CreateLeadSourceModal } from './CreateLeadSourceModal'
 import { CreateNationalityModal } from './CreateNationalityModal'
 import { toast } from '../../hooks/useToast'
@@ -56,8 +56,27 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
   const [selectedNationality, setSelectedNationality] = useState<LinkFieldOption | null>(null)
   const [showCreateNationality, setShowCreateNationality] = useState(false)
   const [countries, setCountries] = useState<{ name: string }[]>([])
+  const [documentTypes, setDocumentTypes] = useState<{ name: string; document_name?: string }[]>([])
   const [documents, setDocuments] = useState<PatientDocumentRow[]>([])
   const [documentUploading, setDocumentUploading] = useState<number | null>(null)
+
+  // Next of Kin / Patient Relation (relation, mobile_no, email)
+  const PATIENT_RELATION_OPTIONS = ['Father', 'Mother', 'Spouse', 'Siblings', 'Family', 'Other'] as const
+  const [relations, setRelations] = useState<{ relation: string; mobile_no: string; email: string; description?: string }[]>([])
+
+  const addRelationRow = () => {
+    setRelations((prev) => [...prev, { relation: '', mobile_no: '', email: '' }])
+  }
+  const removeRelationRow = (idx: number) => {
+    setRelations((prev) => prev.filter((_, i) => i !== idx))
+  }
+  const updateRelationRow = (idx: number, field: 'relation' | 'mobile_no' | 'email' | 'description', value: string) => {
+    setRelations((prev) => {
+      const next = [...prev]
+      next[idx] = { ...next[idx], [field]: value }
+      return next
+    })
+  }
 
   const addDocumentRow = () => {
     setDocuments((prev) => [...prev, { file_name: '', document_type: '', transaction_no: '', upload_remarks: '' }])
@@ -129,10 +148,18 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
         ...formData,
         is_black_list: formData.is_black_list,
         remarks: formData.remarks || undefined,
-        patient_document: documents
-          .filter((r) => (r.file_name || '').trim())
+        patient_relation: relations
+          .filter((r) => (r.relation || r.mobile_no || r.email || '').trim())
           .map((r) => ({
-            file_name: r.file_name.trim(),
+            relation: (r.relation || '').trim() || undefined,
+            mobile_no: (r.mobile_no || '').trim() || undefined,
+            email: (r.email || '').trim() || undefined,
+            description: (r.description || '').trim() || undefined,
+          })),
+        patient_document: documents
+          .filter((r) => (r.file_name || '').trim() || (r.document || '').trim())
+          .map((r) => ({
+            file_name: (r.file_name || '').trim() || undefined,
             document_type: (r.document_type || '').trim() || undefined,
             transaction_no: (r.transaction_no || '').trim() || undefined,
             upload_remarks: (r.upload_remarks || '').trim() || undefined,
@@ -161,14 +188,16 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
   useEffect(() => {
     const loadOptions = async () => {
       try {
-        const [sources, nationalities, countryList] = await Promise.all([
+        const [sources, nationalities, countryList, docTypes] = await Promise.all([
           fetchLeadSources(),
           fetchNationalities(),
           fetchCountries(),
+          fetchDocumentTypes(),
         ])
         setSourceOptions(sources)
         setNationalityOptions(nationalities)
         setCountries(countryList)
+        setDocumentTypes(docTypes)
       } catch (err) {
         console.error('Failed to load options:', err)
       }
@@ -709,7 +738,71 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
             </div>
           </div>
 
-          {/* Patient Documents — rendered once only (FIX: removed duplicate section) */}
+          {/* Next of Kin and relatives (Patient Relation) — before Documents */}
+          <div>
+            <h3 className="text-xs font-bold uppercase tracking-widest text-blue-600 mb-3 mt-2">Next of Kin and relatives</h3>
+            <div className="space-y-3">
+              {relations.map((row, idx) => (
+                <div
+                  key={idx}
+                  className="grid grid-cols-1 md:grid-cols-12 gap-2 items-end rounded border border-slate-200 p-3 bg-slate-50/50"
+                >
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-medium text-slate-600 mb-0.5">Relation</label>
+                    <select
+                      value={row.relation || ''}
+                      onChange={(e) => updateRelationRow(idx, 'relation', e.target.value)}
+                      className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm bg-white"
+                    >
+                      <option value="">Select</option>
+                      {PATIENT_RELATION_OPTIONS.map((opt) => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="md:col-span-3">
+                    <label className="block text-xs font-medium text-slate-600 mb-0.5">Mobile no</label>
+                    <input
+                      type="text"
+                      value={row.mobile_no || ''}
+                      onChange={(e) => updateRelationRow(idx, 'mobile_no', e.target.value)}
+                      placeholder="Mobile no"
+                      className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                    />
+                  </div>
+                  <div className="md:col-span-3">
+                    <label className="block text-xs font-medium text-slate-600 mb-0.5">Email</label>
+                    <input
+                      type="email"
+                      value={row.email || ''}
+                      onChange={(e) => updateRelationRow(idx, 'email', e.target.value)}
+                      placeholder="Email"
+                      className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                    />
+                  </div>
+                  <div className="md:col-span-3 flex gap-2 items-end">
+                    <button
+                      type="button"
+                      onClick={() => removeRelationRow(idx)}
+                      className="p-1.5 rounded border border-slate-300 text-slate-600 hover:bg-slate-100 text-sm"
+                      title="Remove"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={addRelationRow}
+                className="text-sm text-primary font-medium hover:underline"
+              >
+                + Add Next of Kin / relative
+              </button>
+            </div>
+          </div>
+
+          {/* Patient Documents */}
           <div>
             <h3 className="text-xs font-bold uppercase tracking-widest text-blue-600 mb-3 mt-2">Patient Documents</h3>
             <div className="space-y-3">
@@ -729,12 +822,16 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
                   </div>
                   <div className="md:col-span-2">
                     <label className="block text-xs font-medium text-slate-600 mb-0.5">Document type</label>
-                    <input
+                    <select
                       value={row.document_type || ''}
                       onChange={(e) => updateDocumentRow(idx, 'document_type', e.target.value)}
-                      placeholder="Type"
-                      className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
-                    />
+                      className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm bg-white"
+                    >
+                      <option value="">Select type</option>
+                      {documentTypes.map((dt) => (
+                        <option key={dt.name} value={dt.name}>{dt.document_name || dt.name}</option>
+                      ))}
+                    </select>
                   </div>
                   <div className="md:col-span-2">
                     <label className="block text-xs font-medium text-slate-600 mb-0.5">Transaction no</label>
