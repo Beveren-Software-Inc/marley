@@ -78,7 +78,7 @@ export async function fetchPatients(
 }
 
 export interface PatientDocumentRow {
-  file_name: string
+  file_name?: string
   document_type?: string
   transaction_no?: string
   upload_remarks?: string
@@ -111,9 +111,30 @@ export interface CreatePatientData {
   patient_document?: PatientDocumentRow[]
 }
 
+/** Ensure we have a CSRF token (e.g. when page was cached or token missing on /health). */
+async function ensureUploadCSRFToken(): Promise<string | null> {
+  let token = (window as any).csrf_token
+  if (token) return token
+  const base = (typeof window !== 'undefined' && window.location?.origin) ? window.location.origin : ''
+  try {
+    const resp = await fetch(`${base}/api/method/frappe.sessions.get_csrf_token`, {
+      method: 'GET',
+      credentials: 'include',
+      headers: { Accept: 'application/json' },
+    })
+    if (!resp.ok) return null
+    const data = await resp.json().catch(() => ({} as any))
+    token = data?.message ?? data?.data ?? null
+    if (token) (window as any).csrf_token = token
+    return token
+  } catch {
+    return null
+  }
+}
+
 /** Upload a file for Patient (e.g. for Patient Upload Document). Returns file_url to store in document field. */
 export async function uploadPatientFile(file: File): Promise<string> {
-  const csrf = (window as any).csrf_token
+  const csrf = await ensureUploadCSRFToken()
   const form = new FormData()
   form.append('file', file)
   form.append('is_private', '0')
@@ -123,7 +144,11 @@ export async function uploadPatientFile(file: File): Promise<string> {
   // and attach the returned file_url to the document row instead.
   if (csrf) form.append('csrf_token', csrf)
 
-  const res = await fetch('/api/method/upload_file', {
+  // Use current origin so upload works on 127.0.0.1 and live (not only localhost)
+  const base = (typeof window !== 'undefined' && window.location?.origin) ? window.location.origin : ''
+  const uploadUrl = `${base}/api/method/upload_file`
+
+  const res = await fetch(uploadUrl, {
     method: 'POST',
     headers: csrf ? { 'X-Frappe-CSRF-Token': csrf } : {},
     body: form,

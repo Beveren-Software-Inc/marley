@@ -131,6 +131,16 @@ export async function fetchCountries(): Promise<{ name: string }[]> {
   return Array.isArray(data?.data) ? data.data : []
 }
 
+/** Fetch Document Type list for Patient document dropdown. */
+export async function fetchDocumentTypes(): Promise<{ name: string; document_name?: string }[]> {
+  const res = await fetch(
+    '/api/resource/Document%20Type?fields=["name","document_name"]&limit_page_length=200'
+  )
+  const data = await res.json()
+  if (!Array.isArray(data?.data)) return []
+  return data.data
+}
+
 
 export interface CreateLeadSourceData {
   source_name: string

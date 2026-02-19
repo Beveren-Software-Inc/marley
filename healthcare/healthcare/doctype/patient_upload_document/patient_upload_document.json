@@ -46,8 +46,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "File Name",
-   "options": "Document Type",
-   "reqd": 1
+   "options": "Document Type"
   },
   {
    "fieldname": "column_break_zntp",
@@ -65,7 +64,7 @@
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-02-18 12:23:24.495692",
+ "modified": "2026-02-19 03:01:08.458557",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Upload Document",
