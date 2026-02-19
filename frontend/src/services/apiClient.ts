@@ -1,6 +1,7 @@
 let csrfFetchInFlight: Promise<string | null> | null = null
 
-async function ensureCSRFToken(): Promise<string | null> {
+/** Ensure CSRF token exists (fetch from API if missing). Use before any POST on live/8000. */
+export async function ensureCSRF(): Promise<string | null> {
   const existing = (window as any).csrf_token
   if (existing) return existing
 
@@ -90,7 +91,7 @@ export async function apiRequest<T = any>(
 ): Promise<T> {
   // Ensure CSRF token exists for unsafe methods.
   if (isUnsafeMethod(options.method)) {
-    await ensureCSRFToken()
+    await ensureCSRF()
   }
 
   try {
@@ -102,7 +103,7 @@ export async function apiRequest<T = any>(
     if (isUnsafeMethod(options.method) && msg.toLowerCase().includes('invalid request')) {
       // force refresh token
       delete (window as any).csrf_token
-      await ensureCSRFToken()
+      await ensureCSRF()
       return await doApiRequest<T>(path, options)
     }
 

@@ -31,14 +31,16 @@ export async function fetchNotifications(unreadOnly: boolean = false): Promise<N
 }
 
 export async function markNotificationRead(notificationId: string): Promise<void> {
-  const csrf = (window as any).csrf_token
-  
+  const { ensureCSRF } = await import('./apiClient')
+  const csrf = await ensureCSRF()
   const response = await fetch(
     `/api/method/healthcare.api.notifications.mark_notification_read`,
     {
       method: 'POST',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
+        'Accept': 'application/json',
         ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {})
       },
       body: JSON.stringify({ notification_id: notificationId })
@@ -53,14 +55,16 @@ export async function markNotificationRead(notificationId: string): Promise<void
 }
 
 export async function markAllNotificationsRead(): Promise<void> {
-  const csrf = (window as any).csrf_token
-  
+  const { ensureCSRF } = await import('./apiClient')
+  const csrf = await ensureCSRF()
   const response = await fetch(
     `/api/method/healthcare.api.notifications.mark_all_notifications_read`,
     {
       method: 'POST',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
+        'Accept': 'application/json',
         ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {})
       }
     }

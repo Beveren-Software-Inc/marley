@@ -32,10 +32,15 @@ export async function createEmployeeRequest(payload: {
   related_doctype?: string
   related_document?: string
 }): Promise<{ name: string; status: string }> {
+  const { ensureCSRF } = await import('./apiClient')
+  const csrf = await ensureCSRF()
   const response = await fetch('/api/method/healthcare.api.employee_request_api.create_employee_request', {
     method: 'POST',
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {})
     },
     body: JSON.stringify(payload),
   })

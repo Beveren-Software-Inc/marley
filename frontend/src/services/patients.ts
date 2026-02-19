@@ -193,14 +193,16 @@ export type CreatePatientResult = { name: string; patient_name: string; file_no:
 export async function createPatient(data: CreatePatientData): Promise<CreatePatientResult> {
   const csrf = (window as any).csrf_token
 
+  const csrfForCreate = csrf || (await (await import('./apiClient')).ensureCSRF())
   const response = await fetch('/api/method/healthcare.api.patient.create_patient', {
     method: 'POST',
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
-      'X-Frappe-CSRF-Token': csrf
+      'Accept': 'application/json',
+      ...(csrfForCreate ? { 'X-Frappe-CSRF-Token': csrfForCreate } : {})
     },
     body: JSON.stringify({ data }),
-    credentials: 'include'
   })
   const resData = await response.json().catch(() => ({}))
 
