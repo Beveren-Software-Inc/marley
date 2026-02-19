@@ -7,6 +7,8 @@
  "engine": "InnoDB",
  "field_order": [
   "patient",
+  "full_name",
+  "is_next_of_kin",
   "relation",
   "mobile_no",
   "column_break_rfvv",
@@ -50,11 +52,26 @@
    "fieldname": "email",
    "fieldtype": "Data",
    "label": "Email"
+  },
+  {
+   "fieldname": "full_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Full Name"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_next_of_kin",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Is Next of Kin"
   }
  ],
  "istable": 1,
  "links": [],
- "modified": "2026-02-19 02:34:20.530031",
+ "modified": "2026-02-19 12:52:36.956955",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Relation",
