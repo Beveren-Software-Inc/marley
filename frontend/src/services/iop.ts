@@ -70,9 +70,16 @@ export async function createIOPDay(payload: {
   cost_center?: string
   sessions: { session_type: string; from_time?: string; to_time?: string }[]
 }): Promise<{ name: string; posting_date: string }> {
+  const { ensureCSRF } = await import('./apiClient')
+  const csrf = await ensureCSRF()
   const res = await fetch('/api/method/healthcare.api.iop.create_iop_day', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {})
+    },
     body: JSON.stringify({ data: payload })
   })
   const data = await res.json()
@@ -125,9 +132,16 @@ export async function createIOPEnrollment(payload: {
   status?: string
   notes?: string
 }): Promise<IOPEnrollment> {
+  const { ensureCSRF } = await import('./apiClient')
+  const csrf = await ensureCSRF()
   const res = await fetch('/api/method/healthcare.api.iop.create_iop_enrollment', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {})
+    },
     body: JSON.stringify(payload)
   })
   const data = await res.json()

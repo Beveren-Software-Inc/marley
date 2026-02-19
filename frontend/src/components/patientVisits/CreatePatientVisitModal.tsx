@@ -142,11 +142,14 @@ export const CreatePatientVisitModal = ({ onClose, onSuccess, initialPatient, in
     try {
       setSubmitting(true)
 
-      const csrf = (window as any).csrf_token
+      const { ensureCSRF } = await import('../../services/apiClient')
+      const csrf = await ensureCSRF()
       const response = await fetch('/api/resource/Patient Visit', {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json',
           ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {})
         },
         body: JSON.stringify({

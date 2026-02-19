@@ -123,10 +123,15 @@ export interface CreateLabTestData {
 }
 
 export async function createLabTest(data: CreateLabTestData): Promise<LabTest> {
+  const { ensureCSRF } = await import('./apiClient')
+  const csrf = await ensureCSRF()
   const response = await fetch('/api/method/healthcare.api.lab_test.create_lab_test', {
     method: 'POST',
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {})
     },
     body: JSON.stringify({ data })
   })

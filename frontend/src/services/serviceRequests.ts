@@ -48,10 +48,18 @@ export async function fetchServiceRequests(
 }
 
 export async function createLabTestFromServiceRequest(serviceRequestName: string): Promise<{ name: string; patient: string; patient_name?: string; template?: string; lab_test_name?: string; status?: string }> {
+  const { ensureCSRF } = await import('./apiClient')
+  const csrf = await ensureCSRF()
   const response = await fetch(
     `/api/method/healthcare.api.service_request.create_lab_test_from_service_request?service_request=${encodeURIComponent(serviceRequestName)}`,
     {
-      method: 'POST'
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {})
+      }
     }
   )
   const resData = await response.json()
@@ -86,12 +94,17 @@ export interface CreateServiceRequestData {
 }
 
 export async function createServiceRequest(data: CreateServiceRequestData): Promise<ServiceRequest> {
+  const { ensureCSRF } = await import('./apiClient')
+  const csrf = await ensureCSRF()
   const response = await fetch(
     '/api/method/healthcare.api.service_request.create_service_request',
     {
       method: 'POST',
+      credentials: 'include',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {})
       },
       body: JSON.stringify({ data })
     }
@@ -107,7 +120,8 @@ export async function createServiceRequest(data: CreateServiceRequestData): Prom
 
 /** Confirm payment (patient accepted cost). Required before Book Lab for Lab Test Template. */
 export async function confirmPayment(serviceRequestName: string): Promise<{ ok: boolean; patient_accepted_cost: number }> {
-  const csrf = (window as any).csrf_token
+  const { ensureCSRF } = await import('./apiClient')
+  const csrf = await ensureCSRF()
   const response = await fetch(
     `/api/method/healthcare.api.service_request.confirm_payment?service_request_name=${encodeURIComponent(serviceRequestName)}`,
     {
@@ -126,7 +140,8 @@ export async function confirmPayment(serviceRequestName: string): Promise<{ ok: 
 
 /** Book Lab: forward to laboratory and reflect approved amount on Patient Visit. Only for Lab Test Template when payment confirmed. */
 export async function bookLabAndForward(serviceRequestName: string): Promise<{ lab_test: string; patient_visit?: string }> {
-  const csrf = (window as any).csrf_token
+  const { ensureCSRF } = await import('./apiClient')
+  const csrf = await ensureCSRF()
   const response = await fetch(
     '/api/method/healthcare.healthcare.doctype.service_request.service_request.book_lab_and_forward',
     {

@@ -31,7 +31,8 @@ export async function getFollowUps(params: GetFollowUpsParams = {}): Promise<Pat
 }
 
 export async function sendFollowUpReminder(patientFollowUpName: string): Promise<{ sent: boolean; message?: string }> {
-  const csrf = (window as any).csrf_token
+  const { ensureCSRF } = await import('./apiClient')
+  const csrf = await ensureCSRF()
   const res = await fetch('/api/method/healthcare.healthcare.doctype.patient_follow_up.patient_follow_up.send_follow_up_reminder', {
     method: 'POST',
     headers: {
@@ -47,7 +48,8 @@ export async function sendFollowUpReminder(patientFollowUpName: string): Promise
 }
 
 export async function sendFollowUpRemindersBulk(status?: string, cost_center?: string): Promise<{ sent: number; total: number }> {
-  const csrf = (window as any).csrf_token
+  const { ensureCSRF } = await import('./apiClient')
+  const csrf = await ensureCSRF()
   const res = await fetch('/api/method/healthcare.healthcare.doctype.patient_follow_up.patient_follow_up.send_follow_up_reminders_bulk', {
     method: 'POST',
     headers: {
@@ -71,7 +73,8 @@ export async function getCostCenters(): Promise<{ name: string; display?: string
 
 
 export async function updateFollowUpStatus(patientFollowUpName: string, newStatus: string): Promise<void> {
-  const csrf = (window as any).csrf_token
+  const { ensureCSRF } = await import('./apiClient')
+  const csrf = await ensureCSRF()
   const res = await fetch('/api/method/healthcare.healthcare.doctype.patient_follow_up.patient_follow_up.update_follow_up_status', {
     method: 'POST',
     headers: {

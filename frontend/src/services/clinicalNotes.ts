@@ -56,12 +56,14 @@ export async function fetchClinicalNotes(
 }
 
 export async function createClinicalNote(data: CreateClinicalNoteData) {
-  const csrf = (window as any).csrf_token
-
+  const { ensureCSRF } = await import('./apiClient')
+  const csrf = await ensureCSRF()
   const response = await fetch('/api/method/healthcare.api.clinical_note.create_clinical_note', {
     method: 'POST',
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
+      'Accept': 'application/json',
       ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
     },
     body: JSON.stringify({ data }),

@@ -297,14 +297,16 @@ export async function createAdmissionQuotation(
   totalAmount: number,
   serviceUnit?: string
 ): Promise<{ success: boolean; sales_order_name: string; message: string }> {
-  const csrf = (window as any).csrf_token
-  
+  const { ensureCSRF } = await import('./apiClient')
+  const csrf = await ensureCSRF()
   const response = await fetch(
     `/api/method/healthcare.api.inpatient_admission.create_admission_quotation`,
     {
       method: 'POST',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
+        'Accept': 'application/json',
         ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {})
       },
       body: JSON.stringify({
@@ -356,14 +358,16 @@ export async function admitPatient(
   checkIn: string,
   expectedDischarge?: string
 ) {
-  const csrf = (window as any).csrf_token
-  
+  const { ensureCSRF } = await import('./apiClient')
+  const csrf = await ensureCSRF()
   const response = await fetch(
     `/api/method/healthcare.api.inpatient_admission.admit_patient`,
     {
       method: 'POST',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
+        'Accept': 'application/json',
         ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {})
       },
       body: JSON.stringify({
@@ -430,14 +434,16 @@ export async function createDischarge(admissionName: string, dischargeData: any)
 }
 
 export async function cancelAdmission(inpatientRecordName: string, reason?: string) {
-  const csrf = (window as any).csrf_token
-  
+  const { ensureCSRF } = await import('./apiClient')
+  const csrf = await ensureCSRF()
   const response = await fetch(
     `/api/method/healthcare.healthcare.doctype.inpatient_admission.inpatient_admission.set_ip_order_cancelled`,
     {
       method: 'POST',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
+        'Accept': 'application/json',
         ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {})
       },
       body: JSON.stringify({ 

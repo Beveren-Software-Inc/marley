@@ -58,12 +58,14 @@ export async function fetchObservations(
 }
 
 export async function createObservation(data: CreateObservationData): Promise<Observation> {
-  const csrf = (window as any).csrf_token
-  
+  const { ensureCSRF } = await import('./apiClient')
+  const csrf = await ensureCSRF()
   const response = await fetch('/api/method/healthcare.api.observation.create_observation', {
     method: 'POST',
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
+      'Accept': 'application/json',
       ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {})
     },
     body: JSON.stringify({ data })
