@@ -228,7 +228,6 @@ export async function fetchPatientMedicalHistory(patient: string): Promise<Patie
   )
  
   const resData = await response.json()
-   console.log("WE start from here", resData)
   if (resData?.message) {
     return resData.message as PatientMedicalHistory
   } else {
