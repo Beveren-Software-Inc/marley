@@ -105,7 +105,28 @@ def get_patient_visit(name):
 	}
 
 
+@frappe.whitelist()
+def cancel_patient_visit(visit_name: str, reason_for_cancel: str = None):
+    """
+    Cancel a Patient Visit with a reason and trigger standard document cancellation
+    :param visit_name: Name of the Patient Visit
+    :param reason_for_cancel: Reason for cancelling the visit
+    """
+    if not visit_name:
+        frappe.throw(_("Visit name is required"))
 
+    visit = frappe.get_doc("Patient Visit", visit_name)
 
+    visit.reason_for_cancel = reason_for_cancel
 
+    visit.save(ignore_permissions=True)
 
+    if visit.docstatus == 1:  
+        visit.cancel()
+    else:
+        visit.status = "Cancelled"
+        visit.save(ignore_permissions=True)
+
+    frappe.db.commit()
+
+    return "success"

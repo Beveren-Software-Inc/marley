@@ -608,3 +608,25 @@ def get_healthcare_insurance(search=None):
 		}
 		for d in insurances
 	]
+ 
+from typing import Dict  # Optional, you can also just use dict
+
+@frappe.whitelist()
+def get_salutations(query: str = "") -> list[Dict]:
+    """
+    Fetch salutations from Salutation doctype.
+    :param query: optional search string to filter salutations
+    :return: list of dictionaries with 'name' and 'label'
+    """
+    filters = {}
+    if query:
+        filters["salutation"] = ["like", f"%{query}%"]
+
+    salutations = frappe.get_all(
+        "Salutation",
+        fields=["name", "salutation as label"],
+        filters=filters,
+        order_by="salutation asc"
+    )
+
+    return salutations

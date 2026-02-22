@@ -577,3 +577,22 @@ export async function fetchInpatientAdmissions(
   return Array.isArray(data?.message) ? data.message : []
 }
 
+
+export async function fetchSalutations(search?: string): Promise<LinkFieldOption[]> {
+  const params = new URLSearchParams()
+  if (search) params.append('search', search)
+
+  const url =
+    `/api/method/healthcare.api.common.get_salutations${
+      params.toString() ? `?${params.toString()}` : ''
+    }`
+
+  const response = await fetch(url)
+  const resData = await response.json()
+
+  if (resData?.message && Array.isArray(resData.message)) {
+    return resData.message as LinkFieldOption[]
+  }
+
+  return []
+}

@@ -68,4 +68,30 @@ export async function fetchPatientVisitTypes(): Promise<PatientVisitTypeOption[]
 
 
 
+export async function cancelVisit(visitName: string, reason: string): Promise<void> {
+  const response = await fetch(`/api/method/healthcare.api.patient_visit.cancel_patient_visit`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ visit_name: visitName, reason_for_cancel: reason })
+  })
 
+  const resData = await response.json()
+  if (resData?.message !== 'success') {
+    throw new Error(resData?.message || 'Failed to cancel visit')
+  }
+}
+
+
+// Create an invoice for a visit
+export async function createInvoice(visitName: string): Promise<string> {
+  const response = await fetch(`/api/method/healthcare.api.patient_visit.create_invoice`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ visit_name: visitName })
+  })
+  const resData = await response.json()
+  if (!resData?.message) {
+    throw new Error('Failed to create invoice')
+  }
+  return resData.message as string // return invoice name/id
+}
