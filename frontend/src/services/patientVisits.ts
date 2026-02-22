@@ -34,9 +34,13 @@ export async function fetchPatientVisits(status?: string, search?: string, patie
   }
 }
 
-export interface LinkFieldOption {
+/** Row shape returned by fetchPatientVisitsFull (value/label for list UI). */
+export interface PatientVisitListRow {
   value: string
   label: string
+  encounter_date: string | null
+  practitioner_name: string
+  status: string
 }
 
 /**
@@ -53,7 +57,7 @@ export async function fetchPatientVisitsFull(
   fromDate?: string,
   toDate?: string,
   status?: string
-): Promise<PatientVisit[]> {
+): Promise<PatientVisitListRow[]> {
   const params = new URLSearchParams()
   if (patient) params.append('patient', patient)
   if (search) params.append('search', search)
@@ -61,7 +65,6 @@ export async function fetchPatientVisitsFull(
   if (fromDate) params.append('from_date', fromDate)
   if (toDate) params.append('to_date', toDate)
   if (status) params.append('status', status)
-    console.log('Fetching patient visits with params:', Object.fromEntries(params.entries()))
   try {
     const res = await fetch(
       `/api/method/healthcare.api.patient_visit.get_patient_visits_full?${params}`
@@ -71,7 +74,6 @@ export async function fetchPatientVisitsFull(
 
     if (!Array.isArray(data?.message)) return []
 
-    // ✅ Map ALL fields through — not just value/label
     return data.message.map((m: any) => ({
       value: m.name,
       label: m.label,

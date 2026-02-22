@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { StatusPill } from '../ui/StatusPill'
 import { PatientVisitDetails } from './PatientVisitDetails'
-import { cancelVisit, createInvoice, type PatientVisit } from '../../services/patientVisits'
+import { cancelVisit, createInvoice, type PatientVisitListRow } from '../../services/patientVisits'
 import { CreateAdmissionModal } from '../admissions/CreateAdmissionModal'
 import { CancelVisitModal } from './CancelVisitModal'
 import { CreatePaymentModal } from './CreatePaymentModal'
@@ -33,7 +33,7 @@ export const PatientVisitList = ({
   const [detailVisit, setDetailVisit] = useState<string | null>(null)
   const [openActionRow, setOpenActionRow] = useState<string | null>(null)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
-  const [admissionModalVisit, setAdmissionModalVisit] = useState<PatientVisit | null>(null)
+  const [admissionModalVisit, setAdmissionModalVisit] = useState<PatientVisitListRow | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
 
   // --- Filter: Visit No (custom searchable dropdown) ---
@@ -55,9 +55,9 @@ export const PatientVisitList = ({
 
   const [showCancelModal, setShowCancelModal] = useState(false)
   const [cancelLoading, setCancelLoading] = useState(false)
-  const [selectedVisitForCancel, setSelectedVisitForCancel] = useState<PatientVisit | null>(null)
+  const [selectedVisitForCancel, setSelectedVisitForCancel] = useState<PatientVisitListRow | null>(null)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
-  const [paymentVisit, setPaymentVisit] = useState<PatientVisit | null>(null)
+  const [paymentVisit, setPaymentVisit] = useState<PatientVisitListRow | null>(null)
 
   // --- Visit No: debounced search when dropdown is open ---
   useEffect(() => {
@@ -88,7 +88,7 @@ export const PatientVisitList = ({
   }, [practitionerQuery, practitionerOpen])
 
   // --- Fetch main visit list ---
-  const [visits, setVisits] = useState<PatientVisit[]>([])
+  const [visits, setVisits] = useState<PatientVisitListRow[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<Error | null>(null)
 
@@ -104,7 +104,7 @@ export const PatientVisitList = ({
         dateTo || undefined,
         selectedStatus || undefined
       )
-      setVisits(results as PatientVisit[])
+      setVisits(results)
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Failed to fetch visits'))
     } finally {
@@ -154,11 +154,11 @@ export const PatientVisitList = ({
     setPractitionerOpen(false)
   }
 
-  const handleCancelVisitConfirm = async (reason: string) => {
+  const handleCancelVisitConfirm = async (_reason: string) => {
     if (!selectedVisitForCancel) return
     setCancelLoading(true)
     try {
-      await cancelVisit(selectedVisitForCancel.value, reason)
+      await cancelVisit(selectedVisitForCancel.value, _reason)
       toast.success('Visit cancelled successfully')
       setShowCancelModal(false)
       setSelectedVisitForCancel(null)
@@ -184,7 +184,7 @@ export const PatientVisitList = ({
     }
   }
 
-  const handleScheduleAdmission = (visit: PatientVisit) => {
+  const handleScheduleAdmission = (visit: PatientVisitListRow) => {
     setAdmissionModalVisit(visit)
     setOpenActionRow(null)
   }
@@ -270,7 +270,7 @@ export const PatientVisitList = ({
             <div className="absolute z-20 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
               {practitionerOptions.map(opt => (
                 <button
-                  key={opt.value}
+                  key={opt.name}
                   type="button"
                   onClick={() => handlePractitionerSelect(opt)}
                   className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 focus:bg-slate-100 focus:outline-none"
