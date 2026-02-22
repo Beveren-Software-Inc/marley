@@ -6,11 +6,15 @@ interface CancelVisitModalProps {
   visitName: string
   onClose: () => void
   onSuccess?: () => void
+  /** If provided, parent handles cancel; modal calls this with reason and closes. */
+  onConfirm?: (reason: string) => void | Promise<void>
+  loading?: boolean
 }
 
-export const CancelVisitModal = ({ visitName, onClose, onSuccess }: CancelVisitModalProps) => {
+export const CancelVisitModal = ({ visitName, onClose, onSuccess, onConfirm, loading: parentLoading }: CancelVisitModalProps) => {
   const [reason, setReason] = useState('')
-  const [loading, setLoading] = useState(false)
+  const [internalLoading, setInternalLoading] = useState(false)
+  const loading = parentLoading ?? internalLoading
 
   const handleSubmit = async () => {
     if (!reason.trim()) {
@@ -18,17 +22,26 @@ export const CancelVisitModal = ({ visitName, onClose, onSuccess }: CancelVisitM
       return
     }
 
-    setLoading(true)
+    if (onConfirm) {
+      try {
+        await onConfirm(reason)
+        onClose()
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : 'Failed to cancel visit')
+      }
+      return
+    }
+
+    setInternalLoading(true)
     try {
-      // Call your cancel service with reason
       await cancelVisit(visitName, reason)
       toast.success('Visit cancelled successfully')
-      onSuccess?.()   // optional callback to refresh data or close modal in parent
+      onSuccess?.()
       onClose()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to cancel visit')
     } finally {
-      setLoading(false)
+      setInternalLoading(false)
     }
   }
 

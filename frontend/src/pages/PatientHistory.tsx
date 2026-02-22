@@ -153,7 +153,7 @@ export const PatientHistoryPage = () => {
                 <div>
                   <div className="text-xs font-medium text-slate-500">Paid Total</div>
                   <div className="text-lg font-semibold text-slate-900">
-                    {summaryLoading ? '…' : formatCurrency(summary?.paid_invoice_total)}
+                    {summaryLoading ? '…' : formatCurrency(summary?.paid_invoice_total ?? 0)}
                   </div>
                 </div>
               </div>
@@ -175,7 +175,7 @@ export const PatientHistoryPage = () => {
                 <div>
                   <div className="text-xs font-medium text-slate-500">To Pay</div>
                   <div className="text-lg font-semibold text-slate-900">
-                    {summaryLoading ? '…' : formatCurrency(summary?.amount_to_pay)}
+                    {summaryLoading ? '…' : formatCurrency(summary?.amount_to_pay ?? 0)}
                   </div>
                 </div>
               </div>
