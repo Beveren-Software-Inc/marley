@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { createPatient, uploadPatientFile, type PatientDocumentRow } from '../../services/patients'
-import { fetchLeadSources, fetchNationalities, fetchCountries, fetchDocumentTypes, type LinkFieldOption } from '../../services/common'
+import { fetchLeadSources, fetchNationalities, fetchCountries, fetchDocumentTypes,fetchHealthcareInsurance,fetchSalutations, type LinkFieldOption } from '../../services/common'
 import { CreateLeadSourceModal } from './CreateLeadSourceModal'
 import { CreateNationalityModal } from './CreateNationalityModal'
 import { toast } from '../../hooks/useToast'
@@ -10,7 +10,7 @@ interface CreatePatientModalProps {
   onSuccess?: (patientName: string) => void
 }
 
-type Tab = 'details' | 'relations' | 'documents'
+type Tab = 'details' | 'relations' | 'insurance' | 'documents'
 
 export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalProps) => {
   const [activeTab, setActiveTab] = useState<Tab>('details')
@@ -46,7 +46,14 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
     full_name: '',
     relation: '',
     mobile_no: '',
+    has_insurance: false,
+    insurance: '',
+    insurance_type: '',
+    insurance_company_no: '',
+    insurance_policy: '',
+    ref_no: '',
   })
+
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -56,6 +63,12 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
   const [sourceQuery, setSourceQuery] = useState('')
   const [selectedSource, setSelectedSource] = useState<LinkFieldOption | null>(null)
   const [showCreateSource, setShowCreateSource] = useState(false)
+
+// Insurance dropdown
+const [insuranceOptions, setInsuranceOptions] = useState<LinkFieldOption[]>([])
+const [insuranceOpen, setInsuranceOpen] = useState(false)
+const [insuranceQuery, setInsuranceQuery] = useState('')
+const [selectedInsurance, setSelectedInsurance] = useState<LinkFieldOption | null>(null)
 
   // Nationality dropdown state
   const [nationalityOptions, setNationalityOptions] = useState<LinkFieldOption[]>([])
@@ -67,6 +80,12 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
   const [documentTypes, setDocumentTypes] = useState<{ name: string; document_name?: string }[]>([])
   const [documents, setDocuments] = useState<PatientDocumentRow[]>([])
   const [documentUploading, setDocumentUploading] = useState<number | null>(null)
+
+  // Salutation dropdown
+const [salutationOptions, setSalutationOptions] = useState<LinkFieldOption[]>([])
+const [salutationOpen, setSalutationOpen] = useState(false)
+const [salutationQuery, setSalutationQuery] = useState('')
+const [selectedSalutation, setSelectedSalutation] = useState<LinkFieldOption | null>(null)
 
   const PATIENT_RELATION_OPTIONS = ['Father', 'Mother', 'Spouse', 'Siblings', 'Family', 'Other'] as const
 
@@ -209,6 +228,50 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
     setFormData(prev => ({ ...prev, [field]: value }))
   }
 
+  const handleInsuranceSelect = (ins: any) => {
+  setSelectedInsurance(ins)
+
+  setFormData(prev => ({
+    ...prev,
+    insurance: ins.name,
+    insurance_type: ins.insurance_type,
+    insurance_company_no: ins.insurance_company,
+    insurance_policy: ins.policy_no,
+  }))
+
+  setInsuranceOpen(false)
+  setInsuranceQuery('')
+}
+
+useEffect(() => {
+  if (!salutationOpen) return
+
+  const search = async () => {
+    try {
+      const results = await fetchSalutations(salutationQuery)
+      setSalutationOptions(results)
+    } catch (err) {
+      console.error('Failed to search salutations:', err)
+      setSalutationOptions([])
+    }
+  }
+
+  const t = setTimeout(search, salutationQuery.trim() === '' ? 0 : 300)
+  return () => clearTimeout(t)
+}, [salutationQuery, salutationOpen])
+  // Fetch insurance options when insurance tab is opened or query changes
+  useEffect(() => {
+  if (!insuranceOpen) return
+
+  const search = async () => {
+    const results = await fetchHealthcareInsurance(insuranceQuery)
+    setInsuranceOptions(results)
+  }
+
+  const t = setTimeout(search, 300)
+  return () => clearTimeout(t)
+}, [insuranceQuery, insuranceOpen])
+
   useEffect(() => {
     const loadOptions = async () => {
       try {
@@ -272,10 +335,17 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
     setNationalityOpen(false)
     setNationalityQuery('')
   }
+const handleSalutationSelect = (sal: LinkFieldOption) => {
+  setSelectedSalutation(sal)
+  setFormData(prev => ({ ...prev, title: sal.name }))
+  setSalutationOpen(false)
+  setSalutationQuery('')
+}
 
   const tabs: { id: Tab; label: string; badge?: number }[] = [
     { id: 'details', label: 'Patient Details' },
     { id: 'relations', label: 'Next of Kin', badge: relations.length || undefined },
+    { id: 'insurance', label: 'Insurance' },
     { id: 'documents', label: 'Documents', badge: documents.length || undefined },
   ]
 
@@ -341,14 +411,39 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
                   <h3 className="text-xs font-bold uppercase tracking-widest text-blue-600 mb-3 mt-2">Basic Information</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Title</label>
-                      <input
-                        type="text"
-                        value={formData.title}
-                        onChange={(e) => handleChange('title', e.target.value)}
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                      />
-                    </div>
+  <label className="block text-sm font-medium text-slate-700 mb-1">
+    Title
+  </label>
+
+  <div className="relative">
+    <input
+      type="text"
+      value={selectedSalutation ? selectedSalutation.label : salutationQuery}
+      onChange={(e) => {
+        setSalutationQuery(e.target.value)
+        setSalutationOpen(true)
+      }}
+      onFocus={() => setSalutationOpen(true)}
+      placeholder="Search title..."
+      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+    />
+
+    {salutationOpen && salutationOptions.length > 0 && (
+      <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+        {salutationOptions.map((sal) => (
+          <button
+            key={sal.name}
+            type="button"
+            onClick={() => handleSalutationSelect(sal)}
+            className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100"
+          >
+            {sal.label}
+          </button>
+        ))}
+      </div>
+    )}
+  </div>
+</div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">
                         File No <span className="text-red-500">*</span>
@@ -602,13 +697,13 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">
-                        Marital Status <span className="text-red-500">*</span>
+                        Marital Status
                       </label>
                       <select
                         value={formData.marital_status}
                         onChange={(e) => handleChange('marital_status', e.target.value)}
                         className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                        required
+                        
                       >
                         <option value="">Select Marital Status</option>
                         <option value="Single">Single</option>
@@ -724,6 +819,150 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
                 </div>
               </>
             )}
+
+
+              {/* ── TAB: Insurance ── */}
+{activeTab === 'insurance' && (
+  <div className="space-y-5">
+
+    {/* Has Insurance */}
+    <div className="flex items-center gap-2">
+      <input
+        type="checkbox"
+        checked={formData.has_insurance}
+        onChange={(e) => handleChange('has_insurance', e.target.checked)}
+        className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary"
+      />
+      <label className="text-sm font-medium text-slate-700">
+        Has Insurance
+      </label>
+    </div>
+
+    {formData.has_insurance && (
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+        {/* Insurance Link */}
+        <div className="md:col-span-2 flex flex-col gap-1">
+          <label className="text-xs font-medium text-slate-600">
+            Insurance
+          </label>
+
+          <div className="relative">
+            <input
+              type="text"
+              value={
+                selectedInsurance
+                  ? selectedInsurance.label
+                  : insuranceQuery
+              }
+              onChange={(e) => {
+                setInsuranceQuery(e.target.value)
+                setInsuranceOpen(true)
+              }}
+              onFocus={() => setInsuranceOpen(true)}
+              placeholder="Search Healthcare Insurance..."
+              className="
+                w-full rounded-md border border-slate-300
+                px-3 py-2 text-sm
+                focus:ring-2 focus:ring-primary
+                focus:outline-none
+              "
+            />
+
+            {insuranceOpen && insuranceOptions.length > 0 && (
+              <div className="absolute z-10 w-full bg-white border border-slate-200 rounded-md shadow max-h-60 overflow-y-auto">
+                {insuranceOptions.map((ins) => (
+                  <button
+                    key={ins.name}
+                    type="button"
+                    onClick={() => handleInsuranceSelect(ins)}
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100"
+                  >
+                    {ins.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Insurance Type */}
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-medium text-slate-600">
+            Insurance Type
+          </label>
+          <input
+            value={formData.insurance_type || ''}
+            readOnly
+            className="
+              w-full rounded-md border border-slate-300
+              bg-slate-50
+              px-3 py-2 text-sm text-slate-700
+              cursor-default
+              focus:outline-none
+            "
+          />
+        </div>
+
+        {/* Insurance Company No */}
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-medium text-slate-600">
+            Insurance Company No
+          </label>
+          <input
+            value={formData.insurance_company_no || ''}
+            readOnly
+            className="
+              w-full rounded-md border border-slate-300
+              bg-slate-50
+              px-3 py-2 text-sm text-slate-700
+              cursor-default
+              focus:outline-none
+            "
+          />
+        </div>
+
+        {/* Policy No */}
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-medium text-slate-600">
+            Policy No
+          </label>
+          <input
+            value={formData.insurance_policy || ''}
+            readOnly
+            className="
+              w-full rounded-md border border-slate-300
+              bg-slate-50
+              px-3 py-2 text-sm text-slate-700
+              cursor-default
+              focus:outline-none
+            "
+          />
+        </div>
+
+        {/* Reference No (Editable) */}
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-medium text-slate-600">
+            Reference No
+          </label>
+          <input
+            value={formData.ref_no || ''}
+            onChange={(e) =>
+              handleChange('ref_no', e.target.value)
+            }
+            className="
+              w-full rounded-md border border-slate-300
+              px-3 py-2 text-sm
+              focus:ring-2 focus:ring-primary
+              focus:outline-none
+            "
+          />
+        </div>
+
+      </div>
+    )}
+  </div>
+)}
 
             {/* ── TAB: Next of Kin ── */}
             {activeTab === 'relations' && (

@@ -52,7 +52,9 @@
   "history_decription_tab",
   "history_form_details_template",
   "history_details",
-  "amended_from"
+  "amended_from",
+  "documents_tab",
+  "patient_documents"
  ],
  "fields": [
   {
@@ -317,13 +319,25 @@
    "fieldtype": "Link",
    "label": "Cost Center",
    "options": "Cost Center"
+  },
+  {
+   "fieldname": "documents_tab",
+   "fieldtype": "Tab Break",
+   "label": "Document Uploads"
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "patient_documents",
+   "fieldtype": "Table",
+   "label": "Patient Documents",
+   "options": "Patient Upload Document"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-02-15 11:42:37.842477",
+ "modified": "2026-02-19 14:41:11.868366",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Discharge",

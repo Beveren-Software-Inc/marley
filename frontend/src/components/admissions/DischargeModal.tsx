@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
-import { createDischarge } from '../../services/inpatientRecords'
-import { fetchHealthcarePractitioners, fetchUsers, fetchDischargeTemplates, fetchDischargeChecklist, fetchDepartments, type LinkFieldOption } from '../../services/common'
+import { createDischarge, UnbilledServicesError } from '../../services/inpatientRecords'
+import { uploadPatientFile, type PatientDocumentRow } from '../../services/patients'
+import { fetchHealthcarePractitioners, fetchUsers, fetchDischargeTemplates, fetchDischargeChecklist, fetchDepartments, fetchDocumentTypes, type LinkFieldOption } from '../../services/common'
 import { toast } from '../../hooks/useToast'
-import { X, CheckCircle2, Circle, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react'
+import { X, CheckCircle2, Circle, ChevronDown, ChevronUp, AlertCircle, Receipt } from 'lucide-react'
 
 interface ChecklistItem {
   name: string
@@ -39,13 +40,19 @@ const groupByDepartment = (items: ChecklistItem[]) => {
 export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModalProps) => {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<'details' | 'checklist'>('details')
+  const [unbilledServices, setUnbilledServices] = useState<{ type: string; ids: string[] }[] | null>(null)
+  const [activeTab, setActiveTab] = useState<'details' | 'checklist' | 'documents'>('details')
 
   // Checklist state
   const [checklistItems, setChecklistItems] = useState<ChecklistItem[]>([])
   const [checklistLoading, setChecklistLoading] = useState(false)
   const [expandedDepts, setExpandedDepts] = useState<Record<string, boolean>>({})
   const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({})
+
+  // Documents state (same as CreatePatientModal)
+  const [documents, setDocuments] = useState<PatientDocumentRow[]>([])
+  const [documentTypes, setDocumentTypes] = useState<{ name: string; document_name?: string }[]>([])
+  const [documentUploading, setDocumentUploading] = useState<number | null>(null)
 
   // Link field dropdowns
   const [dischargedByUsers, setDischargedByUsers] = useState<LinkFieldOption[]>([])
@@ -78,17 +85,11 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
     if (!value) return ''
     let s = value.trim()
     if (s.includes('T')) {
-      if (s.endsWith('Z')) {
-        s = s.slice(0, -1)
-      }
+      if (s.endsWith('Z')) s = s.slice(0, -1)
       s = s.replace('T', ' ')
     }
-    if (s.length > 19) {
-      s = s.slice(0, 19)
-    }
-    if (s.length === 16) {
-      s += ':00'
-    }
+    if (s.length > 19) s = s.slice(0, 19)
+    if (s.length === 16) s += ':00'
     return s
   }
 
@@ -119,17 +120,18 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [users, doctors, templates] = await Promise.all([
+        const [users, doctors, templates, docTypes] = await Promise.all([
           fetchUsers(),
           fetchHealthcarePractitioners(),
-          fetchDischargeTemplates()
+          fetchDischargeTemplates(),
+          fetchDocumentTypes(),
         ])
         setDischargedByUsers(users)
         setFinalDischargeUsers(users)
         setReceivingDoctors(doctors)
         setDischargeTemplates(templates)
+        setDocumentTypes(docTypes)
 
-        // Load default "Inpatient Discharge" template checklist
         await loadChecklist('Inpatient Discharge')
         const defaultTemplate = templates.find(t => t.label === 'Inpatient Discharge' || t.name === 'Inpatient Discharge')
         if (defaultTemplate) {
@@ -150,7 +152,6 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
     try {
       const items = await fetchDischargeChecklist(templateName)
       setChecklistItems(items)
-      // Expand all departments by default
       const deptMap: Record<string, boolean> = {}
       items.forEach((item: ChecklistItem) => {
         const dept = item.department_label || item.department || 'General'
@@ -165,14 +166,49 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
     }
   }
 
+  // Document helpers (identical to CreatePatientModal)
+  const addDocumentRow = () => {
+    setDocuments(prev => [...prev, { file_name: '', document_type: '', transaction_no: '', upload_remarks: '' }])
+  }
+  const removeDocumentRow = (idx: number) => {
+    setDocuments(prev => prev.filter((_, i) => i !== idx))
+  }
+  const updateDocumentRow = (idx: number, field: keyof PatientDocumentRow, value: string) => {
+    setDocuments(prev => {
+      const next = [...prev]
+      next[idx] = { ...next[idx], [field]: value }
+      return next
+    })
+  }
+  const handleDocumentFile = async (idx: number, file: File | null) => {
+    if (!file) return
+    setDocumentUploading(idx)
+    try {
+      const file_url = await uploadPatientFile(file)
+      if (!file_url) throw new Error('No URL returned from upload')
+      setDocuments(prev => {
+        const next = [...prev]
+        next[idx] = {
+          ...next[idx],
+          document: file_url,
+          file_name: next[idx].file_name?.trim() || file.name,
+        }
+        return next
+      })
+      toast.success('File uploaded')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'File upload failed')
+    } finally {
+      setDocumentUploading(null)
+    }
+  }
+
   // Search handlers
   useEffect(() => {
     if (!dischargedByOpen) return
     const search = async () => {
-      try {
-        const results = await fetchUsers(dischargedByQuery)
-        setDischargedByUsers(results)
-      } catch { setDischargedByUsers([]) }
+      try { const results = await fetchUsers(dischargedByQuery); setDischargedByUsers(results) }
+      catch { setDischargedByUsers([]) }
     }
     const id = setTimeout(search, dischargedByQuery.trim() === '' ? 0 : 300)
     return () => clearTimeout(id)
@@ -181,10 +217,8 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
   useEffect(() => {
     if (!finalDischargeOpen) return
     const search = async () => {
-      try {
-        const results = await fetchUsers(finalDischargeQuery)
-        setFinalDischargeUsers(results)
-      } catch { setFinalDischargeUsers([]) }
+      try { const results = await fetchUsers(finalDischargeQuery); setFinalDischargeUsers(results) }
+      catch { setFinalDischargeUsers([]) }
     }
     const id = setTimeout(search, finalDischargeQuery.trim() === '' ? 0 : 300)
     return () => clearTimeout(id)
@@ -193,10 +227,8 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
   useEffect(() => {
     if (!receivingDoctorsOpen) return
     const search = async () => {
-      try {
-        const results = await fetchHealthcarePractitioners(receivingDoctorsQuery)
-        setReceivingDoctors(results)
-      } catch { setReceivingDoctors([]) }
+      try { const results = await fetchHealthcarePractitioners(receivingDoctorsQuery); setReceivingDoctors(results) }
+      catch { setReceivingDoctors([]) }
     }
     const id = setTimeout(search, receivingDoctorsQuery.trim() === '' ? 0 : 300)
     return () => clearTimeout(id)
@@ -205,25 +237,18 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
   useEffect(() => {
     if (!dischargeTemplateOpen) return
     const search = async () => {
-      try {
-        const results = await fetchDischargeTemplates(dischargeTemplateQuery)
-        setDischargeTemplates(results)
-      } catch { setDischargeTemplates([]) }
+      try { const results = await fetchDischargeTemplates(dischargeTemplateQuery); setDischargeTemplates(results) }
+      catch { setDischargeTemplates([]) }
     }
     const id = setTimeout(search, dischargeTemplateQuery.trim() === '' ? 0 : 300)
     return () => clearTimeout(id)
   }, [dischargeTemplateQuery, dischargeTemplateOpen])
 
-  // Load ERPNext Departments for checklist Department dropdown
   useEffect(() => {
     if (!departmentOpenForItem) return
     const search = async () => {
-      try {
-        const results = await fetchDepartments(departmentQuery || undefined)
-        setDepartmentOptions(results)
-      } catch {
-        setDepartmentOptions([])
-      }
+      try { const results = await fetchDepartments(departmentQuery || undefined); setDepartmentOptions(results) }
+      catch { setDepartmentOptions([]) }
     }
     const id = setTimeout(search, departmentQuery.trim() === '' ? 0 : 300)
     return () => clearTimeout(id)
@@ -237,12 +262,7 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
     setChecklistItems(prev =>
       prev.map(item =>
         item.name === itemName
-          ? {
-              ...item,
-              click: !item.click,
-              // Store MySQL/Frappe-friendly datetime (YYYY-MM-DD HH:MM:SS), not ISO with Z
-              date_time: !item.click ? toFrappeDateTime(new Date().toISOString()) : ''
-            }
+          ? { ...item, click: !item.click, date_time: !item.click ? toFrappeDateTime(new Date().toISOString()) : '' }
           : item
       )
     )
@@ -262,6 +282,7 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
+    setUnbilledServices(null)
 
     if (checklistItems.length > 0 && !allCompleted) {
       const incomplete = totalItems - completedItems
@@ -282,14 +303,28 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
           date_time: item.date_time ? toFrappeDateTime(item.date_time) : '',
           click: item.click ? 1 : 0,
           description: item.description || ''
-        }))
+        })),
+        patient_document: documents
+          .filter(r => (r.file_name || '').trim() || (r.document || '').trim())
+          .map(r => ({
+            file_name: (r.file_name || '').trim() || undefined,
+            document_type: (r.document_type || '').trim() || undefined,
+            transaction_no: (r.transaction_no || '').trim() || undefined,
+            upload_remarks: (r.upload_remarks || '').trim() || undefined,
+            document: (r.document || '').trim() || undefined,
+          })),
       })
       toast.success('Patient discharged successfully!', 3000)
       onSuccess()
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to discharge patient'
-      toast.error(errorMessage, 5000)
-      setError(errorMessage)
+      if (err instanceof UnbilledServicesError) {
+        setUnbilledServices(err.services)
+        setError(null)
+      } else {
+        const errorMessage = err instanceof Error ? err.message : 'Failed to discharge patient'
+        toast.error(errorMessage, 5000)
+        setError(errorMessage)
+      }
     } finally {
       setSubmitting(false)
     }
@@ -349,16 +384,85 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
               </span>
             )}
           </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('documents')}
+            className={`px-6 py-3 text-sm font-medium transition-colors border-b-2 -mb-px flex items-center gap-2 ${
+              activeTab === 'documents'
+                ? 'border-green-600 text-green-700 bg-white'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            Documents
+            {documents.length > 0 && (
+              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                activeTab === 'documents' ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-600'
+              }`}>
+                {documents.length}
+              </span>
+            )}
+          </button>
         </div>
 
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto" onClick={(e) => {
           const target = e.target as HTMLElement
           if (!target.closest('.dropdown-container')) closeAllDropdowns()
         }}>
-          {error && (
+          {/* Generic error */}
+          {error && !unbilledServices && (
             <div className="mx-6 mt-4 p-3 bg-red-50 border border-red-200 rounded-md flex items-start gap-2 text-red-700 text-sm">
               <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
               {error}
+            </div>
+          )}
+
+          {/* Unbilled services error — rich display */}
+          {unbilledServices && (
+            <div className="mx-6 mt-4 rounded-lg border border-red-200 bg-red-50 overflow-hidden">
+              <div className="flex items-start gap-3 px-4 py-3 bg-red-100/60 border-b border-red-200">
+                <Receipt className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-semibold text-red-800">Cannot Discharge — Unbilled Services</p>
+                  <p className="text-xs text-red-600 mt-0.5">
+                    Please invoice the following services before discharging this patient.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setUnbilledServices(null)}
+                  className="ml-auto text-red-400 hover:text-red-600"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              {unbilledServices.length > 0 ? (
+                <div className="divide-y divide-red-100">
+                  {unbilledServices.map((svc, i) => (
+                    <div key={i} className="px-4 py-3 flex items-start gap-3">
+                      <div className="w-2 h-2 rounded-full bg-red-400 mt-1.5 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-red-800">{svc.type}</p>
+                        {svc.ids.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 mt-1.5">
+                            {svc.ids.map(id => (
+                              <span
+                                key={id}
+                                className="inline-flex items-center px-2 py-0.5 rounded-md bg-white border border-red-200 text-xs font-mono text-red-700"
+                              >
+                                {id}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="px-4 py-3 text-sm text-red-700">
+                  There are unbilled healthcare services. Please review and invoice them before proceeding.
+                </div>
+              )}
             </div>
           )}
 
@@ -403,7 +507,6 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
               <section>
                 <h3 className="text-sm font-semibold text-slate-700 mb-3">Discharged By</h3>
                 <div className="grid grid-cols-2 gap-4">
-                  {/* Discharged By User */}
                   <div className="relative dropdown-container">
                     <label className="block text-sm font-medium text-slate-700 mb-1">Discharged By User</label>
                     <input type="text"
@@ -425,7 +528,6 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
                     )}
                   </div>
 
-                  {/* Final Discharge User */}
                   <div className="relative dropdown-container">
                     <label className="block text-sm font-medium text-slate-700 mb-1">Final Discharge User</label>
                     <input type="text"
@@ -447,7 +549,6 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
                     )}
                   </div>
 
-                  {/* Receiving Doctors */}
                   <div className="relative dropdown-container">
                     <label className="block text-sm font-medium text-slate-700 mb-1">Receiving Doctors</label>
                     <input type="text"
@@ -470,7 +571,6 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
                     )}
                   </div>
 
-                  {/* Discharge Template */}
                   <div className="relative dropdown-container">
                     <label className="block text-sm font-medium text-slate-700 mb-1">Discharge Template</label>
                     <input type="text"
@@ -569,13 +669,10 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
           {/* ── TAB: CHECKLIST ── */}
           {activeTab === 'checklist' && (
             <div className="p-6">
-              {/* Progress bar */}
               {totalItems > 0 && (
                 <div className="mb-6">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-slate-700">
-                      Checklist Progress
-                    </span>
+                    <span className="text-sm font-medium text-slate-700">Checklist Progress</span>
                     <span className={`text-sm font-semibold ${allCompleted ? 'text-green-600' : 'text-amber-600'}`}>
                       {completedItems} of {totalItems} completed
                     </span>
@@ -596,9 +693,7 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
               )}
 
               {checklistLoading ? (
-                <div className="flex items-center justify-center py-16 text-slate-400 text-sm">
-                  Loading checklist...
-                </div>
+                <div className="flex items-center justify-center py-16 text-slate-400 text-sm">Loading checklist...</div>
               ) : checklistItems.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16 text-slate-400">
                   <Circle className="w-10 h-10 mb-3 opacity-30" />
@@ -614,14 +709,8 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
 
                     return (
                       <div key={dept} className="border border-slate-200 rounded-lg overflow-hidden">
-                        {/* Department header */}
-                        <button
-                          type="button"
-                          onClick={() => toggleDept(dept)}
-                          className={`w-full flex items-center justify-between px-4 py-3 text-left transition-colors ${
-                            isDeptDone ? 'bg-green-50' : 'bg-slate-50'
-                          } hover:bg-slate-100`}
-                        >
+                        <button type="button" onClick={() => toggleDept(dept)}
+                          className={`w-full flex items-center justify-between px-4 py-3 text-left transition-colors ${isDeptDone ? 'bg-green-50' : 'bg-slate-50'} hover:bg-slate-100`}>
                           <div className="flex items-center gap-3">
                             {isDeptDone
                               ? <CheckCircle2 className="w-5 h-5 text-green-500 shrink-0" />
@@ -629,31 +718,23 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
                             }
                             <div>
                               <span className="text-sm font-semibold text-slate-800">{dept}</span>
-                              <span className="ml-2 text-xs text-slate-500">
-                                ({deptCompleted}/{deptTotal})
-                              </span>
+                              <span className="ml-2 text-xs text-slate-500">({deptCompleted}/{deptTotal})</span>
                             </div>
                           </div>
                           {isOpen ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
                         </button>
 
-                        {/* Department items */}
                         {isOpen && (
                           <div className="divide-y divide-slate-100">
                             {items.map((item) => {
                               const isItemExpanded = expandedItems[item.name]
                               return (
-                                <div key={item.name}
-                                  className={`transition-colors ${item.click ? 'bg-green-50/40' : 'bg-white'}`}>
+                                <div key={item.name} className={`transition-colors ${item.click ? 'bg-green-50/40' : 'bg-white'}`}>
                                   <div className="px-4 py-3">
                                     <div className="flex items-start gap-3">
-                                      {/* Checkbox */}
-                                      <button
-                                        type="button"
-                                        onClick={() => toggleCheck(item.name)}
+                                      <button type="button" onClick={() => toggleCheck(item.name)}
                                         className="mt-0.5 shrink-0 focus:outline-none"
-                                        aria-label={item.click ? 'Mark incomplete' : 'Mark complete'}
-                                      >
+                                        aria-label={item.click ? 'Mark incomplete' : 'Mark complete'}>
                                         {item.click
                                           ? <CheckCircle2 className="w-5 h-5 text-green-500" />
                                           : <Circle className="w-5 h-5 text-slate-300 hover:text-slate-400" />
@@ -661,12 +742,9 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
                                       </button>
 
                                       <div className="flex-1 min-w-0">
-                                        {/* Action Required */}
                                         <p className={`text-sm font-medium ${item.click ? 'line-through text-slate-400' : 'text-slate-800'}`}>
                                           {item.action_required}
                                         </p>
-
-                                        {/* Meta row */}
                                         <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
                                           {item.name1 && (
                                             <span className="text-xs text-slate-500">
@@ -680,64 +758,36 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
                                           )}
                                         </div>
 
-                                        {/* Inline fields (shown when checked) */}
                                         {item.click && (
                                           <div className="mt-3 grid grid-cols-2 md:grid-cols-3 gap-3">
                                             <div>
                                               <label className="block text-xs font-medium text-slate-600 mb-1">User</label>
-                                              <input
-                                                type="text"
-                                                value={item.user || ''}
+                                              <input type="text" value={item.user || ''}
                                                 onChange={(e) => updateChecklistItem(item.name, 'user', e.target.value)}
                                                 placeholder="User who completed"
-                                                className="w-full rounded border border-slate-200 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-green-400"
-                                              />
+                                                className="w-full rounded border border-slate-200 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-green-400" />
                                             </div>
                                             <div>
                                               <label className="block text-xs font-medium text-slate-600 mb-1">Date &amp; Time</label>
-                                              <input
-                                                type="datetime-local"
+                                              <input type="datetime-local"
                                                 value={item.date_time ? item.date_time.slice(0, 16) : ''}
-                                                onChange={(e) => {
-                                                  const dbValue = toFrappeDateTime(e.target.value)
-                                                  updateChecklistItem(item.name, 'date_time', dbValue)
-                                                }}
-                                                className="w-full rounded border border-slate-200 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-green-400"
-                                              />
+                                                onChange={(e) => updateChecklistItem(item.name, 'date_time', toFrappeDateTime(e.target.value))}
+                                                className="w-full rounded border border-slate-200 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-green-400" />
                                             </div>
                                             <div className="relative">
                                               <label className="block text-xs font-medium text-slate-600 mb-1">Department</label>
-                                              <input
-                                                type="text"
-                                                value={
-                                                  item.department
-                                                    ? departmentOptions.find(d => d.name === item.department)?.label || item.department
-                                                    : (departmentOpenForItem === item.name ? departmentQuery : '')
-                                                }
-                                                onChange={(e) => {
-                                                  setDepartmentQuery(e.target.value)
-                                                  setDepartmentOpenForItem(item.name)
-                                                }}
-                                                onFocus={() => {
-                                                  setDepartmentOpenForItem(item.name)
-                                                  setDepartmentQuery(item.department || '')
-                                                }}
+                                              <input type="text"
+                                                value={item.department ? departmentOptions.find(d => d.name === item.department)?.label || item.department : (departmentOpenForItem === item.name ? departmentQuery : '')}
+                                                onChange={(e) => { setDepartmentQuery(e.target.value); setDepartmentOpenForItem(item.name) }}
+                                                onFocus={() => { setDepartmentOpenForItem(item.name); setDepartmentQuery(item.department || '') }}
                                                 placeholder="Select Department..."
-                                                className="w-full rounded border border-slate-200 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-green-400"
-                                              />
+                                                className="w-full rounded border border-slate-200 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-green-400" />
                                               {departmentOpenForItem === item.name && departmentOptions.length > 0 && (
                                                 <div className="absolute z-20 mt-1 w-full rounded border border-slate-200 bg-white shadow-lg max-h-40 overflow-auto">
                                                   {departmentOptions.map((dept) => (
-                                                    <button
-                                                      key={dept.name}
-                                                      type="button"
+                                                    <button key={dept.name} type="button"
                                                       className="w-full text-left px-2 py-1.5 text-xs hover:bg-green-50"
-                                                      onClick={() => {
-                                                        updateChecklistItem(item.name, 'department', dept.name)
-                                                        setDepartmentQuery(dept.label)
-                                                        setDepartmentOpenForItem(null)
-                                                      }}
-                                                    >
+                                                      onClick={() => { updateChecklistItem(item.name, 'department', dept.name); setDepartmentQuery(dept.label); setDepartmentOpenForItem(null) }}>
                                                       {dept.label}
                                                     </button>
                                                   ))}
@@ -748,25 +798,17 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
                                         )}
                                       </div>
 
-                                      {/* Expand description toggle */}
                                       {item.description && (
-                                        <button
-                                          type="button"
-                                          onClick={() => toggleItem(item.name)}
-                                          className="shrink-0 text-xs text-slate-400 hover:text-slate-600 mt-0.5"
-                                          title="View description"
-                                        >
+                                        <button type="button" onClick={() => toggleItem(item.name)}
+                                          className="shrink-0 text-xs text-slate-400 hover:text-slate-600 mt-0.5" title="View description">
                                           {isItemExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                                         </button>
                                       )}
                                     </div>
 
-                                    {/* Description */}
                                     {isItemExpanded && item.description && (
-                                      <div
-                                        className="mt-3 ml-8 p-3 bg-slate-50 rounded text-xs text-slate-600 border border-slate-100 prose-sm max-w-none"
-                                        dangerouslySetInnerHTML={{ __html: item.description }}
-                                      />
+                                      <div className="mt-3 ml-8 p-3 bg-slate-50 rounded text-xs text-slate-600 border border-slate-100 prose-sm max-w-none"
+                                        dangerouslySetInnerHTML={{ __html: item.description }} />
                                     )}
                                   </div>
                                 </div>
@@ -779,6 +821,107 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
                   })}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* ── TAB: DOCUMENTS ── */}
+          {activeTab === 'documents' && (
+            <div className="p-6">
+              <p className="text-sm text-slate-500 mb-4">
+                Attach discharge documents, reports, or other files for this patient.
+              </p>
+              <div className="space-y-3">
+                {documents.length === 0 && (
+                  <div className="text-center py-10 rounded-lg border-2 border-dashed border-slate-200 text-slate-400 text-sm">
+                    No documents added yet. Click below to add one.
+                  </div>
+                )}
+                {documents.map((row, idx) => (
+                  <div key={idx} className="rounded-lg border border-slate-200 p-4 bg-slate-50/50 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                        Document #{idx + 1}
+                      </span>
+                      <button type="button" onClick={() => removeDocumentRow(idx)}
+                        className="p-1 rounded text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                        title="Remove row">
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 mb-0.5">File Name</label>
+                        <input
+                          value={row.file_name}
+                          onChange={(e) => updateDocumentRow(idx, 'file_name', e.target.value)}
+                          placeholder="File name"
+                          className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 mb-0.5">Document Type</label>
+                        <select
+                          value={row.document_type || ''}
+                          onChange={(e) => updateDocumentRow(idx, 'document_type', e.target.value)}
+                          className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary"
+                        >
+                          <option value="">Select type</option>
+                          {documentTypes.map((dt) => (
+                            <option key={dt.name} value={dt.name}>{dt.document_name || dt.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 mb-0.5">Transaction No</label>
+                        <input
+                          value={row.transaction_no || ''}
+                          onChange={(e) => updateDocumentRow(idx, 'transaction_no', e.target.value)}
+                          placeholder="Transaction number"
+                          className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 mb-0.5">Upload Remarks</label>
+                        <input
+                          value={row.upload_remarks || ''}
+                          onChange={(e) => updateDocumentRow(idx, 'upload_remarks', e.target.value)}
+                          placeholder="Remarks"
+                          className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                        />
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="block text-xs font-medium text-slate-600 mb-0.5">Attachment</label>
+                        <input
+                          type="file"
+                          disabled={documentUploading === idx}
+                          onChange={(e) => {
+                            const f = e.target.files?.[0]
+                            if (f) handleDocumentFile(idx, f)
+                            e.target.value = ''
+                          }}
+                          className="w-full text-sm file:mr-2 file:rounded file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-white file:text-sm"
+                        />
+                        {documentUploading === idx && (
+                          <span className="text-xs text-slate-500 mt-0.5 block">Uploading...</span>
+                        )}
+                        {row.document && documentUploading !== idx && (
+                          <span className="text-xs text-green-600 mt-0.5 block truncate" title={row.document}>
+                            ✓ File attached
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                <button type="button" onClick={addDocumentRow}
+                  className="flex items-center gap-1.5 text-sm text-primary font-medium hover:underline">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Add document
+                </button>
+              </div>
             </div>
           )}
 

@@ -34,6 +34,57 @@ export async function fetchPatientVisits(status?: string, search?: string, patie
   }
 }
 
+export interface LinkFieldOption {
+  value: string
+  label: string
+}
+
+/**
+ * Fetch patient visits with full filter support:
+ * - patient
+ * - search (visit name)
+ * - practitioner
+ * - fromDate / toDate
+ */
+export async function fetchPatientVisitsFull(
+  patient?: string,
+  search?: string,
+  practitioner?: string,
+  fromDate?: string,
+  toDate?: string,
+  status?: string
+): Promise<PatientVisit[]> {
+  const params = new URLSearchParams()
+  if (patient) params.append('patient', patient)
+  if (search) params.append('search', search)
+  if (practitioner) params.append('practitioner', practitioner)
+  if (fromDate) params.append('from_date', fromDate)
+  if (toDate) params.append('to_date', toDate)
+  if (status) params.append('status', status)
+    console.log('Fetching patient visits with params:', Object.fromEntries(params.entries()))
+  try {
+    const res = await fetch(
+      `/api/method/healthcare.api.patient_visit.get_patient_visits_full?${params}`
+    )
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const data = await res.json()
+
+    if (!Array.isArray(data?.message)) return []
+
+    // ✅ Map ALL fields through — not just value/label
+    return data.message.map((m: any) => ({
+      value: m.name,
+      label: m.label,
+      encounter_date: m.encounter_date ?? null,
+      practitioner_name: m.practitioner_name ?? '',
+      status: m.status ?? '',
+    }))
+  } catch (err) {
+    console.error('fetchPatientVisitsFull error:', err)
+    return []
+  }
+}
+
 export async function fetchPatientVisit(name: string) {
   const response = await fetch(
     `/api/method/healthcare.api.patient_visit.get_patient_visit?name=${encodeURIComponent(name)}`
@@ -68,4 +119,30 @@ export async function fetchPatientVisitTypes(): Promise<PatientVisitTypeOption[]
 
 
 
+export async function cancelVisit(visitName: string, reason: string): Promise<void> {
+  const response = await fetch(`/api/method/healthcare.api.patient_visit.cancel_patient_visit`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ visit_name: visitName, reason_for_cancel: reason })
+  })
 
+  const resData = await response.json()
+  if (resData?.message !== 'success') {
+    throw new Error(resData?.message || 'Failed to cancel visit')
+  }
+}
+
+
+// Create an invoice for a visit
+export async function createInvoice(visitName: string): Promise<string> {
+  const response = await fetch(`/api/method/healthcare.api.patient_visit.create_invoice`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ visit_name: visitName })
+  })
+  const resData = await response.json()
+  if (!resData?.message) {
+    throw new Error('Failed to create invoice')
+  }
+  return resData.message as string // return invoice name/id
+}

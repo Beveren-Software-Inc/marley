@@ -13,6 +13,7 @@
   "basic_info",
   "naming_series",
   "file_no",
+  "title",
   "first_name",
   "middle_name",
   "last_name",
@@ -67,6 +68,7 @@
   "column_break_eqbb",
   "insurance_policy_no",
   "ref_no",
+  "insurance_valid_till",
   "more_info",
   "patient_details",
   "address_and_contact_tab",
@@ -710,9 +712,9 @@
   {
    "fetch_from": "insurance.insurance_type",
    "fieldname": "insurance_type",
-   "fieldtype": "Select",
+   "fieldtype": "Link",
    "label": "Insurance Type",
-   "options": "\nTRICARE\nBUPA"
+   "options": "Insurance Type"
   },
   {
    "fieldname": "primary_address_and_contact_section",
@@ -769,6 +771,17 @@
    "fieldname": "alter_2_mobile_no",
    "fieldtype": "Data",
    "label": "Alter 2 Mobile No"
+  },
+  {
+   "fieldname": "title",
+   "fieldtype": "Link",
+   "label": "Title",
+   "options": "Salutation"
+  },
+  {
+   "fieldname": "insurance_valid_till",
+   "fieldtype": "Date",
+   "label": "Insurance Valid Till"
   }
  ],
  "grid_page_length": 50,
@@ -872,7 +885,7 @@
   }
  ],
  "max_attachments": 50,
- "modified": "2026-02-17 16:19:10.249508",
+ "modified": "2026-02-22 10:59:09.945566",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient",

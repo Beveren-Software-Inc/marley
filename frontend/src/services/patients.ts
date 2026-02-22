@@ -36,6 +36,7 @@ export interface PatientSummary {
   mobile?: string
   category?: string
   is_blacklist?: number
+  remarks?: string
 }
 
 export async function searchPatients(query: string, limit?: number): Promise<PatientListItem[]> {
@@ -225,8 +226,9 @@ export async function fetchPatientMedicalHistory(patient: string): Promise<Patie
   const response = await fetch(
     `/api/method/healthcare.api.patient.get_patient_medical_history?patient=${encodeURIComponent(patient)}`
   )
+ 
   const resData = await response.json()
-
+   console.log("WE start from here", resData)
   if (resData?.message) {
     return resData.message as PatientMedicalHistory
   } else {
@@ -245,6 +247,28 @@ export async function fetchPatientSummary(patient: string): Promise<PatientSumma
   } else {
     throw new Error('Invalid response format')
   }
+}
+
+/** Summary stats for Patient History page: visits, admissions, invoices, unbilled, amount to pay */
+export interface PatientHistorySummary {
+  visit_count: number
+  admission_count: number
+  paid_invoice_count: number
+  paid_invoice_total: number
+  unbilled_count: number
+  amount_to_pay: number
+}
+
+export async function fetchPatientHistorySummary(patient: string): Promise<PatientHistorySummary> {
+  const response = await fetch(
+    `/api/method/healthcare.api.patient.get_patient_history_summary?patient=${encodeURIComponent(patient)}`
+  )
+  const resData = await response.json()
+
+  if (resData?.message) {
+    return resData.message as PatientHistorySummary
+  }
+  throw new Error(resData?.exc || 'Invalid response format')
 }
 
 /** Full Patient doc for edit form (from Frappe REST). */

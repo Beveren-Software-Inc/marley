@@ -57,6 +57,8 @@
   "therapies",
   "section_break_33",
   "encounter_comment",
+  "cancel_reason_section",
+  "reason_for_cancel",
   "sb_refs",
   "amended_from",
   "encounter_details_tab",
@@ -72,7 +74,8 @@
   "medicines_tab",
   "medicine_charges",
   "charges_and_payments_tab",
-  "charges"
+  "charges",
+  "invoice_created"
  ],
  "fields": [
   {
@@ -218,6 +221,7 @@
    "options": "Company"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "status",
    "fieldtype": "Select",
    "label": "Status",
@@ -507,6 +511,25 @@
    "fieldtype": "Table",
    "label": "Charges",
    "options": "OP Charges"
+  },
+  {
+   "allow_on_submit": 1,
+   "collapsible": 1,
+   "fieldname": "cancel_reason_section",
+   "fieldtype": "Section Break",
+   "label": "Cancel Reason"
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "reason_for_cancel",
+   "fieldtype": "Small Text",
+   "label": "Reason for Cance"
+  },
+  {
+   "default": "0",
+   "fieldname": "invoice_created",
+   "fieldtype": "Check",
+   "label": "Invoice Created"
   }
  ],
  "is_submittable": 1,
@@ -552,7 +575,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2026-02-18 23:45:42.519074",
+ "modified": "2026-02-22 12:40:11.060414",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Visit",

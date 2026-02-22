@@ -282,88 +282,112 @@ def get_service_units(service_unit_type=None, occupancy_status=None, search=None
 	return units
 
 
+import frappe
+import json
+import re
+from frappe import _
+from frappe.utils import cint
+
+
 @frappe.whitelist()
 def create_and_submit_discharge(admission_name, discharge_data):
 	"""Create and submit a Discharge document from Inpatient Admission"""
-	try:
-		# Check if discharge already exists
-		existing_discharge = frappe.db.get_value('Discharge', {'admission': admission_name}, 'name')
-		if existing_discharge:
-			frappe.throw(_("Discharge already exists for this admission: {0}").format(
-				frappe.get_desk_link("Discharge", existing_discharge)
-			))
-		
-		# Create discharge document using the mapped doc function
-		from healthcare.healthcare.doctype.inpatient_admission.inpatient_admission import create_discharge_from_inpatient_admission
-		
-		discharge_doc = create_discharge_from_inpatient_admission(admission_name)
-		
-		# Update discharge document with provided data
-		if isinstance(discharge_data, str):
-			discharge_data = json.loads(discharge_data)
-		
-		# Update fields from discharge_data
-		for key, value in discharge_data.items():
-			if hasattr(discharge_doc, key) and value is not None and value != '':
-				discharge_doc.set(key, value)
-		
-		# Save the discharge document
-		discharge_doc.save(ignore_permissions=True)
-		
-		# Submit the discharge document (this will update the admission status)
-		discharge_doc.submit()
-		
-		return {
-			'name': discharge_doc.name,
-			'message': 'Discharge created and submitted successfully'
-		}
-	except frappe.ValidationError as e:
-		# Handle specific validation errors with user-friendly messages
-		error_message = str(e)
-		
-		# Check if it's an unbilled services error
-		if "unbilled services" in error_message.lower():
-			# Extract unbilled services from the error message
-			# Try to extract service names from the error message
-			services = []
-			# Look for service unit names or document names in the error
-			service_pattern = r'Inpatient Occupancy\s+([^\s\n]+)'
-			matches = re.findall(service_pattern, error_message)
-			if matches:
-				services.extend(matches)
-			
-			# Look for Healthcare Service Documents
-			if "Healthcare Service" in error_message and "Documents" in error_message:
-				services.append("Healthcare Service Documents")
-			
-			if services:
-				services_list = ", ".join(services)
-				user_message = _(
-					"Cannot discharge patient because there are unbilled services that need to be invoiced first. "
-					"Please ensure all services are billed before discharging the patient. "
-					"Unbilled services include: {0}. "
-					"Please create invoices for these services and try again."
-				).format(services_list)
-			else:
-				user_message = _(
-					"Cannot discharge patient because there are unbilled services that need to be invoiced first. "
-					"Please ensure all services (including Inpatient Occupancy and Healthcare Services) are billed before discharging the patient. "
-					"Please create invoices for all unbilled services and try again."
-				)
-			
-			frappe.log_error(f"Error creating discharge: {error_message}", "Create Discharge Error")
-			frappe.throw(user_message, title=_("Unbilled Services"))
-		else:
-			# For other validation errors, use the original message but clean it up
-			frappe.log_error(f"Error creating discharge: {error_message}", "Create Discharge Error")
-			# Remove HTML tags and clean up the message
-			clean_message = re.sub(r'<[^>]+>', '', error_message)
-			clean_message = re.sub(r'\s+', ' ', clean_message).strip()
-			frappe.throw(_("Cannot complete discharge: {0}").format(clean_message))
-	except Exception as e:
-		frappe.log_error(f"Error creating discharge: {str(e)}", "Create Discharge Error")
-		frappe.throw(_("Failed to create discharge: {0}").format(str(e)))
 
+	try:
+		discharge_data = frappe.parse_json(discharge_data or {})
+
+		if not admission_name:
+			frappe.throw(_("Admission is required"))
+
+		frappe.logger().info(f"Creating discharge for admission {admission_name}")
+
+		# Prevent duplicate discharge
+		existing_discharge = frappe.db.get_value(
+			"Discharge", {"admission": admission_name}, "name"
+		)
+		if existing_discharge:
+			frappe.throw(
+				_("Discharge already exists for this admission: {0}").format(
+					frappe.get_desk_link("Discharge", existing_discharge)
+				)
+			)
+
+		# Create mapped discharge
+		from healthcare.healthcare.doctype.inpatient_admission.inpatient_admission import (
+			create_discharge_from_inpatient_admission,
+		)
+		discharge_doc = create_discharge_from_inpatient_admission(admission_name)
+
+		# Update scalar fields — skip all child tables
+		CHILD_TABLES = {"patient_documents", "patient_document", "discharge_checklist"}
+
+		for key, value in discharge_data.items():
+			if key in CHILD_TABLES:
+				continue
+			if hasattr(discharge_doc, key) and value not in (None, ""):
+				discharge_doc.set(key, value)
+
+		# Handle discharge_checklist child table
+		checklist = frappe.parse_json(discharge_data.get("discharge_checklist") or [])
+		if isinstance(checklist, list) and checklist:
+			discharge_doc.set("discharge_checklist", [])
+			for idx, row in enumerate(checklist, start=1):
+				if not isinstance(row, dict):
+					continue
+				discharge_doc.append("discharge_checklist", {
+					"idx": idx,
+					"action_required": (row.get("action_required") or "").strip() or None,
+					"department": (row.get("department") or "").strip() or None,
+					"user": (row.get("user") or "").strip() or None,
+					"name1": (row.get("name1") or "").strip() or None,
+					"date_time": (row.get("date_time") or "").strip() or None,
+					"click": cint(row.get("click") or 0),
+					"description": (row.get("description") or "").strip() or None,
+				})
+
+		# Handle patient_documents — accept both "patient_document" (frontend)
+		# and "patient_documents" (plural) since frontend sends the singular form
+		documents = frappe.parse_json(
+			discharge_data.get("patient_documents")
+			or discharge_data.get("patient_document")
+			or []
+		)
+		if isinstance(documents, list) and documents:
+			discharge_doc.set("patient_documents", [])
+			for idx, row in enumerate(documents, start=1):
+				if not isinstance(row, dict):
+					continue
+				discharge_doc.append("patient_documents", {
+					"idx": idx,
+					# "document_name": (row.get("file_name") or "").strip() or None,
+					"file_name": (row.get("document_type") or "").strip() or None,
+					"document_type": (row.get("document_type") or "").strip() or None,
+					"transaction_no": (row.get("transaction_no") or "").strip() or None,
+					"upload_remarks": (row.get("upload_remarks") or "").strip() or None,
+					"document": (row.get("document") or "").strip() or None,
+				})
+
+		# Save + Submit
+		discharge_doc.save(ignore_permissions=True)
+		if cint(discharge_doc.docstatus) == 0:
+			discharge_doc.submit()
+
+		return {
+			"name": discharge_doc.name,
+			"message": _("Discharge created and submitted successfully"),
+		}
+
+	except Exception as e:
+		import traceback
+		error_message = str(e)
+		frappe.log_error(traceback.format_exc(), "Create Discharge Error")
+
+		# Clean message for frontend
+		clean_message = re.sub(r"<[^>]+>", "", error_message)
+		clean_message = re.sub(r"\s+", " ", clean_message).strip()
+
+		# Frappe-friendly throw
+		frappe.throw(_("Failed to create discharge: {0}").format(clean_message))
 
 @frappe.whitelist()
 def admit_patient(name, service_unit, check_in, expected_discharge=None):

@@ -10,6 +10,7 @@ import { ReceptionistPage } from '../pages/Receptionist'
 import { SettingsPage } from '../pages/Settings'
 import { EmployeePage } from '../pages/Employee'
 import { PatientVisitDetailPage } from '../pages/PatientVisitDetailPage'
+import { PatientHistoryPage } from '../pages/PatientHistory'
 
 export const RouterProvider = () => {
   const routes = useRoutes([
@@ -59,6 +60,14 @@ export const RouterProvider = () => {
       element: (
         <RoleGuard roles={['admin']}>
           <ReceptionistPage />
+        </RoleGuard>
+      )
+    },
+    {
+      path: '/patient-history',
+      element: (
+        <RoleGuard>
+          <PatientHistoryPage />
         </RoleGuard>
       )
     },
