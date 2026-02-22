@@ -572,3 +572,39 @@ def get_inpatient_admissions(search=None, patient=None, limit=20):
 		}
 		for a in admissions
 	]
+
+
+import frappe
+
+@frappe.whitelist()
+def get_healthcare_insurance(search=None):
+	filters = {}
+	print("uko home ama Nairobi")
+	if search:
+		filters["name"] = ["like", f"%{search}%"]
+
+	insurances = frappe.get_all(
+		"Health Insurance",
+		fields=[
+			"name",
+			"insurance_company",
+			"insurance_type",
+			"policy_no",
+			"insurance_no"
+		],
+		filters=filters,
+		limit_page_length=20,
+		order_by="modified desc"
+	)
+
+	# return in LinkFieldOption format
+	return [
+		{
+			"name": d.name,
+			"label": d.name,
+			"insurance_company": d.insurance_company,
+			"insurance_type": d.insurance_type,
+			"policy_no": d.policy_no,
+		}
+		for d in insurances
+	]
