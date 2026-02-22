@@ -74,7 +74,8 @@
   "medicines_tab",
   "medicine_charges",
   "charges_and_payments_tab",
-  "charges"
+  "charges",
+  "invoice_created"
  ],
  "fields": [
   {
@@ -523,6 +524,12 @@
    "fieldname": "reason_for_cancel",
    "fieldtype": "Small Text",
    "label": "Reason for Cance"
+  },
+  {
+   "default": "0",
+   "fieldname": "invoice_created",
+   "fieldtype": "Check",
+   "label": "Invoice Created"
   }
  ],
  "is_submittable": 1,
@@ -568,7 +575,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2026-02-22 12:09:18.728316",
+ "modified": "2026-02-22 12:40:11.060414",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Visit",
