@@ -826,5 +826,3 @@ export const DoctorPage = () => {
     </div>
   )
 }
-
-

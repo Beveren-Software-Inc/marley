@@ -76,6 +76,7 @@ const mainLinks = [
   { to: '/nurse', label: 'Nurse', screens: nurseScreens, prefix: '/nurse' },
   { to: '/lab', label: 'Lab', screens: labScreens, prefix: '/lab' },
   { to: '/reception', label: 'Reception', screens: receptionScreens, prefix: '/reception' },
+  { to: '/patient-history', label: 'Patient History', screens: [], prefix: '/patient-history' },
   { to: '/pharmacy', label: 'Pharmacy', screens: [], prefix: '/pharmacy' },
   { to: '/employee', label: 'Employee', screens: [], prefix: '/employee' },
   { to: '/patient', label: 'Patient', screens: [], prefix: '/patient' }

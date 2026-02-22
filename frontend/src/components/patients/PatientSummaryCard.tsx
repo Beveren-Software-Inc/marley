@@ -21,6 +21,7 @@ export const PatientSummaryCard = ({ patient }: PatientSummaryCardProps) => {
         setLoading(true)
         setError(null)
         const data = await fetchPatientSummary(patient)
+        console.log('Fetched patient summary 2:', data)
         setSummary(data)
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load patient info')
@@ -81,6 +82,10 @@ export const PatientSummaryCard = ({ patient }: PatientSummaryCardProps) => {
             <div className={summary.is_blacklist ? 'text-red-600 font-semibold' : 'text-slate-900'}>
               {summary.is_blacklist ? 'Yes' : 'No'}
             </div>
+          </div>
+                    <div>
+            <div className="text-xs font-medium text-slate-500">Remarks</div>
+            <div className="text-slate-900">{summary.remarks || '-'}</div>
           </div>
         </div>
       )}
