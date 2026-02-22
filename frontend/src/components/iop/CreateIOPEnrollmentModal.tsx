@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { createIOPEnrollment, fetchIOPDays, type IOPDay } from '../../services/iop'
+import { createIOPEnrollment, fetchIOPDays, fetchIOPSessionTypes, type IOPDay, type IOPSessionType, type IOPEnrollmentSessionRow } from '../../services/iop'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
 import { fetchHealthcarePractitioners, type LinkFieldOption } from '../../services/common'
 import { toast } from '../../hooks/useToast'
@@ -28,11 +28,14 @@ export const CreateIOPEnrollmentModal = ({ onClose, onSuccess, initialPatient }:
 
   const [status, setStatus] = useState('Scheduled')
   const [notes, setNotes] = useState('')
+  const [sessionTypes, setSessionTypes] = useState<IOPSessionType[]>([])
+  const [sessions, setSessions] = useState<IOPEnrollmentSessionRow[]>([{ session_type: '', from_time: '', to_time: '', notes: '' }])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     fetchIOPDays(100, 0).then(setIopDays).catch(() => setIopDays([]))
+    fetchIOPSessionTypes().then(setSessionTypes).catch(() => setSessionTypes([]))
   }, [])
 
   // Search patients
@@ -79,6 +82,22 @@ export const CreateIOPEnrollmentModal = ({ onClose, onSuccess, initialPatient }:
     setPractitionerOpen(false)
   }
 
+  const addSession = () => {
+    setSessions((prev) => [...prev, { session_type: '', from_time: '', to_time: '', notes: '' }])
+  }
+
+  const updateSession = (idx: number, field: keyof IOPEnrollmentSessionRow, value: string) => {
+    setSessions((prev) => {
+      const next = [...prev]
+      next[idx] = { ...next[idx], [field]: value }
+      return next
+    })
+  }
+
+  const removeSession = (idx: number) => {
+    setSessions((prev) => prev.filter((_, i) => i !== idx))
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
@@ -86,18 +105,23 @@ export const CreateIOPEnrollmentModal = ({ onClose, onSuccess, initialPatient }:
       setError('Patient is required')
       return
     }
-    if (!iop_day) {
-      setError('IOP Day (slot) is required')
-      return
-    }
+    const validSessions = sessions
+      .filter((s) => s.session_type)
+      .map((s) => ({
+        session_type: s.session_type,
+        from_time: s.from_time || undefined,
+        to_time: s.to_time || undefined,
+        notes: s.notes || undefined
+      }))
     try {
       setLoading(true)
       await createIOPEnrollment({
         patient,
-        iop_day,
+        ...(iop_day ? { iop_day } : {}),
         status,
         notes: notes || undefined,
-        ...(practitioner ? { practitioner } : {})
+        ...(practitioner ? { practitioner } : {}),
+        iop_session: validSessions.length ? validSessions : undefined
       })
       toast.success('Enrollment created')
       onSuccess()
@@ -199,18 +223,15 @@ export const CreateIOPEnrollmentModal = ({ onClose, onSuccess, initialPatient }:
             </div>
           </div>
           
-          {/* IOP Day */}
+          {/* IOP Day (optional) */}
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              IOP Day (slot) <span className="text-red-500">*</span>
-            </label>
+            <label className="block text-sm font-medium text-slate-700 mb-1">IOP Day (slot)</label>
             <select
               value={iop_day}
               onChange={(e) => setIopDay(e.target.value)}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-              required
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
             >
-              <option value="">Select day</option>
+              <option value="">Select day (optional)</option>
               {iopDays.map((d) => (
                 <option key={d.name} value={d.name}>
                   {d.posting_date ? `${d.posting_date} — ${d.name}` : d.name}
@@ -218,8 +239,6 @@ export const CreateIOPEnrollmentModal = ({ onClose, onSuccess, initialPatient }:
               ))}
             </select>
           </div>
-
-          
 
           {/* Status */}
           <div>
@@ -244,6 +263,61 @@ export const CreateIOPEnrollmentModal = ({ onClose, onSuccess, initialPatient }:
               rows={2}
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
             />
+          </div>
+
+          {/* IOP Session child table */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm font-medium text-slate-700">Sessions</label>
+              <button type="button" onClick={addSession} className="text-sm text-primary hover:underline">
+                + Add session
+              </button>
+            </div>
+            <div className="space-y-2">
+              {sessions.map((row, idx) => (
+                <div key={idx} className="flex flex-wrap items-start gap-2 p-2 border border-slate-200 rounded-md">
+                  <select
+                    value={row.session_type}
+                    onChange={(e) => updateSession(idx, 'session_type', e.target.value)}
+                    className="rounded-md border border-slate-300 px-2 py-1.5 text-sm flex-1 min-w-[120px]"
+                  >
+                    <option value="">Type</option>
+                    {sessionTypes.map((st) => (
+                      <option key={st.name} value={st.name}>{st.session_type_name || st.name}</option>
+                    ))}
+                  </select>
+                  <input
+                    type="time"
+                    value={row.from_time || ''}
+                    onChange={(e) => updateSession(idx, 'from_time', e.target.value)}
+                    className="rounded-md border border-slate-300 px-2 py-1.5 text-sm w-28"
+                    placeholder="From"
+                  />
+                  <input
+                    type="time"
+                    value={row.to_time || ''}
+                    onChange={(e) => updateSession(idx, 'to_time', e.target.value)}
+                    className="rounded-md border border-slate-300 px-2 py-1.5 text-sm w-28"
+                    placeholder="To"
+                  />
+                  <input
+                    type="text"
+                    value={row.notes || ''}
+                    onChange={(e) => updateSession(idx, 'notes', e.target.value)}
+                    placeholder="Notes"
+                    className="rounded-md border border-slate-300 px-2 py-1.5 text-sm flex-1 min-w-[80px]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeSession(idx)}
+                    className="text-slate-500 hover:text-red-600 p-1"
+                    title="Remove"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">

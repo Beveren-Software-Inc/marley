@@ -37,6 +37,19 @@ export interface IOPEnrollment {
   notes?: string
 }
 
+/** One row of IOP Session child table (type, from, to, notes). */
+export interface IOPEnrollmentSessionRow {
+  session_type: string
+  from_time?: string
+  to_time?: string
+  notes?: string
+}
+
+/** IOP Enrollment with child table for edit. */
+export interface IOPEnrollmentWithSessions extends IOPEnrollment {
+  iop_session?: IOPEnrollmentSessionRow[]
+}
+
 export async function fetchIOPDays(
   limit: number = 50,
   offset: number = 0,
@@ -128,9 +141,11 @@ export async function fetchIOPEnrollments(
 
 export async function createIOPEnrollment(payload: {
   patient: string
-  iop_day: string
+  iop_day?: string
   status?: string
   notes?: string
+  practitioner?: string
+  iop_session?: IOPEnrollmentSessionRow[]
 }): Promise<IOPEnrollment> {
   const { ensureCSRF } = await import('./apiClient')
   const csrf = await ensureCSRF()
@@ -148,4 +163,36 @@ export async function createIOPEnrollment(payload: {
   if (data?.exc) throw new Error(messageFromExc(data.exc, data.exc_type))
   if (!data?.message?.name) throw new Error('Failed to create IOP Enrollment')
   return data.message as IOPEnrollment
+}
+
+export async function fetchIOPEnrollment(name: string): Promise<IOPEnrollmentWithSessions> {
+  const res = await fetch(
+    `/api/method/healthcare.api.iop.get_iop_enrollment?name=${encodeURIComponent(name)}`
+  )
+  const data = await res.json()
+  if (data?.exc) throw new Error(messageFromExc(data.exc, data.exc_type))
+  if (!data?.message) throw new Error('Enrollment not found')
+  return data.message as IOPEnrollmentWithSessions
+}
+
+export async function updateIOPEnrollmentSessions(
+  name: string,
+  iop_session: IOPEnrollmentSessionRow[]
+): Promise<{ name: string }> {
+  const { ensureCSRF } = await import('./apiClient')
+  const csrf = await ensureCSRF()
+  const res = await fetch('/api/method/healthcare.api.iop.update_iop_enrollment', {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {})
+    },
+    body: JSON.stringify({ name, iop_session })
+  })
+  const data = await res.json()
+  if (data?.exc) throw new Error(messageFromExc(data.exc, data.exc_type))
+  if (!data?.message?.name) throw new Error('Failed to update enrollment')
+  return data.message as { name: string }
 }

@@ -14,7 +14,9 @@
   "posting_date",
   "status",
   "more_information_section",
-  "notes"
+  "notes",
+  "sessions_section",
+  "iop_session"
  ],
  "fields": [
   {
@@ -44,11 +46,10 @@
    "fieldtype": "Link",
    "in_list_view": 1,
    "label": "IOP Day",
-   "options": "IOP Day",
-   "reqd": 1
+   "options": "IOP Day"
   },
   {
-   "fetch_from": "iop_day.posting_date",
+   "default": "Today",
    "fieldname": "posting_date",
    "fieldtype": "Date",
    "label": "Date",
@@ -81,11 +82,22 @@
    "fieldtype": "Link",
    "label": "Doctor",
    "options": "Healthcare Practitioner"
+  },
+  {
+   "fieldname": "sessions_section",
+   "fieldtype": "Section Break",
+   "label": "Sessions"
+  },
+  {
+   "fieldname": "iop_session",
+   "fieldtype": "Table",
+   "label": "IOP Session",
+   "options": "IOP Day Session"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-02-17 13:37:53.915099",
+ "modified": "2026-02-22 16:15:23.170464",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "IOP Enrollment",

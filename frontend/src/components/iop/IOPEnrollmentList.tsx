@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { fetchIOPEnrollments, type IOPEnrollment } from '../../services/iop'
 import { CreateIOPEnrollmentModal } from './CreateIOPEnrollmentModal'
+import { EditIOPEnrollmentModal } from './EditIOPEnrollmentModal'
 import { CreatePatientVisitModal } from '../patientVisits/CreatePatientVisitModal'
 import { getPatientVisitFormUrl } from '../../services/appointments'
 
@@ -18,6 +19,9 @@ export const IOPEnrollmentList = ({
   const [enrollments, setEnrollments] = useState<IOPEnrollment[]>([])
   const [loading, setLoading] = useState(true)
   const [createVisitForEnrollment, setCreateVisitForEnrollment] = useState<IOPEnrollment | null>(null)
+  const [editEnrollmentName, setEditEnrollmentName] = useState<string | null>(null)
+  const [openActionRow, setOpenActionRow] = useState<string | null>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
 
   const load = () => {
     setLoading(true)
@@ -30,6 +34,14 @@ export const IOPEnrollmentList = ({
   useEffect(() => {
     load()
   }, [refreshKey, iopDayFilter, patientFilter])
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setOpenActionRow(null)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
 
   const handleVisitCreated = (visitName: string) => {
     setCreateVisitForEnrollment(null)
@@ -84,14 +96,43 @@ export const IOPEnrollmentList = ({
                       {e.status || '-'}
                     </span>
                   </td>
-                  <td className="px-4 py-2">
-                    <button
-                      type="button"
-                      onClick={() => setCreateVisitForEnrollment(e)}
-                      className="text-sm font-medium text-primary hover:underline"
-                    >
-                      Create Patient Visit
-                    </button>
+                  <td className="px-4 py-2 align-middle">
+                    <div className="relative" ref={openActionRow === e.name ? menuRef : undefined}>
+                      <button
+                        type="button"
+                        onClick={() => setOpenActionRow((prev) => (prev === e.name ? null : e.name))}
+                        className="inline-flex items-center justify-center w-8 h-8 rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
+                        aria-label="Actions"
+                      >
+                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+                        </svg>
+                      </button>
+                      {openActionRow === e.name && (
+                        <div className="absolute right-0 top-full mt-1 z-10 min-w-[180px] rounded-md border border-slate-200 bg-white py-1 shadow-lg">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCreateVisitForEnrollment(e)
+                              setOpenActionRow(null)
+                            }}
+                            className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                          >
+                            Create Patient Visit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditEnrollmentName(e.name)
+                              setOpenActionRow(null)
+                            }}
+                            className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                          >
+                            Edit
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))
@@ -99,6 +140,16 @@ export const IOPEnrollmentList = ({
           </tbody>
         </table>
       </div>
+      {editEnrollmentName && (
+        <EditIOPEnrollmentModal
+          enrollmentName={editEnrollmentName}
+          onClose={() => setEditEnrollmentName(null)}
+          onSuccess={() => {
+            setEditEnrollmentName(null)
+            load()
+          }}
+        />
+      )}
       {createVisitForEnrollment && (
         <CreatePatientVisitModal
           onClose={() => setCreateVisitForEnrollment(null)}

@@ -112,17 +112,28 @@ def get_iop_enrollments(limit=50, offset=0, iop_day=None, patient=None, status=N
 
 
 @frappe.whitelist()
-def create_iop_enrollment(patient, iop_day, status=None, notes=None):
-	"""Create IOP Enrollment (patient enrolled in an IOP day/slot)."""
+def create_iop_enrollment(patient, iop_day=None, status=None, notes=None, doctor=None, practitioner=None, iop_session=None):
+	"""Create IOP Enrollment. IOP Day (slot) is optional. Optional iop_session list of dicts: session_type, from_time, to_time, notes."""
+	if isinstance(iop_session, str):
+		iop_session = json.loads(iop_session) if iop_session else []
 	doc = frappe.new_doc("IOP Enrollment")
 	doc.patient = patient
-	doc.iop_day = iop_day
+	if iop_day:
+		doc.iop_day = iop_day
 	doc.status = status or "Scheduled"
 	if notes:
 		doc.notes = notes
+	doc.doctor = doctor or practitioner
+	for row in (iop_session or []):
+		doc.append("iop_session", {
+			"session_type": row.get("session_type"),
+			"from_time": row.get("from_time"),
+			"to_time": row.get("to_time"),
+			"notes": row.get("notes"),
+		})
 	doc.insert()
 	frappe.db.commit()
-	posting_date = frappe.db.get_value("IOP Day", iop_day, "posting_date")
+	posting_date = doc.iop_day and frappe.db.get_value("IOP Day", doc.iop_day, "posting_date")
 	return {
 		"name": doc.name,
 		"patient": doc.patient,
@@ -131,3 +142,46 @@ def create_iop_enrollment(patient, iop_day, status=None, notes=None):
 		"posting_date": posting_date,
 		"status": doc.status,
 	}
+
+
+@frappe.whitelist()
+def get_iop_enrollment(name):
+	"""Get one IOP Enrollment with iop_session child table (for edit modal)."""
+	doc = frappe.get_doc("IOP Enrollment", name)
+	return {
+		"name": doc.name,
+		"patient": doc.patient,
+		"patient_name": doc.patient_name,
+		"iop_day": doc.iop_day,
+		"posting_date": doc.posting_date,
+		"status": doc.status,
+		"notes": doc.notes,
+		"iop_session": [
+			{
+				"session_type": s.session_type,
+				"from_time": str(s.from_time) if s.from_time else None,
+				"to_time": str(s.to_time) if s.to_time else None,
+				"notes": s.notes,
+			}
+			for s in (doc.iop_session or [])
+		],
+	}
+
+
+@frappe.whitelist()
+def update_iop_enrollment(name, iop_session=None):
+	"""Update IOP Enrollment child table iop_session only."""
+	if isinstance(iop_session, str):
+		iop_session = json.loads(iop_session) if iop_session else []
+	doc = frappe.get_doc("IOP Enrollment", name)
+	doc.iop_session = []
+	for row in (iop_session or []):
+		doc.append("iop_session", {
+			"session_type": row.get("session_type"),
+			"from_time": row.get("from_time"),
+			"to_time": row.get("to_time"),
+			"notes": row.get("notes"),
+		})
+	doc.save()
+	frappe.db.commit()
+	return {"name": doc.name}
