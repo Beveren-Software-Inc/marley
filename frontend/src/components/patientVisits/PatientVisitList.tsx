@@ -4,6 +4,7 @@ import { PatientVisitDetails } from './PatientVisitDetails'
 import { cancelVisit, createInvoice, type PatientVisit } from '../../services/patientVisits'
 import { CreateAdmissionModal } from '../admissions/CreateAdmissionModal'
 import { CancelVisitModal } from './CancelVisitModal'
+import { CreatePaymentModal } from './CreatePaymentModal'
 import { toast } from '../../hooks/useToast'
 import { fetchHealthcarePractitioners, type LinkFieldOption } from '../../services/common'
 import { fetchPatientVisitsFull } from '../../services/patientVisits'
@@ -55,6 +56,8 @@ export const PatientVisitList = ({
   const [showCancelModal, setShowCancelModal] = useState(false)
   const [cancelLoading, setCancelLoading] = useState(false)
   const [selectedVisitForCancel, setSelectedVisitForCancel] = useState<PatientVisit | null>(null)
+  const [showPaymentModal, setShowPaymentModal] = useState(false)
+  const [paymentVisit, setPaymentVisit] = useState<PatientVisit | null>(null)
 
   // --- Visit No: debounced search when dropdown is open ---
   useEffect(() => {
@@ -184,6 +187,11 @@ export const PatientVisitList = ({
   const handleScheduleAdmission = (visit: PatientVisit) => {
     setAdmissionModalVisit(visit)
     setOpenActionRow(null)
+  }
+
+  const handlePrintInvoice = (visitName: string) => {
+    const url = `/printview?doctype=Sales+Invoice&name=${encodeURIComponent(visitName)}&trigger_print=1&format=Standard&no_letterhead=0`
+    window.open(url, '_blank')
   }
 
   const handleClearFilters = () => {
@@ -381,6 +389,10 @@ export const PatientVisitList = ({
                     <StatusPill status={visit.status} color={statusColors[visit.status] || 'default'} />
                   </td>
                   <td className="px-4 py-2 align-middle">
+                    <div className="flex items-center gap-1.5">
+                     
+
+                      {/* Actions dropdown */}
                     <div className="relative" ref={openActionRow === visit.value ? menuRef : undefined}>
                       <button
                         type="button"
@@ -404,6 +416,13 @@ export const PatientVisitList = ({
                           </button>
                           <button
                             type="button"
+                            onClick={() => { setPaymentVisit(visit); setShowPaymentModal(true); setOpenActionRow(null) }}
+                            className="block w-full text-left px-3 py-2 text-sm text-blue-600 hover:bg-blue-50"
+                          >
+                            Create Payment
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => handleScheduleAdmission(visit)}
                             className="block w-full text-left px-3 py-2 text-sm text-primary hover:bg-primary/5"
                           >
@@ -418,6 +437,20 @@ export const PatientVisitList = ({
                           </button>
                         </div>
                       )}
+                    </div>
+                     {/* Print invoice button */}
+                      <button
+                        type="button"
+                        onClick={() => handlePrintInvoice(visit.value)}
+                        className="inline-flex items-center justify-center w-8 h-8 rounded border border-slate-300 bg-white text-primary hover:bg-slate-50 hover:text-slate-800 transition-colors"
+                        aria-label="Print Invoice"
+                        title="Print Invoice"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
+                            d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                        </svg>
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -466,6 +499,16 @@ export const PatientVisitList = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Payment Modal */}
+      {showPaymentModal && paymentVisit && (
+        <CreatePaymentModal
+          visitName={paymentVisit.value}
+          patientName={paymentVisit.label?.split(' - ')[1] || ''}
+          onClose={() => { setShowPaymentModal(false); setPaymentVisit(null) }}
+          onSuccess={() => { setShowPaymentModal(false); setPaymentVisit(null); fetchVisits() }}
+        />
       )}
 
       {/* Admission Modal */}

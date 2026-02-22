@@ -78,6 +78,7 @@ export async function fetchPatients(
   }
 }
 
+
 export interface PatientDocumentRow {
   file_name?: string
   document_type?: string
