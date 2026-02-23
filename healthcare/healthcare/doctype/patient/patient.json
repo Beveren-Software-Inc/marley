@@ -945,7 +945,7 @@
  "restrict_to_domain": "Healthcare",
  "row_format": "Dynamic",
  "rows_threshold_for_grid_search": 20,
- "search_fields": "patient_name,file_no,mobile,email,phone,uid",
+ "search_fields": "patient_name,file_no,id_number,mobile,email,phone,uid",
  "show_name_in_global_search": 1,
  "sort_field": "modified",
  "sort_order": "ASC",

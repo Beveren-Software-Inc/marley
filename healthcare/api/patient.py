@@ -30,6 +30,7 @@ def search_patients(search=None, limit=20):
 			p.patient_name LIKE %(search)s
 			OR p.name LIKE %(search)s
 			OR p.file_no LIKE %(search)s
+			OR p.id_number LIKE %(search)s
 		ORDER BY p.patient_name
 		LIMIT %(limit)s
 	""", {
@@ -66,6 +67,7 @@ def get_patients(limit=50, offset=0, search=None):
 				p.patient_name LIKE %(search)s
 				OR p.name LIKE %(search)s
 				OR p.file_no LIKE %(search)s
+				OR p.id_number LIKE %(search)s
 			ORDER BY p.patient_name
 			LIMIT %(limit)s OFFSET %(offset)s
 		""", {
