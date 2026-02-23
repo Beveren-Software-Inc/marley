@@ -331,7 +331,7 @@ export const CreatePrescriptionModal = ({
                     value={selectedPatient?.name || ''}
                     displayValue={selectedPatient ? (selectedPatient.patient_name || selectedPatient.name) : patientQuery}
                     placeholder="Search patient..."
-                    options={patients}
+                    options={patients.map((p) => ({ name: p.name, label: p.patient_name || p.name }))}
                     loading={loadingPatients}
                     onQueryChange={(q) => {
                       setPatientQuery(q)
@@ -348,19 +348,23 @@ export const CreatePrescriptionModal = ({
                       }
                     }}
                     onSelect={(opt) => {
-                      const p = opt as PatientListItem
-                      setSelectedPatient(p)
-                      setPatientQuery(p.patient_name || p.name)
+                      const p = patients.find((x) => x.name === opt.name)
+                      if (p) {
+                        setSelectedPatient(p)
+                        setPatientQuery(p.patient_name || p.name)
+                      }
                     }}
                     renderOption={(opt) => {
-                      const p = opt as PatientListItem
+                      const p = patients.find((x) => x.name === opt.name)
                       return (
                         <div>
-                          <div className="font-medium">{p.patient_name || p.name}</div>
-                          <div className="text-xs text-slate-500 flex gap-x-3 mt-0.5">
-                            {(p as any).file_number && <span>File: {(p as any).file_number}</span>}
-                            {(p as any).id_number && <span>ID: {(p as any).id_number}</span>}
-                          </div>
+                          <div className="font-medium">{opt.label || opt.name}</div>
+                          {p && (p.file_number || p.id_number) && (
+                            <div className="text-xs text-slate-500 flex gap-x-3 mt-0.5">
+                              {p.file_number && <span>File: {p.file_number}</span>}
+                              {p.id_number && <span>ID: {p.id_number}</span>}
+                            </div>
+                          )}
                         </div>
                       )
                     }}

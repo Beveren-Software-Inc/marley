@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useLabTests } from '../../hooks/useLabTests'
 import { StatusPill } from '../ui/StatusPill'
 import {
@@ -66,7 +66,7 @@ interface FilterBarProps {
   onPatientSelect: (p: PatientListItem) => void
   onPatientClear: () => void
   onPatientFocus: () => void
-  patientFilterRef: React.RefObject<HTMLDivElement>
+  patientFilterRef: React.RefObject<HTMLDivElement | null>
 }
 
 const FilterBar = ({
