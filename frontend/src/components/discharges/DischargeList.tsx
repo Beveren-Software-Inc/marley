@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { fetchDischarges, type Discharge } from '../../services/discharges'
 import { StatusPill } from '../ui/StatusPill'
+import { DetailSlideOver } from '../ui/DetailSlideOver'
+import { DocDetailView } from '../ui/DocDetailView'
 
 const statusColors: Record<string, string> = {
   'Draft': 'warning',
@@ -17,6 +19,7 @@ export const DischargeList = ({ patient, admission }: DischargeListProps) => {
   const [discharges, setDischarges] = useState<Discharge[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
+  const [detailName, setDetailName] = useState<string | null>(null)
 
   useEffect(() => {
     const loadDischarges = async () => {
@@ -100,7 +103,10 @@ export const DischargeList = ({ patient, admission }: DischargeListProps) => {
         <tbody className="divide-y divide-slate-200">
           {discharges.map((discharge) => (
             <tr key={discharge.name} className="hover:bg-slate-50">
-              <td className="px-4 py-3 text-sm font-medium text-slate-900">
+              <td
+                className="px-4 py-3 text-sm font-medium text-primary cursor-pointer hover:underline"
+                onClick={() => setDetailName(discharge.name)}
+              >
                 {discharge.name}
               </td>
               <td className="px-4 py-3 text-sm text-slate-700">
@@ -130,6 +136,16 @@ export const DischargeList = ({ patient, admission }: DischargeListProps) => {
           ))}
         </tbody>
       </table>
+
+      {detailName && (
+        <DetailSlideOver
+          title="Discharge"
+          subtitle={detailName}
+          onClose={() => setDetailName(null)}
+        >
+          <DocDetailView doctype="Discharge" name={detailName} />
+        </DetailSlideOver>
+      )}
     </div>
   )
 }

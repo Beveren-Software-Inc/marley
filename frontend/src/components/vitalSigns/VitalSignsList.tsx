@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
 import { fetchVitalSigns, type VitalSign } from '../../services/vitalSigns'
+import { DetailSlideOver } from '../ui/DetailSlideOver'
+import { DocDetailView } from '../ui/DocDetailView'
 
 interface VitalSignsListProps {
   patient?: string
@@ -9,6 +11,7 @@ export const VitalSignsList = ({ patient }: VitalSignsListProps) => {
   const [vitalSigns, setVitalSigns] = useState<VitalSign[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
+  const [detailName, setDetailName] = useState<string | null>(null)
 
   useEffect(() => {
     const loadVitalSigns = async () => {
@@ -91,7 +94,10 @@ export const VitalSignsList = ({ patient }: VitalSignsListProps) => {
         <tbody className="divide-y divide-slate-200">
           {vitalSigns.map((vs) => (
             <tr key={vs.name} className="hover:bg-slate-50">
-              <td className="px-4 py-3 text-sm text-slate-700">
+              <td
+                className="px-4 py-3 text-sm text-primary cursor-pointer hover:underline"
+                onClick={() => setDetailName(vs.name)}
+              >
                 {vs.signs_date ? new Date(vs.signs_date).toLocaleDateString() : '-'}
                 {vs.signs_time && ` ${vs.signs_time}`}
               </td>
@@ -123,6 +129,16 @@ export const VitalSignsList = ({ patient }: VitalSignsListProps) => {
           ))}
         </tbody>
       </table>
+
+      {detailName && (
+        <DetailSlideOver
+          title="Vital Signs"
+          subtitle={detailName}
+          onClose={() => setDetailName(null)}
+        >
+          <DocDetailView doctype="Vital Signs" name={detailName} />
+        </DetailSlideOver>
+      )}
     </div>
   )
 }

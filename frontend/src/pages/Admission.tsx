@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { AdmissionList } from '../components/admissions/AdmissionList'
 import { WarningMessagesList } from '../components/warnings/WarningMessagesList'
-import { LabTestReportsList } from '../components/labTests/LabTestReportsList'
+import { LabTestList } from '../components/labTests/LabTestList'
 import { AdmissionDetails } from '../components/admissions/AdmissionDetails'
 import { CreateAdmissionModal } from '../components/admissions/CreateAdmissionModal'
 import { NotificationBell } from '../components/notifications/NotificationBell'
@@ -91,7 +91,7 @@ export const AdmissionPage = () => {
 
             <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
               <div className="font-semibold mb-4">Lab Test Reports</div>
-              <LabTestReportsList patient={admissionPatient} pendingReview={false} />
+              <LabTestList patient={admissionPatient} />
             </section>
           </div>
 

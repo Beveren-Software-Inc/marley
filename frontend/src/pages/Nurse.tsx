@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { PatientSearch } from '../components/patients/PatientSearch'
 import { WarningMessagesList } from '../components/warnings/WarningMessagesList'
-import { LabTestReportsList } from '../components/labTests/LabTestReportsList'
+import { LabTestList } from '../components/labTests/LabTestList'
 import { ECTDetailsList } from '../components/ect/ECTDetailsList'
 import { ClinicalNotesList } from '../components/clinicalNotes/ClinicalNotesList'
 import { ObservationList } from '../components/observations/ObservationList'
@@ -24,6 +24,8 @@ import { NotificationBell } from '../components/notifications/NotificationBell'
 import { UserMenu } from '../components/user/UserMenu'
 import { ServiceRequestList } from '../components/serviceRequests/ServiceRequestList'
 import { CreateServiceRequestModal } from '../components/serviceRequests/CreateServiceRequestModal'
+import { PrescriptionList } from '../components/prescriptions/PrescriptionList'
+import { CreatePrescriptionModal } from '../components/prescriptions/CreatePrescriptionModal'
 
 const nurseNav = [
   { label: 'Admission', screen: 'n-reg' }
@@ -47,6 +49,8 @@ export const NursePage = () => {
   const [diagnosisRefreshKey, setDiagnosisRefreshKey] = useState(0)
   const [showServiceRequestModal, setShowServiceRequestModal] = useState(false)
   const [serviceRequestRefreshKey, setServiceRequestRefreshKey] = useState(0)
+  const [showPrescriptionModal, setShowPrescriptionModal] = useState(false)
+  const [prescriptionRefreshKey, setPrescriptionRefreshKey] = useState(0)
   const screen = searchParams.get('screen')
 
   // Sync selectedPatient with URL on mount and when URL changes
@@ -416,7 +420,7 @@ export const NursePage = () => {
                 </button>
               </div>
               <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                <LabTestReportsList patient={selectedPatient} pendingReview={true} key={labTestRefreshKey} />
+                <LabTestList patient={selectedPatient} defaultStatus="Pending Review" key={labTestRefreshKey} />
               </div>
             </section>
 
@@ -463,6 +467,23 @@ export const NursePage = () => {
                 />
               </div>
             </section>
+
+            {/* Card: Prescription (Patient Medication Order) */}
+            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
+              <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
+                <span>Prescription</span>
+                <button
+                  onClick={() => setShowPrescriptionModal(true)}
+                  className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
+                  title="Create Prescription"
+                >
+                  +
+                </button>
+              </div>
+              <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
+                <PrescriptionList patient={selectedPatient} refreshKey={prescriptionRefreshKey} />
+              </div>
+            </section>
           </div>
 
           <div className="px-4 pb-4">
@@ -502,10 +523,37 @@ export const NursePage = () => {
               </button>
             </div>
             <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-              <LabTestReportsList patient={undefined} pendingReview={true} key={labTestRefreshKey} />
+              <LabTestList defaultStatus="Pending Review" key={labTestRefreshKey} />
+            </div>
+          </section>
+
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
+            <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
+              <span>Prescription</span>
+              <button
+                onClick={() => setShowPrescriptionModal(true)}
+                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
+                title="Create Prescription"
+              >
+                +
+              </button>
+            </div>
+            <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
+              <PrescriptionList refreshKey={prescriptionRefreshKey} />
             </div>
           </section>
         </div>
+      )}
+
+      {showPrescriptionModal && (
+        <CreatePrescriptionModal
+          onClose={() => setShowPrescriptionModal(false)}
+          onSuccess={() => {
+            setPrescriptionRefreshKey((prev) => prev + 1)
+            setShowPrescriptionModal(false)
+          }}
+          initialPatient={selectedPatient}
+        />
       )}
 
       {showWarningModal && (

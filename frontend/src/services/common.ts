@@ -141,6 +141,16 @@ export async function fetchDocumentTypes(): Promise<{ name: string; document_nam
   return data.data
 }
 
+/** Fetch a single document by doctype and name (Frappe resource API). */
+export async function fetchDoc(doctype: string, name: string): Promise<Record<string, unknown>> {
+  const res = await fetch(
+    `/api/resource/${encodeURIComponent(doctype)}/${encodeURIComponent(name)}`
+  )
+  const data = await res.json()
+  if (data?.exception) throw new Error(data.message || 'Failed to fetch document')
+  if (!data?.data) throw new Error('Invalid response format')
+  return data.data as Record<string, unknown>
+}
 
 export interface CreateLeadSourceData {
   source_name: string
@@ -352,9 +362,9 @@ export async function fetchCostCenters(company?: string, search?: string): Promi
 export async function fetchItems(search?: string): Promise<LinkFieldOption[]> {
   const params = new URLSearchParams()
   if (search) params.append('search', search)
-  
+
   const url = `/api/method/healthcare.api.common.get_items${params.toString() ? `?${params.toString()}` : ''}`
-  
+
   const response = await fetch(url)
   const resData = await response.json()
 
@@ -363,6 +373,22 @@ export async function fetchItems(search?: string): Promise<LinkFieldOption[]> {
   } else {
     return []
   }
+}
+
+export async function fetchDosageForms(search?: string): Promise<LinkFieldOption[]> {
+  const params = new URLSearchParams()
+  if (search) params.append('search', search)
+  const res = await fetch(`/api/method/healthcare.api.common.get_dosage_forms?${params.toString()}`)
+  const data = await res.json()
+  return Array.isArray(data?.message) ? (data.message as LinkFieldOption[]) : []
+}
+
+export async function fetchPrescriptionFrequencies(search?: string): Promise<LinkFieldOption[]> {
+  const params = new URLSearchParams()
+  if (search) params.append('search', search)
+  const res = await fetch(`/api/method/healthcare.api.common.get_prescription_frequencies?${params.toString()}`)
+  const data = await res.json()
+  return Array.isArray(data?.message) ? (data.message as LinkFieldOption[]) : []
 }
 
 /** Fetch ERPNext Departments (Link to `Department`). */

@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { PatientSearch } from '../components/patients/PatientSearch'
 import { PatientSummaryCard } from '../components/patients/PatientSummaryCard'
 import { WarningMessagesList } from '../components/warnings/WarningMessagesList'
-import { LabTestReportsList } from '../components/labTests/LabTestReportsList'
+import { LabTestList } from '../components/labTests/LabTestList'
 import { ClinicalNotesList } from '../components/clinicalNotes/ClinicalNotesList'
 import { DischargeList } from '../components/discharges/DischargeList'
 import { MedicalHistoryView } from '../components/medicalHistory/MedicalHistoryView'
@@ -223,7 +223,7 @@ export const PatientHistoryPage = () => {
             <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[420px]">
               <div className="font-semibold mb-4 flex-shrink-0">Lab Test Reports</div>
               <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                <LabTestReportsList patient={selectedPatient} />
+                <LabTestList patient={selectedPatient} />
               </div>
             </section>
 

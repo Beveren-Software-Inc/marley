@@ -74,6 +74,8 @@
   "service_request",
   "invoiced",
   "reviewed_by",
+  "doctors_remarks_section",
+  "remarks",
   "section_break_50",
   "email_sent",
   "sms_sent",
@@ -674,6 +676,18 @@
    "fieldtype": "Link",
    "label": "Reviewed By",
    "options": "User"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "doctors_remarks_section",
+   "fieldtype": "Section Break",
+   "label": "Doctors Remarks"
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "remarks",
+   "fieldtype": "Small Text",
+   "label": "Remarks"
   }
  ],
  "is_submittable": 1,
@@ -683,7 +697,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2026-02-18 23:35:23.489739",
+ "modified": "2026-02-23 14:16:12.172047",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Lab Test",

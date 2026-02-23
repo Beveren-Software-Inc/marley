@@ -1,4 +1,7 @@
+import { useState } from 'react'
 import { useWarningMessages } from '../../hooks/useWarningMessages'
+import { DetailSlideOver } from '../ui/DetailSlideOver'
+import { DocDetailView } from '../ui/DocDetailView'
 
 // Helper function to strip HTML tags and clean text
 const stripHtml = (html: string | undefined): string => {
@@ -15,6 +18,7 @@ const stripHtml = (html: string | undefined): string => {
 
 export const WarningMessagesList = ({ patient }: { patient?: string }) => {
   const { warnings, loading, error, refetch } = useWarningMessages(patient)
+  const [detailName, setDetailName] = useState<string | null>(null)
 
   if (loading) {
     return (
@@ -74,8 +78,11 @@ export const WarningMessagesList = ({ patient }: { patient?: string }) => {
         <tbody className="divide-y divide-slate-200">
           {warnings.map((warning) => (
             <tr key={warning.name} className="hover:bg-slate-50">
-              <td className="px-4 py-3 text-sm">
-                <div className="font-medium text-slate-900">
+              <td
+                className="px-4 py-3 text-sm cursor-pointer"
+                onClick={() => setDetailName(warning.name)}
+              >
+                <div className="font-medium text-primary hover:underline">
                   {warning.patient_name || warning.patient}
                 </div>
                 {warning.gender && (
@@ -109,6 +116,16 @@ export const WarningMessagesList = ({ patient }: { patient?: string }) => {
           ))}
         </tbody>
       </table>
+
+      {detailName && (
+        <DetailSlideOver
+          title="Warning Message"
+          subtitle={detailName}
+          onClose={() => setDetailName(null)}
+        >
+          <DocDetailView doctype="Warning Message" name={detailName} onUpdate={refetch} />
+        </DetailSlideOver>
+      )}
     </div>
   )
 }

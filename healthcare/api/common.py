@@ -483,6 +483,38 @@ def create_healthcare_practitioner(data):
 
 
 @frappe.whitelist()
+def get_dosage_forms(search=None):
+	"""Get list of Dosage Form for prescription medication rows."""
+	filters = {}
+	if search:
+		filters["name"] = ["like", f"%{search}%"]
+	items = frappe.get_all(
+		"Dosage Form",
+		filters=filters,
+		fields=["name"],
+		order_by="name asc",
+		limit=50,
+	)
+	return [{"name": d.name, "label": d.name} for d in items]
+
+
+@frappe.whitelist()
+def get_prescription_frequencies(search=None):
+	"""Get list of Prescription Frequency for medication rows."""
+	filters = {}
+	if search:
+		filters["name"] = ["like", f"%{search}%"]
+	items = frappe.get_all(
+		"Prescription Frequency",
+		filters=filters,
+		fields=["name"],
+		order_by="name asc",
+		limit=50,
+	)
+	return [{"name": p.name, "label": p.name} for p in items]
+
+
+@frappe.whitelist()
 def get_companies(search=None):
 	"""Get list of Companies"""
 

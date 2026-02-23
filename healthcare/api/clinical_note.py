@@ -34,7 +34,7 @@ def get_clinical_notes(limit=50, offset=0, patient=None, medical_role=None, clin
 			'practitioner',
 			'user',
 			'clinical_note_type',
-			'note_type',
+			# 'note_type',
 			'medical_role',
 			'note',
 			'reference_doc',

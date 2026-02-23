@@ -9,6 +9,8 @@ import {
   type Appointment
 } from '../../services/appointments'
 import { StatusPill } from '../ui/StatusPill'
+import { DetailSlideOver } from '../ui/DetailSlideOver'
+import { DocDetailView } from '../ui/DocDetailView'
 import { RescheduleAppointmentModal } from './RescheduleAppointmentModal'
 import { toast } from '../../hooks/useToast'
 
@@ -49,6 +51,7 @@ export const AppointmentList = ({ refreshKey, showAll = false, patient }: Appoin
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
   const [rescheduleAppointment, setRescheduleAppointment] = useState<Appointment | null>(null)
+  const [detailName, setDetailName] = useState<string | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
 
   // Filters
@@ -337,7 +340,12 @@ export const AppointmentList = ({ refreshKey, showAll = false, patient }: Appoin
             <tbody className="divide-y divide-slate-200">
               {filtered.map((apt) => (
                 <tr key={apt.name} className="hover:bg-slate-50">
-                  <td className="px-4 py-3 text-sm font-medium text-slate-900">{apt.name}</td>
+                  <td
+                    className="px-4 py-3 text-sm font-medium text-primary cursor-pointer hover:underline"
+                    onClick={() => setDetailName(apt.name)}
+                  >
+                    {apt.name}
+                  </td>
                   <td className="px-4 py-3 text-sm text-slate-700">{apt.patient_name || apt.patient || '-'}</td>
                   {showAll && (
                     <td className="px-4 py-3 text-sm text-slate-700">{apt.practitioner_name || apt.practitioner || '-'}</td>
@@ -430,6 +438,16 @@ export const AppointmentList = ({ refreshKey, showAll = false, patient }: Appoin
           onClose={() => setRescheduleAppointment(null)}
           onSuccess={() => setRefreshTrigger((t) => t + 1)}
         />
+      )}
+
+      {detailName && (
+        <DetailSlideOver
+          title="Appointment"
+          subtitle={detailName}
+          onClose={() => setDetailName(null)}
+        >
+          <DocDetailView doctype="Patient Appointment" name={detailName} />
+        </DetailSlideOver>
       )}
     </>
   )

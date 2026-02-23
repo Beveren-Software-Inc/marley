@@ -8,6 +8,8 @@ import {
   type PatientFollowUpRow,
 } from '../../services/followUp'
 import { toast } from '../../hooks/useToast'
+import { DetailSlideOver } from '../ui/DetailSlideOver'
+import { DocDetailView } from '../ui/DocDetailView'
 
 const STATUS_OPTIONS = [
   { value: 'Open', label: 'Open' },
@@ -39,6 +41,7 @@ export const FollowUpList = ({ refreshKey }: FollowUpListProps) => {
   const [sendingBulk, setSendingBulk] = useState(false)
   const [openActionRow, setOpenActionRow] = useState<string | null>(null)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [detailName, setDetailName] = useState<string | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
 
   const loadList = useCallback(async () => {
@@ -189,8 +192,11 @@ export const FollowUpList = ({ refreshKey }: FollowUpListProps) => {
               <tbody className="divide-y divide-slate-200">
                 {list.map((row) => (
                   <tr key={row.name} className="hover:bg-slate-50">
-                    <td className="px-4 py-2">
-                      <span className="font-medium text-slate-900">{row.patient_name || row.patient}</span>
+                    <td
+                      className="px-4 py-2 cursor-pointer"
+                      onClick={() => setDetailName(row.name)}
+                    >
+                      <span className="font-medium text-primary hover:underline">{row.patient_name || row.patient}</span>
                     </td>
                     <td className="px-4 py-2 text-slate-600">{row.follow_up_type}</td>
                     <td className="px-4 py-2 text-slate-600">{row.follow_up_date}</td>
@@ -276,6 +282,16 @@ export const FollowUpList = ({ refreshKey }: FollowUpListProps) => {
           </div>
         )}
       </div>
+
+      {detailName && (
+        <DetailSlideOver
+          title="Patient Follow Up"
+          subtitle={detailName}
+          onClose={() => setDetailName(null)}
+        >
+          <DocDetailView doctype="Patient Follow Up" name={detailName} />
+        </DetailSlideOver>
+      )}
     </div>
   )
 }

@@ -75,7 +75,6 @@ export const RoleGuard = ({ roles, children }: Props) => {
     
     if (isAdmin) {
       // Admin and System Manager users can access all pages
-      console.log(`User ${userName} has admin/system manager access (role: ${user.role}, role_profile: ${user.role_profile_name})`)
       return <>{children}</>
     }
     
