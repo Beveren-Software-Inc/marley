@@ -2,10 +2,11 @@
 # Copyright (c) 2025, Healthcare and contributors
 # For license information, please see license.txt
 
-import json
-import re
+
 import frappe
+import re
 from frappe import _
+from frappe.utils import cint
 
 try:
 	from erpnext import get_default_currency
@@ -282,12 +283,6 @@ def get_service_units(service_unit_type=None, occupancy_status=None, search=None
 	return units
 
 
-import frappe
-import json
-import re
-from frappe import _
-from frappe.utils import cint
-
 
 @frappe.whitelist()
 def create_and_submit_discharge(admission_name, discharge_data):
@@ -312,13 +307,11 @@ def create_and_submit_discharge(admission_name, discharge_data):
 				)
 			)
 
-		# Create mapped discharge
 		from healthcare.healthcare.doctype.inpatient_admission.inpatient_admission import (
 			create_discharge_from_inpatient_admission,
 		)
 		discharge_doc = create_discharge_from_inpatient_admission(admission_name)
 
-		# Update scalar fields — skip all child tables
 		CHILD_TABLES = {"patient_documents", "patient_document", "discharge_checklist"}
 
 		for key, value in discharge_data.items():
@@ -327,7 +320,6 @@ def create_and_submit_discharge(admission_name, discharge_data):
 			if hasattr(discharge_doc, key) and value not in (None, ""):
 				discharge_doc.set(key, value)
 
-		# Handle discharge_checklist child table
 		checklist = frappe.parse_json(discharge_data.get("discharge_checklist") or [])
 		if isinstance(checklist, list) and checklist:
 			discharge_doc.set("discharge_checklist", [])
@@ -359,7 +351,6 @@ def create_and_submit_discharge(admission_name, discharge_data):
 					continue
 				discharge_doc.append("patient_documents", {
 					"idx": idx,
-					# "document_name": (row.get("file_name") or "").strip() or None,
 					"file_name": (row.get("document_type") or "").strip() or None,
 					"document_type": (row.get("document_type") or "").strip() or None,
 					"transaction_no": (row.get("transaction_no") or "").strip() or None,
@@ -367,7 +358,6 @@ def create_and_submit_discharge(admission_name, discharge_data):
 					"document": (row.get("document") or "").strip() or None,
 				})
 
-		# Save + Submit
 		discharge_doc.save(ignore_permissions=True)
 		if cint(discharge_doc.docstatus) == 0:
 			discharge_doc.submit()

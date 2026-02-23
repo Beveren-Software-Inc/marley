@@ -558,7 +558,7 @@
   {
    "fieldname": "id_number",
    "fieldtype": "Data",
-   "label": "ID Number"
+   "label": "CPR/Passport/ID Number"
   },
   {
    "fieldname": "section_break_zota",
@@ -885,7 +885,7 @@
   }
  ],
  "max_attachments": 50,
- "modified": "2026-02-22 10:59:09.945566",
+ "modified": "2026-02-23 10:44:54.417242",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient",
