@@ -391,6 +391,82 @@ export async function fetchPrescriptionFrequencies(search?: string): Promise<Lin
   return Array.isArray(data?.message) ? (data.message as LinkFieldOption[]) : []
 }
 
+export async function fetchDiagnosis(search?: string): Promise<LinkFieldOption[]> {
+  const params = new URLSearchParams()
+  if (search) params.append('search', search)
+  const res = await fetch(`/api/method/healthcare.api.common.get_diagnosis?${params.toString()}`)
+  const data = await res.json()
+  return Array.isArray(data?.message) ? (data.message as LinkFieldOption[]) : []
+}
+
+export async function fetchComplaints(search?: string): Promise<LinkFieldOption[]> {
+  const params = new URLSearchParams()
+  if (search) params.append('search', search)
+  const res = await fetch(`/api/method/healthcare.api.common.get_complaints?${params.toString()}`)
+  const data = await res.json()
+  return Array.isArray(data?.message) ? (data.message as LinkFieldOption[]) : []
+}
+
+export async function createDiagnosis(diagnosis: string): Promise<string> {
+  const res = await fetch('/api/method/healthcare.api.common.create_diagnosis', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ diagnosis: diagnosis.trim() }),
+  })
+  const data = await res.json()
+  if (data?.exc_type) throw new Error(data?.message || 'Failed to create diagnosis')
+  return (data?.message as string) || diagnosis.trim()
+}
+
+export async function createComplaint(complaints: string): Promise<string> {
+  const res = await fetch('/api/method/healthcare.api.common.create_complaint', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ complaints: complaints.trim() }),
+  })
+  const data = await res.json()
+  if (data?.exc_type) throw new Error(data?.message || 'Failed to create complaint')
+  return (data?.message as string) || complaints.trim()
+}
+
+export interface EncounterDiagnosisSymptoms {
+  diagnosis: { name: string; label?: string }[]
+  symptoms: { name: string; label?: string }[]
+}
+
+export async function getEncounterDiagnosisSymptoms(
+  parentDoctype: string,
+  parentName: string
+): Promise<EncounterDiagnosisSymptoms> {
+  const params = new URLSearchParams()
+  params.append('parent_doctype', parentDoctype)
+  params.append('parent_name', parentName)
+  const res = await fetch(`/api/method/healthcare.api.encounter_diagnosis.get_encounter_diagnosis_symptoms?${params.toString()}`)
+  const data = await res.json()
+  if (data?.exc_type) throw new Error(data?.message || 'Failed to load')
+  return (data?.message || { diagnosis: [], symptoms: [] }) as EncounterDiagnosisSymptoms
+}
+
+export async function updateEncounterDiagnosisSymptoms(
+  parentDoctype: string,
+  parentName: string,
+  diagnosis: { name: string }[],
+  symptoms: { name: string }[]
+): Promise<void> {
+  const res = await fetch('/api/method/healthcare.api.encounter_diagnosis.update_encounter_diagnosis_symptoms', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      parent_doctype: parentDoctype,
+      parent_name: parentName,
+      diagnosis,
+      symptoms,
+    }),
+  })
+  const data = await res.json()
+  if (data?.exc_type) throw new Error(data?.message || 'Failed to save')
+}
+
 /** Fetch ERPNext Departments (Link to `Department`). */
 export async function fetchDepartments(search?: string): Promise<LinkFieldOption[]> {
   const params = new URLSearchParams()

@@ -26,6 +26,7 @@ import { ServiceRequestList } from '../components/serviceRequests/ServiceRequest
 import { CreateServiceRequestModal } from '../components/serviceRequests/CreateServiceRequestModal'
 import { PrescriptionList } from '../components/prescriptions/PrescriptionList'
 import { CreatePrescriptionModal } from '../components/prescriptions/CreatePrescriptionModal'
+import { DiagnosisSymptomsScreen } from '../components/diagnosis/DiagnosisSymptomsScreen'
 
 const nurseNav = [
   { label: 'Admission', screen: 'n-reg' }
@@ -319,6 +320,16 @@ export const NursePage = () => {
           />
         )}
       </div>
+    )
+  }
+
+  // Show Diagnosis & Symptoms (from left sidebar "Diagnoses" -> screen=n-dx)
+  if (screen === 'n-dx') {
+    return (
+      <DiagnosisSymptomsScreen
+        selectedPatient={selectedPatient || ''}
+        onPatientSelect={handlePatientSelect}
+      />
     )
   }
 

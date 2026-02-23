@@ -30,6 +30,9 @@ import { AppointmentList } from '../components/appointments/AppointmentList'
 import { CreateAppointmentModal } from '../components/appointments/CreateAppointmentModal'
 import { PrescriptionList } from '../components/prescriptions/PrescriptionList'
 import { CreatePrescriptionModal } from '../components/prescriptions/CreatePrescriptionModal'
+import { PatientVisitList } from '../components/patientVisits/PatientVisitList'
+import { AdmissionList } from '../components/admissions/AdmissionList'
+import { DiagnosisSymptomsScreen } from '../components/diagnosis/DiagnosisSymptomsScreen'
 
 const doctorNav = [
   { label: 'Admission', screen: 'admission' },
@@ -510,6 +513,16 @@ export const DoctorPage = () => {
     )
   }
 
+  // Show Diagnosis & Symptoms (from left sidebar "Diagnoses" -> screen=dx)
+  if (screen === 'dx') {
+    return (
+      <DiagnosisSymptomsScreen
+        selectedPatient={selectedPatient || ''}
+        onPatientSelect={handlePatientSelect}
+      />
+    )
+  }
+
   // Show Discharge Form (list of discharges with + button)
   if (screen === 'df') {
     return (
@@ -694,6 +707,28 @@ export const DoctorPage = () => {
               </div>
               <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
                 <PrescriptionList patient={selectedPatient} refreshKey={prescriptionRefreshKey} />
+              </div>
+            </section>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2 px-4 pb-4">
+            {/* Card: Patient Visits */}
+            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
+              <div className="font-semibold mb-4 flex-shrink-0">
+                <span>Patient Visits</span>
+              </div>
+              <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
+                <PatientVisitList patient={selectedPatient} />
+              </div>
+            </section>
+
+            {/* Card: Admissions */}
+            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
+              <div className="font-semibold mb-4 flex-shrink-0">
+                <span>Admissions</span>
+              </div>
+              <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
+                <AdmissionList patient={selectedPatient} />
               </div>
             </section>
           </div>

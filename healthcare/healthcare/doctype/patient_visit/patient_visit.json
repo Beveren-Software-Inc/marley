@@ -297,6 +297,7 @@
    "label": "Encounter Impression"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "symptoms",
    "fieldtype": "Table MultiSelect",
    "ignore_xss_filter": 1,
@@ -325,6 +326,7 @@
    "fieldtype": "Column Break"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "diagnosis",
    "fieldtype": "Table MultiSelect",
    "ignore_xss_filter": 1,
@@ -575,7 +577,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2026-02-22 12:40:11.060414",
+ "modified": "2026-02-23 17:38:16.869558",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Visit",
