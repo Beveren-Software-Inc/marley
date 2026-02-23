@@ -138,9 +138,11 @@ export const PatientSearch = ({ selectedPatient, onPatientSelect }: PatientSearc
                       }}
                     >
                       <div className="font-medium">{patient.patient_name || patient.name}</div>
-                      {patient.mobile && (
-                        <div className="text-xs text-slate-500">{patient.mobile}</div>
-                      )}
+                      <div className="text-xs text-slate-500 flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
+                        {patient.file_number && <span>File: {patient.file_number}</span>}
+                        {patient.id_number && <span>ID: {patient.id_number}</span>}
+                        {patient.mobile && <span>{patient.mobile}</span>}
+                      </div>
                     </button>
                   ))
                 ) : (
@@ -175,8 +177,4 @@ export const PatientSearch = ({ selectedPatient, onPatientSelect }: PatientSearc
     </>
   )
 }
-
-
-
-
 

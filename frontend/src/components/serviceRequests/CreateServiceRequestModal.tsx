@@ -262,7 +262,11 @@ export const CreateServiceRequestModal = ({
                         setPatientOpen(false)
                       }}
                     >
-                      {p.patient_name || p.name}
+                      <div className="font-medium">{p.patient_name || p.name}</div>
+                      <div className="text-xs text-slate-500 flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
+                        {p.file_number && <span>File: {p.file_number}</span>}
+                        {p.id_number && <span>ID: {p.id_number}</span>}
+                      </div>
                     </button>
                   ))
                 ) : (

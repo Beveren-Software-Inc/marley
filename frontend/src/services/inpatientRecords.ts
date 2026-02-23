@@ -352,11 +352,19 @@ export async function checkAdmissionQuotation(
   return { exists: false }
 }
 
+
 export async function admitPatient(
   inpatientRecordName: string,
   serviceUnit: string,
   checkIn: string,
-  expectedDischarge?: string
+  expectedDischarge?: string,
+  patientDocuments?: {
+    file_name?: string
+    document_type?: string
+    transaction_no?: string
+    upload_remarks?: string
+    document?: string
+  }[]
 ) {
   const { ensureCSRF } = await import('./apiClient')
   const csrf = await ensureCSRF()
@@ -374,11 +382,14 @@ export async function admitPatient(
         name: inpatientRecordName,
         service_unit: serviceUnit,
         check_in: checkIn,
-        expected_discharge: expectedDischarge || null
+        expected_discharge: expectedDischarge || null,
+        patient_documents: patientDocuments && patientDocuments.length > 0
+          ? patientDocuments
+          : null
       })
     }
   )
-  
+
   const resData = await response.json()
 
   if (!response.ok) {
@@ -388,7 +399,7 @@ export async function admitPatient(
   if (resData?.message) {
     return resData.message
   }
-  
+
   return resData
 }
 
