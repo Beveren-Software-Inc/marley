@@ -95,7 +95,7 @@ interface DocDetailViewProps {
   onUpdate?: () => void
 }
 
-export function DocDetailView({ doctype, name, onUpdate }: DocDetailViewProps) {
+export function DocDetailView({ doctype, name }: DocDetailViewProps) {
   const [doc, setDoc] = useState<Record<string, unknown> | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
