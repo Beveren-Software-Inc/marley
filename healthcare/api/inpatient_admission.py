@@ -47,16 +47,34 @@ def get_patient_active_admission(patient):
 
 
 @frappe.whitelist()
-def get_inpatient_records(status=None, search=None, patient=None):
-	"""Get list of Inpatient Admissions with optional status, search, and patient filter"""
-	filters = {}
-	if status:
-		filters['status'] = status
-	if patient:
-		filters['patient'] = patient
+def get_inpatient_records(status=None, search=None, patient=None, practitioner=None, from_date=None, to_date=None):
+	"""Get list of Inpatient Admissions with optional status, search, patient, practitioner and date filters"""
+	# Use SQL path when we have search, practitioner or date filters (avoids get_all OR filter format issues)
+	use_sql = bool(search or practitioner or from_date or to_date)
 
-	if search:
-		# Search by admission number, patient name, or file number
+	if use_sql:
+		conditions = ["1=1"]
+		params = {}
+		if patient:
+			conditions.append("ia.patient = %(patient)s")
+			params['patient'] = patient
+		if status:
+			conditions.append("ia.status = %(status)s")
+			params['status'] = status
+		if search:
+			conditions.append("(ia.name LIKE %(search)s OR ia.patient_name LIKE %(search)s OR ia.patient LIKE %(search)s OR p.file_no LIKE %(search)s)")
+			params['search'] = f'%{search}%'
+		if practitioner:
+			conditions.append("(ia.primary_practitioner = %(practitioner)s OR ia.secondary_practitioner = %(practitioner)s)")
+			params['practitioner'] = practitioner
+		if from_date:
+			conditions.append("ia.scheduled_date >= %(from_date)s")
+			params['from_date'] = from_date
+		if to_date:
+			conditions.append("ia.scheduled_date <= %(to_date)s")
+			params['to_date'] = to_date
+
+		where_sql = " AND ".join(conditions)
 		records = frappe.db.sql("""
 			SELECT 
 				ia.name,
@@ -74,26 +92,17 @@ def get_inpatient_records(status=None, search=None, patient=None):
 				ia.expected_length_of_stay
 			FROM `tabInpatient Admission` ia
 			LEFT JOIN `tabPatient` p ON ia.patient = p.name
-			WHERE 
-				(%(patient)s IS NULL OR ia.patient = %(patient)s)
-				AND (
-					ia.name LIKE %(search)s
-					OR ia.patient_name LIKE %(search)s
-					OR ia.patient LIKE %(search)s
-					OR p.file_no LIKE %(search)s
-				)
-		""", {
-			'search': f'%{search}%',
-			'patient': patient
-		}, as_dict=True)
-		
-		# Apply status filter if provided
-		if status:
-			records = [r for r in records if r.status == status]
-		
-		# Sort by scheduled_date desc
+			WHERE """ + where_sql,
+			params,
+			as_dict=True
+		)
 		records.sort(key=lambda x: x.scheduled_date or '', reverse=True)
 	else:
+		filters = {}
+		if status:
+			filters['status'] = status
+		if patient:
+			filters['patient'] = patient
 		records = frappe.get_all(
 			'Inpatient Admission',
 			filters=filters,

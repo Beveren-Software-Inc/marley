@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useInpatientRecords } from '../../hooks/useInpatientRecords'
+import { fetchInpatientRecords } from '../../services/inpatientRecords'
+import { fetchHealthcarePractitioners, type LinkFieldOption } from '../../services/common'
 import { StatusPill } from '../ui/StatusPill'
 import { PackageSelectionModal } from './PackageSelectionModal'
 import { AdmissionFormModal } from './AdmissionFormModal'
@@ -37,6 +39,23 @@ export const AdmissionList = ({ onAdmissionSelect, searchQuery: externalSearchQu
   const [showTransferCostCenter, setShowTransferCostCenter] = useState(false)
   const [selectedAdmissionForTransfer, setSelectedAdmissionForTransfer] = useState<InpatientRecord | null>(null)
 
+  // --- Filter: Admission No (searchable dropdown) ---
+  const [admissionNoQuery, setAdmissionNoQuery] = useState('')
+  const [admissionOptions, setAdmissionOptions] = useState<{ value: string; label: string }[]>([])
+  const [admissionOpen, setAdmissionOpen] = useState(false)
+  const [selectedAdmissionOpt, setSelectedAdmissionOpt] = useState<{ value: string; label: string } | null>(null)
+  const [admissionNoFilter, setAdmissionNoFilter] = useState('')
+
+  // --- Filter: Practitioner (searchable dropdown) ---
+  const [practitionerQuery, setPractitionerQuery] = useState('')
+  const [practitionerOptions, setPractitionerOptions] = useState<LinkFieldOption[]>([])
+  const [practitionerOpen, setPractitionerOpen] = useState(false)
+  const [selectedPractitioner, setSelectedPractitioner] = useState<LinkFieldOption | null>(null)
+  const [practitionerFilter, setPractitionerFilter] = useState('')
+
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+
   // Actions dropdown (three-dot menu) — one row open at a time
   const [openActionRow, setOpenActionRow] = useState<string | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -46,9 +65,42 @@ export const AdmissionList = ({ onAdmissionSelect, searchQuery: externalSearchQu
 
   const { records, loading, error, refetch } = useInpatientRecords(
     selectedStatus || undefined,
-    externalSearchQuery || undefined,
-    patient
+    admissionNoFilter || externalSearchQuery || undefined,
+    patient,
+    practitionerFilter || undefined,
+    dateFrom || undefined,
+    dateTo || undefined
   )
+
+  // --- Admission No: debounced search when dropdown is open ---
+  useEffect(() => {
+    if (!admissionOpen) return
+    const t = setTimeout(async () => {
+      try {
+        const results = await fetchInpatientRecords(undefined, admissionNoQuery || undefined, patient, undefined, undefined, undefined)
+        setAdmissionOptions(results.slice(0, 30).map(r => ({ value: r.name, label: `${r.name} - ${r.patient_name || r.patient || ''}` })))
+      } catch (err) {
+        console.error('Failed to load admission options', err)
+        setAdmissionOptions([])
+      }
+    }, admissionNoQuery.trim() === '' ? 0 : 300)
+    return () => clearTimeout(t)
+  }, [admissionNoQuery, admissionOpen, patient])
+
+  // --- Practitioner: debounced search when dropdown is open ---
+  useEffect(() => {
+    if (!practitionerOpen) return
+    const t = setTimeout(async () => {
+      try {
+        const options = await fetchHealthcarePractitioners(practitionerQuery || undefined)
+        setPractitionerOptions(options)
+      } catch (err) {
+        console.error('Failed to load practitioners', err)
+        setPractitionerOptions([])
+      }
+    }, practitionerQuery.trim() === '' ? 0 : 300)
+    return () => clearTimeout(t)
+  }, [practitionerQuery, practitionerOpen])
 
   useEffect(() => {
     if (refreshKey !== undefined) refetch()
@@ -107,6 +159,11 @@ export const AdmissionList = ({ onAdmissionSelect, searchQuery: externalSearchQu
     refetch()
   }
 
+  const handlePrintAdmission = (admissionName: string) => {
+    const url = `/printview?doctype=Inpatient+Admission&name=${encodeURIComponent(admissionName)}&trigger_print=1&format=Standard&no_letterhead=0`
+    window.open(url, '_blank')
+  }
+
   // Close actions dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -118,7 +175,47 @@ export const AdmissionList = ({ onAdmissionSelect, searchQuery: externalSearchQu
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
+  // Close filter dropdowns on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest('[data-filter-dropdown]')) {
+        setAdmissionOpen(false)
+        setPractitionerOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const handleAdmissionNoSelect = (opt: { value: string; label: string }) => {
+    setSelectedAdmissionOpt(opt)
+    setAdmissionNoFilter(opt.value)
+    setAdmissionNoQuery('')
+    setAdmissionOpen(false)
+  }
+
+  const handlePractitionerSelect = (opt: LinkFieldOption) => {
+    setSelectedPractitioner(opt)
+    setPractitionerFilter(opt.name)
+    setPractitionerQuery('')
+    setPractitionerOpen(false)
+  }
+
+  const handleClearFilters = () => {
+    setAdmissionNoFilter('')
+    setAdmissionNoQuery('')
+    setSelectedAdmissionOpt(null)
+    setPractitionerFilter('')
+    setPractitionerQuery('')
+    setSelectedPractitioner(null)
+    setDateFrom('')
+    setDateTo('')
+    setSelectedStatus('')
+  }
+
   const statuses = ['Admission Scheduled', 'Admitted', 'Discharge Scheduled', 'Discharged', 'Cancelled']
+  const hasActiveFilters = admissionNoFilter || practitionerFilter || dateFrom || dateTo || selectedStatus
+  const inputClass = 'w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white'
 
   if (loading) {
     return (
@@ -148,27 +245,121 @@ export const AdmissionList = ({ onAdmissionSelect, searchQuery: externalSearchQu
   return (
     <>
       <div className="space-y-4">
-        {/* Status Filter */}
-        <div className="flex gap-2 flex-wrap">
-          <button
-            onClick={() => setSelectedStatus('')}
-            className={`px-4 py-2 rounded-md text-sm font-medium ${
-              selectedStatus === '' ? 'bg-primary text-white' : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-50'
-            }`}
-          >
-            All
-          </button>
-          {statuses.map((status) => (
-            <button
-              key={status}
-              onClick={() => setSelectedStatus(status)}
-              className={`px-4 py-2 rounded-md text-sm font-medium ${
-                selectedStatus === status ? 'bg-primary text-white' : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-50'
-              }`}
+        {/* Filters — same layout as Patient Visit List */}
+        <div className="flex flex-wrap gap-3 mb-4 items-end">
+          {/* Admission No — searchable dropdown */}
+          <div data-filter-dropdown className="relative">
+            <label className="block text-xs font-medium text-slate-600 mb-1">Admission No</label>
+            <input
+              type="text"
+              value={selectedAdmissionOpt ? selectedAdmissionOpt.value : admissionNoQuery}
+              onChange={e => {
+                setAdmissionNoQuery(e.target.value)
+                setSelectedAdmissionOpt(null)
+                setAdmissionNoFilter('')
+                setAdmissionOpen(true)
+              }}
+              onFocus={() => setAdmissionOpen(true)}
+              placeholder="Search admission..."
+              className={`${inputClass} w-44`}
+            />
+            {admissionOpen && admissionOptions.length > 0 && (
+              <div className="absolute z-20 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                {admissionOptions.map(opt => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => handleAdmissionNoSelect(opt)}
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 focus:bg-slate-100 focus:outline-none"
+                  >
+                    <div className="font-medium text-slate-800">{opt.value}</div>
+                    {opt.label !== opt.value && (
+                      <div className="text-xs text-slate-500 truncate">{opt.label}</div>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Practitioner — searchable dropdown */}
+          <div data-filter-dropdown className="relative">
+            <label className="block text-xs font-medium text-slate-600 mb-1">Practitioner</label>
+            <input
+              type="text"
+              value={selectedPractitioner ? selectedPractitioner.label : practitionerQuery}
+              onChange={e => {
+                setPractitionerQuery(e.target.value)
+                setSelectedPractitioner(null)
+                setPractitionerFilter('')
+                setPractitionerOpen(true)
+              }}
+              onFocus={() => setPractitionerOpen(true)}
+              placeholder="Search practitioner..."
+              className={`${inputClass} w-48`}
+            />
+            {practitionerOpen && practitionerOptions.length > 0 && (
+              <div className="absolute z-20 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                {practitionerOptions.map(opt => (
+                  <button
+                    key={opt.name}
+                    type="button"
+                    onClick={() => handlePractitionerSelect(opt)}
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 focus:bg-slate-100 focus:outline-none"
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Date From */}
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">From</label>
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={e => setDateFrom(e.target.value)}
+              className={inputClass}
+            />
+          </div>
+
+          {/* Date To */}
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">To</label>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={e => setDateTo(e.target.value)}
+              className={inputClass}
+            />
+          </div>
+
+          {/* Status — dropdown */}
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Status</label>
+            <select
+              value={selectedStatus}
+              onChange={e => setSelectedStatus(e.target.value)}
+              className={inputClass}
             >
-              {status}
-            </button>
-          ))}
+              <option value="">All</option>
+              {statuses.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+
+          {hasActiveFilters && (
+            <div className="flex items-end">
+              <button
+                type="button"
+                onClick={handleClearFilters}
+                className="px-3 py-2 text-sm text-slate-500 border border-slate-300 rounded-md hover:bg-slate-50 hover:text-slate-700 transition-colors"
+              >
+                Clear filters
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Records Table */}
@@ -189,7 +380,7 @@ export const AdmissionList = ({ onAdmissionSelect, searchQuery: externalSearchQu
               {records.length === 0 ? (
                 <tr>
                   <td colSpan={onAdmissionSelect ? 5 : 4} className="px-4 py-8 text-center text-slate-500">
-                    {externalSearchQuery ? 'No admissions match your search.' : 'No admissions found'}
+                    {hasActiveFilters ? 'No admissions match your filters.' : 'No admissions found'}
                   </td>
                 </tr>
               ) : (
@@ -223,18 +414,19 @@ export const AdmissionList = ({ onAdmissionSelect, searchQuery: externalSearchQu
 
                     {onAdmissionSelect && (
                       <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                        <div className="relative inline-block" ref={openActionRow === record.name ? menuRef : undefined}>
-                          <button
-                            type="button"
-                            onClick={() => setOpenActionRow((prev) => (prev === record.name ? null : record.name))}
-                            className="inline-flex items-center justify-center w-8 h-8 rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50"
-                            aria-label="Actions"
-                          >
-                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                              <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
-                            </svg>
-                          </button>
-                          {openActionRow === record.name && (
+                        <div className="flex items-center gap-1.5">
+                          <div className="relative inline-block" ref={openActionRow === record.name ? menuRef : undefined}>
+                            <button
+                              type="button"
+                              onClick={() => setOpenActionRow((prev) => (prev === record.name ? null : record.name))}
+                              className="inline-flex items-center justify-center w-8 h-8 rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                              aria-label="Actions"
+                            >
+                              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+                              </svg>
+                            </button>
+                            {openActionRow === record.name && (
                             <div className="absolute right-0 top-full mt-1 z-10 min-w-[200px] rounded-md border border-slate-200 bg-white py-1 shadow-lg">
                               {record.status === 'Admission Scheduled' && (
                                 <button
@@ -274,6 +466,18 @@ export const AdmissionList = ({ onAdmissionSelect, searchQuery: externalSearchQu
                               )}
                             </div>
                           )}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handlePrintAdmission(record.name)}
+                            className="inline-flex items-center justify-center w-8 h-8 rounded border border-slate-300 bg-white text-primary hover:bg-slate-50 hover:text-slate-800 transition-colors"
+                            aria-label="Print"
+                            title="Print"
+                          >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                            </svg>
+                          </button>
                         </div>
                       </td>
                     )}
