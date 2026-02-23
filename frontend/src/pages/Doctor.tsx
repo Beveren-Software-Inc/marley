@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { PatientSearch } from '../components/patients/PatientSearch'
 import { WarningMessagesList } from '../components/warnings/WarningMessagesList'
-import { LabTestReportsList } from '../components/labTests/LabTestReportsList'
 import { LabTestList } from '../components/labTests/LabTestList'
 import { ECTDetailsList } from '../components/ect/ECTDetailsList'
 import { ClinicalNotesList } from '../components/clinicalNotes/ClinicalNotesList'
@@ -29,6 +28,11 @@ import { ServiceRequestList } from '../components/serviceRequests/ServiceRequest
 import { CreateServiceRequestModal } from '../components/serviceRequests/CreateServiceRequestModal'
 import { AppointmentList } from '../components/appointments/AppointmentList'
 import { CreateAppointmentModal } from '../components/appointments/CreateAppointmentModal'
+import { PrescriptionList } from '../components/prescriptions/PrescriptionList'
+import { CreatePrescriptionModal } from '../components/prescriptions/CreatePrescriptionModal'
+import { PatientVisitList } from '../components/patientVisits/PatientVisitList'
+import { AdmissionList } from '../components/admissions/AdmissionList'
+import { DiagnosisSymptomsScreen } from '../components/diagnosis/DiagnosisSymptomsScreen'
 
 const doctorNav = [
   { label: 'Admission', screen: 'admission' },
@@ -56,6 +60,8 @@ export const DoctorPage = () => {
   const [serviceRequestRefreshKey, setServiceRequestRefreshKey] = useState(0)
   const [showAppointmentModal, setShowAppointmentModal] = useState(false)
   const [appointmentRefreshKey, setAppointmentRefreshKey] = useState(0)
+  const [showPrescriptionModal, setShowPrescriptionModal] = useState(false)
+  const [prescriptionRefreshKey, setPrescriptionRefreshKey] = useState(0)
   const screen = searchParams.get('screen')
 
   // Sync selectedPatient with URL on mount and when URL changes
@@ -256,7 +262,7 @@ export const DoctorPage = () => {
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
             <div className="font-semibold mb-4">Laboratory</div>
-            <LabTestList patient={selectedPatient} />
+            <LabTestList patient={selectedPatient} defaultStatus="Pending Review" />
           </section>
         </div>
       </div>
@@ -507,6 +513,16 @@ export const DoctorPage = () => {
     )
   }
 
+  // Show Diagnosis & Symptoms (from left sidebar "Diagnoses" -> screen=dx)
+  if (screen === 'dx') {
+    return (
+      <DiagnosisSymptomsScreen
+        selectedPatient={selectedPatient || ''}
+        onPatientSelect={handlePatientSelect}
+      />
+    )
+  }
+
   // Show Discharge Form (list of discharges with + button)
   if (screen === 'df') {
     return (
@@ -629,7 +645,7 @@ export const DoctorPage = () => {
                 </button>
               </div>
               <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                <LabTestReportsList patient={selectedPatient} pendingReview={true} key={labTestRefreshKey} />
+                <LabTestList patient={selectedPatient} defaultStatus="Pending Review" key={labTestRefreshKey} />
               </div>
             </section>
 
@@ -676,6 +692,45 @@ export const DoctorPage = () => {
                 />
               </div>
             </section>
+
+            {/* Card: Prescription (Patient Medication Order) */}
+            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
+              <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
+                <span>Prescription</span>
+                <button
+                  onClick={() => setShowPrescriptionModal(true)}
+                  className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
+                  title="Create Prescription"
+                >
+                  +
+                </button>
+              </div>
+              <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
+                <PrescriptionList patient={selectedPatient} refreshKey={prescriptionRefreshKey} />
+              </div>
+            </section>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2 px-4 pb-4">
+            {/* Card: Patient Visits */}
+            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
+              <div className="font-semibold mb-4 flex-shrink-0">
+                <span>Patient Visits</span>
+              </div>
+              <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
+                <PatientVisitList patient={selectedPatient} />
+              </div>
+            </section>
+
+            {/* Card: Admissions */}
+            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
+              <div className="font-semibold mb-4 flex-shrink-0">
+                <span>Admissions</span>
+              </div>
+              <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
+                <AdmissionList patient={selectedPatient} />
+              </div>
+            </section>
           </div>
 
           <div className="px-4 pb-4">
@@ -716,7 +771,7 @@ export const DoctorPage = () => {
                 </button>
               </div>
               <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                <LabTestReportsList patient={undefined} pendingReview={true} key={labTestRefreshKey} />
+                <LabTestList defaultStatus="Pending Review" key={labTestRefreshKey} />
               </div>
             </section>
           </div>
@@ -737,8 +792,35 @@ export const DoctorPage = () => {
                 <AppointmentList refreshKey={appointmentRefreshKey} />
               </div>
             </section>
+
+            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
+              <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
+                <span>Prescription</span>
+                <button
+                  onClick={() => setShowPrescriptionModal(true)}
+                  className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
+                  title="Create Prescription"
+                >
+                  +
+                </button>
+              </div>
+              <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
+                <PrescriptionList refreshKey={prescriptionRefreshKey} />
+              </div>
+            </section>
           </div>
         </>
+      )}
+
+      {showPrescriptionModal && (
+        <CreatePrescriptionModal
+          onClose={() => setShowPrescriptionModal(false)}
+          onSuccess={() => {
+            setPrescriptionRefreshKey((prev) => prev + 1)
+            setShowPrescriptionModal(false)
+          }}
+          initialPatient={selectedPatient}
+        />
       )}
 
       {showWarningModal && (

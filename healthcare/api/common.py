@@ -483,6 +483,96 @@ def create_healthcare_practitioner(data):
 
 
 @frappe.whitelist()
+def get_dosage_forms(search=None):
+	"""Get list of Dosage Form for prescription medication rows."""
+	filters = {}
+	if search:
+		filters["name"] = ["like", f"%{search}%"]
+	items = frappe.get_all(
+		"Dosage Form",
+		filters=filters,
+		fields=["name"],
+		order_by="name asc",
+		limit=50,
+	)
+	return [{"name": d.name, "label": d.name} for d in items]
+
+
+@frappe.whitelist()
+def get_prescription_frequencies(search=None):
+	"""Get list of Prescription Frequency for medication rows."""
+	filters = {}
+	if search:
+		filters["name"] = ["like", f"%{search}%"]
+	items = frappe.get_all(
+		"Prescription Frequency",
+		filters=filters,
+		fields=["name"],
+		order_by="name asc",
+		limit=50,
+	)
+	return [{"name": p.name, "label": p.name} for p in items]
+
+
+@frappe.whitelist()
+def get_diagnosis(search=None):
+	"""Get list of Diagnosis (doctype) for encounter diagnosis selection."""
+	filters = {}
+	if search:
+		filters["diagnosis"] = ["like", f"%{search}%"]
+	items = frappe.get_all(
+		"Diagnosis",
+		filters=filters,
+		fields=["name", "diagnosis"],
+		order_by="diagnosis asc",
+		limit=50,
+	)
+	return [{"name": d.name, "label": d.diagnosis or d.name} for d in items]
+
+
+@frappe.whitelist()
+def get_complaints(search=None):
+	"""Get list of Complaint (doctype) for encounter symptoms/chief complaint selection."""
+	filters = {}
+	if search:
+		filters["complaints"] = ["like", f"%{search}%"]
+	items = frappe.get_all(
+		"Complaint",
+		filters=filters,
+		fields=["name", "complaints"],
+		order_by="complaints asc",
+		limit=50,
+	)
+	return [{"name": c.name, "label": c.complaints or c.name} for c in items]
+
+
+@frappe.whitelist()
+def create_diagnosis(diagnosis):
+	"""Create a new Diagnosis master record. Returns the new doc name."""
+	if not diagnosis or not str(diagnosis).strip():
+		frappe.throw(_("Diagnosis text is required"))
+	name = str(diagnosis).strip()
+	if frappe.db.exists("Diagnosis", name):
+		return name
+	doc = frappe.get_doc({"doctype": "Diagnosis", "diagnosis": name})
+	doc.insert(ignore_permissions=False)
+	return doc.name
+
+
+@frappe.whitelist()
+def create_complaint(complaints):
+	"""Create a new Complaint master record. Returns the new doc name."""
+	if not complaints or not str(complaints).strip():
+		frappe.throw(_("Complaint text is required"))
+	name = str(complaints).strip()
+	if frappe.db.exists("Complaint", name):
+		return name
+	doc = frappe.get_doc({"doctype": "Complaint", "complaints": name})
+	doc.insert(ignore_permissions=False)
+	return doc.name
+
+
+@frappe.whitelist()
 def get_companies(search=None):
 	"""Get list of Companies"""
 

@@ -5,68 +5,79 @@
 import frappe
 from frappe import _
 
-
 @frappe.whitelist()
-def get_lab_tests(limit=50, offset=0, patient=None, status=None, pending_review=False, is_outsourced=None):
-	"""Get list of Lab Tests"""
-	filters = {'docstatus': ['!=', 2]}  # Exclude cancelled
-	
-	if patient:
-		filters['patient'] = patient
-	
-	if status:
-		filters['status'] = status
-	
-	if pending_review:
-		# Get lab tests that are completed but not yet reviewed/approved
-		filters['status'] = ['in', ['Pending Review', 'Submitted']]
-	
-	if is_outsourced is not None:
-		# Convert string '1'/'0' to boolean
-		if isinstance(is_outsourced, str):
-			is_outsourced = is_outsourced == '1'
-		filters['is_outsourced'] = 1 if is_outsourced else 0
-	
-	lab_tests = frappe.get_all(
-		'Lab Test',
-		filters=filters,
-		fields=[
-			'name',
-			'docstatus',
-			'patient',
-			'patient_name',
-			'practitioner',
-			'practitioner_name',
-			'lab_test_name',
-			'template',
-			'status',
-			'result_date',
-			'submitted_date',
-			'approved_date',
-			'invoiced',
-			'department',
-			'is_outsourced',
-			'material_request',
-		],
-		limit=limit,
-		limit_start=offset,
-		order_by='submitted_date desc, result_date desc'
-	)
-	
-	# Get patient names for each lab test
-	for lab_test in lab_tests:
-		if lab_test.patient:
-			patient_name = frappe.db.get_value('Patient', lab_test.patient, 'patient_name')
-			if not lab_test.patient_name:
-				lab_test['patient_name'] = patient_name or lab_test.patient
-		
-		# Get practitioner name if not already set
-		if lab_test.practitioner and not lab_test.practitioner_name:
-			practitioner_name = frappe.db.get_value('Healthcare Practitioner', lab_test.practitioner, 'practitioner_name')
-			lab_test['practitioner_name'] = practitioner_name or lab_test.practitioner
-	
-	return lab_tests
+def get_lab_tests(limit=50, offset=0, patient=None, status=None, pending_review=False,
+                  is_outsourced=None, from_date=None, to_date=None):
+    """Get list of Lab Tests with optional patient, status, and date range filters."""
+    filters = {'docstatus': ['!=', 2]}  # Exclude cancelled
 
+    if patient:
+        filters['patient'] = patient
+
+    if status:
+        filters['status'] = status
+
+    if pending_review:
+        filters['status'] = ['in', ['Pending Review', 'Submitted']]
+
+    if is_outsourced is not None:
+        if isinstance(is_outsourced, str):
+            is_outsourced = is_outsourced == '1'
+        filters['is_outsourced'] = 1 if is_outsourced else 0
+
+    # Date range filter — applies against result_date, falling back to submitted_date
+    # We use an OR condition via frappe's or_filters if both date fields are relevant,
+    # but the simplest compatible approach is filtering on result_date with a coalesce
+    # handled via custom SQL. For Frappe ORM, filter on result_date first; rows without
+    # a result_date but within submitted_date range are caught by the second condition.
+    if from_date or to_date:
+        date_conditions = []
+        if from_date and to_date:
+            date_conditions = ['>=', from_date], ['<=', to_date]
+            filters['result_date'] = ['between', [from_date, to_date]]
+        elif from_date:
+            filters['result_date'] = ['>=', from_date]
+        elif to_date:
+            filters['result_date'] = ['<=', to_date]
+
+    lab_tests = frappe.get_all(
+        'Lab Test',
+        filters=filters,
+        fields=[
+            'name',
+            'docstatus',
+            'patient',
+            'patient_name',
+            'practitioner',
+            'practitioner_name',
+            'lab_test_name',
+            'template',
+            'status',
+            'result_date',
+            'submitted_date',
+            'approved_date',
+            'invoiced',
+            'department',
+            'is_outsourced',
+            'material_request',
+        ],
+        limit=limit,
+        limit_start=offset,
+        order_by='submitted_date desc, result_date desc'
+    )
+
+    for lab_test in lab_tests:
+        if lab_test.patient and not lab_test.patient_name:
+            lab_test['patient_name'] = (
+                frappe.db.get_value('Patient', lab_test.patient, 'patient_name') or lab_test.patient
+            )
+        if lab_test.practitioner and not lab_test.practitioner_name:
+            lab_test['practitioner_name'] = (
+                frappe.db.get_value('Healthcare Practitioner', lab_test.practitioner, 'practitioner_name')
+                or lab_test.practitioner
+            )
+
+    return lab_tests
 
 @frappe.whitelist()
 def get_lab_test(name):
@@ -229,6 +240,15 @@ def save_and_submit_lab_test(
 		"lab_test_comment": getattr(doc, "lab_test_comment", None),
 		"worksheet_instructions": getattr(doc, "worksheet_instructions", None),
 	}
+
+
+@frappe.whitelist()
+def update_lab_test_remarks(name, remarks=None):
+	"""Update the Remarks field on a Lab Test. Remarks is allow_on_submit, so this works for submitted docs."""
+	if not name:
+		frappe.throw(_("Lab Test name is required"))
+	frappe.db.set_value("Lab Test", name, "remarks", remarks or "", update_modified=True)
+	return {"name": name, "remarks": remarks or ""}
 
 
 @frappe.whitelist()

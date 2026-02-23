@@ -98,8 +98,7 @@
    "fieldname": "practitioner",
    "fieldtype": "Link",
    "label": "Practitioner",
-   "options": "Healthcare Practitioner",
-   "read_only": 1
+   "options": "Healthcare Practitioner"
   },
   {
    "fetch_from": "practitioner.user_id",
@@ -123,6 +122,7 @@
    "options": "Terms and Conditions"
   },
   {
+   "fetch_from": "practitioner.medical_role",
    "fieldname": "medical_role",
    "fieldtype": "Link",
    "label": "Medical Role",
@@ -150,11 +150,11 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-01-06 12:37:41.634989",
+ "modified": "2026-02-23 12:54:22.659033",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Clinical Note",
- "naming_rule": "Expression",
+ "naming_rule": "Expression (old style)",
  "owner": "Administrator",
  "permissions": [
   {

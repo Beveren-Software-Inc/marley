@@ -21,7 +21,6 @@ export const PatientSummaryCard = ({ patient }: PatientSummaryCardProps) => {
         setLoading(true)
         setError(null)
         const data = await fetchPatientSummary(patient)
-        console.log('Fetched patient summary 2:', data)
         setSummary(data)
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load patient info')

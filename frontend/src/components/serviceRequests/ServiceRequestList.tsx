@@ -8,6 +8,8 @@ import {
 } from '../../services/serviceRequests'
 import { toast } from '../../hooks/useToast'
 import { StatusPill } from '../ui/StatusPill'
+import { DetailSlideOver } from '../ui/DetailSlideOver'
+import { DocDetailView } from '../ui/DocDetailView'
 
 interface ServiceRequestListProps {
   patient?: string
@@ -44,6 +46,7 @@ export const ServiceRequestList = ({ patient, onLabTestCreated, refreshKey, temp
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [detailName, setDetailName] = useState<string | null>(null)
 
   useEffect(() => {
     setError(null)
@@ -167,7 +170,10 @@ export const ServiceRequestList = ({ patient, onLabTestCreated, refreshKey, temp
             const loadingThis = actionLoading === sr.name
             return (
               <tr key={sr.name} className="hover:bg-slate-50">
-                <td className="px-4 py-3 text-sm font-medium text-slate-900">
+                <td
+                  className="px-4 py-3 text-sm font-medium text-primary cursor-pointer hover:underline"
+                  onClick={() => setDetailName(sr.name)}
+                >
                   {sr.name}
                 </td>
                 <td className="px-4 py-3 text-sm text-slate-700">
@@ -237,6 +243,16 @@ export const ServiceRequestList = ({ patient, onLabTestCreated, refreshKey, temp
           })}
         </tbody>
       </table>
+
+      {detailName && (
+        <DetailSlideOver
+          title="Service Request"
+          subtitle={detailName}
+          onClose={() => setDetailName(null)}
+        >
+          <DocDetailView doctype="Service Request" name={detailName} onUpdate={doRefetch} />
+        </DetailSlideOver>
+      )}
     </div>
   )
 }

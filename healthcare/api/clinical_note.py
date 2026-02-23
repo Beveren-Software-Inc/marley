@@ -21,9 +21,10 @@ def get_clinical_notes(limit=50, offset=0, patient=None, medical_role=None, clin
 	if clinical_note_type:
 		filters['clinical_note_type'] = clinical_note_type
 	
-	if note_type:
-		filters['note_type'] = note_type
+	# if note_type:
+	# 	filters['note_type'] = note_type
 	
+	print("here nafikjal filters", filters)
 	clinical_notes = frappe.get_all(
 		'Clinical Note',
 		filters=filters,
@@ -34,7 +35,7 @@ def get_clinical_notes(limit=50, offset=0, patient=None, medical_role=None, clin
 			'practitioner',
 			'user',
 			'clinical_note_type',
-			'note_type',
+			# 'note_type',
 			'medical_role',
 			'note',
 			'reference_doc',
@@ -45,7 +46,7 @@ def get_clinical_notes(limit=50, offset=0, patient=None, medical_role=None, clin
 		limit_start=offset,
 		order_by='posting_date desc'
 	)
-	
+	print("clinical_notes ndio hiziz", clinical_notes)
 	# Get patient names and practitioner names
 	for note in clinical_notes:
 		if note.patient:
@@ -92,7 +93,7 @@ def create_clinical_note(data):
 		'doctype': 'Clinical Note',
 		'patient': patient,
 		'clinical_note_type': data.get('clinical_note_type'),
-		'note_type': data.get('note_type'),
+		# 'note_type': data.get('note_type'),
 		'medical_role': data.get('medical_role'),
 		'practitioner': data.get('practitioner'),
 		'posting_date': data.get('posting_date') or nowdate(),
@@ -105,7 +106,7 @@ def create_clinical_note(data):
 		'name': doc.name,
 		'patient': doc.patient,
 		'clinical_note_type': doc.clinical_note_type,
-		'note_type': doc.note_type,
+		# 'note_type': doc.note_type,
 		'medical_role': doc.medical_role,
 	}
 

@@ -22,7 +22,7 @@ export const PatientSearch = ({ selectedPatient, onPatientSelect }: PatientSearc
       const loadPatientName = async () => {
         try {
           const response = await fetch(
-            `/api/method/healthcare.api.patient.get_patient?name=${encodeURIComponent(selectedPatient)}`
+            `/api/method/healthcare.api.patient.get_patients?name=${encodeURIComponent(selectedPatient)}`
           )
           const resData = await response.json()
           if (resData?.message?.patient_name) {

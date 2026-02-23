@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { fetchObservations, type Observation } from '../../services/observations'
 import { StatusPill } from '../ui/StatusPill'
+import { DetailSlideOver } from '../ui/DetailSlideOver'
+import { DocDetailView } from '../ui/DocDetailView'
 
 const statusColors: Record<string, string> = {
   'Registered': 'default',
@@ -21,6 +23,7 @@ export const ObservationList = ({ patient }: ObservationListProps) => {
   const [observations, setObservations] = useState<Observation[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
+  const [detailName, setDetailName] = useState<string | null>(null)
 
   useEffect(() => {
     const loadObservations = async () => {
@@ -108,7 +111,10 @@ export const ObservationList = ({ patient }: ObservationListProps) => {
         <tbody className="divide-y divide-slate-200">
           {observations.map((obs) => (
             <tr key={obs.name} className="hover:bg-slate-50">
-              <td className="px-4 py-3 text-sm font-medium text-slate-900">
+              <td
+                className="px-4 py-3 text-sm font-medium text-primary cursor-pointer hover:underline"
+                onClick={() => setDetailName(obs.name)}
+              >
                 {obs.name}
               </td>
               <td className="px-4 py-3 text-sm text-slate-700">
@@ -136,6 +142,16 @@ export const ObservationList = ({ patient }: ObservationListProps) => {
           ))}
         </tbody>
       </table>
+
+      {detailName && (
+        <DetailSlideOver
+          title="Observation"
+          subtitle={detailName}
+          onClose={() => setDetailName(null)}
+        >
+          <DocDetailView doctype="Observation" name={detailName} />
+        </DetailSlideOver>
+      )}
     </div>
   )
 }

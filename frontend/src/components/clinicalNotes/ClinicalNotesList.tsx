@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
 import { fetchClinicalNotes, type ClinicalNote } from '../../services/clinicalNotes'
+import { DetailSlideOver } from '../ui/DetailSlideOver'
+import { DocDetailView } from '../ui/DocDetailView'
 
 // Helper function to strip HTML tags and decode HTML entities
 const stripHtml = (html: string): string => {
@@ -29,6 +31,7 @@ export const ClinicalNotesList = ({
   const [clinicalNotes, setClinicalNotes] = useState<ClinicalNote[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
+  const [detailName, setDetailName] = useState<string | null>(null)
 
   useEffect(() => {
     const loadClinicalNotes = async () => {
@@ -109,10 +112,15 @@ export const ClinicalNotesList = ({
         <tbody className="divide-y divide-slate-200">
           {clinicalNotes.map((note) => (
             <tr key={note.name} className="hover:bg-slate-50">
-              <td className="px-4 py-3 text-sm text-slate-700">
-                {note.posting_date 
-                  ? new Date(note.posting_date).toLocaleString() 
-                  : '-'}
+              <td
+                className="px-4 py-3 text-sm text-slate-700 cursor-pointer"
+                onClick={() => setDetailName(note.name)}
+              >
+                <span className="text-primary hover:underline">
+                  {note.posting_date 
+                    ? new Date(note.posting_date).toLocaleString() 
+                    : '-'}
+                </span>
               </td>
               <td className="px-4 py-3 text-sm text-slate-700">
                 {note.patient_name || note.patient || '-'}
@@ -145,6 +153,16 @@ export const ClinicalNotesList = ({
           ))}
         </tbody>
       </table>
+
+      {detailName && (
+        <DetailSlideOver
+          title="Clinical Note"
+          subtitle={detailName}
+          onClose={() => setDetailName(null)}
+        >
+          <DocDetailView doctype="Clinical Note" name={detailName} />
+        </DetailSlideOver>
+      )}
     </div>
   )
 }

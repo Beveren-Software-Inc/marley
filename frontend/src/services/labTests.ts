@@ -41,6 +41,7 @@ export interface LabTest {
   descriptive_result?: string
   custom_result?: string
   lab_test_comment?: string
+  remarks?: string
   worksheet_instructions?: string
   normal_test_items?: any[]
   sensitivity_test_items?: any[]
@@ -74,7 +75,6 @@ export async function fetchLabTests(
     `/api/method/healthcare.api.lab_test.get_lab_tests?${params.toString()}`
   )
   const resData = await response.json()
-
   if (resData?.message && Array.isArray(resData.message)) {
     return resData.message as LabTest[]
   } else {
@@ -204,6 +204,16 @@ export async function saveAndSubmitLabTest(
   return data
 }
 
+export async function updateLabTestRemarks(labTestName: string, remarks: string): Promise<{ name: string; remarks: string }> {
+  const { apiRequest } = await import('./apiClient')
+  return apiRequest<{ name: string; remarks: string }>(
+    '/api/method/healthcare.api.lab_test.update_lab_test_remarks',
+    {
+      method: 'POST',
+      body: JSON.stringify({ name: labTestName, remarks }),
+    }
+  )
+}
 
 import { apiRequest } from './apiClient'
 
