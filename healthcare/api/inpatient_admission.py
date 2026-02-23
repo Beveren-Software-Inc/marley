@@ -6,7 +6,7 @@
 import frappe
 import re
 from frappe import _
-from frappe.utils import cint
+from frappe.utils import cint,getdate, flt
 
 try:
 	from erpnext import get_default_currency
@@ -379,143 +379,69 @@ def create_and_submit_discharge(admission_name, discharge_data):
 		# Frappe-friendly throw
 		frappe.throw(_("Failed to create discharge: {0}").format(clean_message))
 
-@frappe.whitelist()
-def admit_patient(name, service_unit, check_in, expected_discharge=None):
-	"""Admit a patient - wrapper for the DocType method"""
-	if not name:
-		frappe.throw(_("Inpatient Admission name is required"))
-	if not service_unit:
-		frappe.throw(_("Service Unit is required"))
-	if not check_in:
-		frappe.throw(_("Check In datetime is required"))
-
-	record = frappe.get_doc('Inpatient Admission', name)
-	record.admit(service_unit, check_in, expected_discharge)
-	frappe.db.commit()
-
-	return {
-		'success': True,
-		'message': _('Patient admitted successfully'),
-		'name': record.name
-	}
-
-
 # @frappe.whitelist()
-# def create_admission_sales_order(admission_name, package_name, days, total_amount, service_unit=None):
-# 	"""Create a Sales Order for admission with package"""
-# 	from frappe.utils import getdate, flt
-	
-# 	if not admission_name:
+# def admit_patient(name, service_unit, check_in, expected_discharge=None):
+# 	"""Admit a patient - wrapper for the DocType method"""
+# 	if not name:
 # 		frappe.throw(_("Inpatient Admission name is required"))
-# 	if not package_name:
-# 		frappe.throw(_("Package name is required"))
-# 	if not days or days <= 0:
-# 		frappe.throw(_("Number of days must be greater than 0"))
-# 	if not total_amount or total_amount <= 0:
-# 		frappe.throw(_("Total amount must be greater than 0"))
 # 	if not service_unit:
-# 		frappe.throw(_("Service Unit (room) is required"))
-	
-# 	# Get admission record
-# 	admission = frappe.get_doc('Inpatient Admission', admission_name)
-# 	patient = admission.patient
-# 	company = admission.company or frappe.defaults.get_user_default("Company")
-	
-# 	if not company:
-# 		frappe.throw(_("Company is required. Please set company in admission or user defaults."))
-	
-# 	# Get patient customer
-# 	customer = frappe.db.get_value('Patient', patient, 'customer')
-# 	if not customer:
-# 		frappe.throw(_("Patient {0} does not have a linked customer").format(patient))
-	
-# 	# Get package details
-# 	package = frappe.get_doc('Inpatient Package', package_name)
-	
-# 	# Get service unit (room) name
-# 	service_unit_name = frappe.db.get_value('Healthcare Service Unit', service_unit, 'healthcare_service_unit_name')
-# 	if not service_unit_name:
-# 		service_unit_name = service_unit
-	
-# 	# Get or create item for the service unit (room)
-# 	item_code = service_unit_name
-	
-# 	# Check if item exists
-# 	item_exists = frappe.db.exists('Item', item_code)
-	
-# 	if not item_exists:
-# 		# Create the item
-# 		# Get default item group for healthcare
-# 		item_group = frappe.db.get_value('Item Group', {'name': 'Services'}) or frappe.db.get_value('Item Group', {'name': 'All Item Groups'})
-# 		if not item_group:
-# 			# Try to get any item group
-# 			item_group = frappe.db.get_value('Item Group', {}, 'name')
-		
-# 		# Get default UOM
-# 		uom = frappe.db.exists("UOM", "Unit") or frappe.db.get_single_value("Stock Settings", "stock_uom") or "Unit"
-		
-# 		# Create item
-# 		item = frappe.get_doc({
-# 			"doctype": "Item",
-# 			"item_code": item_code,
-# 			"item_name": service_unit_name,
-# 			"item_group": item_group or "All Item Groups",
-# 			"description": f"Room: {service_unit_name}",
-# 			"is_sales_item": 1,
-# 			"is_service_item": 1,
-# 			"is_purchase_item": 0,
-# 			"is_stock_item": 0,
-# 			"show_in_website": 0,
-# 			"is_pro_applicable": 0,
-# 			"disabled": 0,
-# 			"stock_uom": uom,
-# 		})
-# 		item.insert(ignore_permissions=True, ignore_mandatory=True)
-	
-# 	# Create Sales Order
-# 	sales_order = frappe.new_doc("Sales Order")
-# 	sales_order.patient = patient
-# 	sales_order.customer = customer
-# 	sales_order.company = company
-# 	sales_order.transaction_date = getdate()
-# 	sales_order.delivery_date = getdate()
-	
-# 	# Add item for package (using service unit/room name as item)
-# 	item_row = sales_order.append("items", {})
-# 	item_row.item_code = item_code
-# 	item_row.item_name = service_unit_name
-# 	item_row.description = f"Inpatient Package: {package.package_name} - Room: {service_unit_name} ({days} days)"
-# 	item_row.qty = 1
-# 	item_row.rate = flt(total_amount)
-# 	item_row.amount = flt(total_amount)
-	
-# 	# Set cost center if available
-# 	if package.cost_center:
-# 		item_row.cost_center = package.cost_center
-	
-# 	# Link to admission if field exists
-# 	if hasattr(sales_order, 'inpatient_admission'):
-# 		sales_order.inpatient_admission = admission_name
-	
-# 	# Set missing values
-# 	sales_order.set_missing_values(for_validate=True)
-	
-# 	# Save and submit the Sales Order
-# 	sales_order.flags.ignore_mandatory = True
-# 	sales_order.save(ignore_permissions=True)
-# 	sales_order.submit()
-	
+# 		frappe.throw(_("Service Unit is required"))
+# 	if not check_in:
+# 		frappe.throw(_("Check In datetime is required"))
+
+# 	record = frappe.get_doc('Inpatient Admission', name)
+# 	record.admit(service_unit, check_in, expected_discharge)
+# 	frappe.db.commit()
+
 # 	return {
 # 		'success': True,
-# 		'sales_order_name': sales_order.name,
-# 		'message': _('Sales Order {0} created and submitted successfully').format(sales_order.name)
+# 		'message': _('Patient admitted successfully'),
+# 		'name': record.name
 # 	}
+@frappe.whitelist()
+def admit_patient(name, service_unit, check_in, expected_discharge=None, patient_documents=None):
+    """Admit a patient - wrapper for the DocType method"""
+    if not name:
+        frappe.throw(_("Inpatient Admission name is required"))
+    if not service_unit:
+        frappe.throw(_("Service Unit is required"))
+    if not check_in:
+        frappe.throw(_("Check In datetime is required"))
+
+    record = frappe.get_doc('Inpatient Admission', name)
+    record.admit(service_unit, check_in, expected_discharge)
+
+    # Save patient documents if provided
+    documents = frappe.parse_json(patient_documents or [])
+    if isinstance(documents, list) and documents:
+        record.set("patient_documents", [])
+        for idx, row in enumerate(documents, start=1):
+            if not isinstance(row, dict):
+                continue
+            record.append("e_signatures", {
+                "idx": idx,
+                "file_name": (row.get("document_type") or "").strip() or None,
+                "document_type": (row.get("document_type") or "").strip() or None,
+                "transaction_no": (row.get("transaction_no") or "").strip() or None,
+                "upload_remarks": (row.get("upload_remarks") or "").strip() or None,
+                "document": (row.get("document") or "").strip() or None,
+            })
+        record.save(ignore_permissions=True)
+
+    frappe.db.commit()
+
+    return {
+        'success': True,
+        'message': _('Patient admitted successfully'),
+        'name': record.name
+    }
+
+
 
 @frappe.whitelist()
 def create_admission_quotation(admission_name, package_name, days, total_amount, service_unit=None):
 	"""Create a Draft Quotation for admission with package"""
-	from frappe.utils import getdate, flt
-	print("hapa nafika")
+	
 	if not admission_name:
 		frappe.throw(_("Inpatient Admission name is required"))
 	if not package_name:

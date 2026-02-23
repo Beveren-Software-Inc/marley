@@ -1,9 +1,205 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { createPatient, uploadPatientFile, type PatientDocumentRow } from '../../services/patients'
 import { fetchLeadSources, fetchNationalities, fetchCountries, fetchDocumentTypes,fetchHealthcareInsurance,fetchSalutations, type LinkFieldOption } from '../../services/common'
 import { CreateLeadSourceModal } from './CreateLeadSourceModal'
 import { CreateNationalityModal } from './CreateNationalityModal'
 import { toast } from '../../hooks/useToast'
+import { PenLine, Trash2, Check } from 'lucide-react'
+
+// ─── Signature Pad Component ────────────────────────────────────────────────
+
+interface SignaturePadProps {
+  onSave: (file: File) => void
+  onClear?: () => void
+  existingUrl?: string
+  uploading?: boolean
+}
+
+const SignaturePad = ({ onSave, onClear, existingUrl, uploading }: SignaturePadProps) => {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const isDrawing = useRef(false)
+  const [hasStrokes, setHasStrokes] = useState(false)
+  const [mode, setMode] = useState<'idle' | 'drawing' | 'done'>(existingUrl ? 'done' : 'idle')
+
+  const initCtx = useCallback(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return null
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return null
+    ctx.strokeStyle = '#1e293b'
+    ctx.lineWidth = 2.2
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+    return ctx
+  }, [])
+
+  const getPos = (e: React.MouseEvent | React.TouchEvent, canvas: HTMLCanvasElement) => {
+    const rect = canvas.getBoundingClientRect()
+    const scaleX = canvas.width / rect.width
+    const scaleY = canvas.height / rect.height
+    if ('touches' in e) {
+      const t = e.touches[0]
+      return { x: (t.clientX - rect.left) * scaleX, y: (t.clientY - rect.top) * scaleY }
+    }
+    return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY }
+  }
+
+  const startDraw = (e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault()
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = initCtx()
+    if (!ctx) return
+    isDrawing.current = true
+    const pos = getPos(e, canvas)
+    ctx.beginPath()
+    ctx.moveTo(pos.x, pos.y)
+  }
+
+  const draw = (e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault()
+    if (!isDrawing.current) return
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = initCtx()
+    if (!ctx) return
+    const pos = getPos(e, canvas)
+    ctx.lineTo(pos.x, pos.y)
+    ctx.stroke()
+    setHasStrokes(true)
+  }
+
+  const endDraw = () => { isDrawing.current = false }
+
+  const clearCanvas = () => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    setHasStrokes(false)
+    onClear?.()
+  }
+
+  const saveSignature = () => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    canvas.toBlob((blob) => {
+      if (!blob) return
+      const file = new File([blob], `signature_${Date.now()}.png`, { type: 'image/png' })
+      onSave(file)
+      setMode('done')
+    }, 'image/png')
+  }
+
+  useEffect(() => {
+    if (mode !== 'drawing') return
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const rect = canvas.getBoundingClientRect()
+    canvas.width = rect.width * window.devicePixelRatio
+    canvas.height = rect.height * window.devicePixelRatio
+    const ctx = canvas.getContext('2d')
+    if (ctx) ctx.scale(window.devicePixelRatio, window.devicePixelRatio)
+    setHasStrokes(false)
+  }, [mode])
+
+  if (mode === 'idle') {
+    return (
+      <button
+        type="button"
+        onClick={() => setMode('drawing')}
+        className="w-full h-full min-h-[96px] flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-slate-200 text-slate-400 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50/50 transition-all group"
+      >
+        <PenLine className="w-5 h-5 group-hover:scale-110 transition-transform" />
+        <span className="text-xs font-medium">Add Signature</span>
+      </button>
+    )
+  }
+
+  if (mode === 'done' && existingUrl) {
+    return (
+      <div className="w-full h-full min-h-[96px] flex flex-col items-center justify-center gap-2 rounded-lg border border-green-200 bg-green-50 p-2">
+        <img src={existingUrl} alt="Signature" className="max-h-16 object-contain" />
+        <button
+          type="button"
+          onClick={() => { setMode('drawing'); clearCanvas() }}
+          className="text-xs text-slate-500 hover:text-red-500 flex items-center gap-1 transition-colors"
+        >
+          <Trash2 className="w-3 h-3" /> Re-sign
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="w-full rounded-lg border border-slate-300 bg-white overflow-hidden flex flex-col">
+      <div className="flex items-center justify-between px-2.5 py-1.5 border-b border-slate-100 bg-slate-50">
+        <span className="text-xs font-medium text-slate-500 flex items-center gap-1">
+          <PenLine className="w-3 h-3" /> Draw signature
+        </span>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={clearCanvas}
+            disabled={!hasStrokes}
+            className="text-xs text-slate-400 hover:text-red-500 disabled:opacity-30 flex items-center gap-0.5 transition-colors px-1.5 py-0.5 rounded hover:bg-red-50"
+          >
+            <Trash2 className="w-3 h-3" /> Clear
+          </button>
+          <button
+            type="button"
+            onClick={() => { setMode('idle'); clearCanvas() }}
+            className="text-xs text-slate-400 hover:text-slate-600 px-1.5 py-0.5 rounded hover:bg-slate-100 transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+
+      <div className="relative" style={{ touchAction: 'none' }}>
+        <canvas
+          ref={canvasRef}
+          style={{ width: '100%', height: '96px', display: 'block', cursor: 'crosshair' }}
+          onMouseDown={startDraw}
+          onMouseMove={draw}
+          onMouseUp={endDraw}
+          onMouseLeave={endDraw}
+          onTouchStart={startDraw}
+          onTouchMove={draw}
+          onTouchEnd={endDraw}
+        />
+        {!hasStrokes && (
+          <span className="absolute inset-0 flex items-center justify-center text-xs text-slate-300 pointer-events-none select-none">
+            Sign here
+          </span>
+        )}
+      </div>
+
+      <div className="px-2.5 py-2 border-t border-slate-100 flex justify-end">
+        <button
+          type="button"
+          onClick={saveSignature}
+          disabled={!hasStrokes || uploading}
+          className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        >
+          {uploading ? (
+            <span className="flex items-center gap-1">
+              <span className="w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+              Saving…
+            </span>
+          ) : (
+            <>
+              <Check className="w-3 h-3" /> Save Signature
+            </>
+          )}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ─── Main Modal ──────────────────────────────────────────────────────────────
 
 interface CreatePatientModalProps {
   onClose: () => void
@@ -64,11 +260,11 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
   const [selectedSource, setSelectedSource] = useState<LinkFieldOption | null>(null)
   const [showCreateSource, setShowCreateSource] = useState(false)
 
-// Insurance dropdown
-const [insuranceOptions, setInsuranceOptions] = useState<LinkFieldOption[]>([])
-const [insuranceOpen, setInsuranceOpen] = useState(false)
-const [insuranceQuery, setInsuranceQuery] = useState('')
-const [selectedInsurance, setSelectedInsurance] = useState<LinkFieldOption | null>(null)
+  // Insurance dropdown
+  const [insuranceOptions, setInsuranceOptions] = useState<LinkFieldOption[]>([])
+  const [insuranceOpen, setInsuranceOpen] = useState(false)
+  const [insuranceQuery, setInsuranceQuery] = useState('')
+  const [selectedInsurance, setSelectedInsurance] = useState<LinkFieldOption | null>(null)
 
   // Nationality dropdown state
   const [nationalityOptions, setNationalityOptions] = useState<LinkFieldOption[]>([])
@@ -80,12 +276,13 @@ const [selectedInsurance, setSelectedInsurance] = useState<LinkFieldOption | nul
   const [documentTypes, setDocumentTypes] = useState<{ name: string; document_name?: string }[]>([])
   const [documents, setDocuments] = useState<PatientDocumentRow[]>([])
   const [documentUploading, setDocumentUploading] = useState<number | null>(null)
+  const [signatureUploading, setSignatureUploading] = useState<number | null>(null)
 
   // Salutation dropdown
-const [salutationOptions, setSalutationOptions] = useState<LinkFieldOption[]>([])
-const [salutationOpen, setSalutationOpen] = useState(false)
-const [salutationQuery, setSalutationQuery] = useState('')
-const [selectedSalutation, setSelectedSalutation] = useState<LinkFieldOption | null>(null)
+  const [salutationOptions, setSalutationOptions] = useState<LinkFieldOption[]>([])
+  const [salutationOpen, setSalutationOpen] = useState(false)
+  const [salutationQuery, setSalutationQuery] = useState('')
+  const [selectedSalutation, setSelectedSalutation] = useState<LinkFieldOption | null>(null)
 
   const PATIENT_RELATION_OPTIONS = ['Father', 'Mother', 'Spouse', 'Siblings', 'Family', 'Other'] as const
 
@@ -150,6 +347,28 @@ const [selectedSalutation, setSelectedSalutation] = useState<LinkFieldOption | n
       toast.error(err instanceof Error ? err.message : 'File upload failed')
     } finally {
       setDocumentUploading(null)
+    }
+  }
+
+  const handleSignatureFile = async (idx: number, file: File) => {
+    setSignatureUploading(idx)
+    try {
+      const file_url = await uploadPatientFile(file)
+      if (!file_url) throw new Error('No URL returned from signature upload')
+      setDocuments((prev) => {
+        const next = [...prev]
+        next[idx] = {
+          ...next[idx],
+          document: file_url,
+          file_name: next[idx].file_name?.trim() || `Signature ${idx + 1}`,
+        }
+        return next
+      })
+      toast.success('Signature saved')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Signature upload failed')
+    } finally {
+      setSignatureUploading(null)
     }
   }
 
@@ -229,48 +448,42 @@ const [selectedSalutation, setSelectedSalutation] = useState<LinkFieldOption | n
   }
 
   const handleInsuranceSelect = (ins: any) => {
-  setSelectedInsurance(ins)
-
-  setFormData(prev => ({
-    ...prev,
-    insurance: ins.name,
-    insurance_type: ins.insurance_type,
-    insurance_company_no: ins.insurance_company,
-    insurance_policy: ins.policy_no,
-  }))
-
-  setInsuranceOpen(false)
-  setInsuranceQuery('')
-}
-
-useEffect(() => {
-  if (!salutationOpen) return
-
-  const search = async () => {
-    try {
-      const results = await fetchSalutations(salutationQuery)
-      setSalutationOptions(results)
-    } catch (err) {
-      console.error('Failed to search salutations:', err)
-      setSalutationOptions([])
-    }
+    setSelectedInsurance(ins)
+    setFormData(prev => ({
+      ...prev,
+      insurance: ins.name,
+      insurance_type: ins.insurance_type,
+      insurance_company_no: ins.insurance_company,
+      insurance_policy: ins.policy_no,
+    }))
+    setInsuranceOpen(false)
+    setInsuranceQuery('')
   }
 
-  const t = setTimeout(search, salutationQuery.trim() === '' ? 0 : 300)
-  return () => clearTimeout(t)
-}, [salutationQuery, salutationOpen])
-  // Fetch insurance options when insurance tab is opened or query changes
   useEffect(() => {
-  if (!insuranceOpen) return
+    if (!salutationOpen) return
+    const search = async () => {
+      try {
+        const results = await fetchSalutations(salutationQuery)
+        setSalutationOptions(results)
+      } catch (err) {
+        console.error('Failed to search salutations:', err)
+        setSalutationOptions([])
+      }
+    }
+    const t = setTimeout(search, salutationQuery.trim() === '' ? 0 : 300)
+    return () => clearTimeout(t)
+  }, [salutationQuery, salutationOpen])
 
-  const search = async () => {
-    const results = await fetchHealthcareInsurance(insuranceQuery)
-    setInsuranceOptions(results)
-  }
-
-  const t = setTimeout(search, 300)
-  return () => clearTimeout(t)
-}, [insuranceQuery, insuranceOpen])
+  useEffect(() => {
+    if (!insuranceOpen) return
+    const search = async () => {
+      const results = await fetchHealthcareInsurance(insuranceQuery)
+      setInsuranceOptions(results)
+    }
+    const t = setTimeout(search, 300)
+    return () => clearTimeout(t)
+  }, [insuranceQuery, insuranceOpen])
 
   useEffect(() => {
     const loadOptions = async () => {
@@ -335,12 +548,13 @@ useEffect(() => {
     setNationalityOpen(false)
     setNationalityQuery('')
   }
-const handleSalutationSelect = (sal: LinkFieldOption) => {
-  setSelectedSalutation(sal)
-  setFormData(prev => ({ ...prev, title: sal.name }))
-  setSalutationOpen(false)
-  setSalutationQuery('')
-}
+
+  const handleSalutationSelect = (sal: LinkFieldOption) => {
+    setSelectedSalutation(sal)
+    setFormData(prev => ({ ...prev, title: sal.name }))
+    setSalutationOpen(false)
+    setSalutationQuery('')
+  }
 
   const tabs: { id: Tab; label: string; badge?: number }[] = [
     { id: 'details', label: 'Patient Details' },
@@ -411,91 +625,58 @@ const handleSalutationSelect = (sal: LinkFieldOption) => {
                   <h3 className="text-xs font-bold uppercase tracking-widest text-blue-600 mb-3 mt-2">Basic Information</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-  <label className="block text-sm font-medium text-slate-700 mb-1">
-    Title
-  </label>
-
-  <div className="relative">
-    <input
-      type="text"
-      value={selectedSalutation ? selectedSalutation.label : salutationQuery}
-      onChange={(e) => {
-        setSalutationQuery(e.target.value)
-        setSalutationOpen(true)
-      }}
-      onFocus={() => setSalutationOpen(true)}
-      placeholder="Search title..."
-      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-    />
-
-    {salutationOpen && salutationOptions.length > 0 && (
-      <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
-        {salutationOptions.map((sal) => (
-          <button
-            key={sal.name}
-            type="button"
-            onClick={() => handleSalutationSelect(sal)}
-            className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100"
-          >
-            {sal.label}
-          </button>
-        ))}
-      </div>
-    )}
-  </div>
-</div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Title</label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={selectedSalutation ? selectedSalutation.label : salutationQuery}
+                          onChange={(e) => { setSalutationQuery(e.target.value); setSalutationOpen(true) }}
+                          onFocus={() => setSalutationOpen(true)}
+                          placeholder="Search title..."
+                          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                        />
+                        {salutationOpen && salutationOptions.length > 0 && (
+                          <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                            {salutationOptions.map((sal) => (
+                              <button key={sal.name} type="button" onClick={() => handleSalutationSelect(sal)}
+                                className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100">
+                                {sal.label}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">
                         File No <span className="text-red-500">*</span>
                       </label>
-                      <input
-                        type="text"
-                        value={formData.file_no}
-                        onChange={(e) => handleChange('file_no', e.target.value)}
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                        required
-                      />
+                      <input type="text" value={formData.file_no} onChange={(e) => handleChange('file_no', e.target.value)}
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" required />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">
                         First Name <span className="text-red-500">*</span>
                       </label>
-                      <input
-                        type="text"
-                        value={formData.first_name}
-                        onChange={(e) => handleChange('first_name', e.target.value)}
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                        required
-                      />
+                      <input type="text" value={formData.first_name} onChange={(e) => handleChange('first_name', e.target.value)}
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" required />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Middle Name</label>
-                      <input
-                        type="text"
-                        value={formData.middle_name}
-                        onChange={(e) => handleChange('middle_name', e.target.value)}
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                      />
+                      <input type="text" value={formData.middle_name} onChange={(e) => handleChange('middle_name', e.target.value)}
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Last Name</label>
-                      <input
-                        type="text"
-                        value={formData.last_name}
-                        onChange={(e) => handleChange('last_name', e.target.value)}
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                      />
+                      <input type="text" value={formData.last_name} onChange={(e) => handleChange('last_name', e.target.value)}
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">
                         Gender <span className="text-red-500">*</span>
                       </label>
-                      <select
-                        value={formData.sex}
-                        onChange={(e) => handleChange('sex', e.target.value)}
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                        required
-                      >
+                      <select value={formData.sex} onChange={(e) => handleChange('sex', e.target.value)}
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" required>
                         <option value="">Select Gender</option>
                         <option value="Male">Male</option>
                         <option value="Female">Female</option>
@@ -504,20 +685,13 @@ const handleSalutationSelect = (sal: LinkFieldOption) => {
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Date of Birth</label>
-                      <input
-                        type="date"
-                        value={formData.dob}
-                        onChange={(e) => handleChange('dob', e.target.value)}
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                      />
+                      <input type="date" value={formData.dob} onChange={(e) => handleChange('dob', e.target.value)}
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Blood Group</label>
-                      <select
-                        value={formData.blood_group}
-                        onChange={(e) => handleChange('blood_group', e.target.value)}
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                      >
+                      <select value={formData.blood_group} onChange={(e) => handleChange('blood_group', e.target.value)}
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
                         <option value="">Select Blood Group</option>
                         <option value="A Positive">A Positive</option>
                         <option value="A Negative">A Negative</option>
@@ -540,49 +714,28 @@ const handleSalutationSelect = (sal: LinkFieldOption) => {
                       <label className="block text-sm font-medium text-slate-700 mb-1">
                         Mobile <span className="text-red-500">*</span>
                       </label>
-                      <input
-                        type="tel"
-                        value={formData.mobile}
-                        onChange={(e) => handleChange('mobile', e.target.value)}
-                        required
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                      />
+                      <input type="tel" value={formData.mobile} onChange={(e) => handleChange('mobile', e.target.value)} required
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Phone</label>
-                      <input
-                        type="tel"
-                        value={formData.phone}
-                        onChange={(e) => handleChange('phone', e.target.value)}
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                      />
+                      <input type="tel" value={formData.phone} onChange={(e) => handleChange('phone', e.target.value)}
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Alternative Mobile No</label>
-                      <input
-                        type="tel"
-                        value={formData.alternative_mobile_no_1}
-                        onChange={(e) => handleChange('alternative_mobile_no_1', e.target.value)}
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                      />
+                      <input type="tel" value={formData.alternative_mobile_no_1} onChange={(e) => handleChange('alternative_mobile_no_1', e.target.value)}
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Alternative Mobile No 2</label>
-                      <input
-                        type="tel"
-                        value={formData.alternative_mobile_no_2}
-                        onChange={(e) => handleChange('alternative_mobile_no_2', e.target.value)}
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                      />
+                      <input type="tel" value={formData.alternative_mobile_no_2} onChange={(e) => handleChange('alternative_mobile_no_2', e.target.value)}
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                     </div>
                     <div className="md:col-span-2">
                       <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
-                      <input
-                        type="email"
-                        value={formData.email}
-                        onChange={(e) => handleChange('email', e.target.value)}
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                      />
+                      <input type="email" value={formData.email} onChange={(e) => handleChange('email', e.target.value)}
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                     </div>
                   </div>
                 </div>
@@ -593,31 +746,21 @@ const handleSalutationSelect = (sal: LinkFieldOption) => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">CPR / ID / Passport No.</label>
-                      <input
-                        type="text"
-                        value={formData.id_number}
-                        onChange={(e) => handleChange('id_number', e.target.value)}
+                      <input type="text" value={formData.id_number} onChange={(e) => handleChange('id_number', e.target.value)}
                         placeholder="CPR / ID / Passport (unlimited digits)"
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                      />
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Nationality</label>
                       <div className="relative flex items-center">
-                        <input
-                          type="text"
+                        <input type="text"
                           value={selectedNationality ? selectedNationality.label : nationalityQuery}
                           onChange={(e) => { setNationalityQuery(e.target.value); setNationalityOpen(true) }}
                           onFocus={() => setNationalityOpen(true)}
                           placeholder="Search nationality..."
-                          className="w-full rounded-md border border-slate-300 px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                        />
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); setShowCreateNationality(true) }}
-                          className="absolute right-2 p-1 text-primary hover:text-primary/80 rounded"
-                          title="Create New Nationality"
-                        >
+                          className="w-full rounded-md border border-slate-300 px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                        <button type="button" onClick={(e) => { e.stopPropagation(); setShowCreateNationality(true) }}
+                          className="absolute right-2 p-1 text-primary hover:text-primary/80 rounded" title="Create New Nationality">
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                           </svg>
@@ -625,12 +768,8 @@ const handleSalutationSelect = (sal: LinkFieldOption) => {
                         {nationalityOpen && nationalityOptions.length > 0 && (
                           <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto top-full">
                             {nationalityOptions.map((nat) => (
-                              <button
-                                key={nat.name}
-                                type="button"
-                                onClick={() => handleNationalitySelect(nat)}
-                                className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 focus:bg-slate-100 focus:outline-none"
-                              >
+                              <button key={nat.name} type="button" onClick={() => handleNationalitySelect(nat)}
+                                className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 focus:bg-slate-100 focus:outline-none">
                                 <div className="font-medium">{nat.label}</div>
                                 {nat.country && <div className="text-xs text-slate-500">{nat.country}</div>}
                               </button>
@@ -643,12 +782,8 @@ const handleSalutationSelect = (sal: LinkFieldOption) => {
                       <label className="block text-sm font-medium text-slate-700 mb-1">
                         Patient type <span className="text-red-500">*</span>
                       </label>
-                      <select
-                        value={formData.category}
-                        onChange={(e) => handleChange('category', e.target.value)}
-                        required
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                      >
+                      <select value={formData.category} onChange={(e) => handleChange('category', e.target.value)} required
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
                         <option value="">Select Patient type</option>
                         <option value="Royal">Royal</option>
                         <option value="American Navy">American Navy</option>
@@ -660,21 +795,14 @@ const handleSalutationSelect = (sal: LinkFieldOption) => {
                         Patient Referral or Source <span className="text-red-500">*</span>
                       </label>
                       <div className="relative flex items-center">
-                        <input
-                          type="text"
+                        <input type="text"
                           value={selectedSource ? selectedSource.label : sourceQuery}
                           onChange={(e) => { setSourceQuery(e.target.value); setSourceOpen(true) }}
                           onFocus={() => setSourceOpen(true)}
                           placeholder="Search source..."
-                          className="w-full rounded-md border border-slate-300 px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                          required
-                        />
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); setShowCreateSource(true) }}
-                          className="absolute right-2 p-1 text-primary hover:text-primary/80 rounded"
-                          title="Create New Source"
-                        >
+                          className="w-full rounded-md border border-slate-300 px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary" required />
+                        <button type="button" onClick={(e) => { e.stopPropagation(); setShowCreateSource(true) }}
+                          className="absolute right-2 p-1 text-primary hover:text-primary/80 rounded" title="Create New Source">
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                           </svg>
@@ -682,12 +810,8 @@ const handleSalutationSelect = (sal: LinkFieldOption) => {
                         {sourceOpen && sourceOptions.length > 0 && (
                           <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto top-full">
                             {sourceOptions.map((source) => (
-                              <button
-                                key={source.name}
-                                type="button"
-                                onClick={() => handleSourceSelect(source)}
-                                className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 focus:bg-slate-100 focus:outline-none"
-                              >
+                              <button key={source.name} type="button" onClick={() => handleSourceSelect(source)}
+                                className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 focus:bg-slate-100 focus:outline-none">
                                 {source.label}
                               </button>
                             ))}
@@ -696,15 +820,9 @@ const handleSalutationSelect = (sal: LinkFieldOption) => {
                       </div>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">
-                        Marital Status
-                      </label>
-                      <select
-                        value={formData.marital_status}
-                        onChange={(e) => handleChange('marital_status', e.target.value)}
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                        
-                      >
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Marital Status</label>
+                      <select value={formData.marital_status} onChange={(e) => handleChange('marital_status', e.target.value)}
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
                         <option value="">Select Marital Status</option>
                         <option value="Single">Single</option>
                         <option value="Married">Married</option>
@@ -723,53 +841,32 @@ const handleSalutationSelect = (sal: LinkFieldOption) => {
                       <label className="block text-sm font-medium text-slate-700 mb-1">
                         Address Line 1 <span className="text-red-500">*</span>
                       </label>
-                      <input
-                        type="text"
-                        value={formData.address_line1}
-                        onChange={(e) => handleChange('address_line1', e.target.value)}
+                      <input type="text" value={formData.address_line1} onChange={(e) => handleChange('address_line1', e.target.value)}
                         placeholder="Street address, P.O. box, company name"
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                        required
-                      />
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" required />
                     </div>
                     <div className="md:col-span-2">
                       <label className="block text-sm font-medium text-slate-700 mb-1">Address Line 2</label>
-                      <input
-                        type="text"
-                        value={formData.address_line2}
-                        onChange={(e) => handleChange('address_line2', e.target.value)}
+                      <input type="text" value={formData.address_line2} onChange={(e) => handleChange('address_line2', e.target.value)}
                         placeholder="Apartment, suite, unit, building, floor, etc."
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                      />
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">
                         City <span className="text-red-500">*</span>
                       </label>
-                      <input
-                        type="text"
-                        value={formData.city}
-                        onChange={(e) => handleChange('city', e.target.value)}
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                        required
-                      />
+                      <input type="text" value={formData.city} onChange={(e) => handleChange('city', e.target.value)}
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" required />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">State/Province</label>
-                      <input
-                        type="text"
-                        value={formData.state}
-                        onChange={(e) => handleChange('state', e.target.value)}
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                      />
+                      <input type="text" value={formData.state} onChange={(e) => handleChange('state', e.target.value)}
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Country</label>
-                      <select
-                        value={formData.country}
-                        onChange={(e) => handleChange('country', e.target.value)}
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
-                      >
+                      <select value={formData.country} onChange={(e) => handleChange('country', e.target.value)}
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white">
                         <option value="">Select country</option>
                         {countries.map((c) => (
                           <option key={c.name} value={c.name}>{c.name}</option>
@@ -778,12 +875,8 @@ const handleSalutationSelect = (sal: LinkFieldOption) => {
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Pincode/ZIP</label>
-                      <input
-                        type="text"
-                        value={formData.pincode}
-                        onChange={(e) => handleChange('pincode', e.target.value)}
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                      />
+                      <input type="text" value={formData.pincode} onChange={(e) => handleChange('pincode', e.target.value)}
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                     </div>
                   </div>
                 </div>
@@ -793,176 +886,77 @@ const handleSalutationSelect = (sal: LinkFieldOption) => {
                   <h3 className="text-xs font-bold uppercase tracking-widest text-blue-600 mb-3 mt-2">Other Information</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        id="is_black_list"
-                        checked={formData.is_black_list}
+                      <input type="checkbox" id="is_black_list" checked={formData.is_black_list}
                         onChange={(e) => handleChange('is_black_list', e.target.checked)}
-                        className="rounded border-slate-300 text-primary focus:ring-primary"
-                      />
-                      <label htmlFor="is_black_list" className="text-sm font-medium text-slate-700">
-                        Is Black List?
-                      </label>
+                        className="rounded border-slate-300 text-primary focus:ring-primary" />
+                      <label htmlFor="is_black_list" className="text-sm font-medium text-slate-700">Is Black List?</label>
                     </div>
                     <div className="md:col-span-2">
-                      <label className="block text-sm font-medium text-slate-700 mb-1">
-                        Any Other Information / Remarks
-                      </label>
-                      <textarea
-                        value={formData.remarks}
-                        onChange={(e) => handleChange('remarks', e.target.value)}
-                        rows={2}
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                      />
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Any Other Information / Remarks</label>
+                      <textarea value={formData.remarks} onChange={(e) => handleChange('remarks', e.target.value)} rows={2}
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                     </div>
                   </div>
                 </div>
               </>
             )}
 
-
-              {/* ── TAB: Insurance ── */}
-{activeTab === 'insurance' && (
-  <div className="space-y-5">
-
-    {/* Has Insurance */}
-    <div className="flex items-center gap-2">
-      <input
-        type="checkbox"
-        checked={formData.has_insurance}
-        onChange={(e) => handleChange('has_insurance', e.target.checked)}
-        className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary"
-      />
-      <label className="text-sm font-medium text-slate-700">
-        Has Insurance
-      </label>
-    </div>
-
-    {formData.has_insurance && (
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-
-        {/* Insurance Link */}
-        <div className="md:col-span-2 flex flex-col gap-1">
-          <label className="text-xs font-medium text-slate-600">
-            Insurance
-          </label>
-
-          <div className="relative">
-            <input
-              type="text"
-              value={
-                selectedInsurance
-                  ? selectedInsurance.label
-                  : insuranceQuery
-              }
-              onChange={(e) => {
-                setInsuranceQuery(e.target.value)
-                setInsuranceOpen(true)
-              }}
-              onFocus={() => setInsuranceOpen(true)}
-              placeholder="Search Healthcare Insurance..."
-              className="
-                w-full rounded-md border border-slate-300
-                px-3 py-2 text-sm
-                focus:ring-2 focus:ring-primary
-                focus:outline-none
-              "
-            />
-
-            {insuranceOpen && insuranceOptions.length > 0 && (
-              <div className="absolute z-10 w-full bg-white border border-slate-200 rounded-md shadow max-h-60 overflow-y-auto">
-                {insuranceOptions.map((ins) => (
-                  <button
-                    key={ins.name}
-                    type="button"
-                    onClick={() => handleInsuranceSelect(ins)}
-                    className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100"
-                  >
-                    {ins.name}
-                  </button>
-                ))}
+            {/* ── TAB: Insurance ── */}
+            {activeTab === 'insurance' && (
+              <div className="space-y-5">
+                <div className="flex items-center gap-2">
+                  <input type="checkbox" checked={formData.has_insurance}
+                    onChange={(e) => handleChange('has_insurance', e.target.checked)}
+                    className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary" />
+                  <label className="text-sm font-medium text-slate-700">Has Insurance</label>
+                </div>
+                {formData.has_insurance && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="md:col-span-2 flex flex-col gap-1">
+                      <label className="text-xs font-medium text-slate-600">Insurance</label>
+                      <div className="relative">
+                        <input type="text"
+                          value={selectedInsurance ? selectedInsurance.label : insuranceQuery}
+                          onChange={(e) => { setInsuranceQuery(e.target.value); setInsuranceOpen(true) }}
+                          onFocus={() => setInsuranceOpen(true)}
+                          placeholder="Search Healthcare Insurance..."
+                          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none" />
+                        {insuranceOpen && insuranceOptions.length > 0 && (
+                          <div className="absolute z-10 w-full bg-white border border-slate-200 rounded-md shadow max-h-60 overflow-y-auto">
+                            {insuranceOptions.map((ins) => (
+                              <button key={ins.name} type="button" onClick={() => handleInsuranceSelect(ins)}
+                                className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100">
+                                {ins.name}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs font-medium text-slate-600">Insurance Type</label>
+                      <input value={formData.insurance_type || ''} readOnly
+                        className="w-full rounded-md border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-700 cursor-default focus:outline-none" />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs font-medium text-slate-600">Insurance Company No</label>
+                      <input value={formData.insurance_company_no || ''} readOnly
+                        className="w-full rounded-md border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-700 cursor-default focus:outline-none" />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs font-medium text-slate-600">Policy No</label>
+                      <input value={formData.insurance_policy || ''} readOnly
+                        className="w-full rounded-md border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-700 cursor-default focus:outline-none" />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs font-medium text-slate-600">Reference No</label>
+                      <input value={formData.ref_no || ''} onChange={(e) => handleChange('ref_no', e.target.value)}
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none" />
+                    </div>
+                  </div>
+                )}
               </div>
             )}
-          </div>
-        </div>
-
-        {/* Insurance Type */}
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-slate-600">
-            Insurance Type
-          </label>
-          <input
-            value={formData.insurance_type || ''}
-            readOnly
-            className="
-              w-full rounded-md border border-slate-300
-              bg-slate-50
-              px-3 py-2 text-sm text-slate-700
-              cursor-default
-              focus:outline-none
-            "
-          />
-        </div>
-
-        {/* Insurance Company No */}
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-slate-600">
-            Insurance Company No
-          </label>
-          <input
-            value={formData.insurance_company_no || ''}
-            readOnly
-            className="
-              w-full rounded-md border border-slate-300
-              bg-slate-50
-              px-3 py-2 text-sm text-slate-700
-              cursor-default
-              focus:outline-none
-            "
-          />
-        </div>
-
-        {/* Policy No */}
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-slate-600">
-            Policy No
-          </label>
-          <input
-            value={formData.insurance_policy || ''}
-            readOnly
-            className="
-              w-full rounded-md border border-slate-300
-              bg-slate-50
-              px-3 py-2 text-sm text-slate-700
-              cursor-default
-              focus:outline-none
-            "
-          />
-        </div>
-
-        {/* Reference No (Editable) */}
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-slate-600">
-            Reference No
-          </label>
-          <input
-            value={formData.ref_no || ''}
-            onChange={(e) =>
-              handleChange('ref_no', e.target.value)
-            }
-            className="
-              w-full rounded-md border border-slate-300
-              px-3 py-2 text-sm
-              focus:ring-2 focus:ring-primary
-              focus:outline-none
-            "
-          />
-        </div>
-
-      </div>
-    )}
-  </div>
-)}
 
             {/* ── TAB: Next of Kin ── */}
             {activeTab === 'relations' && (
@@ -977,58 +971,35 @@ const handleSalutationSelect = (sal: LinkFieldOption) => {
                     </div>
                   )}
                   {relations.map((row, idx) => (
-                    <div
-                      key={idx}
-                      className="rounded-lg border border-slate-200 p-4 bg-slate-50/50 space-y-3"
-                    >
-                      {/* Row header */}
+                    <div key={idx} className="rounded-lg border border-slate-200 p-4 bg-slate-50/50 space-y-3">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                          Relation #{idx + 1}
-                        </span>
+                        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Relation #{idx + 1}</span>
                         <div className="flex items-center gap-3">
-                          {/* is_next_of_kin checkbox */}
                           <label className="flex items-center gap-1.5 cursor-pointer select-none">
-                            <input
-                              type="checkbox"
-                              checked={row.is_next_of_kin}
+                            <input type="checkbox" checked={row.is_next_of_kin}
                               onChange={(e) => updateRelationRow(idx, 'is_next_of_kin', e.target.checked)}
-                              className="rounded border-slate-300 text-primary focus:ring-primary"
-                            />
+                              className="rounded border-slate-300 text-primary focus:ring-primary" />
                             <span className="text-xs font-medium text-slate-700">Next of Kin</span>
                           </label>
-                          <button
-                            type="button"
-                            onClick={() => removeRelationRow(idx)}
-                            className="p-1 rounded text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
-                            title="Remove"
-                          >
+                          <button type="button" onClick={() => removeRelationRow(idx)}
+                            className="p-1 rounded text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors" title="Remove">
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                             </svg>
                           </button>
                         </div>
                       </div>
-
-                      {/* Fields grid */}
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div>
                           <label className="block text-xs font-medium text-slate-600 mb-0.5">Full Name</label>
-                          <input
-                            type="text"
-                            value={row.full_name || ''}
-                            onChange={(e) => updateRelationRow(idx, 'full_name', e.target.value)}
+                          <input type="text" value={row.full_name || ''} onChange={(e) => updateRelationRow(idx, 'full_name', e.target.value)}
                             placeholder="Full name"
-                            className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                          />
+                            className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                         </div>
                         <div>
                           <label className="block text-xs font-medium text-slate-600 mb-0.5">Relation</label>
-                          <select
-                            value={row.relation || ''}
-                            onChange={(e) => updateRelationRow(idx, 'relation', e.target.value)}
-                            className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary"
-                          >
+                          <select value={row.relation || ''} onChange={(e) => updateRelationRow(idx, 'relation', e.target.value)}
+                            className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary">
                             <option value="">Select relation</option>
                             {PATIENT_RELATION_OPTIONS.map((opt) => (
                               <option key={opt} value={opt}>{opt}</option>
@@ -1037,32 +1008,21 @@ const handleSalutationSelect = (sal: LinkFieldOption) => {
                         </div>
                         <div>
                           <label className="block text-xs font-medium text-slate-600 mb-0.5">Mobile No</label>
-                          <input
-                            type="tel"
-                            value={row.mobile_no || ''}
-                            onChange={(e) => updateRelationRow(idx, 'mobile_no', e.target.value)}
+                          <input type="tel" value={row.mobile_no || ''} onChange={(e) => updateRelationRow(idx, 'mobile_no', e.target.value)}
                             placeholder="Mobile number"
-                            className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                          />
+                            className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                         </div>
                         <div>
                           <label className="block text-xs font-medium text-slate-600 mb-0.5">Email</label>
-                          <input
-                            type="email"
-                            value={row.email || ''}
-                            onChange={(e) => updateRelationRow(idx, 'email', e.target.value)}
+                          <input type="email" value={row.email || ''} onChange={(e) => updateRelationRow(idx, 'email', e.target.value)}
                             placeholder="Email address"
-                            className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                          />
+                            className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                         </div>
                       </div>
                     </div>
                   ))}
-                  <button
-                    type="button"
-                    onClick={addRelationRow}
-                    className="flex items-center gap-1.5 text-sm text-primary font-medium hover:underline"
-                  >
+                  <button type="button" onClick={addRelationRow}
+                    className="flex items-center gap-1.5 text-sm text-primary font-medium hover:underline">
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                     </svg>
@@ -1076,105 +1036,109 @@ const handleSalutationSelect = (sal: LinkFieldOption) => {
             {activeTab === 'documents' && (
               <div>
                 <p className="text-sm text-slate-500 mb-4">
-                  Attach identification documents, reports, or other files for this patient.
+                  Attach identification documents, reports, or other files. You can upload a file <em>or</em> draw a digital signature directly on-screen.
                 </p>
-                <div className="space-y-3">
+                <div className="space-y-4">
                   {documents.length === 0 && (
                     <div className="text-center py-10 rounded-lg border-2 border-dashed border-slate-200 text-slate-400 text-sm">
                       No documents added yet. Click below to add one.
                     </div>
                   )}
+
                   {documents.map((row, idx) => (
-                    <div
-                      key={idx}
-                      className="rounded-lg border border-slate-200 p-4 bg-slate-50/50 space-y-3"
-                    >
-                      <div className="flex items-center justify-between">
+                    <div key={idx} className="rounded-lg border border-slate-200 bg-slate-50/50 overflow-hidden">
+                      {/* Card header */}
+                      <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-200 bg-white">
                         <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
                           Document #{idx + 1}
                         </span>
-                        <button
-                          type="button"
-                          onClick={() => removeDocumentRow(idx)}
-                          className="p-1 rounded text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
-                          title="Remove row"
-                        >
+                        <button type="button" onClick={() => removeDocumentRow(idx)}
+                          className="p-1 rounded text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors" title="Remove row">
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                           </svg>
                         </button>
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-xs font-medium text-slate-600 mb-0.5">File Name</label>
-                          <input
-                            value={row.file_name}
-                            onChange={(e) => updateDocumentRow(idx, 'file_name', e.target.value)}
-                            placeholder="File name"
-                            className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                          />
+                      {/* Two-column layout: metadata left, signature right */}
+                      <div className="grid grid-cols-1 lg:grid-cols-[1fr_260px] divide-y lg:divide-y-0 lg:divide-x divide-slate-200">
+
+                        {/* Left: metadata + file upload */}
+                        <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-xs font-medium text-slate-600 mb-0.5">File Name</label>
+                            <input value={row.file_name} onChange={(e) => updateDocumentRow(idx, 'file_name', e.target.value)}
+                              placeholder="File name"
+                              className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-slate-600 mb-0.5">Document Type</label>
+                            <select value={row.document_type || ''} onChange={(e) => updateDocumentRow(idx, 'document_type', e.target.value)}
+                              className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary">
+                              <option value="">Select type</option>
+                              {documentTypes.map((dt) => (
+                                <option key={dt.name} value={dt.name}>{dt.document_name || dt.name}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-slate-600 mb-0.5">Transaction No</label>
+                            <input value={row.transaction_no || ''} onChange={(e) => updateDocumentRow(idx, 'transaction_no', e.target.value)}
+                              placeholder="Transaction number"
+                              className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-slate-600 mb-0.5">Upload Remarks</label>
+                            <input value={row.upload_remarks || ''} onChange={(e) => updateDocumentRow(idx, 'upload_remarks', e.target.value)}
+                              placeholder="Remarks"
+                              className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                          </div>
+                          <div className="sm:col-span-2">
+                            <label className="block text-xs font-medium text-slate-600 mb-0.5">
+                              File Attachment
+                              <span className="ml-1 font-normal text-slate-400">(photo, PDF, etc.)</span>
+                            </label>
+                            <input type="file" disabled={documentUploading === idx}
+                              onChange={(e) => { const f = e.target.files?.[0]; if (f) handleDocumentFile(idx, f); e.target.value = '' }}
+                              className="w-full text-sm file:mr-2 file:rounded file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-white file:text-sm" />
+                            {documentUploading === idx && (
+                              <span className="text-xs text-slate-500 mt-0.5 block">Uploading...</span>
+                            )}
+                            {row.document && documentUploading !== idx && signatureUploading !== idx && (
+                              <span className="text-xs text-green-600 mt-0.5 block truncate" title={row.document}>
+                                ✓ File attached
+                              </span>
+                            )}
+                          </div>
                         </div>
-                        <div>
-                          <label className="block text-xs font-medium text-slate-600 mb-0.5">Document Type</label>
-                          <select
-                            value={row.document_type || ''}
-                            onChange={(e) => updateDocumentRow(idx, 'document_type', e.target.value)}
-                            className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary"
-                          >
-                            <option value="">Select type</option>
-                            {documentTypes.map((dt) => (
-                              <option key={dt.name} value={dt.name}>{dt.document_name || dt.name}</option>
-                            ))}
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-slate-600 mb-0.5">Transaction No</label>
-                          <input
-                            value={row.transaction_no || ''}
-                            onChange={(e) => updateDocumentRow(idx, 'transaction_no', e.target.value)}
-                            placeholder="Transaction number"
-                            className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-slate-600 mb-0.5">Upload Remarks</label>
-                          <input
-                            value={row.upload_remarks || ''}
-                            onChange={(e) => updateDocumentRow(idx, 'upload_remarks', e.target.value)}
-                            placeholder="Remarks"
-                            className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                          />
-                        </div>
-                        <div className="md:col-span-2">
-                          <label className="block text-xs font-medium text-slate-600 mb-0.5">Attachment</label>
-                          <input
-                            type="file"
-                            disabled={documentUploading === idx}
-                            onChange={(e) => {
-                              const f = e.target.files?.[0]
-                              if (f) handleDocumentFile(idx, f)
-                              e.target.value = ''
-                            }}
-                            className="w-full text-sm file:mr-2 file:rounded file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-white file:text-sm"
-                          />
-                          {documentUploading === idx && (
-                            <span className="text-xs text-slate-500 mt-0.5 block">Uploading...</span>
+
+                        {/* Right: digital signature pad */}
+                        <div className="p-4 flex flex-col gap-2">
+                          <div className="flex items-center gap-1.5 mb-1">
+                            <PenLine className="w-3.5 h-3.5 text-slate-400" />
+                            <span className="text-xs font-medium text-slate-600">Digital Signature</span>
+                            <span className="text-xs text-slate-400 ml-1">— draw &amp; save as file</span>
+                          </div>
+                          <div className="flex-1">
+                            <SignaturePad
+                              onSave={(file) => handleSignatureFile(idx, file)}
+                              existingUrl={row.document?.includes('signature_') ? row.document : undefined}
+                              uploading={signatureUploading === idx}
+                            />
+                          </div>
+                          {signatureUploading === idx && (
+                            <p className="text-xs text-slate-500 text-center">Uploading signature...</p>
                           )}
-                          {row.document && documentUploading !== idx && (
-                            <span className="text-xs text-green-600 mt-0.5 block truncate" title={row.document}>
-                              ✓ File attached
-                            </span>
-                          )}
+                          <p className="text-xs text-slate-400 leading-relaxed">
+                            Draw your signature above, then tap <strong>Save Signature</strong> — stored as a PNG attached to this row.
+                          </p>
                         </div>
                       </div>
                     </div>
                   ))}
-                  <button
-                    type="button"
-                    onClick={addDocumentRow}
-                    className="flex items-center gap-1.5 text-sm text-primary font-medium hover:underline"
-                  >
+
+                  <button type="button" onClick={addDocumentRow}
+                    className="flex items-center gap-1.5 text-sm text-primary font-medium hover:underline">
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                     </svg>
@@ -1193,14 +1157,11 @@ const handleSalutationSelect = (sal: LinkFieldOption) => {
 
           {/* Footer */}
           <div className="shrink-0 border-t border-slate-200 px-6 py-4 flex items-center justify-between bg-white rounded-b-lg">
-            {/* Tab nav shortcuts */}
             <div className="flex gap-2">
               {activeTab !== 'details' && (
-                <button
-                  type="button"
+                <button type="button"
                   onClick={() => setActiveTab(activeTab === 'documents' ? 'relations' : 'details')}
-                  className="px-3 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 flex items-center gap-1"
-                >
+                  className="px-3 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 flex items-center gap-1">
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                   </svg>
@@ -1208,11 +1169,9 @@ const handleSalutationSelect = (sal: LinkFieldOption) => {
                 </button>
               )}
               {activeTab !== 'documents' && (
-                <button
-                  type="button"
+                <button type="button"
                   onClick={() => setActiveTab(activeTab === 'details' ? 'relations' : 'documents')}
-                  className="px-3 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 flex items-center gap-1"
-                >
+                  className="px-3 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 flex items-center gap-1">
                   Next
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -1220,20 +1179,13 @@ const handleSalutationSelect = (sal: LinkFieldOption) => {
                 </button>
               )}
             </div>
-
             <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50"
-              >
+              <button type="button" onClick={onClose}
+                className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50">
                 Cancel
               </button>
-              <button
-                type="submit"
-                disabled={loading}
-                className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-50"
-              >
+              <button type="submit" disabled={loading}
+                className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-50">
                 {loading ? 'Creating...' : 'Create Patient'}
               </button>
             </div>
