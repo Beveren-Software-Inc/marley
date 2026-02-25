@@ -44,6 +44,29 @@ frappe.ui.form.on('Sales Invoice', {
 				})
 			},__('Get Items From'));
 		}
+
+		// --- Insurance Claim integration (for submitted invoices) ---
+		if (frm.doc.docstatus === 1 && frm.doc.patient) {
+			frm.add_custom_button(__('Insurance Claim'), function () {
+				frappe.call({
+					method: 'healthcare.healthcare.api.insurance_claim.create_insurance_claim_from_invoice',
+					args: { sales_invoice: frm.doc.name },
+					freeze: true,
+					freeze_message: __('Creating Insurance Claim...'),
+					callback(r) {
+						if (!r.message) {
+							return;
+						}
+						const claim_name = r.message;
+						frappe.msgprint({
+							message: __('Insurance Claim {0} ready.', [`<a href="/app/insurance-claim/${claim_name}">${claim_name}</a>`]),
+							indicator: 'green'
+						});
+						frappe.set_route('Form', 'Insurance Claim', claim_name);
+					}
+				});
+			}, __('Create'));
+		}
 	},
 
 	onload_post_render(frm) {

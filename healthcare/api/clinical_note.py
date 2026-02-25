@@ -46,7 +46,6 @@ def get_clinical_notes(limit=50, offset=0, patient=None, medical_role=None, clin
 		limit_start=offset,
 		order_by='posting_date desc'
 	)
-	print("clinical_notes ndio hiziz", clinical_notes)
 	# Get patient names and practitioner names
 	for note in clinical_notes:
 		if note.patient:

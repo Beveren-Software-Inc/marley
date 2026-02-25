@@ -10,12 +10,19 @@
   "insurance_company",
   "insurance_type",
   "policy_no",
-  "insurance_no",
-  "employee_code",
   "column_break_udmx",
+  "insurance_no",
   "expiry_date",
   "deductable_amount",
-  "special_note"
+  "employee_code",
+  "outpatient_discount",
+  "inpatient_discount",
+  "discounts_section",
+  "special_note",
+  "inclusive_items_tab",
+  "inclusive_item",
+  "exclusive_items_tab",
+  "exclusive_item"
  ],
  "fields": [
   {
@@ -45,6 +52,7 @@
   {
    "fieldname": "employee_code",
    "fieldtype": "Data",
+   "hidden": 1,
    "label": "Employee Code"
   },
   {
@@ -54,11 +62,13 @@
   {
    "fieldname": "expiry_date",
    "fieldtype": "Date",
+   "hidden": 1,
    "label": "Expiry Date"
   },
   {
    "fieldname": "deductable_amount",
    "fieldtype": "Currency",
+   "hidden": 1,
    "label": "Deductable Amount"
   },
   {
@@ -71,12 +81,49 @@
    "fieldtype": "Link",
    "label": "Insurance Type",
    "options": "Insurance Type"
+  },
+  {
+   "fieldname": "discounts_section",
+   "fieldtype": "Section Break",
+   "label": "More Infor"
+  },
+  {
+   "fieldname": "outpatient_discount",
+   "fieldtype": "Percent",
+   "label": "Outpatient Discount(%)"
+  },
+  {
+   "fieldname": "inpatient_discount",
+   "fieldtype": "Percent",
+   "label": "Inpatient Discount(%)"
+  },
+  {
+   "fieldname": "inclusive_items_tab",
+   "fieldtype": "Tab Break",
+   "label": "Inclusive Items"
+  },
+  {
+   "fieldname": "inclusive_item",
+   "fieldtype": "Table",
+   "label": "Inclusive Item",
+   "options": "Insurance Item Detail"
+  },
+  {
+   "fieldname": "exclusive_items_tab",
+   "fieldtype": "Tab Break",
+   "label": "Exclusive Items"
+  },
+  {
+   "fieldname": "exclusive_item",
+   "fieldtype": "Table",
+   "label": "Exclusive Item",
+   "options": "Insurance Exclusive Items"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-02-17 14:16:11.090422",
+ "modified": "2026-02-25 10:37:37.700692",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Health Insurance",
@@ -98,6 +145,7 @@
  ],
  "row_format": "Dynamic",
  "rows_threshold_for_grid_search": 20,
+ "search_fields": "insurance_company",
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": []

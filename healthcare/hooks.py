@@ -51,6 +51,10 @@ fixtures = [
                     "Sales Order-custom_reference_type",
                     "Sales Order-custom_column_break_rq7zb",
                     "Sales Order-custom_reference_name",
+                    "Quotation-custom_paient_name",
+                    "Quotation-custom_patient",
+                    "Sales Order-custom_patient_name",
+                    "Sales Order-custom_patient",
                 ),
             ]
         ],
