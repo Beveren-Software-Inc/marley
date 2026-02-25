@@ -212,6 +212,7 @@ def confirm_payment(service_request_name):
 	# Create Sales Order
 	# ------------------------
 	so = frappe.new_doc("Sales Order")
+	so.patient = sr.patient
 	so.customer = sr.patient   # adjust if mapped via Customer
 	so.transaction_date = nowdate()
 	so.delivery_date = delivery_date
