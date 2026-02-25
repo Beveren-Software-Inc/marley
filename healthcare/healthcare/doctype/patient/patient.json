@@ -65,8 +65,10 @@
   "insurance",
   "insurance_type",
   "insurance_company_no",
-  "column_break_eqbb",
   "insurance_policy_no",
+  "column_break_eqbb",
+  "insurance_active",
+  "employee_code",
   "ref_no",
   "insurance_valid_till",
   "more_info",
@@ -713,6 +715,7 @@
    "fetch_from": "insurance.insurance_type",
    "fieldname": "insurance_type",
    "fieldtype": "Link",
+   "hidden": 1,
    "label": "Insurance Type",
    "options": "Insurance Type"
   },
@@ -782,6 +785,17 @@
    "fieldname": "insurance_valid_till",
    "fieldtype": "Date",
    "label": "Insurance Valid Till"
+  },
+  {
+   "default": "1",
+   "fieldname": "insurance_active",
+   "fieldtype": "Check",
+   "label": "Insurance Active"
+  },
+  {
+   "fieldname": "employee_code",
+   "fieldtype": "Data",
+   "label": "Employee Code"
   }
  ],
  "grid_page_length": 50,
@@ -885,7 +899,7 @@
   }
  ],
  "max_attachments": 50,
- "modified": "2026-02-23 10:44:54.417242",
+ "modified": "2026-02-25 10:20:47.438466",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient",
@@ -945,7 +959,7 @@
  "restrict_to_domain": "Healthcare",
  "row_format": "Dynamic",
  "rows_threshold_for_grid_search": 20,
- "search_fields": "patient_name,file_no,id_number,mobile,email,phone,uid",
+ "search_fields": "patient_name,file_no,mobile,email,phone,uid",
  "show_name_in_global_search": 1,
  "sort_field": "modified",
  "sort_order": "ASC",

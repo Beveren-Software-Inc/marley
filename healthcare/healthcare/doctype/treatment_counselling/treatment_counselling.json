@@ -1,8 +1,7 @@
 {
  "actions": [],
  "allow_rename": 1,
- "autoname": "field:name1",
- "creation": "2026-02-01 11:49:37.202613",
+ "creation": "2026-02-25 13:21:53.101199",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -12,21 +11,16 @@
   {
    "fieldname": "name1",
    "fieldtype": "Data",
-   "in_list_view": 1,
-   "in_standard_filter": 1,
-   "label": "Name",
-   "reqd": 1,
-   "unique": 1
+   "label": "Name"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-02-25 10:13:39.510407",
+ "modified": "2026-02-25 13:21:59.293868",
  "modified_by": "Administrator",
  "module": "Healthcare",
- "name": "Insurance Company",
- "naming_rule": "By fieldname",
+ "name": "Treatment Counselling",
  "owner": "Administrator",
  "permissions": [
   {

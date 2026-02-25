@@ -156,6 +156,7 @@ def create_payment_entry(data: dict) -> dict:
         reference_doctype, reference_name,
         data.get("visit"), data.get("patient"), data.get("remarks", "")
     )
+    pe.custom_insurance_claim = data.get("custom_insurance_claim")  # Optional link to Insurance Claim
 
     _append_reference_row(pe, reference_doctype, reference_name, ref_doc, paid_amount)
 

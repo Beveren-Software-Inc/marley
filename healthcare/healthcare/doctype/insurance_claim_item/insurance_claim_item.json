@@ -9,10 +9,9 @@
   "service_type",
   "reference_doctype",
   "reference_name",
-  "sales_invoice",
-  "column_break_bmfz",
   "sales_invoice_item",
-  "item_code",
+  "column_break_bmfz",
+  "item_name",
   "description",
   "amounts_section",
   "gross_amount",
@@ -37,34 +36,21 @@
   {
    "fieldname": "reference_doctype",
    "fieldtype": "Link",
-   "in_list_view": 1,
-   "in_standard_filter": 1,
    "label": "Reference Doctype",
    "options": "DocType"
   },
   {
    "fieldname": "reference_name",
    "fieldtype": "Dynamic Link",
-   "in_list_view": 1,
-   "in_standard_filter": 1,
    "label": "Reference Name",
    "options": "reference_doctype"
   },
   {
-   "fieldname": "sales_invoice",
-   "fieldtype": "Link",
-   "label": "Sales Invoice",
-   "options": "Sales Invoice"
-  },
-  {
    "fieldname": "sales_invoice_item",
-   "fieldtype": "Data",
-   "label": "Sales Invoice Item"
-  },
-  {
-   "fieldname": "item_code",
    "fieldtype": "Link",
-   "label": "Item",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Sales Invoice Item",
    "options": "Item"
   },
   {
@@ -92,17 +78,18 @@
    "label": "Covered Amount"
   },
   {
+   "fieldname": "paid_amount",
+   "fieldtype": "Currency",
+   "label": "Paid Amount"
+  },
+  {
    "fieldname": "co_pay_amount",
    "fieldtype": "Currency",
-   "in_list_view": 1,
-   "in_standard_filter": 1,
    "label": "Co-pay Amount"
   },
   {
    "fieldname": "non_covered_amount",
    "fieldtype": "Currency",
-   "in_list_view": 1,
-   "in_standard_filter": 1,
    "label": "Non-covered Amount"
   },
   {
@@ -117,11 +104,19 @@
   {
    "fieldname": "column_break_kfre",
    "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "item_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Item Name/Service",
+   "options": "Item"
   }
  ],
  "istable": 1,
  "links": [],
- "modified": "2026-02-10 12:19:27.468357",
+ "modified": "2026-02-25 11:21:49.555344",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Insurance Claim Item",
