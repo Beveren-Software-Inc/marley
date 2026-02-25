@@ -55,6 +55,14 @@ fixtures = [
                     "Quotation-custom_patient",
                     "Sales Order-custom_patient_name",
                     "Sales Order-custom_patient",
+                    "Payment Entry-custom_insurance_company",
+                    "Payment Entry-custom_column_break_efj7r",
+                    "Payment Entry-custom_insurance_claim",
+                    "Payment Entry-custom_insurance_reference",
+                    "Quotation-custom_reference_name",
+                    "Quotation-custom_reference_type",
+                    "Quotation-custom_column_break_uzvkh",
+                    "Quotation-custom_healthcare_reference",
                 ),
             ]
         ],
@@ -111,7 +119,10 @@ app_include_js = "healthcare.bundle.js"
 # page_js = {"page" : "public/js/file.js"}
 
 # include js in doctype views
-doctype_js = {"Sales Invoice": "public/js/sales_invoice.js"}
+doctype_js = {"Sales Invoice": "public/js/sales_invoice.js",
+              
+              "Sales Order": "public/js/sales_order.js",
+              "Quotation": "public/js/quotation.js",}
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
@@ -203,7 +214,7 @@ doc_events = {
 		"validate": "healthcare.controllers.discount_validation.validate_discount",	
 	},
 	"Quotation": {
-		"validate": "healthcare.controllers.discount_validation.validate_discount",
+		"before_save": "healthcare.controllers.discount_validation.validate_discount",
 	},
 	"Company": {
 		"after_insert": "healthcare.healthcare.utils.create_healthcare_service_unit_tree_root",

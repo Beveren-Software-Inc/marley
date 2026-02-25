@@ -7,6 +7,7 @@ import frappe
 import re
 from frappe import _
 from frappe.utils import cint,getdate, flt
+from healthcare.controllers.discount_validation import apply_insurance_discounts
 
 try:
 	from erpnext import get_default_currency
@@ -520,12 +521,14 @@ def create_admission_quotation(admission_name, package_name, days, total_amount,
 	# ✅ Create Quotation instead of Sales Order
 	quotation = frappe.new_doc("Quotation")
 	quotation.patient = patient
-	quotation.customer = customer
+	quotation.party_name = frappe.db.get_value('Customer', patient, 'customer_name') or customer
 	quotation.company = company
 	quotation.transaction_date = getdate()
 	quotation.valid_till = getdate()
 	quotation.custom_package = package_name
 	quotation.custom_inpatient_admission= admission_name
+	quotation.custom_reference_type = "Inpatient Admission"
+	quotation.custom_reference_name = admission_name
 	
 	# Add item
 	item_row = quotation.append("items", {})
@@ -538,6 +541,7 @@ def create_admission_quotation(admission_name, package_name, days, total_amount,
 	item_row.qty = 1
 	item_row.rate = flt(total_amount)
 	item_row.amount = flt(total_amount)
+	# item_row.discount_percentage = 6
 	
 	if package.cost_center:
 		item_row.cost_center = package.cost_center
@@ -551,7 +555,11 @@ def create_admission_quotation(admission_name, package_name, days, total_amount,
 	
 	# ✅ Save only (Draft)
 	quotation.flags.ignore_mandatory = True
+	quotation.calculate_taxes_and_totals()
+	# from healthcare.controllers.discount_validation import apply_insurance_discounts
+	# apply_insurance_discounts(quotation)
 	quotation.save(ignore_permissions=True)
+	
 	
 	return {
 		'success': True,
