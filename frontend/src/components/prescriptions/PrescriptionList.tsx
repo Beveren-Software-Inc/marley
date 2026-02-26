@@ -26,12 +26,14 @@ interface PrescriptionListProps {
   patient?: string
   refreshKey?: string | number
   onPrescriptionSelect?: (name: string) => void
+  careContext?: 'Patient Visit' | 'Inpatient Admission'
 }
 
 export const PrescriptionList = ({
   patient,
   refreshKey,
   onPrescriptionSelect,
+  careContext,
 }: PrescriptionListProps) => {
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([])
   const [loading, setLoading] = useState(true)
@@ -57,6 +59,7 @@ export const PrescriptionList = ({
     fromDate: dateFrom || undefined,
     toDate: dateTo || undefined,
     search: searchQuery.trim() || undefined,
+    careContext,
   }
 
   const hasActiveFilters = !!(statusFilter || practitionerFilter || dateFrom || dateTo || searchQuery.trim())

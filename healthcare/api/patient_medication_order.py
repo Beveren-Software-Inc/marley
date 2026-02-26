@@ -17,6 +17,7 @@ def get_medication_orders(
 	practitioner=None,
 	from_date=None,
 	to_date=None,
+	care_context=None,
 ):
 	"""Get list of Patient Medication Orders for Prescription listing.
 	Supports filters: patient, status, search (name/patient name), practitioner, from_date, to_date.
@@ -50,6 +51,9 @@ def get_medication_orders(
 		if practitioner:
 			conditions.append('practitioner = %(practitioner)s')
 			params['practitioner'] = practitioner
+		if care_context in ('Patient Visit', 'Inpatient Admission'):
+			conditions.append('care_context = %(care_context)s')
+			params['care_context'] = care_context
 		if from_date:
 			conditions.append('posting_date >= %(from_date)s')
 			params['from_date'] = from_date
@@ -77,6 +81,8 @@ def get_medication_orders(
 			filters.append(['status', '=', status])
 		else:
 			filters.append(['status', '!=', 'Cancelled'])
+		if care_context in ('Patient Visit', 'Inpatient Admission'):
+			filters.append(['care_context', '=', care_context])
 
 		orders = frappe.get_all(
 			'Patient Medication Order',
