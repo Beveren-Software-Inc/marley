@@ -35,9 +35,10 @@ def apply_insurance_discounts(doc):
     # 2) Generic patient field, if not already found
     if not patient and hasattr(doc, "patient") and getattr(doc, "patient", None):
         patient = doc.patient
-    
+    print("patient ni: ", patient)
     # 3) For Sales Order / Quotation created from healthcare docs via custom_reference_type/name
-    if not patient and hasattr(doc, "custom_reference_type") and hasattr(doc, "custom_reference_name"):
+    if hasattr(doc, "custom_reference_type") and hasattr(doc, "custom_reference_name"):
+        # print("hapa nafika")
         ref_doctype = getattr(doc, "custom_reference_type", None)
         ref_name = getattr(doc, "custom_reference_name", None)
 
@@ -60,10 +61,8 @@ def apply_insurance_discounts(doc):
                 visit = frappe.get_doc("Patient Visit", ref_name)
                 patient = visit.patient
                 context = "outpatient"
-    
     if not patient:
         return
-
     patient_doc = frappe.get_doc("Patient", patient)
     if not getattr(patient_doc, "is_insurance", 0) or not getattr(patient_doc, "insurance", None):
         return
@@ -82,7 +81,6 @@ def apply_insurance_discounts(doc):
         base_discount = insurance_doc.outpatient_discount or 0
     else:
         base_discount = insurance_doc.inpatient_discount or 0
-
     # Nothing to apply
     if not base_discount:
         return
@@ -105,13 +103,7 @@ def apply_insurance_discounts(doc):
         # Skip exclusive items
         if item_code in exclusive_items:
             continue
-        
-        
-        # Respect manually entered item discounts
-        # existing_pct = getattr(item, "discount_percentage", 0) or 0
-        # existing_amt = getattr(item, "discount_amount", 0) or 0
-        # if existing_pct or existing_amt:
-        #     continue
+       
         # Start with base discount, allow item-level override if present
         discount_to_apply = base_discount
         row_override = inclusive_map.get(item_code)
@@ -122,8 +114,7 @@ def apply_insurance_discounts(doc):
                 discount_to_apply = row_override.inpatient_discount or base_discount
 
         if discount_to_apply:
-            # Let ERPNext's tax/total logic use discount_percentage to recompute net amounts
-            # item.margin_type = "Percentage"
+           
             item.discount_percentage = discount_to_apply
             item.rate = item.price_list_rate * (1 - discount_to_apply / 100)
             item.amount = item.rate * item.qty
@@ -135,9 +126,7 @@ def apply_insurance_discounts(doc):
 def validate_discount(doc, method):
     # First, auto-apply Health Insurance discounts per item (if applicable)
     apply_insurance_discounts(doc)
-   
-    # Recalculate taxes & totals so that newly applied per-line discounts
-    # are reflected in amounts / grand totals.
+ 
     if doc.doctype in ("Sales Order", "Quotation"):
         try:
             doc.run_method("calculate_taxes_and_totals")

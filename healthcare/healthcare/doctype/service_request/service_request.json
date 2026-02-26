@@ -354,12 +354,10 @@
    "options": "Item"
   },
   {
-   "fetch_from": "patient.inpatient_record",
    "fieldname": "inpatient_record",
    "fieldtype": "Link",
    "label": "Inpatient Admission",
-   "options": "Inpatient Admission",
-   "read_only": 1
+   "options": "Inpatient Admission"
   },
   {
    "fetch_from": "patient.inpatient_status",
@@ -608,7 +606,7 @@
    "link_fieldname": "service_request"
   }
  ],
- "modified": "2026-02-18 22:12:31.940164",
+ "modified": "2026-02-26 10:15:39.596637",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Service Request",
