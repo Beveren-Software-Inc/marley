@@ -299,6 +299,58 @@ export const DoctorPage = () => {
     )
   }
 
+  // Show Psychologist Orders (Clinical Note with Medical Role = Psychologists, Note Type = Order)
+  if (screen === 'psy-o') {
+    return (
+      <div className="flex flex-col">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+        <div className="p-4">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+            <div className="font-semibold mb-4 flex items-center justify-between">
+              <span>Psychologist Orders</span>
+              <button
+                onClick={() => setShowDiagnosisModal(true)}
+                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
+                title="Add Psychologist Order"
+              >
+                +
+              </button>
+            </div>
+            <ClinicalNotesList
+              patient={selectedPatient}
+              medicalRole="Psychologists"
+              noteType="Order"
+            />
+          </section>
+        </div>
+        {showDiagnosisModal && (
+          <CreateClinicalNoteModal
+            onClose={() => setShowDiagnosisModal(false)}
+            onSuccess={() => {
+              setDiagnosisRefreshKey(prev => prev + 1)
+              setShowDiagnosisModal(false)
+            }}
+            initialPatient={selectedPatient}
+            defaultClinicalNoteType="Order"
+            title="Add Psychologist Order"
+          />
+        )}
+      </div>
+    )
+  }
+
   // Show Therapist Notes (Clinical Note with Medical Role = Physiotherapist or Therapist)
   if (screen === 'ther') {
     return (
@@ -428,6 +480,177 @@ export const DoctorPage = () => {
             <VitalSignsList patient={selectedPatient} />
           </section>
         </div>
+      </div>
+    )
+  }
+
+  // Show Doctors Prescriptions (Patient Medication Orders)
+  if (screen === 'rx') {
+    return (
+      <div className="flex flex-col">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+        <div className="p-4">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+            <div className="font-semibold mb-4 flex items-center justify-between">
+              <span>Doctors Prescriptions</span>
+              <button
+                onClick={() => setShowPrescriptionModal(true)}
+                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
+                title="Create Prescription"
+              >
+                +
+              </button>
+            </div>
+            <PrescriptionList patient={selectedPatient} refreshKey={prescriptionRefreshKey} />
+          </section>
+        </div>
+        {showPrescriptionModal && (
+          <CreatePrescriptionModal
+            onClose={() => setShowPrescriptionModal(false)}
+            onSuccess={() => {
+              setPrescriptionRefreshKey(prev => prev + 1)
+              setShowPrescriptionModal(false)
+            }}
+            initialPatient={selectedPatient}
+          />
+        )}
+      </div>
+    )
+  }
+
+  // Show IP Medication (only inpatient prescriptions)
+  if (screen === 'ipm') {
+    return (
+      <div className="flex flex-col">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+        <div className="p-4">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+            <div className="font-semibold mb-4 flex items-center justify-between">
+              <span>IP Medication (Inpatient Prescriptions)</span>
+              <button
+                onClick={() => setShowPrescriptionModal(true)}
+                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
+                title="Create IP Prescription"
+              >
+                +
+              </button>
+            </div>
+            <PrescriptionList
+              patient={selectedPatient}
+              refreshKey={prescriptionRefreshKey}
+              careContext="Inpatient Admission"
+            />
+          </section>
+        </div>
+        {showPrescriptionModal && (
+          <CreatePrescriptionModal
+            onClose={() => setShowPrescriptionModal(false)}
+            onSuccess={() => {
+              setPrescriptionRefreshKey(prev => prev + 1)
+              setShowPrescriptionModal(false)
+            }}
+            initialPatient={selectedPatient}
+          />
+        )}
+      </div>
+    )
+  }
+
+  // Show Patient Visit History
+  if (screen === 'pvh') {
+    return (
+      <div className="flex flex-col">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+        <div className="p-4">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+            <div className="font-semibold mb-4">Patient Visit History</div>
+            <PatientVisitList patient={selectedPatient} />
+          </section>
+        </div>
+      </div>
+    )
+  }
+
+  // Show Warning Messages full view
+  if (screen === 'warn') {
+    return (
+      <div className="flex flex-col">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+        <div className="p-4">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+            <div className="font-semibold mb-4 flex items-center justify-between">
+              <span>Warnings & Allergies</span>
+              <button
+                onClick={() => setShowWarningModal(true)}
+                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
+                title="Add Warning Message"
+              >
+                +
+              </button>
+            </div>
+            <div className="overflow-x-auto overflow-y-auto max-h-[600px]" style={{ scrollbarWidth: 'thin' }}>
+              <WarningMessagesList patient={selectedPatient} key={warningRefreshKey} />
+            </div>
+          </section>
+        </div>
+        {showWarningModal && (
+          <CreateWarningMessageModal
+            onClose={() => setShowWarningModal(false)}
+            onSuccess={() => {
+              setWarningRefreshKey(prev => prev + 1)
+              setShowWarningModal(false)
+            }}
+            initialPatient={selectedPatient}
+          />
+        )}
       </div>
     )
   }

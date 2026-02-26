@@ -23,6 +23,7 @@ export interface PrescriptionFilters {
   practitioner?: string
   fromDate?: string
   toDate?: string
+  careContext?: 'Patient Visit' | 'Inpatient Admission'
 }
 
 export async function fetchPrescriptions(
@@ -39,6 +40,7 @@ export async function fetchPrescriptions(
   if (filters.practitioner) params.append('practitioner', filters.practitioner)
   if (filters.fromDate) params.append('from_date', filters.fromDate)
   if (filters.toDate) params.append('to_date', filters.toDate)
+  if (filters.careContext) params.append('care_context', filters.careContext)
 
   const response = await fetch(
     `/api/method/healthcare.api.patient_medication_order.get_medication_orders?${params.toString()}`
