@@ -222,6 +222,8 @@ def confirm_payment(service_request_name):
 		"rate": sr.amount or 0,
 		"description": f"Service Request {sr.name}"
 	})
+	so.custom_reference_type = "Service Request"
+	so.custom_reference_name = sr.name
 
 	so.insert(ignore_permissions=True)
 	so.submit()
