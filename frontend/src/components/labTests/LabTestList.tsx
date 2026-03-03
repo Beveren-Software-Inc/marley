@@ -563,7 +563,18 @@ export const LabTestList = ({
             </thead>
             <tbody className="divide-y divide-slate-200">
               {labTests.map((labTest) => (
-                <tr key={labTest.name} className="hover:bg-slate-50">
+                <tr
+                  key={labTest.name}
+                  className="hover:bg-slate-50 cursor-pointer"
+                  onClick={(e) => {
+                    const target = e.target as HTMLElement
+                    // Don't trigger row click when clicking buttons or inside the actions/controls
+                    if (target.closest('button') || target.closest('a') || target.closest('[data-no-row-click]')) {
+                      return
+                    }
+                    setSelectedLabTestForDetails(labTest.name)
+                  }}
+                >
                   <td className="px-4 py-3 text-sm font-medium text-slate-900">{labTest.name}</td>
                   <td className="px-4 py-3 text-sm text-slate-700">{labTest.patient_name || labTest.patient}</td>
                   <td className="px-4 py-3 text-sm text-slate-700">{labTest.lab_test_name || labTest.template || '-'}</td>
