@@ -323,12 +323,18 @@ class HealthcareAuth {
           }
         }
       } catch {
-        // Fallback: parse from User doc child table "roles" (Has Role) if present
+        // API failed (e.g. 403/404 on deployed site); fallback below will use User doc
+      }
+
+      // Fallback when roles API failed or returned no array: use User doc (roles child table or role/role_profile_name)
+      if (!profile.roles || !Array.isArray(profile.roles) || profile.roles.length === 0) {
         const childRoles = (profile as any).roles
         if (Array.isArray(childRoles) && childRoles.length > 0) {
           profile.roles = childRoles.map((r: { role?: string }) => r?.role).filter((x): x is string => Boolean(x))
         } else if (profile.role || profile.role_profile_name) {
           profile.roles = [profile.role_profile_name || profile.role].filter(Boolean) as string[]
+        } else {
+          profile.roles = []
         }
       }
 
