@@ -5,7 +5,7 @@ import { canAccessRoute, getDefaultRouteForUser, isAdmin } from '../config/permi
 
 type Props = { roles?: string[]; children: ReactNode }
 
-export const RoleGuard = ({ roles, children }: Props) => {
+export const RoleGuard = ({ children }: Props) => {
   const { isAuthenticated, loading, user } = useAuth()
   const location = useLocation()
 

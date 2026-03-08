@@ -149,7 +149,7 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
         <nav className="flex-1 overflow-y-auto p-4 flex flex-col gap-1 text-sm">
           {mainLinks.map((link) => {
             const isExpanded = expandedTopics.has(link.to)
-            const hasScreens = link.screens.length > 0
+            const hasScreens = (link.screens?.length ?? 0) > 0
             const showSubtopics = isExpanded && hasScreens
 
             return (
@@ -183,7 +183,7 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
                     {link.label}
                   </NavLink>
                 </div>
-                {showSubtopics && (
+                {showSubtopics && link.screens && (
                   <nav className="flex flex-col gap-1 mt-1 ml-6 text-xs">
                     {link.screens.map((s) => (
                       <NavLink

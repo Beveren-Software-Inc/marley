@@ -4,6 +4,7 @@
 
 import frappe
 from frappe import _
+from frappe.utils import nowdate
 
 
 @frappe.whitelist()
@@ -206,8 +207,6 @@ def get_patient_visit(name):
 	return data
  
 # healthcare/api/common.py
-import frappe
-from frappe.utils import nowdate
 
 @frappe.whitelist()
 def get_patient_visits_full(search=None, patient=None, practitioner=None, from_date=None, to_date=None, limit=50):

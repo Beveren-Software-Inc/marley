@@ -13,18 +13,6 @@ const ADMIN_ROLES = [
   'Website Manager'
 ]
 
-/** Role name (exact or normalized) -> path they are allowed to access as their "own" page */
-const ROLE_PAGE_MAP: Record<string, string> = {
-  'Doctor': '/doctor',
-  'Nurse': '/nurse',
-  'Laboratory User': '/lab',
-  'Lab': '/lab',
-  'Pharmacist': '/pharmacy',
-  'Pharmacy': '/pharmacy',
-  'Reception': '/reception',
-  'Receptionist': '/reception'
-}
-
 /** Paths that every authenticated user can access */
 const PUBLIC_PATHS = ['/patient', '/employee', '/patient-history', '/settings', '/patient-visit/']
 

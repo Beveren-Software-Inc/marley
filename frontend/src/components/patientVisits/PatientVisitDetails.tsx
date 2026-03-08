@@ -210,7 +210,7 @@ const handleCancelVisitConfirm = async (reason: string) => {
                 >
                   <div className="min-w-0">
                     <div className="text-sm font-medium text-slate-800 truncate">
-                      {doc.file_name || doc.document_name || doc.document || 'Document'}
+                      {doc.file_name || (doc as { document_name?: string }).document_name || doc.document || 'Document'}
                     </div>
                     <div className="text-xs text-slate-500 flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
                       {doc.document_type && <span>Type: {doc.document_type}</span>}
