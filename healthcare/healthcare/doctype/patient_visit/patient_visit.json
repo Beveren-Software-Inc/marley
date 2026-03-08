@@ -75,7 +75,9 @@
   "medicine_charges",
   "charges_and_payments_tab",
   "charges",
-  "invoice_created"
+  "invoice_created",
+  "uploaded_documents_tab",
+  "documents"
  ],
  "fields": [
   {
@@ -532,6 +534,17 @@
    "fieldname": "invoice_created",
    "fieldtype": "Check",
    "label": "Invoice Created"
+  },
+  {
+   "fieldname": "uploaded_documents_tab",
+   "fieldtype": "Tab Break",
+   "label": "Uploaded Documents"
+  },
+  {
+   "fieldname": "documents",
+   "fieldtype": "Table",
+   "label": "documents",
+   "options": "Patient Upload Document"
   }
  ],
  "is_submittable": 1,
@@ -577,7 +590,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2026-02-23 17:38:16.869558",
+ "modified": "2026-03-03 12:06:37.294933",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Visit",

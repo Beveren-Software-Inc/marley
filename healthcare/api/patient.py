@@ -328,7 +328,7 @@ def get_patient_summary(patient):
 	if last_visit and 'is_blacklist' in last_visit:
 		is_blacklist = last_visit.get('is_blacklist') or 0
 
-	return {
+	data = {
 		'name': patient_doc.name,
 		'patient_name': patient_doc.patient_name,
 		'file_no': getattr(patient_doc, 'file_no', None) or patient_doc.name,
@@ -340,6 +340,25 @@ def get_patient_summary(patient):
 		'is_blacklist': is_blacklist,
 		"remarks": getattr(patient_doc, 'patient_details', None),
 	}
+
+	# Include patient_document child table (Patient Upload Document) for demographics / history
+	try:
+		documents = []
+		for row in (patient_doc.get("patient_document") or []):
+			documents.append({
+				"name": getattr(row, "name", None),
+				"document_name": getattr(row, "document_name", None),
+				"file_name": getattr(row, "file_name", None),
+				"document_type": getattr(row, "document_type", None),
+				"transaction_no": getattr(row, "transaction_no", None),
+				"upload_remarks": getattr(row, "upload_remarks", None),
+				"document": getattr(row, "document", None),
+			})
+		data["documents"] = documents
+	except Exception:
+		data["documents"] = []
+
+	return data
 
 
 @frappe.whitelist()

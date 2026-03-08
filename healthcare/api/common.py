@@ -9,6 +9,14 @@ print("Module healthcare.api.common loaded")
 
 
 @frappe.whitelist()
+def get_current_user_roles():
+	"""Return list of role names for the current user (for UI permissions)."""
+	if frappe.session.user == "Guest":
+		return []
+	return list(frappe.get_roles(frappe.session.user))
+
+
+@frappe.whitelist()
 def get_medical_departments(search=None):
 	"""Get list of Medical Departments"""
 	filters = {}

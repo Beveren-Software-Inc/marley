@@ -1,8 +1,10 @@
 import type { ReactNode } from 'react'
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { NavLink } from 'react-router-dom'
 import { ChevronDown, ChevronRight, Menu, X } from 'lucide-react'
 import { doctorScreens } from '../../config/doctorScreens'
+import { useAuth } from '../../providers/AuthProvider'
+import { getVisibleMainLinks, type MainLinkItem } from '../../config/permissions'
 
 const nurseScreens = [
   { id: 'n-first', title: 'IP Warnings / Meds / Allergy' },
@@ -71,7 +73,7 @@ const receptionScreens = [
   // { id: 'r-ip-dashboard', title: 'IP Dashboard' }
 ].sort((a, b) => a.title.localeCompare(b.title))
 
-const mainLinks = [
+const ALL_MAIN_LINKS: MainLinkItem[] = [
   { to: '/doctor', label: 'Doctor', screens: doctorScreens, prefix: '/doctor' },
   { to: '/nurse', label: 'Nurse', screens: nurseScreens, prefix: '/nurse' },
   { to: '/lab', label: 'Lab', screens: labScreens, prefix: '/lab' },
@@ -83,6 +85,13 @@ const mainLinks = [
 ]
 
 export const AppShell = ({ children }: { children: ReactNode }) => {
+  const { user } = useAuth()
+  const roles = user?.roles?.length ? user.roles : [user?.role, user?.role_profile_name].filter(Boolean) as string[]
+  const mainLinks = useMemo(
+    () => getVisibleMainLinks(ALL_MAIN_LINKS, roles),
+    [user?.name, (user?.roles || []).join(','), (user?.role || '') + (user?.role_profile_name || '')]
+  )
+
   // Track which topics have their subtopics expanded
   const [expandedTopics, setExpandedTopics] = useState<Set<string>>(new Set())
   // Track sidebar visibility on mobile
@@ -140,7 +149,7 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
         <nav className="flex-1 overflow-y-auto p-4 flex flex-col gap-1 text-sm">
           {mainLinks.map((link) => {
             const isExpanded = expandedTopics.has(link.to)
-            const hasScreens = link.screens.length > 0
+            const hasScreens = (link.screens?.length ?? 0) > 0
             const showSubtopics = isExpanded && hasScreens
 
             return (
@@ -174,7 +183,7 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
                     {link.label}
                   </NavLink>
                 </div>
-                {showSubtopics && (
+                {showSubtopics && link.screens && (
                   <nav className="flex flex-col gap-1 mt-1 ml-6 text-xs">
                     {link.screens.map((s) => (
                       <NavLink

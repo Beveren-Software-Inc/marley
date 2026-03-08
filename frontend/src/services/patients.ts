@@ -37,6 +37,8 @@ export interface PatientSummary {
   category?: string
   is_blacklist?: number
   remarks?: string
+  /** Patient Upload Document child table on Patient */
+  documents?: (PatientDocumentRow & { name?: string; document_name?: string })[]
 }
 
 export async function searchPatients(query: string, limit?: number): Promise<PatientListItem[]> {

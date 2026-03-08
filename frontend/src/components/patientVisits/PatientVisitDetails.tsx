@@ -15,6 +15,7 @@ export const PatientVisitDetails = ({ visitNo, onUpdate }: PatientVisitDetailsPr
   const [error, setError] = useState<Error | null>(null)
   const [showAdmissionModal, setShowAdmissionModal] = useState(false)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<'details' | 'documents'>('details')
 
   const loadVisit = async () => {
     try {
@@ -73,76 +74,170 @@ const handleCancelVisitConfirm = async (reason: string) => {
   if (error) return <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">{error.message}</div>
   if (!visit) return <div className="text-slate-500 text-center p-8">Visit not found</div>
 
+  const hasDocuments = !!visit.documents && visit.documents.length > 0
+
   return (
     <div className="space-y-4">
-      {/* Patient Info */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <h3 className="text-sm font-semibold text-slate-700 mb-2">Patient Information</h3>
-          <div className="space-y-1 text-sm">
-            <div><span className="font-medium">Patient:</span> {visit.patient_name || visit.patient}</div>
-            <div><span className="font-medium">Visit No:</span> {visit.name}</div>
-            {visit.file_number && <div><span className="font-medium">File Number:</span> {visit.file_number}</div>}
-            <div><span className="font-medium">Status:</span> {visit.status}</div>
-          </div>
-        </div>
-
-        <div>
-          <h3 className="text-sm font-semibold text-slate-700 mb-2">Visit Details</h3>
-          <div className="space-y-1 text-sm">
-            {visit.encounter_date && <div><span className="font-medium">Encounter Date:</span> {new Date(visit.encounter_date).toLocaleDateString()} {visit.encounter_time || ''}</div>}
-            {visit.practitioner_name && <div><span className="font-medium">Practitioner:</span> {visit.practitioner_name}</div>}
-            {visit.medical_department && <div><span className="font-medium">Department:</span> {visit.medical_department}</div>}
-            {visit.visit_type && <div><span className="font-medium">Visit Type:</span> {visit.visit_type}</div>}
-            {visit.inpatient_record && <div><span className="font-medium">Inpatient Admission:</span> {visit.inpatient_record} {visit.inpatient_status && `(${visit.inpatient_status})`}</div>}
-          </div>
-        </div>
+      {/* Tabs */}
+      <div className="border-b border-slate-200 mb-2">
+        <nav className="-mb-px flex gap-4 text-sm">
+          <button
+            type="button"
+            className={`pb-2 border-b-2 ${
+              activeTab === 'details'
+                ? 'border-primary text-primary font-semibold'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
+            onClick={() => setActiveTab('details')}
+          >
+            Details
+          </button>
+          <button
+            type="button"
+            className={`pb-2 border-b-2 flex items-center gap-1 ${
+              activeTab === 'documents'
+                ? 'border-primary text-primary font-semibold'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
+            onClick={() => setActiveTab('documents')}
+          >
+            Documents
+            {hasDocuments && (
+              <span className="inline-flex items-center justify-center rounded-full bg-slate-100 px-1.5 text-[11px] font-medium text-slate-700">
+                {visit.documents!.length}
+              </span>
+            )}
+          </button>
+        </nav>
       </div>
 
-      {/* Actions */}
-      <div className="border-t border-slate-200 pt-4">
-        <h3 className="text-sm font-semibold text-slate-700 mb-3">Actions</h3>
-        <div className="flex flex-wrap gap-2">
-          {/* Create Invoice (green) */}
-          {visit.status === 'Completed' && (
-            <button
-              onClick={handleCreateInvoice}
-              disabled={actionLoading === 'invoice'}
-              className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50"
-            >
-              {actionLoading === 'invoice' ? 'Creating…' : 'Create Invoice'}
-            </button>
+      {activeTab === 'details' && (
+        <>
+          {/* Patient Info */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <h3 className="text-sm font-semibold text-slate-700 mb-2">Patient Information</h3>
+              <div className="space-y-1 text-sm">
+                <div><span className="font-medium">Patient:</span> {visit.patient_name || visit.patient}</div>
+                <div><span className="font-medium">Visit No:</span> {visit.name}</div>
+                {visit.file_number && <div><span className="font-medium">File Number:</span> {visit.file_number}</div>}
+                <div><span className="font-medium">Status:</span> {visit.status}</div>
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-sm font-semibold text-slate-700 mb-2">Visit Details</h3>
+              <div className="space-y-1 text-sm">
+                {visit.encounter_date && (
+                  <div>
+                    <span className="font-medium">Encounter Date:</span>{' '}
+                    {new Date(visit.encounter_date).toLocaleDateString()} {visit.encounter_time || ''}
+                  </div>
+                )}
+                {visit.practitioner_name && <div><span className="font-medium">Practitioner:</span> {visit.practitioner_name}</div>}
+                {visit.medical_department && <div><span className="font-medium">Department:</span> {visit.medical_department}</div>}
+                {visit.visit_type && <div><span className="font-medium">Visit Type:</span> {visit.visit_type}</div>}
+                {visit.inpatient_record && (
+                  <div>
+                    <span className="font-medium">Inpatient Admission:</span> {visit.inpatient_record}{' '}
+                    {visit.inpatient_status && `(${visit.inpatient_status})`}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="border-t border-slate-200 pt-4">
+            <h3 className="text-sm font-semibold text-slate-700 mb-3">Actions</h3>
+            <div className="flex flex-wrap gap-2">
+              {/* Create Invoice (green) */}
+              {visit.status === 'Completed' && (
+                <button
+                  onClick={handleCreateInvoice}
+                  disabled={actionLoading === 'invoice'}
+                  className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50"
+                >
+                  {actionLoading === 'invoice' ? 'Creating…' : 'Create Invoice'}
+                </button>
+              )}
+
+              {/* Schedule Admission (blue) */}
+              {!visit.inpatient_record && visit.status === 'Completed' && (
+                <button
+                  onClick={handleScheduleAdmission}
+                  className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90"
+                >
+                  Schedule Admission
+                </button>
+              )}
+
+              {visit.status !== 'Cancelled' && (
+                <button
+                  onClick={() => setShowCancelModal(true)}
+                  className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700"
+                >
+                  Cancel Visit
+                </button>
+              )}
+
+              {showCancelModal && visit && (
+                <CancelVisitModal
+                  visitName={visit.name}
+                  onClose={() => setShowCancelModal(false)}
+                  onConfirm={handleCancelVisitConfirm}
+                  loading={cancelLoading}
+                />
+              )}
+            </div>
+          </div>
+        </>
+      )}
+
+      {activeTab === 'documents' && (
+        <div className="space-y-3">
+          {!hasDocuments && (
+            <div className="text-sm text-slate-500 bg-slate-50 border border-slate-200 rounded-md px-3 py-2">
+              No documents uploaded for this visit.
+            </div>
           )}
-
-          {/* Schedule Admission (blue) */}
-          {!visit.inpatient_record && visit.status === 'Completed' && (
-            <button
-              onClick={handleScheduleAdmission}
-              className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90"
-            >
-              Schedule Admission
-            </button>
+          {hasDocuments && (
+            <div className="space-y-2">
+              {visit.documents!.map((doc) => (
+                <div
+                  key={doc.name || `${doc.document}-${doc.file_name}`}
+                  className="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-white px-3 py-2"
+                >
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium text-slate-800 truncate">
+                      {doc.file_name || (doc as { document_name?: string }).document_name || doc.document || 'Document'}
+                    </div>
+                    <div className="text-xs text-slate-500 flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
+                      {doc.document_type && <span>Type: {doc.document_type}</span>}
+                      {doc.transaction_no && <span>Txn: {doc.transaction_no}</span>}
+                    </div>
+                    {doc.upload_remarks && (
+                      <div className="text-xs text-slate-500 mt-0.5 line-clamp-2">
+                        {doc.upload_remarks}
+                      </div>
+                    )}
+                  </div>
+                  {doc.document && (
+                    <a
+                      href={doc.document}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="shrink-0 inline-flex items-center px-3 py-1.5 text-xs font-medium text-primary border border-primary/30 rounded-md hover:bg-primary/5"
+                    >
+                      Open
+                    </a>
+                  )}
+                </div>
+              ))}
+            </div>
           )}
-
-         {visit.status !== 'Cancelled' && (
-  <button
-    onClick={() => setShowCancelModal(true)}
-    className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700"
-  >
-    Cancel Visit
-  </button>
-)}
-
-{showCancelModal && visit && (
-  <CancelVisitModal
-    visitName={visit.name}
-    onClose={() => setShowCancelModal(false)}
-    onConfirm={handleCancelVisitConfirm}
-    loading={cancelLoading}
-  />
-)}
         </div>
-      </div>
+      )}
 
       {/* Modals */}
       {showAdmissionModal && visit && (
