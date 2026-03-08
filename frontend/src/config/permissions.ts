@@ -23,6 +23,20 @@ export function isAdmin(roles: string[]): boolean {
   )
 }
 
+/** True if user should use the healthcare frontend (our UI); else they go to Frappe desk (/app). */
+export function hasHealthcareRole(roles: string[]): boolean {
+  if (!roles || roles.length === 0) return false
+  if (isAdmin(roles)) return true
+  const r = roles.map(x => x.trim().toLowerCase())
+  return (
+    r.some(x => x.includes('doctor') || x.includes('physician') || x.includes('practitioner')) ||
+    r.some(x => x.includes('nurse') || x.includes('nursing')) ||
+    r.some(x => x.includes('laboratory') || x.includes('lab')) ||
+    r.some(x => x.includes('pharmacist') || x.includes('pharmacy')) ||
+    r.some(x => x.includes('reception'))
+  )
+}
+
 export function canAccessRoute(pathname: string, roles: string[]): boolean {
   if (!roles || roles.length === 0) return false
 

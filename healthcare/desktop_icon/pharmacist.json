@@ -1,0 +1,14 @@
+{
+ "app": "healthcare",
+ "doctype": "Desktop Icon",
+ "hidden": 0,
+ "icon": "pill",
+ "icon_type": "Link",
+ "idx": 3,
+ "label": "Pharmacist",
+ "link": "/health/pharmacy",
+ "link_type": "External",
+ "name": "Pharmacist",
+ "parent_icon": "Healthcare",
+ "standard": 1
+}

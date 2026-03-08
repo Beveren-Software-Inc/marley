@@ -19,7 +19,7 @@ add_to_apps_screen = [
 		"name": "healthcare",
 		"logo": "/assets/healthcare/images/healthcare.svg",
 		"title": "Healthcare",
-		"route": "/desk/healthcare",
+		"route": "/health",
 	}
 ]
 

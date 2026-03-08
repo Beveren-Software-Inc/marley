@@ -1,0 +1,14 @@
+{
+ "app": "healthcare",
+ "doctype": "Desktop Icon",
+ "hidden": 0,
+ "icon": "layout-list",
+ "icon_type": "Link",
+ "idx": 1,
+ "label": "Reception",
+ "link": "/health/reception",
+ "link_type": "External",
+ "name": "Reception",
+ "parent_icon": "Healthcare",
+ "standard": 1
+}

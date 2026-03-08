@@ -1,7 +1,10 @@
 import { useState, useEffect, type FormEvent } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../providers/AuthProvider'
-import { getDefaultRouteForUser } from '../config/permissions'
+import { getDefaultRouteForUser, hasHealthcareRole } from '../config/permissions'
+
+/** Frappe desk URL for users who are not in a healthcare role (Doctor, Nurse, Lab, Pharmacist, Reception). Same as hack_smith: redirect to /app/home. */
+const FRAPPE_DESK_URL = '/app/home'
 
 export const LoginPage = () => {
   const [username, setUsername] = useState('')
@@ -12,23 +15,27 @@ export const LoginPage = () => {
   const location = useLocation()
   const { login, isAuthenticated, user } = useAuth()
 
-  // Redirect if already authenticated
+  // Redirect if already authenticated (e.g. refreshed while on login page)
   useEffect(() => {
     if (isAuthenticated && user) {
-      // Small delay to ensure state is fully updated
       const timer = setTimeout(() => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const from = (location.state as any)?.from?.pathname
+        const roles = (user.roles && user.roles.length > 0)
+          ? user.roles
+          : [user.role, user.role_profile_name].filter(Boolean) as string[]
+
+        if (!hasHealthcareRole(roles)) {
+          window.location.href = FRAPPE_DESK_URL
+          return
+        }
+
+        const from = (location.state as { from?: { pathname?: string } })?.from?.pathname
         if (from && from !== '/login') {
           navigate(from, { replace: true })
         } else {
-          const roles = (user.roles && user.roles.length > 0)
-            ? user.roles
-            : [user.role, user.role_profile_name].filter(Boolean) as string[]
           navigate(getDefaultRouteForUser(roles), { replace: true })
         }
       }, 100)
-      
+
       return () => clearTimeout(timer)
     }
   }, [isAuthenticated, user, navigate, location])
@@ -42,15 +49,22 @@ export const LoginPage = () => {
       const result = await login(username, password)
 
       if (result.success && result.user) {
-        // Redirect immediately using the user/roles from the login response so the correct
-        // role-based page is shown without needing a refresh
+        const roles = (result.user.roles && result.user.roles.length > 0)
+          ? result.user.roles
+          : [result.user.role, result.user.role_profile_name].filter(Boolean) as string[]
+
+        // If user is not a healthcare role (Doctor, Nurse, Lab, Pharmacist, Reception, or admin),
+        // send them to the normal Frappe site (desk) instead of our UI
+        if (!hasHealthcareRole(roles)) {
+          window.location.href = FRAPPE_DESK_URL
+          return
+        }
+
+        // Healthcare user: redirect to their role-specific page in our frontend
         const from = (location.state as { from?: { pathname?: string } })?.from?.pathname
         if (from && from !== '/login') {
           navigate(from, { replace: true })
         } else {
-          const roles = (result.user.roles && result.user.roles.length > 0)
-            ? result.user.roles
-            : [result.user.role, result.user.role_profile_name].filter(Boolean) as string[]
           navigate(getDefaultRouteForUser(roles), { replace: true })
         }
       } else if (!result.success) {
