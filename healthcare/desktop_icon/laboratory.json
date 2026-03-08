@@ -1,0 +1,14 @@
+{
+ "app": "healthcare",
+ "doctype": "Desktop Icon",
+ "hidden": 0,
+ "icon": "flask",
+ "icon_type": "Link",
+ "idx": 4,
+ "label": "Laboratory",
+ "link": "/health/lab",
+ "link_type": "External",
+ "name": "Laboratory",
+ "parent_icon": "Healthcare",
+ "standard": 1
+}

@@ -154,6 +154,7 @@ def setup_healthcare():
 		)
 		create_desktop_icons_from_installed_apps()
 		_ensure_healthcare_desktop_icon_visible()
+		_create_healthcare_role_desktop_icons()
 		clear_desktop_icons_cache()
 	except Exception:
 		pass
@@ -182,7 +183,38 @@ def _ensure_healthcare_desktop_icon_visible():
 	frappe.db.set_value("Desktop Icon", icon_name, "icon", icon_class)
 	frappe.db.set_value("Desktop Icon", icon_name, "label", app_title)
 	if app_details:
-		frappe.db.set_value("Desktop Icon", icon_name, "link", app_details[0].get("route", "/desk/healthcare"))
+		frappe.db.set_value("Desktop Icon", icon_name, "link", app_details[0].get("route", "/health"))
+
+
+def _create_healthcare_role_desktop_icons():
+	"""Create Doctor, Reception, Pharmacist, Laboratory desk icons (like HRMS Expenses, Leaves, Payroll)."""
+	healthcare_icon = frappe.db.get_value(
+		"Desktop Icon",
+		{"icon_type": "App", "app": "healthcare"},
+		"name",
+	)
+	if not healthcare_icon:
+		return
+	role_icons = [
+		("Doctor", "/health/doctor", "user-md"),
+		("Reception", "/health/reception", "layout-list"),
+		("Nurse", "/health/nurse", "heart-pulse"),
+		("Pharmacist", "/health/pharmacy", "pill"),
+		("Laboratory", "/health/lab", "flask"),
+	]
+	for idx, (label, link, icon) in enumerate(role_icons):
+		if frappe.db.exists("Desktop Icon", {"label": label, "link_type": "External", "link": link}):
+			continue
+		icon_doc = frappe.new_doc("Desktop Icon")
+		icon_doc.label = label
+		icon_doc.icon_type = "Link"
+		icon_doc.link_type = "External"
+		icon_doc.link = link
+		icon_doc.icon = icon
+		icon_doc.standard = 1
+		icon_doc.parent_icon = healthcare_icon
+		icon_doc.idx = idx
+		icon_doc.insert(ignore_permissions=True)
 
 
 def setup_domain():

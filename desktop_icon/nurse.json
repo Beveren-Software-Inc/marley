@@ -1,0 +1,14 @@
+{
+ "app": "healthcare",
+ "doctype": "Desktop Icon",
+ "hidden": 0,
+ "icon": "heart-pulse",
+ "icon_type": "Link",
+ "idx": 2,
+ "label": "Nurse",
+ "link": "/health/nurse",
+ "link_type": "External",
+ "name": "Nurse",
+ "parent_icon": "Healthcare",
+ "standard": 1
+}

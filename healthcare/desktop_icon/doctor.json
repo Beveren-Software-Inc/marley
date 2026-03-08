@@ -1,0 +1,14 @@
+{
+ "app": "healthcare",
+ "doctype": "Desktop Icon",
+ "hidden": 0,
+ "icon": "user-md",
+ "icon_type": "Link",
+ "idx": 0,
+ "label": "Doctor",
+ "link": "/health/doctor",
+ "link_type": "External",
+ "name": "Doctor",
+ "parent_icon": "Healthcare",
+ "standard": 1
+}

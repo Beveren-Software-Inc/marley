@@ -1,0 +1,13 @@
+{
+ "app": "healthcare",
+ "doctype": "Desktop Icon",
+ "hidden": 0,
+ "icon_type": "App",
+ "idx": 0,
+ "label": "Healthcare",
+ "link": "/health",
+ "link_type": "External",
+ "logo_url": "/assets/healthcare/images/healthcare.svg",
+ "name": "Healthcare",
+ "standard": 1
+}
