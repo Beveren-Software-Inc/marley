@@ -1,3 +1,5 @@
+import type { PatientDocumentRow } from './patients'
+
 export interface PatientVisit {
   name: string
   patient: string
@@ -14,6 +16,8 @@ export interface PatientVisit {
   inpatient_status?: string
   appointment?: string
   company?: string
+  /** Optional uploaded documents from Patient Visit.documents child table */
+  documents?: (PatientDocumentRow & { name?: string })[]
 }
 
 export async function fetchPatientVisits(status?: string, search?: string, patient?: string) {

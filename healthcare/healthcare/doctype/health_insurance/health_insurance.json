@@ -10,6 +10,8 @@
   "insurance_company",
   "insurance_type",
   "policy_no",
+  "insurance_coverage_",
+  "mode_of_payment",
   "column_break_udmx",
   "insurance_no",
   "expiry_date",
@@ -119,12 +121,23 @@
    "fieldtype": "Table",
    "label": "Exclusive Item",
    "options": "Insurance Exclusive Items"
+  },
+  {
+   "fieldname": "insurance_coverage_",
+   "fieldtype": "Percent",
+   "label": "Insurance Coverage(%)"
+  },
+  {
+   "fieldname": "mode_of_payment",
+   "fieldtype": "Link",
+   "label": "Mode of Payment",
+   "options": "Mode of Payment"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-02-25 14:06:19.028902",
+ "modified": "2026-03-08 13:49:49.235931",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Health Insurance",

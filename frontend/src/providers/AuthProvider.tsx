@@ -10,11 +10,13 @@ interface User {
   first_name?: string
   last_name?: string
   user_image?: string
+  /** All Frappe role names for this user (for UI permissions). */
+  roles?: string[]
 }
 
 interface AuthContextType {
   user: User | null
-  login: (username: string, password: string) => Promise<{ success: boolean; message: string }>
+  login: (username: string, password: string) => Promise<{ success: boolean; message: string; user?: User }>
   logout: () => Promise<void>
   checkSession: () => Promise<boolean>
   loading: boolean
@@ -61,7 +63,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 role_profile_name: userProfile.role_profile_name,
                 first_name: userProfile.first_name,
                 last_name: userProfile.last_name,
-                user_image: userProfile.user_image
+                user_image: userProfile.user_image,
+                roles: Array.isArray((userProfile as any).roles) ? (userProfile as any).roles : undefined
               }
 
               setUser(userData)
@@ -114,7 +117,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                   role_profile_name: freshUserData.role_profile_name,
                   first_name: freshUserData.first_name,
                   last_name: freshUserData.last_name,
-                  user_image: freshUserData.user_image
+                  user_image: freshUserData.user_image,
+                  roles: Array.isArray((freshUserData as any).roles) ? (freshUserData as any).roles : parsedUser.roles
                 }
 
                 setUser(updatedUser)
@@ -160,14 +164,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           role_profile_name: result.user.role_profile_name,
           first_name: result.user.first_name,
           last_name: result.user.last_name,
-          user_image: result.user.user_image
+          user_image: result.user.user_image,
+          roles: Array.isArray((result.user as any).roles) ? (result.user as any).roles : undefined
         }
 
         setUser(userData)
         localStorage.setItem('healthcare_token', 'authenticated')
         localStorage.setItem('user_data', JSON.stringify(userData))
 
-        return { success: true, message: result.message }
+        return { success: true, message: result.message, user: userData }
       } else {
         return { success: false, message: result.message }
       }

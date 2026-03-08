@@ -165,8 +165,8 @@ def get_patient_visit(name):
 		frappe.throw(_("Patient Visit name is required"))
 
 	visit = frappe.get_doc('Patient Visit', name)
-	
-	return {
+	# Base fields
+	data = {
 		'name': visit.name,
 		'patient': visit.patient,
 		'patient_name': visit.patient_name,
@@ -183,6 +183,27 @@ def get_patient_visit(name):
 		'appointment': visit.appointment,
 		'company': visit.company
 	}
+
+	# Attach uploaded documents from the Patient Visit's "documents" child table
+	try:
+		documents = []
+		for row in (visit.get("documents") or []):
+			documents.append({
+				"name": row.name,
+				"document_name": getattr(row, "document_name", None),
+				"file_name": getattr(row, "file_name", None),
+				"document_type": getattr(row, "document_type", None),
+				"transaction_no": getattr(row, "transaction_no", None),
+				"upload_remarks": getattr(row, "upload_remarks", None),
+				"document": getattr(row, "document", None),
+			})
+		if documents:
+			data["documents"] = documents
+	except Exception:
+		# Do not block details view if something goes wrong with documents
+		pass
+
+	return data
  
 # healthcare/api/common.py
 import frappe

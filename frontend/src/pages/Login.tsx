@@ -1,6 +1,7 @@
 import { useState, useEffect, type FormEvent } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../providers/AuthProvider'
+import { getDefaultRouteForUser } from '../config/permissions'
 
 export const LoginPage = () => {
   const [username, setUsername] = useState('')
@@ -21,44 +22,10 @@ export const LoginPage = () => {
         if (from && from !== '/login') {
           navigate(from, { replace: true })
         } else {
-          // Determine default route based on user role
-          const userRole = (user.role || '').toLowerCase()
-          const userRoleProfile = (user.role_profile_name || '').toLowerCase()
-          const userName = (user.name || '').toLowerCase()
-          let defaultRoute = '/doctor' // Default fallback
-          
-          console.log('Determining default route for user:', { userName, userRole, userRoleProfile, role: user.role, role_profile_name: user.role_profile_name })
-          
-          // Administrator and System Manager can access any page, default to doctor
-          const isAdmin = userName === 'administrator' || 
-                        userRole.includes('administrator') || 
-                        userRoleProfile.includes('administrator') ||
-                        userRole.includes('system manager') ||
-                        userRoleProfile.includes('system manager')
-          
-          if (isAdmin) {
-            defaultRoute = '/doctor'
-          } else if (userRole.includes('physician') || userRole.includes('practitioner') || userRole.includes('doctor') ||
-                     userRoleProfile.includes('physician') || userRoleProfile.includes('practitioner') || userRoleProfile.includes('doctor')) {
-            defaultRoute = '/doctor'
-          } else if (userRole.includes('nursing') || userRole.includes('nurse') ||
-                     userRoleProfile.includes('nursing') || userRoleProfile.includes('nurse')) {
-            defaultRoute = '/nurse'
-          } else if (userRole.includes('laboratory') || userRole.includes('lab') ||
-                     userRoleProfile.includes('laboratory') || userRoleProfile.includes('lab')) {
-            defaultRoute = '/lab'
-          } else if (userRole.includes('pharmacist') || userRole.includes('pharmacy') ||
-                     userRoleProfile.includes('pharmacist') || userRoleProfile.includes('pharmacy')) {
-            defaultRoute = '/pharmacy'
-          } else if (userRole.includes('admin') || userRole.includes('reception') ||
-                     userRoleProfile.includes('admin') || userRoleProfile.includes('reception')) {
-            defaultRoute = '/reception'
-          } else if (userRole.includes('patient') || userRoleProfile.includes('patient')) {
-            defaultRoute = '/patient'
-          }
-          
-          console.log('Navigating to default route:', defaultRoute)
-          navigate(defaultRoute, { replace: true })
+          const roles = (user.roles && user.roles.length > 0)
+            ? user.roles
+            : [user.role, user.role_profile_name].filter(Boolean) as string[]
+          navigate(getDefaultRouteForUser(roles), { replace: true })
         }
       }, 100)
       
@@ -74,10 +41,19 @@ export const LoginPage = () => {
     try {
       const result = await login(username, password)
 
-      if (result.success) {
-        // Wait for auth state to update, then redirect
-        // The useEffect will handle the redirect when user becomes authenticated
-      } else {
+      if (result.success && result.user) {
+        // Redirect immediately using the user/roles from the login response so the correct
+        // role-based page is shown without needing a refresh
+        const from = (location.state as { from?: { pathname?: string } })?.from?.pathname
+        if (from && from !== '/login') {
+          navigate(from, { replace: true })
+        } else {
+          const roles = (result.user.roles && result.user.roles.length > 0)
+            ? result.user.roles
+            : [result.user.role, result.user.role_profile_name].filter(Boolean) as string[]
+          navigate(getDefaultRouteForUser(roles), { replace: true })
+        }
+      } else if (!result.success) {
         // Show user-friendly error messages
         setError(getUserFriendlyErrorMessage(result.message))
       }

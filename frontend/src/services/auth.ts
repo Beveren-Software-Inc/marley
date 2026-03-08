@@ -24,6 +24,7 @@ interface UserProfile {
   role?: string
   role_profile_name?: string
   user_image?: string
+  roles?: string[]
   [key: string]: unknown
 }
 
@@ -150,7 +151,8 @@ class HealthcareAuth {
                 role_profile_name: userProfile.role_profile_name,
                 first_name: userProfile.first_name,
                 last_name: userProfile.last_name,
-                user_image: userProfile.user_image
+                user_image: userProfile.user_image,
+                roles: Array.isArray(userProfile.roles) ? userProfile.roles : undefined
               },
               sid: this.sessionId || undefined
             }
@@ -305,7 +307,32 @@ class HealthcareAuth {
       }
 
       const userData = await userResponse.json()
-      return userData.data
+      const profile = userData.data as UserProfile
+
+      // Fetch current user's roles from backend (Frappe get_roles)
+      try {
+        const rolesRes = await fetch(`${this.baseUrl}/api/method/healthcare.api.common.get_current_user_roles`, {
+          method: 'GET',
+          headers: this.getHeaders(false),
+          credentials: 'include'
+        })
+        if (rolesRes.ok) {
+          const rolesData = await rolesRes.json()
+          if (Array.isArray(rolesData?.message)) {
+            profile.roles = rolesData.message as string[]
+          }
+        }
+      } catch {
+        // Fallback: parse from User doc child table "roles" (Has Role) if present
+        const childRoles = (profile as any).roles
+        if (Array.isArray(childRoles) && childRoles.length > 0) {
+          profile.roles = childRoles.map((r: { role?: string }) => r?.role).filter(Boolean)
+        } else if (profile.role || profile.role_profile_name) {
+          profile.roles = [profile.role_profile_name || profile.role].filter(Boolean) as string[]
+        }
+      }
+
+      return profile
     } catch (error) {
       console.error('Get user profile error:', error)
       throw error
