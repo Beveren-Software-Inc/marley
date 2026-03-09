@@ -81,7 +81,8 @@ const ALL_MAIN_LINKS: MainLinkItem[] = [
   { to: '/patient-history', label: 'Patient History', screens: [], prefix: '/patient-history' },
   { to: '/pharmacy', label: 'Pharmacy', screens: [], prefix: '/pharmacy' },
   { to: '/employee', label: 'Employee', screens: [], prefix: '/employee' },
-  { to: '/patient', label: 'Patient', screens: [], prefix: '/patient' }
+  { to: '/patient', label: 'Patient', screens: [], prefix: '/patient' },
+  { to: '/qmps', label: 'QMPS', screens: [], prefix: '/qmps' }
 ]
 
 export const AppShell = ({ children }: { children: ReactNode }) => {

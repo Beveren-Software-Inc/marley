@@ -1,6 +1,7 @@
 {
  "actions": [],
  "allow_rename": 1,
+ "autoname": "MFS-.#####",
  "creation": "2025-12-24 14:00:00",
  "doctype": "DocType",
  "engine": "InnoDB",
@@ -26,9 +27,9 @@
    "reqd": 1
   },
   {
+   "fetch_from": "admission_no.patient",
    "fieldname": "patient_no",
    "fieldtype": "Link",
-   "fetch_from": "admission_no.patient",
    "in_list_view": 1,
    "label": "Patient No",
    "options": "Patient",
@@ -76,11 +77,11 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-12-24 14:00:00",
+ "modified": "2026-03-09 10:32:30.103079",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Morse Fall Scale",
- "naming_rule": "By \"Naming Series\" field",
+ "naming_rule": "Expression",
  "owner": "Administrator",
  "permissions": [
   {
@@ -118,9 +119,9 @@
    "write": 1
   }
  ],
+ "row_format": "Dynamic",
  "sort_field": "modified",
  "sort_order": "DESC",
+ "states": [],
  "track_changes": 1
 }
-
-

@@ -81,6 +81,14 @@ export interface MedicationOrderRow {
   reference_no?: string
 }
 
+export interface MedicationOrderEntry {
+  name: string
+  drug: string
+  drug_name?: string
+  dosage: string
+  dosage_form: string
+}
+
 export async function createPrescription(
   data: CreatePrescriptionData
 ): Promise<{ name: string }> {
@@ -116,3 +124,20 @@ export async function createPrescription(
     }
   )
 }
+
+export async function fetchMedicationOrders(
+  prescriptionName: string
+): Promise<MedicationOrderEntry[]> {
+  const response = await fetch(
+    `/api/resource/Patient%20Medication%20Order/${encodeURIComponent(prescriptionName)}`
+  )
+  const resData = await response.json()
+
+  const rows = resData?.data?.medication_orders
+  if (Array.isArray(rows)) {
+    return rows as MedicationOrderEntry[]
+  }
+
+  return []
+}
+
