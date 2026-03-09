@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { fetchMorseFallScales, type MorseFallScale } from '../../services/morseFallScale'
+import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 
 interface MorseFallScaleListProps {
   patient?: string
@@ -62,6 +63,7 @@ export const MorseFallScaleList = ({ patient }: MorseFallScaleListProps) => {
             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Patient</th>
             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Company</th>
             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Total Points</th>
+            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase w-[100px]">Actions</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-200">
@@ -69,12 +71,23 @@ export const MorseFallScaleList = ({ patient }: MorseFallScaleListProps) => {
             <tr
               key={row.name}
               className="hover:bg-slate-50 cursor-pointer"
-              onClick={() => window.open(`/app/morse-fall-scale/${encodeURIComponent(row.name)}`, '_blank')}
+              onClick={(e) => {
+                if ((e.target as HTMLElement).closest('[data-no-row-click]')) return
+                window.open(`/app/morse-fall-scale/${encodeURIComponent(row.name)}`, '_blank')
+              }}
             >
               <td className="px-4 py-3 text-sm text-slate-800">{row.admission_no}</td>
               <td className="px-4 py-3 text-sm text-slate-700">{row.patient_no}</td>
               <td className="px-4 py-3 text-sm text-slate-700">{row.company || '-'}</td>
               <td className="px-4 py-3 text-sm text-slate-700">{row.total_points ?? '-'}</td>
+              <td className="px-4 py-2 align-middle" data-no-row-click>
+                <PrintFormatDropdown
+                  doctype="Morse Fall Scale"
+                  docName={row.name}
+                  noLetterhead={0}
+                  triggerPrint={1}
+                />
+              </td>
             </tr>
           ))}
         </tbody>

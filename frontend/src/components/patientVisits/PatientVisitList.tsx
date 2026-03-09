@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { StatusPill } from '../ui/StatusPill'
+import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { PatientVisitDetails } from './PatientVisitDetails'
 import { cancelVisit, createInvoice, type PatientVisitListRow } from '../../services/patientVisits'
 import { CreateAdmissionModal } from '../admissions/CreateAdmissionModal'
@@ -408,6 +409,13 @@ export const PatientVisitList = ({
                         <div className="absolute right-0 top-full mt-1 z-10 min-w-[160px] rounded-md border border-slate-200 bg-white py-1 shadow-lg">
                           <button
                             type="button"
+                            onClick={() => { handlePrintInvoice(visit.value); setOpenActionRow(null) }}
+                            className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                          >
+                            Print Invoice
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => handleCreateInvoice(visit.value)}
                             disabled={actionLoading === visit.value + '_invoice'}
                             className="block w-full text-left px-3 py-2 text-sm text-green-600 hover:bg-green-50 disabled:opacity-50"
@@ -438,19 +446,12 @@ export const PatientVisitList = ({
                         </div>
                       )}
                     </div>
-                     {/* Print invoice button */}
-                      <button
-                        type="button"
-                        onClick={() => handlePrintInvoice(visit.value)}
-                        className="inline-flex items-center justify-center w-8 h-8 rounded border border-slate-300 bg-white text-primary hover:bg-slate-50 hover:text-slate-800 transition-colors"
-                        aria-label="Print Invoice"
-                        title="Print Invoice"
-                      >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
-                            d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                        </svg>
-                      </button>
+                     <PrintFormatDropdown
+                        doctype="Patient Visit"
+                        docName={visit.value}
+                        noLetterhead={0}
+                        triggerPrint={1}
+                      />
                     </div>
                   </td>
                 </tr>
@@ -483,16 +484,25 @@ export const PatientVisitList = ({
                 <p className="text-xs text-slate-500 uppercase tracking-wide">Patient Visit</p>
                 <p className="text-sm font-semibold text-slate-800">{detailVisit}</p>
               </div>
-              <button
-                type="button"
-                onClick={() => setDetailVisit(null)}
-                className="inline-flex items-center justify-center w-8 h-8 rounded-md text-slate-500 hover:text-slate-800 hover:bg-slate-200 transition-colors"
-                aria-label="Close"
-              >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+              <div className="flex items-center gap-2">
+                <PrintFormatDropdown
+                  doctype="Patient Visit"
+                  docName={detailVisit}
+                  noLetterhead={0}
+                  triggerPrint={1}
+                  className="inline-flex items-center justify-center w-8 h-8 rounded border border-slate-300 bg-white text-primary hover:bg-slate-50"
+                />
+                <button
+                  type="button"
+                  onClick={() => setDetailVisit(null)}
+                  className="inline-flex items-center justify-center w-8 h-8 rounded-md text-slate-500 hover:text-slate-800 hover:bg-slate-200 transition-colors"
+                  aria-label="Close"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
             </div>
             <div className="flex-1 overflow-y-auto p-6">
               <PatientVisitDetails visitNo={detailVisit} onUpdate={fetchVisits} />

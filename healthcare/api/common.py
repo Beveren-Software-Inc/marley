@@ -17,6 +17,26 @@ def get_current_user_roles():
 
 
 @frappe.whitelist()
+def get_print_formats(doctype):
+	"""Return list of print format names for the given doctype (for print dropdown)."""
+	if not doctype:
+		return ["Standard"]
+	formats = frappe.get_all(
+		"Print Format",
+		filters={"doc_type": doctype, "disabled": 0},
+		pluck="name",
+		order_by="name",
+	)
+	result = ["Standard"]
+	seen = {"Standard"}
+	for name in formats:
+		if name and name not in seen:
+			result.append(name)
+			seen.add(name)
+	return result
+
+
+@frappe.whitelist()
 def get_medical_departments(search=None):
 	"""Get list of Medical Departments"""
 	filters = {}

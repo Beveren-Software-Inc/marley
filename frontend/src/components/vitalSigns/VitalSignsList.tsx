@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { fetchVitalSigns, type VitalSign } from '../../services/vitalSigns'
+import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { DetailSlideOver } from '../ui/DetailSlideOver'
 import { DocDetailView } from '../ui/DocDetailView'
 
@@ -90,6 +91,9 @@ export const VitalSignsList = ({ patient, refreshKey }: VitalSignsListProps) => 
             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
               BMI
             </th>
+            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase w-[100px]">
+              Actions
+            </th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-200">
@@ -125,6 +129,14 @@ export const VitalSignsList = ({ patient, refreshKey }: VitalSignsListProps) => 
               </td>
               <td className="px-4 py-3 text-sm text-slate-700">
                 {vs.bmi || '-'}
+              </td>
+              <td className="px-4 py-2 align-middle">
+                <PrintFormatDropdown
+                  doctype="Vital Signs"
+                  docName={vs.name}
+                  noLetterhead={0}
+                  triggerPrint={1}
+                />
               </td>
             </tr>
           ))}

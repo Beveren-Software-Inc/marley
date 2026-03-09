@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { fetchDischarges, type Discharge } from '../../services/discharges'
 import { StatusPill } from '../ui/StatusPill'
+import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { DetailSlideOver } from '../ui/DetailSlideOver'
 import { DocDetailView } from '../ui/DocDetailView'
 
@@ -98,6 +99,9 @@ export const DischargeList = ({ patient, admission }: DischargeListProps) => {
             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
               Status
             </th>
+            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase w-[100px]">
+              Actions
+            </th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-200">
@@ -130,6 +134,14 @@ export const DischargeList = ({ patient, admission }: DischargeListProps) => {
                 <StatusPill
                   status={getDocStatus(discharge.docstatus)}
                   color={statusColors[getDocStatus(discharge.docstatus)] || 'default'}
+                />
+              </td>
+              <td className="px-4 py-2 align-middle">
+                <PrintFormatDropdown
+                  doctype="Discharge"
+                  docName={discharge.name}
+                  noLetterhead={0}
+                  triggerPrint={1}
                 />
               </td>
             </tr>

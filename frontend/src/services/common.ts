@@ -21,6 +21,18 @@ export interface ChecklistItem {
   description?: string
 }
 
+export async function fetchPrintFormats(doctype: string): Promise<string[]> {
+  if (!doctype) return ['Standard']
+  const response = await fetch(
+    `/api/method/healthcare.api.common.get_print_formats?doctype=${encodeURIComponent(doctype)}`
+  )
+  const resData = await response.json()
+  if (resData?.message && Array.isArray(resData.message)) {
+    return resData.message as string[]
+  }
+  return ['Standard']
+}
+
 export async function fetchMedicalDepartments(search?: string): Promise<LinkFieldOption[]> {
   const params = new URLSearchParams()
   if (search) params.append('search', search)

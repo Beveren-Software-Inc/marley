@@ -14,6 +14,7 @@ import {
 import { fetchItems, fetchWarehouses, type LinkFieldOption } from '../../services/common'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
 import { LabTestDetails } from './LabTestDetails'
+import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { toast } from '../../hooks/useToast'
 import { Search, X, ChevronDown } from 'lucide-react'
 
@@ -657,6 +658,12 @@ export const LabTestList = ({
                           </div>
                         )}
                       </div>
+                      <PrintFormatDropdown
+                        doctype="Lab Test"
+                        docName={labTest.name}
+                        noLetterhead={0}
+                        triggerPrint={1}
+                      />
                     </div>
                   </td>
                   <td className="px-4 py-3 text-sm text-slate-700">
@@ -694,16 +701,25 @@ export const LabTestList = ({
                 <p className="text-xs text-slate-500 uppercase tracking-wide">Lab Test Details</p>
                 <p className="text-sm font-semibold text-slate-800">{selectedLabTestForDetails}</p>
               </div>
-              <button
-                type="button"
-                onClick={() => setSelectedLabTestForDetails(null)}
-                className="inline-flex items-center justify-center w-8 h-8 rounded-md text-slate-500 hover:text-slate-800 hover:bg-slate-200"
-                aria-label="Close"
-              >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+              <div className="flex items-center gap-2">
+                <PrintFormatDropdown
+                  doctype="Lab Test"
+                  docName={selectedLabTestForDetails}
+                  noLetterhead={0}
+                  triggerPrint={1}
+                  className="inline-flex items-center justify-center w-8 h-8 rounded border border-slate-300 bg-white text-primary hover:bg-slate-50"
+                />
+                <button
+                  type="button"
+                  onClick={() => setSelectedLabTestForDetails(null)}
+                  className="inline-flex items-center justify-center w-8 h-8 rounded-md text-slate-500 hover:text-slate-800 hover:bg-slate-200"
+                  aria-label="Close"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
             </div>
             <div className="flex-1 overflow-y-auto p-6">
               <LabTestDetails

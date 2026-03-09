@@ -41,6 +41,7 @@ import { CreateMedicineGivenModal } from '../components/medication/CreateMedicin
 import { MedicineGivenList } from '../components/medication/MedicineGivenList'
 import { reconcileDischargeMedicines } from '../services/medicineGiven'
 import { CreateVitalSignModal } from '../components/vitalSigns/CreateVitalSignModal'
+import { CreateECTDetailModal } from '../components/ect/CreateECTDetailModal'
 
 const doctorNav = [
   { label: 'Admission', screen: 'admission' },
@@ -84,6 +85,8 @@ export const DoctorPage = () => {
   const [showPsychologistNoteModal, setShowPsychologistNoteModal] = useState(false)
   const [showVitalSignModal, setShowVitalSignModal] = useState(false)
   const [vitalSignsRefreshKey, setVitalSignsRefreshKey] = useState(0)
+  const [showECTModal, setShowECTModal] = useState(false)
+  const [ectRefreshKey, setEctRefreshKey] = useState(0)
   const screen = searchParams.get('screen')
 
   // Sync selectedPatient with URL on mount and when URL changes
@@ -225,25 +228,26 @@ export const DoctorPage = () => {
             <div className="font-semibold mb-4 flex items-center justify-between">
               <span>ECT Details</span>
               <button
-                onClick={() => {
-                  if (!selectedPatient) {
-                    toast.error('Please select a patient first')
-                    return
-                  }
-                  window.open(
-                    `/app/ect-details/new?patient=${encodeURIComponent(selectedPatient)}`,
-                    '_blank'
-                  )
-                }}
+                onClick={() => setShowECTModal(true)}
                 className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
                 title="Add ECT Detail"
               >
                 +
               </button>
             </div>
-            <ECTDetailsList patient={selectedPatient} />
+            <ECTDetailsList patient={selectedPatient} refreshKey={ectRefreshKey} />
           </section>
         </div>
+        {showECTModal && (
+          <CreateECTDetailModal
+            onClose={() => setShowECTModal(false)}
+            onSuccess={() => {
+              setEctRefreshKey(prev => prev + 1)
+              setShowECTModal(false)
+            }}
+            initialPatient={selectedPatient}
+          />
+        )}
       </div>
     )
   }
