@@ -6,6 +6,7 @@ export interface CreateMedicineGivenData {
   order_entry?: string
   allow_override?: boolean
   override_reason?: string
+  item_code?: string
   qty?: number
   date?: string
   time?: string

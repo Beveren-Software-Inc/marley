@@ -3,6 +3,7 @@ import { createObservation } from '../../services/observations'
 import { fetchHealthcarePractitioners, fetchObservationTemplates, fetchMedicalDepartments, type LinkFieldOption } from '../../services/common'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
 import { toast } from '../../hooks/useToast'
+import { fetchInpatientRecords, type InpatientRecord } from '../../services/inpatientRecords'
 import { X } from 'lucide-react'
 
 interface CreateObservationModalProps {
@@ -48,6 +49,11 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
   const [departmentOpen, setDepartmentOpen] = useState(false)
   const [departmentQuery, setDepartmentQuery] = useState('')
   const [selectedDepartment, setSelectedDepartment] = useState<LinkFieldOption | null>(null)
+
+  // Admission dropdown state (filtered by selected patient)
+  const [admissionOptions, setAdmissionOptions] = useState<{ value: string; label: string }[]>([])
+  const [admissionOpen, setAdmissionOpen] = useState(false)
+  const [admissionQuery, setAdmissionQuery] = useState('')
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -184,6 +190,35 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
 
     return () => clearTimeout(timeoutId)
   }, [departmentQuery, departmentOpen])
+
+  // Search admissions for selected patient
+  useEffect(() => {
+    if (!admissionOpen) return
+
+    const timeoutId = setTimeout(async () => {
+      try {
+        const results: InpatientRecord[] = await fetchInpatientRecords(
+          undefined,
+          admissionQuery || undefined,
+          formData.patient || undefined,
+          undefined,
+          undefined,
+          undefined
+        )
+        setAdmissionOptions(
+          results.slice(0, 30).map((r) => ({
+            value: r.name,
+            label: `${r.name} - ${r.patient_name || r.patient || ''}`,
+          }))
+        )
+      } catch (err) {
+        console.error('Failed to load admission options', err)
+        setAdmissionOptions([])
+      }
+    }, admissionQuery.trim() === '' ? 0 : 300)
+
+    return () => clearTimeout(timeoutId)
+  }, [admissionQuery, admissionOpen, formData.patient])
 
   const handlePatientSelect = (patient: PatientListItem) => {
     setFormData(prev => ({ ...prev, patient: patient.name }))
@@ -407,13 +442,45 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
               <label className="block text-sm font-medium text-slate-700 mb-1">
                 Admission No
               </label>
-              <input
-                type="text"
-                value={formData.admission_no}
-                onChange={(e) => handleChange('admission_no', e.target.value)}
-                placeholder="Optional"
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-              />
+              <div className="relative" data-filter-dropdown>
+                <input
+                  type="text"
+                  value={formData.admission_no || admissionQuery}
+                  onChange={(e) => {
+                    const value = e.target.value
+                    setAdmissionQuery(value)
+                    if (!value) {
+                      handleChange('admission_no', '')
+                    }
+                    setAdmissionOpen(true)
+                  }}
+                  onFocus={() => setAdmissionOpen(true)}
+                  placeholder={formData.patient ? 'Search admission for this patient...' : 'Select patient first'}
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-slate-100"
+                  disabled={!formData.patient}
+                />
+                {admissionOpen && admissionOptions.length > 0 && (
+                  <div className="absolute z-20 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                    {admissionOptions.map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => {
+                          handleChange('admission_no', opt.value)
+                          setAdmissionQuery(opt.value)
+                          setAdmissionOpen(false)
+                        }}
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 focus:bg-slate-100 focus:outline-none"
+                      >
+                        <div className="font-medium text-slate-800">{opt.value}</div>
+                        {opt.label !== opt.value && (
+                          <div className="text-xs text-slate-500 truncate">{opt.label}</div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 

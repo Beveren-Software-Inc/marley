@@ -40,6 +40,7 @@ import { IOPEnrollmentListWithHeader } from '../components/iop/IOPEnrollmentList
 import { CreateMedicineGivenModal } from '../components/medication/CreateMedicineGivenModal'
 import { MedicineGivenList } from '../components/medication/MedicineGivenList'
 import { reconcileDischargeMedicines } from '../services/medicineGiven'
+import { CreateVitalSignModal } from '../components/vitalSigns/CreateVitalSignModal'
 
 const doctorNav = [
   { label: 'Admission', screen: 'admission' },
@@ -63,6 +64,7 @@ export const DoctorPage = () => {
   const [observationRefreshKey, setObservationRefreshKey] = useState(0)
   const [dischargeRefreshKey, setDischargeRefreshKey] = useState(0)
   const [diagnosisRefreshKey, setDiagnosisRefreshKey] = useState(0)
+  const [clinicalNotesRefreshKey, setClinicalNotesRefreshKey] = useState(0)
   const [showServiceRequestModal, setShowServiceRequestModal] = useState(false)
   const [serviceRequestRefreshKey, setServiceRequestRefreshKey] = useState(0)
   const [showAppointmentModal, setShowAppointmentModal] = useState(false)
@@ -73,6 +75,15 @@ export const DoctorPage = () => {
   const [showGivenMedicineModal, setShowGivenMedicineModal] = useState(false)
   const [givenRefreshKey, setGivenRefreshKey] = useState(0)
   const [reconcileLoading, setReconcileLoading] = useState(false)
+  const [showDoctorNoteModal, setShowDoctorNoteModal] = useState(false)
+  const [showDoctorOrderModal, setShowDoctorOrderModal] = useState(false)
+  const [showNursingNoteModal, setShowNursingNoteModal] = useState(false)
+  const [showNutritionNoteModal, setShowNutritionNoteModal] = useState(false)
+  const [showTherapistNoteModal, setShowTherapistNoteModal] = useState(false)
+  const [showDoctorProgressNoteModal, setShowDoctorProgressNoteModal] = useState(false)
+  const [showPsychologistNoteModal, setShowPsychologistNoteModal] = useState(false)
+  const [showVitalSignModal, setShowVitalSignModal] = useState(false)
+  const [vitalSignsRefreshKey, setVitalSignsRefreshKey] = useState(0)
   const screen = searchParams.get('screen')
 
   // Sync selectedPatient with URL on mount and when URL changes
@@ -211,7 +222,25 @@ export const DoctorPage = () => {
         </header>
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4">ECT Details</div>
+            <div className="font-semibold mb-4 flex items-center justify-between">
+              <span>ECT Details</span>
+              <button
+                onClick={() => {
+                  if (!selectedPatient) {
+                    toast.error('Please select a patient first')
+                    return
+                  }
+                  window.open(
+                    `/app/ect-details/new?patient=${encodeURIComponent(selectedPatient)}`,
+                    '_blank'
+                  )
+                }}
+                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
+                title="Add ECT Detail"
+              >
+                +
+              </button>
+            </div>
             <ECTDetailsList patient={selectedPatient} />
           </section>
         </div>
@@ -238,14 +267,36 @@ export const DoctorPage = () => {
         </header>
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4">Doctors Note</div>
+            <div className="font-semibold mb-4 flex items-center justify-between">
+              <span>Doctors Note</span>
+              <button
+                onClick={() => setShowDoctorNoteModal(true)}
+                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
+                title="Add Doctors Note"
+              >
+                +
+              </button>
+            </div>
             <ClinicalNotesList 
               patient={selectedPatient} 
               medicalRole="Doctor"
-              noteType="Note"
+              clinicalNoteType="Doctors Note"
+              key={clinicalNotesRefreshKey}
             />
           </section>
         </div>
+        {showDoctorNoteModal && (
+          <CreateClinicalNoteModal
+            onClose={() => setShowDoctorNoteModal(false)}
+            onSuccess={() => {
+              setClinicalNotesRefreshKey(prev => prev + 1)
+              setShowDoctorNoteModal(false)
+            }}
+            initialPatient={selectedPatient}
+            defaultClinicalNoteType="Doctors Note"
+            title="Add Doctors Note"
+          />
+        )}
       </div>
     )
   }
@@ -269,14 +320,36 @@ export const DoctorPage = () => {
         </header>
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4">Doctor Progress Notes</div>
+            <div className="font-semibold mb-4 flex items-center justify-between">
+              <span>Doctor Progress Notes</span>
+              <button
+                onClick={() => setShowDoctorProgressNoteModal(true)}
+                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
+                title="Add Doctor Progress Note"
+              >
+                +
+              </button>
+            </div>
             <ClinicalNotesList 
               patient={selectedPatient} 
               medicalRole="Doctor"
-              clinicalNoteType="Progress Note"
+              clinicalNoteType="Doctor Progress Note"
+              key={clinicalNotesRefreshKey}
             />
           </section>
         </div>
+        {showDoctorProgressNoteModal && (
+          <CreateClinicalNoteModal
+            onClose={() => setShowDoctorProgressNoteModal(false)}
+            onSuccess={() => {
+              setClinicalNotesRefreshKey(prev => prev + 1)
+              setShowDoctorProgressNoteModal(false)
+            }}
+            initialPatient={selectedPatient}
+            defaultClinicalNoteType="Doctor Progress Note"
+            title="Add Doctor Progress Note"
+          />
+        )}
       </div>
     )
   }
@@ -300,13 +373,35 @@ export const DoctorPage = () => {
         </header>
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4">Doctors Order</div>
+            <div className="font-semibold mb-4 flex items-center justify-between">
+              <span>Doctors Order</span>
+              <button
+                onClick={() => setShowDoctorOrderModal(true)}
+                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
+                title="Add Doctors Order"
+              >
+                +
+              </button>
+            </div>
             <ClinicalNotesList 
               patient={selectedPatient} 
-              noteType="Order"
+              clinicalNoteType="Doctors Order"
+              key={clinicalNotesRefreshKey}
             />
           </section>
         </div>
+        {showDoctorOrderModal && (
+          <CreateClinicalNoteModal
+            onClose={() => setShowDoctorOrderModal(false)}
+            onSuccess={() => {
+              setClinicalNotesRefreshKey(prev => prev + 1)
+              setShowDoctorOrderModal(false)
+            }}
+            initialPatient={selectedPatient}
+            defaultClinicalNoteType="Doctors Order"
+            title="Add Doctors Order"
+          />
+        )}
       </div>
     )
   }
@@ -330,8 +425,17 @@ export const DoctorPage = () => {
         </header>
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4">Laboratory</div>
-            <LabTestList patient={selectedPatient} defaultStatus="Pending Review" />
+            <div className="font-semibold mb-4 flex items-center justify-between">
+              <span>Laboratory</span>
+              <button
+                onClick={() => setShowLabTestModal(true)}
+                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
+                title="Add Lab Test"
+              >
+                +
+              </button>
+            </div>
+            <LabTestList patient={selectedPatient} defaultStatus="Pending Review" key={labTestRefreshKey} />
           </section>
         </div>
       </div>
@@ -357,13 +461,36 @@ export const DoctorPage = () => {
         </header>
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4">Patient Psychologist Notes</div>
+            <div className="font-semibold mb-4 flex items-center justify-between">
+              <span>Patient Psychologist Notes</span>
+              <button
+                onClick={() => setShowPsychologistNoteModal(true)}
+                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
+                title="Add Psychologist Note"
+              >
+                +
+              </button>
+            </div>
             <ClinicalNotesList 
               patient={selectedPatient} 
               medicalRole="Psychologists"
+              clinicalNoteType="Psychologist Note"
+              key={clinicalNotesRefreshKey}
             />
           </section>
         </div>
+        {showPsychologistNoteModal && (
+          <CreateClinicalNoteModal
+            onClose={() => setShowPsychologistNoteModal(false)}
+            onSuccess={() => {
+              setClinicalNotesRefreshKey(prev => prev + 1)
+              setShowPsychologistNoteModal(false)
+            }}
+            initialPatient={selectedPatient}
+            defaultClinicalNoteType="Psychologist Note"
+            title="Add Psychologist Note"
+          />
+        )}
       </div>
     )
   }
@@ -400,7 +527,7 @@ export const DoctorPage = () => {
             <ClinicalNotesList
               patient={selectedPatient}
               medicalRole="Psychologists"
-              noteType="Order"
+              clinicalNoteType="Psychologist Order"
             />
           </section>
         </div>
@@ -412,7 +539,7 @@ export const DoctorPage = () => {
               setShowDiagnosisModal(false)
             }}
             initialPatient={selectedPatient}
-            defaultClinicalNoteType="Order"
+            defaultClinicalNoteType="Psychologist Order"
             title="Add Psychologist Order"
           />
         )}
@@ -439,13 +566,35 @@ export const DoctorPage = () => {
         </header>
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4">Therapist Note</div>
+            <div className="font-semibold mb-4 flex items-center justify-between">
+              <span>Therapist Note</span>
+              <button
+                onClick={() => setShowTherapistNoteModal(true)}
+                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
+                title="Add Therapist Note"
+              >
+                +
+              </button>
+            </div>
             <ClinicalNotesList 
               patient={selectedPatient} 
               medicalRole="Physiotherapist"
+              key={clinicalNotesRefreshKey}
             />
           </section>
         </div>
+        {showTherapistNoteModal && (
+          <CreateClinicalNoteModal
+            onClose={() => setShowTherapistNoteModal(false)}
+            onSuccess={() => {
+              setClinicalNotesRefreshKey(prev => prev + 1)
+              setShowTherapistNoteModal(false)
+            }}
+            initialPatient={selectedPatient}
+            defaultClinicalNoteType="Therapist Note"
+            title="Add Therapist Note"
+          />
+        )}
       </div>
     )
   }
@@ -469,13 +618,35 @@ export const DoctorPage = () => {
         </header>
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4">Nursing Note</div>
+            <div className="font-semibold mb-4 flex items-center justify-between">
+              <span>Nursing Note</span>
+              <button
+                onClick={() => setShowNursingNoteModal(true)}
+                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
+                title="Add Nursing Note"
+              >
+                +
+              </button>
+            </div>
             <ClinicalNotesList 
               patient={selectedPatient} 
               medicalRole="Nurse"
+              key={clinicalNotesRefreshKey}
             />
           </section>
         </div>
+        {showNursingNoteModal && (
+          <CreateClinicalNoteModal
+            onClose={() => setShowNursingNoteModal(false)}
+            onSuccess={() => {
+              setClinicalNotesRefreshKey(prev => prev + 1)
+              setShowNursingNoteModal(false)
+            }}
+            initialPatient={selectedPatient}
+            defaultClinicalNoteType="Nursing Note"
+            title="Add Nursing Note"
+          />
+        )}
       </div>
     )
   }
@@ -545,10 +716,29 @@ export const DoctorPage = () => {
         </header>
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4">Vital Signs</div>
-            <VitalSignsList patient={selectedPatient} />
+            <div className="font-semibold mb-4 flex items-center justify-between">
+              <span>Vital Signs</span>
+              <button
+                onClick={() => setShowVitalSignModal(true)}
+                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
+                title="Add Vital Signs"
+              >
+                +
+              </button>
+            </div>
+            <VitalSignsList patient={selectedPatient} refreshKey={vitalSignsRefreshKey} />
           </section>
         </div>
+        {showVitalSignModal && (
+          <CreateVitalSignModal
+            onClose={() => setShowVitalSignModal(false)}
+            onSuccess={() => {
+              setVitalSignsRefreshKey(prev => prev + 1)
+              setShowVitalSignModal(false)
+            }}
+            initialPatient={selectedPatient}
+          />
+        )}
       </div>
     )
   }
@@ -934,13 +1124,36 @@ export const DoctorPage = () => {
         </header>
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4">Nutritionist Notes</div>
+            <div className="font-semibold mb-4 flex items-center justify-between">
+              <span>Nutritionist Notes</span>
+              <button
+                onClick={() => setShowNutritionNoteModal(true)}
+                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
+                title="Add Nutritionist Note"
+              >
+                +
+              </button>
+            </div>
             <ClinicalNotesList 
               patient={selectedPatient} 
               medicalRole="Nutritionist"
+              clinicalNoteType="Nutritionist Note"
+              key={clinicalNotesRefreshKey}
             />
           </section>
         </div>
+        {showNutritionNoteModal && (
+          <CreateClinicalNoteModal
+            onClose={() => setShowNutritionNoteModal(false)}
+            onSuccess={() => {
+              setClinicalNotesRefreshKey(prev => prev + 1)
+              setShowNutritionNoteModal(false)
+            }}
+            initialPatient={selectedPatient}
+            defaultClinicalNoteType="Nutritionist Note"
+            title="Add Nutritionist Note"
+          />
+        )}
       </div>
     )
   }
@@ -988,7 +1201,35 @@ export const DoctorPage = () => {
         </header>
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4">Package Details</div>
+            <div className="font-semibold mb-4 flex items-center justify-between">
+              <span>Package Details</span>
+              <button
+                onClick={async () => {
+                  if (!selectedPatient) {
+                    toast.error('Please select a patient first')
+                    return
+                  }
+                  try {
+                    const admission = await getPatientActiveAdmission(selectedPatient)
+                    if (!admission) {
+                      toast.error('No active admission found for this patient')
+                      return
+                    }
+                    window.open(
+                      `/app/inpatient-record/${encodeURIComponent(admission.name)}`,
+                      '_blank'
+                    )
+                  } catch (err) {
+                    const msg = err instanceof Error ? err.message : 'Failed to open admission'
+                    toast.error(msg)
+                  }
+                }}
+                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
+                title="Manage Packages for Admission"
+              >
+                +
+              </button>
+            </div>
             <PackageDetailsList patient={selectedPatient} />
           </section>
         </div>

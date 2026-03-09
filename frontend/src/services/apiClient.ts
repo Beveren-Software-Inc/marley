@@ -90,7 +90,7 @@ async function doApiRequest<T = any>(path: string, options: RequestInit = {}): P
         // For traceback-like strings, take the last non-empty line as the user-facing message
         const lines = msg
           .split('\n')
-          .map((l) => l.trim())
+          .map((l: string) => l.trim())
           .filter(Boolean)
 
         if (lines.length) {

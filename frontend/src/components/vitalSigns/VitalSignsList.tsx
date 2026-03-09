@@ -5,9 +5,10 @@ import { DocDetailView } from '../ui/DocDetailView'
 
 interface VitalSignsListProps {
   patient?: string
+  refreshKey?: number | string
 }
 
-export const VitalSignsList = ({ patient }: VitalSignsListProps) => {
+export const VitalSignsList = ({ patient, refreshKey }: VitalSignsListProps) => {
   const [vitalSigns, setVitalSigns] = useState<VitalSign[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
@@ -28,7 +29,7 @@ export const VitalSignsList = ({ patient }: VitalSignsListProps) => {
     }
 
     loadVitalSigns()
-  }, [patient])
+  }, [patient, refreshKey])
 
   if (loading) {
     return (

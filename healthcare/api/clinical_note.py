@@ -7,6 +7,21 @@ from frappe import _
 from frappe.utils import nowdate
 
 
+def _get_or_create_clinical_note_type(name: str | None) -> str | None:
+	if not name:
+		return None
+
+	if not frappe.db.exists("Clinical Note Type", name):
+		doc = frappe.get_doc({
+			"doctype": "Clinical Note Type",
+			"clinical_note_type": name,
+		})
+		# Use ignore_permissions so clinicians can create types on the fly
+		doc.insert(ignore_permissions=True)
+
+	return name
+
+
 @frappe.whitelist()
 def get_clinical_notes(limit=50, offset=0, patient=None, medical_role=None, clinical_note_type=None, note_type=None):
 	"""Get list of Clinical Notes with optional filters"""
@@ -88,10 +103,17 @@ def create_clinical_note(data):
 	if not note:
 		frappe.throw(_("Note is required"))
 
+	# Derive / ensure Clinical Note Type
+	clinical_note_type = data.get('clinical_note_type') or data.get('note_type')
+	clinical_note_type = _get_or_create_clinical_note_type(clinical_note_type)
+
+	if not clinical_note_type:
+		frappe.throw(_("Clinical Note Type is required"))
+
 	doc = frappe.get_doc({
 		'doctype': 'Clinical Note',
 		'patient': patient,
-		'clinical_note_type': data.get('clinical_note_type'),
+		'clinical_note_type': clinical_note_type,
 		# 'note_type': data.get('note_type'),
 		'medical_role': data.get('medical_role'),
 		'practitioner': data.get('practitioner'),
