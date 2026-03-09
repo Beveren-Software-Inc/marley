@@ -159,7 +159,6 @@ def create_medicine_given(
 						"date": row.date,
 					},
 				)
-				print("Uko aje", freq_per_day)
 				# This new row would be the (already_given + 1)-th administration today
 				if already_given + 1 > freq_per_day:
 					if not cint(allow_override):
