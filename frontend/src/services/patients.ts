@@ -90,9 +90,12 @@ export interface PatientDocumentRow {
 }
 
 export interface CreatePatientData {
-  first_name: string
+  // We primarily use patient_name (full name) but keep first/middle/last
+  // for compatibility with existing server logic.
+  first_name?: string
   middle_name?: string
   last_name?: string
+  patient_name?: string
   sex: string
   dob?: string
   blood_group?: string

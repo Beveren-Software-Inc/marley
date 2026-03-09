@@ -212,11 +212,9 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
   const [activeTab, setActiveTab] = useState<Tab>('details')
 
   const [formData, setFormData] = useState({
-    first_name: '',
+    patient_name: '',
     title: '',
     file_no: '',
-    middle_name: '',
-    last_name: '',
     sex: '',
     dob: '',
     blood_group: '',
@@ -248,6 +246,8 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
     insurance_company_no: '',
     insurance_policy: '',
     ref_no: '',
+    job_title: '',
+    job_company: '',
   })
 
   const [loading, setLoading] = useState(false)
@@ -283,6 +283,9 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
   const [salutationOpen, setSalutationOpen] = useState(false)
   const [salutationQuery, setSalutationQuery] = useState('')
   const [selectedSalutation, setSelectedSalutation] = useState<LinkFieldOption | null>(null)
+
+  // Explicit Yes/No choice for Has Insurance
+  const [hasInsuranceChoice, setHasInsuranceChoice] = useState<'Yes' | 'No' | ''>('')
 
   const PATIENT_RELATION_OPTIONS = ['Father', 'Mother', 'Spouse', 'Siblings', 'Family', 'Other'] as const
 
@@ -375,8 +378,8 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!formData.first_name || !formData.sex) {
-      setError('First Name and Gender are required')
+    if (!formData.patient_name || !formData.sex) {
+      setError('Full Name and Gender are required')
       setActiveTab('details')
       return
     }
@@ -401,12 +404,24 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
       return
     }
 
+    // Require explicit Yes/No selection for Has Insurance
+    if (!hasInsuranceChoice) {
+      setError('Please select Yes or No for Has Insurance')
+      setActiveTab('insurance')
+      return
+    }
+
     try {
       setLoading(true)
       setError(null)
 
       const payload = {
+        // Map full name into both patient_name and first_name for compatibility
         ...formData,
+        patient_name: (formData.patient_name || '').trim(),
+        first_name: (formData.patient_name || '').trim(),
+        middle_name: undefined,
+        last_name: undefined,
         is_black_list: formData.is_black_list,
         remarks: formData.remarks || undefined,
         patient_relation: relations
@@ -654,22 +669,18 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
                       <input type="text" value={formData.file_no} onChange={(e) => handleChange('file_no', e.target.value)}
                         className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" required />
                     </div>
-                    <div>
+                    <div className="md:col-span-2">
                       <label className="block text-sm font-medium text-slate-700 mb-1">
-                        First Name <span className="text-red-500">*</span>
+                        Full Name <span className="text-red-500">*</span>
                       </label>
-                      <input type="text" value={formData.first_name} onChange={(e) => handleChange('first_name', e.target.value)}
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" required />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Middle Name</label>
-                      <input type="text" value={formData.middle_name} onChange={(e) => handleChange('middle_name', e.target.value)}
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Last Name</label>
-                      <input type="text" value={formData.last_name} onChange={(e) => handleChange('last_name', e.target.value)}
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                      <input
+                        type="text"
+                        value={formData.patient_name}
+                        onChange={(e) => handleChange('patient_name', e.target.value)}
+                        placeholder="Enter full name"
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                        required
+                      />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -833,6 +844,39 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
                   </div>
                 </div>
 
+                {/* Job Details */}
+                <div>
+                  <h3 className="text-xs font-bold uppercase tracking-widest text-blue-600 mb-3 mt-2">
+                    Job Details
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">
+                        Job Title
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.job_title}
+                        onChange={(e) => handleChange('job_title', e.target.value)}
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                        placeholder="e.g. Nurse, Engineer, Teacher"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">
+                        Job Company
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.job_company}
+                        onChange={(e) => handleChange('job_company', e.target.value)}
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                        placeholder="Company / Organization"
+                      />
+                    </div>
+                  </div>
+                </div>
+
                 {/* Address */}
                 <div>
                   <h3 className="text-xs font-bold uppercase tracking-widest text-blue-600 mb-3 mt-2">Address</h3>
@@ -841,42 +885,69 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
                       <label className="block text-sm font-medium text-slate-700 mb-1">
                         Address Line 1 <span className="text-red-500">*</span>
                       </label>
-                      <input type="text" value={formData.address_line1} onChange={(e) => handleChange('address_line1', e.target.value)}
+                      <input
+                        type="text"
+                        value={formData.address_line1}
+                        onChange={(e) => handleChange('address_line1', e.target.value)}
                         placeholder="Street address, P.O. box, company name"
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" required />
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                        required
+                      />
                     </div>
                     <div className="md:col-span-2">
                       <label className="block text-sm font-medium text-slate-700 mb-1">Address Line 2</label>
-                      <input type="text" value={formData.address_line2} onChange={(e) => handleChange('address_line2', e.target.value)}
+                      <input
+                        type="text"
+                        value={formData.address_line2}
+                        onChange={(e) => handleChange('address_line2', e.target.value)}
                         placeholder="Apartment, suite, unit, building, floor, etc."
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">
                         City <span className="text-red-500">*</span>
                       </label>
-                      <input type="text" value={formData.city} onChange={(e) => handleChange('city', e.target.value)}
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" required />
+                      <input
+                        type="text"
+                        value={formData.city}
+                        onChange={(e) => handleChange('city', e.target.value)}
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                        required
+                      />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">State/Province</label>
-                      <input type="text" value={formData.state} onChange={(e) => handleChange('state', e.target.value)}
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                      <input
+                        type="text"
+                        value={formData.state}
+                        onChange={(e) => handleChange('state', e.target.value)}
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Country</label>
-                      <select value={formData.country} onChange={(e) => handleChange('country', e.target.value)}
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white">
+                      <select
+                        value={formData.country}
+                        onChange={(e) => handleChange('country', e.target.value)}
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+                      >
                         <option value="">Select country</option>
                         {countries.map((c) => (
-                          <option key={c.name} value={c.name}>{c.name}</option>
+                          <option key={c.name} value={c.name}>
+                            {c.name}
+                          </option>
                         ))}
                       </select>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Pincode/ZIP</label>
-                      <input type="text" value={formData.pincode} onChange={(e) => handleChange('pincode', e.target.value)}
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                      <input
+                        type="text"
+                        value={formData.pincode}
+                        onChange={(e) => handleChange('pincode', e.target.value)}
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
                     </div>
                   </div>
                 </div>
@@ -904,13 +975,36 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
             {/* ── TAB: Insurance ── */}
             {activeTab === 'insurance' && (
               <div className="space-y-5">
-                <div className="flex items-center gap-2">
-                  <input type="checkbox" checked={formData.has_insurance}
-                    onChange={(e) => handleChange('has_insurance', e.target.checked)}
-                    className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary" />
-                  <label className="text-sm font-medium text-slate-700">Has Insurance</label>
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="text-sm font-medium text-slate-700">
+                    Has Insurance <span className="text-red-500">*</span>
+                  </span>
+                  <label className="inline-flex items-center gap-1.5 text-sm text-slate-700">
+                    <input
+                      type="radio"
+                      className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary"
+                      checked={hasInsuranceChoice === 'Yes'}
+                      onChange={() => {
+                        setHasInsuranceChoice('Yes')
+                        handleChange('has_insurance', true)
+                      }}
+                    />
+                    Yes
+                  </label>
+                  <label className="inline-flex items-center gap-1.5 text-sm text-slate-700">
+                    <input
+                      type="radio"
+                      className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary"
+                      checked={hasInsuranceChoice === 'No'}
+                      onChange={() => {
+                        setHasInsuranceChoice('No')
+                        handleChange('has_insurance', false)
+                      }}
+                    />
+                    No
+                  </label>
                 </div>
-                {formData.has_insurance && (
+                {hasInsuranceChoice === 'Yes' && (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="md:col-span-2 flex flex-col gap-1">
                       <label className="text-xs font-medium text-slate-600">Insurance</label>
