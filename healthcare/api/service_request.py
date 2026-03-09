@@ -175,6 +175,50 @@ def create_service_request(data):
 		'order_date': service_request.order_date
 	}
 
+
+@frappe.whitelist()
+def get_service_request(name):
+	"""Get a single Service Request document for editing."""
+	if not name:
+		frappe.throw(_("Service Request name is required"))
+	if not frappe.db.exists("Service Request", name):
+		frappe.throw(_("Service Request not found"))
+	doc = frappe.get_doc("Service Request", name)
+	return doc.as_dict()
+
+
+@frappe.whitelist()
+def update_service_request(name, data):
+	"""Update an existing Service Request. Only allows updating specific fields."""
+	if isinstance(data, str):
+		import json
+		data = json.loads(data)
+	if not name:
+		frappe.throw(_("Service Request name is required"))
+	if not frappe.db.exists("Service Request", name):
+		frappe.throw(_("Service Request not found"))
+	doc = frappe.get_doc("Service Request", name)
+	if doc.docstatus == 2:
+		frappe.throw(_("Cannot update a cancelled Service Request"))
+	# Allowed fields for update (editable in edit modal)
+	allowed = {
+		"patient", "patient_visit", "inpatient_record", "template_dt", "template_dn",
+		"practitioner", "order_date", "order_time", "medical_department", "department",
+		"status", "priority", "intent", "quantity", "occurrence_date", "occurrence_time",
+		"order_group", "order_description", "patient_instructions", "expected_date",
+		"amount", "source", "referring_practitioner", "referred_to_practitioner",
+		"staff_role", "patient_care_type", "healthcare_service_unit_type", "as_needed",
+		"dosage_form", "dosage", "period"
+	}
+	for key, value in data.items():
+		if key == "department":
+			doc.medical_department = value
+		elif key in allowed and hasattr(doc, key):
+			doc.set(key, value)
+	doc.save()
+	return {"name": doc.name, "status": doc.status}
+
+
 import frappe
 from frappe import _
 from frappe.utils import nowdate

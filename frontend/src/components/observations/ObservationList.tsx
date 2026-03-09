@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { fetchObservations, type Observation } from '../../services/observations'
 import { StatusPill } from '../ui/StatusPill'
+import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { DetailSlideOver } from '../ui/DetailSlideOver'
 import { DocDetailView } from '../ui/DocDetailView'
 
@@ -106,6 +107,9 @@ export const ObservationList = ({ patient }: ObservationListProps) => {
             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
               Practitioner
             </th>
+            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase w-[100px]">
+              Actions
+            </th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-200">
@@ -137,6 +141,14 @@ export const ObservationList = ({ patient }: ObservationListProps) => {
               </td>
               <td className="px-4 py-3 text-sm text-slate-700">
                 {obs.practitioner_name || obs.healthcare_practitioner || '-'}
+              </td>
+              <td className="px-4 py-2 align-middle">
+                <PrintFormatDropdown
+                  doctype="Observation"
+                  docName={obs.name}
+                  noLetterhead={0}
+                  triggerPrint={1}
+                />
               </td>
             </tr>
           ))}

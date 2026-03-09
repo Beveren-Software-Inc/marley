@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   fetchServiceRequests,
   createLabTestFromServiceRequest,
@@ -10,6 +10,7 @@ import { toast } from '../../hooks/useToast'
 import { StatusPill } from '../ui/StatusPill'
 import { DetailSlideOver } from '../ui/DetailSlideOver'
 import { DocDetailView } from '../ui/DocDetailView'
+import { EditServiceRequestModal } from './EditServiceRequestModal'
 
 interface ServiceRequestListProps {
   patient?: string
@@ -47,6 +48,19 @@ export const ServiceRequestList = ({ patient, onLabTestCreated, refreshKey, temp
   const [error, setError] = useState<Error | null>(null)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [detailName, setDetailName] = useState<string | null>(null)
+  const [openActionRow, setOpenActionRow] = useState<string | null>(null)
+  const [editServiceRequestName, setEditServiceRequestName] = useState<string | null>(null)
+  const actionMenuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (actionMenuRef.current && !actionMenuRef.current.contains(e.target as Node)) {
+        setOpenActionRow(null)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
 
   useEffect(() => {
     setError(null)
@@ -56,6 +70,7 @@ export const ServiceRequestList = ({ patient, onLabTestCreated, refreshKey, temp
   const doRefetch = () => refetch(setLoading, setServiceRequests, setError, patient, template_dt)
 
   const handleCreateLabTest = async (serviceRequestName: string) => {
+    setOpenActionRow(null)
     setActionLoading(serviceRequestName)
     try {
       const result = await createLabTestFromServiceRequest(serviceRequestName)
@@ -70,6 +85,7 @@ export const ServiceRequestList = ({ patient, onLabTestCreated, refreshKey, temp
   }
 
   const handleConfirmPayment = async (sr: ServiceRequest) => {
+    setOpenActionRow(null)
     setActionLoading(sr.name)
     try {
       await confirmPayment(sr.name)
@@ -83,6 +99,7 @@ export const ServiceRequestList = ({ patient, onLabTestCreated, refreshKey, temp
   }
 
   const handleBookLab = async (sr: ServiceRequest) => {
+    setOpenActionRow(null)
     setActionLoading(sr.name)
     try {
       const result = await bookLabAndForward(sr.name)
@@ -94,6 +111,11 @@ export const ServiceRequestList = ({ patient, onLabTestCreated, refreshKey, temp
     } finally {
       setActionLoading(null)
     }
+  }
+
+  const handleEdit = (sr: ServiceRequest) => {
+    setOpenActionRow(null)
+    setEditServiceRequestName(sr.name)
   }
 
   const getStatusColor = (status?: string): string => {
@@ -201,41 +223,71 @@ export const ServiceRequestList = ({ patient, onLabTestCreated, refreshKey, temp
                     : '-'}
                 </td>
                 <td className="px-4 py-3">
-                  <div className="flex flex-wrap gap-1.5">
-                    {isLab && !accepted && (
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {isLab && booked && (
+                      <span className="text-xs text-slate-500">Booked</span>
+                    )}
+                    <div className="relative inline-block" ref={openActionRow === sr.name ? actionMenuRef : undefined}>
                       <button
                         type="button"
-                        onClick={() => handleConfirmPayment(sr)}
-                        disabled={loadingThis}
-                        className="px-2.5 py-1 bg-amber-600 text-white text-xs rounded-md hover:bg-amber-700 disabled:opacity-50 whitespace-nowrap"
-                        title="Confirm payment (patient accepted cost)"
+                        onClick={() => setOpenActionRow((prev) => (prev === sr.name ? null : sr.name))}
+                        disabled={!!actionLoading}
+                        className="inline-flex items-center justify-center w-8 h-8 rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                        aria-label="Actions"
                       >
-                        {loadingThis ? '…' : 'Confirm Payment'}
+                        {loadingThis ? (
+                          <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                          </svg>
+                        ) : (
+                          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+                          </svg>
+                        )}
                       </button>
-                    )}
-                    {isLab && accepted && !booked && (
-                      <button
-                        type="button"
-                        onClick={() => handleBookLab(sr)}
-                        disabled={loadingThis}
-                        className="px-2.5 py-1 bg-primary text-white text-xs rounded-md hover:bg-primary/90 disabled:opacity-50 whitespace-nowrap"
-                        title="Forward to lab and add approved amount to visit"
-                      >
-                        {loadingThis ? '…' : 'Book Lab'}
-                      </button>
-                    )}
-                    {!isLab && sr.status && !sr.status.toLowerCase().includes('completed') && (
-                      <button
-                        type="button"
-                        onClick={() => handleCreateLabTest(sr.name)}
-                        disabled={loadingThis}
-                        className="px-2.5 py-1 bg-primary text-white text-xs rounded-md hover:bg-primary/90 disabled:opacity-50 whitespace-nowrap"
-                        title="Create Lab Test from Service Request"
-                      >
-                        {loadingThis ? '…' : 'Create Lab Test'}
-                      </button>
-                    )}
-                    {isLab && booked && <span className="text-xs text-slate-500">Booked</span>}
+                      {openActionRow === sr.name && (
+                        <div className="absolute right-0 top-full mt-1 z-10 min-w-[180px] rounded-md border border-slate-200 bg-white py-1 shadow-lg">
+                          {isLab && !accepted && (
+                            <button
+                              type="button"
+                              onClick={() => handleConfirmPayment(sr)}
+                              disabled={loadingThis}
+                              className="block w-full text-left px-3 py-2 text-sm text-amber-700 hover:bg-amber-50 disabled:opacity-50"
+                            >
+                              Confirm Payment
+                            </button>
+                          )}
+                          {isLab && accepted && !booked && (
+                            <button
+                              type="button"
+                              onClick={() => handleBookLab(sr)}
+                              disabled={loadingThis}
+                              className="block w-full text-left px-3 py-2 text-sm text-primary hover:bg-primary/5 font-medium"
+                            >
+                              {loadingThis ? '…' : 'Book Lab'}
+                            </button>
+                          )}
+                          {!isLab && sr.status && !sr.status.toLowerCase().includes('completed') && (
+                            <button
+                              type="button"
+                              onClick={() => handleCreateLabTest(sr.name)}
+                              disabled={loadingThis}
+                              className="block w-full text-left px-3 py-2 text-sm text-primary hover:bg-primary/5"
+                            >
+                              {loadingThis ? '…' : 'Create Lab Test'}
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleEdit(sr)}
+                            className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                          >
+                            Edit
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </td>
               </tr>
@@ -252,6 +304,14 @@ export const ServiceRequestList = ({ patient, onLabTestCreated, refreshKey, temp
         >
           <DocDetailView doctype="Service Request" name={detailName} onUpdate={doRefetch} />
         </DetailSlideOver>
+      )}
+
+      {editServiceRequestName && (
+        <EditServiceRequestModal
+          serviceRequestName={editServiceRequestName}
+          onClose={() => setEditServiceRequestName(null)}
+          onSuccess={doRefetch}
+        />
       )}
     </div>
   )

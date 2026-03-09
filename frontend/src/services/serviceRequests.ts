@@ -47,6 +47,82 @@ export async function fetchServiceRequests(
   }
 }
 
+/** Fetch a single Service Request by name (for edit modal). */
+export async function fetchServiceRequest(name: string): Promise<Record<string, unknown>> {
+  const response = await fetch(
+    `/api/method/healthcare.api.service_request.get_service_request?name=${encodeURIComponent(name)}`
+  )
+  const resData = await response.json()
+  if (resData?.message && typeof resData.message === 'object') {
+    return resData.message as Record<string, unknown>
+  }
+  if (resData?.exc) {
+    throw new Error(resData?.message || resData?.exc || 'Failed to fetch service request')
+  }
+  throw new Error('Failed to fetch service request')
+}
+
+export interface UpdateServiceRequestData {
+  patient?: string
+  template_dt?: string
+  template_dn?: string
+  practitioner?: string
+  patient_visit?: string
+  inpatient_record?: string
+  order_date?: string
+  order_time?: string
+  department?: string
+  medical_department?: string
+  status?: string
+  priority?: string
+  intent?: string
+  quantity?: number
+  occurrence_date?: string
+  occurrence_time?: string
+  order_group?: string
+  order_description?: string
+  patient_instructions?: string
+  expected_date?: string
+  amount?: number
+  source?: string
+  referring_practitioner?: string
+  referred_to_practitioner?: string
+  staff_role?: string
+  patient_care_type?: string
+  healthcare_service_unit_type?: string
+  as_needed?: boolean
+  dosage_form?: string
+  dosage?: string
+  period?: string
+}
+
+/** Update an existing Service Request. */
+export async function updateServiceRequest(name: string, data: UpdateServiceRequestData): Promise<{ name: string; status?: string }> {
+  const { ensureCSRF } = await import('./apiClient')
+  const csrf = await ensureCSRF()
+  const response = await fetch(
+    '/api/method/healthcare.api.service_request.update_service_request',
+    {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
+      },
+      body: JSON.stringify({ name, data }),
+    }
+  )
+  const resData = await response.json()
+  if (resData?.message && typeof resData.message === 'object') {
+    return resData.message as { name: string; status?: string }
+  }
+  if (resData?.exc) {
+    throw new Error(resData?.message || resData?.exc || 'Failed to update service request')
+  }
+  throw new Error('Failed to update service request')
+}
+
 export async function createLabTestFromServiceRequest(serviceRequestName: string): Promise<{ name: string; patient: string; patient_name?: string; template?: string; lab_test_name?: string; status?: string }> {
   const { ensureCSRF } = await import('./apiClient')
   const csrf = await ensureCSRF()

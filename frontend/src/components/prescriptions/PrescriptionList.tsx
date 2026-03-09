@@ -4,6 +4,7 @@ import { fetchHealthcarePractitioners, type LinkFieldOption } from '../../servic
 import { StatusPill } from '../ui/StatusPill'
 import { DetailSlideOver } from '../ui/DetailSlideOver'
 import { DocDetailView } from '../ui/DocDetailView'
+import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 
 const statusColors: Record<string, string> = {
   'Draft': 'default',
@@ -109,11 +110,6 @@ export const PrescriptionList = ({
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
-
-  const handlePrint = (name: string) => {
-    const url = `/printview?doctype=Patient+Medication+Order&name=${encodeURIComponent(name)}&trigger_print=1&format=Prescription&no_letterhead=0`
-    window.open(url, '_blank')
-  }
 
   const handleOpenInForm = (name: string) => {
     window.open(`/app/patient-medication-order/${encodeURIComponent(name)}`, '_blank')
@@ -335,27 +331,12 @@ export const PrescriptionList = ({
                       </div>
                     )}
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => handlePrint(row.name)}
-                    className="inline-flex items-center justify-center w-8 h-8 rounded border border-slate-300 bg-white text-primary hover:bg-slate-50 hover:text-slate-800 transition-colors"
-                    aria-label="Print"
-                    title="Print"
-                  >
-                    <svg
-                      className="w-4 h-4"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={1.8}
-                        d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"
-                      />
-                    </svg>
-                  </button>
+                  <PrintFormatDropdown
+                    doctype="Patient Medication Order"
+                    docName={row.name}
+                    noLetterhead={0}
+                    triggerPrint={1}
+                  />
                 </div>
               </td>
             </tr>
