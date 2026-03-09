@@ -7,8 +7,10 @@
  "engine": "InnoDB",
  "field_order": [
   "date",
+  "time",
   "medicine_code",
   "medicine_name",
+  "medication_order",
   "qty",
   "unit",
   "state_date",
@@ -42,6 +44,12 @@
    "fieldtype": "Data",
    "in_list_view": 1,
    "label": "Medicine Name"
+  },
+  {
+   "fieldname": "medication_order",
+   "fieldtype": "Link",
+   "label": "Patient Medication Order",
+   "options": "Patient Medication Order"
   },
   {
    "fieldname": "qty",
@@ -92,13 +100,19 @@
    "fieldtype": "Link",
    "label": "User",
    "options": "User"
+  },
+  {
+   "default": "Now",
+   "fieldname": "time",
+   "fieldtype": "Time",
+   "label": "Time"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2025-12-24 14:14:02.571798",
+ "modified": "2026-03-09 11:10:19.783383",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Medicine Given",

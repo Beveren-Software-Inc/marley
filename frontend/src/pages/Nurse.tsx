@@ -26,6 +26,8 @@ import { ServiceRequestList } from '../components/serviceRequests/ServiceRequest
 import { CreateServiceRequestModal } from '../components/serviceRequests/CreateServiceRequestModal'
 import { PrescriptionList } from '../components/prescriptions/PrescriptionList'
 import { CreatePrescriptionModal } from '../components/prescriptions/CreatePrescriptionModal'
+import { CreateMedicineGivenModal } from '../components/medication/CreateMedicineGivenModal'
+import { MedicineGivenList } from '../components/medication/MedicineGivenList'
 import { DiagnosisSymptomsScreen } from '../components/diagnosis/DiagnosisSymptomsScreen'
 import { AppointmentList } from '../components/appointments/AppointmentList'
 import { EnvironmentalChecklistList } from '../components/environmental/EnvironmentalChecklistList'
@@ -60,6 +62,8 @@ export const NursePage = () => {
   const [showPsychOrderModal, setShowPsychOrderModal] = useState(false)
   const [showSleepingPatternModal, setShowSleepingPatternModal] = useState(false)
   const [sleepingPatternRefreshKey, setSleepingPatternRefreshKey] = useState(0)
+  const [showGivenMedicineModal, setShowGivenMedicineModal] = useState(false)
+  const [givenRefreshKey, setGivenRefreshKey] = useState(0)
   const screen = searchParams.get('screen')
 
   // Sync selectedPatient with URL on mount and when URL changes
@@ -364,7 +368,7 @@ export const NursePage = () => {
     )
   }
 
-  // Medication: show prescriptions list
+  // Medication (Prescriptions)
   if (screen === 'n-med') {
     return (
       <div className="flex flex-col">
@@ -393,7 +397,10 @@ export const NursePage = () => {
                 +
               </button>
             </div>
-            <PrescriptionList patient={selectedPatient} refreshKey={prescriptionRefreshKey} />
+            <PrescriptionList
+              patient={selectedPatient}
+              refreshKey={prescriptionRefreshKey}
+            />
           </section>
         </div>
         {showPrescriptionModal && (
@@ -404,6 +411,52 @@ export const NursePage = () => {
               setShowPrescriptionModal(false)
             }}
             initialPatient={selectedPatient}
+          />
+        )}
+      </div>
+    )
+  }
+
+  // Given Medicines – list administrations, not prescriptions
+  if (screen === 'n-given') {
+    return (
+      <div className="flex flex-col">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+        <div className="p-4">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+            <div className="font-semibold mb-4 flex items-center justify-between">
+              <span>Given Medicines</span>
+              <button
+                onClick={() => setShowGivenMedicineModal(true)}
+                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
+                title="Record Given Medicine"
+              >
+                +
+              </button>
+            </div>
+            <MedicineGivenList patient={selectedPatient} refreshKey={givenRefreshKey} />
+          </section>
+        </div>
+        {showGivenMedicineModal && (
+          <CreateMedicineGivenModal
+            initialPatient={selectedPatient}
+            onClose={() => setShowGivenMedicineModal(false)}
+            onSuccess={() => {
+              setGivenRefreshKey(prev => prev + 1)
+              setShowGivenMedicineModal(false)
+            }}
           />
         )}
       </div>
@@ -814,6 +867,21 @@ export const NursePage = () => {
               </div>
               <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
                 <PrescriptionList patient={selectedPatient} refreshKey={prescriptionRefreshKey} />
+              </div>
+            </section>
+          </div>
+
+          {/* Card: Discharges */}
+          <div className="px-4 pb-4">
+            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
+              <div className="font-semibold mb-4 flex-shrink-0">
+                <span>Discharges</span>
+              </div>
+              <div
+                className="overflow-x-auto overflow-y-auto flex-1 min-h-0"
+                style={{ scrollbarWidth: 'thin' }}
+              >
+                <DischargeList patient={selectedPatient} key={dischargeRefreshKey} />
               </div>
             </section>
           </div>

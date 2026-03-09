@@ -33,6 +33,12 @@ import { CreatePrescriptionModal } from '../components/prescriptions/CreatePresc
 import { PatientVisitList } from '../components/patientVisits/PatientVisitList'
 import { AdmissionList } from '../components/admissions/AdmissionList'
 import { DiagnosisSymptomsScreen } from '../components/diagnosis/DiagnosisSymptomsScreen'
+import { EnvironmentalChecklistList } from '../components/environmental/EnvironmentalChecklistList'
+import { MorseFallScaleList } from '../components/morse/MorseFallScaleList'
+import { IOPDayListWithHeader } from '../components/iop/IOPDayList'
+import { IOPEnrollmentListWithHeader } from '../components/iop/IOPEnrollmentList'
+import { CreateMedicineGivenModal } from '../components/medication/CreateMedicineGivenModal'
+import { MedicineGivenList } from '../components/medication/MedicineGivenList'
 
 const doctorNav = [
   { label: 'Admission', screen: 'admission' },
@@ -62,6 +68,9 @@ export const DoctorPage = () => {
   const [appointmentRefreshKey, setAppointmentRefreshKey] = useState(0)
   const [showPrescriptionModal, setShowPrescriptionModal] = useState(false)
   const [prescriptionRefreshKey, setPrescriptionRefreshKey] = useState(0)
+  const [showBulkScheduleModal, setShowBulkScheduleModal] = useState(false)
+  const [showGivenMedicineModal, setShowGivenMedicineModal] = useState(false)
+  const [givenRefreshKey, setGivenRefreshKey] = useState(0)
   const screen = searchParams.get('screen')
 
   // Sync selectedPatient with URL on mount and when URL changes
@@ -205,6 +214,37 @@ export const DoctorPage = () => {
               patient={selectedPatient} 
               medicalRole="Doctor"
               noteType="Note"
+            />
+          </section>
+        </div>
+      </div>
+    )
+  }
+
+  // Show Doctor Progress Note (Clinical Note with Medical Role = Doctor, Clinical Note Type = Progress Note)
+  if (screen === 'dpn') {
+    return (
+      <div className="flex flex-col">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+        <div className="p-4">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+            <div className="font-semibold mb-4">Doctor Progress Notes</div>
+            <ClinicalNotesList 
+              patient={selectedPatient} 
+              medicalRole="Doctor"
+              clinicalNoteType="Progress Note"
             />
           </section>
         </div>
@@ -513,7 +553,10 @@ export const DoctorPage = () => {
                 +
               </button>
             </div>
-            <PrescriptionList patient={selectedPatient} refreshKey={prescriptionRefreshKey} />
+            <PrescriptionList
+              patient={selectedPatient}
+              refreshKey={prescriptionRefreshKey}
+            />
           </section>
         </div>
         {showPrescriptionModal && (
@@ -524,6 +567,52 @@ export const DoctorPage = () => {
               setShowPrescriptionModal(false)
             }}
             initialPatient={selectedPatient}
+          />
+        )}
+      </div>
+    )
+  }
+
+  // Given Medicines – list administrations, not prescriptions
+  if (screen === 'gm') {
+    return (
+      <div className="flex flex-col">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+        <div className="p-4">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+            <div className="font-semibold mb-4 flex items-center justify-between">
+              <span>Given Medicines</span>
+              <button
+                onClick={() => setShowGivenMedicineModal(true)}
+                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
+                title="Record Given Medicine"
+              >
+                +
+              </button>
+            </div>
+            <MedicineGivenList patient={selectedPatient} refreshKey={givenRefreshKey} />
+          </section>
+        </div>
+        {showGivenMedicineModal && (
+          <CreateMedicineGivenModal
+            initialPatient={selectedPatient}
+            onClose={() => setShowGivenMedicineModal(false)}
+            onSuccess={() => {
+              setGivenRefreshKey(prev => prev + 1)
+              setShowGivenMedicineModal(false)
+            }}
           />
         )}
       </div>
@@ -575,6 +664,138 @@ export const DoctorPage = () => {
             }}
             initialPatient={selectedPatient}
           />
+        )}
+      </div>
+    )
+  }
+
+  // Morse Fall Scale
+  if (screen === 'fall') {
+    return (
+      <div className="flex flex-col">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+        <div className="p-4">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+            <div className="font-semibold mb-4 flex items-center justify-between">
+              <span>Morse Fall Scale</span>
+              <button
+                onClick={() => window.open('/app/morse-fall-scale/new', '_blank')}
+                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
+                title="Create Morse Fall Scale"
+              >
+                +
+              </button>
+            </div>
+            <MorseFallScaleList patient={selectedPatient} />
+          </section>
+        </div>
+      </div>
+    )
+  }
+
+  // Environmental Checklist (requires patient + Inpatient Admission selection)
+  if (screen === 'env') {
+    return (
+      <div className="flex flex-col">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+        <div className="p-4">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+            <div className="font-semibold mb-3">Environmental Checklist</div>
+            <EnvironmentalChecklistList patient={selectedPatient} />
+          </section>
+        </div>
+      </div>
+    )
+  }
+
+  // IOP Dashboard (reuse Receptionist IOP view)
+  if (screen === 'iop') {
+    return (
+      <div className="flex flex-col">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+        <div className="p-4">
+          <div className="mb-4 flex items-start justify-between gap-4">
+            <div>
+              <h2 className="text-xl font-semibold text-slate-900">IOP Dashboard</h2>
+              <p className="text-sm text-slate-600 mt-1">
+                Intensive Outpatient: schedule IOP days (slots) and enroll patients. Create a Patient Visit from an
+                enrollment to link the visit.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowBulkScheduleModal(true)}
+              className="flex-shrink-0 px-4 py-2 rounded-md bg-primary text-white text-sm font-medium hover:bg-primary/90 transition-colors whitespace-nowrap"
+            >
+              Bulk Schedule
+            </button>
+          </div>
+          <div className="grid gap-6 md:grid-cols-2">
+            <IOPDayListWithHeader refreshKey={appointmentRefreshKey} />
+            <IOPEnrollmentListWithHeader refreshKey={appointmentRefreshKey} />
+          </div>
+        </div>
+        {showBulkScheduleModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-slate-900">Bulk Schedule</h2>
+                <button
+                  onClick={() => setShowBulkScheduleModal(false)}
+                  className="text-slate-400 hover:text-slate-600"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <p className="text-sm text-slate-500">Bulk Schedule modal coming soon.</p>
+              <div className="mt-4 flex justify-end">
+                <button
+                  onClick={() => setShowBulkScheduleModal(false)}
+                  className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     )
@@ -952,6 +1173,21 @@ export const DoctorPage = () => {
               </div>
               <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
                 <AdmissionList patient={selectedPatient} />
+              </div>
+            </section>
+          </div>
+
+          {/* Card: Discharges */}
+          <div className="px-4 pb-4">
+            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
+              <div className="font-semibold mb-4 flex-shrink-0">
+                <span>Discharges</span>
+              </div>
+              <div
+                className="overflow-x-auto overflow-y-auto flex-1 min-h-0"
+                style={{ scrollbarWidth: 'thin' }}
+              >
+                <DischargeList patient={selectedPatient} key={dischargeRefreshKey} />
               </div>
             </section>
           </div>

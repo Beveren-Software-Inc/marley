@@ -21,20 +21,10 @@
   "doctors_orders",
   "other_details_section",
   "ect",
-  "sleeping_pattern_tab",
-  "sleeping_pattern",
   "medication_tab",
   "ip_medication",
   "given_medication_tab",
   "table_yrwe",
-  "doctors_order_tab",
-  "doctors_notes",
-  "diagnoses_section",
-  "table_pzjk",
-  "warnings_section",
-  "warning_messages",
-  "psychological_section",
-  "psychologist_details",
   "nutritionist_tab",
   "table_nfve",
   "therapies_services_tab",
@@ -69,7 +59,7 @@
    "unique": 1
   },
   {
-   "fetch_from": "admission.file_number",
+   "fetch_from": "admission.patient",
    "fieldname": "file_no",
    "fieldtype": "Link",
    "in_list_view": 1,
@@ -132,17 +122,6 @@
    "options": "Doctors Order"
   },
   {
-   "fieldname": "sleeping_pattern_tab",
-   "fieldtype": "Tab Break",
-   "label": "Sleeping Pattern"
-  },
-  {
-   "fieldname": "sleeping_pattern",
-   "fieldtype": "Table",
-   "label": "Sleeping Pattern",
-   "options": "Sleeping Pattern"
-  },
-  {
    "fieldname": "medication_tab",
    "fieldtype": "Tab Break",
    "label": "Medication"
@@ -162,49 +141,6 @@
    "fieldname": "table_yrwe",
    "fieldtype": "Table",
    "options": "Medicine Given"
-  },
-  {
-   "fieldname": "doctors_order_tab",
-   "fieldtype": "Tab Break",
-   "label": "Doctors Order"
-  },
-  {
-   "fieldname": "doctors_notes",
-   "fieldtype": "Table",
-   "label": "Doctors Notes",
-   "options": "Doctor Progress Notes"
-  },
-  {
-   "fieldname": "diagnoses_section",
-   "fieldtype": "Section Break",
-   "label": "Diagnoses"
-  },
-  {
-   "fieldname": "table_pzjk",
-   "fieldtype": "Table",
-   "options": "Diagnoses Details"
-  },
-  {
-   "fieldname": "warnings_section",
-   "fieldtype": "Section Break",
-   "label": "Warnings"
-  },
-  {
-   "fieldname": "warning_messages",
-   "fieldtype": "Table",
-   "label": "Warning Messages",
-   "options": "Warning Messages"
-  },
-  {
-   "fieldname": "psychological_section",
-   "fieldtype": "Section Break",
-   "label": "Psychological"
-  },
-  {
-   "fieldname": "psychologist_details",
-   "fieldtype": "Table",
-   "label": "Psychologist Details",
-   "options": "Psychological Details"
   },
   {
    "fieldname": "nutritionist_tab",
@@ -345,7 +281,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-12-15 15:30:08.875286",
+ "modified": "2026-03-09 10:47:55.164970",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Admission Detail",
