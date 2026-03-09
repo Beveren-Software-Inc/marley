@@ -163,6 +163,13 @@ export const CreateMedicineGivenModal = ({
       toast.success(overrideChecked ? 'Given medicine recorded with override' : 'Given medicine recorded')
       onSuccess()
       onClose()
+    } catch (e) {
+      const msg =
+        e instanceof Error
+          ? e.message
+          : 'Failed to record given medicine'
+      setError(msg)
+      toast.error(msg)
     } finally {
       setLoading(false)
     }
