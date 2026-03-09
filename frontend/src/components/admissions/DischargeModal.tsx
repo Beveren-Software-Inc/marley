@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { createDischarge, UnbilledServicesError } from '../../services/inpatientRecords'
 import { uploadPatientFile, type PatientDocumentRow } from '../../services/patients'
+import { MedicineGivenList } from '../medication/MedicineGivenList'
 import { fetchHealthcarePractitioners, fetchUsers, fetchDischargeTemplates, fetchDischargeChecklist, fetchDepartments, fetchDocumentTypes, type LinkFieldOption } from '../../services/common'
 import { toast } from '../../hooks/useToast'
 import { X, CheckCircle2, Circle, ChevronDown, ChevronUp, AlertCircle, Receipt, PenLine, Trash2, Check } from 'lucide-react'
@@ -250,7 +251,7 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [unbilledServices, setUnbilledServices] = useState<{ type: string; ids: string[] }[] | null>(null)
-  const [activeTab, setActiveTab] = useState<'details' | 'checklist' | 'documents'>('details')
+  const [activeTab, setActiveTab] = useState<'details' | 'checklist' | 'documents' | 'reconcile'>('details')
 
   // Checklist state
   const [checklistItems, setChecklistItems] = useState<ChecklistItem[]>([])
@@ -600,7 +601,7 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
 
         {/* Tabs */}
         <div className="flex border-b border-slate-200 bg-slate-50">
-          {(['details', 'checklist', 'documents'] as const).map((tab) => (
+          {(['details', 'checklist', 'reconcile', 'documents'] as const).map((tab) => (
             <button
               key={tab}
               type="button"
@@ -611,7 +612,11 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
                   : 'border-transparent text-slate-500 hover:text-slate-700'
               }`}
             >
-              {tab === 'checklist' ? 'Discharge Checklist' : tab.charAt(0).toUpperCase() + tab.slice(1)}
+              {tab === 'checklist'
+                ? 'Discharge Checklist'
+                : tab === 'reconcile'
+                  ? 'Medicine Reconciliation'
+                  : tab.charAt(0).toUpperCase() + tab.slice(1)}
               {tab === 'checklist' && totalItems > 0 && (
                 <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
                   allCompleted ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
@@ -1002,6 +1007,18 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
                   })}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* ── TAB: MEDICINE RECONCILIATION ── */}
+          {activeTab === 'reconcile' && (
+            <div className="p-6 space-y-3">
+              <h3 className="text-sm font-semibold text-slate-700 mb-1">Medicine Reconciliation</h3>
+              <p className="text-xs text-slate-600 mb-2">
+                Review medicines given during this admission and ensure remaining doses are reconciled back to Pharmacy
+                before final discharge.
+              </p>
+              <MedicineGivenList patient={admission.patient} />
             </div>
           )}
 

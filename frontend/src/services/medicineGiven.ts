@@ -4,6 +4,8 @@ export interface CreateMedicineGivenData {
   admission: string
   medication_order: string
   order_entry?: string
+  allow_override?: boolean
+  override_reason?: string
   qty?: number
   date?: string
   time?: string
@@ -66,6 +68,39 @@ export async function fetchMedicineGiven(
   }
 
   return []
+}
+
+export async function deleteMedicineGiven(name: string): Promise<void> {
+  await apiRequest(
+    '/api/method/healthcare.api.medicine_given.delete_medicine_given',
+    {
+      method: 'POST',
+      body: JSON.stringify({ name }),
+    }
+  )
+}
+
+export interface ReconcileResponse {
+  stock_entry: string | null
+  items: { item_code: string; qty: number }[]
+}
+
+export async function reconcileDischargeMedicines(
+  admission: string
+): Promise<ReconcileResponse> {
+  const params = new URLSearchParams()
+  params.append('admission', admission)
+
+  const res = await fetch(
+    `/api/method/healthcare.api.medicine_given.reconcile_discharge_medicines?${params.toString()}`
+  )
+  const data = await res.json()
+
+  if (data?.exc || !res.ok) {
+    throw new Error(data?.exc || data?.message || 'Failed to reconcile medicines')
+  }
+
+  return (data?.message as ReconcileResponse) || { stock_entry: null, items: [] }
 }
 
 

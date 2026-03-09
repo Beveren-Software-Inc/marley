@@ -39,6 +39,7 @@ import { IOPDayListWithHeader } from '../components/iop/IOPDayList'
 import { IOPEnrollmentListWithHeader } from '../components/iop/IOPEnrollmentList'
 import { CreateMedicineGivenModal } from '../components/medication/CreateMedicineGivenModal'
 import { MedicineGivenList } from '../components/medication/MedicineGivenList'
+import { reconcileDischargeMedicines } from '../services/medicineGiven'
 
 const doctorNav = [
   { label: 'Admission', screen: 'admission' },
@@ -71,6 +72,7 @@ export const DoctorPage = () => {
   const [showBulkScheduleModal, setShowBulkScheduleModal] = useState(false)
   const [showGivenMedicineModal, setShowGivenMedicineModal] = useState(false)
   const [givenRefreshKey, setGivenRefreshKey] = useState(0)
+  const [reconcileLoading, setReconcileLoading] = useState(false)
   const screen = searchParams.get('screen')
 
   // Sync selectedPatient with URL on mount and when URL changes
@@ -151,6 +153,33 @@ export const DoctorPage = () => {
       newSearchParams.delete('patient')
     }
     setSearchParams(newSearchParams, { replace: true })
+  }
+
+  const handleReconcileGiven = async () => {
+    if (!selectedPatient) {
+      toast.error('Please select a patient first')
+      return
+    }
+    try {
+      setReconcileLoading(true)
+      const admission = await getPatientActiveAdmission(selectedPatient)
+      if (!admission) {
+        toast.error('No active admission found for this patient')
+        return
+      }
+      const res = await reconcileDischargeMedicines(admission.name)
+      if (res.stock_entry) {
+        toast.success(`Stock Entry ${res.stock_entry} created`)
+        window.open(`/app/stock-entry/${encodeURIComponent(res.stock_entry)}`, '_blank')
+      } else {
+        toast.info('No remaining medicines to return')
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to reconcile medicines'
+      toast.error(msg)
+    } finally {
+      setReconcileLoading(false)
+    }
   }
 
   // Show Admission page when screen=admission
@@ -594,13 +623,23 @@ export const DoctorPage = () => {
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
             <div className="font-semibold mb-4 flex items-center justify-between">
               <span>Given Medicines</span>
-              <button
-                onClick={() => setShowGivenMedicineModal(true)}
-                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
-                title="Record Given Medicine"
-              >
-                +
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleReconcileGiven}
+                  className="px-3 py-1 rounded-md bg-primary text-white text-xs font-semibold hover:bg-primary/90 disabled:opacity-50"
+                  disabled={reconcileLoading}
+                  title="Create Stock Entry for remaining medicines"
+                >
+                  {reconcileLoading ? 'Reconciling…' : 'Reconcile for Discharge'}
+                </button>
+                <button
+                  onClick={() => setShowGivenMedicineModal(true)}
+                  className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
+                  title="Record Given Medicine"
+                >
+                  +
+                </button>
+              </div>
             </div>
             <MedicineGivenList patient={selectedPatient} refreshKey={givenRefreshKey} />
           </section>

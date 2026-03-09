@@ -1,6 +1,6 @@
 import frappe
 from frappe import _
-from frappe.utils import nowdate, nowtime, cint
+from frappe.utils import nowdate, nowtime, cint, flt
 
 
 def _get_or_create_admission_detail(admission: str):
@@ -38,6 +38,8 @@ def create_medicine_given(
 	time: str | None = None,
 	frequency: int | None = None,
 	dose_notes: str | None = None,
+	allow_override: int | None = 0,
+	override_reason: str | None = None,
 ) -> dict:
 	"""Create a Medicine Given row on Admission Detail from a Patient Medication Order.
 
@@ -99,6 +101,7 @@ def create_medicine_given(
 	if hasattr(row, "medicine_code"):
 		drug_code = None
 		drug_name = None
+		prescription_frequency = None
 
 		if item_code:
 			drug_code = item_code
@@ -115,10 +118,12 @@ def create_medicine_given(
 			child = frappe.get_doc("Inpatient Medication Order Entry", order_entry)
 			drug_code = child.drug
 			drug_name = child.drug_name
+			prescription_frequency = child.patient_frequency
 		elif pmo and getattr(pmo, "medication_orders", None):
 			first = pmo.medication_orders[0]
 			drug_code = getattr(first, "drug", None)
 			drug_name = getattr(first, "drug_name", None)
+			prescription_frequency = getattr(first, "patient_frequency", None)
 
 		if not drug_code:
 			frappe.throw(
@@ -135,6 +140,44 @@ def create_medicine_given(
 		if hasattr(row, "unit") and not row.unit:
 			stock_uom = frappe.db.get_value("Item", drug_code, "stock_uom")
 			row.unit = stock_uom
+
+		# Frequency-based maximum per day check using Prescription Frequency
+		if prescription_frequency:
+			freq_per_day = frappe.db.get_value(
+				"Prescription Frequency",
+				prescription_frequency,
+				"frequency_in_a_day",
+			)
+			freq_per_day = cint(freq_per_day or 0)
+			if freq_per_day > 0:
+				# Count existing administrations for this admission, medicine and date
+				already_given = frappe.db.count(
+					"Medicine Given",
+					{
+						"parent": admission_detail.name,
+						"parenttype": "Admission Detail",
+						"medicine_code": drug_code,
+						"date": row.date,
+					},
+				)
+				# This new row would be the (already_given + 1)-th administration today
+				if already_given + 1 > freq_per_day:
+					if not cint(allow_override):
+						frappe.throw(
+							_(
+								"Frequency limit reached for this medicine.\n"
+								"Prescribed frequency: {0} times per day.\n"
+								"Already recorded doses today for this admission: {1}.\n"
+								"Please review the prescription or consult the prescriber before giving an extra dose."
+							).format(freq_per_day, already_given),
+							title=_("Dose frequency exceeded"),
+						)
+					# Override allowed, but require a justification
+					if not override_reason:
+						frappe.throw(
+							_("Override reason is required to exceed prescribed daily frequency."),
+							title=_("Override reason required"),
+						)
 
 	admission_detail.save()
 
@@ -179,5 +222,142 @@ def get_medicine_given(admission: str, limit: int | None = 50, offset: int | Non
 	)
 
 	return rows
+
+
+@frappe.whitelist()
+def delete_medicine_given(name: str) -> dict:
+	"""Delete a Medicine Given row (child of Admission Detail)."""
+	if not name:
+		frappe.throw(_("Row name is required"))
+
+	parenttype, parent = frappe.db.get_value(
+		"Medicine Given", name, ["parenttype", "parent"], as_dict=False
+	) or (None, None)
+
+	if not parent:
+		frappe.throw(_("Medicine Given row {0} does not exist").format(frappe.bold(name)))
+
+	if parenttype != "Admission Detail":
+		frappe.throw(_("Cannot delete Medicine Given row not linked to Admission Detail"))
+
+	frappe.delete_doc("Medicine Given", name)
+
+	return {"deleted": name}
+
+
+@frappe.whitelist()
+def reconcile_discharge_medicines(admission: str) -> dict:
+	"""Compute remaining medicines for an admission and create a draft Stock Entry to return them.
+
+	Remaining = total ordered (Patient Medication Order) - total given (Medicine Given).
+	"""
+	if not admission:
+		frappe.throw(_("Admission (Inpatient Admission) is required"))
+
+	# Get all submitted medication orders for this admission
+	order_names = frappe.get_all(
+		"Patient Medication Order",
+		filters={"inpatient_record": admission, "docstatus": 1},
+		pluck="name",
+	)
+	if not order_names:
+		return {"stock_entry": None, "items": []}
+
+	# Sum ordered quantity per drug from Inpatient Medication Order Entry
+	ordered: dict[str, float] = {}
+	order_rows = frappe.get_all(
+		"Inpatient Medication Order Entry",
+		filters={"parent": ["in", order_names]},
+		fields=["drug", "quantity"],
+	)
+	for row in order_rows:
+		drug = row.get("drug")
+		if not drug:
+			continue
+		qty = flt(row.get("quantity") or 0)
+		if qty <= 0:
+			continue
+		ordered[drug] = ordered.get(drug, 0.0) + qty
+
+	if not ordered:
+		return {"stock_entry": None, "items": []}
+
+	# Sum given quantity per drug from Medicine Given
+	admission_detail_name = frappe.db.get_value("Admission Detail", {"admission": admission}, "name")
+	given: dict[str, float] = {}
+	if admission_detail_name:
+		given_rows = frappe.get_all(
+			"Medicine Given",
+			filters={"parent": admission_detail_name, "parenttype": "Admission Detail"},
+			fields=["medicine_code", "qty"],
+		)
+		for row in given_rows:
+			drug = row.get("medicine_code")
+			if not drug:
+				continue
+			qty = flt(row.get("qty") or 0)
+			if qty <= 0:
+				continue
+			given[drug] = given.get(drug, 0.0) + qty
+
+	# Compute remaining quantities
+	pending: dict[str, float] = {}
+	for drug, total_ordered in ordered.items():
+		total_given = given.get(drug, 0.0)
+		remaining = flt(total_ordered) - flt(total_given)
+		if remaining > 0:
+			pending[drug] = remaining
+
+	if not pending:
+		return {"stock_entry": None, "items": []}
+
+	# Create a draft Stock Entry (Material Receipt) back to a default warehouse
+	admission_doc = frappe.get_doc("Inpatient Admission", admission)
+	company = admission_doc.company or frappe.defaults.get_user_default("Company")
+	if not company:
+		frappe.throw(_("Company is required to create Stock Entry for reconciliation"))
+
+	# Try company default warehouse, fallback to Stock Settings
+	warehouse = frappe.db.get_value("Company", company, "default_warehouse") or frappe.db.get_single_value(
+		"Stock Settings", "default_warehouse"
+	)
+	if not warehouse:
+		frappe.throw(
+			_(
+				"Default warehouse is not set on Company or Stock Settings. "
+				"Please configure a default warehouse before reconciling medicines."
+			)
+		)
+
+	stock_entry = frappe.new_doc("Stock Entry")
+	stock_entry.purpose = "Material Receipt"
+	stock_entry.set_stock_entry_type()
+	stock_entry.to_warehouse = warehouse
+	stock_entry.company = company
+	cost_center = frappe.get_cached_value("Company", company, "cost_center")
+
+	items_summary: list[dict] = []
+
+	for drug, qty in pending.items():
+		item_row = stock_entry.append("items", {})
+		item_row.item_code = drug
+		item_row.item_name = frappe.db.get_value("Item", drug, "item_name") or drug
+		item_row.uom = frappe.db.get_value("Item", drug, "stock_uom")
+		item_row.stock_uom = item_row.uom
+		item_row.t_warehouse = warehouse
+		item_row.qty = qty
+		item_row.conversion_factor = 1
+		if cost_center:
+			item_row.cost_center = cost_center
+
+		items_summary.append({"item_code": drug, "qty": qty})
+
+	stock_entry.insert()
+
+	return {
+		"stock_entry": stock_entry.name,
+		"items": items_summary,
+	}
+
 
 

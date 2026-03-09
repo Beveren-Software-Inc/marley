@@ -59,7 +59,49 @@ async function doApiRequest<T = any>(path: string, options: RequestInit = {}): P
     const contentType = resp.headers.get('content-type')
     if (contentType && contentType.includes('application/json')) {
       const errorData = await resp.json().catch(() => ({}))
-      throw new Error(errorData.message || errorData.exc || `Request failed with status ${resp.status}`)
+
+      const raw = (errorData && (errorData.message ?? errorData.exc)) || ''
+
+      const extractUserMessage = (value: any): string => {
+        let msg: any = value
+        if (!msg) return ''
+
+        // If it's already an array, use the last entry
+        if (Array.isArray(msg)) {
+          msg = msg[msg.length - 1] || ''
+        }
+
+        // If it's a JSON-encoded array string (like Frappe tracebacks), parse it
+        if (typeof msg === 'string' && msg.trim().startsWith('[')) {
+          try {
+            const parsed = JSON.parse(msg)
+            if (Array.isArray(parsed) && parsed.length) {
+              msg = parsed[parsed.length - 1]
+            }
+          } catch {
+            // ignore JSON parse errors and fall back to raw string
+          }
+        }
+
+        if (typeof msg !== 'string') {
+          msg = String(msg)
+        }
+
+        // For traceback-like strings, take the last non-empty line as the user-facing message
+        const lines = msg
+          .split('\n')
+          .map((l) => l.trim())
+          .filter(Boolean)
+
+        if (lines.length) {
+          msg = lines[lines.length - 1]
+        }
+
+        return msg
+      }
+
+      const cleanMessage = extractUserMessage(raw) || `Request failed with status ${resp.status}`
+      throw new Error(cleanMessage)
     } else {
       // If it's HTML, it's likely a redirect or error page
       await resp.text() // Read response to avoid memory leak

@@ -8,6 +8,7 @@ import { LabPage } from '../pages/Lab'
 import { PharmacyPage } from '../pages/Pharmacy'
 import { ReceptionistPage } from '../pages/Receptionist'
 import { SettingsPage } from '../pages/Settings'
+import { QMPSPage } from '../pages/QMPS'
 import { EmployeePage } from '../pages/Employee'
 import { PatientVisitDetailPage } from '../pages/PatientVisitDetailPage'
 import { PatientHistoryPage } from '../pages/PatientHistory'
@@ -84,6 +85,14 @@ export const RouterProvider = () => {
       element: (
         <RoleGuard>
           <SettingsPage />
+        </RoleGuard>
+      )
+    },
+    {
+      path: '/qmps',
+      element: (
+        <RoleGuard>
+          <QMPSPage />
         </RoleGuard>
       )
     },

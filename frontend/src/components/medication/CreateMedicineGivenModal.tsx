@@ -31,6 +31,8 @@ export const CreateMedicineGivenModal = ({
   const [notes, setNotes] = useState<string>('')
   const [loading, setLoading] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
+  const [overrideChecked, setOverrideChecked] = useState(false)
+  const [overrideReason, setOverrideReason] = useState('')
 
   useEffect(() => {
     const now = new Date()
@@ -136,23 +138,31 @@ export const CreateMedicineGivenModal = ({
     try {
       setLoading(true)
       setError(null)
+
+      // Simple override flow: if override is checked, require justification and send to backend
+      if (overrideChecked && !overrideReason.trim()) {
+        const msg = 'Please enter a justification for overriding the prescribed frequency.'
+        setError(msg)
+        toast.error(msg)
+        return
+      }
+
       await createMedicineGiven({
         admission: admission.name,
         medication_order: mode === 'prescription' ? selectedPrescription : '',
         order_entry: mode === 'prescription' ? selectedOrder : undefined,
         item_code: mode === 'direct' ? selectedItem : undefined,
+        allow_override: overrideChecked || undefined,
+        override_reason: overrideChecked ? overrideReason.trim() : undefined,
         qty: qty || 1,
         date,
         time,
         dose_notes: notes || undefined,
       })
-      toast.success('Given medicine recorded')
+
+      toast.success(overrideChecked ? 'Given medicine recorded with override' : 'Given medicine recorded')
       onSuccess()
       onClose()
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Failed to save'
-      setError(msg)
-      toast.error(msg)
     } finally {
       setLoading(false)
     }
@@ -185,6 +195,37 @@ export const CreateMedicineGivenModal = ({
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-md px-3 py-2 text-sm text-red-700">
               {error}
+            </div>
+          )}
+          {mode === 'prescription' && (
+            <div className="bg-amber-50 border border-amber-200 rounded-md px-3 py-3 text-xs text-amber-800 space-y-2">
+              <div className="font-semibold">Override prescribed frequency (optional)</div>
+              <p className="text-[11px]">
+                Use this only when an extra dose is clinically justified (e.g. ICU, high-risk treatment, explicit
+                consultant order). All overrides are logged with user and reason.
+              </p>
+              <label className="flex items-center gap-2 text-[11px]">
+                <input
+                  type="checkbox"
+                  className="h-3 w-3"
+                  checked={overrideChecked}
+                  onChange={(e) => setOverrideChecked(e.target.checked)}
+                />
+                I need to override the prescribed daily frequency for this dose.
+              </label>
+              <div className="space-y-1">
+                <label className="block text-[11px] font-medium text-amber-900">
+                  Override justification
+                </label>
+                <textarea
+                  rows={2}
+                  value={overrideReason}
+                  onChange={(e) => setOverrideReason(e.target.value)}
+                  className="w-full rounded-md border border-amber-300 px-2 py-1.5 text-xs bg-amber-50"
+                  placeholder="e.g. ICU patient, consultant order to give extra dose now…"
+                  disabled={!overrideChecked}
+                />
+              </div>
             </div>
           )}
 

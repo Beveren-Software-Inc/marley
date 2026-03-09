@@ -19,7 +19,12 @@
   "frequency",
   "is_active",
   "dose_notes",
-  "user"
+  "user",
+  "override_section",
+  "override_exceeded_frequency",
+  "override_reason",
+  "override_user",
+  "override_timestamp"
  ],
  "fields": [
   {
@@ -106,6 +111,33 @@
    "fieldname": "time",
    "fieldtype": "Time",
    "label": "Time"
+  },
+  {
+   "fieldname": "override_section",
+   "fieldtype": "Section Break",
+   "label": "Override (Max Frequency)"
+  },
+  {
+   "default": "0",
+   "fieldname": "override_exceeded_frequency",
+   "fieldtype": "Check",
+   "label": "Exceeded Prescribed Daily Frequency"
+  },
+  {
+   "fieldname": "override_reason",
+   "fieldtype": "Small Text",
+   "label": "Override Reason"
+  },
+  {
+   "fieldname": "override_user",
+   "fieldtype": "Link",
+   "label": "Override User",
+   "options": "User"
+  },
+  {
+   "fieldname": "override_timestamp",
+   "fieldtype": "Datetime",
+   "label": "Override Timestamp"
   }
  ],
  "grid_page_length": 50,

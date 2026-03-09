@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { getPatientActiveAdmission, type InpatientRecord } from '../../services/inpatientRecords'
-import { fetchMedicineGiven, type MedicineGivenRow } from '../../services/medicineGiven'
+import { fetchMedicineGiven, deleteMedicineGiven, type MedicineGivenRow } from '../../services/medicineGiven'
+import { toast } from '../../hooks/useToast'
 
 interface MedicineGivenListProps {
   patient?: string
@@ -45,6 +46,18 @@ export const MedicineGivenList = ({ patient, refreshKey }: MedicineGivenListProp
 
     load()
   }, [patient, refreshKey])
+
+  const handleDelete = async (row: MedicineGivenRow) => {
+    if (!window.confirm('Remove this given medicine entry?')) return
+    try {
+      await deleteMedicineGiven(row.name)
+      setRows((prev) => prev.filter((r) => r.name !== row.name))
+      toast.success('Given medicine removed')
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed to delete given medicine'
+      toast.error(msg)
+    }
+  }
 
   if (!patient) {
     return (
@@ -103,6 +116,9 @@ export const MedicineGivenList = ({ patient, refreshKey }: MedicineGivenListProp
               <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">
                 User
               </th>
+              <th className="px-3 py-2 text-right text-xs font-semibold text-slate-600 uppercase">
+                Actions
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200">
@@ -119,6 +135,15 @@ export const MedicineGivenList = ({ patient, refreshKey }: MedicineGivenListProp
                 </td>
                 <td className="px-3 py-2 text-xs text-slate-700">
                   {row.user || '-'}
+                </td>
+                <td className="px-3 py-2 text-xs text-right">
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(row)}
+                    className="inline-flex items-center justify-center px-2 py-1 rounded-md border border-red-300 text-[11px] text-red-700 hover:bg-red-50"
+                  >
+                    Remove
+                  </button>
                 </td>
               </tr>
             ))}
