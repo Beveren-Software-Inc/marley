@@ -8,6 +8,7 @@ import { ClinicalNotesList } from '../components/clinicalNotes/ClinicalNotesList
 import { ObservationList } from '../components/observations/ObservationList'
 import { VitalSignsList } from '../components/vitalSigns/VitalSignsList'
 import { CreateObservationModal } from '../components/observations/CreateObservationModal'
+import { CreateVitalSignModal } from '../components/vitalSigns/CreateVitalSignModal'
 import { DischargeList } from '../components/discharges/DischargeList'
 import { DischargeModal } from '../components/admissions/DischargeModal'
 import { PackageDetailsList } from '../components/packageDetails/PackageDetailsList'
@@ -35,6 +36,8 @@ import { EnvironmentalChecklistList } from '../components/environmental/Environm
 import { MorseFallScaleList } from '../components/morse/MorseFallScaleList'
 import { SleepingPatternList } from '../components/sleeping/SleepingPatternList'
 import { CreateSleepingPatternModal } from '../components/sleeping/CreateSleepingPatternModal'
+import { ECTAdmissionList } from '../components/ect/ECTAdmissionList'
+import { ECTProcedureList } from '../components/ect/ECTProcedureList'
 import { PatientVisitPage } from './PatientVisit'
 
 export const NursePage = () => {
@@ -54,13 +57,16 @@ export const NursePage = () => {
   const [dischargeRefreshKey, setDischargeRefreshKey] = useState(0)
   const [diagnosisRefreshKey, setDiagnosisRefreshKey] = useState(0)
   const [clinicalNotesRefreshKey, setClinicalNotesRefreshKey] = useState(0)
+  const [vitalSignsRefreshKey, setVitalSignsRefreshKey] = useState(0)
   const [showServiceRequestModal, setShowServiceRequestModal] = useState(false)
   const [serviceRequestRefreshKey, setServiceRequestRefreshKey] = useState(0)
   const [showPrescriptionModal, setShowPrescriptionModal] = useState(false)
   const [prescriptionRefreshKey, setPrescriptionRefreshKey] = useState(0)
   const [showPsychOrderModal, setShowPsychOrderModal] = useState(false)
+  const [showDoctorNoteModal, setShowDoctorNoteModal] = useState(false)
   const [showNutritionNoteModal, setShowNutritionNoteModal] = useState(false)
   const [showTherapistNoteModal, setShowTherapistNoteModal] = useState(false)
+  const [showVitalSignModal, setShowVitalSignModal] = useState(false)
   const [showSleepingPatternModal, setShowSleepingPatternModal] = useState(false)
   const [sleepingPatternRefreshKey, setSleepingPatternRefreshKey] = useState(0)
   const [showGivenMedicineModal, setShowGivenMedicineModal] = useState(false)
@@ -254,7 +260,6 @@ export const NursePage = () => {
             </div>
             <LabTestList
               patient={selectedPatient}
-              defaultStatus="Pending Review"
               key={labTestRefreshKey}
             />
           </section>
@@ -287,11 +292,63 @@ export const NursePage = () => {
             </div>
             <LabTestList
               patient={selectedPatient}
-              defaultStatus="Pending Review"
               key={labTestRefreshKey}
             />
           </section>
         </div>
+      </div>
+    )
+  }
+
+  // Show Doctors Notes (Clinical Note with Medical Role = Doctor, Clinical Note Type = Doctors Note)
+  if (screen === 'n-doc-notes') {
+    return (
+      <div className="flex flex-col">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+        <div className="p-4">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+            <div className="font-semibold mb-4 flex items-center justify-between">
+              <span>Doctors Notes</span>
+              <button
+                onClick={() => setShowDoctorNoteModal(true)}
+                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
+                title="Add Doctors Note"
+              >
+                +
+              </button>
+            </div>
+            <ClinicalNotesList 
+              patient={selectedPatient} 
+              medicalRole="Doctor"
+              clinicalNoteType="Doctors Note"
+              key={clinicalNotesRefreshKey}
+            />
+          </section>
+        </div>
+        {showDoctorNoteModal && (
+          <CreateClinicalNoteModal
+            onClose={() => setShowDoctorNoteModal(false)}
+            onSuccess={() => {
+              setClinicalNotesRefreshKey(prev => prev + 1)
+              setShowDoctorNoteModal(false)
+            }}
+            initialPatient={selectedPatient}
+            defaultClinicalNoteType="Doctors Note"
+            title="Add Doctors Note"
+          />
+        )}
       </div>
     )
   }
@@ -556,10 +613,29 @@ export const NursePage = () => {
         </header>
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4">Vital Signs</div>
-            <VitalSignsList patient={selectedPatient} />
+            <div className="font-semibold mb-4 flex items-center justify-between">
+              <span>Vital Signs</span>
+              <button
+                onClick={() => setShowVitalSignModal(true)}
+                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
+                title="Add Vital Signs"
+              >
+                +
+              </button>
+            </div>
+            <VitalSignsList patient={selectedPatient} refreshKey={vitalSignsRefreshKey} />
           </section>
         </div>
+        {showVitalSignModal && (
+          <CreateVitalSignModal
+            onClose={() => setShowVitalSignModal(false)}
+            onSuccess={() => {
+              setVitalSignsRefreshKey(prev => prev + 1)
+              setShowVitalSignModal(false)
+            }}
+            initialPatient={selectedPatient}
+          />
+        )}
       </div>
     )
   }
@@ -1080,7 +1156,7 @@ export const NursePage = () => {
                 </button>
               </div>
               <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                <LabTestList patient={selectedPatient} defaultStatus="Pending Review" key={labTestRefreshKey} />
+                <LabTestList patient={selectedPatient} key={labTestRefreshKey} />
               </div>
             </section>
 
@@ -1142,6 +1218,33 @@ export const NursePage = () => {
               </div>
               <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
                 <PrescriptionList patient={selectedPatient} refreshKey={prescriptionRefreshKey} />
+              </div>
+            </section>
+
+            {/* Card: Given Medicines */}
+            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
+              <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
+                <span>Given Medicines</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleReconcileGiven}
+                    className="px-3 py-1 rounded-md bg-primary text-white text-xs font-semibold hover:bg-primary/90 disabled:opacity-50"
+                    disabled={reconcileLoading}
+                    title="Create Stock Entry for remaining medicines"
+                  >
+                    {reconcileLoading ? 'Reconciling…' : 'Reconcile for Discharge'}
+                  </button>
+                  <button
+                    onClick={() => setShowGivenMedicineModal(true)}
+                    className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
+                    title="Record Given Medicine"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+              <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
+                <MedicineGivenList patient={selectedPatient} refreshKey={givenRefreshKey} />
               </div>
             </section>
           </div>

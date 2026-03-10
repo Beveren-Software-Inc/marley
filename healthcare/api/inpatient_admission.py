@@ -293,6 +293,40 @@ def get_service_units(service_unit_type=None, occupancy_status=None, search=None
 	return units
 
 
+@frappe.whitelist()
+def add_patient_visitor(admission: str, visitors_name: str, relationship_with_patient: str, cpr__id_no: str | None = None, any_remarks: str | None = None):
+	"""Append a Patient Visitor row to an Inpatient Admission and return the created row."""
+	if not admission:
+		frappe.throw(_("Inpatient Admission is required"))
+	if not visitors_name:
+		frappe.throw(_("Visitor name is required"))
+	if not relationship_with_patient:
+		frappe.throw(_("Relationship with patient is required"))
+
+	doc = frappe.get_doc("Inpatient Admission", admission)
+
+	row = doc.append("patient_visitors", {
+		"visitors_name": visitors_name,
+		"relationship_with_patient": relationship_with_patient,
+		"cpr__id_no": cpr__id_no,
+		"any_remarks": any_remarks,
+		"entered_by": frappe.session.user,
+		"entered_date": frappe.utils.today(),
+	})
+
+	doc.save(ignore_permissions=True)
+
+	return {
+		"name": row.name,
+		"visitors_name": row.visitors_name,
+		"relationship_with_patient": row.relationship_with_patient,
+		"cpr__id_no": row.cpr__id_no,
+		"any_remarks": row.any_remarks,
+		"entered_by": row.entered_by,
+		"entered_date": row.entered_date,
+	}
+
+
 
 @frappe.whitelist()
 def create_and_submit_discharge(admission_name, discharge_data):

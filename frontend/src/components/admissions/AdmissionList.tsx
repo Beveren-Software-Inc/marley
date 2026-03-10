@@ -9,6 +9,7 @@ import { ScheduleDischargeModal } from './ScheduleDischargeModal'
 import { DischargeModal } from './DischargeModal'
 import { TransferCostCenterModal } from './TransferCostCenterModal'
 import { InpatientAdmissionDetails } from './InpatientAdmissionDetails'
+import { AddVisitorModal } from './AddVisitorModal'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import type { InpatientRecord, InpatientPackage } from '../../services/inpatientRecords'
 
@@ -39,6 +40,8 @@ export const AdmissionList = ({ onAdmissionSelect, searchQuery: externalSearchQu
   const [selectedAdmissionForFinalDischarge, setSelectedAdmissionForFinalDischarge] = useState<InpatientRecord | null>(null)
   const [showTransferCostCenter, setShowTransferCostCenter] = useState(false)
   const [selectedAdmissionForTransfer, setSelectedAdmissionForTransfer] = useState<InpatientRecord | null>(null)
+  const [showVisitorModal, setShowVisitorModal] = useState(false)
+  const [visitorAdmission, setVisitorAdmission] = useState<InpatientRecord | null>(null)
 
   // --- Filter: Admission No (searchable dropdown) ---
   const [admissionNoQuery, setAdmissionNoQuery] = useState('')
@@ -451,6 +454,19 @@ export const AdmissionList = ({ onAdmissionSelect, searchQuery: externalSearchQu
                                   </button>
                                 </>
                               )}
+                              {(record.status === 'Admission Scheduled' || record.status === 'Admitted' || record.status === 'Discharge Scheduled') && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setVisitorAdmission(record)
+                                    setShowVisitorModal(true)
+                                    setOpenActionRow(null)
+                                  }}
+                                  className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                                >
+                                  Add Visitor
+                                </button>
+                              )}
                               {record.status === 'Discharge Scheduled' && (
                                 <button
                                   type="button"
@@ -530,6 +546,19 @@ export const AdmissionList = ({ onAdmissionSelect, searchQuery: externalSearchQu
             </div>
           </div>
         </div>
+      )}
+
+      {showVisitorModal && visitorAdmission && (
+        <AddVisitorModal
+          admission={visitorAdmission}
+          onClose={() => {
+            setShowVisitorModal(false)
+            setVisitorAdmission(null)
+          }}
+          onSuccess={() => {
+            refetch()
+          }}
+        />
       )}
 
       {/* ── Existing modals ── */}

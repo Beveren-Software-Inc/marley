@@ -261,6 +261,49 @@ export interface TransferToCostCenterResult {
   to_service_unit?: string
 }
 
+export interface PatientVisitorInput {
+  visitors_name: string
+  relationship_with_patient: string
+  cpr__id_no?: string
+  any_remarks?: string
+}
+
+export interface PatientVisitorRow extends PatientVisitorInput {
+  name: string
+  entered_by: string
+  entered_date: string
+}
+
+export async function addPatientVisitor(admissionName: string, data: PatientVisitorInput): Promise<PatientVisitorRow> {
+  const payload = {
+    admission: admissionName,
+    visitors_name: data.visitors_name,
+    relationship_with_patient: data.relationship_with_patient,
+    cpr__id_no: data.cpr__id_no,
+    any_remarks: data.any_remarks,
+  }
+
+  const res = await fetch('/api/method/healthcare.api.inpatient_admission.add_patient_visitor', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify(payload),
+    credentials: 'include',
+  })
+
+  const out = await res.json()
+  if (!res.ok || out?.exc) {
+    const msg =
+      (out && (out.message || out.exc || out._error_message)) ||
+      `Failed to add visitor (${res.status})`
+    throw new Error(msg)
+  }
+
+  return out.message as PatientVisitorRow
+}
+
 export async function transferToAnotherCostCenter(
   inpatientAdmission: string,
   toCostCenter: string,
