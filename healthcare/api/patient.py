@@ -282,29 +282,45 @@ def _add_patient_documents(patient, data):
 
 
 @frappe.whitelist()
-def get_patient_medical_history(patient):
-	"""Get patient's medical history from the medical history tab"""
+def get_patient_medical_history(patient: str):
+	"""Return Patient Medical History document (template-driven child table)."""
 	if not patient:
 		frappe.throw(_("Patient is required"))
-	
-	patient_doc = frappe.get_doc('Patient', patient)
-	# print("Mania here", patient_doc.patient_details)
+
+	# Try to fetch the latest Patient Medical History document for this patient
+	records = frappe.get_all(
+		"Patient Medical History",
+		filters={"patient": patient},
+		fields=["name", "patient", "patient_name", "template"],
+		order_by="creation desc",
+		limit_page_length=1,
+	)
+
+	if not records:
+		# No history yet – return a minimal payload so UI can still show an empty state
+		patient_doc = frappe.get_doc("Patient", patient)
+		return {
+			"name": None,
+			"patient": patient_doc.name,
+			"patient_name": patient_doc.patient_name,
+			"template": None,
+			"patient_history_details": [],
+		}
+
+	doc = frappe.get_doc("Patient Medical History", records[0].name)
 	return {
-		'allergies': patient_doc.allergies if hasattr(patient_doc, 'allergies') else None,
-		'medication': patient_doc.medication if hasattr(patient_doc, 'medication') else None,
-		'medical_history': patient_doc.medical_history if hasattr(patient_doc, 'medical_history') else None,
-		'surgical_history': patient_doc.surgical_history if hasattr(patient_doc, 'surgical_history') else None,
-		'occupation': patient_doc.occupation if hasattr(patient_doc, 'occupation') else None,
-		'marital_status': patient_doc.marital_status if hasattr(patient_doc, 'marital_status') else None,
-		'tobacco_past_use': patient_doc.tobacco_past_use if hasattr(patient_doc, 'tobacco_past_use') else None,
-		'tobacco_current_use': patient_doc.tobacco_current_use if hasattr(patient_doc, 'tobacco_current_use') else None,
-		'alcohol_past_use': patient_doc.alcohol_past_use if hasattr(patient_doc, 'alcohol_past_use') else None,
-		'alcohol_current_use': patient_doc.alcohol_current_use if hasattr(patient_doc, 'alcohol_current_use') else None,
-		'surrounding_factors': patient_doc.surrounding_factors if hasattr(patient_doc, 'surrounding_factors') else None,
-		'other_risk_factors': patient_doc.other_risk_factors if hasattr(patient_doc, 'other_risk_factors') else None,
-		'patient_name': patient_doc.patient_name,
-		'file_no': patient_doc.name,
-		"remarks": patient_doc.patient_details if hasattr(patient_doc, 'patient_details') else None,
+		"name": doc.name,
+		"patient": doc.patient,
+		"patient_name": getattr(doc, "patient_name", None),
+		"template": getattr(doc, "template", None),
+		"patient_history_details": [
+			{
+				"attributes": row.attributes,
+				"description": row.description,
+				"yesno": row.yesno,
+			}
+			for row in (doc.patient_history_details or [])
+		],
 	}
 
 

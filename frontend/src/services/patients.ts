@@ -9,21 +9,18 @@ export interface PatientListItem {
   category?: string
 }
 
+export interface PatientMedicalHistoryRow {
+  attributes?: string
+  yesno?: string
+  description?: string
+}
+
 export interface PatientMedicalHistory {
-  allergies?: string
-  medication?: string
-  medical_history?: string
-  surgical_history?: string
-  occupation?: string
-  marital_status?: string
-  tobacco_past_use?: string
-  tobacco_current_use?: string
-  alcohol_past_use?: string
-  alcohol_current_use?: string
-  surrounding_factors?: string
-  other_risk_factors?: string
+  name?: string | null
+  patient?: string
   patient_name?: string
-  file_no?: string
+  template?: string | null
+  patient_history_details?: PatientMedicalHistoryRow[]
 }
 
 export interface PatientSummary {

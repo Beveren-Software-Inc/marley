@@ -17,6 +17,7 @@ import {
 } from '../../services/prescriptions'
 import { toast } from '../../hooks/useToast'
 import { X, Plus, Trash2, Pill, ChevronDown } from 'lucide-react'
+import { useCareContext } from '../../providers/CareContextProvider'
 
 interface CreatePrescriptionModalProps {
   onClose: () => void
@@ -129,6 +130,7 @@ export const CreatePrescriptionModal = ({
   onSuccess,
   initialPatient,
 }: CreatePrescriptionModalProps) => {
+  const { mode, activeVisit, activeAdmission } = useCareContext()
   const [activeTab, setActiveTab] = useState<TabId>('details')
 
   const [patientQuery, setPatientQuery] = useState('')
@@ -166,6 +168,19 @@ export const CreatePrescriptionModal = ({
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Initialise care context based on global OP/IP mode and any active visit/admission
+  useEffect(() => {
+    setFormData((prev) => {
+      const next = { ...prev }
+      if (mode === 'IP') {
+        next.care_context = 'Inpatient Admission'
+      } else if (mode === 'OP') {
+        next.care_context = 'Patient Visit'
+      }
+      return next
+    })
+  }, [mode])
+
   useEffect(() => {
     fetchCompanies().then(setCompanies).catch(() => setCompanies([]))
     fetchHealthcarePractitioners().then(setPractitioners).catch(() => setPractitioners([]))
@@ -195,6 +210,22 @@ export const CreatePrescriptionModal = ({
     fetchPatientVisits(selectedPatient.name).then(setVisits).catch(() => setVisits([]))
     fetchInpatientAdmissions(selectedPatient.name).then(setAdmissions).catch(() => setAdmissions([]))
   }, [selectedPatient?.name])
+
+  // When we have an active visit/admission in the global care context, pre-select it
+  useEffect(() => {
+    setFormData((prev) => {
+      const next = { ...prev }
+      if (mode === 'OP' && activeVisit) {
+        next.care_context = 'Patient Visit'
+        next.patient_encounter = activeVisit
+      }
+      if (mode === 'IP' && activeAdmission) {
+        next.care_context = 'Inpatient Admission'
+        next.inpatient_record = activeAdmission
+      }
+      return next
+    })
+  }, [mode, activeVisit, activeAdmission])
 
   useEffect(() => {
     if (companies.length === 1 && !formData.company) {
@@ -241,12 +272,7 @@ export const CreatePrescriptionModal = ({
     if (!selectedPatient) { setError('Please select a patient'); setActiveTab('details'); return }
     if (!formData.company) { setError('Please select a company'); setActiveTab('details'); return }
     if (!formData.start_date) { setError('Please set start date'); setActiveTab('details'); return }
-    if (formData.care_context === 'Patient Visit' && !formData.patient_encounter) {
-      setError('Please select a Patient Visit'); setActiveTab('details'); return
-    }
-    if (formData.care_context === 'Inpatient Admission' && !formData.inpatient_record) {
-      setError('Please select an Inpatient Admission'); setActiveTab('details'); return
-    }
+    // Care context is optional: we can create an order for a patient without linking to visit/admission.
     if (validMedications.length === 0) {
       setError('Please add at least one medication with Drug, Dosage, Dosage Form, Date and Time')
       setActiveTab('medications'); return
@@ -262,8 +288,12 @@ export const CreatePrescriptionModal = ({
         practitioner: formData.practitioner || undefined,
         medication_orders: validMedications,
       }
-      if (formData.care_context === 'Patient Visit') payload.patient_encounter = formData.patient_encounter
-      else payload.inpatient_record = formData.inpatient_record
+      if (formData.care_context === 'Patient Visit' && formData.patient_encounter) {
+        payload.patient_encounter = formData.patient_encounter
+      }
+      if (formData.care_context === 'Inpatient Admission' && formData.inpatient_record) {
+        payload.inpatient_record = formData.inpatient_record
+      }
 
       await createPrescription(payload)
       toast.success('Prescription created')
@@ -375,7 +405,7 @@ export const CreatePrescriptionModal = ({
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">
-                      Care Context <span className="text-red-500">*</span>
+                      Care Context
                     </label>
                     <select
                       value={formData.care_context}
@@ -397,7 +427,7 @@ export const CreatePrescriptionModal = ({
                   {formData.care_context === 'Patient Visit' ? (
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">
-                        Patient Visit <span className="text-red-500">*</span>
+                        Patient Visit
                       </label>
                       <select
                         value={formData.patient_encounter}
@@ -411,7 +441,7 @@ export const CreatePrescriptionModal = ({
                   ) : (
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">
-                        Inpatient Admission <span className="text-red-500">*</span>
+                        Inpatient Admission
                       </label>
                       <select
                         value={formData.inpatient_record}

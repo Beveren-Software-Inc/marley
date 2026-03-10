@@ -6,11 +6,16 @@ import { NotificationBell } from '../components/notifications/NotificationBell'
 import { UserMenu } from '../components/user/UserMenu'
 import { PatientSearch } from '../components/patients/PatientSearch'
 
-export const PatientVisitPage = () => {
+interface PatientVisitPageProps {
+  /** Optional patient passed from a parent page (e.g. Doctor). */
+  initialPatient?: string
+}
+
+export const PatientVisitPage = ({ initialPatient }: PatientVisitPageProps = {}) => {
   const [searchParams, setSearchParams] = useSearchParams()
   const searchFromUrl = searchParams.get('search')
-  const patientFromUrl = searchParams.get('patient')
-  const [searchQuery, setSearchQuery] = useState<string>(searchFromUrl || '')
+  const patientFromUrl = searchParams.get('patient') || initialPatient || ''
+  const [searchQuery] = useState<string>(searchFromUrl || '')
   const [showCreateVisit, setShowCreateVisit] = useState(false)
   const [visitRefreshKey, setVisitRefreshKey] = useState(0)
   const [selectedPatient, setSelectedPatient] = useState<string>(patientFromUrl || '')
@@ -69,7 +74,7 @@ export const PatientVisitPage = () => {
       {showCreateVisit && (
         <CreatePatientVisitModal
           onClose={() => setShowCreateVisit(false)}
-          onSuccess={(visitName) => {
+          onSuccess={() => {
             setShowCreateVisit(false)
             setVisitRefreshKey(prev => prev + 1)
           }}
