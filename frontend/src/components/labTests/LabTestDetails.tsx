@@ -233,6 +233,24 @@ export const LabTestDetails = ({ labTestName, onUpdate }: LabTestDetailsProps) =
         </div>
       )}
 
+      {/* ── Doctor's Remarks (table) ── */}
+      {labTest.remarks && Array.isArray(labTest.remarks) && labTest.remarks.length > 0 && labTest.remarks.some((r: { rrmark?: string }) => (r.rrmark || '').trim()) && (
+        <div className="space-y-2">
+          <SectionTitle title="Doctor's Remarks" />
+          <div className="space-y-2">
+            {labTest.remarks.map((row: { rrmark?: string }, i: number) => {
+              const text = (row.rrmark || '').trim()
+              if (!text) return null
+              return (
+                <div key={i} className="rounded-md border border-slate-200 bg-slate-50/50 px-3 py-2">
+                  <p className="text-sm text-slate-800 whitespace-pre-wrap">{text}</p>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       {/* ── Normal Test Items table ── */}
       {labTest.normal_test_items && labTest.normal_test_items.length > 0 && (
         <div>
@@ -292,6 +310,39 @@ export const LabTestDetails = ({ labTestName, onUpdate }: LabTestDetailsProps) =
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── Documents ── */}
+      {labTest.documents && labTest.documents.length > 0 && (
+        <div className="space-y-2">
+          <SectionTitle title="Documents" />
+          <div className="space-y-2">
+            {labTest.documents.map((doc: { file_name?: string; document_type?: string; transaction_no?: string; upload_remarks?: string; document?: string }, i: number) => {
+              const docUrl = doc.document
+              const label = doc.file_name || doc.document_type || 'Document'
+              const base = typeof window !== 'undefined' ? window.location.origin : ''
+              const href = docUrl && (docUrl.startsWith('http') ? docUrl : `${base}${docUrl}`)
+              return (
+                <div key={i} className="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-slate-50/50 px-3 py-2">
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium text-slate-800 truncate">{label}</div>
+                    {(doc.document_type || doc.transaction_no) && (
+                      <div className="text-xs text-slate-500 flex flex-wrap gap-x-3 mt-0.5">
+                        {doc.document_type && <span>Type: {doc.document_type}</span>}
+                        {doc.transaction_no && <span>Txn: {doc.transaction_no}</span>}
+                      </div>
+                    )}
+                  </div>
+                  {href && (
+                    <a href={href} target="_blank" rel="noopener noreferrer" className="shrink-0 inline-flex items-center px-3 py-1.5 text-xs font-medium text-primary border border-primary/30 rounded-md hover:bg-primary/5">
+                      Open
+                    </a>
+                  )}
+                </div>
+              )
+            })}
           </div>
         </div>
       )}

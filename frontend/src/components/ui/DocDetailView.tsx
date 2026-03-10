@@ -45,6 +45,49 @@ function isTableValue(value: unknown): value is Record<string, unknown>[] {
   return Array.isArray(value) && value.length > 0 && value.every((item) => item != null && typeof item === 'object' && !Array.isArray(item))
 }
 
+/** Check if table is a document/attachment table (has document URL field) — e.g. patient_document, patient_documents, documents */
+function isDocumentTable(value: Record<string, unknown>[]): boolean {
+  if (value.length === 0) return false
+  const first = value[0] as Record<string, unknown>
+  const docUrl = first.document ?? first.attach
+  return typeof docUrl === 'string' && (docUrl.startsWith('/') || docUrl.startsWith('http'))
+}
+
+/** Render document/attachment table with clickable Open links (Patient Upload Document shape). */
+function DocumentsTableFieldView({ value }: { value: Record<string, unknown>[] }) {
+  if (value.length === 0) return <span className="text-slate-500">No documents</span>
+  return (
+    <div className="space-y-2">
+      {(value as Array<Record<string, unknown>>).map((row, i) => {
+        const docUrl = (row.document ?? row.attach) as string | undefined
+        const file_name = (row.file_name ?? row.document_name) as string | undefined
+        const document_type = row.document_type as string | undefined
+        const transaction_no = row.transaction_no != null && row.transaction_no !== '' ? String(row.transaction_no) : ''
+        const label = file_name || document_type || 'Document'
+        const hasMeta = Boolean(document_type || transaction_no)
+        return (
+          <div key={i} className="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-slate-50/50 px-3 py-2">
+            <div className="min-w-0">
+              <div className="text-sm font-medium text-slate-800 truncate">{label}</div>
+              {hasMeta && (
+                <div className="text-xs text-slate-500 flex flex-wrap gap-x-3 mt-0.5">
+                  {document_type ? <span>Type: {document_type}</span> : null}
+                  {transaction_no ? <span>Txn: {transaction_no}</span> : null}
+                </div>
+              )}
+            </div>
+            {docUrl && (
+              <a href={docUrl.startsWith('http') ? docUrl : `${typeof window !== 'undefined' ? window.location.origin : ''}${docUrl}`} target="_blank" rel="noopener noreferrer" className="shrink-0 inline-flex items-center px-3 py-1.5 text-xs font-medium text-primary border border-primary/30 rounded-md hover:bg-primary/5">
+                Open
+              </a>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 function TableFieldView({ value }: { value: Record<string, unknown>[] }) {
   if (value.length === 0) return <span className="text-slate-500">—</span>
   const keys = Array.from(
@@ -126,7 +169,11 @@ export function DocDetailView({ doctype, name }: DocDetailViewProps) {
           <dt className="text-xs font-medium text-slate-500 uppercase tracking-wide">{formatLabel(key)}</dt>
           <dd className="mt-0.5 text-sm text-slate-900 break-words">
             {isTableValue(value) ? (
-              <TableFieldView value={value} />
+              isDocumentTable(value) ? (
+                <DocumentsTableFieldView value={value} />
+              ) : (
+                <TableFieldView value={value} />
+              )
             ) : key.toLowerCase().includes('note') || key.toLowerCase().includes('comment') || key.toLowerCase().includes('warning') || key.toLowerCase().includes('instruction') ? (
               <pre className="whitespace-pre-wrap font-sans text-slate-800 bg-slate-50 p-3 rounded-md text-sm">{formatValue(value)}</pre>
             ) : (

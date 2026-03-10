@@ -50,10 +50,12 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
   const [departmentQuery, setDepartmentQuery] = useState('')
   const [selectedDepartment, setSelectedDepartment] = useState<LinkFieldOption | null>(null)
 
-  // Admission dropdown state (filtered by selected patient)
+  // Admission dropdown state (filtered by selected patient) — only set from list selection
   const [admissionOptions, setAdmissionOptions] = useState<{ value: string; label: string }[]>([])
   const [admissionOpen, setAdmissionOpen] = useState(false)
   const [admissionQuery, setAdmissionQuery] = useState('')
+  const [admissionLoading, setAdmissionLoading] = useState(false)
+  const [selectedAdmissionLabel, setSelectedAdmissionLabel] = useState('')
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -191,29 +193,35 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
     return () => clearTimeout(timeoutId)
   }, [departmentQuery, departmentOpen])
 
-  // Search admissions for selected patient
+  // Load admissions for selected patient when dropdown opens or search changes (choosable list only)
   useEffect(() => {
-    if (!admissionOpen) return
+    if (!admissionOpen || !formData.patient) {
+      if (!admissionOpen) setAdmissionOptions([])
+      return
+    }
 
     const timeoutId = setTimeout(async () => {
+      setAdmissionLoading(true)
       try {
         const results: InpatientRecord[] = await fetchInpatientRecords(
           undefined,
-          admissionQuery || undefined,
-          formData.patient || undefined,
+          admissionQuery.trim() || undefined,
+          formData.patient,
           undefined,
           undefined,
           undefined
         )
         setAdmissionOptions(
-          results.slice(0, 30).map((r) => ({
+          results.slice(0, 50).map((r) => ({
             value: r.name,
-            label: `${r.name} - ${r.patient_name || r.patient || ''}`,
+            label: `${r.name}${r.patient_name ? ` — ${r.patient_name}` : ''}`,
           }))
         )
       } catch (err) {
         console.error('Failed to load admission options', err)
         setAdmissionOptions([])
+      } finally {
+        setAdmissionLoading(false)
       }
     }, admissionQuery.trim() === '' ? 0 : 300)
 
@@ -221,8 +229,10 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
   }, [admissionQuery, admissionOpen, formData.patient])
 
   const handlePatientSelect = (patient: PatientListItem) => {
-    setFormData(prev => ({ ...prev, patient: patient.name }))
+    setFormData(prev => ({ ...prev, patient: patient.name, admission_no: '' }))
     setPatientQuery(patient.patient_name)
+    setSelectedAdmissionLabel('')
+    setAdmissionQuery('')
     setPatientOpen(false)
   }
 
@@ -246,6 +256,17 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
     setDepartmentQuery(dept.label)
     setDepartmentOpen(false)
   }
+
+  const handleAdmissionSelect = (value: string, label: string) => {
+    setFormData(prev => ({ ...prev, admission_no: value }))
+    setSelectedAdmissionLabel(label)
+    setAdmissionQuery('')
+    setAdmissionOpen(false)
+  }
+
+  const admissionDisplay = admissionOpen
+    ? admissionQuery
+    : (formData.admission_no ? selectedAdmissionLabel || formData.admission_no : '')
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -440,44 +461,49 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
-                Admission No
+                Admission No <span className="text-slate-400 font-normal">(optional — choose from list)</span>
               </label>
               <div className="relative" data-filter-dropdown>
                 <input
                   type="text"
-                  value={formData.admission_no || admissionQuery}
+                  value={admissionDisplay}
                   onChange={(e) => {
                     const value = e.target.value
                     setAdmissionQuery(value)
-                    if (!value) {
-                      handleChange('admission_no', '')
-                    }
+                    setFormData(prev => ({ ...prev, admission_no: '' }))
+                    setSelectedAdmissionLabel('')
                     setAdmissionOpen(true)
                   }}
-                  onFocus={() => setAdmissionOpen(true)}
-                  placeholder={formData.patient ? 'Search admission for this patient...' : 'Select patient first'}
+                  onFocus={() => {
+                    if (formData.patient) {
+                      setAdmissionOpen(true)
+                      setAdmissionQuery('')
+                    }
+                  }}
+                  onBlur={() => setTimeout(() => setAdmissionOpen(false), 200)}
+                  placeholder={formData.patient ? 'Search or choose admission...' : 'Select patient first'}
                   className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-slate-100"
                   disabled={!formData.patient}
+                  autoComplete="off"
                 />
-                {admissionOpen && admissionOptions.length > 0 && (
+                {admissionOpen && formData.patient && (
                   <div className="absolute z-20 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
-                    {admissionOptions.map((opt) => (
-                      <button
-                        key={opt.value}
-                        type="button"
-                        onClick={() => {
-                          handleChange('admission_no', opt.value)
-                          setAdmissionQuery(opt.value)
-                          setAdmissionOpen(false)
-                        }}
-                        className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 focus:bg-slate-100 focus:outline-none"
-                      >
-                        <div className="font-medium text-slate-800">{opt.value}</div>
-                        {opt.label !== opt.value && (
-                          <div className="text-xs text-slate-500 truncate">{opt.label}</div>
-                        )}
-                      </button>
-                    ))}
+                    {admissionLoading ? (
+                      <div className="px-3 py-3 text-sm text-slate-500">Loading admissions...</div>
+                    ) : admissionOptions.length === 0 ? (
+                      <div className="px-3 py-3 text-sm text-slate-500">No admissions found for this patient.</div>
+                    ) : (
+                      admissionOptions.map((opt) => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => handleAdmissionSelect(opt.value, opt.label)}
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 focus:bg-slate-100 focus:outline-none border-b border-slate-100 last:border-0"
+                        >
+                          <div className="font-medium text-slate-800">{opt.label}</div>
+                        </button>
+                      ))
+                    )}
                   </div>
                 )}
               </div>

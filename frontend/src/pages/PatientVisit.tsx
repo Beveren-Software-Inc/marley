@@ -67,7 +67,6 @@ export const PatientVisitPage = () => {
                 onChange={(e) => {
                   const value = e.target.value
                   setSearchQuery(value)
-                  // Update URL with debounce
                   const newSearchParams = new URLSearchParams(searchParams)
                   if (value.trim()) {
                     newSearchParams.set('search', value)
@@ -81,12 +80,11 @@ export const PatientVisitPage = () => {
               />
               <button
                 onClick={() => setShowCreateVisit(true)}
-                className="flex-shrink-0 w-10 h-10 rounded-md bg-white/20 hover:bg-white/30 text-white flex items-center justify-center transition-colors"
+                className="flex-shrink-0 w-9 h-9 rounded-full bg-white text-primary flex items-center justify-center hover:bg-white/90 transition-colors text-xl font-bold shadow-md border border-white/50"
                 title="Create New Patient Visit"
+                aria-label="Create New Patient Visit"
               >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
+                +
               </button>
             </div>
           </div>
@@ -98,7 +96,19 @@ export const PatientVisitPage = () => {
         </header>
 
         <div className="flex-1 overflow-y-auto p-4">
-          <PatientVisitList 
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+            <div className="flex items-center justify-between gap-3 mb-4 flex-shrink-0">
+              <h2 className="text-base font-semibold text-slate-800">Patient Visits</h2>
+              <button
+                onClick={() => setShowCreateVisit(true)}
+                className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-lg font-bold flex-shrink-0"
+                title="Create New Patient Visit"
+                aria-label="Create New Patient Visit"
+              >
+                +
+              </button>
+            </div>
+            <PatientVisitList 
             onVisitSelect={(visitName) => {
               const newSearchParams = new URLSearchParams(searchParams)
               newSearchParams.set('visit', visitName)
@@ -107,6 +117,7 @@ export const PatientVisitPage = () => {
             searchQuery={searchQuery}
             patient={patientFromUrl || undefined}
           />
+          </section>
         </div>
       </div>
 
