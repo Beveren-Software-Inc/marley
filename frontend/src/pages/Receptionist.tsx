@@ -17,8 +17,21 @@ import { CreateServiceRequestModal } from '../components/serviceRequests/CreateS
 import { FollowUpList } from '../components/followUp/FollowUpList'
 import { IOPDayListWithHeader } from '../components/iop/IOPDayList'
 import { IOPEnrollmentListWithHeader } from '../components/iop/IOPEnrollmentList'
+import { DischargeList } from '../components/discharges/DischargeList'
 
-type View = 'default' | 'patient' | 'admission' | 'visit' | 'followup' | 'iop' | 'appointments-freeze' | 'service-requests' | 'receipt-voucher' | 'op-dashboard' | 'ip-dashboard'
+type View =
+  | 'default'
+  | 'patient'
+  | 'admission'
+  | 'visit'
+  | 'followup'
+  | 'iop'
+  | 'appointments-freeze'
+  | 'service-requests'
+  | 'receipt-voucher'
+  | 'op-dashboard'
+  | 'ip-dashboard'
+  | 'discharge'
 
 export const ReceptionistPage = () => {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -81,6 +94,8 @@ export const ReceptionistPage = () => {
       setCurrentView('op-dashboard')
     } else if (screen === 'r-ip-dashboard') {
       setCurrentView('ip-dashboard')
+    } else if (screen === 'r-discharge') {
+      setCurrentView('discharge')
     } else {
       // No screen param or unknown: show reception homepage (e.g. after "Back to Reception" or sidebar Home)
       setCurrentView('default')
@@ -117,6 +132,16 @@ export const ReceptionistPage = () => {
             }`}
           >
             Admission
+          </button>
+          <button
+            onClick={() => setCurrentView('discharge')}
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              currentView === 'discharge'
+                ? 'bg-white/20 text-white'
+                : 'bg-white/10 text-white/90 hover:bg-white/20'
+            }`}
+          >
+            Discharge
           </button>
         </div>
         <div className="flex items-center gap-3 flex-shrink-0">
@@ -167,6 +192,23 @@ export const ReceptionistPage = () => {
             <AdmissionList 
               refreshKey={admissionRefreshKey}
               onAdmissionSelect={() => {}} 
+            />
+          </div>
+        )}
+
+        {currentView === 'discharge' && (
+          <div className="p-4">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-semibold text-slate-900">Discharge Management</h2>
+                <p className="text-sm text-slate-600 mt-1">
+                  View and manage inpatient discharges. Click a row to see full details.
+                </p>
+              </div>
+            </div>
+            <DischargeList
+              patient={selectedPatient || undefined}
+              admission={undefined}
             />
           </div>
         )}
@@ -443,6 +485,30 @@ export const ReceptionistPage = () => {
                     patient={selectedPatient || undefined}
                     refreshKey={admissionRefreshKey}
                     onAdmissionSelect={() => {}} 
+                  />
+                </div>
+              </section>
+
+              {/* Discharge card - last on landing, same size as others */}
+              <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
+                <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
+                  <span>Discharge List</span>
+                  <button
+                    type="button"
+                    onClick={() => window.open('/app/discharge/new-discharge', '_blank')}
+                    className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
+                    title="Add Discharge"
+                  >
+                    +
+                  </button>
+                </div>
+                <div
+                  className="overflow-x-auto overflow-y-auto flex-1 min-h-0"
+                  style={{ scrollbarWidth: 'thin' }}
+                >
+                  <DischargeList
+                    patient={selectedPatient || undefined}
+                    admission={undefined}
                   />
                 </div>
               </section>

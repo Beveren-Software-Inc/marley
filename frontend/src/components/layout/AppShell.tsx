@@ -68,6 +68,7 @@ const receptionScreens = [
   { id: 'r-iop', title: 'IOP Dashboard' },
   { id: 'r-appointments-freeze', title: 'Appointments' },
   { id: 'r-service-requests', title: 'Service Requests / Booked Lab' },
+  { id: 'r-discharge', title: 'Discharge' },
   // { id: 'r-receipt-voucher', title: 'Receipt Voucher' },
   // { id: 'r-op-dashboard', title: 'OP Dashboard' },
   // { id: 'r-ip-dashboard', title: 'IP Dashboard' }
