@@ -17,9 +17,28 @@ export const CreateSleepingPatternModal = ({
   const [admissions, setAdmissions] = useState<LinkFieldOption[]>([])
   const [admissionNo, setAdmissionNo] = useState('')
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
-  const [branch, setBranch] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const [morningFrom, setMorningFrom] = useState('')
+  const [morningTo, setMorningTo] = useState('')
+  const [eveningFrom, setEveningFrom] = useState('')
+  const [eveningTo, setEveningTo] = useState('')
+  const [nightFrom, setNightFrom] = useState('')
+  const [nightTo, setNightTo] = useState('')
+
+  const toFrappeDateTime = (value: string): string | undefined => {
+    if (!value || !value.trim()) return undefined
+    let s = value.trim()
+    // value from datetime-local looks like YYYY-MM-DDTHH:MM
+    if (s.includes('T')) {
+      s = s.replace('T', ' ')
+    }
+    if (s.length === 16) {
+      s = `${s}:00`
+    }
+    return s
+  }
 
   useEffect(() => {
     const loadAdmissions = async () => {
@@ -49,7 +68,13 @@ export const CreateSleepingPatternModal = ({
       await createSleepingPattern({
         admission_no: admissionNo,
         date,
-        branch: branch || undefined,
+        morning_from: toFrappeDateTime(morningFrom),
+        morning_to: toFrappeDateTime(morningTo),
+        evening_from: toFrappeDateTime(eveningFrom),
+        evening_to: toFrappeDateTime(eveningTo),
+        night_from: toFrappeDateTime(nightFrom),
+        night_to: toFrappeDateTime(nightTo),
+        patient: initialPatient,
       })
       toast.success('Sleeping Pattern created')
       onSuccess?.()
@@ -83,7 +108,7 @@ export const CreateSleepingPatternModal = ({
               {error}
             </div>
           )}
-          <div className="space-y-3">
+          <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
                 Admission No <span className="text-red-500">*</span>
@@ -112,17 +137,63 @@ export const CreateSleepingPatternModal = ({
                 className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
               />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Branch
-              </label>
-              <input
-                type="text"
-                value={branch}
-                onChange={(e) => setBranch(e.target.value)}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                placeholder="Optional"
-              />
+            <div className="pt-2 border-t border-slate-200">
+              <h3 className="text-sm font-semibold text-slate-800 mb-2">Sleeping Periods</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <div className="text-xs font-medium text-slate-600 mb-1">Morning</div>
+                  <div className="space-y-2">
+                    <input
+                      type="datetime-local"
+                      value={morningFrom}
+                      onChange={(e) => setMorningFrom(e.target.value)}
+                      className="w-full rounded-md border border-slate-300 px-3 py-1.5 text-sm"
+                    />
+                    <input
+                      type="datetime-local"
+                      value={morningTo}
+                      onChange={(e) => setMorningTo(e.target.value)}
+                      className="w-full rounded-md border border-slate-300 px-3 py-1.5 text-sm"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-xs font-medium text-slate-600 mb-1">Evening</div>
+                  <div className="space-y-2">
+                    <input
+                      type="datetime-local"
+                      value={eveningFrom}
+                      onChange={(e) => setEveningFrom(e.target.value)}
+                      className="w-full rounded-md border border-slate-300 px-3 py-1.5 text-sm"
+                    />
+                    <input
+                      type="datetime-local"
+                      value={eveningTo}
+                      onChange={(e) => setEveningTo(e.target.value)}
+                      className="w-full rounded-md border border-slate-300 px-3 py-1.5 text-sm"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-xs font-medium text-slate-600 mb-1">Night</div>
+                  <div className="space-y-2">
+                    <input
+                      type="datetime-local"
+                      value={nightFrom}
+                      onChange={(e) => setNightFrom(e.target.value)}
+                      className="w-full rounded-md border border-slate-300 px-3 py-1.5 text-sm"
+                    />
+                    <input
+                      type="datetime-local"
+                      value={nightTo}
+                      onChange={(e) => setNightTo(e.target.value)}
+                      className="w-full rounded-md border border-slate-300 px-3 py-1.5 text-sm"
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
           <div className="flex justify-end gap-2 pt-2">

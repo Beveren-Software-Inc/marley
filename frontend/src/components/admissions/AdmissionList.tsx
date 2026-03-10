@@ -245,7 +245,7 @@ export const AdmissionList = ({ onAdmissionSelect, searchQuery: externalSearchQu
         <div className="flex flex-wrap gap-3 mb-4 items-end">
           {/* Admission No — searchable dropdown */}
           <div data-filter-dropdown className="relative">
-            <label className="block text-xs font-medium text-slate-600 mb-1">Admission No</label>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Case No</label>
             <input
               type="text"
               value={selectedAdmissionOpt ? selectedAdmissionOpt.value : admissionNoQuery}
@@ -363,7 +363,7 @@ export const AdmissionList = ({ onAdmissionSelect, searchQuery: externalSearchQu
           <table className="w-full min-w-[900px]">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Admission No</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Case No</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Patient</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Scheduled Date</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Status</th>

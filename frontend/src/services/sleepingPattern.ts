@@ -7,6 +7,24 @@ export interface SleepingPattern {
   file_no?: string
   patient_name?: string
   branch?: string
+  user?: string
+  total_hours?: number | null
+  morning_total?: number | null
+  evening_total?: number | null
+  night_total?: number | null
+}
+
+export interface CreateSleepingPatternPayload {
+  admission_no: string
+  date?: string
+  branch?: string
+  morning_from?: string
+  morning_to?: string
+  evening_from?: string
+  evening_to?: string
+  night_from?: string
+  night_to?: string
+  patient?: string
 }
 
 export async function fetchSleepingPatterns(
@@ -15,29 +33,23 @@ export async function fetchSleepingPatterns(
   patient?: string
 ): Promise<SleepingPattern[]> {
   const params = new URLSearchParams()
-  params.append('fields', JSON.stringify(['name', 'date', 'admission_no', 'file_no', 'patient_name', 'branch']))
+  params.append('limit', limit.toString())
+  params.append('offset', offset.toString())
+  if (patient) params.append('patient', patient)
 
-  const filters: any[] = [['Sleeping Pattern', 'docstatus', '<', 2]]
-  if (patient) {
-    filters.push(['Sleeping Pattern', 'file_no', '=', patient])
-  }
-  params.append('filters', JSON.stringify(filters))
-  params.append('limit_page_length', limit.toString())
-  params.append('limit_start', offset.toString())
-  params.append('order_by', 'date desc')
-
-  return apiRequest<SleepingPattern[]>(`/api/resource/Sleeping Pattern?${params.toString()}`)
+  return apiRequest<SleepingPattern[]>(
+    `/api/method/healthcare.api.sleeping_pattern.get_sleeping_patterns?${params.toString()}`
+  )
 }
 
-export async function createSleepingPattern(payload: {
-  admission_no: string
-  date?: string
-  branch?: string
-}): Promise<string> {
-  const doc = await apiRequest<any>('/api/resource/Sleeping Pattern', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  })
-  return doc?.name || ''
+export async function createSleepingPattern(payload: CreateSleepingPatternPayload): Promise<string> {
+  const result = await apiRequest<{ name: string }>(
+    '/api/method/healthcare.api.sleeping_pattern.create_sleeping_pattern',
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }
+  )
+  return result?.name || ''
 }
 

@@ -46,6 +46,8 @@ import { CreateECTAdmissionModal } from '../components/ect/CreateECTAdmissionMod
 import { CreateECTProcedureModal } from '../components/ect/CreateECTProcedureModal'
 import { ECTAdmissionList } from '../components/ect/ECTAdmissionList'
 import { ECTProcedureList } from '../components/ect/ECTProcedureList'
+import { SleepingPatternList } from '../components/sleeping/SleepingPatternList'
+import { CreateSleepingPatternModal } from '../components/sleeping/CreateSleepingPatternModal'
 
 const doctorNav = [
   { label: 'Admission', screen: 'admission' },
@@ -93,6 +95,8 @@ export const DoctorPage = () => {
   const [showECTAdmissionModal, setShowECTAdmissionModal] = useState(false)
   const [showECTProcedureModal, setShowECTProcedureModal] = useState(false)
   const [ectRefreshKey, setEctRefreshKey] = useState(0)
+  const [showSleepingPatternModal, setShowSleepingPatternModal] = useState(false)
+  const [sleepingPatternRefreshKey, setSleepingPatternRefreshKey] = useState(0)
   const screen = searchParams.get('screen')
 
   // Sync selectedPatient with URL on mount and when URL changes
@@ -210,6 +214,55 @@ export const DoctorPage = () => {
   // Show Patient Visit page when screen=op
   if (screen === 'op') {
     return <PatientVisitPage />
+  }
+
+  // Show Sleeping Pattern
+  if (screen === 'sleep') {
+    return (
+      <div className="flex flex-col">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+        <div className="p-4">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+            <div className="font-semibold mb-4 flex items-center justify-between">
+              <span>Sleeping Pattern</span>
+              <button
+                onClick={() => setShowSleepingPatternModal(true)}
+                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
+                title="Create Sleeping Pattern"
+              >
+                +
+              </button>
+            </div>
+            <SleepingPatternList
+              patient={selectedPatient}
+              refreshKey={sleepingPatternRefreshKey}
+            />
+          </section>
+        </div>
+        {showSleepingPatternModal && (
+          <CreateSleepingPatternModal
+            onClose={() => setShowSleepingPatternModal(false)}
+            onSuccess={() => {
+              setSleepingPatternRefreshKey(prev => prev + 1)
+              setShowSleepingPatternModal(false)
+            }}
+            initialPatient={selectedPatient}
+          />
+        )}
+      </div>
+    )
   }
 
   // Show ECT Details
