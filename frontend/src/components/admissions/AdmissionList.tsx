@@ -484,13 +484,16 @@ export const AdmissionList = ({ onAdmissionSelect, searchQuery: externalSearchQu
       {detailAdmission && (
         <div
           className="fixed inset-0 z-50 flex items-start justify-end"
-          onClick={(e) => { if (e.target === e.currentTarget) setDetailAdmission(null) }}
+          onClick={() => setDetailAdmission(null)}
         >
           {/* Backdrop */}
           <div className="absolute inset-0 bg-black/30" />
 
           {/* Panel */}
-          <div className="relative z-10 h-full w-full max-w-2xl bg-white shadow-xl flex flex-col">
+          <div
+            className="relative z-10 h-full w-full max-w-2xl bg-white shadow-xl flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50 shrink-0">
               <div>

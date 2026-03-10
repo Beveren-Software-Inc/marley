@@ -35,6 +35,7 @@ import { EnvironmentalChecklistList } from '../components/environmental/Environm
 import { MorseFallScaleList } from '../components/morse/MorseFallScaleList'
 import { SleepingPatternList } from '../components/sleeping/SleepingPatternList'
 import { CreateSleepingPatternModal } from '../components/sleeping/CreateSleepingPatternModal'
+import { PatientVisitPage } from './PatientVisit'
 
 export const NursePage = () => {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -52,11 +53,14 @@ export const NursePage = () => {
   const [observationRefreshKey, setObservationRefreshKey] = useState(0)
   const [dischargeRefreshKey, setDischargeRefreshKey] = useState(0)
   const [diagnosisRefreshKey, setDiagnosisRefreshKey] = useState(0)
+  const [clinicalNotesRefreshKey, setClinicalNotesRefreshKey] = useState(0)
   const [showServiceRequestModal, setShowServiceRequestModal] = useState(false)
   const [serviceRequestRefreshKey, setServiceRequestRefreshKey] = useState(0)
   const [showPrescriptionModal, setShowPrescriptionModal] = useState(false)
   const [prescriptionRefreshKey, setPrescriptionRefreshKey] = useState(0)
   const [showPsychOrderModal, setShowPsychOrderModal] = useState(false)
+  const [showNutritionNoteModal, setShowNutritionNoteModal] = useState(false)
+  const [showTherapistNoteModal, setShowTherapistNoteModal] = useState(false)
   const [showSleepingPatternModal, setShowSleepingPatternModal] = useState(false)
   const [sleepingPatternRefreshKey, setSleepingPatternRefreshKey] = useState(0)
   const [showGivenMedicineModal, setShowGivenMedicineModal] = useState(false)
@@ -118,6 +122,54 @@ export const NursePage = () => {
     return <AdmissionPage />
   }
 
+  // IP Warnings / Meds / Allergy – mirror Doctor warnings card
+  if (screen === 'n-first') {
+    return (
+      <div className="flex flex-col">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+        <div className="p-4">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
+            <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
+              <span>Warnings & Allergies</span>
+              <button
+                onClick={() => setShowWarningModal(true)}
+                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
+                title="Add Warning Message"
+              >
+                +
+              </button>
+            </div>
+            <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
+              <WarningMessagesList patient={selectedPatient} key={warningRefreshKey} />
+            </div>
+          </section>
+        </div>
+        {showWarningModal && (
+          <CreateWarningMessageModal
+            onClose={() => setShowWarningModal(false)}
+            onSuccess={() => {
+              setWarningRefreshKey(prev => prev + 1)
+              setShowWarningModal(false)
+            }}
+            initialPatient={selectedPatient}
+          />
+        )}
+      </div>
+    )
+  }
+
   // Show ECT Details
   if (screen === 'n-ect') {
     return (
@@ -136,9 +188,108 @@ export const NursePage = () => {
           </div>
         </header>
         <div className="p-4">
+          <div className="grid gap-4 md:grid-cols-2">
+            {/* ECT Admission card */}
+            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col">
+              <div className="font-semibold mb-4 flex items-center justify-between">
+                <span>ECT Admission</span>
+              </div>
+              <p className="text-sm text-slate-600 mb-3">
+                View admission details for patients undergoing ECT.
+              </p>
+              <div className="flex-1 min-h-[80px]">
+                <ECTAdmissionList patient={selectedPatient} />
+              </div>
+            </section>
+
+            {/* ECT Procedure card */}
+            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col">
+              <div className="font-semibold mb-4 flex items-center justify-between">
+                <span>ECT Procedure</span>
+              </div>
+              <p className="text-sm text-slate-600 mb-3">
+                Review procedure details for each ECT session, including vitals and notes.
+              </p>
+              <div className="flex-1 min-h-[80px]">
+                <ECTProcedureList patient={selectedPatient} />
+              </div>
+            </section>
+
+            {/* ECT Details card */}
+            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col md:col-span-2">
+              <div className="font-semibold mb-4 flex items-center justify-between">
+                <span>ECT Details</span>
+              </div>
+              <div className="flex-1 min-h-[120px]">
+                <ECTDetailsList patient={selectedPatient} />
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Lab Reports Status – show lab listings (Pending Review by default)
+  if (screen === 'n-labs') {
+    return (
+      <div className="flex flex-col">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+        <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4">ECT Details</div>
-            <ECTDetailsList patient={selectedPatient} />
+            <div className="font-semibold mb-4 flex items-center justify-between">
+              <span>Lab Reports Status</span>
+            </div>
+            <LabTestList
+              patient={selectedPatient}
+              defaultStatus="Pending Review"
+              key={labTestRefreshKey}
+            />
+          </section>
+        </div>
+      </div>
+    )
+  }
+
+  // Laboratory – same listing as doctor Laboratory
+  if (screen === 'n-lab') {
+    return (
+      <div className="flex flex-col">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+        <div className="p-4">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+            <div className="font-semibold mb-4 flex items-center justify-between">
+              <span>Laboratory</span>
+            </div>
+            <LabTestList
+              patient={selectedPatient}
+              defaultStatus="Pending Review"
+              key={labTestRefreshKey}
+            />
           </section>
         </div>
       </div>
@@ -176,7 +327,7 @@ export const NursePage = () => {
   }
 
   // Show Nursing Notes (Clinical Note with Medical Role = Nurse)
-  if (screen === 'nurse') {
+  if (screen === 'nurse' || screen === 'n-nurse-notes') {
     return (
       <div className="flex flex-col">
         <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
@@ -231,6 +382,59 @@ export const NursePage = () => {
             />
           </section>
         </div>
+      </div>
+    )
+  }
+
+  // Show Nutritionist Notes (mirror Doctor Nutritionist Notes)
+  if (screen === 'n-nut') {
+    return (
+      <div className="flex flex-col">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+        <div className="p-4">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+            <div className="font-semibold mb-4 flex items-center justify-between">
+              <span>Nutritionist Notes</span>
+              <button
+                onClick={() => setShowNutritionNoteModal(true)}
+                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
+                title="Add Nutritionist Note"
+              >
+                +
+              </button>
+            </div>
+            <ClinicalNotesList 
+              patient={selectedPatient}
+              medicalRole="Nutritionist"
+              clinicalNoteType="Nutritionist Note"
+              key={clinicalNotesRefreshKey}
+            />
+          </section>
+        </div>
+        {showNutritionNoteModal && (
+          <CreateClinicalNoteModal
+            onClose={() => setShowNutritionNoteModal(false)}
+            onSuccess={() => {
+              setClinicalNotesRefreshKey(prev => prev + 1)
+              setShowNutritionNoteModal(false)
+            }}
+            initialPatient={selectedPatient}
+            defaultClinicalNoteType="Nutritionist Note"
+            title="Add Nutritionist Note"
+          />
+        )}
       </div>
     )
   }
@@ -383,6 +587,58 @@ export const NursePage = () => {
             <EnvironmentalChecklistList patient={selectedPatient} />
           </section>
         </div>
+      </div>
+    )
+  }
+
+  // Therapist Notes – mirror Doctor Therapist Notes
+  if (screen === 'n-ther') {
+    return (
+      <div className="flex flex-col">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+        <div className="p-4">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+            <div className="font-semibold mb-4 flex items-center justify-between">
+              <span>Therapist Note</span>
+              <button
+                onClick={() => setShowTherapistNoteModal(true)}
+                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
+                title="Add Therapist Note"
+              >
+                +
+              </button>
+            </div>
+            <ClinicalNotesList 
+              patient={selectedPatient}
+              medicalRole="Physiotherapist"
+              key={clinicalNotesRefreshKey}
+            />
+          </section>
+        </div>
+        {showTherapistNoteModal && (
+          <CreateClinicalNoteModal
+            onClose={() => setShowTherapistNoteModal(false)}
+            onSuccess={() => {
+              setClinicalNotesRefreshKey(prev => prev + 1)
+              setShowTherapistNoteModal(false)
+            }}
+            initialPatient={selectedPatient}
+            defaultClinicalNoteType="Therapist Note"
+            title="Add Therapist Note"
+          />
+        )}
       </div>
     )
   }
@@ -761,6 +1017,11 @@ export const NursePage = () => {
         </div>
       </div>
     )
+  }
+
+  // OP Visit Note – reuse Patient Visit page
+  if (screen === 'n-op') {
+    return <PatientVisitPage />
   }
 
   return (

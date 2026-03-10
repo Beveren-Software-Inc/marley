@@ -142,7 +142,6 @@ export async function fetchInpatientRecord(name: string) {
     `/api/method/healthcare.api.inpatient_admission.get_inpatient_record?name=${encodeURIComponent(name)}`
   )
   const resData = await response.json()
-console.log("Hapa",resData)
   if (resData?.message) {
     return resData.message as InpatientRecord
   } else {
