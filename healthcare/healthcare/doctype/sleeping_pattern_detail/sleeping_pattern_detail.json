@@ -1,25 +1,28 @@
 {
  "actions": [],
  "allow_rename": 1,
- "creation": "2025-12-17 12:00:00",
+ "creation": "2026-03-10 13:40:31.961879",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
   "date",
-  "admission_no",
-  "branch",
   "column_break_main",
-  "file_no",
-  "patient_name",
+  "branch",
   "section_break_periods",
   "morning_from",
   "morning_to",
-  "evening_from",
+  "morning_total",
   "column_break_wsqe",
+  "evening_from",
   "evening_to",
+  "evening_total",
+  "column_break_jkro",
   "night_from",
   "night_to",
+  "night_total",
   "section_break_other",
+  "user",
+  "column_break_tcjx",
   "admission_no_old"
  ],
  "fields": [
@@ -31,36 +34,14 @@
    "label": "Date"
   },
   {
-   "fieldname": "admission_no",
-   "fieldtype": "Link",
-   "in_list_view": 1,
-   "label": "Admission No",
-   "options": "Inpatient Admission"
-  },
-  {
    "fieldname": "branch",
    "fieldtype": "Link",
    "label": "Branch",
-   "options": "Branch",
-   "hidden": 1
+   "options": "Branch"
   },
   {
    "fieldname": "column_break_main",
    "fieldtype": "Column Break"
-  },
-  {
-   "fetch_from": "admission_no.patient",
-   "fieldname": "file_no",
-   "fieldtype": "Link",
-   "in_list_view": 1,
-   "label": "File No",
-   "options": "Patient"
-  },
-  {
-   "fetch_from": "file_no.patient_name",
-   "fieldname": "patient_name",
-   "fieldtype": "Data",
-   "label": "Patient Name"
   },
   {
    "fieldname": "section_break_periods",
@@ -87,6 +68,10 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Evening From"
+  },
+  {
+   "fieldname": "column_break_wsqe",
+   "fieldtype": "Column Break"
   },
   {
    "fieldname": "evening_to",
@@ -119,32 +104,45 @@
    "label": "Admission No Old"
   },
   {
-   "fieldname": "column_break_wsqe",
+   "fieldname": "morning_total",
+   "fieldtype": "Data",
+   "label": "Morning Total"
+  },
+  {
+   "fieldname": "evening_total",
+   "fieldtype": "Data",
+   "label": "Evening Total"
+  },
+  {
+   "fieldname": "column_break_jkro",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "night_total",
+   "fieldtype": "Data",
+   "label": "Night Total"
+  },
+  {
+   "fieldname": "user",
+   "fieldtype": "Link",
+   "label": "User",
+   "options": "User"
+  },
+  {
+   "fieldname": "column_break_tcjx",
    "fieldtype": "Column Break"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
+ "istable": 1,
  "links": [],
- "modified": "2025-12-22 11:16:38.909388",
+ "modified": "2026-03-10 14:15:49.909982",
  "modified_by": "Administrator",
  "module": "Healthcare",
- "name": "Sleeping Pattern",
+ "name": "Sleeping Pattern Detail",
  "owner": "Administrator",
- "permissions": [
-  {
-   "create": 1,
-   "delete": 1,
-   "email": 1,
-   "export": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "System Manager",
-   "share": 1,
-   "write": 1
-  }
- ],
+ "permissions": [],
  "row_format": "Dynamic",
  "sort_field": "modified",
  "sort_order": "DESC",

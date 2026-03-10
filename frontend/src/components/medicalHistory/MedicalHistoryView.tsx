@@ -68,91 +68,47 @@ export const MedicalHistoryView = ({ patient }: MedicalHistoryViewProps) => {
   }
 
   return (
-    <div className="bg-white border border-slate-200 rounded-lg p-6 space-y-6">
-      <div>
-        <h3 className="text-lg font-semibold text-slate-900 mb-4">Patient Information</h3>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="text-sm font-medium text-slate-600">Patient Name</label>
-            <p className="text-sm text-slate-900 mt-1">{medicalHistory.patient_name || '-'}</p>
-          </div>
-          <div>
-            <label className="text-sm font-medium text-slate-600">File Number</label>
-            <p className="text-sm text-slate-900 mt-1">{medicalHistory.file_no || '-'}</p>
-          </div>
-        </div>
+    <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
+      <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+        {/* <h3 className="text-sm font-semibold text-slate-900">Patient Medical History</h3> */}
       </div>
-
-      <div>
-        <h3 className="text-lg font-semibold text-slate-900 mb-4">Allergies & Medication</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="text-sm font-medium text-slate-600">Allergies</label>
-            <p className="text-sm text-slate-900 mt-1 whitespace-pre-wrap">{medicalHistory.allergies || '-'}</p>
+      <div className="max-h-80 overflow-y-auto">
+        {medicalHistory.patient_history_details && medicalHistory.patient_history_details.length > 0 ? (
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 border-b border-slate-200">
+              <tr>
+                <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">
+                  Attribute
+                </th>
+                <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">
+                  Yes / No
+                </th>
+                <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">
+                  Description / Reason
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {medicalHistory.patient_history_details.map((row, idx) => (
+                <tr key={idx} className="hover:bg-slate-50">
+                  <td className="px-3 py-2 text-slate-800">
+                    {row.attributes || '-'}
+                  </td>
+                  <td className="px-3 py-2 text-slate-800">
+                    {row.yesno || '-'}
+                  </td>
+                  <td className="px-3 py-2 text-slate-700 whitespace-pre-wrap">
+                    {row.description || '-'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <div className="px-4 py-6 text-sm text-slate-500 text-center">
+            No patient medical history has been recorded yet.
           </div>
-          <div>
-            <label className="text-sm font-medium text-slate-600">Medication</label>
-            <p className="text-sm text-slate-900 mt-1 whitespace-pre-wrap">{medicalHistory.medication || '-'}</p>
-          </div>
-        </div>
-      </div>
-
-      <div>
-        <h3 className="text-lg font-semibold text-slate-900 mb-4">Medical & Surgical History</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="text-sm font-medium text-slate-600">Medical History</label>
-            <p className="text-sm text-slate-900 mt-1 whitespace-pre-wrap">{medicalHistory.medical_history || '-'}</p>
-          </div>
-          <div>
-            <label className="text-sm font-medium text-slate-600">Surgical History</label>
-            <p className="text-sm text-slate-900 mt-1 whitespace-pre-wrap">{medicalHistory.surgical_history || '-'}</p>
-          </div>
-        </div>
-      </div>
-
-      <div>
-        <h3 className="text-lg font-semibold text-slate-900 mb-4">Personal and Social History</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="text-sm font-medium text-slate-600">Occupation</label>
-            <p className="text-sm text-slate-900 mt-1">{medicalHistory.occupation || '-'}</p>
-          </div>
-          <div>
-            <label className="text-sm font-medium text-slate-600">Marital Status</label>
-            <p className="text-sm text-slate-900 mt-1">{medicalHistory.marital_status || '-'}</p>
-          </div>
-        </div>
-      </div>
-
-      <div>
-        <h3 className="text-lg font-semibold text-slate-900 mb-4">Risk Factors</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="text-sm font-medium text-slate-600">Tobacco Consumption (Past)</label>
-            <p className="text-sm text-slate-900 mt-1">{medicalHistory.tobacco_past_use || '-'}</p>
-          </div>
-          <div>
-            <label className="text-sm font-medium text-slate-600">Tobacco Consumption (Present)</label>
-            <p className="text-sm text-slate-900 mt-1">{medicalHistory.tobacco_current_use || '-'}</p>
-          </div>
-          <div>
-            <label className="text-sm font-medium text-slate-600">Alcohol Consumption (Past)</label>
-            <p className="text-sm text-slate-900 mt-1">{medicalHistory.alcohol_past_use || '-'}</p>
-          </div>
-          <div>
-            <label className="text-sm font-medium text-slate-600">Alcohol Consumption (Present)</label>
-            <p className="text-sm text-slate-900 mt-1">{medicalHistory.alcohol_current_use || '-'}</p>
-          </div>
-          <div className="md:col-span-2">
-            <label className="text-sm font-medium text-slate-600">Occupational Hazards and Environmental Factors</label>
-            <p className="text-sm text-slate-900 mt-1 whitespace-pre-wrap">{medicalHistory.surrounding_factors || '-'}</p>
-          </div>
-          <div className="md:col-span-2">
-            <label className="text-sm font-medium text-slate-600">Other Risk Factors</label>
-            <p className="text-sm text-slate-900 mt-1 whitespace-pre-wrap">{medicalHistory.other_risk_factors || '-'}</p>
-          </div>
-        </div>
+        )}
       </div>
     </div>
   )

@@ -46,12 +46,8 @@ import { CreateECTAdmissionModal } from '../components/ect/CreateECTAdmissionMod
 import { CreateECTProcedureModal } from '../components/ect/CreateECTProcedureModal'
 import { ECTAdmissionList } from '../components/ect/ECTAdmissionList'
 import { ECTProcedureList } from '../components/ect/ECTProcedureList'
-
-const doctorNav = [
-  { label: 'Admission', screen: 'admission' },
-  { label: 'Patient Visits', screen: 'op' },
-  { label: 'Discharge', screen: 'discharge' }
-]
+import { SleepingPatternList } from '../components/sleeping/SleepingPatternList'
+import { CreateSleepingPatternModal } from '../components/sleeping/CreateSleepingPatternModal'
 
 export const DoctorPage = () => {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -93,6 +89,8 @@ export const DoctorPage = () => {
   const [showECTAdmissionModal, setShowECTAdmissionModal] = useState(false)
   const [showECTProcedureModal, setShowECTProcedureModal] = useState(false)
   const [ectRefreshKey, setEctRefreshKey] = useState(0)
+  const [showSleepingPatternModal, setShowSleepingPatternModal] = useState(false)
+  const [sleepingPatternRefreshKey, setSleepingPatternRefreshKey] = useState(0)
   const screen = searchParams.get('screen')
 
   // Sync selectedPatient with URL on mount and when URL changes
@@ -106,37 +104,18 @@ export const DoctorPage = () => {
     }
   }, [searchParams])
 
-  const handleNavClick = async (screenId: string) => {
-    if (screenId === 'discharge') {
-      // Handle discharge button - need to check if patient has active admission
-      if (!selectedPatient) {
-        toast.error('Please select a patient first')
-        return
+  // Ensure patient param is preserved when navigating to OP Visit or Admission screens
+  useEffect(() => {
+    if (!selectedPatient) return
+    if (screen === 'admission' || screen === 'op') {
+      const currentPatient = searchParams.get('patient')
+      if (!currentPatient) {
+        const newSearchParams = new URLSearchParams(searchParams)
+        newSearchParams.set('patient', selectedPatient)
+        setSearchParams(newSearchParams, { replace: true })
       }
-      
-      try {
-        const admission = await getPatientActiveAdmission(selectedPatient)
-        if (!admission) {
-          toast.error('No active admission found for this patient')
-          return
-        }
-        
-        setSelectedAdmission({
-          name: admission.name,
-          patient: admission.patient,
-          patient_name: admission.patient_name
-        })
-        setShowDischargeModal(true)
-      } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Failed to fetch admission'
-        toast.error(errorMessage)
-      }
-    } else {
-      const newSearchParams = new URLSearchParams(searchParams)
-      newSearchParams.set('screen', screenId)
-      setSearchParams(newSearchParams, { replace: true })
     }
-  }
+  }, [screen, selectedPatient, searchParams, setSearchParams])
 
   const handleCreateDischarge = async () => {
     // Handle create discharge from Discharge Form screen
@@ -209,7 +188,56 @@ export const DoctorPage = () => {
 
   // Show Patient Visit page when screen=op
   if (screen === 'op') {
-    return <PatientVisitPage />
+    return <PatientVisitPage initialPatient={selectedPatient} />
+  }
+
+  // Show Sleeping Pattern
+  if (screen === 'sleep') {
+    return (
+      <div className="flex flex-col">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+        <div className="p-4">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+            <div className="font-semibold mb-4 flex items-center justify-between">
+              <span>Sleeping Pattern</span>
+              <button
+                onClick={() => setShowSleepingPatternModal(true)}
+                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
+                title="Create Sleeping Pattern"
+              >
+                +
+              </button>
+            </div>
+            <SleepingPatternList
+              patient={selectedPatient}
+              refreshKey={sleepingPatternRefreshKey}
+            />
+          </section>
+        </div>
+        {showSleepingPatternModal && (
+          <CreateSleepingPatternModal
+            onClose={() => setShowSleepingPatternModal(false)}
+            onSuccess={() => {
+              setSleepingPatternRefreshKey(prev => prev + 1)
+              setShowSleepingPatternModal(false)
+            }}
+            initialPatient={selectedPatient}
+          />
+        )}
+      </div>
+    )
   }
 
   // Show ECT Details
@@ -1381,21 +1409,6 @@ export const DoctorPage = () => {
             patients={[]}
           />
         </div>
-        <nav className="flex gap-2 flex-shrink-0 items-center">
-          {doctorNav.map((item) => (
-            <button
-              key={item.screen}
-              onClick={() => handleNavClick(item.screen)}
-              className={`px-3 py-1 rounded-md text-sm transition-colors ${
-                screen === item.screen
-                  ? 'bg-white text-primary'
-                  : 'bg-white/15 hover:bg-white/25'
-              }`}
-            >
-              {item.label}
-            </button>
-          ))}
-        </nav>
         <div className="flex items-center gap-3 flex-shrink-0">
           <UserMenu />
           <NotificationBell />
@@ -1410,7 +1423,19 @@ export const DoctorPage = () => {
               <PatientSummaryCard patient={selectedPatient} />
             </div>
 
-            {/* Card 2: Warnings & Allergies */}
+            {/* Card 2: Patient Medical History */}
+            <section className="bg-white border border-slate-200 rounded-lg p-0 shadow-sm flex flex-col max-h-[400px] overflow-hidden">
+              <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between flex-shrink-0">
+                <span className="font-semibold">Patient Medical History</span>
+              </div>
+              <div className="flex-1 min-h-0 overflow-auto" style={{ scrollbarWidth: 'thin' }}>
+                <MedicalHistoryView patient={selectedPatient} />
+              </div>
+            </section>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2 px-4 pb-4">
+            {/* Card: Warnings & Allergies */}
             <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
               <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
                 <span>Warnings & Allergies</span>
@@ -1426,9 +1451,7 @@ export const DoctorPage = () => {
                 <WarningMessagesList patient={selectedPatient} key={warningRefreshKey} />
               </div>
             </section>
-          </div>
 
-          <div className="grid gap-4 md:grid-cols-2 px-4 pb-4">
             {/* Card 3: Lab Test Reports */}
             <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
               <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
@@ -1442,7 +1465,11 @@ export const DoctorPage = () => {
                 </button>
               </div>
               <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                <LabTestList patient={selectedPatient} defaultStatus="Pending Review" key={labTestRefreshKey} />
+                <LabTestList
+                  patient={selectedPatient}
+                  defaultStatus="Pending Review"
+                  key={labTestRefreshKey}
+                />
               </div>
             </section>
 

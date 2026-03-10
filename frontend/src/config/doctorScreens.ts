@@ -25,6 +25,7 @@ export const doctorScreens = [
   { id: 'ect', title: 'ECT', desc: 'ECT details.' },
   { id: 'obs', title: 'Observation Level', desc: 'Observation level tracking.' },
   { id: 'env', title: 'Environmental Checklist', desc: 'Environmental safety checklist.' },
+  { id: 'sleep', title: 'Sleeping Pattern', desc: 'Sleeping pattern tracking.' },
   { id: 'iop', title: 'IOP Dashboard', desc: 'Intensive outpatient scheduling and enrollment.' },
   { id: 'sl', title: 'Sick Leave', desc: 'Leave requests.' },
   { id: 'ipm', title: 'IP Medication', desc: 'Inpatient medications.' },

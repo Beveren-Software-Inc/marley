@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react'
 import { CreatePatientModal } from './CreatePatientModal'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
+import { useCareContext } from '../../providers/CareContextProvider'
+import { fetchPatientVisitsFull, type PatientVisitListRow } from '../../services/patientVisits'
+import { fetchInpatientRecords, type InpatientRecord } from '../../services/inpatientRecords'
 
 interface PatientSearchProps {
   selectedPatient: string
@@ -9,12 +12,19 @@ interface PatientSearchProps {
 }
 
 export const PatientSearch = ({ selectedPatient, onPatientSelect }: PatientSearchProps) => {
+  const { mode, setMode, setActiveVisit, setActiveAdmission } = useCareContext()
   const [patientQuery, setPatientQuery] = useState('')
   const [patientOpen, setPatientOpen] = useState(false)
   const [showCreatePatient, setShowCreatePatient] = useState(false)
   const [patients, setPatients] = useState<PatientListItem[]>([])
   const [loading, setLoading] = useState(false)
   const [selectedPatientName, setSelectedPatientName] = useState<string>('')
+  const [secondaryQuery, setSecondaryQuery] = useState('')
+  const [secondaryOpen, setSecondaryOpen] = useState(false)
+  const [secondaryLoading, setSecondaryLoading] = useState(false)
+  const [secondaryResults, setSecondaryResults] = useState<
+    { value: string; label: string; meta?: string }[]
+  >([])
 
   // Load patient name when selectedPatient changes (e.g., from URL)
   useEffect(() => {
@@ -77,6 +87,61 @@ export const PatientSearch = ({ selectedPatient, onPatientSelect }: PatientSearc
     return () => clearTimeout(timeoutId)
   }, [patientQuery, patientOpen])
 
+  const hasPatient = Boolean(selectedPatient)
+
+  // OP/IP contextual dropdown search (visits/admissions)
+  useEffect(() => {
+    if (!hasPatient || !secondaryOpen || secondaryQuery.trim() === '') {
+      setSecondaryResults([])
+      return
+    }
+
+    const controller = new AbortController()
+    const t = setTimeout(async () => {
+      setSecondaryLoading(true)
+      try {
+        if (mode === 'OP') {
+          const visits: PatientVisitListRow[] = await fetchPatientVisitsFull(
+            selectedPatient || undefined,
+            secondaryQuery || undefined
+          )
+          setSecondaryResults(
+            visits.slice(0, 30).map((v) => ({
+              value: v.value,
+              label: v.label,
+              meta: v.encounter_date ? `${v.encounter_date} • ${v.status}` : v.status
+            }))
+          )
+        } else if (mode === 'IP') {
+          const admissions: InpatientRecord[] = await fetchInpatientRecords(
+            undefined,
+            secondaryQuery || undefined,
+            selectedPatient || undefined
+          )
+          setSecondaryResults(
+            admissions.slice(0, 30).map((a) => ({
+              value: a.name,
+              label: `${a.name} - ${a.patient_name || a.patient || ''}`,
+              meta: a.status
+            }))
+          )
+        } else {
+          setSecondaryResults([])
+        }
+      } catch (err) {
+        console.error('Failed to load contextual records', err)
+        setSecondaryResults([])
+      } finally {
+        setSecondaryLoading(false)
+      }
+    }, 300)
+
+    return () => {
+      clearTimeout(t)
+      controller.abort()
+    }
+  }, [secondaryQuery, secondaryOpen, hasPatient, mode, selectedPatient])
+
   return (
     <>
       <div className="w-full max-w-xs md:max-w-xl">
@@ -100,25 +165,37 @@ export const PatientSearch = ({ selectedPatient, onPatientSelect }: PatientSearc
               }}
               onFocus={() => setPatientOpen(true)}
               placeholder={selectedPatientName || 'Search patient...'}
-              className="w-full rounded-md border border-primary/40 px-2 md:px-3 py-1.5 md:py-2 text-xs md:text-sm text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-white focus:border-white"
+              className="w-full rounded-md border border-primary/40 pl-2 md:pl-3 pr-20 md:pr-24 py-1.5 md:py-2 text-xs md:text-sm text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-white focus:border-white"
             />
-            {selectedPatient && patientQuery === selectedPatientName && (
+            <div className="absolute inset-y-0 right-2 flex items-center gap-1">
+              {selectedPatient && patientQuery === selectedPatientName && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onPatientSelect(undefined)
+                    setSelectedPatientName('')
+                    setPatientQuery('')
+                    setPatientOpen(false)
+                  }}
+                  className="text-slate-400 hover:text-slate-600"
+                  title="Clear selection"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
               <button
                 type="button"
-                onClick={() => {
-                  onPatientSelect(undefined)
-                  setSelectedPatientName('')
-                  setPatientQuery('')
-                  setPatientOpen(false)
-                }}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                title="Clear selection"
+                onClick={() => setShowCreatePatient(true)}
+                className="w-7 h-7 md:w-8 md:h-8 rounded-md text-primary bg-white flex items-center justify-center hover:bg-primary/30 transition-colors flex-shrink-0"
+                title="Create New Patient"
               >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 </svg>
               </button>
-            )}
+            </div>
             {patientOpen && (
               <div className="absolute z-40 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-56 overflow-auto text-slate-900">
                 {loading ? (
@@ -153,15 +230,92 @@ export const PatientSearch = ({ selectedPatient, onPatientSelect }: PatientSearc
               </div>
             )}
           </div>
-          <button
-            onClick={() => setShowCreatePatient(true)}
-            className="flex-shrink-0 w-8 h-8 md:w-10 md:h-10 rounded-md bg-white/20 hover:bg-white/30 text-white flex items-center justify-center transition-colors"
-            title="Create New Patient"
-          >
-            <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => hasPatient && setMode('OP')}
+              disabled={!hasPatient}
+              className={`px-2 md:px-3 py-1 rounded-full text-[10px] md:text-xs font-semibold border transition-colors ${
+                !hasPatient
+                  ? 'bg-white/5 text-white/40 border-white/20 cursor-not-allowed'
+                  : mode === 'OP'
+                    ? 'bg-white text-primary border-white shadow-sm'
+                    : 'bg-white/10 text-white/90 border-white/40 hover:bg-white/20'
+              }`}
+            >
+              OP
+            </button>
+            <button
+              type="button"
+              onClick={() => hasPatient && setMode('IP')}
+              disabled={!hasPatient}
+              className={`px-2 md:px-3 py-1 rounded-full text-[10px] md:text-xs font-semibold border transition-colors ${
+                !hasPatient
+                  ? 'bg-white/5 text-white/40 border-white/20 cursor-not-allowed'
+                  : mode === 'IP'
+                    ? 'bg-white text-primary border-white shadow-sm'
+                    : 'bg-white/10 text-white/90 border-white/40 hover:bg-white/20'
+              }`}
+            >
+              IP
+            </button>
+            {hasPatient && (mode === 'OP' || mode === 'IP') && (
+              <div className="relative ml-1 w-full max-w-xs">
+                <input
+                  type="text"
+                  value={secondaryQuery}
+                  onChange={(e) => {
+                    setSecondaryQuery(e.target.value)
+                    setSecondaryOpen(true)
+                  }}
+                  onFocus={() => setSecondaryOpen(true)}
+                  placeholder={mode === 'OP' ? 'Search OP visits…' : 'Search IP admissions…'}
+                  className="w-full rounded-md border border-white/60 bg-white/10 px-2 md:px-3 py-1.5 md:py-2 text-xs md:text-sm text-white placeholder:text-white/70 focus:outline-none focus:ring-2 focus:ring-white"
+                />
+                {secondaryOpen && (
+                  <div className="absolute z-40 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-56 overflow-auto text-slate-900">
+                    {secondaryLoading ? (
+                      <div className="px-3 py-2 text-xs text-slate-500">
+                        {mode === 'OP' ? 'Loading visits…' : 'Loading admissions…'}
+                      </div>
+                    ) : secondaryResults.length > 0 ? (
+                      secondaryResults.map((row) => (
+                        <button
+                          key={row.value}
+                          type="button"
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50"
+                          onClick={() => {
+                            setSecondaryQuery(row.label)
+                            if (mode === 'OP') {
+                              setActiveVisit(row.value)
+                            } else if (mode === 'IP') {
+                              setActiveAdmission(row.value)
+                            }
+                            setSecondaryOpen(false)
+                          }}
+                        >
+                          <div className="font-medium">{row.label}</div>
+                          {row.meta && (
+                            <div className="text-xs text-slate-500 mt-0.5">{row.meta}</div>
+                          )}
+                        </button>
+                      ))
+                    ) : (
+                      <div className="px-3 py-2 text-xs text-slate-500">
+                        {secondaryQuery
+                          ? mode === 'OP'
+                            ? 'No visits match your search.'
+                            : 'No admissions match your search.'
+                          : mode === 'OP'
+                            ? 'Type to search visits.'
+                            : 'Type to search admissions.'}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

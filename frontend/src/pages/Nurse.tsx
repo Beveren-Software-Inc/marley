@@ -36,10 +36,6 @@ import { MorseFallScaleList } from '../components/morse/MorseFallScaleList'
 import { SleepingPatternList } from '../components/sleeping/SleepingPatternList'
 import { CreateSleepingPatternModal } from '../components/sleeping/CreateSleepingPatternModal'
 
-const nurseNav = [
-  { label: 'Admission', screen: 'n-reg' }
-]
-
 export const NursePage = () => {
   const [searchParams, setSearchParams] = useSearchParams()
   const patientFromUrl = searchParams.get('patient')
@@ -78,12 +74,6 @@ export const NursePage = () => {
       // Don't clear if we're just initializing
     }
   }, [searchParams])
-
-  const handleNavClick = (screenId: string) => {
-    const newSearchParams = new URLSearchParams(searchParams)
-    newSearchParams.set('screen', screenId)
-    setSearchParams(newSearchParams, { replace: true })
-  }
 
   const handlePatientSelect = (patient: string | undefined) => {
     setSelectedPatient(patient)
@@ -783,21 +773,6 @@ export const NursePage = () => {
             patients={[]}
           />
         </div>
-        <nav className="flex gap-2 flex-shrink-0 items-center">
-          {nurseNav.map((item) => (
-            <button
-              key={item.screen}
-              onClick={() => handleNavClick(item.screen)}
-              className={`px-3 py-1 rounded-md text-sm transition-colors ${
-                screen === item.screen
-                  ? 'bg-white text-primary'
-                  : 'bg-white/15 hover:bg-white/25'
-              }`}
-            >
-              {item.label}
-            </button>
-          ))}
-        </nav>
         <div className="flex items-center gap-3 flex-shrink-0">
           <UserMenu />
           <NotificationBell />

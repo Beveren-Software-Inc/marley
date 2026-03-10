@@ -146,7 +146,7 @@ export const AdmissionDetails = ({ admissionNo, onUpdate }: AdmissionDetailsProp
           <h3 className="text-sm font-semibold text-slate-700 mb-2">Patient Information</h3>
           <div className="space-y-1 text-sm">
             <div><span className="font-medium">Patient:</span> {admission.patient_name || admission.patient}</div>
-            <div><span className="font-medium">Admission No:</span> {admission.name}</div>
+            <div><span className="font-medium">Case No:</span> {admission.name}</div>
             <div><span className="font-medium">Status:</span> {admission.status}</div>
           </div>
         </div>

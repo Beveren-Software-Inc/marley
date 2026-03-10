@@ -7,6 +7,7 @@ import { AdmissionDetails } from '../components/admissions/AdmissionDetails'
 import { CreateAdmissionModal } from '../components/admissions/CreateAdmissionModal'
 import { NotificationBell } from '../components/notifications/NotificationBell'
 import { UserMenu } from '../components/user/UserMenu'
+import { PatientSearch } from '../components/patients/PatientSearch'
 
 export const AdmissionPage = () => {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -16,6 +17,7 @@ export const AdmissionPage = () => {
   const [admissionPatient, setAdmissionPatient] = useState<string | undefined>(undefined)
   const [searchQuery, setSearchQuery] = useState<string>(searchFromUrl || '')
   const [showCreateAdmission, setShowCreateAdmission] = useState(false)
+  const [selectedPatient, setSelectedPatient] = useState<string>(patientFromUrl || '')
 
   // Sync searchQuery with URL
   useEffect(() => {
@@ -47,11 +49,16 @@ export const AdmissionPage = () => {
     }
   }, [admissionFromUrl])
 
-  const handleAdmissionSelect = (admissionName: string) => {
-    // Update URL - this will trigger re-render
-    const newSearchParams = new URLSearchParams(searchParams)
-    newSearchParams.set('admission', admissionName)
-    setSearchParams(newSearchParams, { replace: true })
+  useEffect(() => {
+    if (patientFromUrl && patientFromUrl !== selectedPatient) {
+      setSelectedPatient(patientFromUrl)
+    }
+  }, [patientFromUrl])
+
+  // When used from Admission Management screens, we rely on the list's slide-over
+  // instead of navigating to a separate details page, so this is a no-op.
+  const handleAdmissionSelect = (_admissionName: string) => {
+    return
   }
 
   const handleBackToList = () => {
@@ -115,29 +122,22 @@ export const AdmissionPage = () => {
     <>
       <div className="flex flex-col h-full">
         <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0 max-w-xl">
-            <div className="relative flex items-center gap-2">
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => {
-                  const value = e.target.value
-                  setSearchQuery(value)
-                  // Update URL with debounce
-                  const newSearchParams = new URLSearchParams(searchParams)
-                  if (value.trim()) {
-                    newSearchParams.set('search', value)
-                  } else {
-                    newSearchParams.delete('search')
-                  }
-                  setSearchParams(newSearchParams, { replace: true })
-                }}
-                placeholder="Search by admission number or patient name/file number..."
-                className="flex-1 rounded-md border border-primary/40 px-3 py-2 text-sm text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-white focus:border-white"
-              />
-            </div>
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient}
+              onPatientSelect={(patient) => {
+                const value = patient || ''
+                setSelectedPatient(value)
+                const newSearchParams = new URLSearchParams(searchParams)
+                if (value) {
+                  newSearchParams.set('patient', value)
+                } else {
+                  newSearchParams.delete('patient')
+                }
+                setSearchParams(newSearchParams, { replace: true })
+              }}
+            />
           </div>
-          <h1 className="flex-1 text-center text-lg font-semibold hidden md:block">Inpatient Admissions</h1>
           <div className="flex items-center gap-3 flex-shrink-0">
             <UserMenu />
             <NotificationBell />
@@ -163,7 +163,7 @@ export const AdmissionPage = () => {
           <AdmissionList 
             onAdmissionSelect={handleAdmissionSelect} 
             searchQuery={searchQuery}
-            patient={patientFromUrl || undefined}
+            patient={selectedPatient || undefined}
           />
         </div>
       </div>

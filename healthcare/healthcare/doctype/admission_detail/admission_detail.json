@@ -47,7 +47,9 @@
   "sick_leave_tab",
   "sick_leave",
   "ip_medical_report_tab",
-  "ip_medical_report"
+  "ip_medical_report",
+  "sleeping_pattern_tab",
+  "sleeping_pattern"
  ],
  "fields": [
   {
@@ -276,12 +278,23 @@
    "fieldtype": "Link",
    "label": "ECT",
    "options": "ECT Details"
+  },
+  {
+   "fieldname": "sleeping_pattern_tab",
+   "fieldtype": "Tab Break",
+   "label": "Sleeping Pattern"
+  },
+  {
+   "fieldname": "sleeping_pattern",
+   "fieldtype": "Table",
+   "label": "Sleeping Pattern",
+   "options": "Sleeping Pattern Detail"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-03-09 10:47:55.164970",
+ "modified": "2026-03-10 13:44:32.044910",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Admission Detail",

@@ -18,12 +18,14 @@ import { FollowUpList } from '../components/followUp/FollowUpList'
 import { IOPDayListWithHeader } from '../components/iop/IOPDayList'
 import { IOPEnrollmentListWithHeader } from '../components/iop/IOPEnrollmentList'
 import { DischargeList } from '../components/discharges/DischargeList'
+import { MedicalHistoryView } from '../components/medicalHistory/MedicalHistoryView'
 
 type View =
   | 'default'
   | 'patient'
   | 'admission'
   | 'visit'
+  | 'patient-medical-history'
   | 'followup'
   | 'iop'
   | 'appointments-freeze'
@@ -82,6 +84,8 @@ export const ReceptionistPage = () => {
       setSearchParams(newParams, { replace: true })
     } else if (screen === 'r-followup') {
       setCurrentView('followup')
+    } else if (screen === 'r-medical-history') {
+      setCurrentView('patient-medical-history')
     } else if (screen === 'r-iop') {
       setCurrentView('iop')
     } else if (screen === 'r-appointments-freeze') {
@@ -112,38 +116,6 @@ export const ReceptionistPage = () => {
             patients={dummyPatients}
           />
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <button
-            onClick={() => setCurrentView('patient')}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              currentView === 'patient'
-                ? 'bg-white/20 text-white'
-                : 'bg-white/10 text-white/90 hover:bg-white/20'
-            }`}
-          >
-            Patient
-          </button>
-          <button
-            onClick={() => setCurrentView('admission')}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              currentView === 'admission'
-                ? 'bg-white/20 text-white'
-                : 'bg-white/10 text-white/90 hover:bg-white/20'
-            }`}
-          >
-            Admission
-          </button>
-          <button
-            onClick={() => setCurrentView('discharge')}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              currentView === 'discharge'
-                ? 'bg-white/20 text-white'
-                : 'bg-white/10 text-white/90 hover:bg-white/20'
-            }`}
-          >
-            Discharge
-          </button>
-        </div>
         <div className="flex items-center gap-3 flex-shrink-0">
           <UserMenu />
           <NotificationBell />
@@ -169,6 +141,20 @@ export const ReceptionistPage = () => {
               </button>
             </div>
             <PatientList refreshKey={patientRefreshKey} />
+          </div>
+        )}
+
+        {currentView === 'patient-medical-history' && (
+          <div className="p-4">
+            <div className="mb-4">
+              <h2 className="text-xl font-semibold text-slate-900">Patient Medical History</h2>
+              <p className="text-sm text-slate-600 mt-1">
+                View or update long-term medical history for the selected patient.
+              </p>
+            </div>
+            <div className="bg-white border border-slate-200 rounded-lg">
+              <MedicalHistoryView patient={selectedPatient || undefined} />
+            </div>
           </div>
         )}
 
