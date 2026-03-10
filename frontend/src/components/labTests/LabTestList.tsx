@@ -11,7 +11,8 @@ import {
   type LabConsumableRow,
   type LabTest,
 } from '../../services/labTests'
-import { fetchItems, fetchWarehouses, type LinkFieldOption } from '../../services/common'
+import { fetchItems, fetchWarehouses, fetchDocumentTypes, type LinkFieldOption } from '../../services/common'
+import { uploadPatientFile, type PatientDocumentRow } from '../../services/patients'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
 import { LabTestDetails } from './LabTestDetails'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
@@ -320,6 +321,10 @@ export const LabTestList = ({
   const [customResult, setCustomResult] = useState('')
   const [labComment, setLabComment] = useState('')
   const [worksheetText, setWorksheetText] = useState('')
+  const [resultDialogTab, setResultDialogTab] = useState<'results' | 'documents'>('results')
+  const [resultDocuments, setResultDocuments] = useState<PatientDocumentRow[]>([])
+  const [resultDocumentTypes, setResultDocumentTypes] = useState<{ name: string; document_name?: string }[]>([])
+  const [resultDocumentUploading, setResultDocumentUploading] = useState<number | null>(null)
 
   // ── Review actions ───────────────────────────────────────────────────────
 
@@ -352,11 +357,11 @@ export const LabTestList = ({
     }
   }
 
-  // ── Add Remarks modal ───────────────────────────────────────────────────
+  // ── Add Remarks modal (remarks table: multiple rows) ──────────────────────
 
   const [remarksModalOpen, setRemarksModalOpen] = useState(false)
   const [remarksLabTestName, setRemarksLabTestName] = useState<string | null>(null)
-  const [remarksText, setRemarksText] = useState('')
+  const [remarksList, setRemarksList] = useState<Array<{ rrmark: string }>>([{ rrmark: '' }])
   const [remarksLoading, setRemarksLoading] = useState(false)
   const [remarksError, setRemarksError] = useState<string | null>(null)
 
@@ -364,12 +369,17 @@ export const LabTestList = ({
     setOpenActionRow(null)
     setRemarksLabTestName(labTestName)
     setRemarksError(null)
-    setRemarksText('')
+    setRemarksList([{ rrmark: '' }])
     setRemarksLoading(true)
     setRemarksModalOpen(true)
     try {
       const doc = await fetchLabTest(labTestName)
-      setRemarksText(doc.remarks || '')
+      const existing = (doc as LabTest).remarks
+      if (existing && existing.length > 0) {
+        setRemarksList(existing.map((r) => ({ rrmark: r.rrmark || '' })))
+      } else {
+        setRemarksList([{ rrmark: '' }])
+      }
     } catch (e) {
       setRemarksError(e instanceof Error ? e.message : 'Failed to load lab test')
     } finally {
@@ -380,16 +390,29 @@ export const LabTestList = ({
   const closeRemarksModal = () => {
     setRemarksModalOpen(false)
     setRemarksLabTestName(null)
-    setRemarksText('')
+    setRemarksList([{ rrmark: '' }])
     setRemarksError(null)
+  }
+
+  const addRemarksRow = () => setRemarksList((prev) => [...prev, { rrmark: '' }])
+  const updateRemarksRow = (idx: number, value: string) => {
+    setRemarksList((prev) => {
+      const next = [...prev]
+      next[idx] = { rrmark: value }
+      return next
+    })
+  }
+  const removeRemarksRow = (idx: number) => {
+    setRemarksList((prev) => (prev.length <= 1 ? [{ rrmark: '' }] : prev.filter((_, i) => i !== idx)))
   }
 
   const handleSubmitRemarks = async () => {
     if (!remarksLabTestName) return
+    const payload = remarksList.map((r) => ({ rrmark: (r.rrmark || '').trim() })).filter((r) => r.rrmark)
     setRemarksLoading(true)
     setRemarksError(null)
     try {
-      await updateLabTestRemarks(remarksLabTestName, remarksText)
+      await updateLabTestRemarks(remarksLabTestName, payload.length ? payload : [])
       toast.success('Remarks saved')
       refetch()
       closeRemarksModal()
@@ -458,12 +481,18 @@ export const LabTestList = ({
       setResultDialogError(null)
       setResultDialogLoading(true)
       setResultDialogOpen(true)
+      setResultDialogTab('results')
       setActiveLabTest({ name: labTestName, patient: '' })
-      const doc = await fetchLabTest(labTestName)
+      const [doc, docTypes] = await Promise.all([fetchLabTest(labTestName), fetchDocumentTypes()])
       setActiveLabTest(doc)
       setCustomResult(doc.custom_result || '')
       setLabComment(doc.lab_test_comment || '')
       setWorksheetText(doc.worksheet_instructions || '')
+      setResultDocumentTypes(docTypes)
+      const docs = (doc as LabTest).documents && (doc as LabTest).documents!.length > 0
+        ? (doc as LabTest).documents!.map((d) => ({ file_name: d.file_name || '', document_type: d.document_type || '', transaction_no: d.transaction_no || '', upload_remarks: d.upload_remarks || '', document: d.document || '' }))
+        : [{ file_name: '', document_type: '', transaction_no: '', upload_remarks: '' }]
+      setResultDocuments(docs)
     } catch (e) {
       setResultDialogError(e instanceof Error ? e.message : 'Failed to load lab test')
     } finally {
@@ -477,8 +506,33 @@ export const LabTestList = ({
     setCustomResult('')
     setLabComment('')
     setWorksheetText('')
+    setResultDialogTab('results')
+    setResultDocuments([])
     setResultDialogError(null)
     setResultDialogLoading(false)
+  }
+
+  const addResultDocumentRow = () => setResultDocuments(prev => [...prev, { file_name: '', document_type: '', transaction_no: '', upload_remarks: '' }])
+  const updateResultDocumentRow = (idx: number, field: keyof PatientDocumentRow, value: string) => {
+    setResultDocuments(prev => { const next = [...prev]; next[idx] = { ...next[idx], [field]: value }; return next })
+  }
+  const handleResultDocumentFile = async (idx: number, file: File | null) => {
+    if (!file) return
+    setResultDocumentUploading(idx)
+    try {
+      const file_url = await uploadPatientFile(file)
+      if (!file_url) throw new Error('No URL returned from upload')
+      setResultDocuments(prev => {
+        const next = [...prev]
+        next[idx] = { ...next[idx], document: file_url, file_name: (next[idx].file_name || '').trim() || file.name }
+        return next
+      })
+      toast.success('File uploaded')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'File upload failed')
+    } finally {
+      setResultDocumentUploading(null)
+    }
   }
 
   const handleSubmitLabTestWithResults = async () => {
@@ -486,10 +540,20 @@ export const LabTestList = ({
     try {
       setResultDialogLoading(true)
       setResultDialogError(null)
+      const docPayload = resultDocuments
+        .filter((r) => (r.file_name || '').trim() || (r.document || '').trim())
+        .map((r) => ({
+          file_name: (r.file_name || '').trim() || undefined,
+          document_type: (r.document_type || '').trim() || undefined,
+          transaction_no: (r.transaction_no || '').trim() || undefined,
+          upload_remarks: (r.upload_remarks || '').trim() || undefined,
+          document: (r.document || '').trim() || undefined,
+        }))
       await saveAndSubmitLabTest(activeLabTest.name, {
         custom_result: customResult,
         lab_test_comment: labComment,
         worksheet_instructions: worksheetText,
+        documents: docPayload.length ? docPayload : undefined,
         submit: true,
       })
       await refetch()
@@ -731,12 +795,12 @@ export const LabTestList = ({
         </div>
       )}
 
-      {/* ── Add Remarks modal ── */}
+      {/* ── Add Remarks modal (table: multiple remarks) ── */}
       {remarksModalOpen && remarksLabTestName && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-lg w-full">
-            <div className="p-4 border-b border-slate-200 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-slate-900">Add Remarks — {remarksLabTestName}</h2>
+          <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="p-4 border-b border-slate-200 flex items-center justify-between flex-shrink-0">
+              <h2 className="text-lg font-semibold text-slate-900">Doctor&apos;s Remarks — {remarksLabTestName}</h2>
               <button
                 type="button"
                 onClick={closeRemarksModal}
@@ -746,41 +810,64 @@ export const LabTestList = ({
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="p-4 space-y-4">
+            <div className="p-4 overflow-y-auto flex-1 space-y-4">
               {remarksError && (
                 <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-md px-3 py-2">
                   {remarksError}
                 </div>
               )}
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Remarks</label>
-                <textarea
-                  value={remarksText}
-                  onChange={(e) => setRemarksText(e.target.value)}
-                  placeholder="Enter remarks..."
-                  rows={5}
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                  disabled={remarksLoading}
-                />
-              </div>
-              <div className="flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={closeRemarksModal}
-                  disabled={remarksLoading}
-                  className="px-3 py-2 text-sm border border-slate-300 rounded-md hover:bg-slate-50 text-slate-700"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSubmitRemarks}
-                  disabled={remarksLoading}
-                  className="px-3 py-2 text-sm bg-primary text-white rounded-md hover:bg-primary/90 disabled:opacity-50"
-                >
-                  {remarksLoading ? 'Saving…' : 'Submit'}
-                </button>
-              </div>
+              <p className="text-sm text-slate-500">Add one or more remarks. You can add another row for each new remark.</p>
+              {remarksList.map((row, idx) => (
+                <div key={idx} className="rounded-lg border border-slate-200 bg-slate-50/50 overflow-hidden">
+                  <div className="flex items-center justify-between px-3 py-2 border-b border-slate-200 bg-white">
+                    <span className="text-xs font-medium text-slate-500">Remark #{idx + 1}</span>
+                    <button
+                      type="button"
+                      onClick={() => removeRemarksRow(idx)}
+                      className="p-1 rounded text-slate-400 hover:text-red-500 hover:bg-red-50"
+                      title="Remove row"
+                      disabled={remarksList.length <= 1}
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <div className="p-3">
+                    <textarea
+                      value={row.rrmark}
+                      onChange={(e) => updateRemarksRow(idx, e.target.value)}
+                      placeholder="Enter remark..."
+                      rows={3}
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      disabled={remarksLoading}
+                    />
+                  </div>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={addRemarksRow}
+                className="flex items-center gap-1.5 text-sm text-primary font-medium hover:underline"
+              >
+                <span>+</span> Add another remark
+              </button>
+            </div>
+            <div className="p-4 border-t border-slate-200 flex justify-end gap-2 flex-shrink-0 bg-white">
+              <button
+                type="button"
+                onClick={closeRemarksModal}
+                disabled={remarksLoading}
+                className="px-3 py-2 text-sm border border-slate-300 rounded-md hover:bg-slate-50 text-slate-700"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSubmitRemarks}
+                disabled={remarksLoading}
+                className="px-3 py-2 text-sm bg-primary text-white rounded-md hover:bg-primary/90 disabled:opacity-50"
+              >
+                {remarksLoading ? 'Saving…' : 'Save remarks'}
+              </button>
             </div>
           </div>
         </div>
@@ -890,20 +977,28 @@ export const LabTestList = ({
       {/* ── Results dialog ── */}
       {resultDialogOpen && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="p-4 border-b border-slate-200 flex items-center justify-between">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="p-4 border-b border-slate-200 flex items-center justify-between flex-shrink-0">
               <h2 className="text-lg font-semibold text-slate-900">
                 Enter Results {activeLabTest?.name ? `for ${activeLabTest.name}` : ''}
               </h2>
               <button type="button" onClick={closeResultDialog} className="text-slate-400 hover:text-slate-600">✕</button>
             </div>
-            <div className="p-4 space-y-4">
+            <div className="flex border-b border-slate-200 px-4 flex-shrink-0">
+              {(['results', 'documents'] as const).map((tab) => (
+                <button key={tab} type="button" onClick={() => setResultDialogTab(tab)}
+                  className={`px-4 py-3 text-sm font-medium border-b-2 -mb-px ${resultDialogTab === tab ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+                  {tab === 'documents' ? `Documents${resultDocuments.length > 0 ? ` (${resultDocuments.length})` : ''}` : 'Results'}
+                </button>
+              ))}
+            </div>
+            <div className="p-4 overflow-y-auto flex-1 min-h-0 space-y-4">
               {resultDialogError && (
                 <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-md px-3 py-2">{resultDialogError}</div>
               )}
               {resultDialogLoading ? (
                 <div className="text-sm text-slate-600">Loading...</div>
-              ) : (
+              ) : resultDialogTab === 'results' ? (
                 <>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Custom Result</label>
@@ -921,15 +1016,50 @@ export const LabTestList = ({
                       value={worksheetText} onChange={(e) => setWorksheetText(e.target.value)} />
                   </div>
                 </>
+              ) : (
+                <div className="space-y-4">
+                  <p className="text-sm text-slate-500">Attach lab documents (reports, scans). Same document table as Admission, Discharge, Patient.</p>
+                  {resultDocuments.length === 0 && (
+                    <div className="text-center py-6 rounded-lg border-2 border-dashed border-slate-200 text-slate-400 text-sm">No documents. Click below to add one.</div>
+                  )}
+                  {resultDocuments.map((row, idx) => (
+                    <div key={idx} className="rounded-lg border border-slate-200 bg-slate-50/50 p-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 mb-0.5">File Name</label>
+                        <input value={row.file_name || ''} onChange={(e) => updateResultDocumentRow(idx, 'file_name', e.target.value)} placeholder="File name" className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 mb-0.5">Document Type</label>
+                        <select value={row.document_type || ''} onChange={(e) => updateResultDocumentRow(idx, 'document_type', e.target.value)} className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm bg-white">
+                          <option value="">Select type</option>
+                          {resultDocumentTypes.map((dt) => <option key={dt.name} value={dt.name}>{dt.document_name || dt.name}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 mb-0.5">Transaction No</label>
+                        <input value={row.transaction_no || ''} onChange={(e) => updateResultDocumentRow(idx, 'transaction_no', e.target.value)} placeholder="Optional" className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 mb-0.5">Upload Remarks</label>
+                        <input value={row.upload_remarks || ''} onChange={(e) => updateResultDocumentRow(idx, 'upload_remarks', e.target.value)} placeholder="Optional" className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm" />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label className="block text-xs font-medium text-slate-600 mb-0.5">File</label>
+                        <input type="file" disabled={resultDocumentUploading === idx} onChange={(e) => { const f = e.target.files?.[0]; if (f) handleResultDocumentFile(idx, f); e.target.value = '' }} className="w-full text-sm file:mr-2 file:rounded file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-white file:text-sm" />
+                        {resultDocumentUploading === idx && <span className="text-xs text-slate-500">Uploading...</span>}
+                        {row.document && resultDocumentUploading !== idx && <span className="text-xs text-green-600 block">✓ File attached</span>}
+                      </div>
+                    </div>
+                  ))}
+                  <button type="button" onClick={addResultDocumentRow} className="flex items-center gap-1.5 text-sm text-primary font-medium hover:underline">
+                    <span>+</span> Add document
+                  </button>
+                </div>
               )}
-              <div className="flex justify-end gap-2 pt-2">
-                <button type="button" onClick={closeResultDialog} disabled={resultDialogLoading}
-                  className="px-3 py-1 text-sm border border-slate-300 rounded-md hover:bg-slate-50">Cancel</button>
-                <button type="button" onClick={handleSubmitLabTestWithResults} disabled={resultDialogLoading}
-                  className="px-3 py-1 text-sm bg-primary text-white rounded-md hover:bg-primary/90 disabled:opacity-50">
-                  Save &amp; Submit
-                </button>
-              </div>
+            </div>
+            <div className="flex justify-end gap-2 p-4 border-t border-slate-200 flex-shrink-0 bg-white">
+              <button type="button" onClick={closeResultDialog} disabled={resultDialogLoading} className="px-3 py-1 text-sm border border-slate-300 rounded-md hover:bg-slate-50">Cancel</button>
+              <button type="button" onClick={handleSubmitLabTestWithResults} disabled={resultDialogLoading} className="px-3 py-1 text-sm bg-primary text-white rounded-md hover:bg-primary/90 disabled:opacity-50">Save &amp; Submit</button>
             </div>
           </div>
         </div>

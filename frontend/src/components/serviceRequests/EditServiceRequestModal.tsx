@@ -149,6 +149,8 @@ export const EditServiceRequestModal = ({
           reference_document_name: (doc.reference_document_name as string) || ''
         })
         setPractQuery((doc.practitioner_name as string) || (doc.practitioner as string) || '')
+        setReferringQuery((doc.referring_practitioner as string) || '')
+        setReferredToQuery((doc.referred_to_practitioner as string) || '')
         setReadOnly({
           patient_accepted_cost: doc.patient_accepted_cost,
           booked: doc.booked,
@@ -270,6 +272,9 @@ export const EditServiceRequestModal = ({
   const set = (field: keyof typeof formData, value: string | number | boolean) => {
     setFormData(prev => ({ ...prev, [field]: value }))
   }
+
+  const displayReferring = referringOpen ? referringQuery : (practitioners.find(p => p.name === formData.referring_practitioner)?.label || formData.referring_practitioner || '')
+  const displayReferredTo = referredToOpen ? referredToQuery : (practitioners.find(p => p.name === formData.referred_to_practitioner)?.label || formData.referred_to_practitioner || '')
 
   if (loading) {
     return (
@@ -486,7 +491,7 @@ export const EditServiceRequestModal = ({
                   <div className="relative">
                     <input
                       type="text"
-                      value={referringOpen ? referringQuery : (practitioners.find(p => p.name === formData.referring_practitioner)?.label || formData.referring_practitioner)}
+                      value={displayReferring}
                       onChange={(e) => {
                         setReferringQuery(e.target.value)
                         set('referring_practitioner', '')
@@ -498,7 +503,7 @@ export const EditServiceRequestModal = ({
                     />
                     {referringOpen && (
                       <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-auto">
-                        {practitioners.map((p) => (
+                        {practitioners.filter(p => !referringQuery || (p.label || p.name).toLowerCase().includes(referringQuery.toLowerCase())).map((p) => (
                           <button key={p.name} type="button" className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50" onClick={() => { set('referring_practitioner', p.name); setReferringQuery(p.label || p.name); setReferringOpen(false) }}>
                             {p.label || p.name}
                           </button>
@@ -513,7 +518,7 @@ export const EditServiceRequestModal = ({
                   <div className="relative">
                     <input
                       type="text"
-                      value={referredToOpen ? referredToQuery : (practitioners.find(p => p.name === formData.referred_to_practitioner)?.label || formData.referred_to_practitioner)}
+                      value={displayReferredTo}
                       onChange={(e) => {
                         setReferredToQuery(e.target.value)
                         set('referred_to_practitioner', '')
@@ -525,7 +530,7 @@ export const EditServiceRequestModal = ({
                     />
                     {referredToOpen && (
                       <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-auto">
-                        {practitioners.map((p) => (
+                        {practitioners.filter(p => !referredToQuery || (p.label || p.name).toLowerCase().includes(referredToQuery.toLowerCase())).map((p) => (
                           <button key={p.name} type="button" className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50" onClick={() => { set('referred_to_practitioner', p.name); setReferredToQuery(p.label || p.name); setReferredToOpen(false) }}>
                             {p.label || p.name}
                           </button>

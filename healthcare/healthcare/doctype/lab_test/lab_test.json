@@ -85,7 +85,9 @@
   "descriptive_toggle",
   "sensitivity_toggle",
   "amended_from",
-  "prescription"
+  "prescription",
+  "upload_documents_tab",
+  "documents"
  ],
  "fields": [
   {
@@ -686,8 +688,20 @@
   {
    "allow_on_submit": 1,
    "fieldname": "remarks",
-   "fieldtype": "Small Text",
-   "label": "Remarks"
+   "fieldtype": "Table",
+   "label": "Remarks",
+   "options": "Remark"
+  },
+  {
+   "fieldname": "upload_documents_tab",
+   "fieldtype": "Tab Break",
+   "label": "Upload Documents"
+  },
+  {
+   "fieldname": "documents",
+   "fieldtype": "Table",
+   "label": "Documents",
+   "options": "Patient Upload Document"
   }
  ],
  "is_submittable": 1,
@@ -697,7 +711,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2026-02-23 14:16:12.172047",
+ "modified": "2026-03-10 03:09:03.884988",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Lab Test",

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { createLabTest } from '../../services/labTests'
-import { fetchHealthcarePractitioners, fetchLabTestTemplates, fetchMedicalDepartments, type LinkFieldOption } from '../../services/common'
-import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
+import { fetchHealthcarePractitioners, fetchLabTestTemplates, fetchMedicalDepartments, fetchDocumentTypes, type LinkFieldOption } from '../../services/common'
+import { searchPatients, fetchPatients, uploadPatientFile, type PatientListItem, type PatientDocumentRow } from '../../services/patients'
 import { CreatePatientModal } from '../patients/CreatePatientModal'
 import { CreatePractitionerModal } from '../practitioners/CreatePractitionerModal'
 import { CreateLabTestTemplateModal } from './CreateLabTestTemplateModal'
@@ -57,6 +57,38 @@ export const CreateLabTestModal = ({ onClose, onSuccess, initialPatient }: Creat
   const [showCreateTemplate, setShowCreateTemplate] = useState(false)
   const [showCreateDepartment, setShowCreateDepartment] = useState(false)
 
+  // Tabs: details | documents
+  const [activeTab, setActiveTab] = useState<'details' | 'documents'>('details')
+  const [documents, setDocuments] = useState<PatientDocumentRow[]>([{ file_name: '', document_type: '', transaction_no: '', upload_remarks: '' }])
+  const [documentTypes, setDocumentTypes] = useState<{ name: string; document_name?: string }[]>([])
+  const [documentUploading, setDocumentUploading] = useState<number | null>(null)
+
+  useEffect(() => {
+    fetchDocumentTypes().then(setDocumentTypes).catch(() => setDocumentTypes([]))
+  }, [])
+
+  const addDocumentRow = () => setDocuments(prev => [...prev, { file_name: '', document_type: '', transaction_no: '', upload_remarks: '' }])
+  const updateDocumentRow = (idx: number, field: keyof PatientDocumentRow, value: string) => {
+    setDocuments(prev => { const next = [...prev]; next[idx] = { ...next[idx], [field]: value }; return next })
+  }
+  const handleDocumentFile = async (idx: number, file: File | null) => {
+    if (!file) return
+    setDocumentUploading(idx)
+    try {
+      const file_url = await uploadPatientFile(file)
+      if (!file_url) throw new Error('No URL returned from upload')
+      setDocuments(prev => {
+        const next = [...prev]
+        next[idx] = { ...next[idx], document: file_url, file_name: (next[idx].file_name || '').trim() || file.name }
+        return next
+      })
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setDocumentUploading(null)
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
@@ -69,6 +101,15 @@ export const CreateLabTestModal = ({ onClose, onSuccess, initialPatient }: Creat
       setLoading(true)
       setError(null)
 
+      const docPayload = documents
+        .filter((r) => (r.file_name || '').trim() || (r.document || '').trim())
+        .map((r) => ({
+          file_name: (r.file_name || '').trim() || undefined,
+          document_type: (r.document_type || '').trim() || undefined,
+          transaction_no: (r.transaction_no || '').trim() || undefined,
+          upload_remarks: (r.upload_remarks || '').trim() || undefined,
+          document: (r.document || '').trim() || undefined,
+        }))
       await createLabTest({
         patient: formData.patient,
         template: formData.template || undefined,
@@ -77,7 +118,8 @@ export const CreateLabTestModal = ({ onClose, onSuccess, initialPatient }: Creat
         time: formData.time || undefined,
         department: formData.department || undefined,
         service_unit: formData.service_unit || undefined,
-        status: formData.status || undefined
+        status: formData.status || undefined,
+        documents: docPayload.length ? docPayload : undefined
       })
       
       if (onSuccess) {
@@ -256,26 +298,30 @@ export const CreateLabTestModal = ({ onClose, onSuccess, initialPatient }: Creat
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-        <div className="p-6 border-b border-slate-200">
+      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="p-4 border-b border-slate-200 flex-shrink-0">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold text-slate-900">Create Lab Test</h2>
-            <button
-              onClick={onClose}
-              className="text-slate-400 hover:text-slate-600"
-            >
+            <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600">
               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
           </div>
         </div>
+        <div className="flex border-b border-slate-200 px-4 flex-shrink-0">
+          {(['details', 'documents'] as const).map((tab) => (
+            <button key={tab} type="button" onClick={() => setActiveTab(tab)}
+              className={`px-4 py-3 text-sm font-medium border-b-2 -mb-px ${activeTab === tab ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+              {tab === 'documents' ? `Documents${documents.length > 0 ? ` (${documents.length})` : ''}` : 'Details'}
+            </button>
+          ))}
+        </div>
 
         <form
           onSubmit={handleSubmit}
-          className="p-6 space-y-4"
+          className="p-6 space-y-4 overflow-y-auto flex-1 min-h-0"
           onClick={(e) => {
-            // Close dropdowns when clicking outside inputs
             const target = e.target as HTMLElement
             if (target.tagName !== 'INPUT' && !target.closest('.absolute')) {
               setPatientOpen(false)
@@ -285,6 +331,8 @@ export const CreateLabTestModal = ({ onClose, onSuccess, initialPatient }: Creat
             }
           }}
         >
+          {activeTab === 'details' && (
+          <>
           {/* Patient Information */}
           <div>
             <h3 className="text-sm font-semibold text-slate-700 mb-3">Patient Information</h3>
@@ -527,6 +575,43 @@ export const CreateLabTestModal = ({ onClose, onSuccess, initialPatient }: Creat
               </div>
             </div>
           </div>
+          </>
+          )}
+          {activeTab === 'documents' && (
+            <div className="space-y-4">
+              <p className="text-sm text-slate-500">Attach documents (same table as Admission, Discharge, Patient). Optional.</p>
+              {documents.map((row, idx) => (
+                <div key={idx} className="rounded-lg border border-slate-200 bg-slate-50/50 p-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-0.5">File Name</label>
+                    <input value={row.file_name || ''} onChange={(e) => updateDocumentRow(idx, 'file_name', e.target.value)} placeholder="File name" className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-0.5">Document Type</label>
+                    <select value={row.document_type || ''} onChange={(e) => updateDocumentRow(idx, 'document_type', e.target.value)} className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm bg-white">
+                      <option value="">Select type</option>
+                      {documentTypes.map((dt) => <option key={dt.name} value={dt.name}>{dt.document_name || dt.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-0.5">Transaction No</label>
+                    <input value={row.transaction_no || ''} onChange={(e) => updateDocumentRow(idx, 'transaction_no', e.target.value)} placeholder="Optional" className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-0.5">Upload Remarks</label>
+                    <input value={row.upload_remarks || ''} onChange={(e) => updateDocumentRow(idx, 'upload_remarks', e.target.value)} placeholder="Optional" className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm" />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-medium text-slate-600 mb-0.5">File</label>
+                    <input type="file" disabled={documentUploading === idx} onChange={(e) => { const f = e.target.files?.[0]; if (f) handleDocumentFile(idx, f); e.target.value = '' }} className="w-full text-sm file:mr-2 file:rounded file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-white file:text-sm" />
+                    {documentUploading === idx && <span className="text-xs text-slate-500">Uploading...</span>}
+                    {row.document && documentUploading !== idx && <span className="text-xs text-green-600 block">✓ File attached</span>}
+                  </div>
+                </div>
+              ))}
+              <button type="button" onClick={addDocumentRow} className="flex items-center gap-1.5 text-sm text-primary font-medium hover:underline">+ Add document</button>
+            </div>
+          )}
 
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-md p-3 text-sm text-red-700">

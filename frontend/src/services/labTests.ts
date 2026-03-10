@@ -41,10 +41,13 @@ export interface LabTest {
   descriptive_result?: string
   custom_result?: string
   lab_test_comment?: string
-  remarks?: string
+  /** Remarks table (Remark child): list of { rrmark } */
+  remarks?: Array<{ rrmark?: string }>
   worksheet_instructions?: string
   normal_test_items?: any[]
   sensitivity_test_items?: any[]
+  /** Patient Upload Document child table (same as Admission/Discharge) */
+  documents?: Array<{ file_name?: string; document_type?: string; transaction_no?: string; upload_remarks?: string; document?: string }>
 }
 
 export interface LabConsumableRow {
@@ -120,6 +123,7 @@ export interface CreateLabTestData {
   department?: string
   service_unit?: string
   status?: string
+  documents?: Array<{ file_name?: string; document_type?: string; transaction_no?: string; upload_remarks?: string; document?: string }>
 }
 
 export async function createLabTest(data: CreateLabTestData): Promise<LabTest> {
@@ -181,6 +185,7 @@ export interface SaveAndSubmitLabTestInput {
   custom_result?: string
   lab_test_comment?: string
   worksheet_instructions?: string
+  documents?: Array<{ file_name?: string; document_type?: string; transaction_no?: string; upload_remarks?: string; document?: string }>
   submit?: boolean
 }
 
@@ -204,9 +209,14 @@ export async function saveAndSubmitLabTest(
   return data
 }
 
-export async function updateLabTestRemarks(labTestName: string, remarks: string): Promise<{ name: string; remarks: string }> {
+/** One row in the Lab Test remarks table (Remark child with field rrmark). */
+export interface LabTestRemarkRow {
+  rrmark?: string
+}
+
+export async function updateLabTestRemarks(labTestName: string, remarks: LabTestRemarkRow[]): Promise<{ name: string; remarks: LabTestRemarkRow[] }> {
   const { apiRequest } = await import('./apiClient')
-  return apiRequest<{ name: string; remarks: string }>(
+  return apiRequest<{ name: string; remarks: LabTestRemarkRow[] }>(
     '/api/method/healthcare.api.lab_test.update_lab_test_remarks',
     {
       method: 'POST',

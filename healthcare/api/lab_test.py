@@ -81,13 +81,12 @@ def get_lab_tests(limit=50, offset=0, patient=None, status=None, pending_review=
 
 @frappe.whitelist()
 def get_lab_test(name):
-	"""Get single Lab Test by name"""
+	"""Get single Lab Test by name (includes documents child table)."""
 	if not name:
 		frappe.throw(_("Lab Test name is required"))
 
 	lab_test = frappe.get_doc('Lab Test', name)
-	
-	return {
+	out = {
 		'name': lab_test.name,
 		'docstatus': lab_test.docstatus,
 		'patient': lab_test.patient,
@@ -107,6 +106,13 @@ def get_lab_test(name):
 		'worksheet_instructions': getattr(lab_test, 'worksheet_instructions', None),
 		'material_request': getattr(lab_test, 'material_request', None),
 	}
+	# Include documents child table (Patient Upload Document)
+	documents = getattr(lab_test, 'documents', None) or []
+	out['documents'] = [{'file_name': r.get('document_name') or r.get('file_name'), 'document_type': r.get('document_type'), 'transaction_no': r.get('transaction_no'), 'upload_remarks': r.get('upload_remarks'), 'document': r.get('document')} for r in documents]
+	# Include remarks child table (Remark)
+	remarks_table = getattr(lab_test, 'remarks', None) or []
+	out['remarks'] = [{'rrmark': getattr(r, 'rrmark', None) or ''} for r in remarks_table]
+	return out
 
 
 @frappe.whitelist()
@@ -201,15 +207,41 @@ def request_lab_consumables(lab_test, items, company=None, schedule_date=None):
 	return mr_name
 
 
+def _apply_documents_to_doc(doc, documents):
+	"""Replace doc.documents child table with the given list of dicts (Patient Upload Document shape)."""
+	if documents is None:
+		return
+	if isinstance(documents, str):
+		import json
+		documents = json.loads(documents)
+	doc.documents = []
+	for row in (documents or []):
+		if not isinstance(row, dict):
+			continue
+		if not (row.get('file_name') or row.get('document_name') or row.get('document')):
+			continue
+		user_label = row.get('file_name') or row.get('document_name') or ''
+		doc_type = row.get('document_type') or None
+		doc.append('documents', {
+			'document_name': user_label,
+			'file_name': doc_type if doc_type and frappe.db.exists('Document Type', doc_type) else None,
+			'document_type': doc_type,
+			'transaction_no': row.get('transaction_no') or None,
+			'upload_remarks': row.get('upload_remarks') or None,
+			'document': row.get('document') or None,
+		})
+
+
 @frappe.whitelist()
 def save_and_submit_lab_test(
 	name,
 	custom_result=None,
 	lab_test_comment=None,
 	worksheet_instructions=None,
+	documents=None,
 	submit: bool = False,
 ):
-	"""Save custom result/comment/worksheet fields on Lab Test and optionally submit it."""
+	"""Save custom result/comment/worksheet/documents on Lab Test and optionally submit it."""
 	if not name:
 		frappe.throw(_("Lab Test name is required"))
 
@@ -221,6 +253,7 @@ def save_and_submit_lab_test(
 		doc.lab_test_comment = lab_test_comment
 	if worksheet_instructions is not None:
 		doc.worksheet_instructions = worksheet_instructions
+	_apply_documents_to_doc(doc, documents)
 
 	if submit:
 		if doc.docstatus == 0:
@@ -244,11 +277,26 @@ def save_and_submit_lab_test(
 
 @frappe.whitelist()
 def update_lab_test_remarks(name, remarks=None):
-	"""Update the Remarks field on a Lab Test. Remarks is allow_on_submit, so this works for submitted docs."""
+	"""Update the Remarks table on a Lab Test. remarks can be a list of dicts with key 'rrmark' (Remark child table)."""
 	if not name:
 		frappe.throw(_("Lab Test name is required"))
-	frappe.db.set_value("Lab Test", name, "remarks", remarks or "", update_modified=True)
-	return {"name": name, "remarks": remarks or ""}
+	doc = frappe.get_doc("Lab Test", name)
+	if doc.docstatus == 2:
+		frappe.throw(_("Cannot update a cancelled Lab Test"))
+	if remarks is not None:
+		if isinstance(remarks, str):
+			import json
+			remarks = json.loads(remarks)
+		doc.remarks = []
+		for row in (remarks or []):
+			if not isinstance(row, dict):
+				continue
+			rrmark = (row.get("rrmark") or "").strip()
+			if rrmark:
+				doc.append("remarks", {"rrmark": rrmark})
+	doc.save(ignore_permissions=True)
+	out_remarks = [{"rrmark": getattr(r, "rrmark", None) or ""} for r in doc.remarks]
+	return {"name": name, "remarks": out_remarks}
 
 
 @frappe.whitelist()
@@ -290,7 +338,32 @@ def create_lab_test(data):
 	})
 	
 	lab_test.insert()
-	
+
+	# Append documents if provided (same child table as Patient/Discharge/Admission)
+	documents = data.get('documents')
+	if documents:
+		if isinstance(documents, str):
+			import json
+			documents = json.loads(documents)
+		for row in (documents or []):
+			if not isinstance(row, dict):
+				continue
+			if not (row.get('file_name') or row.get('document_name') or row.get('document')):
+				continue
+			# file_name in Patient Upload Document is Link to "Document Type"; use document_name (Data) for display/filename
+			user_label = row.get('file_name') or row.get('document_name') or ''
+			doc_type = row.get('document_type') or None
+			lab_test.append('documents', {
+				'document_name': user_label,
+				'file_name': doc_type if doc_type and frappe.db.exists('Document Type', doc_type) else None,
+				'document_type': doc_type,
+				'transaction_no': row.get('transaction_no') or None,
+				'upload_remarks': row.get('upload_remarks') or None,
+				'document': row.get('document') or None,
+			})
+		if lab_test.documents:
+			lab_test.save(ignore_permissions=True)
+
 	# Return the created lab test
 	return {
 		'name': lab_test.name,
