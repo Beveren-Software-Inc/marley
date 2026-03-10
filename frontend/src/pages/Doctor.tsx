@@ -42,6 +42,10 @@ import { MedicineGivenList } from '../components/medication/MedicineGivenList'
 import { reconcileDischargeMedicines } from '../services/medicineGiven'
 import { CreateVitalSignModal } from '../components/vitalSigns/CreateVitalSignModal'
 import { CreateECTDetailModal } from '../components/ect/CreateECTDetailModal'
+import { CreateECTAdmissionModal } from '../components/ect/CreateECTAdmissionModal'
+import { CreateECTProcedureModal } from '../components/ect/CreateECTProcedureModal'
+import { ECTAdmissionList } from '../components/ect/ECTAdmissionList'
+import { ECTProcedureList } from '../components/ect/ECTProcedureList'
 
 const doctorNav = [
   { label: 'Admission', screen: 'admission' },
@@ -86,6 +90,8 @@ export const DoctorPage = () => {
   const [showVitalSignModal, setShowVitalSignModal] = useState(false)
   const [vitalSignsRefreshKey, setVitalSignsRefreshKey] = useState(0)
   const [showECTModal, setShowECTModal] = useState(false)
+  const [showECTAdmissionModal, setShowECTAdmissionModal] = useState(false)
+  const [showECTProcedureModal, setShowECTProcedureModal] = useState(false)
   const [ectRefreshKey, setEctRefreshKey] = useState(0)
   const screen = searchParams.get('screen')
 
@@ -224,20 +230,83 @@ export const DoctorPage = () => {
           </div>
         </header>
         <div className="p-4">
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4 flex items-center justify-between">
-              <span>ECT Details</span>
-              <button
-                onClick={() => setShowECTModal(true)}
-                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
-                title="Add ECT Detail"
-              >
-                +
-              </button>
-            </div>
-            <ECTDetailsList patient={selectedPatient} refreshKey={ectRefreshKey} />
-          </section>
+          <div className="grid gap-4 md:grid-cols-2">
+            {/* ECT Admission card */}
+            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col">
+              <div className="font-semibold mb-4 flex items-center justify-between">
+                <span>ECT Admission</span>
+                <button
+                  onClick={() => setShowECTAdmissionModal(true)}
+                  className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
+                  title="Add ECT Admission"
+                >
+                  +
+                </button>
+              </div>
+              <p className="text-sm text-slate-600 mb-3">
+                Use this to record admission details for patients undergoing ECT.
+              </p>
+              <div className="flex-1 min-h-[80px]">
+                <ECTAdmissionList patient={selectedPatient} />
+              </div>
+            </section>
+
+            {/* ECT Procedure card */}
+            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col">
+              <div className="font-semibold mb-4 flex items-center justify-between">
+                <span>ECT Procedure</span>
+                <button
+                  onClick={() => setShowECTProcedureModal(true)}
+                  className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
+                  title="Add ECT Procedure"
+                >
+                  +
+                </button>
+              </div>
+              <p className="text-sm text-slate-600 mb-3">
+                Capture procedure details for each ECT session, including vitals and clinical notes.
+              </p>
+              <div className="flex-1 min-h-[80px]">
+                <ECTProcedureList patient={selectedPatient} />
+              </div>
+            </section>
+
+            {/* ECT Details card */}
+            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col md:col-span-2">
+              <div className="font-semibold mb-4 flex items-center justify-between">
+                <span>ECT Details</span>
+                <button
+                  onClick={() => setShowECTModal(true)}
+                  className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
+                  title="Add ECT Detail"
+                >
+                  +
+                </button>
+              </div>
+              <div className="flex-1 min-h-[120px]">
+                <ECTDetailsList patient={selectedPatient} refreshKey={ectRefreshKey} />
+              </div>
+            </section>
+          </div>
         </div>
+        {showECTAdmissionModal && (
+          <CreateECTAdmissionModal
+            onClose={() => setShowECTAdmissionModal(false)}
+            onSuccess={() => {
+              setShowECTAdmissionModal(false)
+            }}
+            initialPatient={selectedPatient}
+          />
+        )}
+        {showECTProcedureModal && (
+          <CreateECTProcedureModal
+            onClose={() => setShowECTProcedureModal(false)}
+            onSuccess={() => {
+              setShowECTProcedureModal(false)
+            }}
+            initialPatient={selectedPatient}
+          />
+        )}
         {showECTModal && (
           <CreateECTDetailModal
             onClose={() => setShowECTModal(false)}

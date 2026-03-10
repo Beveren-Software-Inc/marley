@@ -21,6 +21,9 @@ export const DischargeList = ({ patient, admission }: DischargeListProps) => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
   const [detailName, setDetailName] = useState<string | null>(null)
+  const [statusFilter, setStatusFilter] = useState<string>('')
+  const [typeFilter, setTypeFilter] = useState<string>('')
+  const [admissionFilter, setAdmissionFilter] = useState<string>('')
 
   useEffect(() => {
     const loadDischarges = async () => {
@@ -73,9 +76,87 @@ export const DischargeList = ({ patient, admission }: DischargeListProps) => {
     return 'Draft'
   }
 
+  const filtered = discharges.filter((d) => {
+    const status = getDocStatus(d.docstatus)
+    if (statusFilter && status !== statusFilter) return false
+    if (typeFilter && d.discharge_type !== typeFilter) return false
+    if (
+      admissionFilter &&
+      !(d.admission || '')
+        .toLowerCase()
+        .includes(admissionFilter.toLowerCase())
+    ) {
+      return false
+    }
+    return true
+  })
+
+  const statusOptions = ['Draft', 'Submitted', 'Cancelled']
+  const dischargeTypeOptions = Array.from(
+    new Set(discharges.map((d) => d.discharge_type).filter((x): x is string => !!x))
+  ).sort()
+
   return (
-    <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
-      <table className="w-full">
+    <div className="bg-white border border-slate-200 rounded-lg">
+      {/* Filters */}
+      <div className="px-4 pt-3 pb-2 border-b border-slate-200 flex flex-wrap gap-3 items-end">
+        <div className="flex flex-col">
+          <label className="text-xs font-medium text-slate-600 mb-1">IP Admission</label>
+          <input
+            type="text"
+            value={admissionFilter}
+            onChange={(e) => setAdmissionFilter(e.target.value)}
+            placeholder="Search admission no..."
+            className="w-40 rounded-md border border-slate-300 px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary"
+          />
+        </div>
+        <div className="flex flex-col">
+          <label className="text-xs font-medium text-slate-600 mb-1">Status</label>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="w-32 rounded-md border border-slate-300 px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-primary"
+          >
+            <option value="">All</option>
+            {statusOptions.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex flex-col">
+          <label className="text-xs font-medium text-slate-600 mb-1">Discharge Type</label>
+          <select
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
+            className="w-40 rounded-md border border-slate-300 px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-primary"
+          >
+            <option value="">All</option>
+            {dischargeTypeOptions.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
+        </div>
+        {(admissionFilter || statusFilter || typeFilter) && (
+          <button
+            type="button"
+            onClick={() => {
+              setAdmissionFilter('')
+              setStatusFilter('')
+              setTypeFilter('')
+            }}
+            className="ml-auto text-xs text-slate-600 hover:text-slate-900 px-2 py-1 rounded-md border border-slate-200 hover:border-slate-400"
+          >
+            Clear
+          </button>
+        )}
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full">
         <thead className="bg-slate-50 border-b border-slate-200">
           <tr>
             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
@@ -105,7 +186,7 @@ export const DischargeList = ({ patient, admission }: DischargeListProps) => {
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-200">
-          {discharges.map((discharge) => (
+          {filtered.map((discharge) => (
             <tr key={discharge.name} className="hover:bg-slate-50">
               <td
                 className="px-4 py-3 text-sm font-medium text-primary cursor-pointer hover:underline"
@@ -147,7 +228,8 @@ export const DischargeList = ({ patient, admission }: DischargeListProps) => {
             </tr>
           ))}
         </tbody>
-      </table>
+        </table>
+      </div>
 
       {detailName && (
         <DetailSlideOver

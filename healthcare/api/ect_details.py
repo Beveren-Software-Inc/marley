@@ -63,6 +63,86 @@ def get_ect_details(limit=50, offset=0, patient=None):
 
 
 @frappe.whitelist()
+def get_ect_admissions(limit=50, offset=0, patient=None):
+	"""Get list of ECT Admission"""
+	filters = {}
+
+	if patient:
+		filters['patient'] = patient
+
+	admissions = frappe.get_all(
+		'ECT Admission',
+		filters=filters,
+		fields=[
+			'name',
+			'patient',
+			'patient_name',
+			'date',
+			'bp',
+			'hr',
+			'resp_rate',
+			'spo2',
+			'doctor',
+			'doctors_name',
+		],
+		limit=limit,
+		limit_start=offset,
+		order_by='date desc, creation desc'
+	)
+
+	# Ensure patient_name populated
+	for adm in admissions:
+		if adm.get('patient') and not adm.get('patient_name'):
+			patient_name = frappe.db.get_value('Patient', adm['patient'], 'patient_name')
+			if patient_name:
+				adm['patient_name'] = patient_name
+
+	return admissions
+
+
+@frappe.whitelist()
+def get_ect_procedures(limit=50, offset=0, patient=None):
+	"""Get list of ECT Procedure"""
+	filters = {}
+
+	if patient:
+		filters['patient'] = patient
+
+	procedures = frappe.get_all(
+		'ECT Procedure',
+		filters=filters,
+		fields=[
+			'name',
+			'patient',
+			'patient_name',
+			'date',
+			'date_of_session',
+			'no_of_session',
+			'bp',
+			'hr',
+			'resp_rate',
+			'spo2',
+			'energy',
+			'consultant_doctor',
+			'assistant_doctor',
+			'anaesthetist',
+		],
+		limit=limit,
+		limit_start=offset,
+		order_by='date_of_session desc, creation desc'
+	)
+
+	# Ensure patient_name populated
+	for proc in procedures:
+		if proc.get('patient') and not proc.get('patient_name'):
+			patient_name = frappe.db.get_value('Patient', proc['patient'], 'patient_name')
+			if patient_name:
+				proc['patient_name'] = patient_name
+
+	return procedures
+
+
+@frappe.whitelist()
 def create_ect_detail(data):
 	"""Create a new ECT Details record."""
 	if isinstance(data, str):
@@ -113,6 +193,91 @@ def create_ect_detail(data):
 		"energy": doc.energy,
 		"duration": doc.duration,
 		"success": doc.success,
+	}
+
+
+@frappe.whitelist()
+def create_ect_admission(data):
+	"""Create a new ECT Admission record."""
+	if isinstance(data, str):
+		import json
+		data = json.loads(data)
+
+	if not data.get("patient"):
+		frappe.throw(_("Patient is required"))
+
+	doc = frappe.get_doc({
+		"doctype": "ECT Admission",
+		"patient": data.get("patient"),
+		"patient_name": data.get("patient_name"),
+		"date": data.get("date"),
+		"bp": data.get("bp"),
+		"hr": data.get("hr"),
+		"resp_rate": data.get("resp_rate"),
+		"spo2": data.get("spo2"),
+		"psychiatric_diagnosis": data.get("psychiatric_diagnosis"),
+		"medical_history": data.get("medical_history"),
+		"patient_allergy_history": data.get("patient_allergy_history"),
+		"other_complications": data.get("other_complications"),
+		"instructions": data.get("instructions"),
+		"doctor": data.get("doctor"),
+		"doctors_name": data.get("doctors_name"),
+	})
+	doc.insert()
+
+	return {
+		"name": doc.name,
+		"patient": doc.patient,
+		"patient_name": doc.patient_name,
+		"date": doc.date,
+	}
+
+
+@frappe.whitelist()
+def create_ect_procedure(data):
+	"""Create a new ECT Procedure record."""
+	if isinstance(data, str):
+		import json
+		data = json.loads(data)
+
+	if not data.get("patient"):
+		frappe.throw(_("Patient is required"))
+
+	doc = frappe.get_doc({
+		"doctype": "ECT Procedure",
+		"patient": data.get("patient"),
+		"patient_name": data.get("patient_name"),
+		"date": data.get("date"),
+		"npo_since": data.get("npo_since"),
+		"consultant_doctor": data.get("consultant_doctor"),
+		"assistant_doctor": data.get("assistant_doctor"),
+		"anaesthetist": data.get("anaesthetist"),
+		"type_of_anaesthesia": data.get("type_of_anaesthesia"),
+		"date_of_session": data.get("date_of_session"),
+		"no_of_session": data.get("no_of_session"),
+		"bp": data.get("bp"),
+		"hr": data.get("hr"),
+		"temp": data.get("temp"),
+		"resp_rate": data.get("resp_rate"),
+		"spo2": data.get("spo2"),
+		"energy": data.get("energy"),
+		"gtcs_for": data.get("gtcs_for"),
+		"bp_after": data.get("bp_after"),
+		"hr_after": data.get("hr_after"),
+		"resp_rate_after": data.get("resp_rate_after"),
+		"spo2_after": data.get("spo2_after"),
+		"progress_plan": data.get("progress_plan"),
+		"other_complications": data.get("other_complications"),
+		"sign_date": data.get("sign_date"),
+		"consultant_sign_date": data.get("consultant_sign_date"),
+	})
+	doc.insert()
+
+	return {
+		"name": doc.name,
+		"patient": doc.patient,
+		"patient_name": doc.patient_name,
+		"date": doc.date,
 	}
 
 

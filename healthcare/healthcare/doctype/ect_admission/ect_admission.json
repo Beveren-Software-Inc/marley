@@ -1,0 +1,188 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "ECTA-.MM-.YY-.####",
+ "creation": "2026-03-10 11:17:51.048500",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "patient",
+  "patient_name",
+  "column_break_ohej",
+  "date",
+  "section_break_ltyi",
+  "bp",
+  "hr",
+  "column_break_wwjx",
+  "resp_rate",
+  "spo2",
+  "psychiatry_section",
+  "psychiatric_diagnosis",
+  "patient_history_section",
+  "medical_history",
+  "column_break_oftb",
+  "patient_allergy_history",
+  "section_break_vftj",
+  "other_complications",
+  "section_break_kmdn",
+  "instructions",
+  "signatory_section",
+  "doctor",
+  "doctors_name",
+  "column_break_qbkw",
+  "doctor_signature"
+ ],
+ "fields": [
+  {
+   "fieldname": "patient",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Patient",
+   "options": "Patient",
+   "reqd": 1
+  },
+  {
+   "fieldname": "patient_name",
+   "fieldtype": "Data",
+   "label": "Patient Name"
+  },
+  {
+   "fieldname": "column_break_ohej",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "date",
+   "fieldtype": "Data",
+   "label": "Date"
+  },
+  {
+   "fieldname": "section_break_ltyi",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "bp",
+   "fieldtype": "Data",
+   "label": "BP"
+  },
+  {
+   "fieldname": "hr",
+   "fieldtype": "Data",
+   "label": "HR"
+  },
+  {
+   "fieldname": "column_break_wwjx",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "resp_rate",
+   "fieldtype": "Data",
+   "label": "Resp Rate"
+  },
+  {
+   "fieldname": "spo2",
+   "fieldtype": "Data",
+   "label": "SPO2"
+  },
+  {
+   "fieldname": "psychiatry_section",
+   "fieldtype": "Section Break",
+   "label": "Psychiatry"
+  },
+  {
+   "fieldname": "psychiatric_diagnosis",
+   "fieldtype": "Text Editor",
+   "label": "Psychiatric Diagnosis"
+  },
+  {
+   "fieldname": "patient_history_section",
+   "fieldtype": "Section Break",
+   "label": "Patient History"
+  },
+  {
+   "fieldname": "medical_history",
+   "fieldtype": "Text Editor",
+   "label": "Medical History"
+  },
+  {
+   "fieldname": "column_break_oftb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "patient_allergy_history",
+   "fieldtype": "Text Editor",
+   "label": "Patient Allergy History"
+  },
+  {
+   "fieldname": "section_break_vftj",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "other_complications",
+   "fieldtype": "Text Editor",
+   "label": "Other Complications/Contradictions"
+  },
+  {
+   "fieldname": "section_break_kmdn",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "instructions",
+   "fieldtype": "Small Text",
+   "label": "Instructions"
+  },
+  {
+   "fieldname": "signatory_section",
+   "fieldtype": "Section Break",
+   "label": "Signatory"
+  },
+  {
+   "fieldname": "doctor",
+   "fieldtype": "Link",
+   "label": "Doctor",
+   "options": "Healthcare Practitioner"
+  },
+  {
+   "fetch_from": "patient.patient_name",
+   "fieldname": "doctors_name",
+   "fieldtype": "Data",
+   "label": "Doctors Name"
+  },
+  {
+   "fieldname": "column_break_qbkw",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "doctor_signature",
+   "fieldtype": "Signature",
+   "label": "Doctor Signature"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-03-10 12:35:04.392954",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "ECT Admission",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}
