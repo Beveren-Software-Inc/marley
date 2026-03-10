@@ -31,6 +31,7 @@ import { CreateMedicineGivenModal } from '../components/medication/CreateMedicin
 import { MedicineGivenList } from '../components/medication/MedicineGivenList'
 import { DailyMedicationChart } from '../components/medication/DailyMedicationChart'
 import { MedicationSheet } from '../components/medication/MedicationSheet'
+import { LongActingMedReminderList } from '../components/medication/LongActingMedReminderList'
 import { reconcileDischargeMedicines } from '../services/medicineGiven'
 import { DiagnosisSymptomsScreen } from '../components/diagnosis/DiagnosisSymptomsScreen'
 import { AppointmentList } from '../components/appointments/AppointmentList'
@@ -872,6 +873,35 @@ export const NursePage = () => {
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
             <MedicationSheet patient={selectedPatient} />
+          </section>
+        </div>
+      </div>
+    )
+  }
+
+  // Long Acting Med Reminder – automatic alerts for extended-duration medications (Q1W, Q2W, Q3W, Q4W)
+  if (screen === 'n-reminder') {
+    return (
+      <div className="flex flex-col">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+        <div className="p-4">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+            <div className="font-semibold mb-4">
+              <span>Long Acting Med Reminder</span>
+            </div>
+            <LongActingMedReminderList patient={selectedPatient} daysAhead={7} />
           </section>
         </div>
       </div>

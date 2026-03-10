@@ -185,4 +185,42 @@ export async function reconcileDischargeMedicines(
   return (data?.message as ReconcileResponse) || { stock_entry: null, items: [] }
 }
 
+// Long-acting medication reminders (Q1W, Q2W, Q3W, Q4W)
+export type LongActingReminderStatus = 'overdue' | 'due_today' | 'due_soon'
+
+export interface LongActingMedicationReminder {
+  patient: string
+  patient_name?: string
+  admission: string
+  prescription: string
+  order_entry: string
+  drug: string
+  drug_name: string
+  dosage?: string
+  frequency: string
+  last_given_date: string
+  next_due_date: string
+  status: LongActingReminderStatus
+}
+
+export async function fetchLongActingMedicationReminders(
+  options?: { patient?: string; admission?: string; days_ahead?: number }
+): Promise<LongActingMedicationReminder[]> {
+  const params = new URLSearchParams()
+  if (options?.patient) params.append('patient', options.patient)
+  if (options?.admission) params.append('admission', options.admission)
+  if (options?.days_ahead != null) params.append('days_ahead', String(options.days_ahead))
+
+  const res = await fetch(
+    `/api/method/healthcare.api.medication_chart.get_long_acting_medication_reminders?${params.toString()}`
+  )
+  const data = await res.json()
+
+  if (data?.exc || !res.ok) {
+    throw new Error(data?.exc || data?.message || 'Failed to load long-acting medication reminders')
+  }
+
+  return (data?.message as LongActingMedicationReminder[]) || []
+}
+
 

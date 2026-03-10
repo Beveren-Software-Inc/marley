@@ -10,6 +10,8 @@
  "field_order": [
   "dosage",
   "frequency_in_a_day",
+  "column_break_bxra",
+  "long_acting",
   "section_break_iqky",
   "dosage_strength"
  ],
@@ -37,10 +39,20 @@
   {
    "fieldname": "section_break_iqky",
    "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_bxra",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "long_acting",
+   "fieldtype": "Check",
+   "label": "Long Acting"
   }
  ],
  "links": [],
- "modified": "2026-02-02 10:29:05.221475",
+ "modified": "2026-03-11 01:34:52.617796",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Prescription Frequency",
