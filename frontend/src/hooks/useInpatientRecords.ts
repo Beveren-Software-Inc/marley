@@ -7,7 +7,8 @@ export function useInpatientRecords(
   patient?: string,
   practitioner?: string,
   fromDate?: string,
-  toDate?: string
+  toDate?: string,
+  refreshKey?: string | number
 ) {
   const [records, setRecords] = useState<InpatientRecord[]>([])
   const [loading, setLoading] = useState(true)
@@ -28,7 +29,7 @@ export function useInpatientRecords(
     }
 
     loadRecords()
-  }, [status, search, patient, practitioner, fromDate, toDate])
+  }, [status, search, patient, practitioner, fromDate, toDate, refreshKey])
 
   return {
     records,

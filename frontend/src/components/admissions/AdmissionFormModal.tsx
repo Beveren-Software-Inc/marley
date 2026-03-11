@@ -344,9 +344,16 @@ interface AdmissionFormModalProps {
 
 type Tab = 'admission' | 'documents' | 'relatives'
 
+// Relationship options – must match IP Patient Relative doctype (same as Discharge)
 const RELATION_OPTIONS = [
-  'FATHER', 'SON', 'COLLEAGUES', 'MOTHER', 'AUNT', 'SISTER',
-  'BROTHER', 'FRIEND', 'UNCLE', 'WIFE', 'DAUGHTER', 'HUSBAND',
+  'Father',
+  'Mother',
+  'Brother',
+  'Sister',
+  'Husband',
+  'Wife',
+  'Son',
+  'Daughter',
 ] as const
 
 export const AdmissionFormModal = ({

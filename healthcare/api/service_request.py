@@ -210,13 +210,14 @@ def update_service_request(name, data):
 	doc = frappe.get_doc("Service Request", name)
 	if doc.docstatus == 2:
 		frappe.throw(_("Cannot update a cancelled Service Request"))
-	# Allowed fields for update (editable in edit modal)
+	# Allowed fields for update (editable in edit modal).
+	# Exclude set_only_once fields: practitioner, referring_practitioner, source (cannot be changed after set).
 	allowed = {
 		"patient", "patient_visit", "inpatient_record", "template_dt", "template_dn",
-		"practitioner", "order_date", "order_time", "medical_department", "department",
+		"order_date", "order_time", "medical_department", "department",
 		"status", "priority", "intent", "quantity", "occurrence_date", "occurrence_time",
 		"order_group", "order_description", "patient_instructions", "expected_date",
-		"amount", "source", "referring_practitioner", "referred_to_practitioner",
+		"amount", "referred_to_practitioner",
 		"staff_role", "patient_care_type", "healthcare_service_unit_type", "as_needed",
 		"dosage_form", "dosage", "period", "cost_center"
 	}
