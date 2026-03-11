@@ -630,7 +630,7 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
             }
           }}
         >
-          <div className="overflow-y-auto p-6 space-y-4" style={{ height: "520px" }}>
+          <div className="overflow-y-auto p-6 space-y-4 text-slate-900" style={{ height: "520px" }}>
 
             {/* ── TAB: Patient Details ── */}
             {activeTab === 'details' && (
@@ -648,13 +648,13 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
                           onChange={(e) => { setSalutationQuery(e.target.value); setSalutationOpen(true) }}
                           onFocus={() => setSalutationOpen(true)}
                           placeholder="Search title..."
-                          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                          className="w-full rounded-md border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                         />
                         {salutationOpen && salutationOptions.length > 0 && (
-                          <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                          <div className="absolute z-10 w-full mt-1 bg-white text-slate-900 border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
                             {salutationOptions.map((sal) => (
                               <button key={sal.name} type="button" onClick={() => handleSalutationSelect(sal)}
-                                className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100">
+                                className="w-full text-left px-3 py-2 text-sm text-slate-900 hover:bg-slate-100">
                                 {sal.label}
                               </button>
                             ))}
@@ -667,7 +667,7 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
                         File No <span className="text-red-500">*</span>
                       </label>
                       <input type="text" value={formData.file_no} onChange={(e) => handleChange('file_no', e.target.value)}
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" required />
+                        className="w-full rounded-md border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" required />
                     </div>
                     <div className="md:col-span-2">
                       <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -678,7 +678,7 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
                         value={formData.patient_name}
                         onChange={(e) => handleChange('patient_name', e.target.value)}
                         placeholder="Enter full name"
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                        className="w-full rounded-md border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                         required
                       />
                     </div>
@@ -687,7 +687,7 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
                         Gender <span className="text-red-500">*</span>
                       </label>
                       <select value={formData.sex} onChange={(e) => handleChange('sex', e.target.value)}
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" required>
+                        className="w-full rounded-md border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" required>
                         <option value="">Select Gender</option>
                         <option value="Male">Male</option>
                         <option value="Female">Female</option>
@@ -697,12 +697,12 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Date of Birth</label>
                       <input type="date" value={formData.dob} onChange={(e) => handleChange('dob', e.target.value)}
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                        className="w-full rounded-md border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Blood Group</label>
                       <select value={formData.blood_group} onChange={(e) => handleChange('blood_group', e.target.value)}
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                        className="w-full rounded-md border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
                         <option value="">Select Blood Group</option>
                         <option value="A Positive">A Positive</option>
                         <option value="A Negative">A Negative</option>
@@ -726,27 +726,27 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
                         Mobile <span className="text-red-500">*</span>
                       </label>
                       <input type="tel" value={formData.mobile} onChange={(e) => handleChange('mobile', e.target.value)} required
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                        className="w-full rounded-md border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Phone</label>
                       <input type="tel" value={formData.phone} onChange={(e) => handleChange('phone', e.target.value)}
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                        className="w-full rounded-md border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Alternative Mobile No</label>
                       <input type="tel" value={formData.alternative_mobile_no_1} onChange={(e) => handleChange('alternative_mobile_no_1', e.target.value)}
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                        className="w-full rounded-md border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Alternative Mobile No 2</label>
                       <input type="tel" value={formData.alternative_mobile_no_2} onChange={(e) => handleChange('alternative_mobile_no_2', e.target.value)}
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                        className="w-full rounded-md border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                     </div>
                     <div className="md:col-span-2">
                       <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
                       <input type="email" value={formData.email} onChange={(e) => handleChange('email', e.target.value)}
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                        className="w-full rounded-md border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                     </div>
                   </div>
                 </div>
@@ -759,7 +759,7 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
                       <label className="block text-sm font-medium text-slate-700 mb-1">CPR / ID / Passport No.</label>
                       <input type="text" value={formData.id_number} onChange={(e) => handleChange('id_number', e.target.value)}
                         placeholder="CPR / ID / Passport (unlimited digits)"
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                        className="w-full rounded-md border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Nationality</label>
@@ -769,7 +769,7 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
                           onChange={(e) => { setNationalityQuery(e.target.value); setNationalityOpen(true) }}
                           onFocus={() => setNationalityOpen(true)}
                           placeholder="Search nationality..."
-                          className="w-full rounded-md border border-slate-300 px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                          className="w-full rounded-md border border-slate-300 bg-white text-slate-900 px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                         <button type="button" onClick={(e) => { e.stopPropagation(); setShowCreateNationality(true) }}
                           className="absolute right-2 p-1 text-primary hover:text-primary/80 rounded" title="Create New Nationality">
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -777,10 +777,10 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
                           </svg>
                         </button>
                         {nationalityOpen && nationalityOptions.length > 0 && (
-                          <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto top-full">
+                          <div className="absolute z-10 w-full mt-1 bg-white text-slate-900 border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto top-full">
                             {nationalityOptions.map((nat) => (
                               <button key={nat.name} type="button" onClick={() => handleNationalitySelect(nat)}
-                                className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 focus:bg-slate-100 focus:outline-none">
+                                className="w-full text-left px-3 py-2 text-sm text-slate-900 hover:bg-slate-100 focus:bg-slate-100 focus:outline-none">
                                 <div className="font-medium">{nat.label}</div>
                                 {nat.country && <div className="text-xs text-slate-500">{nat.country}</div>}
                               </button>
@@ -794,7 +794,7 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
                         Patient type <span className="text-red-500">*</span>
                       </label>
                       <select value={formData.category} onChange={(e) => handleChange('category', e.target.value)} required
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                        className="w-full rounded-md border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
                         <option value="">Select Patient type</option>
                         <option value="Royal">Royal</option>
                         <option value="American Navy">American Navy</option>
@@ -811,7 +811,7 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
                           onChange={(e) => { setSourceQuery(e.target.value); setSourceOpen(true) }}
                           onFocus={() => setSourceOpen(true)}
                           placeholder="Search source..."
-                          className="w-full rounded-md border border-slate-300 px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary" required />
+                          className="w-full rounded-md border border-slate-300 bg-white text-slate-900 px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary" required />
                         <button type="button" onClick={(e) => { e.stopPropagation(); setShowCreateSource(true) }}
                           className="absolute right-2 p-1 text-primary hover:text-primary/80 rounded" title="Create New Source">
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -819,10 +819,10 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
                           </svg>
                         </button>
                         {sourceOpen && sourceOptions.length > 0 && (
-                          <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto top-full">
+                          <div className="absolute z-10 w-full mt-1 bg-white text-slate-900 border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto top-full">
                             {sourceOptions.map((source) => (
                               <button key={source.name} type="button" onClick={() => handleSourceSelect(source)}
-                                className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 focus:bg-slate-100 focus:outline-none">
+                                className="w-full text-left px-3 py-2 text-sm text-slate-900 hover:bg-slate-100 focus:bg-slate-100 focus:outline-none">
                                 {source.label}
                               </button>
                             ))}
@@ -833,7 +833,7 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Marital Status</label>
                       <select value={formData.marital_status} onChange={(e) => handleChange('marital_status', e.target.value)}
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                        className="w-full rounded-md border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
                         <option value="">Select Marital Status</option>
                         <option value="Single">Single</option>
                         <option value="Married">Married</option>
@@ -858,7 +858,7 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
                         type="text"
                         value={formData.job_title}
                         onChange={(e) => handleChange('job_title', e.target.value)}
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                        className="w-full rounded-md border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                         placeholder="e.g. Nurse, Engineer, Teacher"
                       />
                     </div>
@@ -870,7 +870,7 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
                         type="text"
                         value={formData.job_company}
                         onChange={(e) => handleChange('job_company', e.target.value)}
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                        className="w-full rounded-md border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                         placeholder="Company / Organization"
                       />
                     </div>
@@ -890,7 +890,7 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
                         value={formData.address_line1}
                         onChange={(e) => handleChange('address_line1', e.target.value)}
                         placeholder="Street address, P.O. box, company name"
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                        className="w-full rounded-md border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                         required
                       />
                     </div>
@@ -901,7 +901,7 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
                         value={formData.address_line2}
                         onChange={(e) => handleChange('address_line2', e.target.value)}
                         placeholder="Apartment, suite, unit, building, floor, etc."
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                        className="w-full rounded-md border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                       />
                     </div>
                     <div>
@@ -912,7 +912,7 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
                         type="text"
                         value={formData.city}
                         onChange={(e) => handleChange('city', e.target.value)}
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                        className="w-full rounded-md border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                         required
                       />
                     </div>
@@ -922,7 +922,7 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
                         type="text"
                         value={formData.state}
                         onChange={(e) => handleChange('state', e.target.value)}
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                        className="w-full rounded-md border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                       />
                     </div>
                     <div>
@@ -930,7 +930,7 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
                       <select
                         value={formData.country}
                         onChange={(e) => handleChange('country', e.target.value)}
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+                        className="w-full rounded-md border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                       >
                         <option value="">Select country</option>
                         {countries.map((c) => (
@@ -946,7 +946,7 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
                         type="text"
                         value={formData.pincode}
                         onChange={(e) => handleChange('pincode', e.target.value)}
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                        className="w-full rounded-md border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                       />
                     </div>
                   </div>
@@ -965,7 +965,7 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
                     <div className="md:col-span-2">
                       <label className="block text-sm font-medium text-slate-700 mb-1">Any Other Information / Remarks</label>
                       <textarea value={formData.remarks} onChange={(e) => handleChange('remarks', e.target.value)} rows={2}
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                        className="w-full rounded-md border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                     </div>
                   </div>
                 </div>
@@ -1014,12 +1014,12 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
                           onChange={(e) => { setInsuranceQuery(e.target.value); setInsuranceOpen(true) }}
                           onFocus={() => setInsuranceOpen(true)}
                           placeholder="Search Healthcare Insurance..."
-                          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none" />
+                          className="w-full rounded-md border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none" />
                         {insuranceOpen && insuranceOptions.length > 0 && (
-                          <div className="absolute z-10 w-full bg-white border border-slate-200 rounded-md shadow max-h-60 overflow-y-auto">
+                          <div className="absolute z-10 w-full bg-white text-slate-900 border border-slate-200 rounded-md shadow max-h-60 overflow-y-auto">
                             {insuranceOptions.map((ins) => (
                               <button key={ins.name} type="button" onClick={() => handleInsuranceSelect(ins)}
-                                className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100">
+                                className="w-full text-left px-3 py-2 text-sm text-slate-900 hover:bg-slate-100">
                                 {ins.name}
                               </button>
                             ))}
@@ -1045,7 +1045,7 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
                     <div className="flex flex-col gap-1">
                       <label className="text-xs font-medium text-slate-600">Reference No</label>
                       <input value={formData.ref_no || ''} onChange={(e) => handleChange('ref_no', e.target.value)}
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none" />
+                        className="w-full rounded-md border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none" />
                     </div>
                   </div>
                 )}
@@ -1088,12 +1088,12 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
                           <label className="block text-xs font-medium text-slate-600 mb-0.5">Full Name</label>
                           <input type="text" value={row.full_name || ''} onChange={(e) => updateRelationRow(idx, 'full_name', e.target.value)}
                             placeholder="Full name"
-                            className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                            className="w-full rounded border border-slate-300 bg-white text-slate-900 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                         </div>
                         <div>
                           <label className="block text-xs font-medium text-slate-600 mb-0.5">Relation</label>
                           <select value={row.relation || ''} onChange={(e) => updateRelationRow(idx, 'relation', e.target.value)}
-                            className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary">
+                            className="w-full rounded border border-slate-300 bg-white text-slate-900 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
                             <option value="">Select relation</option>
                             {PATIENT_RELATION_OPTIONS.map((opt) => (
                               <option key={opt} value={opt}>{opt}</option>
@@ -1104,13 +1104,13 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
                           <label className="block text-xs font-medium text-slate-600 mb-0.5">Mobile No</label>
                           <input type="tel" value={row.mobile_no || ''} onChange={(e) => updateRelationRow(idx, 'mobile_no', e.target.value)}
                             placeholder="Mobile number"
-                            className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                            className="w-full rounded border border-slate-300 bg-white text-slate-900 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                         </div>
                         <div>
                           <label className="block text-xs font-medium text-slate-600 mb-0.5">Email</label>
                           <input type="email" value={row.email || ''} onChange={(e) => updateRelationRow(idx, 'email', e.target.value)}
                             placeholder="Email address"
-                            className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                            className="w-full rounded border border-slate-300 bg-white text-slate-900 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                         </div>
                       </div>
                     </div>
@@ -1163,12 +1163,12 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
                             <label className="block text-xs font-medium text-slate-600 mb-0.5">File Name</label>
                             <input value={row.file_name} onChange={(e) => updateDocumentRow(idx, 'file_name', e.target.value)}
                               placeholder="File name"
-                              className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                              className="w-full rounded border border-slate-300 bg-white text-slate-900 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                           </div>
                           <div>
                             <label className="block text-xs font-medium text-slate-600 mb-0.5">Document Type</label>
                             <select value={row.document_type || ''} onChange={(e) => updateDocumentRow(idx, 'document_type', e.target.value)}
-                              className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary">
+                              className="w-full rounded border border-slate-300 bg-white text-slate-900 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
                               <option value="">Select type</option>
                               {documentTypes.map((dt) => (
                                 <option key={dt.name} value={dt.name}>{dt.document_name || dt.name}</option>
@@ -1179,13 +1179,13 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
                             <label className="block text-xs font-medium text-slate-600 mb-0.5">Transaction No</label>
                             <input value={row.transaction_no || ''} onChange={(e) => updateDocumentRow(idx, 'transaction_no', e.target.value)}
                               placeholder="Transaction number"
-                              className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                              className="w-full rounded border border-slate-300 bg-white text-slate-900 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                           </div>
                           <div>
                             <label className="block text-xs font-medium text-slate-600 mb-0.5">Upload Remarks</label>
                             <input value={row.upload_remarks || ''} onChange={(e) => updateDocumentRow(idx, 'upload_remarks', e.target.value)}
                               placeholder="Remarks"
-                              className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                              className="w-full rounded border border-slate-300 bg-white text-slate-900 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                           </div>
                           <div className="sm:col-span-2">
                             <label className="block text-xs font-medium text-slate-600 mb-0.5">
