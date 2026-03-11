@@ -38,7 +38,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
   const [error, setError] = useState<string | null>(null)
   const [showCreatePatient, setShowCreatePatient] = useState(false)
   const [showCreatePractitioner, setShowCreatePractitioner] = useState(false)
-  const [practitionerFieldType, setPractitionerFieldType] = useState<'primary' | 'secondary' | null>(null)
+  const [practitionerFieldType, setPractitionerFieldType] = useState<'consultant' | 'psychologist' | 'resident' | null>(null)
 
   // Company state
   const [companies, setCompanies] = useState<Company[]>([])
@@ -53,22 +53,25 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
   
   // Link field options
   const [medicalDepartments, setMedicalDepartments] = useState<LinkFieldOption[]>([])
-  const [primaryPractitioners, setPrimaryPractitioners] = useState<LinkFieldOption[]>([])
-  const [secondaryPractitioners, setSecondaryPractitioners] = useState<LinkFieldOption[]>([])
+  const [consultantOptions, setConsultantOptions] = useState<LinkFieldOption[]>([])
+  const [psychologistOptions, setPsychologistOptions] = useState<LinkFieldOption[]>([])
+  const [residentOptions, setResidentOptions] = useState<LinkFieldOption[]>([])
   const [serviceUnitTypes, setServiceUnitTypes] = useState<LinkFieldOption[]>([])
   const [nursingTemplates, setNursingTemplates] = useState<LinkFieldOption[]>([])
   
   // Dropdown open states
   const [deptOpen, setDeptOpen] = useState(false)
-  const [primaryPractOpen, setPrimaryPractOpen] = useState(false)
-  const [secondaryPractOpen, setSecondaryPractOpen] = useState(false)
+  const [consultantOpen, setConsultantOpen] = useState(false)
+  const [psychologistOpen, setPsychologistOpen] = useState(false)
+  const [residentOpen, setResidentOpen] = useState(false)
   const [serviceUnitOpen, setServiceUnitOpen] = useState(false)
   const [nursingTemplateOpen, setNursingTemplateOpen] = useState(false)
   
   // Search queries for link fields
   const [deptQuery, setDeptQuery] = useState('')
-  const [primaryPractQuery, setPrimaryPractQuery] = useState('')
-  const [secondaryPractQuery, setSecondaryPractQuery] = useState('')
+  const [consultantQuery, setConsultantQuery] = useState('')
+  const [psychologistQuery, setPsychologistQuery] = useState('')
+  const [residentQuery, setResidentQuery] = useState('')
   const [serviceUnitQuery, setServiceUnitQuery] = useState('')
   const [nursingTemplateQuery, setNursingTemplateQuery] = useState('')
 
@@ -76,8 +79,9 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
     company: '',
     cost_center: '',
     medical_department: '',
-    primary_practitioner: '',
-    secondary_practitioner: '',
+    consultant_doctor: '',
+    psychologist_doctor: '',
+    residents_doctor: '',
     admission_service_unit_type: '',
     admission_ordered_for: new Date().toISOString().split('T')[0],
     expected_length_of_stay: '',
@@ -191,15 +195,16 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
   }, [deptQuery, deptOpen])
 
   // Search practitioners (filtered by department if selected)
+  // Consultant Doctor (primary)
   useEffect(() => {
-    if (primaryPractOpen || primaryPractQuery || formData.medical_department) {
+    if (consultantOpen || consultantQuery || formData.medical_department) {
       const search = async () => {
         try {
           const results = await fetchHealthcarePractitioners(
-            primaryPractQuery || undefined,
+            consultantQuery || undefined,
             formData.medical_department || undefined
           )
-          setPrimaryPractitioners(results)
+          setConsultantOptions(results)
         } catch (err) {
           console.error('Failed to search practitioners:', err)
         }
@@ -207,17 +212,18 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
       const timeoutId = setTimeout(search, 300)
       return () => clearTimeout(timeoutId)
     }
-  }, [primaryPractQuery, primaryPractOpen, formData.medical_department])
+  }, [consultantQuery, consultantOpen, formData.medical_department])
 
+  // Psychologist Doctor
   useEffect(() => {
-    if (secondaryPractOpen || secondaryPractQuery || formData.medical_department) {
+    if (psychologistOpen || psychologistQuery || formData.medical_department) {
       const search = async () => {
         try {
           const results = await fetchHealthcarePractitioners(
-            secondaryPractQuery || undefined,
+            psychologistQuery || undefined,
             formData.medical_department || undefined
           )
-          setSecondaryPractitioners(results)
+          setPsychologistOptions(results)
         } catch (err) {
           console.error('Failed to search practitioners:', err)
         }
@@ -225,7 +231,26 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
       const timeoutId = setTimeout(search, 300)
       return () => clearTimeout(timeoutId)
     }
-  }, [secondaryPractQuery, secondaryPractOpen, formData.medical_department])
+  }, [psychologistQuery, psychologistOpen, formData.medical_department])
+
+  // Residents Doctor
+  useEffect(() => {
+    if (residentOpen || residentQuery || formData.medical_department) {
+      const search = async () => {
+        try {
+          const results = await fetchHealthcarePractitioners(
+            residentQuery || undefined,
+            formData.medical_department || undefined
+          )
+          setResidentOptions(results)
+        } catch (err) {
+          console.error('Failed to search practitioners:', err)
+        }
+      }
+      const timeoutId = setTimeout(search, 300)
+      return () => clearTimeout(timeoutId)
+    }
+  }, [residentQuery, residentOpen, formData.medical_department])
 
   // Search service unit types
   useEffect(() => {
@@ -278,13 +303,13 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
       return
     }
 
-    if (!formData.medical_department) {
-      setError('Medical Department is required')
-      return
-    }
+    // if (!formData.medical_department) {
+    //   setError('Medical Department is required')
+    //   return
+    // }
 
-    if (!formData.primary_practitioner) {
-      setError('Primary Practitioner is required')
+    if (!formData.consultant_doctor) {
+      setError('Consultant Doctor is required')
       return
     }
 
@@ -301,7 +326,9 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
         company: formData.company,
         cost_center: formData.cost_center,
         medical_department: formData.medical_department,
-        primary_practitioner: formData.primary_practitioner,
+        primary_practitioner: formData.consultant_doctor,
+        psychologist_doctor: formData.psychologist_doctor || undefined,
+        residents_doctor_no: formData.residents_doctor || undefined,
         admission_ordered_for: formData.admission_ordered_for,
       }
       
@@ -309,9 +336,6 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
         args.admission_encounter = encounterName
       }
       
-      if (formData.secondary_practitioner) {
-        args.secondary_practitioner = formData.secondary_practitioner
-      }
       if (formData.admission_service_unit_type) {
         args.admission_service_unit_type = formData.admission_service_unit_type
       }
@@ -348,11 +372,11 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
             errorMessage = 'This patient already has a scheduled admission. Please check existing admissions or cancel the current one before creating a new admission.'
           }
         } else if (errorMessage.includes('Missing required details')) {
-          errorMessage = 'Please fill in all required fields: Patient, Medical Department, and Primary Practitioner are required.'
-        } else if (errorMessage.includes('Medical Department is required')) {
-          errorMessage = 'Medical Department is required when creating admission without a Patient Visit.'
+          errorMessage = 'Please fill in all required fields: Patient, Medical Department, and Consultant Doctor are required.'
+        // } else if (errorMessage.includes('Medical Department is required')) {
+        //   errorMessage = 'Medical Department is required when creating admission without a Patient Visit.'
         } else if (errorMessage.includes('Primary Practitioner is required')) {
-          errorMessage = 'Primary Practitioner is required when creating admission without a Patient Visit.'
+          errorMessage = 'Consultant Doctor is required when creating admission without a Patient Visit.'
         } else if (errorMessage.includes('Patient is required')) {
           errorMessage = 'Please select a patient.'
         }
@@ -389,8 +413,9 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
     setCompanyOpen(false)
     setCostCenterOpen(false)
     setDeptOpen(false)
-    setPrimaryPractOpen(false)
-    setSecondaryPractOpen(false)
+    setConsultantOpen(false)
+    setPsychologistOpen(false)
+    setResidentOpen(false)
     setServiceUnitOpen(false)
     setNursingTemplateOpen(false)
   }
@@ -428,6 +453,8 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                 type="text"
                 value={selectedPatient ? (selectedPatient.patient_name || selectedPatient.name) : patientQuery}
                 onChange={(e) => {
+                  // When user types after selecting, clear the selection so input becomes fully editable
+                  setSelectedPatient(null)
                   setPatientQuery(e.target.value)
                   setPatientOpen(true)
                 }}
@@ -574,7 +601,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
 
           <div className="grid grid-cols-2 gap-4">
             {/* Medical Department */}
-            <div className="relative">
+            {/* <div className="relative">
               <label className="block text-sm font-medium text-slate-700 mb-1">
                 Medical Department <span className="text-red-500">*</span>
               </label>
@@ -614,23 +641,25 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                   </div>
                 )}
               </div>
-            </div>
+            </div> */}
 
-            {/* Primary Practitioner */}
+            {/* Consultant Doctor (Primary Practitioner) */}
             <div className="relative">
               <label className="block text-sm font-medium text-slate-700 mb-1">
-                Primary Practitioner <span className="text-red-500">*</span>
+                Consultant Doctor <span className="text-red-500">*</span>
               </label>
               <div className="relative flex items-center">
                 <input
                   type="text"
-                  value={formData.primary_practitioner ? primaryPractitioners.find(p => p.name === formData.primary_practitioner)?.label || formData.primary_practitioner : primaryPractQuery}
+                  value={formData.consultant_doctor ? consultantOptions.find(p => p.name === formData.consultant_doctor)?.label || formData.consultant_doctor : consultantQuery}
                   onChange={(e) => {
-                    setPrimaryPractQuery(e.target.value)
-                    setPrimaryPractOpen(true)
+                    // Clear current selection so user can freely edit text
+                    setFormData(prev => ({ ...prev, consultant_doctor: '' }))
+                    setConsultantQuery(e.target.value)
+                    setConsultantOpen(true)
                   }}
-                  onFocus={() => setPrimaryPractOpen(true)}
-                  placeholder="Search Healthcare Practitioner..."
+                  onFocus={() => setConsultantOpen(true)}
+                  placeholder="Search Consultant Doctor..."
                   className="w-full rounded-md border border-slate-300 px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                   required
                 />
@@ -638,7 +667,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation()
-                    setPractitionerFieldType('primary')
+                    setPractitionerFieldType('consultant')
                     setShowCreatePractitioner(true)
                   }}
                   className="absolute right-2 p-1 text-primary hover:text-primary/80 rounded"
@@ -648,18 +677,18 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                   </svg>
                 </button>
-                {primaryPractOpen && (
+                {consultantOpen && (
                   <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-auto top-full">
-                    {primaryPractitioners.length > 0 ? (
-                      primaryPractitioners.map((pract) => (
+                    {consultantOptions.length > 0 ? (
+                      consultantOptions.map((pract) => (
                         <button
                           key={pract.name}
                           type="button"
                           className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50"
                           onClick={() => {
-                            setFormData(prev => ({ ...prev, primary_practitioner: pract.name }))
-                            setPrimaryPractQuery(pract.label)
-                            setPrimaryPractOpen(false)
+                            setFormData(prev => ({ ...prev, consultant_doctor: pract.name }))
+                            setConsultantQuery(pract.label)
+                            setConsultantOpen(false)
                           }}
                         >
                           <div className="font-medium">{pract.label}</div>
@@ -676,28 +705,30 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
               </div>
             </div>
 
-            {/* Secondary Practitioner */}
+            {/* Psychologist Doctor */}
             <div className="relative">
               <label className="block text-sm font-medium text-slate-700 mb-1">
-                Secondary Practitioner
+                Psychologist Doctor
               </label>
               <div className="relative flex items-center">
                 <input
                   type="text"
-                  value={formData.secondary_practitioner ? secondaryPractitioners.find(p => p.name === formData.secondary_practitioner)?.label || formData.secondary_practitioner : secondaryPractQuery}
+                  value={formData.psychologist_doctor ? psychologistOptions.find(p => p.name === formData.psychologist_doctor)?.label || formData.psychologist_doctor : psychologistQuery}
                   onChange={(e) => {
-                    setSecondaryPractQuery(e.target.value)
-                    setSecondaryPractOpen(true)
+                    // Clear current selection so user can freely edit text
+                    setFormData(prev => ({ ...prev, psychologist_doctor: '' }))
+                    setPsychologistQuery(e.target.value)
+                    setPsychologistOpen(true)
                   }}
-                  onFocus={() => setSecondaryPractOpen(true)}
-                  placeholder="Search Healthcare Practitioner (Optional)..."
+                  onFocus={() => setPsychologistOpen(true)}
+                  placeholder="Search Psychologist Doctor..."
                   className="w-full rounded-md border border-slate-300 px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                 />
                 <button
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation()
-                    setPractitionerFieldType('secondary')
+                    setPractitionerFieldType('psychologist')
                     setShowCreatePractitioner(true)
                   }}
                   className="absolute right-2 p-1 text-primary hover:text-primary/80 rounded"
@@ -707,18 +738,79 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                   </svg>
                 </button>
-                {secondaryPractOpen && (
+                {psychologistOpen && (
                   <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-auto top-full">
-                    {secondaryPractitioners.length > 0 ? (
-                      secondaryPractitioners.map((pract) => (
+                    {psychologistOptions.length > 0 ? (
+                      psychologistOptions.map((pract) => (
                         <button
                           key={pract.name}
                           type="button"
                           className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50"
                           onClick={() => {
-                            setFormData(prev => ({ ...prev, secondary_practitioner: pract.name }))
-                            setSecondaryPractQuery(pract.label)
-                            setSecondaryPractOpen(false)
+                            setFormData(prev => ({ ...prev, psychologist_doctor: pract.name }))
+                            setPsychologistQuery(pract.label)
+                            setPsychologistOpen(false)
+                          }}
+                        >
+                          <div className="font-medium">{pract.label}</div>
+                          {pract.department && (
+                            <div className="text-xs text-slate-500">{pract.department}</div>
+                          )}
+                        </button>
+                      ))
+                    ) : (
+                      <div className="px-3 py-2 text-xs text-slate-500">No practitioners found</div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Residents Doctor */}
+            <div className="relative">
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Residents Doctor
+              </label>
+              <div className="relative flex items-center">
+                <input
+                  type="text"
+                  value={formData.residents_doctor ? residentOptions.find(p => p.name === formData.residents_doctor)?.label || formData.residents_doctor : residentQuery}
+                  onChange={(e) => {
+                    // Clear current selection so user can freely edit text
+                    setFormData(prev => ({ ...prev, residents_doctor: '' }))
+                    setResidentQuery(e.target.value)
+                    setResidentOpen(true)
+                  }}
+                  onFocus={() => setResidentOpen(true)}
+                  placeholder="Search Residents Doctor..."
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setPractitionerFieldType('resident')
+                    setShowCreatePractitioner(true)
+                  }}
+                  className="absolute right-2 p-1 text-primary hover:text-primary/80 rounded"
+                  title="Create New Practitioner"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                </button>
+                {residentOpen && (
+                  <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-auto top-full">
+                    {residentOptions.length > 0 ? (
+                      residentOptions.map((pract) => (
+                        <button
+                          key={pract.name}
+                          type="button"
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50"
+                          onClick={() => {
+                            setFormData(prev => ({ ...prev, residents_doctor: pract.name }))
+                            setResidentQuery(pract.label)
+                            setResidentOpen(false)
                           }}
                         >
                           <div className="font-medium">{pract.label}</div>
@@ -738,13 +830,15 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
             {/* Service Unit Type */}
             <div className="relative">
               <label className="block text-sm font-medium text-slate-700 mb-1">
-                Bed
+                Service Unit Type
               </label>
               <div className="relative">
                 <input
                   type="text"
                   value={formData.admission_service_unit_type ? serviceUnitTypes.find(s => s.name === formData.admission_service_unit_type)?.label || formData.admission_service_unit_type : serviceUnitQuery}
                   onChange={(e) => {
+                    // Clear current selection so user can freely edit text
+                    setFormData(prev => ({ ...prev, admission_service_unit_type: '' }))
                     setServiceUnitQuery(e.target.value)
                     setServiceUnitOpen(true)
                   }}
@@ -806,48 +900,6 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
             </div>
           </div>
 
-          {/* Nursing Checklist Template */}
-          <div className="relative">
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              Nursing Checklist Template
-            </label>
-            <div className="relative">
-              <input
-                type="text"
-                value={formData.admission_nursing_checklist_template ? nursingTemplates.find(t => t.name === formData.admission_nursing_checklist_template)?.label || formData.admission_nursing_checklist_template : nursingTemplateQuery}
-                onChange={(e) => {
-                  setNursingTemplateQuery(e.target.value)
-                  setNursingTemplateOpen(true)
-                }}
-                onFocus={() => setNursingTemplateOpen(true)}
-                placeholder="Search Nursing Checklist Template..."
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-              />
-              {nursingTemplateOpen && (
-                <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-auto">
-                  {nursingTemplates.length > 0 ? (
-                    nursingTemplates.map((template) => (
-                      <button
-                        key={template.name}
-                        type="button"
-                        className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50"
-                        onClick={() => {
-                          setFormData(prev => ({ ...prev, admission_nursing_checklist_template: template.name }))
-                          setNursingTemplateQuery(template.label)
-                          setNursingTemplateOpen(false)
-                        }}
-                      >
-                        {template.label}
-                      </button>
-                    ))
-                  ) : (
-                    <div className="px-3 py-2 text-xs text-slate-500">No templates found</div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-
           {/* Admission Instructions */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -906,26 +958,36 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
             setPractitionerFieldType(null)
           }}
           onSuccess={(practitionerName) => {
-            if (practitionerFieldType === 'primary') {
-              setFormData(prev => ({ ...prev, primary_practitioner: practitionerName }))
-              const newPract = primaryPractitioners.find(p => p.name === practitionerName)
+            if (practitionerFieldType === 'consultant') {
+              setFormData(prev => ({ ...prev, consultant_doctor: practitionerName }))
+              const newPract = consultantOptions.find(p => p.name === practitionerName)
               if (newPract) {
-                setPrimaryPractQuery(newPract.label)
+                setConsultantQuery(newPract.label)
               } else {
-                fetchHealthcarePractitioners(formData.medical_department).then(setPrimaryPractitioners).catch(console.error)
-                setPrimaryPractQuery(practitionerName)
+                fetchHealthcarePractitioners(formData.medical_department).then(setConsultantOptions).catch(console.error)
+                setConsultantQuery(practitionerName)
               }
-              setPrimaryPractOpen(false)
-            } else if (practitionerFieldType === 'secondary') {
-              setFormData(prev => ({ ...prev, secondary_practitioner: practitionerName }))
-              const newPract = secondaryPractitioners.find(p => p.name === practitionerName)
+              setConsultantOpen(false)
+            } else if (practitionerFieldType === 'psychologist') {
+              setFormData(prev => ({ ...prev, psychologist_doctor: practitionerName }))
+              const newPract = psychologistOptions.find(p => p.name === practitionerName)
               if (newPract) {
-                setSecondaryPractQuery(newPract.label)
+                setPsychologistQuery(newPract.label)
               } else {
-                fetchHealthcarePractitioners(formData.medical_department).then(setSecondaryPractitioners).catch(console.error)
-                setSecondaryPractQuery(practitionerName)
+                fetchHealthcarePractitioners(formData.medical_department).then(setPsychologistOptions).catch(console.error)
+                setPsychologistQuery(practitionerName)
               }
-              setSecondaryPractOpen(false)
+              setPsychologistOpen(false)
+            } else if (practitionerFieldType === 'resident') {
+              setFormData(prev => ({ ...prev, residents_doctor: practitionerName }))
+              const newPract = residentOptions.find(p => p.name === practitionerName)
+              if (newPract) {
+                setResidentQuery(newPract.label)
+              } else {
+                fetchHealthcarePractitioners(formData.medical_department).then(setResidentOptions).catch(console.error)
+                setResidentQuery(practitionerName)
+              }
+              setResidentOpen(false)
             }
             setShowCreatePractitioner(false)
             setPractitionerFieldType(null)

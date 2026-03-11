@@ -23,6 +23,7 @@
   "scheduled_date",
   "admitted_datetime",
   "expected_discharge",
+  "patient_ip_category",
   "references",
   "admission_encounter",
   "admission_practitioner",
@@ -36,6 +37,7 @@
   "primary_practitioner",
   "secondary_practitioner",
   "admission_instruction",
+  "service_unit",
   "section_break_person_contact",
   "contact_mobile",
   "contact_phone",
@@ -208,7 +210,6 @@
    "fieldname": "medical_department",
    "fieldtype": "Link",
    "label": "Medical Department",
-   "mandatory_depends_on": "eval:!doc.admission_encounter;",
    "options": "Medical Department",
    "set_only_once": 1
   },
@@ -515,7 +516,7 @@
    "fieldname": "patient_relatives",
    "fieldtype": "Table",
    "label": "Patient Relatives",
-   "options": "IP Patient Relatives Details"
+   "options": "IP Patient Relative"
   },
   {
    "fieldname": "section_break_visitors",
@@ -696,7 +697,6 @@
    "fieldname": "admission_service_unit_type",
    "fieldtype": "Link",
    "label": "Admission Service Unit Type",
-   "mandatory_depends_on": "eval:!doc.admission_encounter;",
    "options": "Healthcare Service Unit Type"
   },
   {
@@ -872,6 +872,18 @@
    "fieldtype": "Table",
    "label": "e-Signatures",
    "options": "Patient Upload Document"
+  },
+  {
+   "fieldname": "service_unit",
+   "fieldtype": "Table MultiSelect",
+   "label": "Service Unit",
+   "options": "Service Unit Multiselect"
+  },
+  {
+   "fieldname": "patient_ip_category",
+   "fieldtype": "Select",
+   "label": "Patient IP Category",
+   "options": "\nINSURANCE-BUPA\nINSURANCE-MILITARY\nINSURANCE-OTHERS\nJAU HOSPITAL PATIENT\nNORMAL-REGULAR\nROYAL/VIP-REGULAR"
   }
  ],
  "index_web_pages_for_search": 1,
@@ -885,7 +897,7 @@
    "link_fieldname": "admission"
   }
  ],
- "modified": "2026-02-18 16:39:53.677529",
+ "modified": "2026-03-11 17:23:33.681588",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Inpatient Admission",

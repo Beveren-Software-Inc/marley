@@ -161,6 +161,16 @@ def get_inpatient_record(name):
 		'room_charges': record.room_charges
 	}
 	
+	# Patient relatives (guardian/relative details)
+	relatives = []
+	for row in getattr(record, "patient_relatives", []) or []:
+		relatives.append({
+			"relative_relation": getattr(row, "relative_relation", None),
+			"relative_name": getattr(row, "relative_name", None),
+			"relative_id_num": getattr(row, "relative_id_num", None),
+			"any_remarks": getattr(row, "any_remarks", None),
+		})
+
 	return {
 		'name': record.name,
 		'patient': record.patient,
@@ -175,8 +185,10 @@ def get_inpatient_record(name):
 		'secondary_practitioner': record.secondary_practitioner,
 		'admission_encounter': record.admission_encounter,
 		'expected_length_of_stay': record.expected_length_of_stay,
+		'patient_ip_category': getattr(record, "patient_ip_category", None),
 		'current_occupancy': current_occupancy,
-		'charges': charges_info
+		'charges': charges_info,
+		'patient_relatives': relatives,
 	}
 
 
@@ -448,7 +460,7 @@ def create_and_submit_discharge(admission_name, discharge_data):
 		)
 		discharge_doc = create_discharge_from_inpatient_admission(admission_name)
 
-		CHILD_TABLES = {"patient_documents", "patient_document", "discharge_checklist"}
+		CHILD_TABLES = {"patient_documents", "patient_document", "discharge_checklist", "patient_relatives"}
 
 		for key, value in discharge_data.items():
 			if key in CHILD_TABLES:
@@ -494,6 +506,20 @@ def create_and_submit_discharge(admission_name, discharge_data):
 					"document": (row.get("document") or "").strip() or None,
 				})
 
+		# Handle patient_relatives (Relatives tab)
+		relatives = frappe.parse_json(discharge_data.get("patient_relatives") or [])
+		if isinstance(relatives, list) and relatives:
+			discharge_doc.set("patient_relatives", [])
+			for row in relatives:
+				if not isinstance(row, dict):
+					continue
+				child = discharge_doc.append("patient_relatives", {})
+				for key in ("relationship_with_patient", "relative_name", "cpr__id_no", "any_remarks"):
+					if key in row:
+						value = (row.get(key) or "").strip()
+						if value:
+							child.set(key, value)
+
 		discharge_doc.save(ignore_permissions=True)
 		if cint(discharge_doc.docstatus) == 0:
 			discharge_doc.submit()
@@ -535,42 +561,83 @@ def create_and_submit_discharge(admission_name, discharge_data):
 # 		'name': record.name
 # 	}
 @frappe.whitelist()
-def admit_patient(name, service_unit, check_in, expected_discharge=None, patient_documents=None):
-    """Admit a patient - wrapper for the DocType method"""
-    if not name:
-        frappe.throw(_("Inpatient Admission name is required"))
-    if not service_unit:
-        frappe.throw(_("Service Unit is required"))
-    if not check_in:
-        frappe.throw(_("Check In datetime is required"))
+def admit_patient(
+	name,
+	service_unit,
+	check_in,
+	expected_discharge=None,
+	patient_ip_category=None,
+	patient_documents=None,
+	patient_relatives=None,
+	service_units=None,
+):
+	"""Admit a patient - wrapper for the DocType method"""
+	if not name:
+		frappe.throw(_("Inpatient Admission name is required"))
+	if not service_unit:
+		frappe.throw(_("Service Unit is required"))
+	if not check_in:
+		frappe.throw(_("Check In datetime is required"))
 
-    record = frappe.get_doc('Inpatient Admission', name)
-    record.admit(service_unit, check_in, expected_discharge)
+	record = frappe.get_doc("Inpatient Admission", name)
 
-    # Save patient documents if provided
-    documents = frappe.parse_json(patient_documents or [])
-    if isinstance(documents, list) and documents:
-        record.set("patient_documents", [])
-        for idx, row in enumerate(documents, start=1):
-            if not isinstance(row, dict):
-                continue
-            record.append("e_signatures", {
-                "idx": idx,
-                "file_name": (row.get("document_type") or "").strip() or None,
-                "document_type": (row.get("document_type") or "").strip() or None,
-                "transaction_no": (row.get("transaction_no") or "").strip() or None,
-                "upload_remarks": (row.get("upload_remarks") or "").strip() or None,
-                "document": (row.get("document") or "").strip() or None,
-            })
-        record.save(ignore_permissions=True)
+	# Update patient IP category if provided
+	if patient_ip_category:
+		record.patient_ip_category = patient_ip_category
 
-    frappe.db.commit()
+	# Perform admit (sets status, occupancy, etc.)
+	record.admit(service_unit, check_in, expected_discharge)
 
-    return {
-        'success': True,
-        'message': _('Patient admitted successfully'),
-        'name': record.name
-    }
+	# Save patient documents if provided (stored as e-signatures)
+	documents = frappe.parse_json(patient_documents or [])
+	if isinstance(documents, list) and documents:
+		record.set("e_signatures", [])
+		for idx, row in enumerate(documents, start=1):
+			if not isinstance(row, dict):
+				continue
+			record.append(
+				"e_signatures",
+				{
+					"idx": idx,
+					"file_name": (row.get("document_type") or "").strip() or None,
+					"document_type": (row.get("document_type") or "").strip() or None,
+					"transaction_no": (row.get("transaction_no") or "").strip() or None,
+					"upload_remarks": (row.get("upload_remarks") or "").strip() or None,
+					"document": (row.get("document") or "").strip() or None,
+				},
+			)
+
+	# Save patient relatives (guardians) if provided
+	relatives = frappe.parse_json(patient_relatives or [])
+	if isinstance(relatives, list) and relatives:
+		record.set("patient_relatives", [])
+		for row in relatives:
+			if not isinstance(row, dict):
+				continue
+			child = record.append("patient_relatives", {})
+			for key in ("relative_relation", "relative_name", "relative_id_num", "any_remarks"):
+				if key in row:
+					value = (row.get(key) or "").strip()
+					if value:
+						child.set(key, value)
+
+	# Save all selected service units into the Service Unit (Table MultiSelect) field
+	service_unit_list = frappe.parse_json(service_units or [])
+	if isinstance(service_unit_list, list) and service_unit_list:
+		record.set("service_unit", [])
+		for su_name in service_unit_list:
+			if not su_name:
+				continue
+			record.append("service_unit", {"service_unit": su_name})
+
+	record.save(ignore_permissions=True)
+	frappe.db.commit()
+
+	return {
+		"success": True,
+		"message": _("Patient admitted successfully"),
+		"name": record.name,
+	}
 
 
 

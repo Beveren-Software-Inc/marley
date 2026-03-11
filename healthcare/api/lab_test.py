@@ -116,7 +116,7 @@ def get_lab_test(name):
 
 
 @frappe.whitelist()
-def create_lab_material_request(items, company=None, schedule_date=None):
+def create_lab_material_request(items, company=None, schedule_date=None, cost_center=None):
 	"""Create a Material Request for lab consumables.
 
 	`items` is expected to be a JSON list of objects with:
@@ -149,6 +149,8 @@ def create_lab_material_request(items, company=None, schedule_date=None):
 			mr_item.warehouse = row.get("warehouse")
 		if schedule_date:
 			mr_item.schedule_date = schedule_date
+		if cost_center:
+			mr_item.cost_center = cost_center
 
 	if not mr.items:
 		frappe.throw(_("No valid items to create Material Request"))
@@ -198,7 +200,15 @@ def request_lab_consumables(lab_test, items, company=None, schedule_date=None):
 	if not schedule_date:
 		schedule_date = frappe.utils.today()
 
-	mr_name = create_lab_material_request(items, company=company, schedule_date=schedule_date)
+	# Pass Lab Test cost center through to Material Request items
+	lab_cost_center = getattr(doc, "cost_center", None)
+
+	mr_name = create_lab_material_request(
+		items,
+		company=company,
+		schedule_date=schedule_date,
+		cost_center=lab_cost_center,
+	)
 
 	# Link MR back to Lab Test
 	if mr_name:

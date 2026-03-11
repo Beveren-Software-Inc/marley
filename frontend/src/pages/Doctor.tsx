@@ -324,7 +324,9 @@ export const DoctorPage = () => {
           <CreateECTAdmissionModal
             onClose={() => setShowECTAdmissionModal(false)}
             onSuccess={() => {
+              // Reload current route so ECTAdmissionList refetches immediately
               setShowECTAdmissionModal(false)
+              window.location.reload()
             }}
             initialPatient={selectedPatient}
           />

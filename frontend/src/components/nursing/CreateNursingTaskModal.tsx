@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { apiRequest } from '../../services/apiClient'
 import { toast } from '../../hooks/useToast'
+import { CreateHealthcareActivityModal } from '../activities/CreateHealthcareActivityModal'
+import { fetchHealthcarePractitioners, type LinkFieldOption } from '../../services/common'
 
 interface CreateNursingTaskModalProps {
   onClose: () => void
@@ -15,16 +17,19 @@ interface ActivityOption {
 
 interface NurseOption {
   name: string
-  full_name?: string
+  label?: string
+  department?: string
 }
 
 export const CreateNursingTaskModal = ({ onClose, onSuccess, patient }: CreateNursingTaskModalProps) => {
   const [activityQuery, setActivityQuery] = useState('')
   const [activityOptions, setActivityOptions] = useState<ActivityOption[]>([])
   const [activity, setActivity] = useState('')
+  const [activityOpen, setActivityOpen] = useState(false)
   const [assignedTo, setAssignedTo] = useState('')
   const [nurseQuery, setNurseQuery] = useState('')
   const [nurseOptions, setNurseOptions] = useState<NurseOption[]>([])
+  const [nurseOpen, setNurseOpen] = useState(false)
   const [requestedStart, setRequestedStart] = useState(() => {
     const now = new Date()
     const iso = now.toISOString().slice(0, 16) // yyyy-MM-ddTHH:mm
@@ -32,8 +37,11 @@ export const CreateNursingTaskModal = ({ onClose, onSuccess, patient }: CreateNu
   })
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showCreateActivity, setShowCreateActivity] = useState(false)
 
+  // Activity (Healthcare Activity) search
   useEffect(() => {
+    if (!activityOpen) return
     const t = setTimeout(async () => {
       try {
         const params = new URLSearchParams()
@@ -46,7 +54,7 @@ export const CreateNursingTaskModal = ({ onClose, onSuccess, patient }: CreateNu
           setActivityOptions(
             data.message.map((r: any) => ({
               name: r.name,
-              label: r.activity_type || r.name,
+              label: r.activity_type || r.activity || r.name,
             }))
           )
         } else {
@@ -57,28 +65,21 @@ export const CreateNursingTaskModal = ({ onClose, onSuccess, patient }: CreateNu
       }
     }, activityQuery.trim() === '' ? 0 : 300)
     return () => clearTimeout(t)
-  }, [activityQuery])
+  }, [activityQuery, activityOpen])
 
+  // Assigned To (Healthcare Practitioner) search
   useEffect(() => {
+    if (!nurseOpen) return
     const t = setTimeout(async () => {
       try {
-        const params = new URLSearchParams()
-        if (nurseQuery) params.append('search', nurseQuery)
-        const res = await fetch(
-          `/api/method/healthcare.api.common.get_nursing_users${params.toString() ? `?${params.toString()}` : ''}`
-        )
-        const data = await res.json()
-        if (Array.isArray(data?.message)) {
-          setNurseOptions(data.message as NurseOption[])
-        } else {
-          setNurseOptions([])
-        }
+        const results = await fetchHealthcarePractitioners(nurseQuery || undefined)
+        setNurseOptions(results as NurseOption[])
       } catch {
         setNurseOptions([])
       }
     }, nurseQuery.trim() === '' ? 0 : 300)
     return () => clearTimeout(t)
-  }, [nurseQuery])
+  }, [nurseQuery, nurseOpen])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -152,17 +153,34 @@ export const CreateNursingTaskModal = ({ onClose, onSuccess, patient }: CreateNu
               <label className="block text-xs font-medium text-slate-600 mb-1">
                 Activity (Nursing Task) <span className="text-red-500">*</span>
               </label>
-              <input
-                type="text"
-                value={activityQuery || activity}
-                onChange={(e) => {
-                  setActivityQuery(e.target.value)
-                  setActivity('')
-                }}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                placeholder="Search Healthcare Activity..."
-              />
-              {activityOptions.length > 0 && (
+              <div className="relative">
+                <input
+                  type="text"
+                  value={activityQuery || activity}
+                  onChange={(e) => {
+                    setActivityQuery(e.target.value)
+                    setActivity('')
+                    setActivityOpen(true)
+                  }}
+                  onFocus={() => setActivityOpen(true)}
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  placeholder="Search Healthcare Activity..."
+                />
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setShowCreateActivity(true)
+                  }}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-primary hover:text-primary/80"
+                  title="Create Healthcare Activity"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                </button>
+              </div>
+              {activityOpen && activityOptions.length > 0 && (
                 <div className="mt-1 max-h-40 overflow-y-auto rounded-md border border-slate-200 bg-white shadow-lg text-sm">
                   {activityOptions.map((opt) => (
                     <button
@@ -172,6 +190,7 @@ export const CreateNursingTaskModal = ({ onClose, onSuccess, patient }: CreateNu
                       onClick={() => {
                         setActivity(opt.name)
                         setActivityQuery(opt.label)
+                        setActivityOpen(false)
                       }}
                     >
                       {opt.label}
@@ -182,18 +201,20 @@ export const CreateNursingTaskModal = ({ onClose, onSuccess, patient }: CreateNu
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Assign To (Nurse)</label>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Assigned To (Healthcare Practitioner)</label>
               <input
                 type="text"
                 value={nurseQuery || assignedTo}
                 onChange={(e) => {
                   setNurseQuery(e.target.value)
                   setAssignedTo('')
+                  setNurseOpen(true)
                 }}
+                onFocus={() => setNurseOpen(true)}
                 className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                placeholder="Search Nursing User..."
+                placeholder="Search Healthcare Practitioner..."
               />
-              {nurseOptions.length > 0 && (
+              {nurseOpen && nurseOptions.length > 0 && (
                 <div className="mt-1 max-h-40 overflow-y-auto rounded-md border border-slate-200 bg-white shadow-lg text-sm">
                   {nurseOptions.map((u) => (
                     <button
@@ -202,10 +223,14 @@ export const CreateNursingTaskModal = ({ onClose, onSuccess, patient }: CreateNu
                       className="block w-full text-left px-3 py-1.5 hover:bg-slate-50"
                       onClick={() => {
                         setAssignedTo(u.name)
-                        setNurseQuery(u.full_name || u.name)
+                        setNurseQuery(u.label || u.name)
+                        setNurseOpen(false)
                       }}
                     >
-                      {u.full_name || u.name}
+                      <div className="font-medium">{u.label || u.name}</div>
+                      {u.department && (
+                        <div className="text-[11px] text-slate-500">{u.department}</div>
+                      )}
                     </button>
                   ))}
                 </div>
@@ -240,6 +265,16 @@ export const CreateNursingTaskModal = ({ onClose, onSuccess, patient }: CreateNu
             </button>
           </div>
         </form>
+        {showCreateActivity && (
+          <CreateHealthcareActivityModal
+            onClose={() => setShowCreateActivity(false)}
+            onSuccess={(activityName, label) => {
+              setActivity(activityName)
+              setActivityQuery(label)
+              setShowCreateActivity(false)
+            }}
+          />
+        )}
       </div>
     </div>
   )

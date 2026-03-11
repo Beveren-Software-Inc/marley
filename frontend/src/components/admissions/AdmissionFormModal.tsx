@@ -3,7 +3,7 @@ import { fetchInpatientRecord, fetchServiceUnits, admitPatient, calculatePackage
 import { uploadPatientFile, type PatientDocumentRow } from '../../services/patients'
 import { fetchDocumentTypes } from '../../services/common'
 import { toast } from '../../hooks/useToast'
-import { PenLine, Trash2, Check } from 'lucide-react'
+import { PenLine, Trash2, Check, X, BedDouble } from 'lucide-react'
 
 // ─── Signature Pad ────────────────────────────────────────────────────────────
 
@@ -178,6 +178,161 @@ const SignaturePad = ({ onSave, onClear, existingUrl, uploading }: SignaturePadP
   )
 }
 
+// ─── Service Unit Multi-Select ────────────────────────────────────────────────
+
+interface ServiceUnitSelectProps {
+  serviceUnits: ServiceUnit[]
+  selectedServiceUnits: ServiceUnit[]
+  onToggle: (unit: ServiceUnit) => void
+  query: string
+  onQueryChange: (q: string) => void
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  primaryUnit: string
+  onSetPrimary: (name: string) => void
+}
+
+const ServiceUnitSelect = ({
+  serviceUnits,
+  selectedServiceUnits,
+  onToggle,
+  query,
+  onQueryChange,
+  open,
+  onOpenChange,
+  primaryUnit,
+  onSetPrimary,
+}: ServiceUnitSelectProps) => {
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  // Close on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        onOpenChange(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [onOpenChange])
+
+  return (
+    <div ref={containerRef} className="relative">
+      <label className="block text-sm font-medium text-slate-700 mb-1">
+        Service Unit / Bed <span className="text-red-500">*</span>
+      </label>
+
+      {/* Search input */}
+      <div className="relative">
+        <BedDouble className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => { onQueryChange(e.target.value); onOpenChange(true) }}
+          onFocus={() => onOpenChange(true)}
+          placeholder="Search beds / rooms…"
+          className="w-full rounded-md border border-slate-300 pl-8 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+        />
+        {selectedServiceUnits.length > 0 && (
+          <span className="absolute right-2.5 top-1/2 -translate-y-1/2 inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary text-white text-[10px] font-bold">
+            {selectedServiceUnits.length}
+          </span>
+        )}
+      </div>
+
+      {/* Dropdown */}
+      {open && (
+        <div className="absolute z-20 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-52 overflow-auto">
+          {serviceUnits.length === 0 ? (
+            <div className="px-3 py-3 text-xs text-slate-400 text-center">
+              {query ? 'No beds match your search' : 'No vacant beds available'}
+            </div>
+          ) : (
+            serviceUnits.map((unit) => {
+              const isSelected = selectedServiceUnits.some(su => su.name === unit.name)
+              return (
+                <button
+                  key={unit.name}
+                  type="button"
+                  // FIX: stopPropagation prevents the form's onClick from closing the dropdown
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onToggle(unit)
+                  }}
+                  className={`w-full text-left px-3 py-2 text-sm transition-colors flex items-center justify-between gap-2 ${
+                    isSelected
+                      ? 'bg-blue-50 hover:bg-blue-100'
+                      : 'hover:bg-slate-50'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    {/* Checkbox indicator */}
+                    <span className={`flex-shrink-0 w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+                      isSelected ? 'bg-primary border-primary' : 'border-slate-300'
+                    }`}>
+                      {isSelected && <Check className="w-2.5 h-2.5 text-white" />}
+                    </span>
+                    <div className="min-w-0">
+                      <div className="font-medium truncate">{unit.healthcare_service_unit_name}</div>
+                      <div className="text-xs text-slate-500">
+                        {unit.occupancy_status}
+                        {unit.service_unit_type ? ` • ${unit.service_unit_type}` : ''}
+                      </div>
+                    </div>
+                  </div>
+                  {isSelected && (
+                    <span className="flex-shrink-0 inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
+                      Selected
+                    </span>
+                  )}
+                </button>
+              )
+            })
+          )}
+        </div>
+      )}
+
+      {/* Selected bed chips */}
+      {selectedServiceUnits.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {selectedServiceUnits.map((unit) => {
+            const isPrimary = unit.name === primaryUnit
+            return (
+              <span
+                key={unit.name}
+                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium border transition-colors ${
+                  isPrimary
+                    ? 'bg-primary text-white border-primary'
+                    : 'bg-blue-50 text-blue-800 border-blue-200 hover:border-blue-400 cursor-pointer'
+                }`}
+                title={isPrimary ? 'Primary bed' : 'Click to set as primary'}
+                onClick={() => !isPrimary && onSetPrimary(unit.name)}
+              >
+                {isPrimary && <BedDouble className="w-3 h-3" />}
+                {unit.healthcare_service_unit_name}
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); onToggle(unit) }}
+                  className={`ml-0.5 rounded-full p-0.5 transition-colors ${
+                    isPrimary ? 'hover:bg-white/20' : 'hover:bg-blue-200'
+                  }`}
+                >
+                  <X className="w-2.5 h-2.5" />
+                </button>
+              </span>
+            )
+          })}
+          {selectedServiceUnits.length > 1 && (
+            <p className="w-full text-[10px] text-slate-400 mt-0.5">
+              Solid blue = primary bed. Click another chip to change it.
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Main Modal ───────────────────────────────────────────────────────────────
 
 interface AdmissionFormModalProps {
@@ -187,7 +342,12 @@ interface AdmissionFormModalProps {
   onClose: () => void
 }
 
-type Tab = 'admission' | 'documents'
+type Tab = 'admission' | 'documents' | 'relatives'
+
+const RELATION_OPTIONS = [
+  'FATHER', 'SON', 'COLLEAGUES', 'MOTHER', 'AUNT', 'SISTER',
+  'BROTHER', 'FRIEND', 'UNCLE', 'WIFE', 'DAUGHTER', 'HUSBAND',
+] as const
 
 export const AdmissionFormModal = ({
   admissionNo,
@@ -200,7 +360,7 @@ export const AdmissionFormModal = ({
   const [serviceUnits, setServiceUnits] = useState<ServiceUnit[]>([])
   const [serviceUnitQuery, setServiceUnitQuery] = useState('')
   const [serviceUnitOpen, setServiceUnitOpen] = useState(false)
-  const [selectedServiceUnit, setSelectedServiceUnit] = useState<ServiceUnit | null>(null)
+  const [selectedServiceUnits, setSelectedServiceUnits] = useState<ServiceUnit[]>([])
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<Error | null>(null)
@@ -220,6 +380,11 @@ export const AdmissionFormModal = ({
   const [documentUploading, setDocumentUploading] = useState<number | null>(null)
   const [signatureUploading, setSignatureUploading] = useState<number | null>(null)
 
+  // Relatives / guardians
+  const [relatives, setRelatives] = useState<
+    { relative_relation: string; relative_name: string; relative_id_num: string; any_remarks: string }[]
+  >([])
+
   const discountPercent = Math.min(100, Math.max(0, parseFloat(discountPercentInput || '0') || 0))
   const discountedPrice = calculatedPrice !== null ? calculatedPrice * (1 - discountPercent / 100) : null
 
@@ -233,12 +398,13 @@ export const AdmissionFormModal = ({
   }
 
   const [formData, setFormData] = useState({
-    serviceUnit: '',
+    patientIpCategory: '',
+    serviceUnit: '',           // primary bed name
     checkIn: new Date().toISOString().slice(0, 16),
     expectedDischarge: '' as string
   })
 
-  // ── Days → price calculation ──────────────────────────────────────────────
+  // ── Days → price ──────────────────────────────────────────────────────────
 
   useEffect(() => {
     const numValue = parseInt(daysInput) || 0
@@ -302,6 +468,22 @@ export const AdmissionFormModal = ({
         setRecord(recordData)
         setDocumentTypes(docTypes)
 
+        if ((recordData as any).patient_ip_category) {
+          setFormData(prev => ({ ...prev, patientIpCategory: (recordData as any).patient_ip_category }))
+        }
+
+        const existingRelatives = (recordData as any).patient_relatives || []
+        if (Array.isArray(existingRelatives) && existingRelatives.length > 0) {
+          setRelatives(existingRelatives.map((r: any) => ({
+            relative_relation: r.relative_relation || '',
+            relative_name: r.relative_name || '',
+            relative_id_num: r.relative_id_num || '',
+            any_remarks: r.any_remarks || '',
+          })))
+        } else {
+          setRelatives([{ relative_relation: '', relative_name: '', relative_id_num: '', any_remarks: '' }])
+        }
+
         const rawExpected = (recordData as any)?.expected_length_of_stay
         const expectedDays = typeof rawExpected === 'number'
           ? rawExpected
@@ -347,6 +529,38 @@ export const AdmissionFormModal = ({
     }
     if (admissionNo && selectedPackage.name) checkQuotation()
   }, [admissionNo, selectedPackage.name])
+
+  // ── Service unit toggle (FIX: no longer replaces query on select) ─────────
+
+  const handleToggleServiceUnit = (unit: ServiceUnit) => {
+    setSelectedServiceUnits(prev => {
+      const already = prev.some(su => su.name === unit.name)
+      if (already) {
+        const updated = prev.filter(su => su.name !== unit.name)
+        // If we removed the primary, promote next in list
+        setFormData(current => ({
+          ...current,
+          serviceUnit: current.serviceUnit === unit.name
+            ? (updated[0]?.name ?? '')
+            : current.serviceUnit,
+        }))
+        return updated
+      } else {
+        const updated = [...prev, unit]
+        // First selection becomes primary automatically
+        setFormData(current => ({
+          ...current,
+          serviceUnit: current.serviceUnit || unit.name,
+        }))
+        // NOTE: we deliberately do NOT update serviceUnitQuery here — that was the bug
+        return updated
+      }
+    })
+  }
+
+  const handleSetPrimaryUnit = (name: string) => {
+    setFormData(prev => ({ ...prev, serviceUnit: name }))
+  }
 
   // ── Document helpers ──────────────────────────────────────────────────────
 
@@ -407,8 +621,16 @@ export const AdmissionFormModal = ({
     try {
       setCreatingSalesOrder(true)
       setError(null)
-      const result = await createAdmissionQuotation(admissionNo, selectedPackage.name, days, discountedPrice, formData.serviceUnit)
-      setSalesOrderCreated(result.sales_order_name)
+      const result = await createAdmissionQuotation(
+        admissionNo,
+        selectedPackage.name,
+        days,
+        discountedPrice,
+        formData.serviceUnit
+      )
+      const quotationName = (result as any).quotation_name || (result as any).sales_order_name || null
+      if (quotationName) setSalesOrderCreated(quotationName)
+      toast.success('Quotation drafted for approval', 4000)
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Failed to create Quotation'))
     } finally {
@@ -420,7 +642,7 @@ export const AdmissionFormModal = ({
     e.preventDefault()
 
     if (!formData.serviceUnit) {
-      setError(new Error('Please select a service unit (bed)'))
+      setError(new Error('Please select at least one service unit (bed)'))
       return
     }
     if (days <= 0) {
@@ -432,7 +654,6 @@ export const AdmissionFormModal = ({
       setSubmitting(true)
       setError(null)
 
-      // Build patient_document payload (same shape as patient/discharge)
       const patientDocuments = documents
         .filter(r => (r.file_name || '').trim() || (r.document || '').trim())
         .map(r => ({
@@ -443,12 +664,24 @@ export const AdmissionFormModal = ({
           document: (r.document || '').trim() || undefined,
         }))
 
+      const patientRelatives = relatives
+        .map(r => ({
+          relative_relation: r.relative_relation?.trim() || '',
+          relative_name: r.relative_name?.trim() || '',
+          relative_id_num: r.relative_id_num?.trim() || '',
+          any_remarks: r.any_remarks?.trim() || '',
+        }))
+        .filter(r => r.relative_relation || r.relative_name || r.relative_id_num || r.any_remarks)
+
       await admitPatient(
         admissionNo,
         formData.serviceUnit,
         formData.checkIn,
         formData.expectedDischarge || undefined,
-        patientDocuments.length > 0 ? patientDocuments : undefined
+        formData.patientIpCategory || undefined,
+        patientDocuments.length > 0 ? patientDocuments : undefined,
+        patientRelatives.length > 0 ? patientRelatives : undefined,
+        selectedServiceUnits.map(su => su.name)
       )
 
       onComplete()
@@ -474,6 +707,7 @@ export const AdmissionFormModal = ({
   const tabs: { id: Tab; label: string; badge?: number }[] = [
     { id: 'admission', label: 'Admission Details' },
     { id: 'documents', label: 'Documents', badge: documents.length || undefined },
+    { id: 'relatives', label: 'Relatives', badge: relatives.length || undefined },
   ]
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -519,16 +753,7 @@ export const AdmissionFormModal = ({
           </div>
         </div>
 
-        <form
-          onSubmit={handleSubmit}
-          className="flex flex-col flex-1 min-h-0"
-          onClick={(e) => {
-            const target = e.target as HTMLElement
-            if (target.tagName !== 'INPUT' && !target.closest('.absolute')) {
-              setServiceUnitOpen(false)
-            }
-          }}
-        >
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
           <div className="overflow-y-auto p-6 space-y-4 flex-1">
 
             {/* ── TAB: ADMISSION DETAILS ── */}
@@ -629,46 +854,39 @@ export const AdmissionFormModal = ({
                   </div>
                 )}
 
-                {/* Service Unit */}
-                <div className="relative">
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Service Unit / Bed <span className="text-red-500">*</span>
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={selectedServiceUnit ? selectedServiceUnit.healthcare_service_unit_name : serviceUnitQuery}
-                      onChange={(e) => { setServiceUnitQuery(e.target.value); setServiceUnitOpen(true) }}
-                      onFocus={() => setServiceUnitOpen(true)}
-                      placeholder="Search Healthcare Service Unit..."
-                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                      required
-                    />
-                    {serviceUnitOpen && serviceUnits.length > 0 && (
-                      <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-auto">
-                        {serviceUnits.map((unit) => (
-                          <button key={unit.name} type="button"
-                            className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50"
-                            onClick={() => {
-                              setSelectedServiceUnit(unit)
-                              setFormData({ ...formData, serviceUnit: unit.name })
-                              setServiceUnitQuery(unit.healthcare_service_unit_name)
-                              setServiceUnitOpen(false)
-                            }}>
-                            <div className="font-medium">{unit.healthcare_service_unit_name}</div>
-                            <div className="text-xs text-slate-500">
-                              {unit.occupancy_status} {unit.service_unit_type ? `• ${unit.service_unit_type}` : ''}
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                    {serviceUnitOpen && serviceUnits.length === 0 && serviceUnitQuery && (
-                      <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg">
-                        <div className="px-3 py-2 text-xs text-slate-500">No service units found</div>
-                      </div>
-                    )}
+                {/* Patient IP Category + Service Unit */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Patient IP Category
+                    </label>
+                    <select
+                      value={formData.patientIpCategory}
+                      onChange={(e) => setFormData(prev => ({ ...prev, patientIpCategory: e.target.value }))}
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary"
+                    >
+                      <option value="">Select category</option>
+                      <option value="INSURANCE-BUPA">INSURANCE-BUPA</option>
+                      <option value="INSURANCE-MILITARY">INSURANCE-MILITARY</option>
+                      <option value="INSURANCE-OTHERS">INSURANCE-OTHERS</option>
+                      <option value="JAU HOSPITAL PATIENT">JAU HOSPITAL PATIENT</option>
+                      <option value="NORMAL-REGULAR">NORMAL-REGULAR</option>
+                      <option value="ROYAL/VIP-REGULAR">ROYAL/VIP-REGULAR</option>
+                    </select>
                   </div>
+
+                  {/* ── Fixed multi-select service unit ── */}
+                  <ServiceUnitSelect
+                    serviceUnits={serviceUnits}
+                    selectedServiceUnits={selectedServiceUnits}
+                    onToggle={handleToggleServiceUnit}
+                    query={serviceUnitQuery}
+                    onQueryChange={setServiceUnitQuery}
+                    open={serviceUnitOpen}
+                    onOpenChange={setServiceUnitOpen}
+                    primaryUnit={formData.serviceUnit}
+                    onSetPrimary={handleSetPrimaryUnit}
+                  />
                 </div>
 
                 {/* Check In */}
@@ -695,8 +913,8 @@ export const AdmissionFormModal = ({
                 </div>
 
                 {salesOrderCreated && (
-                  <div className="bg-green-50 border border-green-200 rounded-md p-3 text-sm text-green-700">
-                    <p className="font-medium">Quotation Created Successfully!</p>
+                  <div className="bg-blue-50 border border-blue-200 rounded-md p-3 text-sm text-blue-800">
+                    <p className="font-medium">Quotation drafted for approval.</p>
                     <p className="text-xs mt-1">Quotation: {salesOrderCreated}</p>
                   </div>
                 )}
@@ -718,7 +936,6 @@ export const AdmissionFormModal = ({
 
                   {documents.map((row, idx) => (
                     <div key={idx} className="rounded-lg border border-slate-200 bg-slate-50/50 overflow-hidden">
-                      {/* Card header */}
                       <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-200 bg-white">
                         <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
                           Document #{idx + 1}
@@ -731,10 +948,7 @@ export const AdmissionFormModal = ({
                         </button>
                       </div>
 
-                      {/* Two-column: metadata left, signature right */}
                       <div className="grid grid-cols-1 lg:grid-cols-[1fr_260px] divide-y lg:divide-y-0 lg:divide-x divide-slate-200">
-
-                        {/* Left: fields + file upload */}
                         <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <div>
                             <label className="block text-xs font-medium text-slate-600 mb-0.5">File Name</label>
@@ -783,7 +997,6 @@ export const AdmissionFormModal = ({
                           </div>
                         </div>
 
-                        {/* Right: signature pad */}
                         <div className="p-4 flex flex-col gap-2">
                           <div className="flex items-center gap-1.5 mb-1">
                             <PenLine className="w-3.5 h-3.5 text-slate-400" />
@@ -819,6 +1032,106 @@ export const AdmissionFormModal = ({
               </div>
             )}
 
+            {/* ── TAB: RELATIVES ── */}
+            {activeTab === 'relatives' && (
+              <div>
+                <p className="text-sm text-slate-500 mb-4">
+                  Add relatives / guardians who are responsible for the patient during this admission.
+                </p>
+                <div className="border border-slate-200 rounded-md">
+                  <div className="flex items-center justify-between px-3 py-2 border-b border-slate-200 bg-slate-50">
+                    <h3 className="text-sm font-semibold text-slate-800">Relatives / Guardians</h3>
+                    <button
+                      type="button"
+                      className="text-xs px-2 py-1 rounded-full bg-primary text-white hover:bg-primary/90"
+                      onClick={() =>
+                        setRelatives(prev => [
+                          ...prev,
+                          { relative_relation: '', relative_name: '', relative_id_num: '', any_remarks: '' },
+                        ])
+                      }
+                    >
+                      + Add Relative
+                    </button>
+                  </div>
+                  <div className="divide-y divide-slate-200">
+                    {relatives.map((row, idx) => (
+                      <div key={idx} className="px-3 py-3 space-y-2">
+                        <div className="grid grid-cols-3 gap-3">
+                          <div>
+                            <label className="block text-xs font-medium text-slate-700 mb-1">Relation</label>
+                            <select
+                              value={row.relative_relation}
+                              onChange={(e) => {
+                                const value = e.target.value
+                                setRelatives(prev => prev.map((r, i) => i === idx ? { ...r, relative_relation: value } : r))
+                              }}
+                              className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-primary"
+                            >
+                              <option value="">Select relation</option>
+                              {RELATION_OPTIONS.map(opt => (
+                                <option key={opt} value={opt}>{opt}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-slate-700 mb-1">Name</label>
+                            <input
+                              type="text"
+                              value={row.relative_name}
+                              onChange={(e) => {
+                                const value = e.target.value
+                                setRelatives(prev => prev.map((r, i) => i === idx ? { ...r, relative_name: value } : r))
+                              }}
+                              className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary"
+                              placeholder="Relative full name"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-slate-700 mb-1">ID Number</label>
+                            <input
+                              type="text"
+                              value={row.relative_id_num}
+                              onChange={(e) => {
+                                const value = e.target.value
+                                setRelatives(prev => prev.map((r, i) => i === idx ? { ...r, relative_id_num: value } : r))
+                              }}
+                              className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary"
+                              placeholder="CPR / ID"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <div className="flex-1">
+                            <label className="block text-xs font-medium text-slate-700 mb-1">Remarks</label>
+                            <textarea
+                              value={row.any_remarks}
+                              onChange={(e) => {
+                                const value = e.target.value
+                                setRelatives(prev => prev.map((r, i) => i === idx ? { ...r, any_remarks: value } : r))
+                              }}
+                              rows={2}
+                              className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary"
+                              placeholder="Any notes about this relative / guardian"
+                            />
+                          </div>
+                          {relatives.length > 1 && (
+                            <button
+                              type="button"
+                              className="mt-5 text-xs text-red-600 hover:text-red-700"
+                              onClick={() => setRelatives(prev => prev.filter((_, i) => i !== idx))}
+                            >
+                              Remove
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
             {error && (
               <div className="bg-red-50 border border-red-200 rounded-md p-3 text-sm text-red-700">
                 {error.message}
@@ -828,7 +1141,6 @@ export const AdmissionFormModal = ({
 
           {/* Footer */}
           <div className="shrink-0 border-t border-slate-200 px-6 py-4 flex justify-between items-center bg-white">
-            {/* Quotation button — only on admission tab */}
             {activeTab === 'admission' && !existingQuotation && !salesOrderCreated && (
               <button
                 type="button"

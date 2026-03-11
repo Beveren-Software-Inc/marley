@@ -245,13 +245,25 @@ const groupByDepartment = (items: ChecklistItem[]) => {
   }, {} as Record<string, ChecklistItem[]>)
 }
 
+// Relationship options – must match IP Patient Relative doctype
+const RELATION_OPTIONS = [
+  'Father',
+  'Mother',
+  'Brother',
+  'Sister',
+  'Husband',
+  'Wife',
+  'Son',
+  'Daughter',
+] as const
+
 // ─── Main Modal ─────────────────────────────────────────────────────────────
 
 export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModalProps) => {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [unbilledServices, setUnbilledServices] = useState<{ type: string; ids: string[] }[] | null>(null)
-  const [activeTab, setActiveTab] = useState<'details' | 'checklist' | 'documents' | 'reconcile'>('details')
+  const [activeTab, setActiveTab] = useState<'details' | 'checklist' | 'documents' | 'reconcile' | 'relatives'>('details')
 
   // Checklist state
   const [checklistItems, setChecklistItems] = useState<ChecklistItem[]>([])
@@ -265,6 +277,11 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
   const [documentUploading, setDocumentUploading] = useState<number | null>(null)
   // Track per-row signature upload state separately
   const [signatureUploading, setSignatureUploading] = useState<number | null>(null)
+
+  // Relatives / guardians
+  const [relatives, setRelatives] = useState<
+    { relationship_with_patient: string; relative_name: string; cpr__id_no: string; any_remarks: string }[]
+  >([{ relationship_with_patient: '', relative_name: '', cpr__id_no: '', any_remarks: '' }])
 
   // Link field dropdowns
   const [dischargedByUsers, setDischargedByUsers] = useState<LinkFieldOption[]>([])
@@ -536,6 +553,15 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
 
     try {
       setSubmitting(true)
+      const patientRelatives = relatives
+        .map(r => ({
+          relationship_with_patient: r.relationship_with_patient?.trim() || '',
+          relative_name: r.relative_name?.trim() || '',
+          cpr__id_no: r.cpr__id_no?.trim() || '',
+          any_remarks: r.any_remarks?.trim() || '',
+        }))
+        .filter(r => r.relationship_with_patient || r.relative_name || r.cpr__id_no || r.any_remarks)
+
       await createDischarge(admission.name, {
         ...formData,
         discharge_checklist: checklistItems.map(item => ({
@@ -556,6 +582,7 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
             upload_remarks: (r.upload_remarks || '').trim() || undefined,
             document: (r.document || '').trim() || undefined,
           })),
+        patient_relatives: patientRelatives,
       })
       toast.success('Patient discharged successfully!', 3000)
       onSuccess()
@@ -601,7 +628,7 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
 
         {/* Tabs */}
         <div className="flex border-b border-slate-200 bg-slate-50">
-          {(['details', 'checklist', 'reconcile', 'documents'] as const).map((tab) => (
+          {(['details', 'checklist', 'reconcile', 'documents', 'relatives'] as const).map((tab) => (
             <button
               key={tab}
               type="button"
@@ -627,6 +654,11 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
               {tab === 'documents' && documents.length > 0 && (
                 <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-200 text-slate-600">
                   {documents.length}
+                </span>
+              )}
+              {tab === 'relatives' && relatives.length > 0 && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-200 text-slate-600">
+                  {relatives.length}
                 </span>
               )}
             </button>
@@ -709,7 +741,7 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
                       <option value="">Select Discharge Type</option>
                       <option value="Home">Home</option>
                       <option value="Dama">Dama</option>
-                      <option value="Hospital">Hospital</option>
+                      <option value="Refer To Another Hospital">Refer To Another Hospital</option>
                     </select>
                   </div>
                   <div>
@@ -1139,6 +1171,126 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
                   </svg>
                   Add document
                 </button>
+              </div>
+            </div>
+          )}
+
+          {/* ── TAB: RELATIVES ── */}
+          {activeTab === 'relatives' && (
+            <div className="p-6">
+              <p className="text-sm text-slate-500 mb-4">
+                Add relatives / guardians who are relevant for this discharge record.
+              </p>
+              <div className="border border-slate-200 rounded-md">
+                <div className="flex items-center justify-between px-3 py-2 border-b border-slate-200 bg-slate-50">
+                  <h3 className="text-sm font-semibold text-slate-800">Relatives / Guardians</h3>
+                  <button
+                    type="button"
+                    className="text-xs px-2 py-1 rounded-full bg-primary text-white hover:bg-primary/90"
+                    onClick={() =>
+                      setRelatives(prev => [
+                        ...prev,
+                        { relationship_with_patient: '', relative_name: '', cpr__id_no: '', any_remarks: '' },
+                      ])
+                    }
+                  >
+                    + Add Relative
+                  </button>
+                </div>
+                <div className="divide-y divide-slate-200">
+                  {relatives.map((row, idx) => (
+                    <div key={idx} className="px-3 py-3 space-y-2">
+                      <div className="grid grid-cols-3 gap-3">
+                        <div>
+                          <label className="block text-xs font-medium text-slate-700 mb-1">
+                            Relation
+                          </label>
+                          <select
+                            value={row.relationship_with_patient}
+                            onChange={(e) => {
+                              const value = e.target.value
+                              setRelatives(prev => prev.map((r, i) =>
+                                i === idx ? { ...r, relationship_with_patient: value } : r
+                              ))
+                            }}
+                            className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-primary"
+                          >
+                            <option value="">Select relation</option>
+                            {RELATION_OPTIONS.map(opt => (
+                              <option key={opt} value={opt}>
+                                {opt}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-slate-700 mb-1">
+                            Name
+                          </label>
+                          <input
+                            type="text"
+                            value={row.relative_name}
+                            onChange={(e) => {
+                              const value = e.target.value
+                              setRelatives(prev => prev.map((r, i) =>
+                                i === idx ? { ...r, relative_name: value } : r
+                              ))
+                            }}
+                            className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary"
+                            placeholder="Relative full name"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-slate-700 mb-1">
+                            ID Number
+                          </label>
+                          <input
+                            type="text"
+                            value={row.cpr__id_no}
+                            onChange={(e) => {
+                              const value = e.target.value
+                              setRelatives(prev => prev.map((r, i) =>
+                                i === idx ? { ...r, cpr__id_no: value } : r
+                              ))
+                            }}
+                            className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary"
+                            placeholder="CPR / ID"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <div className="flex-1">
+                          <label className="block text-xs font-medium text-slate-700 mb-1">
+                            Remarks
+                          </label>
+                          <textarea
+                            value={row.any_remarks}
+                            onChange={(e) => {
+                              const value = e.target.value
+                              setRelatives(prev => prev.map((r, i) =>
+                                i === idx ? { ...r, any_remarks: value } : r
+                              ))
+                            }}
+                            rows={2}
+                            className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary"
+                            placeholder="Any notes about this relative / guardian"
+                          />
+                        </div>
+                        {relatives.length > 1 && (
+                          <button
+                            type="button"
+                            className="mt-5 text-xs text-red-600 hover:text-red-700"
+                            onClick={() =>
+                              setRelatives(prev => prev.filter((_, i) => i !== idx))
+                            }
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           )}

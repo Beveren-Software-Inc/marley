@@ -238,6 +238,62 @@ export async function fetchPatientMedicalHistory(patient: string): Promise<Patie
   }
 }
 
+export async function savePatientMedicalHistory(
+  history: PatientMedicalHistory
+): Promise<PatientMedicalHistory> {
+  const payload: any = {
+    patient: history.patient,
+    patient_name: history.patient_name,
+    template: history.template,
+    patient_history_details: (history.patient_history_details || []).map(row => ({
+      attributes: row.attributes,
+      yesno: row.yesno,
+      description: row.description,
+    })),
+  }
+
+  const csrf = (window as any).csrf_token || (await (await import('./apiClient')).ensureCSRF())
+  const isUpdate = history.name && typeof history.name === 'string' && history.name.trim().length > 0
+  const url = isUpdate
+    ? `/api/resource/Patient%20Medical%20History/${encodeURIComponent(history.name!)}`
+    : '/api/resource/Patient%20Medical%20History'
+
+  const method = isUpdate ? 'PUT' : 'POST'
+
+  const res = await fetch(url, {
+    method,
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
+    },
+    body: JSON.stringify(payload),
+  })
+
+  const out = await res.json().catch(() => ({} as any))
+
+  if (!res.ok || out?.exc) {
+    const { messageFromFrappeResponse } = await import('./patients')
+    const msg = messageFromFrappeResponse(out as any) || 'Failed to save patient medical history'
+    throw new Error(msg)
+  }
+
+  const data = out.data || out.message || out
+  return {
+    name: data.name ?? history.name ?? null,
+    patient: data.patient ?? history.patient,
+    patient_name: data.patient_name ?? history.patient_name,
+    template: data.template ?? history.template,
+    patient_history_details:
+      data.patient_history_details?.map((row: any) => ({
+        attributes: row.attributes,
+        yesno: row.yesno,
+        description: row.description,
+      })) || history.patient_history_details || [],
+  }
+}
+
 export async function fetchPatientSummary(patient: string): Promise<PatientSummary> {
   const response = await fetch(
     `/api/method/healthcare.api.patient.get_patient_summary?patient=${encodeURIComponent(patient)}`
@@ -342,7 +398,7 @@ export interface UpdatePatientData {
 }
 
 /** Extract user-facing message from Frappe error response (REST / method). */
-function messageFromFrappeResponse(out: Record<string, unknown>): string {
+export function messageFromFrappeResponse(out: Record<string, unknown>): string {
   try {
     if (out._server_messages && typeof out._server_messages === 'string') {
       const arr = JSON.parse(out._server_messages) as string[]

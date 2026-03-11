@@ -18,6 +18,7 @@ export const AdmissionPage = () => {
   const [searchQuery, setSearchQuery] = useState<string>(searchFromUrl || '')
   const [showCreateAdmission, setShowCreateAdmission] = useState(false)
   const [selectedPatient, setSelectedPatient] = useState<string>(patientFromUrl || '')
+  const [listRefreshKey, setListRefreshKey] = useState(0)
 
   // Sync searchQuery with URL
   useEffect(() => {
@@ -164,6 +165,7 @@ export const AdmissionPage = () => {
             onAdmissionSelect={handleAdmissionSelect} 
             searchQuery={searchQuery}
             patient={selectedPatient || undefined}
+            refreshKey={listRefreshKey}
           />
         </div>
       </div>
@@ -173,7 +175,8 @@ export const AdmissionPage = () => {
           onClose={() => setShowCreateAdmission(false)}
           onSuccess={(admissionName) => {
             setShowCreateAdmission(false)
-            handleAdmissionSelect(admissionName)
+            // After creating, refresh the list so the new admission appears immediately
+            setListRefreshKey(prev => prev + 1)
           }}
         />
       )}
