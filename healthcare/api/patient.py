@@ -282,6 +282,42 @@ def _add_patient_documents(patient, data):
 
 
 @frappe.whitelist()
+def get_patient_health_history_templates(search=None):
+	"""Return list of Patient Health History Templates for dropdown (name + label)."""
+	filters = {}
+	if search:
+		filters["template_name"] = ["like", f"%{search}%"]
+	templates = frappe.get_all(
+		"Patient Health History Template",
+		filters=filters,
+		fields=["name", "template_name"],
+		limit=50,
+		order_by="template_name",
+	)
+	return [{"name": t.name, "label": t.template_name or t.name} for t in templates]
+
+
+@frappe.whitelist()
+def get_patient_health_history_template_details(template_name: str):
+	"""Return template doc with patient_history_details for creating PMH from template."""
+	if not template_name:
+		frappe.throw(_("Template is required"))
+	doc = frappe.get_doc("Patient Health History Template", template_name)
+	details = []
+	for row in doc.patient_history_details or []:
+		details.append({
+			"attributes": row.attributes,
+			"description": row.description or "",
+			"yesno": row.yesno or "",
+		})
+	return {
+		"name": doc.name,
+		"template_name": doc.template_name,
+		"patient_history_details": details,
+	}
+
+
+@frappe.whitelist()
 def get_patient_medical_history(patient: str):
 	"""Return Patient Medical History document (template-driven child table)."""
 	if not patient:
