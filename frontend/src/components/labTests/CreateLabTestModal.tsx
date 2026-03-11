@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { createLabTest } from '../../services/labTests'
-import { fetchHealthcarePractitioners, fetchLabTestTemplates, fetchMedicalDepartments, fetchDocumentTypes, type LinkFieldOption } from '../../services/common'
+import { fetchHealthcarePractitioners, fetchLabTestTemplates, fetchMedicalDepartments, fetchDocumentTypes, fetchCostCenters, type LinkFieldOption } from '../../services/common'
 import { searchPatients, fetchPatients, uploadPatientFile, type PatientListItem, type PatientDocumentRow } from '../../services/patients'
 import { CreatePatientModal } from '../patients/CreatePatientModal'
 import { CreatePractitionerModal } from '../practitioners/CreatePractitionerModal'
@@ -16,6 +16,7 @@ interface CreateLabTestModalProps {
 export const CreateLabTestModal = ({ onClose, onSuccess, initialPatient }: CreateLabTestModalProps) => {
   const [formData, setFormData] = useState({
     patient: initialPatient || '',
+    cost_center: '',
     template: '',
     practitioner: '',
     date: new Date().toISOString().split('T')[0],
@@ -50,6 +51,12 @@ export const CreateLabTestModal = ({ onClose, onSuccess, initialPatient }: Creat
   const [departmentOpen, setDepartmentOpen] = useState(false)
   const [departmentQuery, setDepartmentQuery] = useState('')
   const [selectedDepartment, setSelectedDepartment] = useState<LinkFieldOption | null>(null)
+
+  // Cost Center dropdown state
+  const [costCenterOptions, setCostCenterOptions] = useState<LinkFieldOption[]>([])
+  const [costCenterOpen, setCostCenterOpen] = useState(false)
+  const [costCenterQuery, setCostCenterQuery] = useState('')
+  const [selectedCostCenter, setSelectedCostCenter] = useState<LinkFieldOption | null>(null)
 
   // Create modals
   const [showCreatePatient, setShowCreatePatient] = useState(false)
@@ -96,6 +103,10 @@ export const CreateLabTestModal = ({ onClose, onSuccess, initialPatient }: Creat
       setError('Patient is required')
       return
     }
+    if (!formData.cost_center) {
+      setError('Cost Center is required')
+      return
+    }
 
     try {
       setLoading(true)
@@ -112,6 +123,7 @@ export const CreateLabTestModal = ({ onClose, onSuccess, initialPatient }: Creat
         }))
       await createLabTest({
         patient: formData.patient,
+        cost_center: formData.cost_center,
         template: formData.template || undefined,
         practitioner: formData.practitioner || undefined,
         date: formData.date || undefined,
@@ -159,14 +171,16 @@ export const CreateLabTestModal = ({ onClose, onSuccess, initialPatient }: Creat
   useEffect(() => {
     const loadOptions = async () => {
       try {
-        const [templates, practs, depts] = await Promise.all([
+        const [templates, practs, depts, costCenters] = await Promise.all([
           fetchLabTestTemplates(),
           fetchHealthcarePractitioners(),
-          fetchMedicalDepartments()
+          fetchMedicalDepartments(),
+          fetchCostCenters()
         ])
         setTemplateOptions(templates)
         setPractitionerOptions(practs)
         setDepartmentOptions(depts)
+        setCostCenterOptions(costCenters)
       } catch (err) {
         console.error('Failed to load options:', err)
       }
@@ -266,6 +280,27 @@ export const CreateLabTestModal = ({ onClose, onSuccess, initialPatient }: Creat
     return () => clearTimeout(timeoutId)
   }, [departmentQuery, departmentOpen])
 
+  // Search cost centers
+  useEffect(() => {
+    if (!costCenterOpen) return
+
+    const search = async () => {
+      try {
+        const results = await fetchCostCenters(undefined, costCenterQuery)
+        setCostCenterOptions(results)
+      } catch (err) {
+        console.error('Failed to search cost centers:', err)
+        setCostCenterOptions([])
+      }
+    }
+
+    const timeoutId = setTimeout(() => {
+      search()
+    }, costCenterQuery.trim() === '' ? 0 : 300)
+
+    return () => clearTimeout(timeoutId)
+  }, [costCenterQuery, costCenterOpen])
+
   const handlePatientSelect = (patient: PatientListItem) => {
     setFormData(prev => ({ ...prev, patient: patient.name }))
     setPatientQuery(patient.patient_name)
@@ -294,6 +329,13 @@ export const CreateLabTestModal = ({ onClose, onSuccess, initialPatient }: Creat
     // Refresh templates and practitioners when department changes
     fetchLabTestTemplates(undefined, dept.name).then(setTemplateOptions).catch(console.error)
     fetchHealthcarePractitioners(undefined, dept.name).then(setPractitionerOptions).catch(console.error)
+  }
+
+  const handleCostCenterSelect = (cc: LinkFieldOption) => {
+    setSelectedCostCenter(cc)
+    setFormData(prev => ({ ...prev, cost_center: cc.name }))
+    setCostCenterQuery(cc.label)
+    setCostCenterOpen(false)
   }
 
   return (
@@ -328,6 +370,7 @@ export const CreateLabTestModal = ({ onClose, onSuccess, initialPatient }: Creat
               setTemplateOpen(false)
               setPractitionerOpen(false)
               setDepartmentOpen(false)
+              setCostCenterOpen(false)
             }
           }}
         >
@@ -396,6 +439,43 @@ export const CreateLabTestModal = ({ onClose, onSuccess, initialPatient }: Creat
           <div>
             <h3 className="text-sm font-semibold text-slate-700 mb-3">Lab Test Details</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Cost Center <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={costCenterOpen ? costCenterQuery : (selectedCostCenter ? selectedCostCenter.label : '')}
+                    onChange={(e) => {
+                      const value = e.target.value
+                      setCostCenterQuery(value)
+                      if (!value) {
+                        setSelectedCostCenter(null)
+                        setFormData(prev => ({ ...prev, cost_center: '' }))
+                      }
+                      setCostCenterOpen(true)
+                    }}
+                    onFocus={() => setCostCenterOpen(true)}
+                    placeholder="Search cost center..."
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                  {costCenterOpen && costCenterOptions.length > 0 && (
+                    <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto top-full">
+                      {costCenterOptions.map((cc) => (
+                        <button
+                          key={cc.name}
+                          type="button"
+                          onClick={() => handleCostCenterSelect(cc)}
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 focus:bg-slate-100 focus:outline-none"
+                        >
+                          {cc.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">
                   Lab Test Template

@@ -83,6 +83,24 @@ export const CreateServiceRequestModal = ({
     fetchHealthcarePractitioners().then(setPractitioners)
   }, [])
 
+  /* When opened with a patient already chosen (e.g. from Doctor top bar), set selectedPatient
+     so that Patient Visit and Inpatient Admission lists are loaded for that patient. */
+  useEffect(() => {
+    if (!initialPatient || selectedPatient !== null) return
+
+    setPatientQuery(initialPatient)
+    const load = async () => {
+      try {
+        const list = await searchPatients(initialPatient, 20)
+        const match = list.find((p) => p.name === initialPatient)
+        setSelectedPatient(match ?? { name: initialPatient, patient_name: initialPatient })
+      } catch {
+        setSelectedPatient({ name: initialPatient, patient_name: initialPatient })
+      }
+    }
+    load()
+  }, [initialPatient])
+
   /* ---------------- COST CENTER LOOKUP ---------------- */
 
   useEffect(() => {
