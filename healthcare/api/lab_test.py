@@ -371,6 +371,8 @@ def create_lab_test(data):
 	# Validate required fields
 	if not data.get('patient'):
 		frappe.throw(_("Patient is required"))
+	if not data.get('cost_center'):
+		frappe.throw(_("Cost Center is required"))
 
 	# Optional but recommended clinical context: either inpatient admission or patient visit
 	# (only enforce when the fields exist in payload, so older callers are not broken)
@@ -398,6 +400,7 @@ def create_lab_test(data):
 		'doctype': 'Lab Test',
 		'patient': data.get('patient'),
 		'patient_sex': patient_sex,
+		'cost_center': data.get('cost_center'),
 		'template': data.get('template'),
 		'practitioner': data.get('practitioner'),
 		'date': data.get('date') or frappe.utils.today(),

@@ -116,6 +116,7 @@ export async function getLabTestConsumables(name: string): Promise<LabConsumable
 
 export interface CreateLabTestData {
   patient: string
+  cost_center: string
   template?: string
   practitioner?: string
   date?: string
