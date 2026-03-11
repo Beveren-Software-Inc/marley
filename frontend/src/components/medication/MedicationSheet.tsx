@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { getPatientActiveAdmission, type InpatientRecord } from '../../services/inpatientRecords'
+import { getPatientActiveAdmission } from '../../services/inpatientRecords'
 import { fetchMedicationSheet, type MedicationSheetRow } from '../../services/medicineGiven'
 
 interface MedicationSheetProps {
@@ -7,7 +7,6 @@ interface MedicationSheetProps {
 }
 
 export const MedicationSheet = ({ patient }: MedicationSheetProps) => {
-  const [admission, setAdmission] = useState<InpatientRecord | null>(null)
   const [fromDate, setFromDate] = useState<string>(() => new Date().toISOString().slice(0, 10))
   const [toDate, setToDate] = useState<string>(() => new Date().toISOString().slice(0, 10))
   const [rows, setRows] = useState<MedicationSheetRow[]>([])
@@ -17,7 +16,6 @@ export const MedicationSheet = ({ patient }: MedicationSheetProps) => {
   useEffect(() => {
     const load = async () => {
       if (!patient) {
-        setAdmission(null)
         setRows([])
         setError(null)
         return
@@ -27,12 +25,10 @@ export const MedicationSheet = ({ patient }: MedicationSheetProps) => {
         setError(null)
         const adm = await getPatientActiveAdmission(patient)
         if (!adm) {
-          setAdmission(null)
           setRows([])
           setError('No active inpatient admission found for this patient')
           return
         }
-        setAdmission(adm)
         const data = await fetchMedicationSheet(adm.name, fromDate, toDate)
         setRows(data)
       } catch (e) {

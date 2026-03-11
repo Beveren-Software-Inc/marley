@@ -11,7 +11,6 @@ import { CreateObservationModal } from '../components/observations/CreateObserva
 import { CreateVitalSignModal } from '../components/vitalSigns/CreateVitalSignModal'
 import { DischargeList } from '../components/discharges/DischargeList'
 import { DischargeModal } from '../components/admissions/DischargeModal'
-import { PackageDetailsList } from '../components/packageDetails/PackageDetailsList'
 import { PackageDetailView } from '../components/packageDetails/PackageDetailView'
 import { PatientSummaryCard } from '../components/patients/PatientSummaryCard'
 import { DoctorServiceDetailsTable } from '../components/services/DoctorServiceDetailsTable'
@@ -84,7 +83,7 @@ export const NursePage = () => {
   const [givenRefreshKey, setGivenRefreshKey] = useState(0)
   const [reconcileLoading, setReconcileLoading] = useState(false)
   const [showBulkScheduleModal, setShowBulkScheduleModal] = useState(false)
-  const [iopRefreshKey, setIopRefreshKey] = useState(0)
+  const [iopRefreshKey] = useState(0)
   const screen = searchParams.get('screen')
 
   // Sync selectedPatient with URL on mount and when URL changes
