@@ -225,6 +225,45 @@ export async function createPatient(data: CreatePatientData): Promise<CreatePati
   throw new Error(messageFromFrappeResponse(resData as Record<string, unknown>) || 'Invalid response format')
 }
 
+export interface PatientHealthHistoryTemplateOption {
+  name: string
+  label: string
+}
+
+export interface PatientHealthHistoryTemplateDetails {
+  name: string
+  template_name?: string
+  patient_history_details: PatientMedicalHistoryRow[]
+}
+
+export async function fetchPatientHealthHistoryTemplates(
+  search?: string
+): Promise<PatientHealthHistoryTemplateOption[]> {
+  const params = new URLSearchParams()
+  if (search) params.set('search', search)
+  const url = `/api/method/healthcare.api.patient.get_patient_health_history_templates${params.toString() ? `?${params.toString()}` : ''}`
+  const res = await fetch(url)
+  const data = await res.json().catch(() => ({}))
+  if (data?.message && Array.isArray(data.message)) {
+    return data.message as PatientHealthHistoryTemplateOption[]
+  }
+  return []
+}
+
+export async function fetchPatientHealthHistoryTemplateDetails(
+  templateName: string
+): Promise<PatientHealthHistoryTemplateDetails> {
+  const params = new URLSearchParams({ template_name: templateName })
+  const res = await fetch(
+    `/api/method/healthcare.api.patient.get_patient_health_history_template_details?${params.toString()}`
+  )
+  const data = await res.json().catch(() => ({}))
+  if (data?.message && typeof data.message === 'object') {
+    return data.message as PatientHealthHistoryTemplateDetails
+  }
+  throw new Error(data?.exc || 'Failed to load template details')
+}
+
 export async function fetchPatientMedicalHistory(patient: string): Promise<PatientMedicalHistory> {
   const response = await fetch(
     `/api/method/healthcare.api.patient.get_patient_medical_history?patient=${encodeURIComponent(patient)}`

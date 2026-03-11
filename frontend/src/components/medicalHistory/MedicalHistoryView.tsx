@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { fetchPatientMedicalHistory, type PatientMedicalHistory } from '../../services/patients'
 import { EditPatientMedicalHistoryModal } from './EditPatientMedicalHistoryModal'
-import { PenLine } from 'lucide-react'
+import { CreatePatientMedicalHistoryModal } from './CreatePatientMedicalHistoryModal'
+import { PenLine, Plus } from 'lucide-react'
 
 interface MedicalHistoryViewProps {
   patient?: string
@@ -12,6 +13,7 @@ export const MedicalHistoryView = ({ patient }: MedicalHistoryViewProps) => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
   const [showEditModal, setShowEditModal] = useState(false)
+  const [showCreateModal, setShowCreateModal] = useState(false)
 
   useEffect(() => {
     const loadMedicalHistory = async () => {
@@ -62,23 +64,34 @@ export const MedicalHistoryView = ({ patient }: MedicalHistoryViewProps) => {
     )
   }
 
-  if (!medicalHistory) {
+  if (!medicalHistory || !medicalHistory.name) {
     return (
-      <div className="flex items-center justify-center p-8">
-        <div className="flex flex-col items-center gap-3">
-          <div className="text-slate-500">No medical history found for this patient.</div>
-          <button
-            type="button"
-            onClick={() => {
-              const url = `/app/patient-medical-history/new?patient=${encodeURIComponent(patient)}`
-              window.open(url, '_blank')
-            }}
-            className="inline-flex items-center px-3 py-1.5 rounded-md bg-primary text-white text-xs font-medium hover:bg-primary/90"
-          >
-            + Create Patient Medical History
-          </button>
+      <>
+        <div className="flex items-center justify-center p-8">
+          <div className="flex flex-col items-center gap-3">
+            <div className="text-slate-500">No patient medical history has been recorded yet.</div>
+            <button
+              type="button"
+              onClick={() => setShowCreateModal(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-white text-xs font-medium hover:bg-primary/90"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Create Patient Medical History
+            </button>
+          </div>
         </div>
-      </div>
+        {showCreateModal && patient && (
+          <CreatePatientMedicalHistoryModal
+            patient={patient}
+            patientName={medicalHistory?.patient_name}
+            onClose={() => setShowCreateModal(false)}
+            onCreated={(created) => {
+              setMedicalHistory(created)
+              setShowCreateModal(false)
+            }}
+          />
+        )}
+      </>
     )
   }
 
@@ -136,8 +149,18 @@ export const MedicalHistoryView = ({ patient }: MedicalHistoryViewProps) => {
             </tbody>
           </table>
         ) : (
-          <div className="px-4 py-6 text-sm text-slate-500 text-center">
-            No patient medical history has been recorded yet.
+          <div className="px-4 py-6 flex flex-col items-center gap-3">
+            <p className="text-sm text-slate-500 text-center">
+              No patient medical history has been recorded yet.
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowEditModal(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-white text-xs font-medium hover:bg-primary/90"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Add history
+            </button>
           </div>
         )}
         </div>
