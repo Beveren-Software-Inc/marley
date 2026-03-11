@@ -3,10 +3,8 @@ import { searchPatients, fetchPatients, type PatientListItem } from '../../servi
 import { toast } from '../../hooks/useToast'
 import { apiRequest } from '../../services/apiClient'
 import { 
-  fetchMedicalDepartments, 
   fetchHealthcarePractitioners, 
   fetchServiceUnitTypes, 
-  fetchNursingChecklistTemplates,
   fetchCompanies,
   fetchCostCenters,
   type LinkFieldOption 
@@ -52,28 +50,22 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
   const [costCenterQuery, setCostCenterQuery] = useState('')
   
   // Link field options
-  const [medicalDepartments, setMedicalDepartments] = useState<LinkFieldOption[]>([])
   const [consultantOptions, setConsultantOptions] = useState<LinkFieldOption[]>([])
   const [psychologistOptions, setPsychologistOptions] = useState<LinkFieldOption[]>([])
   const [residentOptions, setResidentOptions] = useState<LinkFieldOption[]>([])
   const [serviceUnitTypes, setServiceUnitTypes] = useState<LinkFieldOption[]>([])
-  const [nursingTemplates, setNursingTemplates] = useState<LinkFieldOption[]>([])
   
   // Dropdown open states
-  const [deptOpen, setDeptOpen] = useState(false)
   const [consultantOpen, setConsultantOpen] = useState(false)
   const [psychologistOpen, setPsychologistOpen] = useState(false)
   const [residentOpen, setResidentOpen] = useState(false)
   const [serviceUnitOpen, setServiceUnitOpen] = useState(false)
-  const [nursingTemplateOpen, setNursingTemplateOpen] = useState(false)
   
   // Search queries for link fields
-  const [deptQuery, setDeptQuery] = useState('')
   const [consultantQuery, setConsultantQuery] = useState('')
   const [psychologistQuery, setPsychologistQuery] = useState('')
   const [residentQuery, setResidentQuery] = useState('')
   const [serviceUnitQuery, setServiceUnitQuery] = useState('')
-  const [nursingTemplateQuery, setNursingTemplateQuery] = useState('')
 
   const [formData, setFormData] = useState({
     company: '',
@@ -132,15 +124,11 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
     return () => clearTimeout(timeoutId)
   }, [formData.company, costCenterQuery, costCenterOpen])
 
-  // Load initial options
+  // Load initial service unit types
   useEffect(() => {
     const loadOptions = async () => {
       try {
-        const [depts, serviceUnits] = await Promise.all([
-          fetchMedicalDepartments(),
-          fetchServiceUnitTypes()
-        ])
-        setMedicalDepartments(depts)
+        const serviceUnits = await fetchServiceUnitTypes()
         setServiceUnitTypes(serviceUnits)
       } catch (err) {
         console.error('Failed to load options:', err)
@@ -177,22 +165,6 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
 
     return () => clearTimeout(timeoutId)
   }, [patientQuery, patientOpen])
-
-  // Search medical departments
-  useEffect(() => {
-    if (deptOpen || deptQuery) {
-      const search = async () => {
-        try {
-          const results = await fetchMedicalDepartments(deptQuery || undefined)
-          setMedicalDepartments(results)
-        } catch (err) {
-          console.error('Failed to search departments:', err)
-        }
-      }
-      const timeoutId = setTimeout(search, 300)
-      return () => clearTimeout(timeoutId)
-    }
-  }, [deptQuery, deptOpen])
 
   // Search practitioners (filtered by department if selected)
   // Consultant Doctor (primary)
@@ -269,20 +241,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
   }, [serviceUnitQuery, serviceUnitOpen])
 
   // Search nursing templates
-  useEffect(() => {
-    if (nursingTemplateOpen || nursingTemplateQuery) {
-      const search = async () => {
-        try {
-          const results = await fetchNursingChecklistTemplates(nursingTemplateQuery || undefined)
-          setNursingTemplates(results)
-        } catch (err) {
-          console.error('Failed to search nursing templates:', err)
-        }
-      }
-      const timeoutId = setTimeout(search, 300)
-      return () => clearTimeout(timeoutId)
-    }
-  }, [nursingTemplateQuery, nursingTemplateOpen])
+  // (UI currently disabled; keep hook placeholder if needed in future)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -412,12 +371,10 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
     setPatientOpen(false)
     setCompanyOpen(false)
     setCostCenterOpen(false)
-    setDeptOpen(false)
     setConsultantOpen(false)
     setPsychologistOpen(false)
     setResidentOpen(false)
     setServiceUnitOpen(false)
-    setNursingTemplateOpen(false)
   }
 
   return (

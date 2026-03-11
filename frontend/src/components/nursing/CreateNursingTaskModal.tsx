@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { apiRequest } from '../../services/apiClient'
 import { toast } from '../../hooks/useToast'
 import { CreateHealthcareActivityModal } from '../activities/CreateHealthcareActivityModal'
-import { fetchHealthcarePractitioners, type LinkFieldOption } from '../../services/common'
+import { fetchHealthcarePractitioners } from '../../services/common'
 
 interface CreateNursingTaskModalProps {
   onClose: () => void

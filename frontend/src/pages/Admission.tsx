@@ -173,7 +173,7 @@ export const AdmissionPage = () => {
       {showCreateAdmission && (
         <CreateAdmissionModal
           onClose={() => setShowCreateAdmission(false)}
-          onSuccess={(admissionName) => {
+          onSuccess={() => {
             setShowCreateAdmission(false)
             // After creating, refresh the list so the new admission appears immediately
             setListRefreshKey(prev => prev + 1)
