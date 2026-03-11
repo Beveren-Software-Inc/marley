@@ -7,6 +7,8 @@ import { ServiceRequestList } from '../components/serviceRequests/ServiceRequest
 import { LabTestList } from '../components/labTests/LabTestList'
 import { CreateLabTestModal } from '../components/labTests/CreateLabTestModal'
 import { CreateServiceRequestModal } from '../components/serviceRequests/CreateServiceRequestModal'
+import { MedicalHistoryView } from '../components/medicalHistory/MedicalHistoryView'
+import { WarningMessagesList } from '../components/warnings/WarningMessagesList'
 
 export const LabPage = () => {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -199,7 +201,7 @@ export const LabPage = () => {
     )
   }
 
-  // Default view - Service Requests and Lab Tests side by side
+  // Default view - when no special screen is selected
   return (
     <div className="flex flex-col">
       <header className="flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
@@ -216,44 +218,127 @@ export const LabPage = () => {
         </div>
       </header>
 
-      <div className="grid gap-4 md:grid-cols-2 p-4">
-        <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-          <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
-            <span>Service Requests</span>
-            <button
-              onClick={() => setShowServiceRequestModal(true)}
-              className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
-              title="Add Service Request"
-            >
-              +
-            </button>
-          </div>
-          <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-            <ServiceRequestList 
-              patient={selectedPatient} 
-              onLabTestCreated={handleLabTestCreated}
-              refreshKey={serviceRequestRefreshKey}
-              template_dt="Lab Test Template"
-            />
-          </div>
-        </section>
+      {selectedPatient ? (
+        <>
+          {/* Patient context: medical background and warnings */}
+          <div className="grid gap-4 md:grid-cols-2 p-4">
+            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
+              <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
+                <span>Patient Medical History</span>
+              </div>
+              <div
+                className="overflow-x-auto overflow-y-auto flex-1 min-h-0"
+                style={{ scrollbarWidth: 'thin' }}
+              >
+                <MedicalHistoryView patient={selectedPatient} />
+              </div>
+            </section>
 
-        <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-          <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
-            <span>Lab Tests</span>
-            <button
-              onClick={() => setShowLabTestModal(true)}
-              className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
-              title="Add Lab Test"
+            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
+              <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
+                <span>Warnings & Allergies</span>
+              </div>
+              <div
+                className="overflow-x-auto overflow-y-auto flex-1 min-h-0"
+                style={{ scrollbarWidth: 'thin' }}
+              >
+                <WarningMessagesList patient={selectedPatient} />
+              </div>
+            </section>
+          </div>
+
+          {/* Requests and tests for this patient */}
+          <div className="grid gap-4 md:grid-cols-2 px-4 pb-4">
+            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
+              <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
+                <span>Service Requests</span>
+                <button
+                  onClick={() => setShowServiceRequestModal(true)}
+                  className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
+                  title="Add Service Request"
+                >
+                  +
+                </button>
+              </div>
+              <div
+                className="overflow-x-auto overflow-y-auto flex-1 min-h-0"
+                style={{ scrollbarWidth: 'thin' }}
+              >
+                <ServiceRequestList
+                  patient={selectedPatient}
+                  onLabTestCreated={handleLabTestCreated}
+                  refreshKey={serviceRequestRefreshKey}
+                  template_dt="Lab Test Template"
+                />
+              </div>
+            </section>
+
+            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
+              <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
+                <span>Lab Tests</span>
+                <button
+                  onClick={() => setShowLabTestModal(true)}
+                  className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
+                  title="Add Lab Test"
+                >
+                  +
+                </button>
+              </div>
+              <div
+                className="overflow-x-auto overflow-y-auto flex-1 min-h-0"
+                style={{ scrollbarWidth: 'thin' }}
+              >
+                <LabTestList patient={selectedPatient} key={labTestRefreshKey} />
+              </div>
+            </section>
+          </div>
+        </>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 p-4">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
+            <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
+              <span>Service Requests</span>
+              <button
+                onClick={() => setShowServiceRequestModal(true)}
+                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
+                title="Add Service Request"
+              >
+                +
+              </button>
+            </div>
+            <div
+              className="overflow-x-auto overflow-y-auto flex-1 min-h-0"
+              style={{ scrollbarWidth: 'thin' }}
             >
-              +
-            </button>
-          </div>
-          <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-            <LabTestList patient={selectedPatient} key={labTestRefreshKey} />
-          </div>
-        </section>
-      </div>
+              <ServiceRequestList
+                patient={selectedPatient}
+                onLabTestCreated={handleLabTestCreated}
+                refreshKey={serviceRequestRefreshKey}
+                template_dt="Lab Test Template"
+              />
+            </div>
+          </section>
+
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
+            <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
+              <span>Lab Tests</span>
+              <button
+                onClick={() => setShowLabTestModal(true)}
+                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
+                title="Add Lab Test"
+              >
+                +
+              </button>
+            </div>
+            <div
+              className="overflow-x-auto overflow-y-auto flex-1 min-h-0"
+              style={{ scrollbarWidth: 'thin' }}
+            >
+              <LabTestList patient={selectedPatient} key={labTestRefreshKey} />
+            </div>
+          </section>
+        </div>
+      )}
 
       {showLabTestModal && (
         <CreateLabTestModal

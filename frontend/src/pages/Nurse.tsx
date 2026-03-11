@@ -12,6 +12,7 @@ import { CreateVitalSignModal } from '../components/vitalSigns/CreateVitalSignMo
 import { DischargeList } from '../components/discharges/DischargeList'
 import { DischargeModal } from '../components/admissions/DischargeModal'
 import { PackageDetailView } from '../components/packageDetails/PackageDetailView'
+import { NursingTaskList } from '../components/nursing/NursingTaskList'
 import { PatientSummaryCard } from '../components/patients/PatientSummaryCard'
 import { DoctorServiceDetailsTable } from '../components/services/DoctorServiceDetailsTable'
 import { CreateClinicalNoteModal } from '../components/clinicalNotes/CreateClinicalNoteModal'
@@ -313,6 +314,40 @@ export const NursePage = () => {
             </div>
           </div>
         )}
+      </div>
+    )
+  }
+
+  // My Nursing Tasks – tasks assigned to the logged-in nurse
+  if (screen === 'n-my-tasks') {
+    return (
+      <div className="flex flex-col">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+        <div className="p-4">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-base font-semibold text-slate-900">My Nursing Tasks</h2>
+                <p className="text-xs text-slate-600 mt-1">
+                  Tasks assigned to you, ordered by requested time and status.
+                </p>
+              </div>
+            </div>
+            <NursingTaskList myTasks />
+          </section>
+        </div>
       </div>
     )
   }

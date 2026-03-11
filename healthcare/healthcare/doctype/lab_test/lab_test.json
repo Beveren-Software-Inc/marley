@@ -16,8 +16,10 @@
   "reference_doctype",
   "reference_document",
   "is_outsourced",
+  "priority",
   "column_break_26",
   "company",
+  "cost_center",
   "status",
   "date",
   "time",
@@ -216,7 +218,7 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Status",
-   "options": "\nDraft\nRequested\nCompleted\nPending Review\nApproved\nRejected\nCancelled",
+   "options": "\nDraft\nRequested\nAwaiting sample collection\nSample collected\nTesting in progress\nCompleted\nPending Review\nApproved\nRejected\nCancelled",
    "read_only": 1,
    "search_index": 1
   },
@@ -702,6 +704,18 @@
    "fieldtype": "Table",
    "label": "Documents",
    "options": "Patient Upload Document"
+  },
+  {
+   "fieldname": "priority",
+   "fieldtype": "Select",
+   "label": "Priority",
+   "options": "\nRoutine\nUrgent\nStat"
+  },
+  {
+   "fieldname": "cost_center",
+   "fieldtype": "Link",
+   "label": "Cost Center",
+   "options": "Cost Center"
   }
  ],
  "is_submittable": 1,
@@ -711,7 +725,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2026-03-10 03:09:03.884988",
+ "modified": "2026-03-11 12:08:52.189862",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Lab Test",

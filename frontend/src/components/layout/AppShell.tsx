@@ -43,6 +43,7 @@ const nurseScreens = [
   { id: 'n-package', title: 'Package Detail' },
   { id: 'n-session', title: 'Sessions / Scheduler' },
   { id: 'n-ip-adm', title: 'IP Admission & Detail' },
+  { id: 'n-my-tasks', title: 'My Nursing Tasks' },
   { id: 'n-reg', title: 'Admission' }
 ].sort((a, b) => a.title.localeCompare(b.title))
 

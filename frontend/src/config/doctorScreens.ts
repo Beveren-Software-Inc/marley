@@ -30,7 +30,8 @@ export const doctorScreens = [
   { id: 'sl', title: 'Sick Leave', desc: 'Leave requests.' },
   { id: 'ipm', title: 'IP Medication', desc: 'Inpatient medications.' },
   { id: 'pvh', title: 'Patient Visit History', desc: 'Prior encounters.' },
-  { id: 'pkg', title: 'Package Detail', desc: 'Package info.' }
+  { id: 'pkg', title: 'Package Detail', desc: 'Package info.' },
+  { id: 'nurse-tasks', title: 'Nursing Task Assignment', desc: 'Assign and view nursing tasks.' }
 ].sort((a, b) => a.title.localeCompare(b.title))
 
 

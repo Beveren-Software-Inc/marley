@@ -10,6 +10,8 @@ import { VitalSignsList } from '../components/vitalSigns/VitalSignsList'
 import { CreateObservationModal } from '../components/observations/CreateObservationModal'
 import { MedicalHistoryView } from '../components/medicalHistory/MedicalHistoryView'
 import { PackageDetailView } from '../components/packageDetails/PackageDetailView'
+import { NursingTaskList } from '../components/nursing/NursingTaskList'
+import { CreateNursingTaskModal } from '../components/nursing/CreateNursingTaskModal'
 import { DischargeList } from '../components/discharges/DischargeList'
 import { PatientSummaryCard } from '../components/patients/PatientSummaryCard'
 import { DoctorServiceDetailsTable } from '../components/services/DoctorServiceDetailsTable'
@@ -91,6 +93,7 @@ export const DoctorPage = () => {
   const [ectRefreshKey, setEctRefreshKey] = useState(0)
   const [showSleepingPatternModal, setShowSleepingPatternModal] = useState(false)
   const [sleepingPatternRefreshKey, setSleepingPatternRefreshKey] = useState(0)
+  const [showCreateNursingTaskModal, setShowCreateNursingTaskModal] = useState(false)
   const screen = searchParams.get('screen')
 
   // Sync selectedPatient with URL on mount and when URL changes
@@ -746,6 +749,57 @@ export const DoctorPage = () => {
             initialPatient={selectedPatient}
             defaultClinicalNoteType="Nursing Note"
             title="Add Nursing Note"
+          />
+        )}
+      </div>
+    )
+  }
+
+  // Nursing Task Assignment – Doctor view of nursing tasks for this patient
+  if (screen === 'nurse-tasks') {
+    return (
+      <div className="flex flex-col">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+        <div className="p-4">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-base font-semibold text-slate-900">Nursing Task Assignment</h2>
+                <p className="text-xs text-slate-600 mt-1">
+                  Nursing tasks generated from admission, procedures, therapy, or checklist templates or added manually for this patient.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCreateNursingTaskModal(true)}
+                className="w-7 h-7 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 text-sm font-bold"
+                title="New Nursing Task"
+              >
+                +
+              </button>
+            </div>
+            <NursingTaskList patient={selectedPatient} />
+          </section>
+        </div>
+        {showCreateNursingTaskModal && (
+          <CreateNursingTaskModal
+            patient={selectedPatient || undefined}
+            onClose={() => setShowCreateNursingTaskModal(false)}
+            onSuccess={() => {
+              setShowCreateNursingTaskModal(false)
+            }}
           />
         )}
       </div>
