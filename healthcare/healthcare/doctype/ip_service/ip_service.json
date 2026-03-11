@@ -1,15 +1,18 @@
 {
  "actions": [],
  "allow_rename": 1,
+ "autoname": "IPS-.{service_request}-.#####",
  "creation": "2025-12-17 13:00:00",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
   "admission_no",
   "file_number",
+  "type",
   "column_break_audp",
   "patient_full_name",
-  "branch",
+  "cost_center",
+  "service_request",
   "section_break_services",
   "services",
   "section_break_totals",
@@ -26,7 +29,7 @@
    "reqd": 1
   },
   {
-   "fetch_from": "admission_no.file_number",
+   "fetch_from": "admission_no.patient",
    "fieldname": "file_number",
    "fieldtype": "Link",
    "in_list_view": 1,
@@ -42,14 +45,6 @@
    "in_list_view": 1,
    "label": "Patient Full Name",
    "read_only": 1
-  },
-  {
-   "fieldname": "branch",
-   "fieldtype": "Link",
-   "in_list_view": 1,
-   "in_standard_filter": 1,
-   "label": "Branch",
-   "options": "Branch"
   },
   {
    "fieldname": "section_break_services",
@@ -78,15 +73,37 @@
   {
    "fieldname": "column_break_audp",
    "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "cost_center",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Cost Center",
+   "options": "Cost Center"
+  },
+  {
+   "default": "External Service",
+   "fieldname": "type",
+   "fieldtype": "Select",
+   "label": "Type",
+   "options": "\nInternal Service\nExternal Service"
+  },
+  {
+   "fieldname": "service_request",
+   "fieldtype": "Link",
+   "label": "Service Request",
+   "options": "Service Request"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-12-17 13:11:29.369103",
+ "modified": "2026-03-11 02:53:08.736294",
  "modified_by": "Administrator",
  "module": "Healthcare",
- "name": "IP External Service",
+ "name": "IP Service",
+ "naming_rule": "Expression",
  "owner": "Administrator",
  "permissions": [
   {
@@ -107,5 +124,3 @@
  "sort_order": "DESC",
  "states": []
 }
-
-

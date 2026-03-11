@@ -10,6 +10,7 @@ import { VitalSignsList } from '../components/vitalSigns/VitalSignsList'
 import { CreateObservationModal } from '../components/observations/CreateObservationModal'
 import { MedicalHistoryView } from '../components/medicalHistory/MedicalHistoryView'
 import { PackageDetailsList } from '../components/packageDetails/PackageDetailsList'
+import { PackageDetailView } from '../components/packageDetails/PackageDetailView'
 import { DischargeList } from '../components/discharges/DischargeList'
 import { PatientSummaryCard } from '../components/patients/PatientSummaryCard'
 import { DoctorServiceDetailsTable } from '../components/services/DoctorServiceDetailsTable'
@@ -1283,7 +1284,7 @@ export const DoctorPage = () => {
     )
   }
 
-  // Show Package Details
+  // Show Package Details – dashboard: available packages, active admission, assigned package (from Quotation)
   if (screen === 'pkg') {
     return (
       <div className="flex flex-col">
@@ -1331,7 +1332,7 @@ export const DoctorPage = () => {
                 +
               </button>
             </div>
-            <PackageDetailsList patient={selectedPatient} />
+            <PackageDetailView patient={selectedPatient} />
           </section>
         </div>
       </div>

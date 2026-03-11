@@ -86,6 +86,87 @@ export interface ReconcileResponse {
   items: { item_code: string; qty: number }[]
 }
 
+export interface MedicationChartSession {
+  id: string
+  label: string
+  order: number
+}
+
+export interface MedicationChartSlot {
+  session_id: string
+  due: boolean
+  given: boolean
+  given_time?: string | null
+  given_by?: string | null
+}
+
+export interface MedicationChartRow {
+  order_entry: string
+  prescription: string
+  drug: string
+  drug_name?: string
+  dosage?: string
+  dosage_form?: string
+  patient_frequency?: string
+  slots: MedicationChartSlot[]
+}
+
+export interface MedicationChartResponse {
+  sessions: MedicationChartSession[]
+  rows: MedicationChartRow[]
+}
+
+export async function fetchDailyMedicationChart(
+  admission: string,
+  date: string
+): Promise<MedicationChartResponse> {
+  const params = new URLSearchParams()
+  params.append('admission', admission)
+  params.append('date', date)
+
+  const res = await fetch(
+    `/api/method/healthcare.api.medication_chart.get_daily_medication_chart?${params.toString()}`
+  )
+  const data = await res.json()
+
+  if (data?.exc || !res.ok) {
+    throw new Error(data?.exc || data?.message || 'Failed to load medication chart')
+  }
+
+  const message = (data?.message || data?.data) as MedicationChartResponse | undefined
+  return (
+    message || {
+      sessions: [],
+      rows: [],
+    }
+  )
+}
+
+export interface MedicationSheetRow extends MedicineGivenRow {}
+
+export async function fetchMedicationSheet(
+  admission: string,
+  fromDate?: string,
+  toDate?: string
+): Promise<MedicationSheetRow[]> {
+  const params = new URLSearchParams()
+  params.append('admission', admission)
+  if (fromDate) params.append('from_date', fromDate)
+  if (toDate) params.append('to_date', toDate)
+
+  const res = await fetch(
+    `/api/method/healthcare.api.medication_chart.get_medication_sheet?${params.toString()}`
+  )
+  const data = await res.json()
+
+  if (data?.exc || !res.ok) {
+    throw new Error(data?.exc || data?.message || 'Failed to load medication sheet')
+  }
+
+  const message = (data?.message || data?.data) as MedicationSheetRow[] | undefined
+  return message || []
+}
+
 export async function reconcileDischargeMedicines(
   admission: string
 ): Promise<ReconcileResponse> {
@@ -102,6 +183,44 @@ export async function reconcileDischargeMedicines(
   }
 
   return (data?.message as ReconcileResponse) || { stock_entry: null, items: [] }
+}
+
+// Long-acting medication reminders (Q1W, Q2W, Q3W, Q4W)
+export type LongActingReminderStatus = 'overdue' | 'due_today' | 'due_soon'
+
+export interface LongActingMedicationReminder {
+  patient: string
+  patient_name?: string
+  admission: string
+  prescription: string
+  order_entry: string
+  drug: string
+  drug_name: string
+  dosage?: string
+  frequency: string
+  last_given_date: string
+  next_due_date: string
+  status: LongActingReminderStatus
+}
+
+export async function fetchLongActingMedicationReminders(
+  options?: { patient?: string; admission?: string; days_ahead?: number }
+): Promise<LongActingMedicationReminder[]> {
+  const params = new URLSearchParams()
+  if (options?.patient) params.append('patient', options.patient)
+  if (options?.admission) params.append('admission', options.admission)
+  if (options?.days_ahead != null) params.append('days_ahead', String(options.days_ahead))
+
+  const res = await fetch(
+    `/api/method/healthcare.api.medication_chart.get_long_acting_medication_reminders?${params.toString()}`
+  )
+  const data = await res.json()
+
+  if (data?.exc || !res.ok) {
+    throw new Error(data?.exc || data?.message || 'Failed to load long-acting medication reminders')
+  }
+
+  return (data?.message as LongActingMedicationReminder[]) || []
 }
 
 

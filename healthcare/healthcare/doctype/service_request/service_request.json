@@ -476,7 +476,6 @@
    "fieldtype": "Link",
    "label": "Order Template Type",
    "options": "DocType",
-   "reqd": 1,
    "search_index": 1
   },
   {
@@ -484,7 +483,6 @@
    "fieldtype": "Dynamic Link",
    "label": "Order Template",
    "options": "template_dt",
-   "reqd": 1,
    "search_index": 1
   },
   {
@@ -606,7 +604,7 @@
    "link_fieldname": "service_request"
   }
  ],
- "modified": "2026-02-26 10:15:39.596637",
+ "modified": "2026-03-11 02:11:53.083292",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Service Request",

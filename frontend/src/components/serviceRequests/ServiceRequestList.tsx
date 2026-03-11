@@ -17,6 +17,7 @@ interface ServiceRequestListProps {
   onLabTestCreated?: () => void
   refreshKey?: string | number
   template_dt?: string // Optional template type filter
+  onCreateIPService?: (sr: ServiceRequest) => void
 }
 
 const statusColors: Record<string, string> = {
@@ -42,7 +43,7 @@ const refetch = (
     .finally(() => setLoading(false))
 }
 
-export const ServiceRequestList = ({ patient, onLabTestCreated, refreshKey, template_dt }: ServiceRequestListProps) => {
+export const ServiceRequestList = ({ patient, onLabTestCreated, refreshKey, template_dt, onCreateIPService }: ServiceRequestListProps) => {
   const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
@@ -276,6 +277,18 @@ export const ServiceRequestList = ({ patient, onLabTestCreated, refreshKey, temp
                               className="block w-full text-left px-3 py-2 text-sm text-primary hover:bg-primary/5"
                             >
                               {loadingThis ? '…' : 'Create Lab Test'}
+                            </button>
+                          )}
+                          {sr.template_dt === 'IP Service Type' && onCreateIPService && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setOpenActionRow(null)
+                                onCreateIPService(sr)
+                              }}
+                              className="block w-full text-left px-3 py-2 text-sm text-primary hover:bg-primary/5"
+                            >
+                              Create IP Service
                             </button>
                           )}
                           <button

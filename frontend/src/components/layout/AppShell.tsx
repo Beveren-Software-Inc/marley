@@ -22,6 +22,7 @@ const nurseScreens = [
   { id: 'n-op', title: 'OP Visit Note' },
   { id: 'n-tpr', title: 'TPR / Vital Signs' },
   { id: 'n-ect', title: 'ECT Form' },
+  { id: 'n-iop', title: 'IOP Dashboard' },
   { id: 'n-obs', title: 'Observation Level' },
   { id: 'n-ipm', title: 'IP Medication' },
   { id: 'n-ip-services', title: 'IP Services / Transport' },

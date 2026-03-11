@@ -220,6 +220,98 @@ def get_package_details(admission_no):
 
 
 @frappe.whitelist()
+def get_package_detail_dashboard(patient=None):
+	"""Return data for Package Detail view: available Inpatient Packages, active admission, assigned package (from Quotation)."""
+	# 1) Available Inpatient Packages (master list)
+	available = frappe.get_all(
+		'Inpatient Package',
+		filters={'active': 1},
+		fields=['name', 'package_name', 'package_category', 'no_of_days', 'package_rate', 'cost_center'],
+		order_by='package_name',
+	)
+	for p in available:
+		if p.get('package_category'):
+			p['category_name'] = frappe.db.get_value('Room Category', p.package_category, 'room_category_name') or p.package_category
+
+	company = frappe.defaults.get_user_default('Company')
+	default_currency = frappe.db.get_value('Company', company, 'default_currency') if company else None
+	if not default_currency:
+		try:
+			from erpnext import get_default_currency
+			default_currency = get_default_currency() or 'BHD'
+		except ImportError:
+			default_currency = 'BHD'
+
+	result = {
+		'available_packages': available,
+		'packages_available_count': len(available),
+		'default_currency': default_currency,
+		'active_admission': None,
+		'assigned_package': None,
+		'package_detail_records': [],
+	}
+
+	if not patient:
+		return result
+
+	# 2) Active admission for patient
+	admission = frappe.db.get_value(
+		'Inpatient Admission',
+		{'patient': patient, 'status': ['in', ['Admitted', 'Discharge Scheduled']]},
+		['name', 'patient', 'patient_name', 'status', 'scheduled_date', 'admitted_datetime', 'expected_discharge'],
+		order_by='scheduled_date desc',
+		as_dict=True,
+	)
+	if not admission:
+		return result
+
+	result['active_admission'] = {
+		'name': admission.name,
+		'patient': admission.patient,
+		'patient_name': admission.patient_name,
+		'status': admission.status,
+		'scheduled_date': str(admission.scheduled_date) if admission.scheduled_date else None,
+		'admitted_datetime': str(admission.admitted_datetime) if admission.admitted_datetime else None,
+		'expected_discharge': str(admission.expected_discharge) if admission.expected_discharge else None,
+	}
+
+	# 3) Assigned package from Quotation (custom_package, custom_inpatient_admission)
+	quotation = frappe.db.get_value(
+		'Quotation',
+		{'custom_inpatient_admission': admission.name, 'docstatus': ['<', 2]},
+		['name', 'custom_package'],
+		order_by='modified desc',
+		as_dict=True,
+	)
+	if quotation and quotation.get('custom_package'):
+		pkg = frappe.db.get_value(
+			'Inpatient Package',
+			quotation.custom_package,
+			['name', 'package_name', 'no_of_days', 'package_rate'],
+			as_dict=True,
+		)
+		result['assigned_package'] = {
+			'quotation_name': quotation.name,
+			'inpatient_package': quotation.custom_package,
+			'package_name': pkg.package_name if pkg else quotation.custom_package,
+			'no_of_days': pkg.no_of_days if pkg else None,
+			'package_rate': pkg.package_rate if pkg else None,
+			'admission_no': admission.name,
+		}
+
+	# 4) Package Detail records for this admission (standalone doctype Package Detail)
+	pd_records = frappe.get_all(
+		'Package Detail',
+		filters={'admission_no': admission.name},
+		fields=['name', 'admission_no', 'from_date', 'to_date', 'total_days', 'transaction_amount', 'currency', 'vch_status', 'remarks'],
+		order_by='from_date desc',
+	)
+	result['package_detail_records'] = pd_records
+
+	return result
+
+
+@frappe.whitelist()
 def get_service_units(service_unit_type=None, occupancy_status=None, search=None, room_category=None, cost_center=None):
 	"""Get Healthcare Service Units with optional filters and search.
 
@@ -291,6 +383,40 @@ def get_service_units(service_unit_type=None, occupancy_status=None, search=None
 		)
 
 	return units
+
+
+@frappe.whitelist()
+def add_patient_visitor(admission: str, visitors_name: str, relationship_with_patient: str, cpr__id_no: str | None = None, any_remarks: str | None = None):
+	"""Append a Patient Visitor row to an Inpatient Admission and return the created row."""
+	if not admission:
+		frappe.throw(_("Inpatient Admission is required"))
+	if not visitors_name:
+		frappe.throw(_("Visitor name is required"))
+	if not relationship_with_patient:
+		frappe.throw(_("Relationship with patient is required"))
+
+	doc = frappe.get_doc("Inpatient Admission", admission)
+
+	row = doc.append("patient_visitors", {
+		"visitors_name": visitors_name,
+		"relationship_with_patient": relationship_with_patient,
+		"cpr__id_no": cpr__id_no,
+		"any_remarks": any_remarks,
+		"entered_by": frappe.session.user,
+		"entered_date": frappe.utils.today(),
+	})
+
+	doc.save(ignore_permissions=True)
+
+	return {
+		"name": row.name,
+		"visitors_name": row.visitors_name,
+		"relationship_with_patient": row.relationship_with_patient,
+		"cpr__id_no": row.cpr__id_no,
+		"any_remarks": row.any_remarks,
+		"entered_by": row.entered_by,
+		"entered_date": row.entered_date,
+	}
 
 
 

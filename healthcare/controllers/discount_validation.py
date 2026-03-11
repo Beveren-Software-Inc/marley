@@ -22,23 +22,13 @@ def apply_insurance_discounts(doc):
         return
     
     patient = None
-    context = None  # "outpatient" | "inpatient"
+    context = None  
 
-    # 1) Direct patient field on Quotation (e.g. admission quotation)
-    # if getattr(doc, "custom_inpatient_admission", None):
-    #     # Explicit inpatient context
-    #     context = "inpatient"
-    #     patient = getattr(doc, "patient", None)
-    #     if not patient:
-    #         patient = frappe.db.get_value("Inpatient Admission", doc.custom_inpatient_admission, "patient")
-    
     # 2) Generic patient field, if not already found
     if not patient and hasattr(doc, "patient") and getattr(doc, "patient", None):
         patient = doc.patient
-    print("patient ni: ", patient)
     # 3) For Sales Order / Quotation created from healthcare docs via custom_reference_type/name
     if hasattr(doc, "custom_reference_type") and hasattr(doc, "custom_reference_name"):
-        # print("hapa nafika")
         ref_doctype = getattr(doc, "custom_reference_type", None)
         ref_name = getattr(doc, "custom_reference_name", None)
 
