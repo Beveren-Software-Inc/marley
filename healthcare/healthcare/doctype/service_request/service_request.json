@@ -15,6 +15,7 @@
   "column_break_4",
   "status",
   "company",
+  "cost_center",
   "expected_date",
   "patient_detail_section",
   "patient",
@@ -586,6 +587,13 @@
    "fieldtype": "Link",
    "label": "Patient Visit",
    "options": "Patient Visit"
+  },
+  {
+   "fieldname": "cost_center",
+   "fieldtype": "Link",
+   "label": "Cost Center",
+   "options": "Cost Center",
+   "reqd": 1
   }
  ],
  "index_web_pages_for_search": 1,
@@ -604,7 +612,7 @@
    "link_fieldname": "service_request"
   }
  ],
- "modified": "2026-03-11 02:11:53.083292",
+ "modified": "2026-03-11 12:26:48.923396",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Service Request",

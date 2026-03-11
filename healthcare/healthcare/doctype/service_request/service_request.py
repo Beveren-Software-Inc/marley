@@ -173,6 +173,9 @@ def make_lab_test(service_request):
 	doc.date = service_request.occurrence_date
 	doc.time = service_request.occurrence_time
 	doc.invoiced = service_request.invoiced
+	# Propagate Cost Center from Service Request to Lab Test when available
+	if getattr(service_request, "cost_center", None):
+		doc.cost_center = service_request.cost_center
 
 	return doc
 
@@ -213,6 +216,9 @@ def book_lab_and_forward(service_request_name):
 	lab_test.date = sr.occurrence_date
 	lab_test.time = sr.occurrence_time
 	lab_test.invoiced = sr.get("invoiced") or 0
+	# Propagate Cost Center from Service Request when set (Lab Test has Cost Center field)
+	if getattr(sr, "cost_center", None):
+		lab_test.cost_center = sr.cost_center
 	lab_test.lab_test_name = frappe.db.get_value("Lab Test Template", sr.template_dn, "lab_test_name") or sr.template_dn
 	lab_test.status = "Requested"
 	lab_test.insert(ignore_permissions=True)

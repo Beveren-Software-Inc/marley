@@ -192,15 +192,26 @@ def schedule_inpatient(args):
 	
 	# If no admission_encounter, then medical_department and primary_practitioner are required
 	if not admission_order.get("admission_encounter"):
-		if not admission_order.get("medical_department"):
-			frappe.throw(_("Medical Department is required when creating admission without a Patient Visit"))
+		# if not admission_order.get("medical_department"):
+		# 	frappe.throw(_("Medical Department is required when creating admission without a Patient Visit"))
 		if not admission_order.get("primary_practitioner"):
 			frappe.throw(_("Primary Practitioner is required when creating admission without a Patient Visit"))
 
 	inpatient_record = frappe.new_doc("Inpatient Admission")
 
-	# Admission order details
+	# Admission order details (simple scalar fields)
 	set_details_from_ip_order(inpatient_record, admission_order)
+
+	# Relatives (child table) – optional payload from frontend
+	relatives = admission_order.get("patient_relatives") or []
+	if isinstance(relatives, list) and relatives:
+		inpatient_record.set("patient_relatives", [])
+		for row in relatives:
+			child = inpatient_record.append("patient_relatives", {})
+			# Map allowed fields from payload
+			for key in ("relative_relation", "relative_name", "relative_id_num", "any_remarks"):
+				if key in row:
+					child.set(key, row.get(key))
 
 	# Set admission doctor from primary practitioner
 	if admission_order.get("primary_practitioner"):
@@ -319,6 +330,9 @@ def set_details_from_ip_order(inpatient_record, ip_order):
 	for key in ip_order:
 		# Skip empty strings for optional fields like admission_encounter
 		if key == "admission_encounter" and not ip_order[key]:
+			continue
+		# Child table patient_relatives is handled explicitly in schedule_inpatient
+		if key == "patient_relatives":
 			continue
 		inpatient_record.set(key, ip_order[key])
 

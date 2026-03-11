@@ -54,7 +54,9 @@
   "history_details",
   "amended_from",
   "documents_tab",
-  "patient_documents"
+  "patient_documents",
+  "relatives_tab",
+  "patient_relatives"
  ],
  "fields": [
   {
@@ -181,7 +183,7 @@
    "fieldname": "discharge_type",
    "fieldtype": "Select",
    "label": "Discharge Type",
-   "options": "\nHome\nDama\nHospital"
+   "options": "\nHome\nDama\nRefer To Another Hospital"
   },
   {
    "fieldname": "discharge_treatment_plan",
@@ -331,13 +333,24 @@
    "fieldtype": "Table",
    "label": "Patient Documents",
    "options": "Patient Upload Document"
+  },
+  {
+   "fieldname": "relatives_tab",
+   "fieldtype": "Tab Break",
+   "label": "Relatives"
+  },
+  {
+   "fieldname": "patient_relatives",
+   "fieldtype": "Table",
+   "label": "Patient Relatives",
+   "options": "IP Patient Relative"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-02-19 14:41:11.868366",
+ "modified": "2026-03-11 18:19:48.107513",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Discharge",

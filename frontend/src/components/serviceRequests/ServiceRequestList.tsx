@@ -225,9 +225,7 @@ export const ServiceRequestList = ({ patient, onLabTestCreated, refreshKey, temp
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex flex-wrap items-center gap-1.5">
-                    {isLab && booked && (
-                      <span className="text-xs text-slate-500">Booked</span>
-                    )}
+                    
                     <div className="relative inline-block" ref={openActionRow === sr.name ? actionMenuRef : undefined}>
                       <button
                         type="button"
@@ -301,6 +299,10 @@ export const ServiceRequestList = ({ patient, onLabTestCreated, refreshKey, temp
                         </div>
                       )}
                     </div>
+
+{isLab && booked && (
+                      <span className="text-xs text-slate-500">Booked</span>
+                    )}
                   </div>
                 </td>
               </tr>

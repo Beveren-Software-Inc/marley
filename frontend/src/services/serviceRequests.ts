@@ -19,6 +19,7 @@ export interface ServiceRequest {
   patient_accepted_cost?: boolean | number
   booked?: boolean | number
   order_group?: string
+  cost_center?: string
 }
 
 export async function fetchServiceRequests(
@@ -94,6 +95,7 @@ export interface UpdateServiceRequestData {
   dosage_form?: string
   dosage?: string
   period?: string
+  cost_center?: string
 }
 
 /** Update an existing Service Request. */
@@ -167,6 +169,7 @@ export interface CreateServiceRequestData {
   quantity?: number
   occurrence_date?: string
   occurrence_time?: string
+  cost_center?: string
 }
 
 export async function createServiceRequest(data: CreateServiceRequestData): Promise<ServiceRequest> {

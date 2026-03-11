@@ -116,7 +116,7 @@ def get_lab_test(name):
 
 
 @frappe.whitelist()
-def create_lab_material_request(items, company=None, schedule_date=None):
+def create_lab_material_request(items, company=None, schedule_date=None, cost_center=None):
 	"""Create a Material Request for lab consumables.
 
 	`items` is expected to be a JSON list of objects with:
@@ -149,6 +149,8 @@ def create_lab_material_request(items, company=None, schedule_date=None):
 			mr_item.warehouse = row.get("warehouse")
 		if schedule_date:
 			mr_item.schedule_date = schedule_date
+		if cost_center:
+			mr_item.cost_center = cost_center
 
 	if not mr.items:
 		frappe.throw(_("No valid items to create Material Request"))
@@ -198,7 +200,15 @@ def request_lab_consumables(lab_test, items, company=None, schedule_date=None):
 	if not schedule_date:
 		schedule_date = frappe.utils.today()
 
-	mr_name = create_lab_material_request(items, company=company, schedule_date=schedule_date)
+	# Pass Lab Test cost center through to Material Request items
+	lab_cost_center = getattr(doc, "cost_center", None)
+
+	mr_name = create_lab_material_request(
+		items,
+		company=company,
+		schedule_date=schedule_date,
+		cost_center=lab_cost_center,
+	)
 
 	# Link MR back to Lab Test
 	if mr_name:
@@ -300,6 +310,58 @@ def update_lab_test_remarks(name, remarks=None):
 
 
 @frappe.whitelist()
+def update_lab_test_basic(name, data=None):
+	"""Update basic editable fields on a Lab Test (Draft only) from the React UI.
+
+	Allowed fields:
+	- template
+	- practitioner
+	- department
+	- service_unit
+	- date
+	- time
+	- status
+	"""
+	if not name:
+		frappe.throw(_("Lab Test name is required"))
+
+	if isinstance(data, str):
+		import json
+		data = json.loads(data)
+
+	data = data or {}
+
+	doc = frappe.get_doc("Lab Test", name)
+
+	# Only allow editing in Draft
+	if doc.docstatus != 0:
+		frappe.throw(_("Only Draft lab tests can be edited from this screen"))
+
+	allowed = {"template", "practitioner", "department", "service_unit", "date", "time", "status"}
+
+	for key, value in data.items():
+		if key in allowed and hasattr(doc, key):
+			doc.set(key, value)
+
+	doc.save(ignore_permissions=True)
+
+	return {
+		"name": doc.name,
+		"patient": doc.patient,
+		"patient_name": getattr(doc, "patient_name", None),
+		"template": doc.template,
+		"lab_test_name": getattr(doc, "lab_test_name", None),
+		"practitioner": doc.practitioner,
+		"practitioner_name": getattr(doc, "practitioner_name", None),
+		"department": doc.department,
+		"service_unit": getattr(doc, "service_unit", None),
+		"date": getattr(doc, "date", None),
+		"time": getattr(doc, "time", None),
+		"status": doc.status,
+	}
+
+
+@frappe.whitelist()
 def create_lab_test(data):
 	"""Create a new Lab Test"""
 	if isinstance(data, str):
@@ -309,6 +371,15 @@ def create_lab_test(data):
 	# Validate required fields
 	if not data.get('patient'):
 		frappe.throw(_("Patient is required"))
+
+	# Optional but recommended clinical context: either inpatient admission or patient visit
+	# (only enforce when the fields exist in payload, so older callers are not broken)
+	if not data.get('inpatient_record') and not data.get('patient_visit'):
+		frappe.msgprint(
+			_("It is recommended to link a Lab Test to either a Patient Visit or an Inpatient Admission for better context."),
+			title=_("Missing Clinical Context"),
+			indicator="orange",
+		)
 	
 	# Fetch patient details
 	patient = frappe.get_doc('Patient', data.get('patient'))

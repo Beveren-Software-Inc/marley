@@ -16,6 +16,10 @@
   "service_unit",
   "medical_department",
   "status",
+  "section_break_apmi",
+  "assigned_by",
+  "column_break_xepe",
+  "assigned_to",
   "task_details",
   "activity",
   "mandatory",
@@ -319,12 +323,32 @@
    "fieldname": "source_section",
    "fieldtype": "Section Break",
    "label": "Source"
+  },
+  {
+   "fieldname": "section_break_apmi",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "assigned_by",
+   "fieldtype": "Link",
+   "label": "Assigned By",
+   "options": "Healthcare Practitioner"
+  },
+  {
+   "fieldname": "column_break_xepe",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "assigned_to",
+   "fieldtype": "Link",
+   "label": "Assigned To",
+   "options": "Healthcare Practitioner"
   }
  ],
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2025-12-28 16:23:27.366113",
+ "modified": "2026-03-11 12:20:18.962204",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Nursing Task",

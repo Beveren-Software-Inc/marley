@@ -15,6 +15,7 @@ import { fetchItems, fetchWarehouses, fetchDocumentTypes, type LinkFieldOption }
 import { uploadPatientFile, type PatientDocumentRow } from '../../services/patients'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
 import { LabTestDetails } from './LabTestDetails'
+import { EditLabTestModal } from './EditLabTestModal'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { toast } from '../../hooks/useToast'
 import { Search, X, ChevronDown } from 'lucide-react'
@@ -331,6 +332,7 @@ export const LabTestList = ({
   const [openActionRow, setOpenActionRow] = useState<string | null>(null)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [selectedLabTestForDetails, setSelectedLabTestForDetails] = useState<string | null>(null)
+  const [editLabTestName, setEditLabTestName] = useState<string | null>(null)
   const actionMenuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -656,15 +658,6 @@ export const LabTestList = ({
                   </td>
                   <td className="px-4 py-3 text-sm text-slate-700">
                     <div className="flex items-center gap-2 flex-wrap">
-                      {labTest.docstatus === 0 && (
-                        <button
-                          type="button"
-                          onClick={() => openResultDialog(labTest.name)}
-                          className="px-2 py-1 text-xs rounded-md border border-slate-300 text-slate-700 hover:bg-slate-50"
-                        >
-                          Enter Results &amp; Submit
-                        </button>
-                      )}
                       <div className="relative inline-block" ref={openActionRow === labTest.name ? actionMenuRef : undefined}>
                         <button
                           type="button"
@@ -693,6 +686,30 @@ export const LabTestList = ({
                             >
                               View Details
                             </button>
+                            {labTest.docstatus === 0 && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setOpenActionRow(null)
+                                  openResultDialog(labTest.name)
+                                }}
+                                className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                              >
+                                Enter Results &amp; Submit
+                              </button>
+                            )}
+                            {labTest.docstatus === 0 && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setOpenActionRow(null)
+                                  setEditLabTestName(labTest.name)
+                                }}
+                                className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                              >
+                                Edit
+                              </button>
+                            )}
                             <button
                               type="button"
                               onClick={() => openRemarksModal(labTest.name)}
@@ -1066,6 +1083,18 @@ export const LabTestList = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── Edit Lab Test modal (basic fields) ── */}
+      {editLabTestName && (
+        <EditLabTestModal
+          labTestName={editLabTestName}
+          onClose={() => setEditLabTestName(null)}
+          onSuccess={() => {
+            setEditLabTestName(null)
+            refetch()
+          }}
+        />
       )}
     </div>
   )

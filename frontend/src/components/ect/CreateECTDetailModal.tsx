@@ -68,6 +68,23 @@ export const CreateECTDetailModal = ({
   const [patientQuery, setPatientQuery] = useState(initialPatient || '')
   const [patientLoading, setPatientLoading] = useState(false)
 
+  // Link-field dropdowns for staff on "Doctor & Nurse" tab
+  const [anaesthesiologistOptions, setAnaesthesiologistOptions] = useState<LinkFieldOption[]>([])
+  const [anaesthesiologistOpen, setAnaesthesiologistOpen] = useState(false)
+  const [anaesthesiologistQuery, setAnaesthesiologistQuery] = useState('')
+
+  const [assistDoctorOptions, setAssistDoctorOptions] = useState<LinkFieldOption[]>([])
+  const [assistDoctorOpen, setAssistDoctorOpen] = useState(false)
+  const [assistDoctorQuery, setAssistDoctorQuery] = useState('')
+
+  const [psychiatristOptions, setPsychiatristOptions] = useState<LinkFieldOption[]>([])
+  const [psychiatristOpen, setPsychiatristOpen] = useState(false)
+  const [psychiatristQuery, setPsychiatristQuery] = useState('')
+
+  const [nurseOptions, setNurseOptions] = useState<LinkFieldOption[]>([])
+  const [nurseOpen, setNurseOpen] = useState(false)
+  const [nurseQuery, setNurseQuery] = useState('')
+
   const [psychologyPractitioners, setPsychologyPractitioners] = useState<LinkFieldOption[]>([])
   const [psychologyOpen, setPsychologyOpen] = useState(false)
   const [psychologyQuery, setPsychologyQuery] = useState('')
@@ -173,6 +190,62 @@ export const CreateECTDetailModal = ({
     }, patientQuery.trim() === '' ? 0 : 300)
     return () => clearTimeout(t)
   }, [patientQuery, patientOpen])
+
+  // Anaesthesiologist (link to Healthcare Practitioner)
+  useEffect(() => {
+    if (!anaesthesiologistOpen) return
+    const t = setTimeout(async () => {
+      try {
+        const results = await fetchHealthcarePractitioners(anaesthesiologistQuery || undefined)
+        setAnaesthesiologistOptions(results)
+      } catch {
+        setAnaesthesiologistOptions([])
+      }
+    }, anaesthesiologistQuery.trim() === '' ? 0 : 300)
+    return () => clearTimeout(t)
+  }, [anaesthesiologistQuery, anaesthesiologistOpen])
+
+  // Assist Doctor
+  useEffect(() => {
+    if (!assistDoctorOpen) return
+    const t = setTimeout(async () => {
+      try {
+        const results = await fetchHealthcarePractitioners(assistDoctorQuery || undefined)
+        setAssistDoctorOptions(results)
+      } catch {
+        setAssistDoctorOptions([])
+      }
+    }, assistDoctorQuery.trim() === '' ? 0 : 300)
+    return () => clearTimeout(t)
+  }, [assistDoctorQuery, assistDoctorOpen])
+
+  // Psychiatrist
+  useEffect(() => {
+    if (!psychiatristOpen) return
+    const t = setTimeout(async () => {
+      try {
+        const results = await fetchHealthcarePractitioners(psychiatristQuery || undefined)
+        setPsychiatristOptions(results)
+      } catch {
+        setPsychiatristOptions([])
+      }
+    }, psychiatristQuery.trim() === '' ? 0 : 300)
+    return () => clearTimeout(t)
+  }, [psychiatristQuery, psychiatristOpen])
+
+  // Nurse
+  useEffect(() => {
+    if (!nurseOpen) return
+    const t = setTimeout(async () => {
+      try {
+        const results = await fetchHealthcarePractitioners(nurseQuery || undefined)
+        setNurseOptions(results)
+      } catch {
+        setNurseOptions([])
+      }
+    }, nurseQuery.trim() === '' ? 0 : 300)
+    return () => clearTimeout(t)
+  }, [nurseQuery, nurseOpen])
 
   useEffect(() => {
     if (!psychologyOpen) return
@@ -439,42 +512,194 @@ export const CreateECTDetailModal = ({
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Anathesiologist</label>
-                    <input
-                      type="text"
-                      value={formData.anathesiologist}
-                      onChange={(e) => handleChange('anathesiologist', e.target.value)}
-                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                    />
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={
+                          anaesthesiologistOpen
+                            ? anaesthesiologistQuery
+                            : (anaesthesiologistOptions.find(p => p.name === formData.anathesiologist)?.label ||
+                              formData.anathesiologist ||
+                              '')
+                        }
+                        onChange={(e) => {
+                          setAnaesthesiologistQuery(e.target.value)
+                          if (!e.target.value) handleChange('anathesiologist', '')
+                          setAnaesthesiologistOpen(true)
+                        }}
+                        onFocus={() => {
+                          setAnaesthesiologistOpen(true)
+                          if (!anaesthesiologistQuery && formData.anathesiologist) {
+                            const label = anaesthesiologistOptions.find(p => p.name === formData.anathesiologist)?.label
+                            if (label) setAnaesthesiologistQuery(label)
+                          }
+                        }}
+                        placeholder="Search Healthcare Practitioner..."
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                      {anaesthesiologistOpen && anaesthesiologistOptions.length > 0 && (
+                        <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-48 overflow-y-auto">
+                          {anaesthesiologistOptions.map((p) => (
+                            <button
+                              key={p.name}
+                              type="button"
+                              onClick={() => {
+                                handleChange('anathesiologist', p.name)
+                                setAnaesthesiologistQuery(p.label)
+                                setAnaesthesiologistOpen(false)
+                              }}
+                              className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100"
+                            >
+                              {p.label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Assist Doctor</label>
-                    <input
-                      type="text"
-                      value={formData.assist_doctor}
-                      onChange={(e) => handleChange('assist_doctor', e.target.value)}
-                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                    />
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={
+                          assistDoctorOpen
+                            ? assistDoctorQuery
+                            : (assistDoctorOptions.find(p => p.name === formData.assist_doctor)?.label ||
+                              formData.assist_doctor ||
+                              '')
+                        }
+                        onChange={(e) => {
+                          setAssistDoctorQuery(e.target.value)
+                          if (!e.target.value) handleChange('assist_doctor', '')
+                          setAssistDoctorOpen(true)
+                        }}
+                        onFocus={() => {
+                          setAssistDoctorOpen(true)
+                          if (!assistDoctorQuery && formData.assist_doctor) {
+                            const label = assistDoctorOptions.find(p => p.name === formData.assist_doctor)?.label
+                            if (label) setAssistDoctorQuery(label)
+                          }
+                        }}
+                        placeholder="Search Healthcare Practitioner..."
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                      {assistDoctorOpen && assistDoctorOptions.length > 0 && (
+                        <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-48 overflow-y-auto">
+                          {assistDoctorOptions.map((p) => (
+                            <button
+                              key={p.name}
+                              type="button"
+                              onClick={() => {
+                                handleChange('assist_doctor', p.name)
+                                setAssistDoctorQuery(p.label)
+                                setAssistDoctorOpen(false)
+                              }}
+                              className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100"
+                            >
+                              {p.label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Psychiatrist</label>
-                    <input
-                      type="text"
-                      value={formData.psychiatrist}
-                      onChange={(e) => handleChange('psychiatrist', e.target.value)}
-                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                    />
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={
+                          psychiatristOpen
+                            ? psychiatristQuery
+                            : (psychiatristOptions.find(p => p.name === formData.psychiatrist)?.label ||
+                              formData.psychiatrist ||
+                              '')
+                        }
+                        onChange={(e) => {
+                          setPsychiatristQuery(e.target.value)
+                          if (!e.target.value) handleChange('psychiatrist', '')
+                          setPsychiatristOpen(true)
+                        }}
+                        onFocus={() => {
+                          setPsychiatristOpen(true)
+                          if (!psychiatristQuery && formData.psychiatrist) {
+                            const label = psychiatristOptions.find(p => p.name === formData.psychiatrist)?.label
+                            if (label) setPsychiatristQuery(label)
+                          }
+                        }}
+                        placeholder="Search Healthcare Practitioner..."
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                      {psychiatristOpen && psychiatristOptions.length > 0 && (
+                        <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-48 overflow-y-auto">
+                          {psychiatristOptions.map((p) => (
+                            <button
+                              key={p.name}
+                              type="button"
+                              onClick={() => {
+                                handleChange('psychiatrist', p.name)
+                                setPsychiatristQuery(p.label)
+                                setPsychiatristOpen(false)
+                              }}
+                              className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100"
+                            >
+                              {p.label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Nurse</label>
-                    <input
-                      type="text"
-                      value={formData.nurse}
-                      onChange={(e) => handleChange('nurse', e.target.value)}
-                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                    />
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={
+                          nurseOpen
+                            ? nurseQuery
+                            : (nurseOptions.find(p => p.name === formData.nurse)?.label ||
+                              formData.nurse ||
+                              '')
+                        }
+                        onChange={(e) => {
+                          setNurseQuery(e.target.value)
+                          if (!e.target.value) handleChange('nurse', '')
+                          setNurseOpen(true)
+                        }}
+                        onFocus={() => {
+                          setNurseOpen(true)
+                          if (!nurseQuery && formData.nurse) {
+                            const label = nurseOptions.find(p => p.name === formData.nurse)?.label
+                            if (label) setNurseQuery(label)
+                          }
+                        }}
+                        placeholder="Search Healthcare Practitioner..."
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                      {nurseOpen && nurseOptions.length > 0 && (
+                        <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-48 overflow-y-auto">
+                          {nurseOptions.map((p) => (
+                            <button
+                              key={p.name}
+                              type="button"
+                              onClick={() => {
+                                handleChange('nurse', p.name)
+                                setNurseQuery(p.label)
+                                setNurseOpen(false)
+                              }}
+                              className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100"
+                            >
+                              {p.label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 

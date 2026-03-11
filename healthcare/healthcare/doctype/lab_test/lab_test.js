@@ -266,7 +266,8 @@ var open_request_consumables_dialog = function (frm) {
 							args: {
 								items: items,
 								company: frm.doc.company,
-								schedule_date: frappe.datetime.get_today()
+								schedule_date: frappe.datetime.get_today(),
+								cost_center: frm.doc.cost_center
 							},
 							callback: function (r) {
 								if (!r.exc) {

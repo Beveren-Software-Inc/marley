@@ -11,6 +11,7 @@ import {
   fetchServiceRequestTemplates,
   fetchPatientVisits,
   fetchInpatientAdmissions,
+  fetchCostCenters,
   type LinkFieldOption
 } from '../../services/common'
 
@@ -51,9 +52,12 @@ export const CreateServiceRequestModal = ({
   const [practitioners, setPractitioners] = useState<LinkFieldOption[]>([])
   const [patientVisits, setPatientVisits] = useState<LinkFieldOption[]>([])
   const [admissions, setAdmissions] = useState<LinkFieldOption[]>([])
+  const [costCenters, setCostCenters] = useState<LinkFieldOption[]>([])
 
   const [practOpen, setPractOpen] = useState(false)
   const [practQuery, setPractQuery] = useState('')
+  const [costCenterOpen, setCostCenterOpen] = useState(false)
+  const [costCenterSearch, setCostCenterSearch] = useState('')
 
   /* ---------------- FORM ---------------- */
 
@@ -65,7 +69,8 @@ export const CreateServiceRequestModal = ({
     inpatient_record: '',
     order_date: new Date().toISOString().split('T')[0],
     order_time: new Date().toTimeString().slice(0, 5),
-    department: ''
+    department: '',
+    cost_center: ''
   })
 
   const [submitting, setSubmitting] = useState(false)
@@ -77,6 +82,20 @@ export const CreateServiceRequestModal = ({
     fetchServiceRequestTemplateTypes().then(setTemplateTypes)
     fetchHealthcarePractitioners().then(setPractitioners)
   }, [])
+
+  /* ---------------- COST CENTER LOOKUP ---------------- */
+
+  useEffect(() => {
+    if (!costCenterOpen) return
+
+    const t = setTimeout(() => {
+      fetchCostCenters(undefined, costCenterSearch || undefined)
+        .then(setCostCenters)
+        .catch(() => setCostCenters([]))
+    }, costCenterSearch.trim() === '' ? 0 : 300)
+
+    return () => clearTimeout(t)
+  }, [costCenterOpen, costCenterSearch])
 
   /* ---------------- TEMPLATE CHANGE ---------------- */
 
@@ -160,6 +179,11 @@ export const CreateServiceRequestModal = ({
       return
     }
 
+    if (!formData.cost_center) {
+      setError('Please select Cost Center')
+      return
+    }
+
     try {
       setSubmitting(true)
 
@@ -172,7 +196,8 @@ export const CreateServiceRequestModal = ({
         inpatient_record: formData.inpatient_record || undefined,
         order_date: formData.order_date,
         order_time: formData.order_time,
-        department: formData.department || undefined
+        department: formData.department || undefined,
+        cost_center: formData.cost_center || undefined
       }
 
       await createServiceRequest(payload)
@@ -408,6 +433,57 @@ export const CreateServiceRequestModal = ({
                 </option>
               ))}
             </select>
+          </div>
+        </div>
+
+        {/* ================= COST CENTER ================= */}
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">
+            Cost Center <span className="text-red-500">*</span>
+          </label>
+          <div className="relative">
+            <input
+              type="text"
+              value={
+                costCenterOpen
+                  ? costCenterSearch
+                  : formData.cost_center
+                    ? costCenters.find((c) => c.name === formData.cost_center)?.label ?? formData.cost_center
+                    : ''
+              }
+              onChange={(e) => {
+                setCostCenterSearch(e.target.value)
+                if (!costCenterOpen) setCostCenterOpen(true)
+              }}
+              onFocus={() => setCostCenterOpen(true)}
+              placeholder="Search cost center..."
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+
+            {costCenterOpen && (
+              <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-auto">
+                {costCenters.length === 0 ? (
+                  <div className="px-3 py-2 text-xs text-slate-500">
+                    No cost centers found
+                  </div>
+                ) : (
+                  costCenters.map((c) => (
+                    <button
+                      key={c.name}
+                      type="button"
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 border-b border-slate-100 last:border-0"
+                      onClick={() => {
+                        setFormData((prev) => ({ ...prev, cost_center: c.name }))
+                        setCostCenterSearch('')
+                        setCostCenterOpen(false)
+                      }}
+                    >
+                      {c.label || c.name}
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
           </div>
         </div>
 

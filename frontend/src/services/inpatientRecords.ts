@@ -81,6 +81,13 @@ export interface InpatientRecord {
   followup_date?: string
   discharge_practitioner?: string
   inpatient_occupancies?: InpatientOccupancy[]
+  patient_ip_category?: string
+  patient_relatives?: {
+    relative_relation?: string
+    relative_name?: string
+    relative_id_num?: string
+    any_remarks?: string
+  }[]
 }
 
 export interface PackageDetail {
@@ -409,13 +416,21 @@ export async function admitPatient(
   serviceUnit: string,
   checkIn: string,
   expectedDischarge?: string,
+  patientIpCategory?: string,
   patientDocuments?: {
     file_name?: string
     document_type?: string
     transaction_no?: string
     upload_remarks?: string
     document?: string
-  }[]
+  }[],
+  patientRelatives?: {
+    relative_relation?: string
+    relative_name?: string
+    relative_id_num?: string
+    any_remarks?: string
+  }[],
+  allServiceUnits?: string[]
 ) {
   const { ensureCSRF } = await import('./apiClient')
   const csrf = await ensureCSRF()
@@ -434,9 +449,14 @@ export async function admitPatient(
         service_unit: serviceUnit,
         check_in: checkIn,
         expected_discharge: expectedDischarge || null,
+        patient_ip_category: patientIpCategory || null,
+        service_units: allServiceUnits && allServiceUnits.length > 0 ? allServiceUnits : null,
         patient_documents: patientDocuments && patientDocuments.length > 0
           ? patientDocuments
-          : null
+          : null,
+        patient_relatives: patientRelatives && patientRelatives.length > 0
+          ? patientRelatives
+          : null,
       })
     }
   )
