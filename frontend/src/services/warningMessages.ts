@@ -58,18 +58,25 @@ export interface CreateWarningMessageData {
 }
 
 export async function createWarningMessage(data: CreateWarningMessageData): Promise<WarningMessage> {
+  const csrf = (window as any).csrf_token
+  const csrfForCreate = csrf || (await (await import('./apiClient')).ensureCSRF())
+
   const response = await fetch('/api/method/healthcare.api.warning_message.create_warning_message', {
     method: 'POST',
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
+      Accept: 'application/json',
+      ...(csrfForCreate ? { 'X-Frappe-CSRF-Token': csrfForCreate } : {}),
     },
-    body: JSON.stringify({ data })
+    body: JSON.stringify({ data }),
   })
 
-  const resData = await response.json()
+  const resData = await response.json().catch(() => ({}))
 
-  if (!response.ok) {
-    const errorMessage = resData?.message?.message || resData?.message || 'Failed to create warning message'
+  if (!response.ok || resData?.exc) {
+    const errorMessage =
+      resData?.message?.message || resData?.message || 'Failed to create warning message'
     throw new Error(errorMessage)
   }
 
