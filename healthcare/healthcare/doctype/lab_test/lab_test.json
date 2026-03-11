@@ -17,6 +17,8 @@
   "reference_document",
   "is_outsourced",
   "priority",
+  "inpatient_admission",
+  "patient_visit",
   "column_break_26",
   "company",
   "cost_center",
@@ -715,7 +717,20 @@
    "fieldname": "cost_center",
    "fieldtype": "Link",
    "label": "Cost Center",
-   "options": "Cost Center"
+   "options": "Cost Center",
+   "reqd": 1
+  },
+  {
+   "fieldname": "inpatient_admission",
+   "fieldtype": "Link",
+   "label": "Inpatient Admission",
+   "options": "Inpatient Admission"
+  },
+  {
+   "fieldname": "patient_visit",
+   "fieldtype": "Link",
+   "label": "Patient Visit",
+   "options": "Patient Visit"
   }
  ],
  "is_submittable": 1,
@@ -725,7 +740,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2026-03-11 12:08:52.189862",
+ "modified": "2026-03-11 13:23:54.441725",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Lab Test",

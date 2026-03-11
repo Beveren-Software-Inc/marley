@@ -114,6 +114,10 @@ def create_service_request(data):
 	
 	if not data.get('template_dn'):
 		frappe.throw(_("Template is required"))
+
+	# Require either Patient Visit (OP) or Inpatient Admission for clinical context
+	if not data.get('patient_visit') and not data.get('inpatient_record'):
+		frappe.throw(_("Please select either a Patient Visit or an Inpatient Admission for the service request"))
 	
 	# Get naming series
 	naming_series = frappe.db.get_value('Service Request', {'naming_series': 'HSR-'}, 'naming_series')
@@ -132,6 +136,7 @@ def create_service_request(data):
 		'order_date': data.get('order_date') or frappe.utils.today(),
 		'order_time': data.get('order_time') or frappe.utils.now_time(),
 		'medical_department': data.get('department'),
+		'cost_center': data.get('cost_center'),
 		'status': data.get('status') or 'draft-Request Status',
 		'priority': data.get('priority'),
 		'intent': data.get('intent'),
@@ -213,7 +218,7 @@ def update_service_request(name, data):
 		"order_group", "order_description", "patient_instructions", "expected_date",
 		"amount", "source", "referring_practitioner", "referred_to_practitioner",
 		"staff_role", "patient_care_type", "healthcare_service_unit_type", "as_needed",
-		"dosage_form", "dosage", "period"
+		"dosage_form", "dosage", "period", "cost_center"
 	}
 	for key, value in data.items():
 		if key == "department":

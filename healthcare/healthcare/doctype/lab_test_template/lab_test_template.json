@@ -22,6 +22,7 @@
   "column_break_buub",
   "is_billable",
   "lab_test_rate",
+  "outpatient_rate",
   "inventory_section",
   "consumables",
   "section_break_description",
@@ -143,7 +144,7 @@
    "fieldname": "lab_test_rate",
    "fieldtype": "Currency",
    "in_list_view": 1,
-   "label": "Rate",
+   "label": "IP Rate",
    "mandatory_depends_on": "eval:doc.is_billable && !doc.link_existing_item"
   },
   {
@@ -422,6 +423,11 @@
   {
    "fieldname": "column_break_buub",
    "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "outpatient_rate",
+   "fieldtype": "Currency",
+   "label": "OP Rate"
   }
  ],
  "grid_page_length": 50,
@@ -432,7 +438,7 @@
    "link_fieldname": "template"
   }
  ],
- "modified": "2026-01-27 17:15:15.589604",
+ "modified": "2026-03-11 12:48:42.185497",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Lab Test Template",

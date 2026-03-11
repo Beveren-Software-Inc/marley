@@ -300,6 +300,58 @@ def update_lab_test_remarks(name, remarks=None):
 
 
 @frappe.whitelist()
+def update_lab_test_basic(name, data=None):
+	"""Update basic editable fields on a Lab Test (Draft only) from the React UI.
+
+	Allowed fields:
+	- template
+	- practitioner
+	- department
+	- service_unit
+	- date
+	- time
+	- status
+	"""
+	if not name:
+		frappe.throw(_("Lab Test name is required"))
+
+	if isinstance(data, str):
+		import json
+		data = json.loads(data)
+
+	data = data or {}
+
+	doc = frappe.get_doc("Lab Test", name)
+
+	# Only allow editing in Draft
+	if doc.docstatus != 0:
+		frappe.throw(_("Only Draft lab tests can be edited from this screen"))
+
+	allowed = {"template", "practitioner", "department", "service_unit", "date", "time", "status"}
+
+	for key, value in data.items():
+		if key in allowed and hasattr(doc, key):
+			doc.set(key, value)
+
+	doc.save(ignore_permissions=True)
+
+	return {
+		"name": doc.name,
+		"patient": doc.patient,
+		"patient_name": getattr(doc, "patient_name", None),
+		"template": doc.template,
+		"lab_test_name": getattr(doc, "lab_test_name", None),
+		"practitioner": doc.practitioner,
+		"practitioner_name": getattr(doc, "practitioner_name", None),
+		"department": doc.department,
+		"service_unit": getattr(doc, "service_unit", None),
+		"date": getattr(doc, "date", None),
+		"time": getattr(doc, "time", None),
+		"status": doc.status,
+	}
+
+
+@frappe.whitelist()
 def create_lab_test(data):
 	"""Create a new Lab Test"""
 	if isinstance(data, str):
@@ -309,6 +361,15 @@ def create_lab_test(data):
 	# Validate required fields
 	if not data.get('patient'):
 		frappe.throw(_("Patient is required"))
+
+	# Optional but recommended clinical context: either inpatient admission or patient visit
+	# (only enforce when the fields exist in payload, so older callers are not broken)
+	if not data.get('inpatient_record') and not data.get('patient_visit'):
+		frappe.msgprint(
+			_("It is recommended to link a Lab Test to either a Patient Visit or an Inpatient Admission for better context."),
+			title=_("Missing Clinical Context"),
+			indicator="orange",
+		)
 	
 	# Fetch patient details
 	patient = frappe.get_doc('Patient', data.get('patient'))

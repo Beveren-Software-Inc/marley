@@ -209,6 +209,30 @@ export async function saveAndSubmitLabTest(
   return data
 }
 
+export interface UpdateLabTestBasicInput {
+  template?: string
+  practitioner?: string
+  department?: string
+  service_unit?: string
+  date?: string
+  time?: string
+  status?: string
+}
+
+export async function updateLabTestBasic(
+  labTestName: string,
+  payload: UpdateLabTestBasicInput
+): Promise<LabTest> {
+  const { apiRequest } = await import('./apiClient')
+  return apiRequest<LabTest>(
+    '/api/method/healthcare.api.lab_test.update_lab_test_basic',
+    {
+      method: 'POST',
+      body: JSON.stringify({ name: labTestName, data: payload }),
+    }
+  )
+}
+
 /** One row in the Lab Test remarks table (Remark child with field rrmark). */
 export interface LabTestRemarkRow {
   rrmark?: string
