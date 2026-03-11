@@ -607,19 +607,30 @@ def admit_patient(
 				},
 			)
 
-	# Save patient relatives (guardians) if provided
+	# Save patient relatives (guardians) if provided.
+	# IP Patient Relative child table uses: relationship_with_patient (required), relative_name, cpr__id_no, any_remarks
 	relatives = frappe.parse_json(patient_relatives or [])
 	if isinstance(relatives, list) and relatives:
 		record.set("patient_relatives", [])
 		for row in relatives:
 			if not isinstance(row, dict):
 				continue
+			# Map frontend keys to child doctype field names
+			relation = (row.get("relationship_with_patient") or row.get("relative_relation") or "").strip()
+			name_val = (row.get("relative_name") or "").strip()
+			id_no = (row.get("cpr__id_no") or row.get("relative_id_num") or "").strip()
+			remarks = (row.get("any_remarks") or "").strip()
+			# Skip empty rows; child doctype requires relationship_with_patient
+			if not relation:
+				continue
 			child = record.append("patient_relatives", {})
-			for key in ("relative_relation", "relative_name", "relative_id_num", "any_remarks"):
-				if key in row:
-					value = (row.get(key) or "").strip()
-					if value:
-						child.set(key, value)
+			child.relationship_with_patient = relation
+			if name_val:
+				child.relative_name = name_val
+			if id_no:
+				child.cpr__id_no = id_no
+			if remarks:
+				child.any_remarks = remarks
 
 	# Save all selected service units into the Service Unit (Table MultiSelect) field
 	service_unit_list = frappe.parse_json(service_units or [])

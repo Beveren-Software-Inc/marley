@@ -73,7 +73,8 @@ export const AdmissionList = ({ onAdmissionSelect, searchQuery: externalSearchQu
     patient,
     practitionerFilter || undefined,
     dateFrom || undefined,
-    dateTo || undefined
+    dateTo || undefined,
+    refreshKey
   )
 
   // --- Admission No: debounced search when dropdown is open ---
@@ -105,11 +106,6 @@ export const AdmissionList = ({ onAdmissionSelect, searchQuery: externalSearchQu
     }, practitionerQuery.trim() === '' ? 0 : 300)
     return () => clearTimeout(t)
   }, [practitionerQuery, practitionerOpen])
-
-  useEffect(() => {
-    if (refreshKey !== undefined) refetch()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refreshKey])
 
   const handleAdmit = (recordName: string) => {
     setSelectedRecord(recordName)
