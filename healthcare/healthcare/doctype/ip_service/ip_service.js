@@ -1,4 +1,4 @@
-frappe.ui.form.on('IP External Service', {
+frappe.ui.form.on('IP Service', {
 	refresh(frm) {
 		calculate_total_amount(frm);
 	}

@@ -331,17 +331,17 @@ def get_service_request_template_types():
 		"Clinical Procedure Template",
 		"Appointment Type",
 		"Observation Template",
-		"Healthcare Activity"
+		"Healthcare Activity",
 	]
-	
-	# Get display names for these doctypes
+	if frappe.db.exists("DocType", "IP Service Type"):
+		order_template_doctypes.append("IP Service Type")
+
 	doctypes = frappe.get_all(
 		'DocType',
 		filters={'name': ['in', order_template_doctypes]},
 		fields=['name'],
 		limit=50
 	)
-	
 	return [{'name': d.name, 'label': d.name} for d in doctypes]
 
 
@@ -435,7 +435,20 @@ def get_service_request_templates(template_dt, search=None, department=None):
 			order_by='activity_type'
 		)
 		return [{'name': t.name, 'label': t.activity_type or t.name} for t in templates]
-	
+
+	elif template_dt == 'IP Service Type' and frappe.db.exists("DocType", "IP Service Type"):
+		if search:
+			filters['service_name'] = ['like', f'%{search}%']
+		filters['disabled'] = 0
+		templates = frappe.get_all(
+			'IP Service Type',
+			filters=filters,
+			fields=['name', 'service_name'],
+			limit=50,
+			order_by='service_name'
+		)
+		return [{'name': t.name, 'label': getattr(t, 'service_name', None) or t.name} for t in templates]
+
 	return []
 
 

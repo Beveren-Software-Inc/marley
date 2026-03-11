@@ -28,8 +28,10 @@ class ServiceRequest(ServiceRequestController):
 		super().validate()
 		if self.template_dt and self.template_dn and not self.codification_table:
 			template_doc = frappe.get_doc(self.template_dt, self.template_dn)
-			for mcode in template_doc.codification_table:
-				self.append("codification_table", (frappe.copy_doc(mcode)).as_dict())
+			codification_table = getattr(template_doc, "codification_table", None)
+			if codification_table:
+				for mcode in codification_table:
+					self.append("codification_table", (frappe.copy_doc(mcode)).as_dict())
 
 	def set_title(self):
 		if frappe.flags.in_import and self.title:
@@ -48,6 +50,7 @@ class ServiceRequest(ServiceRequestController):
 			)
 
 	def set_order_details(self):
+		pass
 		if not self.template_dt and not self.template_dn:
 			frappe.throw(
 				_("Order Template Type and Order Template are mandatory to create Service Request"),
@@ -55,8 +58,8 @@ class ServiceRequest(ServiceRequestController):
 			)
 
 		template = frappe.get_doc(self.template_dt, self.template_dn)
-		# set item code
-		self.item_code = template.get("item")
+		# set item code (template may have "item" or "item_code", e.g. IP Service Type)
+		self.item_code = template.get("item") or template.get("item_code")
 
 		if not self.patient_care_type and template.get("patient_care_type"):
 			self.patient_care_type = template.patient_care_type

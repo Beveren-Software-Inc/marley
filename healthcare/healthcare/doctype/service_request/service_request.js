@@ -5,13 +5,16 @@
 frappe.ui.form.on('Service Request', {
 	refresh: function(frm) {
 		frm.set_query('template_dt', function() {
+			// Keep in sync with healthcare.api.common.get_service_request_template_types()
 			let order_template_doctypes = [
 				"Therapy Type",
 				"Lab Test Template",
 				"Clinical Procedure Template",
 				"Appointment Type",
 				"Observation Template",
-				"Healthcare Activity"];
+				"Healthcare Activity",
+				"IP Service Type"
+			];
 			return {
 				filters: {
 					name: ['in', order_template_doctypes]

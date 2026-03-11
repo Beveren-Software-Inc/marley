@@ -55,6 +55,9 @@ def get_service_requests(limit=50, offset=0, patient=None, template_dt=None, sta
 			if sr.template_dt == 'Lab Test Template':
 				template_name = frappe.db.get_value('Lab Test Template', sr.template_dn, 'lab_test_name')
 				sr['template_name'] = template_name or sr.template_dn
+			elif sr.template_dt == 'IP Service Type':
+				template_name = frappe.db.get_value('IP Service Type', sr.template_dn, 'service_name')
+				sr['template_name'] = template_name or sr.template_dn
 			else:
 				sr['template_name'] = sr.template_dn
 	
@@ -153,6 +156,8 @@ def create_service_request(data):
 			template_name = frappe.db.get_value('Therapy Type', service_request.template_dn, 'therapy_type')
 		elif service_request.template_dt == 'Healthcare Activity':
 			template_name = frappe.db.get_value('Healthcare Activity', service_request.template_dn, 'activity_type')
+		elif service_request.template_dt == 'IP Service Type':
+			template_name = frappe.db.get_value('IP Service Type', service_request.template_dn, 'service_name')
 		else:
 			template_name = service_request.template_dn
 	
@@ -244,13 +249,16 @@ def confirm_payment(service_request_name):
 	delivery_date = sr.expected_date or nowdate()
 
 	# ---- IMPORTANT PART ----
-	# We assume template has an `item` field
-	if not hasattr(template_doc, "item") or not template_doc.item:
-		frappe.throw(_(f"{sr.template_dt} must have an Item field"))
+	# Template may have `item` or `item_code` (e.g. IP Service Type)
+	item_code = getattr(template_doc, "item", None) or getattr(template_doc, "item_code", None)
+	if not item_code:
+		frappe.throw(_("{0} must have an Item or Item Code for billing").format(sr.template_dt))
 
-	item_code = template_doc.item
-		
-	amount = template_doc.lab_test_rate if hasattr(template_doc, "lab_test_rate") else 0
+	amount = (
+		getattr(template_doc, "lab_test_rate", None)
+		or getattr(template_doc, "rate", None)
+		or 0
+		)
 
 	# ------------------------
 	# Create Sales Order
