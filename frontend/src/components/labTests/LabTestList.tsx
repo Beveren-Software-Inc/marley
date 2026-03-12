@@ -431,7 +431,6 @@ export const LabTestList = ({
   // ── Consumables dialog ───────────────────────────────────────────────────
 
   const [requestingFor, setRequestingFor] = useState<string | null>(null)
-  const [requestingForCompany, setRequestingForCompany] = useState<string | null>(null)
   const [dialogItems, setDialogItems] = useState<LabConsumableRow[]>([])
   const [dialogLoading, setDialogLoading] = useState(false)
   const [dialogError, setDialogError] = useState<string | null>(null)
@@ -621,7 +620,6 @@ export const LabTestList = ({
       setDialogError(null)
       setDialogLoading(true)
       setRequestingFor(labTest.name)
-      setRequestingForCompany(labTest.company || null)
       if (!itemOptions.length) fetchItems().then(setItemOptions).catch(() => setItemOptions([]))
       if (!warehouseOptions.length) {
         fetchWarehouses(labTest.company || undefined)
@@ -639,7 +637,6 @@ export const LabTestList = ({
 
   const closeRequestDialog = () => {
     setRequestingFor(null)
-    setRequestingForCompany(null)
     setDialogItems([])
     setDialogError(null)
     setDialogLoading(false)

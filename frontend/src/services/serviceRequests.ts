@@ -87,6 +87,7 @@ export interface UpdateServiceRequestData {
   patient_instructions?: string
   expected_date?: string
   amount?: number
+  cost?: number
   source?: string
   referring_practitioner?: string
   referred_to_practitioner?: string
