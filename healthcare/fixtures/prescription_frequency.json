@@ -22,6 +22,7 @@
    }
   ],
   "frequency_in_a_day": 0,
+  "long_acting": 0,
   "modified": "2025-12-17 13:02:12.130629",
   "name": "1-1-1-1"
  },
@@ -36,6 +37,7 @@
    }
   ],
   "frequency_in_a_day": 0,
+  "long_acting": 0,
   "modified": "2025-12-17 13:02:12.132793",
   "name": "0-0-1"
  },
@@ -50,6 +52,7 @@
    }
   ],
   "frequency_in_a_day": 0,
+  "long_acting": 0,
   "modified": "2025-12-17 13:02:12.133674",
   "name": "1-0-0"
  },
@@ -64,6 +67,7 @@
    }
   ],
   "frequency_in_a_day": 0,
+  "long_acting": 0,
   "modified": "2025-12-17 13:02:12.134344",
   "name": "0-1-0"
  },
@@ -86,6 +90,7 @@
    }
   ],
   "frequency_in_a_day": 0,
+  "long_acting": 0,
   "modified": "2025-12-17 13:02:12.135097",
   "name": "1-1-1"
  },
@@ -104,6 +109,7 @@
    }
   ],
   "frequency_in_a_day": 0,
+  "long_acting": 0,
   "modified": "2025-12-17 13:02:12.136111",
   "name": "1-0-1"
  },
@@ -118,6 +124,7 @@
    }
   ],
   "frequency_in_a_day": 0,
+  "long_acting": 0,
   "modified": "2025-12-17 13:02:12.136941",
   "name": "Once Bedtime"
  },
@@ -148,6 +155,7 @@
    }
   ],
   "frequency_in_a_day": 0,
+  "long_acting": 0,
   "modified": "2025-12-17 13:02:12.137790",
   "name": "5 times a day"
  },
@@ -174,6 +182,7 @@
    }
   ],
   "frequency_in_a_day": 0,
+  "long_acting": 0,
   "modified": "2025-12-17 13:02:12.139127",
   "name": "QID"
  },
@@ -196,6 +205,7 @@
    }
   ],
   "frequency_in_a_day": 0,
+  "long_acting": 0,
   "modified": "2025-12-17 13:02:12.140262",
   "name": "TID"
  },
@@ -214,6 +224,7 @@
    }
   ],
   "frequency_in_a_day": 0,
+  "long_acting": 0,
   "modified": "2025-12-17 13:02:12.141218",
   "name": "BID"
  },
@@ -228,6 +239,7 @@
    }
   ],
   "frequency_in_a_day": 0,
+  "long_acting": 0,
   "modified": "2025-12-17 13:02:12.141986",
   "name": "Once Daily"
  },
@@ -237,6 +249,7 @@
   "dosage": "HS",
   "dosage_strength": [],
   "frequency_in_a_day": 0,
+  "long_acting": 0,
   "modified": "2025-12-24 14:54:33.705432",
   "name": "HS"
  },
@@ -246,6 +259,7 @@
   "dosage": "BD",
   "dosage_strength": [],
   "frequency_in_a_day": 0,
+  "long_acting": 0,
   "modified": "2025-12-24 14:54:40.369786",
   "name": "BD"
  },
@@ -255,6 +269,7 @@
   "dosage": "OD",
   "dosage_strength": [],
   "frequency_in_a_day": 0,
+  "long_acting": 0,
   "modified": "2025-12-24 14:54:46.213445",
   "name": "OD"
  },
@@ -264,6 +279,7 @@
   "dosage": "Q1W",
   "dosage_strength": [],
   "frequency_in_a_day": 0,
+  "long_acting": 0,
   "modified": "2025-12-24 14:54:55.467872",
   "name": "Q1W"
  },
@@ -273,6 +289,7 @@
   "dosage": "Q2W",
   "dosage_strength": [],
   "frequency_in_a_day": 0,
+  "long_acting": 0,
   "modified": "2025-12-24 14:55:18.075865",
   "name": "Q2W"
  },
@@ -282,6 +299,7 @@
   "dosage": "Q3W",
   "dosage_strength": [],
   "frequency_in_a_day": 0,
+  "long_acting": 0,
   "modified": "2025-12-24 14:55:25.015760",
   "name": "Q3W"
  },
@@ -291,6 +309,7 @@
   "dosage": "Q4W",
   "dosage_strength": [],
   "frequency_in_a_day": 0,
+  "long_acting": 0,
   "modified": "2025-12-24 14:55:40.154067",
   "name": "Q4W"
  }

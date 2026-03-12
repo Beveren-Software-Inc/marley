@@ -14,6 +14,8 @@ export interface Prescription {
   total_orders?: number
   completed_orders?: number
   company?: string
+  reference_doctype?: string
+  reference_document_name?: string
 }
 
 export interface PrescriptionFilters {
@@ -54,6 +56,19 @@ export async function fetchPrescriptions(
     throw new Error(resData?.message || 'Failed to fetch prescriptions')
   }
   return []
+}
+
+export async function createPrescriptionSalesOrder(
+  name: string
+): Promise<{ sales_order: string; status: string }> {
+  const { apiRequest } = await import('./apiClient')
+  return apiRequest<{ sales_order: string; status: string }>(
+    '/api/method/healthcare.api.patient_medication_order.create_sales_order_from_medication_order',
+    {
+      method: 'POST',
+      body: JSON.stringify({ name }),
+    }
+  )
 }
 
 export interface CreatePrescriptionData {
