@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { fetchLabTest, updateLabTestBasic, type LabTest } from '../../services/labTests'
+import { useEffect, useState, useCallback } from 'react'
+import { fetchLabTest, updateLabTestBasic, saveAndSubmitLabTest, type LabTest } from '../../services/labTests'
 import {
   fetchHealthcarePractitioners,
   fetchLabTestTemplates,
@@ -29,6 +29,11 @@ export const EditLabTestModal = ({ labTestName, onClose, onSuccess }: EditLabTes
     date: '',
     time: '',
     status: '',
+    amount: '' as string | number,
+    discount_margin: 'Percentage',
+    discount: '' as string | number,
+    discount_amount: '' as string | number,
+    grand_total: '' as string | number,
   })
 
   const [templateOptions, setTemplateOptions] = useState<LinkFieldOption[]>([])
@@ -48,6 +53,26 @@ export const EditLabTestModal = ({ labTestName, onClose, onSuccess }: EditLabTes
 
   const [activeTab, setActiveTab] = useState<'edit' | 'details'>('edit')
 
+  // Calculate discount amount and grand total
+  const calculateFinancials = useCallback((data: typeof formData) => {
+    const amount = Number(data.amount) || 0
+    let discountAmount = 0
+
+    if (data.discount_margin === 'Percentage') {
+      const discountPercent = Number(data.discount) || 0
+      discountAmount = (amount * discountPercent) / 100
+    } else {
+      discountAmount = Number(data.discount_amount) || 0
+    }
+
+    const grandTotal = amount - discountAmount
+
+    return {
+      discountAmount: isNaN(discountAmount) ? '' : discountAmount,
+      grandTotal: isNaN(grandTotal) ? '' : grandTotal,
+    }
+  }, [])
+
   // Load lab test and base options
   useEffect(() => {
     const load = async () => {
@@ -56,7 +81,7 @@ export const EditLabTestModal = ({ labTestName, onClose, onSuccess }: EditLabTes
         setError(null)
         const doc = await fetchLabTest(labTestName)
         setLabTest(doc)
-        setFormData({
+        const initialFormData = {
           template: doc.template || '',
           department: doc.department || '',
           practitioner: doc.practitioner || '',
@@ -66,7 +91,13 @@ export const EditLabTestModal = ({ labTestName, onClose, onSuccess }: EditLabTes
             ? new Date(doc.submitted_date).toTimeString().slice(0, 5)
             : new Date().toTimeString().slice(0, 5),
           status: doc.status || 'Draft',
-        })
+          amount: (doc as any).amount ?? '',
+          discount_margin: (doc as any).discount_margin || 'Percentage',
+          discount: (doc as any).discount ?? '',
+          discount_amount: (doc as any).discount_amount ?? '',
+          grand_total: (doc as any).grand_total ?? '',
+        }
+        setFormData(initialFormData)
 
         const [templates, depts, practs] = await Promise.all([
           fetchLabTestTemplates(undefined, doc.department || undefined),
@@ -154,7 +185,18 @@ export const EditLabTestModal = ({ labTestName, onClose, onSuccess }: EditLabTes
   }, [practitionerOpen, practitionerQuery, formData.department])
 
   const handleChange = (field: keyof typeof formData, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }))
+    const updatedFormData = { ...formData, [field]: value }
+    setFormData(updatedFormData)
+
+    // Auto-calculate financials when relevant fields change
+    if (['amount', 'discount_margin', 'discount', 'discount_amount'].includes(field)) {
+      const { discountAmount, grandTotal } = calculateFinancials(updatedFormData)
+      setFormData((prev) => ({
+        ...prev,
+        discount_amount: discountAmount,
+        grand_total: grandTotal,
+      }))
+    }
   }
 
   const handleTemplateSelect = (opt: LinkFieldOption) => {
@@ -193,6 +235,16 @@ export const EditLabTestModal = ({ labTestName, onClose, onSuccess }: EditLabTes
         time: formData.time || undefined,
         status: formData.status || undefined,
       })
+      // Billing payload (optional)
+      const billingPayload: any = {}
+      if (formData.amount !== '') billingPayload.amount = Number(formData.amount)
+      if (formData.discount_margin) billingPayload.discount_margin = formData.discount_margin
+      if (formData.discount !== '') billingPayload.discount = Number(formData.discount)
+      if (formData.discount_amount !== '') billingPayload.discount_amount = Number(formData.discount_amount)
+      if (formData.grand_total !== '') billingPayload.grand_total = Number(formData.grand_total)
+      if (Object.keys(billingPayload).length > 0) {
+        await saveAndSubmitLabTest(labTest.name, billingPayload)
+      }
       toast.success('Lab test updated')
       onSuccess?.()
       onClose()
@@ -354,7 +406,7 @@ export const EditLabTestModal = ({ labTestName, onClose, onSuccess }: EditLabTes
                         setPractitionerQuery(e.target.value)
                         setPractitionerOpen(true)
                       }}
-                      onFocus={() => setPractitionerOpen(true)}
+                      onFocus={() => setTemplateOpen(true)}
                       placeholder="Search practitioner..."
                       className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm pr-8 focus:outline-none focus:ring-2 focus:ring-primary"
                     />
@@ -431,8 +483,8 @@ export const EditLabTestModal = ({ labTestName, onClose, onSuccess }: EditLabTes
             </div>
           )}
 
-          {activeTab === 'details' && (
-            <div className="space-y-3 text-sm text-slate-700">
+          {activeTab === 'details' && labTest && (
+            <div className="space-y-4 text-sm text-slate-700">
               <div>
                 <h3 className="text-sm font-semibold text-slate-700 mb-1">Test & Request</h3>
                 <div className="space-y-0.5">
@@ -448,6 +500,104 @@ export const EditLabTestModal = ({ labTestName, onClose, onSuccess }: EditLabTes
                   <div>Result Date: {labTest.result_date || '—'}</div>
                   <div>Submitted: {labTest.submitted_date || '—'}</div>
                   <div>Approved Date: {labTest.approved_date || '—'}</div>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-sm font-semibold text-slate-700 mb-2">Billing</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="col-span-2">
+                    <label className="block text-xs font-medium text-slate-600 mb-1">
+                      Amount
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      value={formData.amount}
+                      onChange={(e) =>
+                        handleChange('amount', e.target.value === '' ? '' : e.target.value)
+                      }
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                  </div>
+
+                  <div className="col-span-2">
+                    <label className="block text-xs font-medium text-slate-600 mb-1">
+                      Discount Type
+                    </label>
+                    <select
+                      value={formData.discount_margin}
+                      onChange={(e) =>
+                        handleChange('discount_margin', e.target.value)
+                      }
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+                    >
+                      <option value="Percentage">Percentage (%)</option>
+                      <option value="Amount">Amount</option>
+                    </select>
+                  </div>
+
+                  {formData.discount_margin === 'Percentage' && (
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">
+                        Discount (%)
+                      </label>
+                      <input
+                        type="number"
+                        step="any"
+                        value={formData.discount}
+                        onChange={(e) =>
+                          handleChange('discount', e.target.value === '' ? '' : e.target.value)
+                        }
+                        placeholder="0"
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                    </div>
+                  )}
+
+                  {formData.discount_margin === 'Amount' && (
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">
+                        Discount Amount
+                      </label>
+                      <input
+                        type="number"
+                        step="any"
+                        value={formData.discount_amount}
+                        onChange={(e) =>
+                          handleChange('discount_amount', e.target.value === '' ? '' : e.target.value)
+                        }
+                        placeholder="0"
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">
+                      Discount Amount
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      value={formData.discount_amount}
+                      readOnly
+                      className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm bg-slate-50 text-slate-700"
+                    />
+                  </div>
+
+                  <div className="col-span-2">
+                    <label className="block text-xs font-medium text-slate-600 mb-1">
+                      Grand Total
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      value={formData.grand_total}
+                      readOnly
+                      className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm bg-slate-50 text-slate-700 font-semibold"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -474,4 +624,3 @@ export const EditLabTestModal = ({ labTestName, onClose, onSuccess }: EditLabTes
     </div>
   )
 }
-

@@ -63,6 +63,10 @@ fixtures = [
                     "Quotation-custom_reference_type",
                     "Quotation-custom_column_break_uzvkh",
                     "Quotation-custom_healthcare_reference",
+                    
+                    #sales
+                    "Sales Order-custom_base_reference",
+                    "Sales Order-custom_base_reference_name"
                 ),
             ]
         ],

@@ -4,7 +4,7 @@
 
 import frappe
 from frappe import _
-from frappe.utils import flt
+from frappe.utils import flt, nowdate
 
 
 @frappe.whitelist()
@@ -30,6 +30,7 @@ def get_medication_orders(
 		'name', 'patient', 'patient_name', 'care_context', 'patient_encounter',
 		'inpatient_record', 'practitioner', 'posting_date', 'start_date', 'end_date',
 		'status', 'total_orders', 'completed_orders', 'company',
+		'reference_doctype', 'reference_document_name',
 	]
 
 	if use_sql:
@@ -226,3 +227,92 @@ def create_patient_medication_order(
 	doc.submit()
 	
 	return {'name': doc.name}
+
+
+@frappe.whitelist()
+def create_sales_order_from_medication_order(name: str):
+	"""Create (or return existing) Sales Order for a Patient Medication Order.
+
+	The Sales Order will be left in Draft state and linked back to the PMO.
+	Also sets custom_base_reference/custom_base_reference_name on Sales Order
+	and saves reference_doctype/reference_document_name on the PMO.
+	"""
+	if not name:
+		frappe.throw(_("Patient Medication Order name is required"))
+
+	pmo = frappe.get_doc("Patient Medication Order", name)
+
+	if pmo.docstatus != 1:
+		frappe.throw(_("Only submitted Patient Medication Orders can create Sales Orders"))
+
+	# If a Sales Order is already linked, just return it
+	if getattr(pmo, "reference_doctype", None) == "Sales Order" and getattr(pmo, "reference_document_name", None):
+		if frappe.db.exists("Sales Order", pmo.reference_document_name):
+			so = frappe.get_doc("Sales Order", pmo.reference_document_name)
+			return {"sales_order": so.name, "status": so.status}
+
+	if not pmo.company:
+		frappe.throw(_("Company is required on Patient Medication Order"))
+
+	if not pmo.patient:
+		frappe.throw(_("Patient is required on Patient Medication Order"))
+
+	# Determine healthcare reference (Patient Visit or Inpatient Admission)
+	ref_doctype = None
+	ref_name = None
+	if pmo.care_context == "Inpatient Admission" and pmo.inpatient_record:
+		ref_doctype = "Inpatient Admission"
+		ref_name = pmo.inpatient_record
+	elif pmo.care_context == "Patient Visit" and pmo.patient_encounter:
+		ref_doctype = "Patient Visit"
+		ref_name = pmo.patient_encounter
+
+	# Create Sales Order (draft)
+	so = frappe.new_doc("Sales Order")
+	so.company = pmo.company
+	so.patient = pmo.patient
+	so.customer = pmo.patient
+	# Ensure transaction and delivery dates are set to pass validation
+	so.transaction_date = nowdate()
+	so.delivery_date = nowdate()#pmo.end_date or pmo.start_date or nowdate()
+	if getattr(pmo, "patient_name", None):
+		so.custom_patient_name = pmo.patient_name
+	so.custom_patient = pmo.patient
+
+	# Healthcare reference to context (visit/admission)
+	if ref_doctype and ref_name:
+		so.custom_reference_type = ref_doctype
+		so.custom_reference_name = ref_name
+		so.custom_base_reference = "Patient Medication Order"
+		so.custom_base_reference_name = pmo.name
+
+	# Base reference back to the PMO itself
+	so.custom_base_reference = "Patient Medication Order"
+	so.custom_base_reference_name = pmo.name
+
+	# Add one Sales Order Item per medication order row
+	for row in pmo.get("medication_orders") or []:
+		if not getattr(row, "drug", None):
+			continue
+		qty = flt(getattr(row, "quantity", 0)) or 1
+		so.append(
+			"items",
+			{
+				"item_code": row.drug,
+				"qty": qty,
+				"description": getattr(row, "drug_name", None) or row.drug,
+			},
+		)
+
+	if not so.items:
+		frappe.throw(_("No medication items found to create a Sales Order"))
+
+	so.insert(ignore_permissions=True)
+	# Keep as Draft – do NOT submit
+
+	# Link back to PMO for future lookups
+	pmo.reference_doctype = "Sales Order"
+	pmo.reference_document_name = so.name
+	pmo.save(ignore_permissions=True)
+
+	return {"sales_order": so.name, "status": so.status}

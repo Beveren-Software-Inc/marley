@@ -6,78 +6,93 @@ import frappe
 from frappe import _
 
 @frappe.whitelist()
-def get_lab_tests(limit=50, offset=0, patient=None, status=None, pending_review=False,
-                  is_outsourced=None, from_date=None, to_date=None):
-    """Get list of Lab Tests with optional patient, status, and date range filters."""
-    filters = {'docstatus': ['!=', 2]}  # Exclude cancelled
+def get_lab_tests(
+	limit=50,
+	offset=0,
+	patient=None,
+	status=None,
+	pending_review=False,
+	is_outsourced=None,
+	from_date=None,
+	to_date=None,
+	template=None,
+	patient_type=None,
+):
+	"""Get list of Lab Tests with optional filters (patient, status, date range, OP/IP, template, outsourcing)."""
+	filters = {"docstatus": ["!=", 2]}  # Exclude cancelled
 
-    if patient:
-        filters['patient'] = patient
+	if patient:
+		filters["patient"] = patient
 
-    if status:
-        filters['status'] = status
+	if status:
+		filters["status"] = status
 
-    if pending_review:
-        filters['status'] = ['in', ['Pending Review', 'Submitted']]
+	if pending_review:
+		filters["status"] = ["in", ["Pending Review", "Submitted"]]
 
-    if is_outsourced is not None:
-        if isinstance(is_outsourced, str):
-            is_outsourced = is_outsourced == '1'
-        filters['is_outsourced'] = 1 if is_outsourced else 0
+	if is_outsourced is not None:
+		if isinstance(is_outsourced, str):
+			is_outsourced = is_outsourced == "1"
+		filters["is_outsourced"] = 1 if is_outsourced else 0
 
-    # Date range filter — applies against result_date, falling back to submitted_date
-    # We use an OR condition via frappe's or_filters if both date fields are relevant,
-    # but the simplest compatible approach is filtering on result_date with a coalesce
-    # handled via custom SQL. For Frappe ORM, filter on result_date first; rows without
-    # a result_date but within submitted_date range are caught by the second condition.
-    if from_date or to_date:
-        date_conditions = []
-        if from_date and to_date:
-            date_conditions = ['>=', from_date], ['<=', to_date]
-            filters['result_date'] = ['between', [from_date, to_date]]
-        elif from_date:
-            filters['result_date'] = ['>=', from_date]
-        elif to_date:
-            filters['result_date'] = ['<=', to_date]
+	if template:
+		filters["template"] = template
 
-    lab_tests = frappe.get_all(
-        'Lab Test',
-        filters=filters,
-        fields=[
-            'name',
-            'docstatus',
-            'patient',
-            'patient_name',
-            'practitioner',
-            'practitioner_name',
-            'lab_test_name',
-            'template',
-            'status',
-            'result_date',
-            'submitted_date',
-            'approved_date',
-            'invoiced',
-            'department',
-            'is_outsourced',
-            'material_request',
-        ],
-        limit=limit,
-        limit_start=offset,
-        order_by='submitted_date desc, result_date desc'
-    )
+	# OP / IP filter based on inpatient_record link
+	if patient_type == "IP":
+		filters["inpatient_record"] = ["is", "set"]
+	elif patient_type == "OP":
+		filters["inpatient_record"] = ["is", "not set"]
 
-    for lab_test in lab_tests:
-        if lab_test.patient and not lab_test.patient_name:
-            lab_test['patient_name'] = (
-                frappe.db.get_value('Patient', lab_test.patient, 'patient_name') or lab_test.patient
-            )
-        if lab_test.practitioner and not lab_test.practitioner_name:
-            lab_test['practitioner_name'] = (
-                frappe.db.get_value('Healthcare Practitioner', lab_test.practitioner, 'practitioner_name')
-                or lab_test.practitioner
-            )
+	# Date range filter — apply on result_date
+	if from_date or to_date:
+		if from_date and to_date:
+			filters["result_date"] = ["between", [from_date, to_date]]
+		elif from_date:
+			filters["result_date"] = [">=", from_date]
+		elif to_date:
+			filters["result_date"] = ["<=", to_date]
 
-    return lab_tests
+	lab_tests = frappe.get_all(
+		"Lab Test",
+		filters=filters,
+		fields=[
+			"name",
+			"docstatus",
+			"patient",
+			"patient_name",
+			"practitioner",
+			"practitioner_name",
+			"lab_test_name",
+			"template",
+			"status",
+			"result_date",
+			"submitted_date",
+			"approved_date",
+			"invoiced",
+			"department",
+			"is_outsourced",
+			"material_request",
+			"amount",
+			"grand_total",
+		],
+		limit=limit,
+		limit_start=offset,
+		order_by="submitted_date desc, result_date desc",
+	)
+
+	for lab_test in lab_tests:
+		if lab_test.patient and not lab_test.patient_name:
+			lab_test["patient_name"] = (
+				frappe.db.get_value("Patient", lab_test.patient, "patient_name") or lab_test.patient
+			)
+		if lab_test.practitioner and not lab_test.practitioner_name:
+			lab_test["practitioner_name"] = (
+				frappe.db.get_value("Healthcare Practitioner", lab_test.practitioner, "practitioner_name")
+				or lab_test.practitioner
+			)
+
+	return lab_tests
 
 @frappe.whitelist()
 def get_lab_test(name):
@@ -105,13 +120,38 @@ def get_lab_test(name):
 		'lab_test_comment': getattr(lab_test, 'lab_test_comment', None),
 		'worksheet_instructions': getattr(lab_test, 'worksheet_instructions', None),
 		'material_request': getattr(lab_test, 'material_request', None),
+		'amount': getattr(lab_test, 'amount', None),
+		'discount_margin': getattr(lab_test, 'discount_margin', None),
+		'discount': getattr(lab_test, 'discount', None),
+		'discount_amount': getattr(lab_test, 'discount_amount', None),
+		'grand_total': getattr(lab_test, 'grand_total', None),
 	}
 	# Include documents child table (Patient Upload Document)
 	documents = getattr(lab_test, 'documents', None) or []
-	out['documents'] = [{'file_name': r.get('document_name') or r.get('file_name'), 'document_type': r.get('document_type'), 'transaction_no': r.get('transaction_no'), 'upload_remarks': r.get('upload_remarks'), 'document': r.get('document')} for r in documents]
+	out['documents'] = [
+		{
+			'file_name': r.get('document_name') or r.get('file_name'),
+			'document_type': r.get('document_type'),
+			'transaction_no': r.get('transaction_no'),
+			'upload_remarks': r.get('upload_remarks'),
+			'document': r.get('document'),
+		}
+		for r in documents
+	]
 	# Include remarks child table (Remark)
 	remarks_table = getattr(lab_test, 'remarks', None) or []
 	out['remarks'] = [{'rrmark': getattr(r, 'rrmark', None) or ''} for r in remarks_table]
+	# Include sample_instances child table
+	sample_instances = getattr(lab_test, 'sample_instances', None) or []
+	out['sample_instances'] = [
+		{
+			'sample': getattr(r, 'sample', None),
+			'sample_qty': getattr(r, 'sample_qty', None),
+			'sample_details': getattr(r, 'sample_details', None),
+			'sample_collection': getattr(r, 'sample_collection', None),
+		}
+		for r in sample_instances
+	]
 	return out
 
 
@@ -249,9 +289,13 @@ def save_and_submit_lab_test(
 	lab_test_comment=None,
 	worksheet_instructions=None,
 	documents=None,
+	amount=None,
+	discount_margin=None,
+	discount=None,
+	discount_amount=None,
 	submit: bool = False,
 ):
-	"""Save custom result/comment/worksheet/documents on Lab Test and optionally submit it."""
+	"""Save custom result/comment/worksheet/documents/pricing on Lab Test and optionally submit it."""
 	if not name:
 		frappe.throw(_("Lab Test name is required"))
 
@@ -263,6 +307,26 @@ def save_and_submit_lab_test(
 		doc.lab_test_comment = lab_test_comment
 	if worksheet_instructions is not None:
 		doc.worksheet_instructions = worksheet_instructions
+
+	# Pricing updates
+	if amount is not None:
+		doc.amount = amount
+	if discount_margin is not None:
+		doc.discount_margin = discount_margin
+	if discount is not None:
+		doc.discount = discount
+	if discount_amount is not None:
+		doc.discount_amount = discount_amount
+
+	# Recompute grand_total whenever we have an amount
+	if getattr(doc, "amount", None) is not None:
+		base = doc.amount or 0
+		disc_amt = doc.discount_amount or 0
+		if doc.discount_margin == "Percentage" and doc.discount:
+			disc_amt = (base * doc.discount) / 100.0
+			doc.discount_amount = disc_amt
+		doc.grand_total = base - (disc_amt or 0)
+
 	_apply_documents_to_doc(doc, documents)
 
 	if submit:
@@ -282,6 +346,11 @@ def save_and_submit_lab_test(
 		"custom_result": getattr(doc, "custom_result", None),
 		"lab_test_comment": getattr(doc, "lab_test_comment", None),
 		"worksheet_instructions": getattr(doc, "worksheet_instructions", None),
+		"amount": getattr(doc, "amount", None),
+		"discount_margin": getattr(doc, "discount_margin", None),
+		"discount": getattr(doc, "discount", None),
+		"discount_amount": getattr(doc, "discount_amount", None),
+		"grand_total": getattr(doc, "grand_total", None),
 	}
 
 
@@ -501,3 +570,91 @@ def update_lab_test_status(lab_test_name: str, new_status: str):
 		"approved_date": update_values.get("approved_date"),
 		"reviewed_by": frappe.session.user,
 	}
+
+
+@frappe.whitelist()
+def create_sample_collection_for_lab_sample(
+	lab_test_name: str,
+	row_index: int,
+	sample_details: str | None = None,
+	collection_point: str | None = None,
+	referring_practitioner: str | None = None,
+):
+	"""Create (or return existing) Sample Collection for a specific sample_instances row on Lab Test.
+
+	row_index is 0-based index into lab_test.sample_instances.
+	"""
+	if not lab_test_name:
+		frappe.throw(_("Lab Test name is required"))
+
+	try:
+		row_index = int(row_index)
+	except Exception:
+		frappe.throw(_("Row index is required"), title=_("Invalid Input"))
+
+	doc = frappe.get_doc("Lab Test", lab_test_name)
+	rows = doc.get("sample_instances") or []
+	if row_index < 0 or row_index >= len(rows):
+		frappe.throw(_("Invalid sample instance row"), title=_("Invalid Row"))
+
+	row = rows[row_index]
+
+	# If already linked, just return existing Sample Collection
+	if getattr(row, "sample_collection", None) and frappe.db.exists("Sample Collection", row.sample_collection):
+		return {"sample_collection": row.sample_collection}
+
+	if not getattr(row, "sample", None):
+		frappe.throw(_("Sample is required on the selected row"))
+
+	if not doc.patient:
+		frappe.throw(_("Patient is required on Lab Test"))
+
+	patient = frappe.get_doc("Patient", doc.patient)
+
+	sample_doc = frappe.new_doc("Sample Collection")
+	sample_doc.patient = patient.name
+	sample_doc.patient_age = patient.get_age()
+	sample_doc.patient_sex = patient.sex
+	sample_doc.sample = row.sample
+	# UOM from Lab Test Sample
+	uom = frappe.db.get_value("Lab Test Sample", row.sample, "sample_uom")
+	if uom:
+		sample_doc.sample_uom = uom
+	sample_doc.sample_qty = getattr(row, "sample_qty", 0) or 0
+	# Prefer explicit sample_details from caller, fall back to row
+	sample_doc.sample_details = sample_details or getattr(row, "sample_details", None)
+	if doc.company:
+		sample_doc.company = doc.company
+	if collection_point:
+		sample_doc.collection_point = collection_point
+	if referring_practitioner:
+		sample_doc.referring_practitioner = referring_practitioner
+
+	sample_doc.save(ignore_permissions=True)
+
+	# Link back to sample_instances row (and keep latest details in row)
+	row.sample_collection = sample_doc.name
+	if sample_details:
+		row.sample_details = sample_details
+
+	# Update Lab Test status based on how many sample instances are linked
+	rows = doc.get("sample_instances") or []
+	total = len(rows)
+	linked = 0
+	for r in rows:
+		if getattr(r, "sample_collection", None):
+			linked += 1
+
+	if linked <= 0:
+		# No samples collected yet
+		doc.status = "Awaiting sample collection"
+	elif linked < total:
+		# At least one collected, but not all
+		doc.status = "Sample collection in progress"
+	else:
+		# All samples have a Sample Collection: testing can start, but results not yet entered
+		doc.status = "Sample collected"
+
+	doc.save(ignore_permissions=True)
+
+	return {"sample_collection": sample_doc.name}

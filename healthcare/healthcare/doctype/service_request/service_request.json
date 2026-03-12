@@ -74,6 +74,7 @@
   "service_details_section",
   "template_dt",
   "template_dn",
+  "cost",
   "amount",
   "column_break_uafs",
   "reference_document_type",
@@ -593,6 +594,11 @@
    "label": "Cost Center",
    "options": "Cost Center",
    "reqd": 1
+  },
+  {
+   "fieldname": "cost",
+   "fieldtype": "Currency",
+   "label": "Cost"
   }
  ],
  "index_web_pages_for_search": 1,
@@ -611,7 +617,7 @@
    "link_fieldname": "service_request"
   }
  ],
- "modified": "2026-03-12 02:19:57.405879",
+ "modified": "2026-03-12 17:31:52.687404",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Service Request",

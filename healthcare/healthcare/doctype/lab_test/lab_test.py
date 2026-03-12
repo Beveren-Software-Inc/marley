@@ -181,6 +181,10 @@ class LabTest(Document):
 					)
 
 	def before_insert(self):
+		# When creating a new Lab Test, default to awaiting sample collection
+		if not self.status:
+			self.status = "Awaiting sample collection"
+
 		if self.service_request:
 			lab_test = frappe.db.exists(
 				"Lab Test",
@@ -209,6 +213,14 @@ def create_test_from_template(lab_test):
 	lab_test.worksheet_instructions = template.worksheet_instructions
 
 	lab_test = create_sample_collection(lab_test, template, patient, None)
+	# Populate sample_instances child table from template.sample_requirements, if any
+	lab_test.sample_instances = []
+	for row in template.get("sample_requirements", []) or []:
+		child = lab_test.append("sample_instances", {})
+		child.sample = getattr(row, "sample", None)
+		child.sample_qty = getattr(row, "sample_qty", None)
+		child.sample_details = getattr(row, "sample_details", None)
+
 	load_result_format(lab_test, template, None, None)
 
 
@@ -479,16 +491,16 @@ def create_sample_doc(template, patient, invoice, company=None):
 
 
 def create_sample_collection(lab_test, template, patient, invoice):
-	if frappe.get_cached_value("Healthcare Settings", None, "create_sample_collection_for_lab_test"):
-		sample_collection = create_sample_doc(template, patient, invoice, lab_test.company)
-		if sample_collection:
-			lab_test.sample = sample_collection.name
-			sample_collection_doc = get_link_to_form("Sample Collection", sample_collection.name)
-			frappe.msgprint(
-				_("Sample Collection {0} has been created").format(sample_collection_doc),
-				title=_("Sample Collection"),
-				indicator="green",
-			)
+	# Always create and link a Sample Collection for a Lab Test created from template.
+	sample_collection = create_sample_doc(template, patient, invoice, lab_test.company)
+	if sample_collection:
+		lab_test.sample = sample_collection.name
+		sample_collection_doc = get_link_to_form("Sample Collection", sample_collection.name)
+		frappe.msgprint(
+			_("Sample Collection {0} has been created").format(sample_collection_doc),
+			title=_("Sample Collection"),
+			indicator="green",
+		)
 	return lab_test
 
 

@@ -38,6 +38,8 @@ export interface LabTest {
   employee_designation?: string
   reviewed_by?: string
   material_request?: string
+  amount?: number
+  grand_total?: number
   descriptive_result?: string
   custom_result?: string
   lab_test_comment?: string
@@ -48,6 +50,8 @@ export interface LabTest {
   sensitivity_test_items?: any[]
   /** Patient Upload Document child table (same as Admission/Discharge) */
   documents?: Array<{ file_name?: string; document_type?: string; transaction_no?: string; upload_remarks?: string; document?: string }>
+  /** Sample instances child table – one row per required/actual sample */
+  sample_instances?: Array<{ sample?: string; sample_qty?: number; sample_details?: string; sample_collection?: string }>
 }
 
 export interface LabConsumableRow {
@@ -64,7 +68,11 @@ export async function fetchLabTests(
   patient?: string,
   status?: string,
   pending_review: boolean = false,
-  is_outsourced?: boolean
+  is_outsourced?: boolean,
+  from_date?: string,
+  to_date?: string,
+  template?: string,
+  patient_type?: string
 ): Promise<LabTest[]> {
   const params = new URLSearchParams()
   params.append('limit', limit.toString())
@@ -73,6 +81,10 @@ export async function fetchLabTests(
   if (status) params.append('status', status)
   if (pending_review) params.append('pending_review', '1')
   if (is_outsourced !== undefined) params.append('is_outsourced', is_outsourced ? '1' : '0')
+  if (from_date) params.append('from_date', from_date)
+  if (to_date) params.append('to_date', to_date)
+  if (template) params.append('template', template)
+  if (patient_type) params.append('patient_type', patient_type)
 
   const response = await fetch(
     `/api/method/healthcare.api.lab_test.get_lab_tests?${params.toString()}`
@@ -188,6 +200,10 @@ export interface SaveAndSubmitLabTestInput {
   worksheet_instructions?: string
   documents?: Array<{ file_name?: string; document_type?: string; transaction_no?: string; upload_remarks?: string; document?: string }>
   submit?: boolean
+  amount?: number
+  discount_margin?: string
+  discount?: number
+  discount_amount?: number
 }
 
 export async function saveAndSubmitLabTest(
@@ -263,6 +279,29 @@ export async function updateLabTestStatus(
       body: JSON.stringify({
         lab_test_name,
         new_status,
+      }),
+    }
+  )
+}
+
+export async function createSampleCollectionForLabSample(
+  labTestName: string,
+  rowIndex: number,
+  sampleDetails?: string,
+  collectionPoint?: string,
+  referringPractitioner?: string
+): Promise<{ sample_collection: string }> {
+  const { apiRequest } = await import('./apiClient')
+  return apiRequest<{ sample_collection: string }>(
+    '/api/method/healthcare.api.lab_test.create_sample_collection_for_lab_sample',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        lab_test_name: labTestName,
+        row_index: rowIndex,
+        sample_details: sampleDetails,
+        collection_point: collectionPoint,
+        referring_practitioner: referringPractitioner,
       }),
     }
   )

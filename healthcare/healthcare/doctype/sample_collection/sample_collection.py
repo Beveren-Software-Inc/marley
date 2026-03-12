@@ -38,6 +38,27 @@ class SampleCollection(Document):
 					if not any((comp["status"] == "Open") for comp in component_observations):
 						obs.status = "Collected"
 
+	def on_update(self):
+		"""Sync Lab Test status with Sample Collection status.
+
+		- Pending          → Lab Test.status = 'Awaiting sample collection'
+		- Partly Collected → Lab Test.status = 'Sample collection in progress'
+		- Collected        → Lab Test.status = 'Sample collected'
+		"""
+		status_map = {
+			"Pending": "Awaiting sample collection",
+			"Partly Collected": "Sample collection in progress",
+			"Collected": "Sample collected",
+		}
+		new_status = status_map.get(self.status)
+		if not new_status:
+			return
+
+		# Find all Lab Tests pointing to this Sample Collection
+		lab_tests = frappe.get_all("Lab Test", filters={"sample": self.name}, pluck="name")
+		for lt_name in lab_tests:
+			frappe.db.set_value("Lab Test", lt_name, "status", new_status)
+
 		if not any((obs.get("status") == "Open") for obs in self.observation_sample_collection):
 			self.status = "Collected"
 		else:

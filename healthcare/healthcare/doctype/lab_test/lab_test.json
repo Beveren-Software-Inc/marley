@@ -15,7 +15,6 @@
   "department",
   "reference_doctype",
   "reference_document",
-  "is_outsourced",
   "priority",
   "inpatient_admission",
   "patient_visit",
@@ -31,6 +30,11 @@
   "expected_result_date",
   "expected_result_time",
   "printed_on",
+  "outsourced_section",
+  "is_outsourced",
+  "outsource_lab_name",
+  "column_break_lrsf",
+  "outsource_ref_no",
   "sb_first",
   "patient",
   "patient_name",
@@ -65,6 +69,15 @@
   "lab_test_comment",
   "sb_customresult",
   "custom_result",
+  "payment_section",
+  "amount",
+  "discount_margin",
+  "discount",
+  "column_break_oulm",
+  "discount_amount",
+  "grand_total",
+  "sample_collection_tab",
+  "sample_instances",
   "medical_coding_section",
   "codification_table",
   "worksheet_section",
@@ -220,7 +233,7 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Status",
-   "options": "\nDraft\nRequested\nAwaiting sample collection\nSample collected\nTesting in progress\nCompleted\nPending Review\nApproved\nRejected\nCancelled",
+   "options": "\nDraft\nRequested\nAwaiting sample collection\nSample collection in progress\nSample collected\nTesting in progress\nCompleted\nPending Review\nApproved\nRejected\nCancelled",
    "read_only": 1,
    "search_index": 1
   },
@@ -423,6 +436,17 @@
    "ignore_xss_filter": 1,
    "label": "Custom Result",
    "print_hide": 1
+  },
+  {
+   "fieldname": "sample_collection_tab",
+   "fieldtype": "Tab Break",
+   "label": "Sample Collection"
+  },
+  {
+   "fieldname": "sample_instances",
+   "fieldtype": "Table",
+   "label": "Sample Instances",
+   "options": "Lab Test Sample Instance"
   },
   {
    "default": "0",
@@ -731,6 +755,65 @@
    "fieldtype": "Link",
    "label": "Patient Visit",
    "options": "Patient Visit"
+  },
+  {
+   "depends_on": "is_outsourced",
+   "fieldname": "outsource_lab_name",
+   "fieldtype": "Data",
+   "label": "Outsource Lab Name"
+  },
+  {
+   "depends_on": "is_outsourced",
+   "fieldname": "outsource_ref_no",
+   "fieldtype": "Data",
+   "label": "Outsource Ref No"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "outsourced_section",
+   "fieldtype": "Section Break",
+   "label": "Outsourced"
+  },
+  {
+   "fieldname": "column_break_lrsf",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "payment_section",
+   "fieldtype": "Section Break",
+   "label": "Payment"
+  },
+  {
+   "fieldname": "amount",
+   "fieldtype": "Currency",
+   "label": "Amount"
+  },
+  {
+   "default": "Percentage",
+   "fieldname": "discount_margin",
+   "fieldtype": "Select",
+   "label": "Discount Margin",
+   "options": "\nPercentage\nAmount"
+  },
+  {
+   "depends_on": "eval: doc.discount_margin==\"Percentage\"",
+   "fieldname": "discount",
+   "fieldtype": "Percent",
+   "label": "Discount(%)"
+  },
+  {
+   "fieldname": "column_break_oulm",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "discount_amount",
+   "fieldtype": "Currency",
+   "label": "Discount Amount"
+  },
+  {
+   "fieldname": "grand_total",
+   "fieldtype": "Currency",
+   "label": "Grand Total"
   }
  ],
  "is_submittable": 1,
@@ -740,7 +823,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2026-03-11 13:23:54.441725",
+ "modified": "2026-03-12 17:34:17.292098",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Lab Test",

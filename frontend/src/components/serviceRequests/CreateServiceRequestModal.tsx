@@ -12,7 +12,9 @@ import {
   fetchPatientVisits,
   fetchInpatientAdmissions,
   fetchCostCenters,
-  type LinkFieldOption
+  fetchLabTestTemplates,
+  type LinkFieldOption,
+  type LabTestTemplateOption,
 } from '../../services/common'
 
 import {
@@ -53,6 +55,8 @@ export const CreateServiceRequestModal = ({
   const [patientVisits, setPatientVisits] = useState<LinkFieldOption[]>([])
   const [admissions, setAdmissions] = useState<LinkFieldOption[]>([])
   const [costCenters, setCostCenters] = useState<LinkFieldOption[]>([])
+  const [labTestTemplates, setLabTestTemplates] = useState<LabTestTemplateOption[]>([])
+  const [templateRate, setTemplateRate] = useState<number | null>(null)
 
   const [practOpen, setPractOpen] = useState(false)
   const [practQuery, setPractQuery] = useState('')
@@ -121,14 +125,62 @@ export const CreateServiceRequestModal = ({
     if (!formData.template_dt) {
       setTemplates([])
       setFormData(p => ({ ...p, template_dn: '' }))
+      setTemplateRate(null)
       return
     }
 
     fetchServiceRequestTemplates(formData.template_dt)
-      .then(setTemplates)
-      .catch(() => setTemplates([]))
+      .then((list) => {
+        setTemplates(list)
+        // reset rate when changing template_dt; dedicated effect below will recalc
+        setTemplateRate(null)
+      })
+      .catch(() => {
+        setTemplates([])
+        setTemplateRate(null)
+      })
 
   }, [formData.template_dt])
+
+  /* ---------------- LOAD LAB TEST TEMPLATE DETAILS FOR RATES ---------------- */
+
+  useEffect(() => {
+    if (formData.template_dt !== 'Lab Test Template') {
+      setLabTestTemplates([])
+      return
+    }
+    const load = async () => {
+      try {
+        const rows = await fetchLabTestTemplates(undefined, formData.department || undefined)
+        setLabTestTemplates(rows)
+      } catch {
+        setLabTestTemplates([])
+      }
+    }
+    load()
+  }, [formData.template_dt, formData.department])
+
+  /* ---------------- RECALCULATE TEMPLATE RATE (OP/IP) ---------------- */
+
+  useEffect(() => {
+    if (formData.template_dt !== 'Lab Test Template' || !formData.template_dn) {
+      setTemplateRate(null)
+      return
+    }
+    const tpl = labTestTemplates.find(t => t.name === formData.template_dn)
+    if (!tpl) {
+      setTemplateRate(null)
+      return
+    }
+    const isIP = !!formData.inpatient_record
+    let rate: number | null = null
+    if (isIP) {
+      rate = (tpl.inpatient_rate ?? tpl.outpatient_rate ?? null) as number | null
+    } else {
+      rate = (tpl.outpatient_rate ?? tpl.inpatient_rate ?? null) as number | null
+    }
+    setTemplateRate(rate)
+  }, [formData.template_dt, formData.template_dn, formData.inpatient_record, formData.patient_visit, labTestTemplates])
 
   /* ---------------- LOAD VISITS + ADMISSIONS ---------------- */
 
@@ -215,7 +267,8 @@ export const CreateServiceRequestModal = ({
         order_date: formData.order_date,
         order_time: formData.order_time,
         department: formData.department || undefined,
-        cost_center: formData.cost_center || undefined
+        cost_center: formData.cost_center || undefined,
+        cost: templateRate || undefined,
       }
 
       await createServiceRequest(payload)
@@ -367,50 +420,6 @@ export const CreateServiceRequestModal = ({
     )}
   </div>
 </div>
-        {/* ================= TEMPLATE ================= */}
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              Template Type <span className="text-red-500">*</span>
-            </label>
-            <select
-              value={formData.template_dt}
-              onChange={(e) =>
-                setFormData({ ...formData, template_dt: e.target.value })
-              }
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary bg-white"
-            >
-              <option value="">Select type</option>
-              {templateTypes.map((t) => (
-                <option key={t.name} value={t.name}>
-                  {t.label || t.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              Template <span className="text-red-500">*</span>
-            </label>
-            <select
-              value={formData.template_dn}
-              disabled={!formData.template_dt}
-              onChange={(e) =>
-                setFormData({ ...formData, template_dn: e.target.value })
-              }
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary bg-white"
-            >
-              <option value="">Select template</option>
-              {templates.map((t) => (
-                <option key={t.name} value={t.name}>
-                  {t.label || t.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
         {/* ================= VISIT + ADMISSION ================= */}
         <div className="grid grid-cols-2 gap-4">
           <div>
@@ -454,54 +463,126 @@ export const CreateServiceRequestModal = ({
           </div>
         </div>
 
-        {/* ================= COST CENTER ================= */}
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">
-            Cost Center <span className="text-red-500">*</span>
-          </label>
-          <div className="relative">
+        {/* ================= TEMPLATE ================= */}
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              Template Type <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={formData.template_dt}
+              onChange={(e) =>
+                setFormData({ ...formData, template_dt: e.target.value, template_dn: '' })
+              }
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary bg-white"
+            >
+              <option value="">Select type</option>
+              {templateTypes.map((t) => (
+                <option key={t.name} value={t.name}>
+                  {t.label || t.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              Template <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={formData.template_dn}
+              disabled={!formData.template_dt}
+              onChange={(e) => {
+                const value = e.target.value
+                setFormData({ ...formData, template_dn: value })
+              }}
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary bg-white"
+            >
+              <option value="">Select template</option>
+              {templates.map((t) => (
+                <option key={t.name} value={t.name}>
+                  {t.label || t.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* ================= COST CENTER + RATE ================= */}
+        <div className="grid grid-cols-2 gap-4 items-start">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              Cost Center <span className="text-red-500">*</span>
+            </label>
+            <div className="relative">
+              <input
+                type="text"
+                value={
+                  costCenterOpen
+                    ? costCenterSearch
+                    : formData.cost_center
+                      ? costCenters.find((c) => c.name === formData.cost_center)?.label ?? formData.cost_center
+                      : ''
+                }
+                onChange={(e) => {
+                  setCostCenterSearch(e.target.value)
+                  if (!costCenterOpen) setCostCenterOpen(true)
+                }}
+                onFocus={() => setCostCenterOpen(true)}
+                placeholder="Search cost center..."
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+
+              {costCenterOpen && (
+                <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-auto">
+                  {costCenters.length === 0 ? (
+                    <div className="px-3 py-2 text-xs text-slate-500">
+                      No cost centers found
+                    </div>
+                  ) : (
+                    costCenters.map((c) => (
+                      <button
+                        key={c.name}
+                        type="button"
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 border-b border-slate-100 last:border-0"
+                        onClick={() => {
+                          setFormData((prev) => ({ ...prev, cost_center: c.name }))
+                          setCostCenterSearch('')
+                          setCostCenterOpen(false)
+                        }}
+                      >
+                        <div className="font-medium text-slate-800">
+                          {c.label || c.name}
+                        </div>
+                        {c.label && c.label !== c.name && (
+                          <div className="text-xs text-slate-500">
+                            {c.name}
+                          </div>
+                        )}
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Rate from Lab Test Template (read-only) */}
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              Rate (from Lab Test Template)
+            </label>
             <input
               type="text"
+              readOnly
               value={
-                costCenterOpen
-                  ? costCenterSearch
-                  : formData.cost_center
-                    ? costCenters.find((c) => c.name === formData.cost_center)?.label ?? formData.cost_center
-                    : ''
+                formData.template_dt === 'Lab Test Template' && templateRate != null
+                  ? templateRate.toFixed(3)
+                  : ''
               }
-              onChange={(e) => {
-                setCostCenterSearch(e.target.value)
-                if (!costCenterOpen) setCostCenterOpen(true)
-              }}
-              onFocus={() => setCostCenterOpen(true)}
-              placeholder="Search cost center..."
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              placeholder={formData.template_dt === 'Lab Test Template' ? 'Will auto-fill from template' : 'N/A'}
+              className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm bg-slate-50 text-slate-700"
             />
-
-            {costCenterOpen && (
-              <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-auto">
-                {costCenters.length === 0 ? (
-                  <div className="px-3 py-2 text-xs text-slate-500">
-                    No cost centers found
-                  </div>
-                ) : (
-                  costCenters.map((c) => (
-                    <button
-                      key={c.name}
-                      type="button"
-                      className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 border-b border-slate-100 last:border-0"
-                      onClick={() => {
-                        setFormData((prev) => ({ ...prev, cost_center: c.name }))
-                        setCostCenterSearch('')
-                        setCostCenterOpen(false)
-                      }}
-                    >
-                      {c.label || c.name}
-                    </button>
-                  ))
-                )}
-              </div>
-            )}
           </div>
         </div>
 

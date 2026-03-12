@@ -39,7 +39,8 @@ def get_service_requests(limit=50, offset=0, patient=None, template_dt=None, sta
 			'intent',
 			'patient_accepted_cost',
 			'booked',
-			'order_group'
+			'order_group',
+   			'cost'
 		],
 		limit=limit,
 		limit_start=offset,
@@ -136,6 +137,7 @@ def create_service_request(data):
 		'order_date': data.get('order_date') or frappe.utils.today(),
 		'order_time': data.get('order_time') or frappe.utils.now_time(),
 		'medical_department': data.get('department'),
+		'cost': data.get('cost'),
 		'cost_center': data.get('cost_center'),
 		'status': data.get('status') or 'draft-Request Status',
 		'priority': data.get('priority'),
@@ -217,7 +219,7 @@ def update_service_request(name, data):
 		"order_date", "order_time", "medical_department", "department",
 		"status", "priority", "intent", "quantity", "occurrence_date", "occurrence_time",
 		"order_group", "order_description", "patient_instructions", "expected_date",
-		"amount", "referred_to_practitioner",
+		"amount", "cost", "referred_to_practitioner",
 		"staff_role", "patient_care_type", "healthcare_service_unit_type", "as_needed",
 		"dosage_form", "dosage", "period", "cost_center"
 	}

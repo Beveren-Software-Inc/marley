@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { fetchPrescriptions, type Prescription, type PrescriptionFilters } from '../../services/prescriptions'
+import { fetchPrescriptions, type Prescription, type PrescriptionFilters, createPrescriptionSalesOrder } from '../../services/prescriptions'
+import { toast } from '../../hooks/useToast'
 import { fetchHealthcarePractitioners, type LinkFieldOption } from '../../services/common'
 import { StatusPill } from '../ui/StatusPill'
 import { DetailSlideOver } from '../ui/DetailSlideOver'
@@ -64,6 +65,7 @@ export const PrescriptionList = ({
   }
 
   const hasActiveFilters = !!(statusFilter || practitionerFilter || dateFrom || dateTo || searchQuery.trim())
+  const [actionLoading, setActionLoading] = useState<string | null>(null)
 
   const load = () => {
     setLoading(true)
@@ -113,6 +115,29 @@ export const PrescriptionList = ({
 
   const handleOpenInForm = (name: string) => {
     window.open(`/app/patient-medication-order/${encodeURIComponent(name)}`, '_blank')
+    setOpenActionRow(null)
+  }
+
+  const handleCreateSalesOrder = async (row: Prescription) => {
+    try {
+      setActionLoading(row.name)
+      const res = await createPrescriptionSalesOrder(row.name)
+      // Reload list so reference_doctype/reference_document_name are updated
+      load()
+      // Inform user and keep SO in draft for pharmacy to edit
+      toast.success(`Sales Order ${res.sales_order} created as Draft`)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to create Sales Order'
+      toast.error(msg)
+    } finally {
+      setActionLoading(null)
+      setOpenActionRow(null)
+    }
+  }
+
+  const handleEditSalesOrder = (row: Prescription) => {
+    if (!row.reference_document_name) return
+    window.open(`/app/sales-order/${encodeURIComponent(row.reference_document_name)}`, '_blank')
     setOpenActionRow(null)
   }
 
@@ -310,7 +335,7 @@ export const PrescriptionList = ({
                       </svg>
                     </button>
                     {openActionRow === row.name && (
-                      <div className="absolute right-0 top-full mt-1 z-10 min-w-[180px] rounded-md border border-slate-200 bg-white py-1 shadow-lg">
+                      <div className="absolute right-0 top-full mt-1 z-10 min-w-[200px] rounded-md border border-slate-200 bg-white py-1 shadow-lg">
                         <button
                           type="button"
                           onClick={() => {
@@ -328,6 +353,24 @@ export const PrescriptionList = ({
                         >
                           Open in Form
                         </button>
+                        {row.reference_doctype === 'Sales Order' && row.reference_document_name ? (
+                          <button
+                            type="button"
+                            onClick={() => handleEditSalesOrder(row)}
+                            className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                          >
+                            Edit Sales Order
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled={actionLoading === row.name}
+                            onClick={() => handleCreateSalesOrder(row)}
+                            className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+                          >
+                            {actionLoading === row.name ? 'Creating Sales Order…' : 'Create Sales Order'}
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>

@@ -22,6 +22,7 @@
   "column_break_buub",
   "is_billable",
   "lab_test_rate",
+  "inpatient_rate",
   "outpatient_rate",
   "inventory_section",
   "consumables",
@@ -52,6 +53,8 @@
   "sample_qty",
   "column_break_33",
   "sample_details",
+  "section_break_bcai",
+  "sample_requirements",
   "codification",
   "codification_table",
   "worksheet_legend_tab",
@@ -268,6 +271,12 @@
    "label": "Collection Details"
   },
   {
+   "fieldname": "sample_requirements",
+   "fieldtype": "Table",
+   "label": "Sample Requirements",
+   "options": "Lab Test Sample Requirement"
+  },
+  {
    "collapsible": 1,
    "fieldname": "inventory_section",
    "fieldtype": "Section Break",
@@ -428,6 +437,15 @@
    "fieldname": "outpatient_rate",
    "fieldtype": "Currency",
    "label": "OP Rate"
+  },
+  {
+   "fieldname": "section_break_bcai",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "inpatient_rate",
+   "fieldtype": "Currency",
+   "label": "Inpatient Rate"
   }
  ],
  "grid_page_length": 50,
@@ -438,7 +456,7 @@
    "link_fieldname": "template"
   }
  ],
- "modified": "2026-03-11 12:48:42.185497",
+ "modified": "2026-03-12 17:30:15.090829",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Lab Test Template",

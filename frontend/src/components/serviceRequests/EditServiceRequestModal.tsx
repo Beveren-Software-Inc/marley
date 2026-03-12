@@ -41,6 +41,7 @@ const defaultFormData = {
   priority: '',
   intent: '',
   quantity: 1,
+  cost: '' as string | number,
   order_description: '',
   patient_instructions: '',
   expected_date: '',
@@ -129,6 +130,7 @@ export const EditServiceRequestModal = ({
           order_description: (doc.order_description as string) || '',
           patient_instructions: (doc.patient_instructions as string) || '',
           expected_date: (doc.expected_date as string) ? String(doc.expected_date).slice(0, 10) : '',
+          cost: (doc.cost as number) ?? '',
           amount: (doc.amount as number) ?? '',
           source: (doc.source as string) || '',
           referring_practitioner: (doc.referring_practitioner as string) || '',
@@ -241,6 +243,7 @@ export const EditServiceRequestModal = ({
         order_description: formData.order_description || undefined,
         patient_instructions: formData.patient_instructions || undefined,
         expected_date: formData.expected_date || undefined,
+        cost: formData.cost === '' ? undefined : Number(formData.cost),
         amount: formData.amount === '' ? undefined : Number(formData.amount),
         source: formData.source || undefined,
         referring_practitioner: formData.referring_practitioner || undefined,
@@ -588,14 +591,38 @@ export const EditServiceRequestModal = ({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-3 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Quantity</label>
-                    <input type="number" min={1} value={formData.quantity} onChange={(e) => set('quantity', parseInt(e.target.value, 10) || 1)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary" />
+                    <input
+                      type="number"
+                      min={1}
+                      value={formData.quantity}
+                      onChange={(e) => set('quantity', parseInt(e.target.value, 10) || 1)}
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Cost</label>
+                    <input
+                      type="number"
+                      step="any"
+                      value={formData.cost}
+                      onChange={(e) => set('cost', e.target.value === '' ? '' : e.target.value)}
+                      placeholder="0"
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary"
+                    />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Approved Amount</label>
-                    <input type="number" step="any" value={formData.amount} onChange={(e) => set('amount', e.target.value === '' ? '' : e.target.value)} placeholder="0" className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary" />
+                    <input
+                      type="number"
+                      step="any"
+                      value={formData.amount}
+                      onChange={(e) => set('amount', e.target.value === '' ? '' : e.target.value)}
+                      placeholder="0"
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary"
+                    />
                   </div>
                 </div>
 

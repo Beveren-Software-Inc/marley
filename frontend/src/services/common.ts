@@ -237,7 +237,12 @@ export async function fetchHealthcareInsurance(
   }
 }
 
-export async function fetchLabTestTemplates(search?: string, department?: string): Promise<LinkFieldOption[]> {
+export interface LabTestTemplateOption extends LinkFieldOption {
+  outpatient_rate?: number
+  inpatient_rate?: number
+}
+
+export async function fetchLabTestTemplates(search?: string, department?: string): Promise<LabTestTemplateOption[]> {
   const params = new URLSearchParams()
   if (search) params.append('search', search)
   if (department) params.append('department', department)
@@ -248,7 +253,7 @@ export async function fetchLabTestTemplates(search?: string, department?: string
   const resData = await response.json()
 
   if (resData?.message && Array.isArray(resData.message)) {
-    return resData.message as LinkFieldOption[]
+    return resData.message as LabTestTemplateOption[]
   } else {
     return []
   }
@@ -508,14 +513,20 @@ export async function fetchDepartments(search?: string): Promise<LinkFieldOption
   return []
 }
 
-export async function fetchWarehouses(search?: string): Promise<LinkFieldOption[]> {
+export async function fetchWarehouses(company?: string, search?: string): Promise<LinkFieldOption[]> {
   const params = new URLSearchParams()
   params.append('fields', JSON.stringify(['name', 'warehouse_name']))
+  const filters: any[] = []
+  // Only non-group warehouses
+  filters.push(['Warehouse', 'is_group', '=', 0])
+  if (company) {
+    filters.push(['Warehouse', 'company', '=', company])
+  }
   if (search) {
-    params.append(
-      'filters',
-      JSON.stringify([['Warehouse', 'warehouse_name', 'like', `%${search}%`]])
-    )
+    filters.push(['Warehouse', 'warehouse_name', 'like', `%${search}%`])
+  }
+  if (filters.length) {
+    params.append('filters', JSON.stringify(filters))
   }
   params.append('limit_page_length', '50')
 

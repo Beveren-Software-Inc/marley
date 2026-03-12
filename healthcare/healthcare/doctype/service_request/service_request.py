@@ -176,6 +176,16 @@ def make_lab_test(service_request):
 	# Propagate Cost Center from Service Request to Lab Test when available
 	if getattr(service_request, "cost_center", None):
 		doc.cost_center = service_request.cost_center
+	# Pricing: carry over cost/amount if present
+	if getattr(service_request, "cost", None) is not None:
+		doc.amount = service_request.cost
+	elif getattr(service_request, "amount", None) is not None:
+		doc.amount = service_request.amount
+	if getattr(doc, "amount", None) is not None:
+		doc.discount_margin = "Percentage"
+		doc.discount = 0
+		doc.discount_amount = 0
+		doc.grand_total = doc.amount
 
 	return doc
 
@@ -219,6 +229,16 @@ def book_lab_and_forward(service_request_name):
 	# Propagate Cost Center from Service Request when set (Lab Test has Cost Center field)
 	if getattr(sr, "cost_center", None):
 		lab_test.cost_center = sr.cost_center
+	# Pricing: carry over cost/amount if present
+	if getattr(sr, "cost", None) is not None:
+		lab_test.amount = sr.cost
+	elif getattr(sr, "amount", None) is not None:
+		lab_test.amount = sr.amount
+	if getattr(lab_test, "amount", None) is not None:
+		lab_test.discount_margin = "Percentage"
+		lab_test.discount = 0
+		lab_test.discount_amount = 0
+		lab_test.grand_total = lab_test.amount
 	lab_test.lab_test_name = frappe.db.get_value("Lab Test Template", sr.template_dn, "lab_test_name") or sr.template_dn
 	lab_test.status = "Requested"
 	lab_test.insert(ignore_permissions=True)
