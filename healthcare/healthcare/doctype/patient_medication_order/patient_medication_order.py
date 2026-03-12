@@ -47,13 +47,13 @@ class PatientMedicationOrder(Document):
 			{"patient_encounter": self.patient_encounter, "name": self.name or ""},
 			as_dict=True,
 		)
-		if existing_mo:
-			frappe.throw(
-				_("A Patient Medication Order {0} against Patient Visit {1} already exists.").format(
-					existing_mo[0].name, self.patient_encounter
-				),
-				frappe.DuplicateEntryError,
-			)
+		# if existing_mo:
+		# 	frappe.throw(
+		# 		_("A Patient Medication Order {0} against Patient Visit {1} already exists.").format(
+		# 			existing_mo[0].name, self.patient_encounter
+		# 		),
+		# 		frappe.DuplicateEntryError,
+		# 	)
 
 	def set_total_orders(self):
 		self.db_set("total_orders", len(self.medication_orders))
