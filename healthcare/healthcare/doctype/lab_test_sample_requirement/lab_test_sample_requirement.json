@@ -1,0 +1,54 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-03-11 00:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "sample",
+  "sample_qty",
+  "column_break_jkgq",
+  "sample_details"
+ ],
+ "fields": [
+  {
+   "fieldname": "sample",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Sample",
+   "options": "Lab Test Sample",
+   "reqd": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "sample_qty",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Quantity"
+  },
+  {
+   "fieldname": "sample_details",
+   "fieldtype": "Small Text",
+   "ignore_xss_filter": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Collection Details"
+  },
+  {
+   "fieldname": "column_break_jkgq",
+   "fieldtype": "Column Break"
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-03-12 15:18:40.213157",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Lab Test Sample Requirement",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

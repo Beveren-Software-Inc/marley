@@ -9,6 +9,8 @@ const statusColors: Record<string, string> = {
   'Rejected': 'danger',
   'Completed': 'success',
   'Submitted': 'info',
+  'Sample collection in progress': 'warning',
+  'Sample collected': 'info',
   'Pending Review': 'warning',
   'Cancelled': 'default',
   'Draft': 'warning',
@@ -200,6 +202,54 @@ export const LabTestDetails = ({ labTestName, onUpdate }: LabTestDetailsProps) =
           </div>
         </div>
       </div>
+
+      {/* ── Sample Collection breakdown ── */}
+      {labTest.sample_instances && labTest.sample_instances.length > 0 && (
+        <div>
+          <SectionTitle title="Sample Collection" />
+          <div className="overflow-x-auto rounded-md border border-slate-200">
+            <table className="min-w-full text-xs divide-y divide-slate-200">
+              <thead className="bg-slate-50">
+                <tr>
+                  <th className="px-3 py-2 text-left font-semibold text-slate-600">Sample</th>
+                  <th className="px-3 py-2 text-left font-semibold text-slate-600">Qty</th>
+                  <th className="px-3 py-2 text-left font-semibold text-slate-600">Details</th>
+                  <th className="px-3 py-2 text-left font-semibold text-slate-600">Sample Collection</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {labTest.sample_instances.map((row, idx) => (
+                  <tr key={idx} className="bg-white">
+                    <td className="px-3 py-2 text-slate-800">
+                      {row.sample || '-'}
+                    </td>
+                    <td className="px-3 py-2 text-slate-800">
+                      {row.sample_qty ?? '-'}
+                    </td>
+                    <td className="px-3 py-2 text-slate-700 whitespace-pre-wrap">
+                      {row.sample_details || <span className="text-slate-400 italic">No details</span>}
+                    </td>
+                    <td className="px-3 py-2 text-slate-800">
+                      {row.sample_collection ? (
+                        <a
+                          href={`/app/sample-collection/${encodeURIComponent(row.sample_collection)}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-primary hover:underline"
+                        >
+                          {row.sample_collection}
+                        </a>
+                      ) : (
+                        <span className="text-slate-400 italic">Not collected</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* ── Results ── */}
       {(labTest.descriptive_result || labTest.custom_result || labTest.lab_test_comment) && (
