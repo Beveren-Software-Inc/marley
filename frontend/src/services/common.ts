@@ -508,14 +508,20 @@ export async function fetchDepartments(search?: string): Promise<LinkFieldOption
   return []
 }
 
-export async function fetchWarehouses(search?: string): Promise<LinkFieldOption[]> {
+export async function fetchWarehouses(company?: string, search?: string): Promise<LinkFieldOption[]> {
   const params = new URLSearchParams()
   params.append('fields', JSON.stringify(['name', 'warehouse_name']))
+  const filters: any[] = []
+  // Only non-group warehouses
+  filters.push(['Warehouse', 'is_group', '=', 0])
+  if (company) {
+    filters.push(['Warehouse', 'company', '=', company])
+  }
   if (search) {
-    params.append(
-      'filters',
-      JSON.stringify([['Warehouse', 'warehouse_name', 'like', `%${search}%`]])
-    )
+    filters.push(['Warehouse', 'warehouse_name', 'like', `%${search}%`])
+  }
+  if (filters.length) {
+    params.append('filters', JSON.stringify(filters))
   }
   params.append('limit_page_length', '50')
 

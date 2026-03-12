@@ -305,6 +305,7 @@ export const LabTestList = ({
   // ── Consumables dialog ───────────────────────────────────────────────────
 
   const [requestingFor, setRequestingFor] = useState<string | null>(null)
+  const [requestingForCompany, setRequestingForCompany] = useState<string | null>(null)
   const [dialogItems, setDialogItems] = useState<LabConsumableRow[]>([])
   const [dialogLoading, setDialogLoading] = useState(false)
   const [dialogError, setDialogError] = useState<string | null>(null)
@@ -426,14 +427,19 @@ export const LabTestList = ({
     }
   }
 
-  const openRequestDialog = async (labTestName: string) => {
+  const openRequestDialog = async (labTest: LabTest) => {
     try {
       setDialogError(null)
       setDialogLoading(true)
-      setRequestingFor(labTestName)
+      setRequestingFor(labTest.name)
+      setRequestingForCompany(labTest.company || null)
       if (!itemOptions.length) fetchItems().then(setItemOptions).catch(() => setItemOptions([]))
-      if (!warehouseOptions.length) fetchWarehouses().then(setWarehouseOptions).catch(() => setWarehouseOptions([]))
-      const items = await getLabTestConsumables(labTestName)
+      if (!warehouseOptions.length) {
+        fetchWarehouses(labTest.company || undefined)
+          .then(setWarehouseOptions)
+          .catch(() => setWarehouseOptions([]))
+      }
+      const items = await getLabTestConsumables(labTest.name)
       setDialogItems(items.length ? items : [{ item_code: '', item_name: '', qty: 1 }])
     } catch (e) {
       setDialogError(e instanceof Error ? e.message : 'Failed to load consumables')
@@ -444,6 +450,7 @@ export const LabTestList = ({
 
   const closeRequestDialog = () => {
     setRequestingFor(null)
+    setRequestingForCompany(null)
     setDialogItems([])
     setDialogError(null)
     setDialogLoading(false)
@@ -751,7 +758,7 @@ export const LabTestList = ({
                     {labTest.docstatus === 0 && !labTest.material_request ? (
                       <button
                         type="button"
-                        onClick={() => openRequestDialog(labTest.name)}
+                        onClick={() => openRequestDialog(labTest)}
                         className="px-2 py-1 text-xs rounded-md border border-primary text-primary hover:bg-primary/5"
                       >
                         Request Consumables
