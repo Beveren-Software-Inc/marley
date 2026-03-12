@@ -20,6 +20,8 @@ export interface ServiceRequest {
   booked?: boolean | number
   order_group?: string
   cost_center?: string
+  cost?: number
+  amount?: number
 }
 
 export async function fetchServiceRequests(
@@ -170,6 +172,7 @@ export interface CreateServiceRequestData {
   occurrence_date?: string
   occurrence_time?: string
   cost_center?: string
+  cost?: number
 }
 
 export async function createServiceRequest(data: CreateServiceRequestData): Promise<ServiceRequest> {

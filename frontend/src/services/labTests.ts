@@ -38,6 +38,8 @@ export interface LabTest {
   employee_designation?: string
   reviewed_by?: string
   material_request?: string
+  amount?: number
+  grand_total?: number
   descriptive_result?: string
   custom_result?: string
   lab_test_comment?: string
@@ -198,6 +200,10 @@ export interface SaveAndSubmitLabTestInput {
   worksheet_instructions?: string
   documents?: Array<{ file_name?: string; document_type?: string; transaction_no?: string; upload_remarks?: string; document?: string }>
   submit?: boolean
+  amount?: number
+  discount_margin?: string
+  discount?: number
+  discount_amount?: number
 }
 
 export async function saveAndSubmitLabTest(

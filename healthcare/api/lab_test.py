@@ -73,6 +73,8 @@ def get_lab_tests(
 			"department",
 			"is_outsourced",
 			"material_request",
+			"amount",
+			"grand_total",
 		],
 		limit=limit,
 		limit_start=offset,
@@ -118,6 +120,11 @@ def get_lab_test(name):
 		'lab_test_comment': getattr(lab_test, 'lab_test_comment', None),
 		'worksheet_instructions': getattr(lab_test, 'worksheet_instructions', None),
 		'material_request': getattr(lab_test, 'material_request', None),
+		'amount': getattr(lab_test, 'amount', None),
+		'discount_margin': getattr(lab_test, 'discount_margin', None),
+		'discount': getattr(lab_test, 'discount', None),
+		'discount_amount': getattr(lab_test, 'discount_amount', None),
+		'grand_total': getattr(lab_test, 'grand_total', None),
 	}
 	# Include documents child table (Patient Upload Document)
 	documents = getattr(lab_test, 'documents', None) or []
@@ -282,9 +289,13 @@ def save_and_submit_lab_test(
 	lab_test_comment=None,
 	worksheet_instructions=None,
 	documents=None,
+	amount=None,
+	discount_margin=None,
+	discount=None,
+	discount_amount=None,
 	submit: bool = False,
 ):
-	"""Save custom result/comment/worksheet/documents on Lab Test and optionally submit it."""
+	"""Save custom result/comment/worksheet/documents/pricing on Lab Test and optionally submit it."""
 	if not name:
 		frappe.throw(_("Lab Test name is required"))
 
@@ -296,6 +307,26 @@ def save_and_submit_lab_test(
 		doc.lab_test_comment = lab_test_comment
 	if worksheet_instructions is not None:
 		doc.worksheet_instructions = worksheet_instructions
+
+	# Pricing updates
+	if amount is not None:
+		doc.amount = amount
+	if discount_margin is not None:
+		doc.discount_margin = discount_margin
+	if discount is not None:
+		doc.discount = discount
+	if discount_amount is not None:
+		doc.discount_amount = discount_amount
+
+	# Recompute grand_total whenever we have an amount
+	if getattr(doc, "amount", None) is not None:
+		base = doc.amount or 0
+		disc_amt = doc.discount_amount or 0
+		if doc.discount_margin == "Percentage" and doc.discount:
+			disc_amt = (base * doc.discount) / 100.0
+			doc.discount_amount = disc_amt
+		doc.grand_total = base - (disc_amt or 0)
+
 	_apply_documents_to_doc(doc, documents)
 
 	if submit:
@@ -315,6 +346,11 @@ def save_and_submit_lab_test(
 		"custom_result": getattr(doc, "custom_result", None),
 		"lab_test_comment": getattr(doc, "lab_test_comment", None),
 		"worksheet_instructions": getattr(doc, "worksheet_instructions", None),
+		"amount": getattr(doc, "amount", None),
+		"discount_margin": getattr(doc, "discount_margin", None),
+		"discount": getattr(doc, "discount", None),
+		"discount_amount": getattr(doc, "discount_amount", None),
+		"grand_total": getattr(doc, "grand_total", None),
 	}
 
 

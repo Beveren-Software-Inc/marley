@@ -69,6 +69,13 @@
   "lab_test_comment",
   "sb_customresult",
   "custom_result",
+  "payment_section",
+  "amount",
+  "discount_margin",
+  "discount",
+  "column_break_oulm",
+  "discount_amount",
+  "grand_total",
   "sample_collection_tab",
   "sample_instances",
   "medical_coding_section",
@@ -770,6 +777,43 @@
   {
    "fieldname": "column_break_lrsf",
    "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "payment_section",
+   "fieldtype": "Section Break",
+   "label": "Payment"
+  },
+  {
+   "fieldname": "amount",
+   "fieldtype": "Currency",
+   "label": "Amount"
+  },
+  {
+   "default": "Percentage",
+   "fieldname": "discount_margin",
+   "fieldtype": "Select",
+   "label": "Discount Margin",
+   "options": "\nPercentage\nAmount"
+  },
+  {
+   "depends_on": "eval: doc.discount_margin==\"Percentage\"",
+   "fieldname": "discount",
+   "fieldtype": "Percent",
+   "label": "Discount(%)"
+  },
+  {
+   "fieldname": "column_break_oulm",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "discount_amount",
+   "fieldtype": "Currency",
+   "label": "Discount Amount"
+  },
+  {
+   "fieldname": "grand_total",
+   "fieldtype": "Currency",
+   "label": "Grand Total"
   }
  ],
  "is_submittable": 1,
@@ -779,7 +823,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2026-03-12 13:59:33.625446",
+ "modified": "2026-03-12 17:34:17.292098",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Lab Test",

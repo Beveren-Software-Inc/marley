@@ -195,7 +195,7 @@ def get_discharge_templates(search=None):
 
 @frappe.whitelist()
 def get_lab_test_templates(search=None, department=None):
-	"""Get list of Lab Test Templates"""
+	"""Get list of Lab Test Templates (with outpatient_rate)."""
 	filters = {'disabled': 0}  # Only get enabled templates
 	if search:
 		filters['lab_test_name'] = ['like', f'%{search}%']
@@ -205,11 +205,21 @@ def get_lab_test_templates(search=None, department=None):
 	templates = frappe.get_all(
 		'Lab Test Template',
 		filters=filters,
-		fields=['name', 'lab_test_name', 'department'],
+		# inpatient_rate may or may not exist; safe to include
+		fields=['name', 'lab_test_name', 'department', 'outpatient_rate', 'inpatient_rate'],
 		limit=50,
 		order_by='lab_test_name'
 	)
-	return [{'name': t.name, 'label': t.lab_test_name or t.name, 'department': t.department} for t in templates]
+	return [
+		{
+			'name': t.name,
+			'label': t.lab_test_name or t.name,
+			'department': t.department,
+			'outpatient_rate': t.outpatient_rate,
+			'inpatient_rate': getattr(t, 'inpatient_rate', None),
+		}
+		for t in templates
+	]
 
 
 @frappe.whitelist()

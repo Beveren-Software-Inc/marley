@@ -180,6 +180,9 @@ export const ServiceRequestList = ({ patient, onLabTestCreated, refreshKey, temp
             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
               Order Date
             </th>
+            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+              Cost
+            </th>
             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase w-[220px]">
               Actions
             </th>
@@ -223,6 +226,9 @@ export const ServiceRequestList = ({ patient, onLabTestCreated, refreshKey, temp
                     ? new Date(sr.order_date).toLocaleDateString()
                     : '-'}
                 </td>
+              <td className="px-4 py-3 text-sm text-slate-700">
+                {typeof sr.cost === 'number' ? sr.cost.toFixed(3) : sr.amount != null ? sr.amount.toFixed(3) : '-'}
+              </td>
                 <td className="px-4 py-3">
                   <div className="flex flex-wrap items-center gap-1.5">
                     

@@ -22,6 +22,7 @@
   "column_break_buub",
   "is_billable",
   "lab_test_rate",
+  "inpatient_rate",
   "outpatient_rate",
   "inventory_section",
   "consumables",
@@ -440,6 +441,11 @@
   {
    "fieldname": "section_break_bcai",
    "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "inpatient_rate",
+   "fieldtype": "Currency",
+   "label": "Inpatient Rate"
   }
  ],
  "grid_page_length": 50,
@@ -450,7 +456,7 @@
    "link_fieldname": "template"
   }
  ],
- "modified": "2026-03-12 15:18:09.147579",
+ "modified": "2026-03-12 17:30:15.090829",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Lab Test Template",

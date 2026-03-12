@@ -237,7 +237,12 @@ export async function fetchHealthcareInsurance(
   }
 }
 
-export async function fetchLabTestTemplates(search?: string, department?: string): Promise<LinkFieldOption[]> {
+export interface LabTestTemplateOption extends LinkFieldOption {
+  outpatient_rate?: number
+  inpatient_rate?: number
+}
+
+export async function fetchLabTestTemplates(search?: string, department?: string): Promise<LabTestTemplateOption[]> {
   const params = new URLSearchParams()
   if (search) params.append('search', search)
   if (department) params.append('department', department)
@@ -248,7 +253,7 @@ export async function fetchLabTestTemplates(search?: string, department?: string
   const resData = await response.json()
 
   if (resData?.message && Array.isArray(resData.message)) {
-    return resData.message as LinkFieldOption[]
+    return resData.message as LabTestTemplateOption[]
   } else {
     return []
   }

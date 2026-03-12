@@ -811,7 +811,7 @@ export const LabTestList = ({
         </div>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[900px]">
+          <table className="w-full min-w-[1000px]">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Lab Test ID</th>
@@ -820,6 +820,7 @@ export const LabTestList = ({
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Practitioner</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Status</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Date</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase">Amount</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Actions</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Inventory</th>
               </tr>
@@ -850,6 +851,13 @@ export const LabTestList = ({
                       ? new Date(labTest.result_date).toLocaleDateString()
                       : labTest.submitted_date
                       ? new Date(labTest.submitted_date).toLocaleDateString()
+                      : '-'}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-slate-700 text-right">
+                    {typeof labTest.grand_total === 'number'
+                      ? labTest.grand_total.toFixed(3)
+                      : typeof labTest.amount === 'number'
+                      ? labTest.amount.toFixed(3)
                       : '-'}
                   </td>
                   <td className="px-4 py-3 text-sm text-slate-700">
