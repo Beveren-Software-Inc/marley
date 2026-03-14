@@ -3,6 +3,7 @@ import { createDischarge, UnbilledServicesError } from '../../services/inpatient
 import { uploadPatientFile, type PatientDocumentRow } from '../../services/patients'
 import { MedicineGivenList } from '../medication/MedicineGivenList'
 import { fetchHealthcarePractitioners, fetchUsers, fetchDischargeTemplates, fetchDischargeChecklist, fetchDepartments, fetchDocumentTypes, type LinkFieldOption } from '../../services/common'
+import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { toast } from '../../hooks/useToast'
 import { X, CheckCircle2, Circle, ChevronDown, ChevronUp, AlertCircle, Receipt, PenLine, Trash2, Check } from 'lucide-react'
 
@@ -304,10 +305,16 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
   const [selectedReceivingDoctor, setSelectedReceivingDoctor] = useState<LinkFieldOption | null>(null)
   const [selectedDischargeTemplate, setSelectedDischargeTemplate] = useState<LinkFieldOption | null>(null)
 
-  // Department dropdown for checklist
+  // Department dropdown for checklist (portal so it shows outside)
   const [departmentOptions, setDepartmentOptions] = useState<LinkFieldOption[]>([])
   const [departmentQuery, setDepartmentQuery] = useState('')
   const [departmentOpenForItem, setDepartmentOpenForItem] = useState<string | null>(null)
+  const departmentTriggerRef = useRef<HTMLInputElement | null>(null)
+
+  // User dropdown for checklist (portal so it shows outside)
+  const [userOpenForItem, setUserOpenForItem] = useState<string | null>(null)
+  const [userQuery, setUserQuery] = useState('')
+  const userTriggerRef = useRef<HTMLInputElement | null>(null)
 
   // Normalize datetime to Frappe/MySQL format
   const toFrappeDateTime = (value?: string) => {
@@ -510,6 +517,14 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
     const id = setTimeout(search, departmentQuery.trim() === '' ? 0 : 300)
     return () => clearTimeout(id)
   }, [departmentQuery, departmentOpenForItem])
+
+  // Close checklist dropdowns when switching away from checklist tab
+  useEffect(() => {
+    if (activeTab !== 'checklist') {
+      setDepartmentOpenForItem(null)
+      setUserOpenForItem(null)
+    }
+  }, [activeTab])
 
   // ── Checklist helpers ────────────────────────────────────────────────────
 
@@ -760,7 +775,12 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
                   <div className="relative dropdown-container">
                     <label className="block text-sm font-medium text-slate-700 mb-1">Discharged By User</label>
                     <input type="text" value={selectedDischargedBy ? selectedDischargedBy.label : dischargedByQuery}
-                      onChange={(e) => { setDischargedByQuery(e.target.value); setDischargedByOpen(true) }}
+                      onChange={(e) => {
+                        setSelectedDischargedBy(null)
+                        setFormData(prev => ({ ...prev, discharged_by_user: '' }))
+                        setDischargedByQuery(e.target.value)
+                        setDischargedByOpen(true)
+                      }}
                       onFocus={() => setDischargedByOpen(true)}
                       placeholder="Search user..."
                       className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
@@ -780,7 +800,12 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
                   <div className="relative dropdown-container">
                     <label className="block text-sm font-medium text-slate-700 mb-1">Final Discharge User</label>
                     <input type="text" value={selectedFinalDischarge ? selectedFinalDischarge.label : finalDischargeQuery}
-                      onChange={(e) => { setFinalDischargeQuery(e.target.value); setFinalDischargeOpen(true) }}
+                      onChange={(e) => {
+                        setSelectedFinalDischarge(null)
+                        setFormData(prev => ({ ...prev, final_discharge_user_id: '' }))
+                        setFinalDischargeQuery(e.target.value)
+                        setFinalDischargeOpen(true)
+                      }}
                       onFocus={() => setFinalDischargeOpen(true)}
                       placeholder="Search user..."
                       className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
@@ -800,7 +825,12 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
                   <div className="relative dropdown-container">
                     <label className="block text-sm font-medium text-slate-700 mb-1">Receiving Doctors</label>
                     <input type="text" value={selectedReceivingDoctor ? selectedReceivingDoctor.label : receivingDoctorsQuery}
-                      onChange={(e) => { setReceivingDoctorsQuery(e.target.value); setReceivingDoctorsOpen(true) }}
+                      onChange={(e) => {
+                        setSelectedReceivingDoctor(null)
+                        setFormData(prev => ({ ...prev, receiving_doctors: '' }))
+                        setReceivingDoctorsQuery(e.target.value)
+                        setReceivingDoctorsOpen(true)
+                      }}
                       onFocus={() => setReceivingDoctorsOpen(true)}
                       placeholder="Search healthcare practitioner..."
                       className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
@@ -821,7 +851,12 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
                   <div className="relative dropdown-container">
                     <label className="block text-sm font-medium text-slate-700 mb-1">Discharge Template</label>
                     <input type="text" value={selectedDischargeTemplate ? selectedDischargeTemplate.label : dischargeTemplateQuery}
-                      onChange={(e) => { setDischargeTemplateQuery(e.target.value); setDischargeTemplateOpen(true) }}
+                      onChange={(e) => {
+                        setSelectedDischargeTemplate(null)
+                        setFormData(prev => ({ ...prev, discharge_template: '' }))
+                        setDischargeTemplateQuery(e.target.value)
+                        setDischargeTemplateOpen(true)
+                      }}
                       onFocus={() => setDischargeTemplateOpen(true)}
                       placeholder="Search discharge template..."
                       className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
@@ -942,6 +977,7 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
                   <p className="text-sm">No checklist items found for the selected template.</p>
                 </div>
               ) : (
+                <>
                 <div className="space-y-4">
                   {Object.entries(groupedChecklist).map(([dept, items]) => {
                     const deptCompleted = items.filter(i => i.click).length
@@ -986,9 +1022,19 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
                                           <div className="mt-3 grid grid-cols-2 md:grid-cols-3 gap-3">
                                             <div>
                                               <label className="block text-xs font-medium text-slate-600 mb-1">User</label>
-                                              <input type="text" value={item.user || ''} onChange={(e) => updateChecklistItem(item.name, 'user', e.target.value)}
-                                                placeholder="User who completed"
-                                                className="w-full rounded border border-slate-200 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-green-400" />
+                                              <input
+                                                type="text"
+                                                ref={userOpenForItem === item.name ? userTriggerRef : undefined}
+                                                value={userOpenForItem === item.name ? userQuery : (dischargedByUsers.find(u => u.name === item.user)?.label || item.user || '')}
+                                                onChange={(e) => {
+                                                  updateChecklistItem(item.name, 'user', '')
+                                                  setUserQuery(e.target.value)
+                                                  setUserOpenForItem(item.name)
+                                                }}
+                                                onFocus={() => { setUserOpenForItem(item.name); setUserQuery(dischargedByUsers.find(u => u.name === item.user)?.label || item.user || '') }}
+                                                placeholder="Search user..."
+                                                className="w-full rounded border border-slate-200 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-green-400"
+                                              />
                                             </div>
                                             <div>
                                               <label className="block text-xs font-medium text-slate-600 mb-1">Date &amp; Time</label>
@@ -996,24 +1042,21 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
                                                 onChange={(e) => updateChecklistItem(item.name, 'date_time', toFrappeDateTime(e.target.value))}
                                                 className="w-full rounded border border-slate-200 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-green-400" />
                                             </div>
-                                            <div className="relative">
+                                            <div>
                                               <label className="block text-xs font-medium text-slate-600 mb-1">Department</label>
-                                              <input type="text"
+                                              <input
+                                                type="text"
+                                                ref={departmentOpenForItem === item.name ? departmentTriggerRef : undefined}
                                                 value={item.department ? departmentOptions.find(d => d.name === item.department)?.label || item.department : (departmentOpenForItem === item.name ? departmentQuery : '')}
-                                                onChange={(e) => { setDepartmentQuery(e.target.value); setDepartmentOpenForItem(item.name) }}
-                                                onFocus={() => { setDepartmentOpenForItem(item.name); setDepartmentQuery(item.department || '') }}
+                                                onChange={(e) => {
+                                                  updateChecklistItem(item.name, 'department', '')
+                                                  setDepartmentQuery(e.target.value)
+                                                  setDepartmentOpenForItem(item.name)
+                                                }}
+                                                onFocus={() => { setDepartmentOpenForItem(item.name); setDepartmentQuery(item.department ? departmentOptions.find(d => d.name === item.department)?.label || item.department : '') }}
                                                 placeholder="Select Department..."
-                                                className="w-full rounded border border-slate-200 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-green-400" />
-                                              {departmentOpenForItem === item.name && departmentOptions.length > 0 && (
-                                                <div className="absolute z-20 mt-1 w-full rounded border border-slate-200 bg-white shadow-lg max-h-40 overflow-auto">
-                                                  {departmentOptions.map((dept) => (
-                                                    <button key={dept.name} type="button" className="w-full text-left px-2 py-1.5 text-xs hover:bg-green-50"
-                                                      onClick={() => { updateChecklistItem(item.name, 'department', dept.name); setDepartmentQuery(dept.label); setDepartmentOpenForItem(null) }}>
-                                                      {dept.label}
-                                                    </button>
-                                                  ))}
-                                                </div>
-                                              )}
+                                                className="w-full rounded border border-slate-200 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-green-400"
+                                              />
                                             </div>
                                           </div>
                                         )}
@@ -1038,6 +1081,67 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
                     )
                   })}
                 </div>
+
+                {/* Department dropdown — portaled so it shows outside the scrollable checklist */}
+                {departmentOpenForItem && (
+                  <PortalActionsMenu
+                    open={!!departmentOpenForItem}
+                    onClose={() => setDepartmentOpenForItem(null)}
+                    triggerRef={departmentTriggerRef}
+                    minWidth={160}
+                    maxWidth={280}
+                    maxHeight={280}
+                  >
+                    {departmentOptions.map((dept) => (
+                      <button
+                        key={dept.name}
+                        type="button"
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-green-50"
+                        onClick={() => {
+                          if (departmentOpenForItem) {
+                            updateChecklistItem(departmentOpenForItem, 'department', dept.name)
+                            setDepartmentQuery(dept.label)
+                            setDepartmentOpenForItem(null)
+                          }
+                        }}
+                      >
+                        {dept.label}
+                      </button>
+                    ))}
+                  </PortalActionsMenu>
+                )}
+
+                {/* User dropdown — portaled so it shows outside the scrollable checklist */}
+                {userOpenForItem && (
+                  <PortalActionsMenu
+                    open={!!userOpenForItem}
+                    onClose={() => setUserOpenForItem(null)}
+                    triggerRef={userTriggerRef}
+                    minWidth={160}
+                    maxWidth={280}
+                    maxHeight={280}
+                  >
+                    {dischargedByUsers
+                      .filter((u) => !userQuery.trim() || (u.label || u.name || '').toLowerCase().includes(userQuery.toLowerCase()))
+                      .slice(0, 30)
+                      .map((user) => (
+                        <button
+                          key={user.name}
+                          type="button"
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-green-50"
+                          onClick={() => {
+                            if (userOpenForItem) {
+                              updateChecklistItem(userOpenForItem, 'user', user.name)
+                              setUserOpenForItem(null)
+                            }
+                          }}
+                        >
+                          {user.label}
+                        </button>
+                      ))}
+                  </PortalActionsMenu>
+                )}
+                </>
               )}
             </div>
           )}

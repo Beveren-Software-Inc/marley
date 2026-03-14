@@ -11,6 +11,7 @@ import { TransferCostCenterModal } from './TransferCostCenterModal'
 import { InpatientAdmissionDetails } from './InpatientAdmissionDetails'
 import { AddVisitorModal } from './AddVisitorModal'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
+import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import type { InpatientRecord, InpatientPackage } from '../../services/inpatientRecords'
 
 const statusColors: Record<string, string> = {
@@ -159,9 +160,12 @@ export const AdmissionList = ({ onAdmissionSelect, searchQuery: externalSearchQu
     refetch()
   }
 
-  // Close actions dropdown when clicking outside
+  // Close actions dropdown when clicking outside (ignore portaled menu and the three-dot trigger)
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
+      const el = e.target as HTMLElement
+      if (el.closest('[data-portal-actions-menu]')) return
+      if (el.closest('button[aria-label="Actions"]')) return
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setOpenActionRow(null)
       }
@@ -421,8 +425,12 @@ export const AdmissionList = ({ onAdmissionSelect, searchQuery: externalSearchQu
                                 <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
                               </svg>
                             </button>
-                            {openActionRow === record.name && (
-                            <div className="absolute right-0 top-full mt-1 z-10 min-w-[200px] rounded-md border border-slate-200 bg-white py-1 shadow-lg">
+                            <PortalActionsMenu
+                              open={openActionRow === record.name}
+                              onClose={() => setOpenActionRow(null)}
+                              triggerRef={menuRef}
+                              minWidth={200}
+                            >
                               {record.status === 'Admission Scheduled' && (
                                 <button
                                   type="button"
@@ -472,8 +480,7 @@ export const AdmissionList = ({ onAdmissionSelect, searchQuery: externalSearchQu
                                   Discharge
                                 </button>
                               )}
-                            </div>
-                          )}
+                            </PortalActionsMenu>
                           </div>
                           <PrintFormatDropdown
                             doctype="Inpatient Admission"

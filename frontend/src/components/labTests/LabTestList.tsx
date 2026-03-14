@@ -22,10 +22,10 @@ import {
 } from '../../services/common'
 import { fetchServiceUnits, type ServiceUnit } from '../../services/inpatientRecords'
 import { uploadPatientFile, type PatientDocumentRow } from '../../services/patients'
-import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
 import { LabTestDetails } from './LabTestDetails'
 import { EditLabTestModal } from './EditLabTestModal'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
+import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { toast } from '../../hooks/useToast'
 import { Search, X, ChevronDown } from 'lucide-react'
 
@@ -56,8 +56,6 @@ const statusColors: Record<string, string> = {
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 interface Filters {
-  patientId: string       // the actual patient ID used for fetching
-  patientLabel: string    // display label shown in input
   status: string
   fromDate: string
   toDate: string
@@ -74,15 +72,6 @@ interface FilterBarProps {
   onChange: (f: Filters) => void
   onClear: () => void
   activeCount: number
-  patientScoped: boolean
-  patientOptions: PatientListItem[]
-  patientOpen: boolean
-  patientQuery: string
-  onPatientQueryChange: (q: string) => void
-  onPatientSelect: (p: PatientListItem) => void
-  onPatientClear: () => void
-  onPatientFocus: () => void
-  patientFilterRef: React.RefObject<HTMLDivElement | null>
 }
 
 const FilterBar = ({
@@ -90,15 +79,6 @@ const FilterBar = ({
   onChange,
   onClear,
   activeCount,
-  patientScoped,
-  patientOptions,
-  patientOpen,
-  patientQuery,
-  onPatientQueryChange,
-  onPatientSelect,
-  onPatientClear,
-  onPatientFocus,
-  patientFilterRef,
 }: FilterBarProps) => {
   const set = (key: keyof Filters, value: string) =>
     onChange({ ...filters, [key]: value })
@@ -122,53 +102,6 @@ const FilterBar = ({
 
   return (
     <div className="flex flex-wrap items-end gap-3 px-4 py-3 bg-white border-b border-slate-200">
-      {/* Patient filter — hidden when component is scoped to a patient */}
-      {!patientScoped && (
-        <div ref={patientFilterRef} className="flex flex-col gap-1 min-w-[200px] flex-1 relative">
-          <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Patient</label>
-          <div className="relative">
-            <input
-              type="text"
-              value={filters.patientId ? filters.patientLabel : patientQuery}
-              onChange={(e) => {
-                onPatientQueryChange(e.target.value)
-              }}
-              onFocus={onPatientFocus}
-              placeholder="Search patient..."
-              className="w-full pl-3 pr-8 py-1.5 text-sm rounded-md border border-slate-300 focus:outline-none focus:ring-2 focus:ring-primary"
-            />
-            {filters.patientId && (
-              <button
-                type="button"
-                onClick={onPatientClear}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                title="Clear patient"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-          {patientOpen && patientOptions.length > 0 && (
-            <div className="absolute z-20 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto top-full">
-              {patientOptions.map((p) => (
-                <button
-                  key={p.name}
-                  type="button"
-                  onClick={() => onPatientSelect(p)}
-                  className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 focus:bg-slate-100 focus:outline-none"
-                >
-                  <div className="font-medium text-slate-800">{p.patient_name || p.name}</div>
-                  <div className="text-xs text-slate-500 flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
-                    {p.file_number && <span>File: {p.file_number}</span>}
-                    {p.id_number && <span>ID: {p.id_number}</span>}
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
       {/* Status */}
       <div className="flex flex-col gap-1 min-w-[160px]">
         <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Status</label>
@@ -318,8 +251,6 @@ const FilterBar = ({
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 const makeEmptyFilters = (): Filters => ({
-  patientId: '',
-  patientLabel: '',
   status: '',
   fromDate: '',
   toDate: '',
@@ -340,85 +271,27 @@ export const LabTestList = ({
   isOutsourced?: boolean
   defaultStatus?: string
 }) => {
-  // Single source of truth for all filters (including patient)
+  // Single source of truth for all filters (patient comes from global search via prop only)
   const [filters, setFilters] = useState<Filters>(() => ({
     ...makeEmptyFilters(),
     status: defaultStatus ?? '',
   }))
 
-  // Patient dropdown UI state (separate from committed filter values)
-  const [patientQuery, setPatientQuery] = useState('')
-  const [patientOptions, setPatientOptions] = useState<PatientListItem[]>([])
-  const [patientOpen, setPatientOpen] = useState(false)
-  const patientFilterRef = useRef<HTMLDivElement>(null)
-
-  // Close patient dropdown on outside click
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (patientFilterRef.current && !patientFilterRef.current.contains(e.target as Node)) {
-        setPatientOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [])
-
-  // Fetch patient options whenever dropdown opens or query changes
-  useEffect(() => {
-    if (!patientOpen) return
-    const t = setTimeout(async () => {
-      try {
-        const results = patientQuery.trim() === ''
-          ? await fetchPatients(20, 0)
-          : await searchPatients(patientQuery, 20)
-        setPatientOptions(results)
-      } catch {
-        setPatientOptions([])
-      }
-    }, patientQuery.trim() === '' ? 0 : 300)
-    return () => clearTimeout(t)
-  }, [patientQuery, patientOpen])
-
-  const handlePatientQueryChange = (q: string) => {
-    setPatientQuery(q)
-    // If user starts typing after a patient was selected, clear the committed patient
-    if (filters.patientId) {
-      setFilters((prev) => ({ ...prev, patientId: '', patientLabel: '' }))
-    }
-    setPatientOpen(true)
-  }
-
-  const handlePatientSelect = (p: PatientListItem) => {
-    const label = p.patient_name || p.name
-    setFilters((prev) => ({ ...prev, patientId: p.name, patientLabel: label }))
-    setPatientQuery('')
-    setPatientOpen(false)
-  }
-
-  const handlePatientClear = () => {
-    setFilters((prev) => ({ ...prev, patientId: '', patientLabel: '' }))
-    setPatientQuery('')
-  }
-
-  // Clear ALL filters (always reset to truly empty — ignores defaultStatus intentionally)
   const handleClear = () => {
     setFilters(makeEmptyFilters())
-    setPatientQuery('')
-    setPatientOpen(false)
   }
 
-  // Active filter count (excludes patient if component is scoped to one)
-  const activeCount = (
-    patient
-      ? [filters.status, filters.fromDate, filters.toDate, filters.isOutsourced, filters.opIp, filters.template]
-      : [filters.patientId, filters.status, filters.fromDate, filters.toDate, filters.isOutsourced, filters.opIp, filters.template]
-  ).filter(Boolean).length
-
-  // Effective patient: prop takes priority over filter
-  const effectivePatient = patient || filters.patientId || undefined
+  const activeCount = [
+    filters.status,
+    filters.fromDate,
+    filters.toDate,
+    filters.isOutsourced,
+    filters.opIp,
+    filters.template,
+  ].filter(Boolean).length
 
   const { labTests, loading, error, refetch } = useLabTests(
-    effectivePatient,
+    patient,
     filters.status || undefined,
     filters.status === 'Pending Review',
     isOutsourced !== undefined ? isOutsourced : (filters.isOutsourced ? filters.isOutsourced === 'yes' : undefined),
@@ -509,6 +382,9 @@ export const LabTestList = ({
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
+      const el = e.target as HTMLElement
+      if (el.closest('[data-portal-actions-menu]')) return
+      if (el.closest('button[aria-label="Actions"]')) return
       if (actionMenuRef.current && !actionMenuRef.current.contains(e.target as Node)) {
         setOpenActionRow(null)
       }
@@ -769,15 +645,6 @@ export const LabTestList = ({
         onChange={setFilters}
         onClear={handleClear}
         activeCount={activeCount}
-        patientScoped={!!patient}
-        patientOptions={patientOptions}
-        patientOpen={patientOpen}
-        patientQuery={patientQuery}
-        onPatientQueryChange={handlePatientQueryChange}
-        onPatientSelect={handlePatientSelect}
-        onPatientClear={handlePatientClear}
-        onPatientFocus={() => setPatientOpen(true)}
-        patientFilterRef={patientFilterRef}
       />
 
       {loading ? (
@@ -878,8 +745,12 @@ export const LabTestList = ({
                             </svg>
                           )}
                         </button>
-                        {openActionRow === labTest.name && (
-                          <div className="absolute right-0 top-full mt-1 z-10 min-w-[160px] rounded-md border border-slate-200 bg-white py-1 shadow-lg">
+                        <PortalActionsMenu
+                          open={openActionRow === labTest.name}
+                          onClose={() => setOpenActionRow(null)}
+                          triggerRef={actionMenuRef}
+                          minWidth={160}
+                        >
                           <button
                             type="button"
                             onClick={() => { setOpenActionRow(null); setSelectedLabTestForDetails(labTest.name) }}
@@ -889,65 +760,56 @@ export const LabTestList = ({
                           </button>
                           <button
                             type="button"
-                            onClick={() => {
-                              handleOpenSampleCollection(labTest)
-                            }}
+                            onClick={() => handleOpenSampleCollection(labTest)}
                             className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
                           >
                             Sample Collection
                           </button>
-                            {labTest.docstatus === 0 && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setOpenActionRow(null)
-                                  openResultDialog(labTest.name)
-                                }}
-                                className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
-                              >
-                                Enter Results &amp; Submit
-                              </button>
-                            )}
-                            {labTest.docstatus === 0 && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setOpenActionRow(null)
-                                  setEditLabTestName(labTest.name)
-                                }}
-                                className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
-                              >
-                                Edit
-                              </button>
-                            )}
+                          {labTest.docstatus === 0 && (
                             <button
                               type="button"
-                              onClick={() => openRemarksModal(labTest.name)}
+                              onClick={() => { setOpenActionRow(null); openResultDialog(labTest.name) }}
                               className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
                             >
-                              Add Remarks
+                              Enter Results &amp; Submit
                             </button>
-                            {labTest.status === 'Pending Review' && (
-                              <>
-                                <div className="border-t border-slate-100 my-1" />
-                                <button
-                                  type="button"
-                                  onClick={() => handleStatusChange(labTest.name, 'Approved')}
-                                  className="block w-full text-left px-3 py-2 text-sm text-green-700 font-medium hover:bg-green-50"
-                                >
-                                  ✓ Approve
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleStatusChange(labTest.name, 'Rejected')}
-                                  className="block w-full text-left px-3 py-2 text-sm text-red-600 font-medium hover:bg-red-50"
-                                >
-                                  ✗ Reject
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        )}
+                          )}
+                          {labTest.docstatus === 0 && (
+                            <button
+                              type="button"
+                              onClick={() => { setOpenActionRow(null); setEditLabTestName(labTest.name) }}
+                              className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                            >
+                              Edit
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => openRemarksModal(labTest.name)}
+                            className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                          >
+                            Add Remarks
+                          </button>
+                          {labTest.status === 'Pending Review' && (
+                            <>
+                              <div className="border-t border-slate-100 my-1" />
+                              <button
+                                type="button"
+                                onClick={() => handleStatusChange(labTest.name, 'Approved')}
+                                className="block w-full text-left px-3 py-2 text-sm text-green-700 font-medium hover:bg-green-50"
+                              >
+                                ✓ Approve
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleStatusChange(labTest.name, 'Rejected')}
+                                className="block w-full text-left px-3 py-2 text-sm text-red-600 font-medium hover:bg-red-50"
+                              >
+                                ✗ Reject
+                              </button>
+                            </>
+                          )}
+                        </PortalActionsMenu>
                       </div>
                       <PrintFormatDropdown
                         doctype="Lab Test"

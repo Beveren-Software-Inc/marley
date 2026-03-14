@@ -6,6 +6,7 @@ import { StatusPill } from '../ui/StatusPill'
 import { DetailSlideOver } from '../ui/DetailSlideOver'
 import { DocDetailView } from '../ui/DocDetailView'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
+import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 
 const statusColors: Record<string, string> = {
   'Draft': 'default',
@@ -102,9 +103,12 @@ export const PrescriptionList = ({
     setSearchQuery('')
   }
 
-  // Close actions dropdown when clicking outside
+  // Close actions dropdown when clicking outside (ignore portaled menu and trigger button)
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
+      const el = e.target as HTMLElement
+      if (el.closest('[data-portal-actions-menu]')) return
+      if (el.closest('button[aria-label="Actions"]')) return
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setOpenActionRow(null)
       }
@@ -334,45 +338,45 @@ export const PrescriptionList = ({
                         <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
                       </svg>
                     </button>
-                    {openActionRow === row.name && (
-                      <div className="absolute right-0 top-full mt-1 z-10 min-w-[200px] rounded-md border border-slate-200 bg-white py-1 shadow-lg">
+                    <PortalActionsMenu
+                      open={openActionRow === row.name}
+                      onClose={() => setOpenActionRow(null)}
+                      triggerRef={menuRef}
+                      minWidth={200}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => { setOpenActionRow(null); setDetailName(row.name) }}
+                        className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                      >
+                        View Details
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenInForm(row.name)}
+                        className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                      >
+                        Open in Form
+                      </button>
+                      {row.reference_doctype === 'Sales Order' && row.reference_document_name ? (
                         <button
                           type="button"
-                          onClick={() => {
-                            setOpenActionRow(null)
-                            setDetailName(row.name)
-                          }}
+                          onClick={() => handleEditSalesOrder(row)}
                           className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
                         >
-                          View Details
+                          Edit Sales Order
                         </button>
+                      ) : (
                         <button
                           type="button"
-                          onClick={() => handleOpenInForm(row.name)}
-                          className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                          disabled={actionLoading === row.name}
+                          onClick={() => handleCreateSalesOrder(row)}
+                          className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 disabled:opacity-50"
                         >
-                          Open in Form
+                          {actionLoading === row.name ? 'Creating Sales Order…' : 'Create Sales Order'}
                         </button>
-                        {row.reference_doctype === 'Sales Order' && row.reference_document_name ? (
-                          <button
-                            type="button"
-                            onClick={() => handleEditSalesOrder(row)}
-                            className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
-                          >
-                            Edit Sales Order
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            disabled={actionLoading === row.name}
-                            onClick={() => handleCreateSalesOrder(row)}
-                            className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 disabled:opacity-50"
-                          >
-                            {actionLoading === row.name ? 'Creating Sales Order…' : 'Create Sales Order'}
-                          </button>
-                        )}
-                      </div>
-                    )}
+                      )}
+                    </PortalActionsMenu>
                   </div>
                   <PrintFormatDropdown
                     doctype="Patient Medication Order"

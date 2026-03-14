@@ -12,6 +12,7 @@ import { StatusPill } from '../ui/StatusPill'
 import { DetailSlideOver } from '../ui/DetailSlideOver'
 import { DocDetailView } from '../ui/DocDetailView'
 import { RescheduleAppointmentModal } from './RescheduleAppointmentModal'
+import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { toast } from '../../hooks/useToast'
 
 const statusColors: Record<string, string> = {
@@ -80,6 +81,9 @@ export const AppointmentList = ({ refreshKey, showAll = false, patient }: Appoin
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
+      const el = e.target as HTMLElement
+      if (el.closest('[data-portal-actions-menu]')) return
+      if (el.closest('button[aria-label="Actions"]')) return
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setOpenActionRow(null)
       }
@@ -379,50 +383,51 @@ export const AppointmentList = ({ refreshKey, showAll = false, patient }: Appoin
                           </svg>
                         )}
                       </button>
-
-                      {openActionRow === apt.name && (
-                        <div className="absolute right-0 top-full mt-1 z-10 min-w-[180px] rounded-md border border-slate-200 bg-white py-1 shadow-lg">
-                          {canCancel(apt.status) && (
-                            <button type="button" onClick={() => handleCancel(apt)}
+                      <PortalActionsMenu
+                        open={openActionRow === apt.name}
+                        onClose={() => setOpenActionRow(null)}
+                        triggerRef={menuRef}
+                        minWidth={180}
+                      >
+                        {canCancel(apt.status) && (
+                          <button type="button" onClick={() => handleCancel(apt)}
+                            className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">
+                            Cancel
+                          </button>
+                        )}
+                        {canConfirm(apt.status) && (
+                          <button type="button" onClick={() => handleConfirm(apt)}
+                            className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">
+                            Confirm
+                          </button>
+                        )}
+                        {canCancel(apt.status) && (
+                          <button type="button" onClick={() => handleReschedule(apt)}
+                            className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">
+                            Reschedule
+                          </button>
+                        )}
+                        {apt.patient && (
+                          <>
+                            <button type="button" onClick={() => handleCreateVitalSign(apt)}
                               className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">
-                              Cancel
+                              Create Vital Sign
                             </button>
-                          )}
-                          {canConfirm(apt.status) && (
-                            <button type="button" onClick={() => handleConfirm(apt)}
-                              className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">
-                              Confirm
-                            </button>
-                          )}
-                          {canCancel(apt.status) && (
-                            <button type="button" onClick={() => handleReschedule(apt)}
-                              className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">
-                              Reschedule
-                            </button>
-                          )}
-                          {apt.patient && (
-                            <>
-                              <button type="button" onClick={() => handleCreateVitalSign(apt)}
-                                className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">
-                                Create Vital Sign
-                              </button>
-                              <button type="button" onClick={() => handleCreatePatientVisit(apt)}
-                                disabled={actionLoading === apt.name}
-                                className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 disabled:opacity-50">
-                                {actionLoading === apt.name ? 'Creating…' : 'Create Patient Visit'}
-                              </button>
-                            </>
-                          )}
-                          {/* ── Send Reminder ── */}
-                          {apt.patient && (
-                            <button type="button" onClick={() => handleSendReminder(apt)}
+                            <button type="button" onClick={() => handleCreatePatientVisit(apt)}
                               disabled={actionLoading === apt.name}
-                              className="block w-full text-left px-3 py-2 text-sm text-primary font-medium hover:bg-primary/5 disabled:opacity-50 border-t border-slate-100 mt-1">
-                              Send Reminder
+                              className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 disabled:opacity-50">
+                              {actionLoading === apt.name ? 'Creating…' : 'Create Patient Visit'}
                             </button>
-                          )}
-                        </div>
-                      )}
+                          </>
+                        )}
+                        {apt.patient && (
+                          <button type="button" onClick={() => handleSendReminder(apt)}
+                            disabled={actionLoading === apt.name}
+                            className="block w-full text-left px-3 py-2 text-sm text-primary font-medium hover:bg-primary/5 disabled:opacity-50 border-t border-slate-100 mt-1">
+                            Send Reminder
+                          </button>
+                        )}
+                      </PortalActionsMenu>
                     </div>
                   </td>
                 </tr>

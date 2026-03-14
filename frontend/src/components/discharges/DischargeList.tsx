@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { fetchDischarges, type Discharge } from '../../services/discharges'
+import { fetchInpatientRecords } from '../../services/inpatientRecords'
 import { StatusPill } from '../ui/StatusPill'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { DetailSlideOver } from '../ui/DetailSlideOver'
@@ -24,13 +25,28 @@ export const DischargeList = ({ patient, admission }: DischargeListProps) => {
   const [statusFilter, setStatusFilter] = useState<string>('')
   const [typeFilter, setTypeFilter] = useState<string>('')
   const [admissionFilter, setAdmissionFilter] = useState<string>('')
+  const [dischargeIdFilter, setDischargeIdFilter] = useState<string>('')
+
+  // Discharge ID — searchable dropdown (link to Discharge)
+  const [dischargeIdQuery, setDischargeIdQuery] = useState('')
+  const [dischargeIdOptions, setDischargeIdOptions] = useState<{ value: string; label: string }[]>([])
+  const [dischargeIdOpen, setDischargeIdOpen] = useState(false)
+  const [selectedDischargeIdOpt, setSelectedDischargeIdOpt] = useState<{ value: string; label: string } | null>(null)
+
+  // IP Admission — searchable dropdown (like Admission list Case No)
+  const [admissionNoQuery, setAdmissionNoQuery] = useState('')
+  const [admissionOptions, setAdmissionOptions] = useState<{ value: string; label: string }[]>([])
+  const [admissionOpen, setAdmissionOpen] = useState(false)
+  const [selectedAdmissionOpt, setSelectedAdmissionOpt] = useState<{ value: string; label: string } | null>(null)
 
   useEffect(() => {
     const loadDischarges = async () => {
       try {
         setLoading(true)
         setError(null)
-        const response = await fetchDischarges(50, 0, patient, admission)
+        const effectiveAdmission = dischargeIdFilter ? undefined : (admissionFilter || admission)
+        const search = dischargeIdFilter || undefined
+        const response = await fetchDischarges(50, 0, patient, effectiveAdmission, search)
         setDischarges(response)
       } catch (err) {
         setError(err instanceof Error ? err : new Error('Failed to fetch discharges'))
@@ -40,7 +56,91 @@ export const DischargeList = ({ patient, admission }: DischargeListProps) => {
     }
 
     loadDischarges()
-  }, [patient, admission])
+  }, [patient, admission, admissionFilter, dischargeIdFilter])
+
+  // Load discharge ID options when dropdown is open (searchable list of discharges)
+  useEffect(() => {
+    if (!dischargeIdOpen) return
+    const t = setTimeout(async () => {
+      try {
+        const results = await fetchDischarges(30, 0, patient, undefined, dischargeIdQuery || undefined)
+        setDischargeIdOptions(
+          results.map((d) => ({
+            value: d.name,
+            label: `${d.name}${d.patient_name ? ` - ${d.patient_name}` : ''}`,
+          }))
+        )
+      } catch (err) {
+        setDischargeIdOptions([])
+      }
+    }, dischargeIdQuery.trim() === '' ? 0 : 300)
+    return () => clearTimeout(t)
+  }, [dischargeIdQuery, dischargeIdOpen, patient])
+
+  // Load admission options when dropdown is open (searchable list of inpatient admissions)
+  useEffect(() => {
+    if (!admissionOpen) return
+    const t = setTimeout(async () => {
+      try {
+        const results = await fetchInpatientRecords(
+          undefined,
+          admissionNoQuery || undefined,
+          patient,
+          undefined,
+          undefined,
+          undefined
+        )
+        setAdmissionOptions(
+          results.slice(0, 30).map((r) => ({
+            value: r.name,
+            label: `${r.name}${r.patient_name ? ` - ${r.patient_name}` : ''}`,
+          }))
+        )
+      } catch (err) {
+        setAdmissionOptions([])
+      }
+    }, admissionNoQuery.trim() === '' ? 0 : 300)
+    return () => clearTimeout(t)
+  }, [admissionNoQuery, admissionOpen, patient])
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      if (!target.closest('[data-discharge-filter-dropdown]')) {
+        setDischargeIdOpen(false)
+        setAdmissionOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const handleDischargeIdSelect = (opt: { value: string; label: string }) => {
+    setSelectedDischargeIdOpt(opt)
+    setDischargeIdFilter(opt.value)
+    setDischargeIdQuery('')
+    setDischargeIdOpen(false)
+  }
+
+  const handleAdmissionSelect = (opt: { value: string; label: string }) => {
+    setSelectedAdmissionOpt(opt)
+    setAdmissionFilter(opt.value)
+    setAdmissionNoQuery('')
+    setAdmissionOpen(false)
+  }
+
+  const handleClearFilters = () => {
+    setDischargeIdFilter('')
+    setDischargeIdQuery('')
+    setSelectedDischargeIdOpt(null)
+    setDischargeIdOpen(false)
+    setAdmissionFilter('')
+    setAdmissionNoQuery('')
+    setSelectedAdmissionOpt(null)
+    setStatusFilter('')
+    setTypeFilter('')
+    setAdmissionOpen(false)
+  }
 
   if (loading) {
     return (
@@ -78,44 +178,94 @@ export const DischargeList = ({ patient, admission }: DischargeListProps) => {
 
   const filtered = discharges.filter((d) => {
     const status = getDocStatus(d.docstatus)
+    if (dischargeIdFilter && d.name !== dischargeIdFilter) return false
     if (statusFilter && status !== statusFilter) return false
     if (typeFilter && d.discharge_type !== typeFilter) return false
-    if (
-      admissionFilter &&
-      !(d.admission || '')
-        .toLowerCase()
-        .includes(admissionFilter.toLowerCase())
-    ) {
-      return false
-    }
     return true
   })
 
   const statusOptions = ['Draft', 'Submitted', 'Cancelled']
-  const dischargeTypeOptions = Array.from(
-    new Set(discharges.map((d) => d.discharge_type).filter((x): x is string => !!x))
-  ).sort()
+  const dischargeTypeOptions = ['Home', 'Dama', 'Refer To Another Hospital']
+  const inputClass = 'w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white'
 
   return (
     <div className="bg-white border border-slate-200 rounded-lg">
-      {/* Filters */}
-      <div className="px-4 pt-3 pb-2 border-b border-slate-200 flex flex-wrap gap-3 items-end">
-        <div className="flex flex-col">
-          <label className="text-xs font-medium text-slate-600 mb-1">IP Admission</label>
+      {/* Filters — same layout and styling as Admission page */}
+      <div className="flex flex-wrap gap-3 mb-4 items-end px-4 pt-3 pb-2 border-b border-slate-200">
+        {/* Discharge ID — searchable dropdown (link to Discharge) */}
+        <div data-discharge-filter-dropdown className="relative">
+          <label className="block text-xs font-medium text-slate-600 mb-1">Discharge ID</label>
           <input
             type="text"
-            value={admissionFilter}
-            onChange={(e) => setAdmissionFilter(e.target.value)}
-            placeholder="Search admission no..."
-            className="w-40 rounded-md border border-slate-300 px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary"
+            value={selectedDischargeIdOpt ? selectedDischargeIdOpt.value : dischargeIdQuery}
+            onChange={(e) => {
+              setDischargeIdQuery(e.target.value)
+              setSelectedDischargeIdOpt(null)
+              setDischargeIdFilter('')
+              setDischargeIdOpen(true)
+            }}
+            onFocus={() => setDischargeIdOpen(true)}
+            placeholder="Search discharge..."
+            className={`${inputClass} w-44`}
           />
+          {dischargeIdOpen && dischargeIdOptions.length > 0 && (
+            <div className="absolute z-20 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+              {dischargeIdOptions.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => handleDischargeIdSelect(opt)}
+                  className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 focus:bg-slate-100 focus:outline-none"
+                >
+                  <div className="font-medium text-slate-800">{opt.value}</div>
+                  {opt.label !== opt.value && (
+                    <div className="text-xs text-slate-500 truncate">{opt.label}</div>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
-        <div className="flex flex-col">
-          <label className="text-xs font-medium text-slate-600 mb-1">Status</label>
+        {/* IP Admission — searchable dropdown */}
+        <div data-discharge-filter-dropdown className="relative">
+          <label className="block text-xs font-medium text-slate-600 mb-1">IP Admission</label>
+          <input
+            type="text"
+            value={selectedAdmissionOpt ? selectedAdmissionOpt.value : admissionNoQuery}
+            onChange={(e) => {
+              setAdmissionNoQuery(e.target.value)
+              setSelectedAdmissionOpt(null)
+              setAdmissionFilter('')
+              setAdmissionOpen(true)
+            }}
+            onFocus={() => setAdmissionOpen(true)}
+            placeholder="Search admission..."
+            className={`${inputClass} w-44`}
+          />
+          {admissionOpen && admissionOptions.length > 0 && (
+            <div className="absolute z-20 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+              {admissionOptions.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => handleAdmissionSelect(opt)}
+                  className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 focus:bg-slate-100 focus:outline-none"
+                >
+                  <div className="font-medium text-slate-800">{opt.value}</div>
+                  {opt.label !== opt.value && (
+                    <div className="text-xs text-slate-500 truncate">{opt.label}</div>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-slate-600 mb-1">Status</label>
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="w-32 rounded-md border border-slate-300 px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-primary"
+            className={inputClass}
           >
             <option value="">All</option>
             {statusOptions.map((s) => (
@@ -125,12 +275,12 @@ export const DischargeList = ({ patient, admission }: DischargeListProps) => {
             ))}
           </select>
         </div>
-        <div className="flex flex-col">
-          <label className="text-xs font-medium text-slate-600 mb-1">Discharge Type</label>
+        <div>
+          <label className="block text-xs font-medium text-slate-600 mb-1">Discharge Type</label>
           <select
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
-            className="w-40 rounded-md border border-slate-300 px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-primary"
+            className={inputClass}
           >
             <option value="">All</option>
             {dischargeTypeOptions.map((t) => (
@@ -140,18 +290,16 @@ export const DischargeList = ({ patient, admission }: DischargeListProps) => {
             ))}
           </select>
         </div>
-        {(admissionFilter || statusFilter || typeFilter) && (
-          <button
-            type="button"
-            onClick={() => {
-              setAdmissionFilter('')
-              setStatusFilter('')
-              setTypeFilter('')
-            }}
-            className="ml-auto text-xs text-slate-600 hover:text-slate-900 px-2 py-1 rounded-md border border-slate-200 hover:border-slate-400"
-          >
-            Clear
-          </button>
+        {(dischargeIdFilter || admissionFilter || statusFilter || typeFilter) && (
+          <div className="flex items-end">
+            <button
+              type="button"
+              onClick={handleClearFilters}
+              className="px-3 py-2 text-sm text-slate-500 border border-slate-300 rounded-md hover:bg-slate-50 hover:text-slate-700 transition-colors"
+            >
+              Clear filters
+            </button>
+          </div>
         )}
       </div>
 

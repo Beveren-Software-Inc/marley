@@ -11,6 +11,7 @@ import { StatusPill } from '../ui/StatusPill'
 import { DetailSlideOver } from '../ui/DetailSlideOver'
 import { DocDetailView } from '../ui/DocDetailView'
 import { EditServiceRequestModal } from './EditServiceRequestModal'
+import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 
 interface ServiceRequestListProps {
   patient?: string
@@ -55,6 +56,9 @@ export const ServiceRequestList = ({ patient, onLabTestCreated, refreshKey, temp
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
+      const el = e.target as HTMLElement
+      if (el.closest('[data-portal-actions-menu]')) return
+      if (el.closest('button[aria-label="Actions"]')) return
       if (actionMenuRef.current && !actionMenuRef.current.contains(e.target as Node)) {
         setOpenActionRow(null)
       }
@@ -251,59 +255,59 @@ export const ServiceRequestList = ({ patient, onLabTestCreated, refreshKey, temp
                           </svg>
                         )}
                       </button>
-                      {openActionRow === sr.name && (
-                        <div className="absolute right-0 top-full mt-1 z-10 min-w-[180px] rounded-md border border-slate-200 bg-white py-1 shadow-lg">
-                          {isLab && !accepted && (
-                            <button
-                              type="button"
-                              onClick={() => handleConfirmPayment(sr)}
-                              disabled={loadingThis}
-                              className="block w-full text-left px-3 py-2 text-sm text-amber-700 hover:bg-amber-50 disabled:opacity-50"
-                            >
-                              Confirm Payment
-                            </button>
-                          )}
-                          {isLab && accepted && !booked && (
-                            <button
-                              type="button"
-                              onClick={() => handleBookLab(sr)}
-                              disabled={loadingThis}
-                              className="block w-full text-left px-3 py-2 text-sm text-primary hover:bg-primary/5 font-medium"
-                            >
-                              {loadingThis ? '…' : 'Book Lab'}
-                            </button>
-                          )}
-                          {!isLab && sr.status && !sr.status.toLowerCase().includes('completed') && (
-                            <button
-                              type="button"
-                              onClick={() => handleCreateLabTest(sr.name)}
-                              disabled={loadingThis}
-                              className="block w-full text-left px-3 py-2 text-sm text-primary hover:bg-primary/5"
-                            >
-                              {loadingThis ? '…' : 'Create Lab Test'}
-                            </button>
-                          )}
-                          {sr.template_dt === 'IP Service Type' && onCreateIPService && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setOpenActionRow(null)
-                                onCreateIPService(sr)
-                              }}
-                              className="block w-full text-left px-3 py-2 text-sm text-primary hover:bg-primary/5"
-                            >
-                              Create IP Service
-                            </button>
-                          )}
+                      <PortalActionsMenu
+                        open={openActionRow === sr.name}
+                        onClose={() => setOpenActionRow(null)}
+                        triggerRef={actionMenuRef}
+                        minWidth={180}
+                      >
+                        {isLab && !accepted && (
                           <button
                             type="button"
-                            onClick={() => handleEdit(sr)}
-                            className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                            onClick={() => handleConfirmPayment(sr)}
+                            disabled={loadingThis}
+                            className="block w-full text-left px-3 py-2 text-sm text-amber-700 hover:bg-amber-50 disabled:opacity-50"
                           >
-                            Edit
+                            Confirm Payment
                           </button>
-                        </div>
-                      )}
+                        )}
+                        {isLab && accepted && !booked && (
+                          <button
+                            type="button"
+                            onClick={() => handleBookLab(sr)}
+                            disabled={loadingThis}
+                            className="block w-full text-left px-3 py-2 text-sm text-primary hover:bg-primary/5 font-medium"
+                          >
+                            {loadingThis ? '…' : 'Book Lab'}
+                          </button>
+                        )}
+                        {!isLab && sr.status && !sr.status.toLowerCase().includes('completed') && (
+                          <button
+                            type="button"
+                            onClick={() => handleCreateLabTest(sr.name)}
+                            disabled={loadingThis}
+                            className="block w-full text-left px-3 py-2 text-sm text-primary hover:bg-primary/5"
+                          >
+                            {loadingThis ? '…' : 'Create Lab Test'}
+                          </button>
+                        )}
+                        {sr.template_dt === 'IP Service Type' && onCreateIPService && (
+                          <button
+                            type="button"
+                            onClick={() => { setOpenActionRow(null); onCreateIPService(sr) }}
+                            className="block w-full text-left px-3 py-2 text-sm text-primary hover:bg-primary/5"
+                          >
+                            Create IP Service
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleEdit(sr)}
+                          className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                        >
+                          Edit
+                        </button>
+                      </PortalActionsMenu>
                     </div>
 
 {isLab && booked && (
