@@ -3,6 +3,7 @@ import { fetchIOPEnrollments, type IOPEnrollment } from '../../services/iop'
 import { CreateIOPEnrollmentModal } from './CreateIOPEnrollmentModal'
 import { EditIOPEnrollmentModal } from './EditIOPEnrollmentModal'
 import { CreatePatientVisitModal } from '../patientVisits/CreatePatientVisitModal'
+import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { getPatientVisitFormUrl } from '../../services/appointments'
 
 interface IOPEnrollmentListProps {
@@ -37,6 +38,9 @@ export const IOPEnrollmentList = ({
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
+      const el = e.target as HTMLElement
+      if (el.closest('[data-portal-actions-menu]')) return
+      if (el.closest('button[aria-label="Actions"]')) return
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) setOpenActionRow(null)
     }
     document.addEventListener('mousedown', handler)
@@ -108,30 +112,27 @@ export const IOPEnrollmentList = ({
                           <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
                         </svg>
                       </button>
-                      {openActionRow === e.name && (
-                        <div className="absolute right-0 top-full mt-1 z-10 min-w-[180px] rounded-md border border-slate-200 bg-white py-1 shadow-lg">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setCreateVisitForEnrollment(e)
-                              setOpenActionRow(null)
-                            }}
-                            className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
-                          >
-                            Create Patient Visit
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditEnrollmentName(e.name)
-                              setOpenActionRow(null)
-                            }}
-                            className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
-                          >
-                            Edit
-                          </button>
-                        </div>
-                      )}
+                      <PortalActionsMenu
+                        open={openActionRow === e.name}
+                        onClose={() => setOpenActionRow(null)}
+                        triggerRef={menuRef}
+                        minWidth={180}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => { setCreateVisitForEnrollment(e); setOpenActionRow(null) }}
+                          className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                        >
+                          Create Patient Visit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setEditEnrollmentName(e.name); setOpenActionRow(null) }}
+                          className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                        >
+                          Edit
+                        </button>
+                      </PortalActionsMenu>
                     </div>
                   </td>
                 </tr>

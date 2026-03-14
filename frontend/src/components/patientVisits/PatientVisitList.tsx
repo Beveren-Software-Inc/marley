@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { StatusPill } from '../ui/StatusPill'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
+import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { PatientVisitDetails } from './PatientVisitDetails'
 import { cancelVisit, createInvoice, type PatientVisitListRow } from '../../services/patientVisits'
 import { CreateAdmissionModal } from '../admissions/CreateAdmissionModal'
@@ -117,9 +118,12 @@ export const PatientVisitList = ({
     fetchVisits()
   }, [selectedStatus, practitionerFilter, visitIdFilter, dateFrom, dateTo, patient, externalSearchQuery, refreshKey])
 
-  // Close action row dropdown on outside click
+  // Close action row dropdown on outside click (ignore portaled menu and trigger button)
   useEffect(() => {
     const handler = (e: MouseEvent) => {
+      const el = e.target as HTMLElement
+      if (el.closest('[data-portal-actions-menu]')) return
+      if (el.closest('button[aria-label="Actions"]')) return
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setOpenActionRow(null)
       }
@@ -405,46 +409,49 @@ export const PatientVisitList = ({
                           <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
                         </svg>
                       </button>
-                      {openActionRow === visit.value && (
-                        <div className="absolute right-0 top-full mt-1 z-10 min-w-[160px] rounded-md border border-slate-200 bg-white py-1 shadow-lg">
-                          <button
-                            type="button"
-                            onClick={() => { handlePrintInvoice(visit.value); setOpenActionRow(null) }}
-                            className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
-                          >
-                            Print Invoice
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleCreateInvoice(visit.value)}
-                            disabled={actionLoading === visit.value + '_invoice'}
-                            className="block w-full text-left px-3 py-2 text-sm text-green-600 hover:bg-green-50 disabled:opacity-50"
-                          >
-                            {actionLoading === visit.value + '_invoice' ? 'Creating…' : 'Create Invoice'}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => { setPaymentVisit(visit); setShowPaymentModal(true); setOpenActionRow(null) }}
-                            className="block w-full text-left px-3 py-2 text-sm text-blue-600 hover:bg-blue-50"
-                          >
-                            Create Payment
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleScheduleAdmission(visit)}
-                            className="block w-full text-left px-3 py-2 text-sm text-primary hover:bg-primary/5"
-                          >
-                            Schedule Admission
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => { setSelectedVisitForCancel(visit); setShowCancelModal(true); setOpenActionRow(null) }}
-                            className="block w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50"
-                          >
-                            Cancel Visit
-                          </button>
-                        </div>
-                      )}
+                      <PortalActionsMenu
+                        open={openActionRow === visit.value}
+                        onClose={() => setOpenActionRow(null)}
+                        triggerRef={menuRef}
+                        minWidth={160}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => { handlePrintInvoice(visit.value); setOpenActionRow(null) }}
+                          className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                        >
+                          Print Invoice
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleCreateInvoice(visit.value)}
+                          disabled={actionLoading === visit.value + '_invoice'}
+                          className="block w-full text-left px-3 py-2 text-sm text-green-600 hover:bg-green-50 disabled:opacity-50"
+                        >
+                          {actionLoading === visit.value + '_invoice' ? 'Creating…' : 'Create Invoice'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setPaymentVisit(visit); setShowPaymentModal(true); setOpenActionRow(null) }}
+                          className="block w-full text-left px-3 py-2 text-sm text-blue-600 hover:bg-blue-50"
+                        >
+                          Create Payment
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleScheduleAdmission(visit)}
+                          className="block w-full text-left px-3 py-2 text-sm text-primary hover:bg-primary/5"
+                        >
+                          Schedule Admission
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setSelectedVisitForCancel(visit); setShowCancelModal(true); setOpenActionRow(null) }}
+                          className="block w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50"
+                        >
+                          Cancel Visit
+                        </button>
+                      </PortalActionsMenu>
                     </div>
                      <PrintFormatDropdown
                         doctype="Patient Visit"

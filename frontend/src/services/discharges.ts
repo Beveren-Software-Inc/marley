@@ -22,13 +22,15 @@ export async function fetchDischarges(
   limit: number = 50,
   offset: number = 0,
   patient?: string,
-  admission?: string
+  admission?: string,
+  search?: string
 ): Promise<Discharge[]> {
   const params = new URLSearchParams()
   params.append('limit', limit.toString())
   params.append('offset', offset.toString())
   if (patient) params.append('patient', patient)
   if (admission) params.append('admission', admission)
+  if (search && search.trim()) params.append('search', search.trim())
 
   const result = await apiRequest<Discharge[]>(
     `/api/method/healthcare.api.discharge.get_discharges?${params.toString()}`

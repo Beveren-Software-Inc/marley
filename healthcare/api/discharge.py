@@ -7,7 +7,7 @@ from frappe import _
 
 
 @frappe.whitelist()
-def get_discharges(limit=50, offset=0, patient=None, admission=None):
+def get_discharges(limit=50, offset=0, patient=None, admission=None, search=None):
 	"""Get list of Discharge documents"""
 	filters = {}
 	
@@ -16,6 +16,9 @@ def get_discharges(limit=50, offset=0, patient=None, admission=None):
 	
 	if admission:
 		filters['admission'] = admission
+	
+	if search and search.strip():
+		filters['name'] = ['like', f'%{search.strip()}%']
 	
 	discharges = frappe.get_all(
 		'Discharge',

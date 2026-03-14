@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useLayoutEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { fetchPrintFormats } from '../../services/common'
 
 interface PrintFormatDropdownProps {
@@ -29,7 +30,9 @@ export function PrintFormatDropdown({
   const [open, setOpen] = useState(false)
   const [formats, setFormats] = useState<string[]>(['Standard'])
   const [loading, setLoading] = useState(false)
+  const [position, setPosition] = useState<{ top: number; right: number } | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const buttonRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
     if (!open || !doctype) return
@@ -40,11 +43,37 @@ export function PrintFormatDropdown({
       .finally(() => setLoading(false))
   }, [open, doctype])
 
+  const updatePosition = () => {
+    const btn = buttonRef.current
+    if (!btn) return
+    const rect = btn.getBoundingClientRect()
+    setPosition({
+      top: rect.bottom + 4,
+      right: typeof window !== 'undefined' ? window.innerWidth - rect.right : 0,
+    })
+  }
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setPosition(null)
+      return
+    }
+    updatePosition()
+    const onScrollOrResize = () => updatePosition()
+    window.addEventListener('scroll', onScrollOrResize, true)
+    window.addEventListener('resize', onScrollOrResize)
+    return () => {
+      window.removeEventListener('scroll', onScrollOrResize, true)
+      window.removeEventListener('resize', onScrollOrResize)
+    }
+  }, [open])
+
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false)
-      }
+      const target = e.target as HTMLElement
+      const inButton = containerRef.current?.contains(target)
+      const inMenu = target.closest('[data-print-format-dropdown-menu]')
+      if (!inButton && !inMenu) setOpen(false)
     }
     if (open) document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
@@ -63,38 +92,50 @@ export function PrintFormatDropdown({
     setOpen(false)
   }
 
+  const menuEl =
+    open && position && typeof document !== 'undefined' ? (
+      <div
+        data-print-format-dropdown-menu
+        className="fixed z-[9999] min-w-[160px] rounded-md border border-slate-200 bg-white py-1 shadow-lg"
+        style={{
+          top: position.top,
+          right: position.right,
+          left: 'auto',
+        }}
+      >
+        <div className="px-3 py-1.5 text-xs font-medium text-slate-500 border-b border-slate-100">
+          Print format
+        </div>
+        {loading ? (
+          <div className="px-3 py-2 text-sm text-slate-500">Loading…</div>
+        ) : (
+          formats.map((format) => (
+            <button
+              key={format}
+              type="button"
+              onClick={() => handleSelectFormat(format)}
+              className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 focus:bg-slate-100 focus:outline-none"
+            >
+              {format}
+            </button>
+          ))
+        )}
+      </div>
+    ) : null
+
   return (
     <div className="relative inline-block" ref={containerRef}>
       <button
+        ref={buttonRef}
         type="button"
-        onClick={() => setOpen(prev => !prev)}
+        onClick={() => setOpen((prev) => !prev)}
         className={className}
         aria-label={ariaLabel}
         title={title}
       >
         {defaultPrintSvg}
       </button>
-      {open && (
-        <div className="absolute right-0 top-full mt-1 z-[100] min-w-[160px] rounded-md border border-slate-200 bg-white py-1 shadow-lg">
-          <div className="px-3 py-1.5 text-xs font-medium text-slate-500 border-b border-slate-100">
-            Print format
-          </div>
-          {loading ? (
-            <div className="px-3 py-2 text-sm text-slate-500">Loading…</div>
-          ) : (
-            formats.map((format) => (
-              <button
-                key={format}
-                type="button"
-                onClick={() => handleSelectFormat(format)}
-                className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 focus:bg-slate-100 focus:outline-none"
-              >
-                {format}
-              </button>
-            ))
-          )}
-        </div>
-      )}
+      {typeof document !== 'undefined' && menuEl && createPortal(menuEl, document.body)}
     </div>
   )
 }
