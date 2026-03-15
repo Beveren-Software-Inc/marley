@@ -56,6 +56,22 @@ def get_medical_departments(search=None):
 
 
 @frappe.whitelist()
+def get_anaesthesia_types(search=None):
+	"""Get list of Anaesthesia Type for link dropdowns (e.g. ECT Procedure)."""
+	filters = {}
+	if search and search.strip():
+		filters["anaesthesia_type_name"] = ["like", f"%{search.strip()}%"]
+	types = frappe.get_all(
+		"Anaesthesia Type",
+		filters=filters,
+		fields=["name", "anaesthesia_type_name"],
+		limit=50,
+		order_by="anaesthesia_type_name",
+	)
+	return [{"name": t.name, "label": t.anaesthesia_type_name or t.name} for t in types]
+
+
+@frappe.whitelist()
 def get_nationalities(search=None):
 	filters = {}
 
