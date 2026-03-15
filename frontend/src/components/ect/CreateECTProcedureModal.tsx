@@ -406,7 +406,7 @@ export const CreateECTProcedureModal = ({
                 <FormField label="Type of Anaesthesia">
                   <ComboboxField
                     query={anaesthesiaQuery}
-                    onQueryChange={(value) => {
+                    onQueryChange={(value: string) => {
                       setAnaesthesiaQuery(value)
                       setFormData(prev => ({ ...prev, type_of_anaesthesia: '' }))
                       setAnaesthesiaOpen(true)
