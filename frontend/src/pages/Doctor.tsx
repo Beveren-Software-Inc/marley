@@ -41,6 +41,7 @@ import { IOPDayListWithHeader } from '../components/iop/IOPDayList'
 import { IOPEnrollmentListWithHeader } from '../components/iop/IOPEnrollmentList'
 import { CreateMedicineGivenModal } from '../components/medication/CreateMedicineGivenModal'
 import { MedicineGivenList } from '../components/medication/MedicineGivenList'
+import { LongActingMedicineList } from '../components/medication/LongActingMedicineList'
 import { reconcileDischargeMedicines } from '../services/medicineGiven'
 import { CreateVitalSignModal } from '../components/vitalSigns/CreateVitalSignModal'
 import { CreateECTDetailModal } from '../components/ect/CreateECTDetailModal'
@@ -1610,6 +1611,19 @@ export const DoctorPage = () => {
               </div>
               <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
                 <PrescriptionList patient={selectedPatient} refreshKey={prescriptionRefreshKey} />
+              </div>
+            </section>
+
+            {/* Card: Long Acting Medicine (just after Prescription) */}
+            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
+              <div className="font-semibold mb-4 flex-shrink-0">
+                <span>Long Acting Medicine</span>
+              </div>
+              <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
+                <LongActingMedicineList
+                  patient={selectedPatient}
+                  refreshKey={prescriptionRefreshKey}
+                />
               </div>
             </section>
           </div>

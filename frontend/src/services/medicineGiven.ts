@@ -185,6 +185,75 @@ export async function reconcileDischargeMedicines(
   return (data?.message as ReconcileResponse) || { stock_entry: null, items: [] }
 }
 
+/** Rows for medicine reconciliation on discharge (medicines not yet given, with remaining qty). */
+export interface DischargeReconciliationRow {
+  name: string
+  parent: string
+  drug: string
+  drug_name?: string
+  quantity: number
+  remaining: number
+  /** Set when user marked as stopped; reason is saved on prescription child table. */
+  reason_stopped?: string
+  /** Set when a stock entry has been created for this stopped item. */
+  returned_to_store?: boolean
+}
+
+export async function getDischargeReconciliationRows(
+  admission: string
+): Promise<DischargeReconciliationRow[]> {
+  const params = new URLSearchParams()
+  params.set('admission', admission)
+  const res = await fetch(
+    `/api/method/healthcare.api.medicine_given.get_discharge_reconciliation_rows?${params.toString()}`
+  )
+  const data = await res.json()
+  if (data?.exc || !res.ok) {
+    throw new Error(data?.exc || data?.message || 'Failed to load reconciliation rows')
+  }
+  return Array.isArray(data?.message) ? (data.message as DischargeReconciliationRow[]) : []
+}
+
+/** Saves reason_stopped on the prescription child table only. Use returnStoppedMedicationsToStore to create the stock entry. */
+export async function stopMedicationOnDischarge(
+  admission: string,
+  orderEntryName: string,
+  reasonStopped: string
+): Promise<{ message?: string }> {
+  return apiRequest('/api/method/healthcare.api.medicine_given.stop_medication_on_discharge', {
+    method: 'POST',
+    body: JSON.stringify({
+      admission,
+      order_entry_name: orderEntryName,
+      reason_stopped: reasonStopped ?? '',
+    }),
+  })
+}
+
+/** Creates one stock entry (Material Receipt) for the given medications. Each must have reason_stopped set. */
+export async function returnStoppedMedicationsToStore(
+  admission: string,
+  orderEntryNames: string[]
+): Promise<{ stock_entry: string | null; items?: { item_code: string; qty: number }[]; message?: string }> {
+  return apiRequest('/api/method/healthcare.api.medicine_given.return_stopped_medications_to_store', {
+    method: 'POST',
+    body: JSON.stringify({ admission, order_entry_names: orderEntryNames }),
+  })
+}
+
+export async function transferMedicationsOnDischarge(
+  admission: string,
+  orderEntryNames: string[]
+): Promise<{ patient_visit: string; patient_medication_order: string }> {
+  return apiRequest('/api/method/healthcare.api.medicine_given.transfer_medications_on_discharge', {
+    method: 'POST',
+    body: JSON.stringify({
+      admission,
+      order_entry_names: orderEntryNames,
+    }),
+  })
+}
+
 // Long-acting medication reminders (Q1W, Q2W, Q3W, Q4W)
 export type LongActingReminderStatus = 'overdue' | 'due_today' | 'due_soon'
 
