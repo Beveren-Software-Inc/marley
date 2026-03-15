@@ -8,15 +8,17 @@ import {
   fetchItems,
   fetchDosageForms,
   fetchPrescriptionFrequencies,
+  fetchRouteOfAdministrationList,
   type LinkFieldOption,
 } from '../../services/common'
 import {
   createPrescription,
   type CreatePrescriptionData,
   type MedicationOrderRow,
+  LONG_ACTING_FREQUENCY_OPTIONS,
 } from '../../services/prescriptions'
 import { toast } from '../../hooks/useToast'
-import { X, Plus, Trash2, Pill, ChevronDown } from 'lucide-react'
+import { X, Plus, Trash2, Pill, ChevronDown, ChevronUp } from 'lucide-react'
 import { useCareContext } from '../../providers/CareContextProvider'
 
 interface CreatePrescriptionModalProps {
@@ -27,6 +29,20 @@ interface CreatePrescriptionModalProps {
 
 type TabId = 'details' | 'medications'
 
+function addDays(dateStr: string, days: number): string {
+  const d = new Date(dateStr)
+  d.setDate(d.getDate() + Math.round(days))
+  return d.toISOString().split('T')[0]
+}
+
+function daysBetween(startStr: string, endStr: string): number {
+  if (!startStr || !endStr) return 0
+  const start = new Date(startStr)
+  const end = new Date(endStr)
+  const diff = end.getTime() - start.getTime()
+  return Math.round(diff / (24 * 60 * 60 * 1000))
+}
+
 const emptyMedicationRow = (startDate: string): MedicationOrderRow => ({
   drug: '',
   dosage: '',
@@ -34,10 +50,14 @@ const emptyMedicationRow = (startDate: string): MedicationOrderRow => ({
   dosage_form: '',
   instructions: '',
   date: startDate,
+  end_date: addDays(startDate, 1),
   time: '08:00',
   patient_frequency: '',
   is_pink: false,
+  is_long_acting: false,
+  long_acting_frequency: 'Weekly',
   reference_no: '',
+  route_of_administration: '',
 })
 
 // Reusable combobox dropdown component
@@ -132,6 +152,7 @@ export const CreatePrescriptionModal = ({
 }: CreatePrescriptionModalProps) => {
   const { mode, activeVisit, activeAdmission } = useCareContext()
   const [activeTab, setActiveTab] = useState<TabId>('details')
+  const [expandedMedications, setExpandedMedications] = useState<Set<number>>(new Set([0]))
 
   const [patientQuery, setPatientQuery] = useState('')
   const [selectedPatient, setSelectedPatient] = useState<PatientListItem | null>(null)
@@ -164,6 +185,7 @@ export const CreatePrescriptionModal = ({
 
   const [dosageForms, setDosageForms] = useState<LinkFieldOption[]>([])
   const [frequencies, setFrequencies] = useState<LinkFieldOption[]>([])
+  const [routeOfAdminOptions, setRouteOfAdminOptions] = useState<LinkFieldOption[]>([])
 
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -186,6 +208,7 @@ export const CreatePrescriptionModal = ({
     fetchHealthcarePractitioners().then(setPractitioners).catch(() => setPractitioners([]))
     fetchDosageForms().then(setDosageForms).catch(() => setDosageForms([]))
     fetchPrescriptionFrequencies().then(setFrequencies).catch(() => setFrequencies([]))
+    fetchRouteOfAdministrationList().then(setRouteOfAdminOptions).catch(() => setRouteOfAdminOptions([]))
   }, [])
 
   useEffect(() => {
@@ -246,20 +269,58 @@ export const CreatePrescriptionModal = ({
   }
 
   const addMedicationRow = () => {
+    const newIndex = medications.length
     setMedications((prev) => [...prev, emptyMedicationRow(formData.start_date)])
+    // When adding a new medication (3rd onwards), expand only the latest one
+    if (medications.length >= 2) {
+      setExpandedMedications(new Set([newIndex]))
+    }
   }
 
   const removeMedicationRow = (index: number) => {
     setMedications((prev) => prev.filter((_, i) => i !== index))
     setDrugQueries((prev) => { const n = { ...prev }; delete n[index]; return n })
     setDrugOptions((prev) => { const n = { ...prev }; delete n[index]; return n })
+    setExpandedMedications((prev) => {
+      const next = new Set(prev)
+      next.delete(index)
+      return next
+    })
+  }
+
+  const toggleMedicationExpanded = (index: number) => {
+    setExpandedMedications((prev) => {
+      const next = new Set(prev)
+      if (next.has(index)) {
+        next.delete(index)
+      } else {
+        next.add(index)
+      }
+      return next
+    })
   }
 
   const updateMedicationRow = (index: number, field: keyof MedicationOrderRow, value: string | number | boolean) => {
     setMedications((prev) => {
       const next = [...prev]
       if (!next[index]) return next
-      next[index] = { ...next[index], [field]: value }
+      const row = { ...next[index], [field]: value }
+      // Derive date/days/end_date: start+end → days; start+days → end
+      if (field === 'date' || field === 'end_date' || field === 'no_of_days') {
+        const start = row.date || ''
+        const end = (field === 'end_date' ? value : row.end_date) as string
+        const days = (field === 'no_of_days' ? value : row.no_of_days) as number
+        if (field === 'date' || field === 'end_date') {
+          if (start && end) {
+            row.no_of_days = daysBetween(start, end) || 1
+          } else if (start && typeof days === 'number' && days > 0) {
+            row.end_date = addDays(start, days)
+          }
+        } else if (field === 'no_of_days' && start && typeof days === 'number' && days > 0) {
+          row.end_date = addDays(start, days)
+        }
+      }
+      next[index] = row
       return next
     })
   }
@@ -311,6 +372,9 @@ export const CreatePrescriptionModal = ({
   const practitionerDisplay = formData.practitioner
     ? (practitioners.find((x) => x.name === formData.practitioner)?.label || formData.practitioner)
     : practQuery
+
+  const isExpanded = (index: number) => expandedMedications.has(index)
+  const shouldShowCollapse = medications.length >= 2
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -417,7 +481,7 @@ export const CreatePrescriptionModal = ({
                           inpatient_record: '',
                         }))
                       }
-                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
                     >
                       <option value="Patient Visit">Patient Visit</option>
                       <option value="Inpatient Admission">Inpatient Admission</option>
@@ -432,7 +496,7 @@ export const CreatePrescriptionModal = ({
                       <select
                         value={formData.patient_encounter}
                         onChange={(e) => setFormData((p) => ({ ...p, patient_encounter: e.target.value }))}
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
                       >
                         <option value="">Select visit...</option>
                         {visits.map((v) => <option key={v.name} value={v.name}>{v.label || v.name}</option>)}
@@ -446,7 +510,7 @@ export const CreatePrescriptionModal = ({
                       <select
                         value={formData.inpatient_record}
                         onChange={(e) => setFormData((p) => ({ ...p, inpatient_record: e.target.value }))}
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
                       >
                         <option value="">Select admission...</option>
                         {admissions.map((a) => <option key={a.name} value={a.name}>{a.label || a.name}</option>)}
@@ -464,7 +528,7 @@ export const CreatePrescriptionModal = ({
                     <select
                       value={formData.company}
                       onChange={(e) => setFormData((p) => ({ ...p, company: e.target.value }))}
-                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
                     >
                       <option value="">Select company...</option>
                       {companies.map((c) => <option key={c.name} value={c.name}>{c.label || c.name}</option>)}
@@ -479,7 +543,7 @@ export const CreatePrescriptionModal = ({
                       type="date"
                       value={formData.start_date}
                       onChange={(e) => setFormData((p) => ({ ...p, start_date: e.target.value }))}
-                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
                     />
                   </div>
                 </div>
@@ -531,10 +595,17 @@ export const CreatePrescriptionModal = ({
                   {medications.map((row, index) => (
                     <div
                       key={index}
-                      className="border border-slate-200 rounded-lg bg-white shadow-sm overflow-hidden"
+                      className="border border-slate-200 rounded-lg bg-white shadow-sm overflow-hidden transition-all"
                     >
-                      {/* Card header */}
-                      <div className="flex items-center justify-between px-4 py-2.5 bg-slate-50 border-b border-slate-200">
+                      {/* Card header - clickable to expand/collapse */}
+                      <button
+                        type="button"
+                        onClick={() => toggleMedicationExpanded(index)}
+                        disabled={!shouldShowCollapse}
+                        className={`w-full flex items-center justify-between px-4 py-2.5 bg-slate-50 border-b border-slate-200 hover:bg-slate-100 transition-colors ${
+                          !shouldShowCollapse ? 'cursor-default' : 'cursor-pointer'
+                        }`}
+                      >
                         <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
                           <Pill className="w-4 h-4 text-primary" />
                           <span>Medication {index + 1}</span>
@@ -542,130 +613,170 @@ export const CreatePrescriptionModal = ({
                             <span className="text-slate-400 font-normal">— {drugQueries[index]}</span>
                           )}
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => removeMedicationRow(index)}
-                          className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                          title="Remove"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-
-                      {/* Fields: 3 per row */}
-                      <div className="p-4 space-y-3">
-                        {/* Row A: Drug, Dosage, Dosage Form */}
-                        <div className="grid grid-cols-3 gap-3">
-                          <div>
-                            <label className="block text-xs font-medium text-slate-600 mb-1">
-                              Drug <span className="text-red-500">*</span>
-                            </label>
-                            <Combobox
-                              value={row.drug}
-                              displayValue={drugQueries[index] ?? (row.drug ? (row.drug_name || row.drug) : '')}
-                              placeholder="Search drug..."
-                              options={drugOptions[index] || []}
-                              loading={drugLoading[index]}
-                              onQueryChange={(q) => {
-                                setDrugQueries((prev) => ({ ...prev, [index]: q }))
-                                loadDrugOptions(index, q)
-                              }}
-                              onOpen={() => loadDrugOptions(index, drugQueries[index] || row.drug || '')}
-                              onSelect={(opt) => {
-                                updateMedicationRow(index, 'drug', opt.name)
-                                setDrugQueries((prev) => ({ ...prev, [index]: opt.label || opt.name }))
-                                setDrugOptions((prev) => ({ ...prev, [index]: [] }))
-                              }}
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-medium text-slate-600 mb-1">
-                              Dosage <span className="text-red-500">*</span>
-                            </label>
-                            <input
-                              type="text"
-                              value={row.dosage}
-                              onChange={(e) => updateMedicationRow(index, 'dosage', e.target.value)}
-                              placeholder="e.g. 1-0-1"
-                              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-medium text-slate-600 mb-1">
-                              Dosage Form <span className="text-red-500">*</span>
-                            </label>
-                            <select
-                              value={row.dosage_form}
-                              onChange={(e) => updateMedicationRow(index, 'dosage_form', e.target.value)}
-                              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                            >
-                              <option value="">Select...</option>
-                              {dosageForms.map((df) => <option key={df.name} value={df.name}>{df.label || df.name}</option>)}
-                            </select>
-                          </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              removeMedicationRow(index)
+                            }}
+                            className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                            title="Remove"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                          {shouldShowCollapse && (
+                            <div className="text-slate-400">
+                              {isExpanded(index) ? (
+                                <ChevronUp className="w-4 h-4" />
+                              ) : (
+                                <ChevronDown className="w-4 h-4" />
+                              )}
+                            </div>
+                          )}
                         </div>
+                      </button>
 
-                        {/* Row B: Date, Time, No. of Days */}
-                        <div className="grid grid-cols-3 gap-3">
-                          <div>
-                            <label className="block text-xs font-medium text-slate-600 mb-1">
-                              Date <span className="text-red-500">*</span>
-                            </label>
-                            <input
-                              type="date"
-                              value={row.date ?? formData.start_date}
-                              onChange={(e) => updateMedicationRow(index, 'date', e.target.value)}
-                              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                            />
+                      {/* Collapsible content */}
+                      {(isExpanded(index) || !shouldShowCollapse) && (
+                        <div className="p-4 space-y-3 animate-in fade-in duration-200">
+                          {/* Row A: Drug, Dosage, Dosage Form */}
+                          <div className="grid grid-cols-3 gap-3">
+                            <div>
+                              <label className="block text-xs font-medium text-slate-600 mb-1">
+                                Drug <span className="text-red-500">*</span>
+                              </label>
+                              <Combobox
+                                value={row.drug}
+                                displayValue={drugQueries[index] ?? (row.drug ? (row.drug_name || row.drug) : '')}
+                                placeholder="Search drug..."
+                                options={drugOptions[index] || []}
+                                loading={drugLoading[index]}
+                                onQueryChange={(q) => {
+                                  setDrugQueries((prev) => ({ ...prev, [index]: q }))
+                                  loadDrugOptions(index, q)
+                                }}
+                                onOpen={() => loadDrugOptions(index, drugQueries[index] || row.drug || '')}
+                                onSelect={(opt) => {
+                                  updateMedicationRow(index, 'drug', opt.name)
+                                  setDrugQueries((prev) => ({ ...prev, [index]: opt.label || opt.name }))
+                                  setDrugOptions((prev) => ({ ...prev, [index]: [] }))
+                                }}
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-slate-600 mb-1">
+                                Dosage <span className="text-red-500">*</span>
+                              </label>
+                              <input
+                                type="text"
+                                value={row.dosage}
+                                onChange={(e) => updateMedicationRow(index, 'dosage', e.target.value)}
+                                placeholder="e.g. 1-0-1"
+                                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-slate-600 mb-1">
+                                Dosage Form <span className="text-red-500">*</span>
+                              </label>
+                              <select
+                                value={row.dosage_form}
+                                onChange={(e) => updateMedicationRow(index, 'dosage_form', e.target.value)}
+                                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+                              >
+                                <option value="">Select...</option>
+                                {dosageForms.map((df) => <option key={df.name} value={df.name}>{df.label || df.name}</option>)}
+                              </select>
+                            </div>
                           </div>
-                          <div>
-                            <label className="block text-xs font-medium text-slate-600 mb-1">
-                              Time <span className="text-red-500">*</span>
-                            </label>
-                            <input
-                              type="time"
-                              value={row.time ?? '08:00'}
-                              onChange={(e) => updateMedicationRow(index, 'time', e.target.value)}
-                              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-medium text-slate-600 mb-1">No. of Days</label>
-                            <input
-                              type="number"
-                              min={0}
-                              step={1}
-                              value={row.no_of_days ?? ''}
-                              onChange={(e) => updateMedicationRow(index, 'no_of_days', e.target.value ? Number(e.target.value) : 0)}
-                              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                            />
-                          </div>
-                        </div>
 
-                        {/* Row C: Frequency, Instructions, Ref No + Is Pink */}
-                        <div className="grid grid-cols-3 gap-3">
-                          <div>
-                            <label className="block text-xs font-medium text-slate-600 mb-1">Frequency</label>
-                            <select
-                              value={row.patient_frequency ?? ''}
-                              onChange={(e) => updateMedicationRow(index, 'patient_frequency', e.target.value)}
-                              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                            >
-                              <option value="">Select...</option>
-                              {frequencies.map((f) => <option key={f.name} value={f.name}>{f.label || f.name}</option>)}
-                            </select>
+                          {/* Row B: Start Date, End Date, Days, Time (start+end → days; start+days → end) */}
+                          <div className="grid grid-cols-4 gap-3">
+                            <div>
+                              <label className="block text-xs font-medium text-slate-600 mb-1">
+                                Start Date <span className="text-red-500">*</span>
+                              </label>
+                              <input
+                                type="date"
+                                value={row.date ?? formData.start_date}
+                                onChange={(e) => updateMedicationRow(index, 'date', e.target.value)}
+                                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-slate-600 mb-1">End Date</label>
+                              <input
+                                type="date"
+                                value={row.end_date ?? ''}
+                                onChange={(e) => updateMedicationRow(index, 'end_date', e.target.value)}
+                                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-slate-600 mb-1">Days</label>
+                              <input
+                                type="number"
+                                min={1}
+                                step={1}
+                                value={row.no_of_days ?? ''}
+                                onChange={(e) => updateMedicationRow(index, 'no_of_days', e.target.value ? Number(e.target.value) : 1)}
+                                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-slate-600 mb-1">
+                                Time <span className="text-red-500">*</span>
+                              </label>
+                              <input
+                                type="time"
+                                value={row.time ?? '08:00'}
+                                onChange={(e) => updateMedicationRow(index, 'time', e.target.value)}
+                                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+                              />
+                            </div>
                           </div>
-                          <div>
-                            <label className="block text-xs font-medium text-slate-600 mb-1">Instructions</label>
-                            <input
-                              type="text"
-                              value={row.instructions ?? ''}
-                              onChange={(e) => updateMedicationRow(index, 'instructions', e.target.value)}
-                              placeholder="Notes..."
-                              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                            />
+                          <p className="text-[11px] text-slate-500">Start + End Date → Days; or Start Date + Days → End Date</p>
+
+                          {/* Row C: Frequency, Route of Administration, Instructions */}
+                          <div className="grid grid-cols-3 gap-3">
+                            <div>
+                              <label className="block text-xs font-medium text-slate-600 mb-1">Frequency</label>
+                              <Combobox
+                                value={row.patient_frequency ?? ''}
+                                displayValue={row.patient_frequency ? (frequencies.find((f) => f.name === row.patient_frequency)?.label || row.patient_frequency) : ''}
+                                placeholder="Select..."
+                                options={frequencies}
+                                onQueryChange={() => {}}
+                                onOpen={() => {}}
+                                onSelect={(opt) => updateMedicationRow(index, 'patient_frequency', opt.name)}
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-slate-600 mb-1">Route of Administration</label>
+                              <Combobox
+                                value={row.route_of_administration ?? ''}
+                                displayValue={row.route_of_administration ? (routeOfAdminOptions.find((r) => r.name === row.route_of_administration)?.label || row.route_of_administration) : ''}
+                                placeholder="Select..."
+                                options={routeOfAdminOptions}
+                                onQueryChange={() => {}}
+                                onOpen={() => {}}
+                                onSelect={(opt) => updateMedicationRow(index, 'route_of_administration', opt.name)}
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-slate-600 mb-1">Instructions</label>
+                              <input
+                                type="text"
+                                value={row.instructions ?? ''}
+                                onChange={(e) => updateMedicationRow(index, 'instructions', e.target.value)}
+                                placeholder="Notes..."
+                                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+                              />
+                            </div>
                           </div>
-                          <div className="grid grid-cols-2 gap-2">
+                          {/* Row D: Ref No, Is Pink, Long Acting Medication */}
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                             <div>
                               <label className="block text-xs font-medium text-slate-600 mb-1">Ref No</label>
                               <input
@@ -673,7 +784,7 @@ export const CreatePrescriptionModal = ({
                                 value={row.reference_no ?? ''}
                                 onChange={(e) => updateMedicationRow(index, 'reference_no', e.target.value)}
                                 placeholder="Ref"
-                                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
                               />
                             </div>
                             <div>
@@ -690,9 +801,43 @@ export const CreatePrescriptionModal = ({
                                 </label>
                               </div>
                             </div>
+                            <div>
+                              <label className="block text-xs font-medium text-slate-600 mb-1">Long Acting Medication</label>
+                              <div className="flex items-center h-9">
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={!!row.is_long_acting}
+                                    onChange={(e) => updateMedicationRow(index, 'is_long_acting', e.target.checked)}
+                                    className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary"
+                                  />
+                                  <span className="text-sm text-slate-600">Yes</span>
+                                </label>
+                              </div>
+                            </div>
                           </div>
+                          {/* Row E: Time Frequency (only when Long Acting is ticked) */}
+                          {row.is_long_acting && (
+                            <div className="rounded-md bg-amber-50 border border-amber-200 p-3">
+                              <label className="block text-xs font-medium text-slate-700 mb-1">
+                                Time Frequency (when will be next run)
+                              </label>
+                              <select
+                                value={row.long_acting_frequency ?? 'Weekly'}
+                                onChange={(e) => updateMedicationRow(index, 'long_acting_frequency', e.target.value)}
+                                className="w-full max-w-xs rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+                              >
+                                {LONG_ACTING_FREQUENCY_OPTIONS.map((opt) => (
+                                  <option key={opt} value={opt}>{opt}</option>
+                                ))}
+                              </select>
+                              <p className="text-[11px] text-slate-500 mt-1">
+                                A Long Acting Medicine record will be created for scheduling and reminders.
+                              </p>
+                            </div>
+                          )}
                         </div>
-                      </div>
+                      )}
                     </div>
                   ))}
 

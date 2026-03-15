@@ -4,7 +4,7 @@
 
 import frappe
 from frappe import _
-from frappe.utils import flt, nowdate
+from frappe.utils import flt, nowdate, getdate, add_days
 
 
 @frappe.whitelist()
@@ -115,9 +115,13 @@ def _set_medication_row(doc, row):
 	entry.instructions = row.get('instructions') or ''
 	entry.date = row.get('date')
 	entry.time = row.get('time') or '00:00:00'
+	entry.end_date = row.get('end_date')
 	entry.patient_frequency = row.get('patient_frequency')
 	entry.is_pink = 1 if row.get('is_pink') else 0
 	entry.reference_no = row.get('reference_no') or ''
+	entry.route_of_administration = row.get('route_of_administration') or ''
+	entry.is_long_acting_medicine = 1 if row.get('is_long_acting_medicine') or row.get('is_long_acting') else 0
+	entry.long_acting_frequency = (row.get('long_acting_frequency') or '').strip() or None
 	# Fetched / computed
 	if entry.drug:
 		entry.drug_name = frappe.db.get_value('Item', entry.drug, 'item_name') or entry.drug
@@ -225,8 +229,66 @@ def create_patient_medication_order(
 
 	doc.insert(ignore_permissions=True)
 	doc.submit()
-	
+
+	# Create Long Acting Medicine for each medication row marked as long-acting
+	_create_long_acting_medicine_for_entries(doc)
+
 	return {'name': doc.name}
+
+
+def _long_acting_frequency_interval_days(frequency):
+	"""Return interval in days for next run (Weekly=7, Biweekly=14, Monthly=30, etc.)."""
+	if not frequency:
+		return 7
+	m = {
+		"Weekly": 7,
+		"Biweekly": 14,
+		"Monthly": 30,
+		"Every 2 Months": 60,
+		"Every 3 Months": 90,
+	}
+	return m.get(frequency.strip(), 7)
+
+
+def _create_long_acting_medicine_for_entries(pmo_doc):
+	"""For each medication order entry with is_long_acting_medicine=1, create a Long Acting Medicine doc."""
+	for entry in (pmo_doc.medication_orders or []):
+		if not getattr(entry, 'is_long_acting_medicine', 0):
+			continue
+		frequency = getattr(entry, 'long_acting_frequency', None) or 'Weekly'
+		start_dt = getdate(entry.date) if entry.date else getdate(pmo_doc.start_date)
+		end_dt = getdate(entry.end_date) if entry.end_date else (getdate(pmo_doc.end_date) if pmo_doc.end_date else None)
+		# Next run: first run is start_date; subsequent runs use interval (used by reminder/scheduler)
+		next_run = start_dt
+
+		lam = frappe.new_doc('Long Acting Medicine')
+		lam.naming_series = 'SMP-.YYYY.-'
+		lam.patient = pmo_doc.patient
+		lam.patient_name = pmo_doc.get('patient_name')
+		lam.practitioner = pmo_doc.get('practitioner')
+		lam.company = pmo_doc.company
+		lam.frequency = frequency
+		lam.start_date = start_dt
+		lam.end_date = end_dt
+		lam.next_run_date = next_run
+		lam.status = 'Active'
+
+		# Single medication row from this order entry
+		lam.append('medications', {
+			'medication_order_entry': entry.name,
+			'drug': entry.drug,
+			'drug_name': entry.drug_name or frappe.db.get_value('Item', entry.drug, 'item_name'),
+			'dosage': flt(entry.dosage, 0) or 0,
+			'dosage_form': entry.dosage_form,
+			'instructions': entry.instructions or '',
+			'patient_frequency': entry.patient_frequency,
+			'date': entry.date,
+			'time': entry.time or '08:00:00',
+			'qty_per_cycle': 1,
+			'is_active': 1,
+		})
+		lam.insert(ignore_permissions=True)
+		lam.submit()
 
 
 @frappe.whitelist()

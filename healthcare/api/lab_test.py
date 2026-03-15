@@ -522,7 +522,7 @@ def create_lab_test(data):
 @frappe.whitelist()
 def update_lab_test_status(lab_test_name: str, new_status: str):
 	"""
-	Update Lab Test review status (Approved / Rejected)
+	Update Lab Test review status (Reviewed / Rejected)
 	for already submitted Lab Tests.
 	"""
 
@@ -532,7 +532,7 @@ def update_lab_test_status(lab_test_name: str, new_status: str):
 	if not new_status:
 		frappe.throw(_("New status is required"))
 
-	allowed_statuses = ["Approved", "Rejected"]
+	allowed_statuses = ["Reviewed", "Rejected"]
 	if new_status not in allowed_statuses:
 		frappe.throw(_("Invalid status change"))
 
@@ -551,7 +551,7 @@ def update_lab_test_status(lab_test_name: str, new_status: str):
 		"reviewed_by": frappe.session.user,
 	}
 
-	if new_status == "Approved":
+	if new_status == "Reviewed":
 		update_values["approved_date"] = frappe.utils.now_datetime()
 
 	# ✅ Direct DB update (safe for submitted docs)

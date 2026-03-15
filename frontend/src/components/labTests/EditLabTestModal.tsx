@@ -499,7 +499,7 @@ export const EditLabTestModal = ({ labTestName, onClose, onSuccess }: EditLabTes
                 <div className="space-y-0.5">
                   <div>Result Date: {labTest.result_date || '—'}</div>
                   <div>Submitted: {labTest.submitted_date || '—'}</div>
-                  <div>Approved Date: {labTest.approved_date || '—'}</div>
+                  <div>Reviewed Date: {labTest.approved_date || '—'}</div>
                 </div>
               </div>
 

@@ -420,6 +420,14 @@ export async function fetchPrescriptionFrequencies(search?: string): Promise<Lin
   return Array.isArray(data?.message) ? (data.message as LinkFieldOption[]) : []
 }
 
+export async function fetchRouteOfAdministrationList(search?: string): Promise<LinkFieldOption[]> {
+  const params = new URLSearchParams()
+  if (search) params.append('search', search)
+  const res = await fetch(`/api/method/healthcare.api.common.get_route_of_administration_list?${params.toString()}`)
+  const data = await res.json()
+  return Array.isArray(data?.message) ? (data.message as LinkFieldOption[]) : []
+}
+
 export async function fetchDiagnosis(search?: string): Promise<LinkFieldOption[]> {
   const params = new URLSearchParams()
   if (search) params.append('search', search)

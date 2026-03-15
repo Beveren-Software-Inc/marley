@@ -82,6 +82,16 @@ export interface CreatePrescriptionData {
   medication_orders?: MedicationOrderRow[]
 }
 
+export type LongActingFrequency = 'Weekly' | 'Biweekly' | 'Monthly' | 'Every 2 Months' | 'Every 3 Months'
+
+export const LONG_ACTING_FREQUENCY_OPTIONS: LongActingFrequency[] = [
+  'Weekly',
+  'Biweekly',
+  'Monthly',
+  'Every 2 Months',
+  'Every 3 Months',
+]
+
 export interface MedicationOrderRow {
   drug: string
   drug_name?: string
@@ -90,10 +100,15 @@ export interface MedicationOrderRow {
   dosage_form: string
   instructions?: string
   date: string
+  end_date?: string
   time: string
   patient_frequency?: string
   is_pink?: boolean
   reference_no?: string
+  route_of_administration?: string
+  /** When true, row is long-acting; show long_acting_frequency and create Long Acting Medicine on backend */
+  is_long_acting?: boolean
+  long_acting_frequency?: LongActingFrequency | string
 }
 
 export interface MedicationOrderEntry {
@@ -125,10 +140,14 @@ export async function createPrescription(
       dosage_form: row.dosage_form,
       instructions: row.instructions,
       date: row.date,
+      end_date: row.end_date,
       time: row.time,
       patient_frequency: row.patient_frequency,
       is_pink: row.is_pink,
       reference_no: row.reference_no,
+      route_of_administration: row.route_of_administration,
+      is_long_acting_medicine: row.is_long_acting ?? false,
+      long_acting_frequency: row.is_long_acting ? (row.long_acting_frequency || 'Weekly') : undefined,
     }))
   }
   return apiRequest<{ name: string }>(

@@ -582,6 +582,23 @@ def get_prescription_frequencies(search=None):
 
 
 @frappe.whitelist()
+def get_route_of_administration_list(search=None):
+	"""Get list of Route of Administration for prescription medication rows."""
+	filters = {}
+	if search:
+		filters["name"] = ["like", f"%{search}%"]
+	items = frappe.get_all(
+		"Route of Administration",
+		filters=filters,
+		fields=["name"],
+		order_by="name asc",
+		limit=50,
+	)
+	print("Uko hapa", items)
+	return [{"name": r.name, "label": r.name} for r in items]
+
+
+@frappe.whitelist()
 def get_diagnosis(search=None):
 	"""Get list of Diagnosis (doctype) for encounter diagnosis selection."""
 	filters = {}

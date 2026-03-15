@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { CreatePatientModal } from './CreatePatientModal'
+import { PatientAlertsBanner } from './PatientAlertsBanner'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { fetchPatientVisitsFull, type PatientVisitListRow } from '../../services/patientVisits'
@@ -9,9 +11,15 @@ interface PatientSearchProps {
   selectedPatient: string
   onPatientSelect: (patient: string | undefined) => void
   patients?: string[]
+  /** When true (default), shows warnings/allergies and medical history banner when a patient is selected. */
+  showAlertsBanner?: boolean
 }
 
-export const PatientSearch = ({ selectedPatient, onPatientSelect }: PatientSearchProps) => {
+export const PatientSearch = ({
+  selectedPatient,
+  onPatientSelect,
+  showAlertsBanner = true,
+}: PatientSearchProps) => {
   const { mode, setMode, setActiveVisit, setActiveAdmission } = useCareContext()
   const [patientQuery, setPatientQuery] = useState('')
   const [patientOpen, setPatientOpen] = useState(false)
@@ -25,6 +33,12 @@ export const PatientSearch = ({ selectedPatient, onPatientSelect }: PatientSearc
   const [secondaryResults, setSecondaryResults] = useState<
     { value: string; label: string; meta?: string }[]
   >([])
+  const [alertsBannerDismissed, setAlertsBannerDismissed] = useState(false)
+
+  // Reset alerts banner when patient changes so it shows again for the new patient
+  useEffect(() => {
+    setAlertsBannerDismissed(false)
+  }, [selectedPatient])
 
   // Load patient name when selectedPatient changes (e.g., from URL)
   useEffect(() => {
@@ -142,8 +156,38 @@ export const PatientSearch = ({ selectedPatient, onPatientSelect }: PatientSearc
     }
   }, [secondaryQuery, secondaryOpen, hasPatient, mode, selectedPatient])
 
+  const alertsPortal =
+    showAlertsBanner &&
+    selectedPatient &&
+    !alertsBannerDismissed &&
+    typeof document !== 'undefined' &&
+    document.getElementById('patient-alerts-portal')
+      ? createPortal(
+          <>
+            {/* Blurred backdrop over main body so the banner stands out; click to close */}
+            <button
+              type="button"
+              className="fixed inset-0 top-14 left-0 right-0 bottom-0 z-30 md:left-[240px] backdrop-blur-md bg-slate-900/10 cursor-default focus:outline-none"
+              onClick={() => setAlertsBannerDismissed(true)}
+              aria-label="Close patient alerts"
+            />
+            <div className="relative z-40">
+              <PatientAlertsBanner
+                patient={selectedPatient}
+                patientName={selectedPatientName || undefined}
+                dismissed={alertsBannerDismissed}
+                onDismiss={() => setAlertsBannerDismissed(true)}
+                visible={Boolean(selectedPatient)}
+              />
+            </div>
+          </>,
+          document.getElementById('patient-alerts-portal')!
+        )
+      : null
+
   return (
     <>
+      {alertsPortal}
       <div className="w-full max-w-xs md:max-w-xl">
         <div className="relative flex items-center gap-2">
           <div className="flex-1 relative">

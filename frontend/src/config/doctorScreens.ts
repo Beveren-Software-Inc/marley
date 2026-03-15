@@ -3,7 +3,7 @@ export const doctorScreens = [
   { id: 'pi', title: 'Patient Information', desc: 'Demographics and contact details.' },
   { id: 'dpn', title: 'Doctor Progress Note', desc: 'Daily progress notes.' },
   { id: 'dos', title: 'Doctors Order Sheet', desc: 'Orders for labs, meds, procedures.' },
-  { id: 'dn', title: 'Doctors Note', desc: 'Free-text notes.' },
+  // { id: 'dn', title: 'Doctors Note', desc: 'Free-text notes.' },
   { id: 'dmc', title: 'Doctor Medication Chart', desc: 'Medication chart overview.' },
   { id: 'admission', title: 'Admission', desc: 'View and manage inpatient admissions.' },
   { id: 'df', title: 'Discharge Form', desc: 'Discharge summary and instructions.' },

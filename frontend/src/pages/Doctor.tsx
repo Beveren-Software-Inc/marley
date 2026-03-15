@@ -67,6 +67,7 @@ export const DoctorPage = () => {
   const [observationRefreshKey, setObservationRefreshKey] = useState(0)
   const [dischargeRefreshKey, setDischargeRefreshKey] = useState(0)
   const [diagnosisRefreshKey, setDiagnosisRefreshKey] = useState(0)
+  const [doctorProgressNoteRefreshKey, setDoctorProgressNoteRefreshKey] = useState(0)
   const [clinicalNotesRefreshKey, setClinicalNotesRefreshKey] = useState(0)
   const [showServiceRequestModal, setShowServiceRequestModal] = useState(false)
   const [serviceRequestRefreshKey, setServiceRequestRefreshKey] = useState(0)
@@ -1508,6 +1509,28 @@ export const DoctorPage = () => {
               </div>
             </section>
 
+            {/* Card: Doctor Progress Notes (just before Lab Test) */}
+            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
+              <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
+                <span>Doctor Progress Notes</span>
+                <button
+                  onClick={() => setShowDoctorProgressNoteModal(true)}
+                  className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
+                  title="Add Doctor Progress Note"
+                >
+                  +
+                </button>
+              </div>
+              <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
+                <ClinicalNotesList
+                  patient={selectedPatient}
+                  medicalRole="Doctor"
+                  clinicalNoteType="Doctor Progress Note"
+                  key={doctorProgressNoteRefreshKey}
+                />
+              </div>
+            </section>
+
             {/* Card 3: Lab Test Reports */}
             <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
               <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
@@ -1754,6 +1777,19 @@ export const DoctorPage = () => {
           }}
         />
       )}
+      {showDoctorProgressNoteModal && selectedPatient && (
+        <CreateClinicalNoteModal
+          onClose={() => setShowDoctorProgressNoteModal(false)}
+          onSuccess={() => {
+            setDoctorProgressNoteRefreshKey(prev => prev + 1)
+            setShowDoctorProgressNoteModal(false)
+          }}
+          initialPatient={selectedPatient}
+          defaultClinicalNoteType="Doctor Progress Note"
+          title="Add Doctor Progress Note"
+        />
+      )}
+
       {showDiagnosisModal && selectedPatient && (
         <CreateClinicalNoteModal
           onClose={() => setShowDiagnosisModal(false)}
