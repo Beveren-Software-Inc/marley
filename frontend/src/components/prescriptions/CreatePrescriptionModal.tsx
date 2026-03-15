@@ -70,6 +70,7 @@ interface ComboboxProps {
   onQueryChange: (q: string) => void
   onSelect: (opt: LinkFieldOption) => void
   onOpen: () => void
+  onClear?: () => void
   label?: string
   required?: boolean
   renderOption?: (opt: LinkFieldOption) => React.ReactNode
@@ -85,6 +86,7 @@ const Combobox = ({
   onOpen,
   required,
   renderOption,
+  onClear,
 }: ComboboxProps) => {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -115,7 +117,24 @@ const Combobox = ({
           required={required}
           className="w-full rounded-md border border-slate-300 px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
         />
-        <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+        <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
+          {displayValue && onClear && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                onClear()
+                setOpen(false)
+              }}
+              className="text-slate-400 hover:text-slate-600 transition-colors p-0.5"
+              title="Clear"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+          <ChevronDown className="w-4 h-4 text-slate-400 pointer-events-none" />
+        </div>
       </div>
       {open && (
         <div className="absolute z-30 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-52 overflow-auto">
@@ -747,9 +766,14 @@ export const CreatePrescriptionModal = ({
                                 displayValue={row.patient_frequency ? (frequencies.find((f) => f.name === row.patient_frequency)?.label || row.patient_frequency) : ''}
                                 placeholder="Select..."
                                 options={frequencies}
-                                onQueryChange={() => {}}
+                                onQueryChange={(q) => {
+                                  if (!q) {
+                                    updateMedicationRow(index, 'patient_frequency', '')
+                                  }
+                                }}
                                 onOpen={() => {}}
                                 onSelect={(opt) => updateMedicationRow(index, 'patient_frequency', opt.name)}
+                                onClear={() => updateMedicationRow(index, 'patient_frequency', '')}
                               />
                             </div>
                             <div>
@@ -759,9 +783,14 @@ export const CreatePrescriptionModal = ({
                                 displayValue={row.route_of_administration ? (routeOfAdminOptions.find((r) => r.name === row.route_of_administration)?.label || row.route_of_administration) : ''}
                                 placeholder="Select..."
                                 options={routeOfAdminOptions}
-                                onQueryChange={() => {}}
+                                onQueryChange={(q) => {
+                                  if (!q) {
+                                    updateMedicationRow(index, 'route_of_administration', '')
+                                  }
+                                }}
                                 onOpen={() => {}}
                                 onSelect={(opt) => updateMedicationRow(index, 'route_of_administration', opt.name)}
+                                onClear={() => updateMedicationRow(index, 'route_of_administration', '')}
                               />
                             </div>
                             <div>
