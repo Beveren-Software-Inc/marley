@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback, memo } from 'react'
 import { createECTProcedure } from '../../services/ectProcedure'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
-import { fetchHealthcarePractitioners, type LinkFieldOption } from '../../services/common'
+import { fetchHealthcarePractitioners, fetchAnaesthesiaTypes, type LinkFieldOption } from '../../services/common'
 import { toast } from '../../hooks/useToast'
 
 interface CreateECTProcedureModalProps {
@@ -9,6 +9,69 @@ interface CreateECTProcedureModalProps {
   onSuccess?: () => void
   initialPatient?: string
 }
+
+// Memoized FormField to prevent unnecessary re-renders
+const FormField = memo(({ label, required = false, children }: { label: string; required?: boolean; children: React.ReactNode }) => (
+  <div>
+    <label className="block text-sm font-semibold text-slate-700 mb-2">
+      {label}
+      {required && <span className="text-red-500 ml-1">*</span>}
+    </label>
+    {children}
+  </div>
+))
+FormField.displayName = 'FormField'
+
+// Memoized InputField - pure component
+const InputField = memo(({ value, onChange, type = "text", placeholder = "", disabled = false }: { value: string; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void; type?: string; placeholder?: string; disabled?: boolean }) => (
+  <input
+    type={type}
+    value={value}
+    onChange={onChange}
+    placeholder={placeholder}
+    disabled={disabled}
+    className="w-full px-3 py-2.5 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+  />
+))
+InputField.displayName = 'InputField'
+
+// Memoized ComboboxField
+const ComboboxField = memo(({ query, onQueryChange, onFocus, isOpen, isLoading, options, onSelect, placeholder = "" }: any) => (
+  <div className="relative">
+    <input
+      type="text"
+      value={query}
+      onChange={(e) => {
+        onQueryChange(e.target.value)
+        onFocus()
+      }}
+      onFocus={onFocus}
+      placeholder={placeholder}
+      className="w-full px-3 py-2.5 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+    />
+    {isLoading && (
+      <div className="absolute right-3 top-2.5 text-slate-400 text-xs">Loading...</div>
+    )}
+    {isOpen && options.length > 0 && (
+      <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+        {options.map((option: any) => (
+          <button
+            key={option.name}
+            type="button"
+            onClick={() => onSelect(option)}
+            className="w-full text-left px-3 py-2.5 text-sm hover:bg-blue-50 focus:bg-blue-50 focus:outline-none transition-colors border-b border-slate-100 last:border-b-0"
+          >
+            <div className="font-medium text-slate-900">{option.label || option.patient_name}</div>
+            {(option.department || option.mobile) && (
+              <div className="text-xs text-slate-500">{option.department || option.mobile}</div>
+            )}
+          </button>
+        ))}
+      </div>
+    )}
+  </div>
+))
+ComboboxField.displayName = 'ComboboxField'
 
 export const CreateECTProcedureModal = ({
   onClose,
@@ -54,18 +117,28 @@ export const CreateECTProcedureModal = ({
   const [consultantOptions, setConsultantOptions] = useState<LinkFieldOption[]>([])
   const [assistantOptions, setAssistantOptions] = useState<LinkFieldOption[]>([])
   const [anaesthetistOptions, setAnaesthetistOptions] = useState<LinkFieldOption[]>([])
+  const [anaesthesiaOptions, setAnaesthesiaOptions] = useState<LinkFieldOption[]>([])
 
   const [consultantOpen, setConsultantOpen] = useState(false)
   const [assistantOpen, setAssistantOpen] = useState(false)
   const [anaesthetistOpen, setAnaesthetistOpen] = useState(false)
+  const [anaesthesiaOpen, setAnaesthesiaOpen] = useState(false)
 
   const [consultantQuery, setConsultantQuery] = useState('')
   const [assistantQuery, setAssistantQuery] = useState('')
   const [anaesthetistQuery, setAnaesthetistQuery] = useState('')
+  const [anaesthesiaQuery, setAnaesthesiaQuery] = useState('')
 
-  const handleChange = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }))
-  }
+  // Memoized change handler
+  const handleChange = useCallback((field: string, value: string) => {
+    setFormData(prev => {
+      // Only update if value actually changed
+      if (prev[field as keyof typeof prev] === value) {
+        return prev
+      }
+      return { ...prev, [field]: value }
+    })
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -201,7 +274,20 @@ export const CreateECTProcedureModal = ({
     return () => clearTimeout(t)
   }, [anaesthetistQuery, anaesthetistOpen])
 
-  const handlePatientSelect = (p: PatientListItem) => {
+  useEffect(() => {
+    if (!anaesthesiaOpen) return
+    const t = setTimeout(async () => {
+      try {
+        const results = await fetchAnaesthesiaTypes(anaesthesiaQuery || undefined)
+        setAnaesthesiaOptions(results)
+      } catch {
+        setAnaesthesiaOptions([])
+      }
+    }, anaesthesiaQuery.trim() === '' ? 0 : 300)
+    return () => clearTimeout(t)
+  }, [anaesthesiaQuery, anaesthesiaOpen])
+
+  const handlePatientSelect = useCallback((p: PatientListItem) => {
     setFormData(prev => ({
       ...prev,
       patient: p.name,
@@ -209,408 +295,380 @@ export const CreateECTProcedureModal = ({
     }))
     setPatientQuery(p.patient_name)
     setPatientOpen(false)
-  }
+  }, [])
 
-  const handleConsultantSelect = (d: LinkFieldOption) => {
+  const handleConsultantSelect = useCallback((d: LinkFieldOption) => {
     setFormData(prev => ({
       ...prev,
       consultant_doctor: d.name,
     }))
     setConsultantQuery(d.label)
     setConsultantOpen(false)
-  }
+  }, [])
 
-  const handleAssistantSelect = (d: LinkFieldOption) => {
+  const handleAssistantSelect = useCallback((d: LinkFieldOption) => {
     setFormData(prev => ({
       ...prev,
       assistant_doctor: d.name,
     }))
     setAssistantQuery(d.label)
     setAssistantOpen(false)
-  }
+  }, [])
 
-  const handleAnaesthetistSelect = (d: LinkFieldOption) => {
+  const handleAnaesthetistSelect = useCallback((d: LinkFieldOption) => {
     setFormData(prev => ({
       ...prev,
       anaesthetist: d.name,
     }))
     setAnaesthetistQuery(d.label)
     setAnaesthetistOpen(false)
-  }
+  }, [])
+
+  const handleAnaesthesiaSelect = useCallback((d: LinkFieldOption) => {
+    setFormData(prev => ({
+      ...prev,
+      type_of_anaesthesia: d.name,
+    }))
+    setAnaesthesiaQuery(d.label)
+    setAnaesthesiaOpen(false)
+  }, [])
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col">
-        <div className="p-4 border-b border-slate-200 flex items-center justify-between flex-shrink-0">
-          <h2 className="text-lg font-semibold text-slate-900">Create ECT Procedure</h2>
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[95vh] overflow-hidden flex flex-col">
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-gradient-to-r from-blue-50 to-slate-50 flex-shrink-0">
+          <div>
+            <h2 className="text-xl font-bold text-slate-900">Create ECT Procedure</h2>
+            <p className="text-xs text-slate-500 mt-0.5">Fill in the procedure details and vital signs</p>
+          </div>
           <button
             type="button"
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-600"
+            className="text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-lg p-1 transition-colors"
           >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex flex-col min-h-0 flex-1 overflow-hidden">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
           {error && (
-            <div className="mx-4 mt-3 bg-red-50 border border-red-200 rounded-md p-3 text-sm text-red-700 flex-shrink-0">
+            <div className="mx-4 mt-3 bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700 flex-shrink-0 flex items-center gap-2">
+              <svg className="w-5 h-5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              </svg>
               {error}
             </div>
           )}
 
-          <div className="p-4 overflow-y-auto flex-1 min-h-0 space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Patient <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  value={patientQuery}
-                  onChange={(e) => {
-                    setPatientQuery(e.target.value)
-                    setPatientOpen(true)
-                  }}
-                  onFocus={() => setPatientOpen(true)}
-                  placeholder="Search patient..."
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-                {patientLoading && (
-                  <div className="absolute right-3 top-2.5 text-slate-400 text-xs">Loading...</div>
-                )}
-                {patientOpen && patientOptions.length > 0 && (
-                  <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
-                    {patientOptions.map((p) => (
-                      <button
-                        key={p.name}
-                        type="button"
-                        onClick={() => handlePatientSelect(p)}
-                        className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 focus:bg-slate-100 focus:outline-none"
-                      >
-                        <div className="font-medium">{p.patient_name}</div>
-                        {p.mobile && <div className="text-xs text-slate-500">{p.mobile}</div>}
-                      </button>
-                    ))}
-                  </div>
-                )}
+          <div className="flex-1 overflow-y-auto p-6 space-y-6">
+            {/* Patient & Session Info */}
+            <section>
+              <div className="grid grid-cols-2 gap-4">
+                <FormField label="Patient" required>
+                  <ComboboxField
+                    query={patientQuery}
+                    onQueryChange={setPatientQuery}
+                    onFocus={() => setPatientOpen(true)}
+                    isOpen={patientOpen}
+                    isLoading={patientLoading}
+                    options={patientOptions}
+                    onSelect={handlePatientSelect}
+                    placeholder="Search patient..."
+                  />
+                </FormField>
+                <FormField label="Date of Procedure">
+                  <InputField 
+                    value={formData.date} 
+                    onChange={(e) => handleChange('date', e.target.value)} 
+                    type="date" 
+                  />
+                </FormField>
               </div>
-            </div>
+            </section>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Date</label>
-                <input
-                  type="date"
-                  value={formData.date}
-                  onChange={(e) => handleChange('date', e.target.value)}
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">NPO Since</label>
-                <input
-                  type="date"
-                  value={formData.npo_since}
-                  onChange={(e) => handleChange('npo_since', e.target.value)}
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Consultant Doctor</label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={consultantQuery}
-                    onChange={(e) => {
-                      setConsultantQuery(e.target.value)
-                      setConsultantOpen(true)
+            {/* Preparation Info */}
+            <section className="border-t border-slate-200 pt-4">
+              <h3 className="text-sm font-semibold text-slate-900 mb-4 flex items-center gap-2">
+                <span className="inline-block w-1 h-5 bg-slate-400 rounded-full"></span>
+                Pre-Procedure Preparation
+              </h3>
+              <div className="grid grid-cols-2 gap-4">
+                <FormField label="NPO Since">
+                  <InputField 
+                    value={formData.npo_since} 
+                    onChange={(e) => handleChange('npo_since', e.target.value)} 
+                    type="date" 
+                  />
+                </FormField>
+                <FormField label="Type of Anaesthesia">
+                  <ComboboxField
+                    query={anaesthesiaQuery}
+                    onQueryChange={(value: string) => {
+                      setAnaesthesiaQuery(value)
+                      setFormData(prev => ({ ...prev, type_of_anaesthesia: '' }))
+                      setAnaesthesiaOpen(true)
                     }}
+                    onFocus={() => setAnaesthesiaOpen(true)}
+                    isOpen={anaesthesiaOpen}
+                    options={anaesthesiaOptions}
+                    onSelect={handleAnaesthesiaSelect}
+                    placeholder="Search type of anaesthesia..."
+                  />
+                </FormField>
+                <FormField label="Date of Session">
+                  <InputField 
+                    value={formData.date_of_session} 
+                    onChange={(e) => handleChange('date_of_session', e.target.value)} 
+                    type="date" 
+                  />
+                </FormField>
+                <FormField label="Number of Session">
+                  <InputField 
+                    value={formData.no_of_session} 
+                    onChange={(e) => handleChange('no_of_session', e.target.value)} 
+                    type="number" 
+                    placeholder="0" 
+                  />
+                </FormField>
+              </div>
+            </section>
+
+            {/* Medical Team */}
+            <section className="border-t border-slate-200 pt-4">
+              <h3 className="text-sm font-semibold text-slate-900 mb-4 flex items-center gap-2">
+                <span className="inline-block w-1 h-5 bg-slate-400 rounded-full"></span>
+                Medical Team
+              </h3>
+              <div className="grid grid-cols-2 gap-4">
+                <FormField label="Consultant Doctor">
+                  <ComboboxField
+                    query={consultantQuery}
+                    onQueryChange={setConsultantQuery}
                     onFocus={() => setConsultantOpen(true)}
+                    isOpen={consultantOpen}
+                    options={consultantOptions}
+                    onSelect={handleConsultantSelect}
                     placeholder="Search consultant..."
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                   />
-                  {consultantOpen && consultantOptions.length > 0 && (
-                    <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
-                      {consultantOptions.map((d) => (
-                        <button
-                          key={d.name}
-                          type="button"
-                          onClick={() => handleConsultantSelect(d)}
-                          className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 focus:bg-slate-100 focus:outline-none"
-                        >
-                          <div className="font-medium">{d.label}</div>
-                          {d.department && (
-                            <div className="text-xs text-slate-500">{d.department}</div>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Assistant Doctor</label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={assistantQuery}
-                    onChange={(e) => {
-                      setAssistantQuery(e.target.value)
-                      setAssistantOpen(true)
-                    }}
+                </FormField>
+                <FormField label="Assistant Doctor">
+                  <ComboboxField
+                    query={assistantQuery}
+                    onQueryChange={setAssistantQuery}
                     onFocus={() => setAssistantOpen(true)}
+                    isOpen={assistantOpen}
+                    options={assistantOptions}
+                    onSelect={handleAssistantSelect}
                     placeholder="Search assistant..."
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                   />
-                  {assistantOpen && assistantOptions.length > 0 && (
-                    <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
-                      {assistantOptions.map((d) => (
-                        <button
-                          key={d.name}
-                          type="button"
-                          onClick={() => handleAssistantSelect(d)}
-                          className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 focus:bg-slate-100 focus:outline-none"
-                        >
-                          <div className="font-medium">{d.label}</div>
-                          {d.department && (
-                            <div className="text-xs text-slate-500">{d.department}</div>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Anaesthetist</label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={anaesthetistQuery}
-                    onChange={(e) => {
-                      setAnaesthetistQuery(e.target.value)
-                      setAnaesthetistOpen(true)
-                    }}
+                </FormField>
+                <FormField label="Anaesthetist">
+                  <ComboboxField
+                    query={anaesthetistQuery}
+                    onQueryChange={setAnaesthetistQuery}
                     onFocus={() => setAnaesthetistOpen(true)}
+                    isOpen={anaesthetistOpen}
+                    options={anaesthetistOptions}
+                    onSelect={handleAnaesthetistSelect}
                     placeholder="Search anaesthetist..."
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                   />
-                  {anaesthetistOpen && anaesthetistOptions.length > 0 && (
-                    <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
-                      {anaesthetistOptions.map((d) => (
-                        <button
-                          key={d.name}
-                          type="button"
-                          onClick={() => handleAnaesthetistSelect(d)}
-                          className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 focus:bg-slate-100 focus:outline-none"
-                        >
-                          <div className="font-medium">{d.label}</div>
-                          {d.department && (
-                            <div className="text-xs text-slate-500">{d.department}</div>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                </FormField>
               </div>
-            </div>
+            </section>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Date of Session</label>
-                <input
-                  type="date"
-                  value={formData.date_of_session}
-                  onChange={(e) => handleChange('date_of_session', e.target.value)}
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                />
+            {/* Vital Signs - Before Test */}
+            <section className="border-t border-slate-200 pt-4 bg-blue-50/40 p-4 rounded-lg">
+              <h3 className="text-sm font-bold text-blue-900 mb-4 flex items-center gap-2 uppercase tracking-wide">
+                <svg className="w-5 h-5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" />
+                </svg>
+                Before Test - Vital Signs
+              </h3>
+              <div className="grid grid-cols-2 gap-4">
+                <FormField label="Blood Pressure (BP)">
+                  <InputField 
+                    value={formData.bp} 
+                    onChange={(e) => handleChange('bp', e.target.value)} 
+                    placeholder="e.g., 120/80" 
+                  />
+                </FormField>
+                <FormField label="Heart Rate (HR)">
+                  <InputField 
+                    value={formData.hr} 
+                    onChange={(e) => handleChange('hr', e.target.value)} 
+                    placeholder="e.g., 72 bpm" 
+                  />
+                </FormField>
+                <FormField label="Temperature">
+                  <InputField 
+                    value={formData.temp} 
+                    onChange={(e) => handleChange('temp', e.target.value)} 
+                    placeholder="e.g., 37°C" 
+                  />
+                </FormField>
+                <FormField label="Respiratory Rate">
+                  <InputField 
+                    value={formData.resp_rate} 
+                    onChange={(e) => handleChange('resp_rate', e.target.value)} 
+                    placeholder="e.g., 16/min" 
+                  />
+                </FormField>
+                <FormField label="SpO₂ (Oxygen Saturation)">
+                  <InputField 
+                    value={formData.spo2} 
+                    onChange={(e) => handleChange('spo2', e.target.value)} 
+                    placeholder="e.g., 98%" 
+                  />
+                </FormField>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">No of Session</label>
-                <input
-                  type="number"
-                  value={formData.no_of_session}
-                  onChange={(e) => handleChange('no_of_session', e.target.value)}
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                  min={0}
-                />
-              </div>
-            </div>
+            </section>
 
-            <div className="grid grid-cols-5 gap-3">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">BP</label>
-                <input
-                  type="text"
-                  value={formData.bp}
-                  onChange={(e) => handleChange('bp', e.target.value)}
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                />
+            {/* Procedure Details */}
+            <section className="border-t border-slate-200 pt-4">
+              <h3 className="text-sm font-semibold text-slate-900 mb-4 flex items-center gap-2">
+                <span className="inline-block w-1 h-5 bg-slate-400 rounded-full"></span>
+                Procedure Details
+              </h3>
+              <div className="grid grid-cols-2 gap-4">
+                <FormField label="Energy (Joules)">
+                  <InputField 
+                    value={formData.energy} 
+                    onChange={(e) => handleChange('energy', e.target.value)} 
+                    placeholder="e.g., 200 J" 
+                  />
+                </FormField>
+                <FormField label="GTCs For (seconds)">
+                  <InputField 
+                    value={formData.gtcs_for} 
+                    onChange={(e) => handleChange('gtcs_for', e.target.value)} 
+                    placeholder="e.g., 45 sec" 
+                  />
+                </FormField>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">HR</label>
-                <input
-                  type="text"
-                  value={formData.hr}
-                  onChange={(e) => handleChange('hr', e.target.value)}
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Temp</label>
-                <input
-                  type="text"
-                  value={formData.temp}
-                  onChange={(e) => handleChange('temp', e.target.value)}
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Resp Rate</label>
-                <input
-                  type="text"
-                  value={formData.resp_rate}
-                  onChange={(e) => handleChange('resp_rate', e.target.value)}
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">SPO2</label>
-                <input
-                  type="text"
-                  value={formData.spo2}
-                  onChange={(e) => handleChange('spo2', e.target.value)}
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                />
-              </div>
-            </div>
+            </section>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Energy</label>
-                <input
-                  type="text"
-                  value={formData.energy}
-                  onChange={(e) => handleChange('energy', e.target.value)}
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                />
+            {/* Vital Signs - After Test */}
+            <section className="border-t border-slate-200 pt-4 bg-amber-50/40 p-4 rounded-lg">
+              <h3 className="text-sm font-bold text-amber-900 mb-4 flex items-center gap-2 uppercase tracking-wide">
+                <svg className="w-5 h-5 text-amber-600" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" />
+                </svg>
+                After Test - Vital Signs
+              </h3>
+              <div className="grid grid-cols-2 gap-4">
+                <FormField label="Blood Pressure (BP After)">
+                  <InputField 
+                    value={formData.bp_after} 
+                    onChange={(e) => handleChange('bp_after', e.target.value)} 
+                    placeholder="e.g., 120/80" 
+                  />
+                </FormField>
+                <FormField label="Heart Rate (HR After)">
+                  <InputField 
+                    value={formData.hr_after} 
+                    onChange={(e) => handleChange('hr_after', e.target.value)} 
+                    placeholder="e.g., 72 bpm" 
+                  />
+                </FormField>
+                <FormField label="Respiratory Rate (After)">
+                  <InputField 
+                    value={formData.resp_rate_after} 
+                    onChange={(e) => handleChange('resp_rate_after', e.target.value)} 
+                    placeholder="e.g., 16/min" 
+                  />
+                </FormField>
+                <FormField label="SpO₂ (After)">
+                  <InputField 
+                    value={formData.spo2_after} 
+                    onChange={(e) => handleChange('spo2_after', e.target.value)} 
+                    placeholder="e.g., 98%" 
+                  />
+                </FormField>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">GTCs For</label>
-                <input
-                  type="text"
-                  value={formData.gtcs_for}
-                  onChange={(e) => handleChange('gtcs_for', e.target.value)}
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                />
-              </div>
-            </div>
+            </section>
 
-            <div className="grid grid-cols-4 gap-3">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">BP After</label>
-                <input
-                  type="text"
-                  value={formData.bp_after}
-                  onChange={(e) => handleChange('bp_after', e.target.value)}
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                />
+            {/* Notes & Observations */}
+            <section className="border-t border-slate-200 pt-4">
+              <h3 className="text-sm font-semibold text-slate-900 mb-4 flex items-center gap-2">
+                <span className="inline-block w-1 h-5 bg-slate-400 rounded-full"></span>
+                Notes & Observations
+              </h3>
+              <div className="space-y-4">
+                <FormField label="Progress Plan">
+                  <textarea
+                    value={formData.progress_plan}
+                    onChange={(e) => handleChange('progress_plan', e.target.value)}
+                    placeholder="Enter progress plan..."
+                    className="w-full px-3 py-2.5 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all resize-none"
+                    rows={3}
+                  />
+                </FormField>
+                <FormField label="Complications / Contraindications">
+                  <textarea
+                    value={formData.other_complications}
+                    onChange={(e) => handleChange('other_complications', e.target.value)}
+                    placeholder="Document any complications or contraindications..."
+                    className="w-full px-3 py-2.5 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all resize-none"
+                    rows={3}
+                  />
+                </FormField>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">HR After</label>
-                <input
-                  type="text"
-                  value={formData.hr_after}
-                  onChange={(e) => handleChange('hr_after', e.target.value)}
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Resp Rate After</label>
-                <input
-                  type="text"
-                  value={formData.resp_rate_after}
-                  onChange={(e) => handleChange('resp_rate_after', e.target.value)}
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">SPO2 After</label>
-                <input
-                  type="text"
-                  value={formData.spo2_after}
-                  onChange={(e) => handleChange('spo2_after', e.target.value)}
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                />
-              </div>
-            </div>
+            </section>
 
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Progress Plan</label>
-              <textarea
-                value={formData.progress_plan}
-                onChange={(e) => handleChange('progress_plan', e.target.value)}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm min-h-[70px]"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Other Complications / Contraindications
-              </label>
-              <textarea
-                value={formData.other_complications}
-                onChange={(e) => handleChange('other_complications', e.target.value)}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm min-h-[70px]"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Sign Date</label>
-                <input
-                  type="date"
-                  value={formData.sign_date}
-                  onChange={(e) => handleChange('sign_date', e.target.value)}
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                />
+            {/* Sign Off */}
+            <section className="border-t border-slate-200 pt-4">
+              <h3 className="text-sm font-semibold text-slate-900 mb-4 flex items-center gap-2">
+                <span className="inline-block w-1 h-5 bg-green-400 rounded-full"></span>
+                Sign Off
+              </h3>
+              <div className="grid grid-cols-2 gap-4">
+                <FormField label="Procedure Sign Date">
+                  <InputField 
+                    value={formData.sign_date} 
+                    onChange={(e) => handleChange('sign_date', e.target.value)} 
+                    type="date" 
+                  />
+                </FormField>
+                <FormField label="Consultant Sign Date">
+                  <InputField 
+                    value={formData.consultant_sign_date} 
+                    onChange={(e) => handleChange('consultant_sign_date', e.target.value)} 
+                    type="date" 
+                  />
+                </FormField>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Consultant Sign Date
-                </label>
-                <input
-                  type="date"
-                  value={formData.consultant_sign_date}
-                  onChange={(e) => handleChange('consultant_sign_date', e.target.value)}
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                />
-              </div>
-            </div>
+            </section>
           </div>
 
-          <div className="px-4 py-3 border-t border-slate-200 bg-slate-50 flex justify-end gap-2 flex-shrink-0">
+          {/* Footer */}
+          <div className="px-6 py-4 border-t border-slate-200 bg-slate-50 flex justify-end gap-3 flex-shrink-0">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-sm rounded-md border border-slate-300 text-slate-700 hover:bg-slate-100"
               disabled={loading}
+              className="px-5 py-2.5 text-sm font-medium rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="px-4 py-2 text-sm rounded-md bg-primary text-white hover:bg-primary/90 disabled:opacity-50"
+              className="px-6 py-2.5 text-sm font-semibold rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-md hover:shadow-lg"
             >
-              {loading ? 'Saving...' : 'Save ECT Procedure'}
+              {loading ? (
+                <span className="flex items-center gap-2">
+                  <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Saving...
+                </span>
+              ) : (
+                'Save ECT Procedure'
+              )}
             </button>
           </div>
         </form>
@@ -618,4 +676,3 @@ export const CreateECTProcedureModal = ({
     </div>
   )
 }
-
