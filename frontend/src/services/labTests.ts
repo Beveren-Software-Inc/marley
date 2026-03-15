@@ -270,7 +270,7 @@ import { apiRequest } from './apiClient'
 
 export async function updateLabTestStatus(
   lab_test_name: string,
-  new_status: 'Approved' | 'Rejected'
+  new_status: 'Reviewed' | 'Rejected'
 ): Promise<void> {
   await apiRequest<void>(
     '/api/method/healthcare.api.lab_test.update_lab_test_status',

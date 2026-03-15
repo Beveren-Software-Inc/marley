@@ -36,13 +36,13 @@ const STATUS_OPTIONS = [
   'Requested',
   'Completed',
   'Pending Review',
-  'Approved',
+  'Reviewed',
   'Rejected',
   'Cancelled',
 ] as const
 
 const statusColors: Record<string, string> = {
-  'Approved': 'success',
+  'Reviewed': 'success',
   'Rejected': 'danger',
   'Completed': 'success',
   'Pending Review': 'warning',
@@ -393,15 +393,15 @@ export const LabTestList = ({
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
-  const handleStatusChange = async (name: string, newStatus: 'Approved' | 'Rejected') => {
+  const handleStatusChange = async (name: string, newStatus: 'Reviewed' | 'Rejected') => {
     setOpenActionRow(null)
     setActionLoading(name)
     try {
       await updateLabTestStatus(name, newStatus)
-      toast.success(`Lab test ${newStatus.toLowerCase()}`)
+      toast.success(newStatus === 'Reviewed' ? 'Lab test reviewed' : 'Lab test rejected')
       refetch()
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : `Failed to ${newStatus.toLowerCase()} lab test`)
+      toast.error(e instanceof Error ? e.message : `Failed to ${newStatus === 'Reviewed' ? 'review' : 'reject'} lab test`)
     } finally {
       setActionLoading(null)
     }
@@ -795,10 +795,10 @@ export const LabTestList = ({
                               <div className="border-t border-slate-100 my-1" />
                               <button
                                 type="button"
-                                onClick={() => handleStatusChange(labTest.name, 'Approved')}
+                                onClick={() => handleStatusChange(labTest.name, 'Reviewed')}
                                 className="block w-full text-left px-3 py-2 text-sm text-green-700 font-medium hover:bg-green-50"
                               >
-                                ✓ Approve
+                                ✓ Reviewed
                               </button>
                               <button
                                 type="button"

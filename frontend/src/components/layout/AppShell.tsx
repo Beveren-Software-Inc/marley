@@ -11,7 +11,7 @@ const nurseScreens = [
   { id: 'n-labs', title: 'Lab Reports Status' },
   { id: 'n-med', title: 'Medication' },
   { id: 'n-given', title: 'Given Medicines' },
-  { id: 'n-doc-notes', title: 'Doctors Notes' },
+  // { id: 'n-doc-notes', title: 'Doctors Notes' },
   { id: 'n-dx', title: 'Diagnoses' },
   { id: 'n-psy-order', title: 'Psychologist Order' },
   { id: 'n-nut', title: 'Nutritionist Notes' },
@@ -211,6 +211,12 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
         </nav>
       </aside>
       <main className="p-0 h-screen flex flex-col flex-1 md:ml-0">
+        {/* Portal target for patient alerts banner (body section, below header) */}
+        <div
+          id="patient-alerts-portal"
+          className="fixed top-14 left-0 right-0 z-30 md:left-[240px]"
+          aria-hidden
+        />
         <div className="flex-1 overflow-y-auto">{children}</div>
         <footer className="h-9 flex items-center justify-end px-4 text-[11px] text-white bg-gradient-to-r from-primary/70 via-primary to-primary/60">
           © 2025 Powered by <span className="font-semibold ml-1">Beveren Software Inc.</span>

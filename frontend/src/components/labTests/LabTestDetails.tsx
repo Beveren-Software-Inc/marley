@@ -5,7 +5,7 @@ import { updateLabTestStatus } from '../../services/labTests'
 import { toast } from '../../hooks/useToast'
 
 const statusColors: Record<string, string> = {
-  'Approved': 'success',
+  'Reviewed': 'success',
   'Rejected': 'danger',
   'Completed': 'success',
   'Submitted': 'info',
@@ -40,7 +40,7 @@ export const LabTestDetails = ({ labTestName, onUpdate }: LabTestDetailsProps) =
   const [labTest, setLabTest] = useState<LabTest | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
-  const [actionLoading, setActionLoading] = useState<'Approved' | 'Rejected' | null>(null)
+  const [actionLoading, setActionLoading] = useState<'Reviewed' | 'Rejected' | null>(null)
 
   const load = async () => {
     try {
@@ -57,15 +57,15 @@ export const LabTestDetails = ({ labTestName, onUpdate }: LabTestDetailsProps) =
 
   useEffect(() => { load() }, [labTestName])
 
-  const handleStatusChange = async (newStatus: 'Approved' | 'Rejected') => {
+  const handleStatusChange = async (newStatus: 'Reviewed' | 'Rejected') => {
     setActionLoading(newStatus)
     try {
       await updateLabTestStatus(labTestName, newStatus)
-      toast.success(`Lab test ${newStatus.toLowerCase()}`)
+      toast.success(newStatus === 'Reviewed' ? 'Lab test reviewed' : 'Lab test rejected')
       await load()
       onUpdate?.()
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : `Failed to ${newStatus.toLowerCase()} lab test`)
+      toast.error(e instanceof Error ? e.message : `Failed to ${newStatus === 'Reviewed' ? 'review' : 'reject'} lab test`)
     } finally {
       setActionLoading(null)
     }
@@ -180,7 +180,7 @@ export const LabTestDetails = ({ labTestName, onUpdate }: LabTestDetailsProps) =
             <Field label="Submitted" value={formatDatetime(labTest.submitted_date)} />
             <Field label="Result Date" value={formatDate(labTest.result_date)} />
             <Field label="Expected Result" value={formatDate(labTest.expected_result_date)} />
-            <Field label="Approved Date" value={formatDatetime(labTest.approved_date)} />
+            <Field label="Reviewed Date" value={formatDatetime(labTest.approved_date)} />
             <Field label="Printed On" value={formatDatetime(labTest.printed_on)} />
           </div>
         </div>
@@ -401,19 +401,19 @@ export const LabTestDetails = ({ labTestName, onUpdate }: LabTestDetailsProps) =
       <div className="border-t border-slate-200 pt-4">
         <SectionTitle title="Actions" />
         <div className="flex flex-wrap gap-2">
-          {labTest.status !== 'Approved' && (
+          {labTest.status !== 'Reviewed' && (
             <button
-              onClick={() => handleStatusChange('Approved')}
+              onClick={() => handleStatusChange('Reviewed')}
               disabled={!!actionLoading}
               className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50 flex items-center gap-1.5"
             >
-              {actionLoading === 'Approved' ? (
+              {actionLoading === 'Reviewed' ? (
                 <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
                 </svg>
               ) : '✓'}
-              Approve
+              Reviewed
             </button>
           )}
           {labTest.status !== 'Rejected' && (

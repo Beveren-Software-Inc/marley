@@ -62,8 +62,8 @@ frappe.ui.form.on('Lab Test', {
 		});
 
 		if (frappe.defaults.get_default('lab_test_approval_required') && frappe.user.has_role('LabTest Approver')) {
-			if (frm.doc.docstatus === 1 && frm.doc.status !== 'Approved' && frm.doc.status !== 'Rejected') {
-				frm.add_custom_button(__('Approve'), function () {
+			if (frm.doc.docstatus === 1 && frm.doc.status !== 'Reviewed' && frm.doc.status !== 'Rejected') {
+				frm.add_custom_button(__('Reviewed'), function () {
 					status_update(1, frm);
 				}, __('Actions'));
 				frm.add_custom_button(__('Reject'), function () {
@@ -166,7 +166,7 @@ var status_update = function (approve, frm) {
 	var doc = frm.doc;
 	var status = null;
 	if (approve == 1) {
-		status = 'Approved';
+		status = 'Reviewed';
 	}
 	else {
 		status = 'Rejected';

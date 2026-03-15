@@ -5,8 +5,8 @@ frappe.listview_settings['Lab Test'] = {
 	add_fields: ['name', 'status', 'invoiced'],
 	filters: [['docstatus', '=', '1']],
 	get_indicator: function (doc) {
-		if (doc.status === 'Approved') {
-			return [__('Approved'), 'green', 'status, =, Approved'];
+		if (doc.status === 'Reviewed') {
+			return [__('Reviewed'), 'green', 'status, =, Reviewed'];
 		} else if (doc.status === 'Rejected') {
 			return [__('Rejected'), 'orange', 'status, =, Rejected'];
 		} else if (doc.status === 'Completed') {

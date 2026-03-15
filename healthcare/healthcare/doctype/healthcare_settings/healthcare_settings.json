@@ -73,7 +73,8 @@
   "follow_up_end_year_message",
   "follow_up_reminder_after_discharge",
   "stock_tab",
-  "default_expiry_warehouse"
+  "default_expiry_warehouse",
+  "default_return_medicine"
  ],
  "fields": [
   {
@@ -498,11 +499,17 @@
    "fieldtype": "Data",
    "label": "Follow up Reminder After Discharge(Days)",
    "options": "\n"
+  },
+  {
+   "fieldname": "default_return_medicine",
+   "fieldtype": "Link",
+   "label": "Default Return Medicine",
+   "options": "Warehouse"
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-02-17 17:06:11.164066",
+ "modified": "2026-03-16 01:56:14.217664",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Settings",

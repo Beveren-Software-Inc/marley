@@ -582,6 +582,40 @@ def get_prescription_frequencies(search=None):
 
 
 @frappe.whitelist()
+def get_route_of_administration_list(search=None):
+	"""Get list of Route of Administration for prescription medication rows."""
+	filters = {}
+	if search:
+		filters["name"] = ["like", f"%{search}%"]
+	items = frappe.get_all(
+		"Route of Administration",
+		filters=filters,
+		fields=["name"],
+		order_by="name asc",
+		limit=50,
+	)
+	return [{"name": r.name, "label": r.name} for r in items]
+
+
+@frappe.whitelist()
+def get_long_acting_medicine_list(patient=None, limit=50, offset=0):
+	"""Get list of Long Acting Medicine docs for a patient (for Doctor dashboard card)."""
+	if not patient:
+		return []
+	limit = int(limit) if limit else 50
+	offset = int(offset) if offset else 0
+	docs = frappe.get_all(
+		"Long Acting Medicine",
+		filters={"patient": patient, "docstatus": ["!=", 2]},
+		fields=["name", "patient", "patient_name", "frequency", "start_date", "end_date", "next_run_date", "status"],
+		order_by="next_run_date asc",
+		limit=limit,
+		limit_start=offset,
+	)
+	return list(docs)
+
+
+@frappe.whitelist()
 def get_diagnosis(search=None):
 	"""Get list of Diagnosis (doctype) for encounter diagnosis selection."""
 	filters = {}

@@ -1,6 +1,7 @@
+import json
 import frappe
 from frappe import _
-from frappe.utils import nowdate, nowtime, cint, flt
+from frappe.utils import nowdate, nowtime, cint, flt, getdate
 
 
 def _get_or_create_admission_detail(admission: str):
@@ -356,6 +357,374 @@ def reconcile_discharge_medicines(admission: str) -> dict:
 	return {
 		"stock_entry": stock_entry.name,
 		"items": items_summary,
+	}
+
+
+def _get_reconciliation_remaining_per_entry(admission: str) -> list[dict]:
+	"""For an admission, compute remaining quantity per Inpatient Medication Order Entry using FIFO allocation of Medicine Given."""
+	order_names = frappe.get_all(
+		"Patient Medication Order",
+		filters={"inpatient_record": admission, "docstatus": 1},
+		pluck="name",
+	)
+	if not order_names:
+		return []
+
+	filters = {"parent": ["in", order_names]}
+	if frappe.db.has_column("Inpatient Medication Order Entry", "transferred_to_visit"):
+		filters["transferred_to_visit"] = ["is", "not set"]
+	if frappe.db.has_column("Inpatient Medication Order Entry", "returned_to_store"):
+		filters["returned_to_store"] = ["in", [0, ""]]
+	fields = ["name", "parent", "drug", "drug_name", "quantity", "date", "creation", "reason_stopped"]
+	if frappe.db.has_column("Inpatient Medication Order Entry", "returned_to_store"):
+		fields.append("returned_to_store")
+	entries = frappe.get_all(
+		"Inpatient Medication Order Entry",
+		filters=filters,
+		fields=fields,
+		order_by="date asc, creation asc",
+	)
+	if not entries:
+		return []
+
+	admission_detail_name = frappe.db.get_value("Admission Detail", {"admission": admission}, "name")
+	given_rows = []
+	if admission_detail_name:
+		given_rows = frappe.get_all(
+			"Medicine Given",
+			filters={"parent": admission_detail_name, "parenttype": "Admission Detail"},
+			fields=["medicine_code", "qty"],
+			order_by="date asc, time asc, creation asc",
+		)
+
+	# Per-drug: list of (entry_name, quantity); per-drug given to allocate
+	from collections import defaultdict
+	entries_by_drug = defaultdict(list)
+	for e in entries:
+		drug = e.get("drug")
+		if not drug or flt(e.get("quantity"), 0) <= 0:
+			continue
+		entries_by_drug[drug].append({"name": e["name"], "parent": e["parent"], "quantity": flt(e["quantity"]), "date": e.get("date"), "creation": e.get("creation"), "drug_name": e.get("drug_name")})
+
+	given_by_drug = defaultdict(lambda: 0)
+	for g in given_rows:
+		drug = g.get("medicine_code")
+		if drug:
+			given_by_drug[drug] += flt(g.get("qty") or 0)
+
+	# FIFO: for each drug, consume "given" from first entries first
+	remaining_per_entry = {}
+	for drug, entry_list in entries_by_drug.items():
+		to_allocate = given_by_drug.get(drug, 0)
+		for ent in entry_list:
+			allocated = min(ent["quantity"], to_allocate)
+			to_allocate -= allocated
+			rem = ent["quantity"] - allocated
+			row_data = {
+			"name": ent["name"],
+			"parent": ent["parent"],
+			"drug": drug,
+			"drug_name": ent.get("drug_name"),
+			"quantity": ent["quantity"],
+			"remaining": rem,
+		}
+		if "reason_stopped" in ent:
+			row_data["reason_stopped"] = ent.get("reason_stopped") or ""
+		if "returned_to_store" in ent:
+			row_data["returned_to_store"] = cint(ent.get("returned_to_store"))
+		remaining_per_entry[ent["name"]] = row_data
+
+	return [v for v in remaining_per_entry.values() if flt(v.get("remaining"), 0) > 0]
+
+
+@frappe.whitelist()
+def get_discharge_reconciliation_rows(admission: str) -> list[dict]:
+	"""Return list of Inpatient Medication Order Entry rows that have remaining (not yet given) quantity for medicine reconciliation on discharge."""
+	if not admission:
+		frappe.throw(_("Admission (Inpatient Admission) is required"))
+	rows = _get_reconciliation_remaining_per_entry(admission)
+	return rows
+
+
+def _get_warehouse_for_admission(admission: str):
+	admission_doc = frappe.get_doc("Inpatient Admission", admission)
+	company = admission_doc.company or frappe.defaults.get_user_default("Company")
+	if not company:
+		frappe.throw(_("Company is required to create Stock Entry"))
+	warehouse = frappe.db.get_value("Company", company, "default_warehouse") or frappe.db.get_single_value(
+		"Stock Settings", "default_warehouse"
+	)
+	if not warehouse:
+		frappe.throw(_("Default warehouse is not set. Please configure before reconciling medicines."))
+	return warehouse, company
+
+
+def _get_return_warehouse_for_admission(admission: str):
+	"""Warehouse for returning medicines to store (discharge reconciliation). Uses Healthcare Settings Default Return Medicine only."""
+	warehouse = frappe.db.get_single_value("Healthcare Settings", "default_return_medicine")
+	if not warehouse:
+		frappe.throw(
+			_("Default Return Medicine warehouse is not set. Please set it in Healthcare Settings to return medicines to store.")
+		)
+	admission_doc = frappe.get_doc("Inpatient Admission", admission)
+	company = admission_doc.company or frappe.defaults.get_user_default("Company")
+	if not company:
+		frappe.throw(_("Company is required to create Stock Entry"))
+	return warehouse, company
+
+
+@frappe.whitelist()
+def stop_medication_on_discharge(admission: str, order_entry_name: str, reason_stopped: str = "") -> dict:
+	"""Mark one medication order entry as stopped: save reason_stopped on the prescription child table. Use return_stopped_medications_to_store to create the stock entry for all stopped items."""
+	if not admission or not order_entry_name:
+		frappe.throw(_("Admission and order entry name are required"))
+
+	order_names = frappe.get_all(
+		"Patient Medication Order",
+		filters={"inpatient_record": admission, "docstatus": 1},
+		pluck="name",
+	)
+	if not order_names:
+		frappe.throw(_("No medication orders found for this admission."))
+	parent = frappe.db.get_value("Inpatient Medication Order Entry", order_entry_name, "parent")
+	if not parent or parent not in order_names:
+		frappe.throw(_("Order entry {0} does not belong to this admission.").format(frappe.bold(order_entry_name)))
+
+	frappe.db.set_value("Inpatient Medication Order Entry", order_entry_name, "reason_stopped", (reason_stopped or "").strip())
+	frappe.db.commit()
+	return {"message": "Reason saved. Use 'Return selected' to create stock entry for all stopped medicines."}
+
+
+def _get_stopped_entries_with_remaining(admission: str) -> list[dict]:
+	"""Return order entries for this admission that have reason_stopped set, not yet returned_to_store, with their remaining qty (FIFO)."""
+	order_names = frappe.get_all(
+		"Patient Medication Order",
+		filters={"inpatient_record": admission, "docstatus": 1},
+		pluck="name",
+	)
+	if not order_names:
+		return []
+	filters = {"parent": ["in", order_names], "reason_stopped": ["!=", ""]}
+	if frappe.db.has_column("Inpatient Medication Order Entry", "returned_to_store"):
+		filters["returned_to_store"] = ["in", [0, ""]]
+	if frappe.db.has_column("Inpatient Medication Order Entry", "transferred_to_visit"):
+		filters["transferred_to_visit"] = ["is", "not set"]
+	fields = ["name", "parent", "drug", "drug_name", "quantity", "date", "creation"]
+	stopped_entries = frappe.get_all(
+		"Inpatient Medication Order Entry",
+		filters=filters,
+		fields=fields,
+		order_by="date asc, creation asc",
+	)
+	if not stopped_entries:
+		return []
+	# Get remaining qty for each entry using same FIFO as full list (all entries for admission)
+	all_rows = _get_reconciliation_remaining_per_entry(admission)
+	remaining_by_name = {r["name"]: flt(r.get("remaining"), 0) for r in all_rows}
+	result = []
+	for e in stopped_entries:
+		rem = remaining_by_name.get(e["name"], 0)
+		if rem > 0:
+			result.append({
+				"name": e["name"],
+				"drug": e.get("drug"),
+				"drug_name": e.get("drug_name"),
+				"remaining": rem,
+			})
+	return result
+
+
+@frappe.whitelist()
+def return_stopped_medications_to_store(admission: str, order_entry_names: str | list | None = None) -> dict:
+	"""Create one Stock Entry (Material Receipt) for medications to return.
+	If order_entry_names is provided: return only those entries; each must have reason_stopped set.
+	If not provided: return all that have reason_stopped set and not yet returned."""
+	if not admission:
+		frappe.throw(_("Admission is required"))
+
+	if order_entry_names is not None:
+		names = order_entry_names if isinstance(order_entry_names, list) else json.loads(order_entry_names or "[]")
+	else:
+		names = None
+
+	if names is not None:
+		if not names:
+			return {"stock_entry": None, "message": "No medicines selected to return."}
+		# Validate each has reason_stopped; get remaining for each
+		order_names = frappe.get_all(
+			"Patient Medication Order",
+			filters={"inpatient_record": admission, "docstatus": 1},
+			pluck="name",
+		)
+		entries = frappe.get_all(
+			"Inpatient Medication Order Entry",
+			filters={"name": ["in", names], "parent": ["in", order_names]},
+			fields=["name", "drug", "drug_name", "quantity", "date", "creation", "reason_stopped"],
+		)
+		if len(entries) != len(names):
+			frappe.throw(_("One or more selected entries do not belong to this admission."))
+		# Require reason_stopped for each
+		missing = [e.get("drug_name") or e.get("drug") or e.get("name") for e in entries if not (e.get("reason_stopped") or "").strip()]
+		if missing:
+			frappe.throw(_("Reason stopped is required for each medicine being returned. Missing for: {0}").format(", ".join(missing)))
+		# Get remaining qty for these entries (FIFO)
+		all_rows = _get_reconciliation_remaining_per_entry(admission)
+		remaining_by_name = {r["name"]: flt(r.get("remaining"), 0) for r in all_rows}
+		stopped = []
+		for e in entries:
+			rem = remaining_by_name.get(e["name"], 0)
+			if rem > 0:
+				stopped.append({"name": e["name"], "drug": e.get("drug"), "drug_name": e.get("drug_name"), "remaining": rem})
+	else:
+		stopped = _get_stopped_entries_with_remaining(admission)
+
+	if not stopped:
+		return {"stock_entry": None, "message": "No medicines with remaining quantity to return."}
+
+	warehouse, company = _get_return_warehouse_for_admission(admission)
+	cost_center = frappe.get_cached_value("Company", company, "cost_center")
+
+	# Aggregate by drug (same drug can appear in multiple entries)
+	from collections import defaultdict
+	qty_by_drug = defaultdict(lambda: 0)
+	entry_names_by_drug = defaultdict(list)
+	for row in stopped:
+		drug = row.get("drug")
+		if drug:
+			qty_by_drug[drug] += flt(row.get("remaining"), 0)
+			entry_names_by_drug[drug].append(row["name"])
+
+	stock_entry = frappe.new_doc("Stock Entry")
+	stock_entry.purpose = "Material Receipt"
+	stock_entry.set_stock_entry_type()
+	stock_entry.to_warehouse = warehouse
+	stock_entry.company = company
+
+	items_summary = []
+	for drug, qty in qty_by_drug.items():
+		if qty <= 0:
+			continue
+		item_row = stock_entry.append("items", {})
+		item_row.item_code = drug
+		item_row.item_name = frappe.db.get_value("Item", drug, "item_name") or drug
+		item_row.uom = frappe.db.get_value("Item", drug, "stock_uom")
+		item_row.stock_uom = item_row.uom
+		item_row.t_warehouse = warehouse
+		item_row.qty = qty
+		item_row.conversion_factor = 1
+		if cost_center:
+			item_row.cost_center = cost_center
+		items_summary.append({"item_code": drug, "qty": qty})
+
+	stock_entry.insert()
+
+	# Mark all stopped entries that were included as returned_to_store
+	if frappe.db.has_column("Inpatient Medication Order Entry", "returned_to_store"):
+		all_entry_names = [row["name"] for row in stopped]
+		for name in all_entry_names:
+			frappe.db.set_value("Inpatient Medication Order Entry", name, "returned_to_store", 1)
+		frappe.db.commit()
+
+	return {"stock_entry": stock_entry.name, "items": items_summary}
+
+
+@frappe.whitelist()
+def transfer_medications_on_discharge(admission: str, order_entry_names: str | list) -> dict:
+	"""Create a Patient Visit (Follow-up for the Psychiatrist) and a new Patient Medication Order linked to it and to the admission, with the selected order entries copied over."""
+	if not admission:
+		frappe.throw(_("Admission is required"))
+	if not order_entry_names:
+		frappe.throw(_("At least one order entry must be selected to transfer"))
+
+	names = order_entry_names if isinstance(order_entry_names, list) else json.loads(order_entry_names or "[]")
+	if not names:
+		frappe.throw(_("At least one order entry must be selected to transfer"))
+
+	admission_doc = frappe.get_doc("Inpatient Admission", admission)
+	patient = admission_doc.patient
+	patient_name = admission_doc.patient_name
+	practitioner = getattr(admission_doc, "primary_practitioner", None) or getattr(admission_doc, "secondary_practitioner", None)
+	company = admission_doc.company or frappe.defaults.get_user_default("Company")
+	if not company:
+		frappe.throw(_("Company is required"))
+
+	# Validate all entries belong to this admission's PMOs
+	order_names = frappe.get_all(
+		"Patient Medication Order",
+		filters={"inpatient_record": admission, "docstatus": 1},
+		pluck="name",
+	)
+	entries = frappe.get_all(
+		"Inpatient Medication Order Entry",
+		filters={"name": ["in", names], "parent": ["in", order_names]},
+		fields=["name", "parent", "drug", "drug_name", "dosage", "no_of_days", "dosage_form", "instructions", "date", "time", "patient_frequency", "is_pink", "reference_no", "route_of_administration", "is_long_acting_medicine", "end_date"],
+	)
+	if len(entries) != len(names):
+		frappe.throw(_("One or more selected entries do not belong to this admission."))
+
+	# Create Patient Visit: type Follow-up for the Psychiatrist
+	visit_type = "Follow-up for the Psychiatrist"
+	pv = frappe.new_doc("Patient Visit")
+	pv.patient = patient
+	pv.patient_name = patient_name
+	pv.visit_type = visit_type
+	pv.status = "Open"
+	pv.encounter_date = getdate(nowdate())
+	pv.inpatient_record = admission
+	if practitioner:
+		pv.practitioner = practitioner
+	pv.company = company
+	pv.insert(ignore_permissions=True)
+	frappe.db.commit()
+
+	# Build medication_orders list from selected entries for create_patient_medication_order
+	from healthcare.api.patient_medication_order import create_patient_medication_order
+
+	medication_orders = []
+	for e in entries:
+		medication_orders.append({
+			"drug": e.get("drug"),
+			"dosage": e.get("dosage"),
+			"no_of_days": e.get("no_of_days"),
+			"dosage_form": e.get("dosage_form"),
+			"instructions": e.get("instructions") or "",
+			"date": e.get("date"),
+			"time": e.get("time") or "00:00:00",
+			"patient_frequency": e.get("patient_frequency"),
+			"is_pink": cint(e.get("is_pink")),
+			"reference_no": e.get("reference_no") or "",
+			"route_of_administration": e.get("route_of_administration"),
+			"is_long_acting_medicine": cint(e.get("is_long_acting_medicine")),
+			"end_date": e.get("end_date"),
+		})
+
+	start_date = nowdate()
+	result = create_patient_medication_order(
+		patient=patient,
+		care_context="Patient Visit",
+		company=company,
+		start_date=start_date,
+		patient_encounter=pv.name,
+		inpatient_record=None,
+		practitioner=practitioner,
+		medication_orders=medication_orders,
+	)
+	pmo_name = result.get("name")
+
+	# Link the new PMO to the inpatient admission as well (inpatient_record field)
+	if pmo_name:
+		frappe.db.set_value("Patient Medication Order", pmo_name, "inpatient_record", admission)
+		frappe.db.commit()
+
+	# Mark these order entries as transferred so they no longer appear in reconciliation list
+	if frappe.db.has_column("Inpatient Medication Order Entry", "transferred_to_visit"):
+		for name in names:
+			frappe.db.set_value("Inpatient Medication Order Entry", name, "transferred_to_visit", pv.name)
+		frappe.db.commit()
+
+	return {
+		"patient_visit": pv.name,
+		"patient_medication_order": pmo_name,
 	}
 
 

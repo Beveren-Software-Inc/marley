@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { createDischarge, UnbilledServicesError } from '../../services/inpatientRecords'
 import { uploadPatientFile, type PatientDocumentRow } from '../../services/patients'
 import { MedicineGivenList } from '../medication/MedicineGivenList'
+import { MedicineReconciliationList } from '../medication/MedicineReconciliationList'
 import { fetchHealthcarePractitioners, fetchUsers, fetchDischargeTemplates, fetchDischargeChecklist, fetchDepartments, fetchDocumentTypes, type LinkFieldOption } from '../../services/common'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { toast } from '../../hooks/useToast'
@@ -1148,13 +1149,24 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
 
           {/* ── TAB: MEDICINE RECONCILIATION ── */}
           {activeTab === 'reconcile' && (
-            <div className="p-6 space-y-3">
+            <div className="p-6 space-y-6">
               <h3 className="text-sm font-semibold text-slate-700 mb-1">Medicine Reconciliation</h3>
               <p className="text-xs text-slate-600 mb-2">
-                Review medicines given during this admission and ensure remaining doses are reconciled back to Pharmacy
-                before final discharge.
+                Review medicines given during this admission and reconcile remaining doses (return to store or transfer to follow-up).
               </p>
-              <MedicineGivenList patient={admission.patient} />
+              <div className="space-y-4">
+                <div>
+                  <h4 className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Medicines given</h4>
+                  <MedicineGivenList patient={admission.patient} />
+                </div>
+                <div>
+                  <h4 className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Medicines not given (remaining)</h4>
+                  <MedicineReconciliationList
+                    admission={admission.name}
+                    onRefresh={() => {}}
+                  />
+                </div>
+              </div>
             </div>
           )}
 
