@@ -616,6 +616,59 @@ def get_long_acting_medicine_list(patient=None, limit=50, offset=0):
 
 
 @frappe.whitelist()
+def get_long_acting_medicine_list_for_reception(start_date=None, frequency=None, patient=None, limit=50, offset=0):
+	"""Get Long Acting Medicine docs for receptionist view, with optional filters.
+
+	- start_date: filter by start_date (exact date)
+	- frequency: filter by frequency (Weekly, Biweekly, etc.)
+	- patient: optional filter by patient
+	"""
+	limit = int(limit) if limit else 50
+	offset = int(offset) if offset else 0
+
+	filters = {"docstatus": ["!=", 2]}
+	if start_date:
+		filters["start_date"] = start_date
+	if frequency:
+		filters["frequency"] = frequency
+	if patient:
+		filters["patient"] = patient
+
+	docs = frappe.get_all(
+		"Long Acting Medicine",
+		filters=filters,
+		fields=[
+			"name",
+			"patient",
+			"patient_name",
+			"frequency",
+			"start_date",
+			"end_date",
+			"next_run_date",
+			"status",
+		],
+		order_by="next_run_date asc, start_date asc, name asc",
+		limit=limit,
+		limit_start=offset,
+	)
+	return list(docs)
+
+
+@frappe.whitelist()
+def send_long_acting_medicine_reminder(name: str):
+	"""Placeholder: send reminder for a Long Acting Medicine. Currently just returns success.
+
+	You can extend this to send SMS/Email using the Communication doctype or external gateway.
+	"""
+	if not name:
+		frappe.throw(_("Long Acting Medicine name is required"))
+	if not frappe.db.exists("Long Acting Medicine", name):
+		frappe.throw(_("Long Acting Medicine {0} does not exist").format(frappe.bold(name)))
+	# For now, no-op; hook in real messaging here if desired.
+	return {"sent": True}
+
+
+@frappe.whitelist()
 def get_diagnosis(search=None):
 	"""Get list of Diagnosis (doctype) for encounter diagnosis selection."""
 	filters = {}

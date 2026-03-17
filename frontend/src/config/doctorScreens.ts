@@ -31,7 +31,8 @@ export const doctorScreens = [
   { id: 'ipm', title: 'IP Medication', desc: 'Inpatient medications.' },
   { id: 'pvh', title: 'Patient Visit History', desc: 'Prior encounters.' },
   { id: 'pkg', title: 'Package Detail', desc: 'Package info.' },
-  { id: 'nurse-tasks', title: 'Nursing Task Assignment', desc: 'Assign and view nursing tasks.' }
+  { id: 'nurse-tasks', title: 'Nursing Task Assignment', desc: 'Assign and view nursing tasks.' },
+  { id: 'd-long-acting-meds', title: 'Long Acting Medicine', desc: 'View and manage long acting medicine.' }
 ].sort((a, b) => a.title.localeCompare(b.title))
 
 
