@@ -1,0 +1,104 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "MAS-.{MM}-.{YY}-.#####",
+ "creation": "2026-03-17 18:32:02.412616",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "inpatient_admission",
+  "patient_visit",
+  "patient",
+  "column_break_phst",
+  "patient_name",
+  "template",
+  "alderete_score_section",
+  "alderete_score",
+  "section_break_aipu",
+  "total_score"
+ ],
+ "fields": [
+  {
+   "fieldname": "alderete_score_section",
+   "fieldtype": "Section Break",
+   "label": "Alderete Score"
+  },
+  {
+   "fieldname": "alderete_score",
+   "fieldtype": "Table",
+   "label": "Alderete Score",
+   "options": "Modified Alderete Score Detail"
+  },
+  {
+   "fieldname": "inpatient_admission",
+   "fieldtype": "Link",
+   "label": "Inpatient Admission",
+   "options": "Inpatient Admission"
+  },
+  {
+   "fieldname": "patient_visit",
+   "fieldtype": "Link",
+   "label": "Patient Visit",
+   "options": "Patient Visit"
+  },
+  {
+   "fieldname": "patient",
+   "fieldtype": "Link",
+   "label": "Patient",
+   "options": "Patient"
+  },
+  {
+   "fieldname": "column_break_phst",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "patient_name",
+   "fieldtype": "Data",
+   "label": "Patient Name"
+  },
+  {
+   "fieldname": "template",
+   "fieldtype": "Link",
+   "label": "Template ",
+   "options": "Modified Alderete Score Template",
+   "unique": 1
+  },
+  {
+   "fieldname": "section_break_aipu",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "total_score",
+   "fieldtype": "Float",
+   "label": "Total Score"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-03-17 18:37:42.622551",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Modified Alderete Score",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

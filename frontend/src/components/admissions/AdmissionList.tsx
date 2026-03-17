@@ -14,6 +14,8 @@ import { SuicidalPatientAssessmentModal } from './SuicidalPatientAssessmentModal
 import { RecoveryRoomRecordModal } from './RecoveryRoomRecordModal'
 import { AnesthesiaRecordModal } from './AnesthesiaRecordModal'
 import { TimeOutProcedureModal } from './TimeOutProcedureModal'
+import { PreEctChecklistModal } from './PreEctChecklistModal'
+import { ModifiedAldereteScoreModal } from './ModifiedAldereteScoreModal'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import type { InpatientRecord, InpatientPackage } from '../../services/inpatientRecords'
@@ -55,6 +57,10 @@ export const AdmissionList = ({ onAdmissionSelect, searchQuery: externalSearchQu
   const [anesthesiaAdmission, setAnesthesiaAdmission] = useState<InpatientRecord | null>(null)
   const [showTimeOut, setShowTimeOut] = useState(false)
   const [timeOutAdmission, setTimeOutAdmission] = useState<InpatientRecord | null>(null)
+  const [showPreEct, setShowPreEct] = useState(false)
+  const [preEctAdmission, setPreEctAdmission] = useState<InpatientRecord | null>(null)
+  const [showAldereteScore, setShowAldereteScore] = useState(false)
+  const [aldereteScoreAdmission, setAldereteScoreAdmission] = useState<InpatientRecord | null>(null)
 
   // --- Filter: Admission No (searchable dropdown) ---
   const [admissionNoQuery, setAdmissionNoQuery] = useState('')
@@ -535,6 +541,32 @@ export const AdmissionList = ({ onAdmissionSelect, searchQuery: externalSearchQu
                                   Time Out Procedure
                                 </button>
                               )}
+                              {(record.status === 'Admission Scheduled' || record.status === 'Admitted') && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setPreEctAdmission(record)
+                                    setShowPreEct(true)
+                                    setOpenActionRow(null)
+                                  }}
+                                  className="block w-full text-left px-3 py-2 text-sm text-cyan-700 hover:bg-cyan-50"
+                                >
+                                  Pre-ECT Checklist
+                                </button>
+                              )}
+                              {(record.status === 'Admission Scheduled' || record.status === 'Admitted') && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setAldereteScoreAdmission(record)
+                                    setShowAldereteScore(true)
+                                    setOpenActionRow(null)
+                                  }}
+                                  className="block w-full text-left px-3 py-2 text-sm text-violet-700 hover:bg-violet-50"
+                                >
+                                  Modified Alderete Score
+                                </button>
+                              )}
                               {record.status === 'Discharge Scheduled' && (
                                 <button
                                   type="button"
@@ -721,6 +753,26 @@ export const AdmissionList = ({ onAdmissionSelect, searchQuery: externalSearchQu
           patientName={timeOutAdmission.patient_name}
           onClose={() => { setShowTimeOut(false); setTimeOutAdmission(null) }}
           onSuccess={() => { setShowTimeOut(false); setTimeOutAdmission(null) }}
+        />
+      )}
+
+      {showPreEct && preEctAdmission && (
+        <PreEctChecklistModal
+          admissionNo={preEctAdmission.name}
+          patient={preEctAdmission.patient}
+          patientName={preEctAdmission.patient_name}
+          onClose={() => { setShowPreEct(false); setPreEctAdmission(null) }}
+          onSuccess={() => { setShowPreEct(false); setPreEctAdmission(null) }}
+        />
+      )}
+
+      {showAldereteScore && aldereteScoreAdmission && (
+        <ModifiedAldereteScoreModal
+          admissionNo={aldereteScoreAdmission.name}
+          patient={aldereteScoreAdmission.patient}
+          patientName={aldereteScoreAdmission.patient_name}
+          onClose={() => { setShowAldereteScore(false); setAldereteScoreAdmission(null) }}
+          onSuccess={() => { setShowAldereteScore(false); setAldereteScoreAdmission(null) }}
         />
       )}
     </>

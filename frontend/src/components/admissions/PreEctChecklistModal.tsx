@@ -1,0 +1,781 @@
+import { useState, useRef, useCallback, useEffect } from 'react'
+import { apiRequest } from '../../services/apiClient'
+import { uploadPatientFile } from '../../services/patients'
+import { fetchHealthcarePractitioners, fetchPatientVisits, type LinkFieldOption } from '../../services/common'
+import { toast } from '../../hooks/useToast'
+import { X, PenLine, Trash2, Check, ChevronDown, Plus, AlertCircle } from 'lucide-react'
+
+// ─── Signature Pad ────────────────────────────────────────────────────────────
+
+interface SignaturePadProps {
+  onSave: (file: File) => void
+  onClear?: () => void
+  existingUrl?: string
+  uploading?: boolean
+}
+
+const SignaturePad = ({ onSave, onClear, existingUrl, uploading }: SignaturePadProps) => {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const isDrawing = useRef(false)
+  const [hasStrokes, setHasStrokes] = useState(false)
+  const [mode, setMode] = useState<'idle' | 'drawing' | 'done'>(existingUrl ? 'done' : 'idle')
+
+  const initCtx = useCallback(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return null
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return null
+    ctx.strokeStyle = '#1e293b'
+    ctx.lineWidth = 2.2
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+    return ctx
+  }, [])
+
+  const getPos = (e: React.MouseEvent | React.TouchEvent, canvas: HTMLCanvasElement) => {
+    const rect = canvas.getBoundingClientRect()
+    const scaleX = canvas.width / rect.width
+    const scaleY = canvas.height / rect.height
+    if ('touches' in e) {
+      const t = e.touches[0]
+      return { x: (t.clientX - rect.left) * scaleX, y: (t.clientY - rect.top) * scaleY }
+    }
+    return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY }
+  }
+
+  const startDraw = (e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault()
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = initCtx()
+    if (!ctx) return
+    isDrawing.current = true
+    const pos = getPos(e, canvas)
+    ctx.beginPath()
+    ctx.moveTo(pos.x, pos.y)
+  }
+
+  const draw = (e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault()
+    if (!isDrawing.current) return
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = initCtx()
+    if (!ctx) return
+    const pos = getPos(e, canvas)
+    ctx.lineTo(pos.x, pos.y)
+    ctx.stroke()
+    setHasStrokes(true)
+  }
+
+  const endDraw = () => { isDrawing.current = false }
+
+  const clearCanvas = () => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    canvas.getContext('2d')?.clearRect(0, 0, canvas.width, canvas.height)
+    setHasStrokes(false)
+    onClear?.()
+  }
+
+  const saveSignature = () => {
+    canvasRef.current?.toBlob(blob => {
+      if (!blob) return
+      const file = new File([blob], `pre_ect_signature_${Date.now()}.png`, { type: 'image/png' })
+      onSave(file)
+      setMode('done')
+    }, 'image/png')
+  }
+
+  useEffect(() => {
+    if (mode !== 'drawing') return
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const rect = canvas.getBoundingClientRect()
+    canvas.width = rect.width * window.devicePixelRatio
+    canvas.height = rect.height * window.devicePixelRatio
+    const ctx = canvas.getContext('2d')
+    if (ctx) ctx.scale(window.devicePixelRatio, window.devicePixelRatio)
+    setHasStrokes(false)
+  }, [mode])
+
+  if (mode === 'idle') {
+    return (
+      <button type="button" onClick={() => setMode('drawing')}
+        className="w-full min-h-[96px] flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-slate-200 text-slate-400 hover:border-green-400 hover:text-green-600 hover:bg-green-50/50 transition-all group">
+        <PenLine className="w-5 h-5 group-hover:scale-110 transition-transform" />
+        <span className="text-xs font-medium">Click to add signature</span>
+      </button>
+    )
+  }
+
+  if (mode === 'done' && existingUrl) {
+    return (
+      <div className="w-full min-h-[96px] flex flex-col items-center justify-center gap-2 rounded-lg border border-green-200 bg-green-50 p-3">
+        <img src={existingUrl} alt="Signature" className="max-h-20 object-contain" />
+        <button type="button" onClick={() => { setMode('drawing'); clearCanvas() }}
+          className="text-xs text-slate-500 hover:text-red-500 flex items-center gap-1 transition-colors">
+          <Trash2 className="w-3 h-3" /> Re-sign
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="w-full rounded-lg border border-slate-300 bg-white overflow-hidden flex flex-col">
+      <div className="flex items-center justify-between px-2.5 py-1.5 border-b border-slate-100 bg-slate-50">
+        <span className="text-xs font-medium text-slate-500 flex items-center gap-1">
+          <PenLine className="w-3 h-3" /> Draw signature
+        </span>
+        <div className="flex items-center gap-1">
+          <button type="button" onClick={clearCanvas} disabled={!hasStrokes}
+            className="text-xs text-slate-400 hover:text-red-500 disabled:opacity-30 flex items-center gap-0.5 px-1.5 py-0.5 rounded hover:bg-red-50 transition-colors">
+            <Trash2 className="w-3 h-3" /> Clear
+          </button>
+          <button type="button" onClick={() => { setMode('idle'); clearCanvas() }}
+            className="text-xs text-slate-400 hover:text-slate-600 px-1.5 py-0.5 rounded hover:bg-slate-100 transition-colors">
+            Cancel
+          </button>
+        </div>
+      </div>
+      <div className="relative" style={{ touchAction: 'none' }}>
+        <canvas ref={canvasRef}
+          style={{ width: '100%', height: '120px', display: 'block', cursor: 'crosshair' }}
+          onMouseDown={startDraw} onMouseMove={draw} onMouseUp={endDraw} onMouseLeave={endDraw}
+          onTouchStart={startDraw} onTouchMove={draw} onTouchEnd={endDraw}
+        />
+        {!hasStrokes && (
+          <span className="absolute inset-0 flex items-center justify-center text-xs text-slate-300 pointer-events-none select-none">
+            Sign here
+          </span>
+        )}
+      </div>
+      <div className="px-2.5 py-2 border-t border-slate-100 flex justify-end">
+        <button type="button" onClick={saveSignature} disabled={!hasStrokes || uploading}
+          className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md bg-green-600 text-white hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+          {uploading
+            ? <span className="flex items-center gap-1"><span className="w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin" />Saving…</span>
+            : <><Check className="w-3 h-3" /> Save Signature</>}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ─── Link Combobox ────────────────────────────────────────────────────────────
+
+interface LinkComboboxProps {
+  label: string
+  value: string
+  onSelect: (opt: LinkFieldOption) => void
+  onClear: () => void
+  fetchOptions: (search: string) => Promise<LinkFieldOption[]>
+  placeholder?: string
+}
+
+const LinkCombobox = ({ label, value, onSelect, onClear, fetchOptions, placeholder }: LinkComboboxProps) => {
+  const [query, setQuery] = useState(value)
+  const [options, setOptions] = useState<LinkFieldOption[]>([])
+  const [open, setOpen] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => { setQuery(value) }, [value])
+
+  useEffect(() => {
+    if (!open) return
+    const t = setTimeout(async () => {
+      setLoading(true)
+      try { setOptions(await fetchOptions(query)) }
+      catch { setOptions([]) }
+      finally { setLoading(false) }
+    }, query.trim() === '' ? 0 : 300)
+    return () => clearTimeout(t)
+  }, [query, open, fetchOptions])
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const lc = 'block text-xs font-semibold text-slate-600 mb-1'
+  const ic = 'w-full rounded-md border border-slate-300 px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white'
+
+  return (
+    <div ref={containerRef} className="relative">
+      <label className={lc}>{label}</label>
+      <div className="relative">
+        <input type="text" value={query}
+          onChange={e => { setQuery(e.target.value); onClear(); setOpen(true) }}
+          onFocus={() => setOpen(true)}
+          placeholder={placeholder ?? 'Search...'}
+          className={ic} autoComplete="off" />
+        <span className="absolute inset-y-0 right-2 flex items-center pointer-events-none text-slate-400">
+          {loading
+            ? <span className="w-3.5 h-3.5 border-2 border-slate-300 border-t-primary rounded-full animate-spin" />
+            : <ChevronDown className="w-3.5 h-3.5" />}
+        </span>
+      </div>
+      {open && (
+        <div className="absolute z-30 mt-1 w-full bg-white border border-slate-200 rounded-md shadow-lg max-h-52 overflow-y-auto">
+          {options.length === 0
+            ? <div className="px-3 py-2 text-xs text-slate-400">{loading ? 'Searching…' : 'No results found'}</div>
+            : options.map(opt => (
+              <button key={opt.name} type="button"
+                className="w-full text-left px-3 py-2 text-sm hover:bg-primary/5 focus:outline-none"
+                onClick={() => { onSelect(opt); setQuery(opt.label); setOpen(false) }}>
+                <span className="font-medium text-slate-800">{opt.label}</span>
+                {opt.label !== opt.name && <span className="ml-1.5 text-xs text-slate-400">{opt.name}</span>}
+              </button>
+            ))
+          }
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface PreEctChecklistModalProps {
+  admissionNo: string
+  patient: string
+  patientName?: string
+  onClose: () => void
+  onSuccess?: () => void
+}
+
+interface ChecklistRow {
+  _key: string
+  checklist: string
+  answer: '' | 'Yes' | 'No' | 'N/A'
+  remarks: string
+}
+
+interface FormState {
+  patient_visit: string
+  date: string
+  time: string
+  staff_nurse: string
+  nurse_name: string
+  sign_time: string
+}
+
+type TabId = 'general' | 'checklist' | 'signature'
+
+const TABS: { id: TabId; label: string }[] = [
+  { id: 'general', label: 'General' },
+  { id: 'checklist', label: 'Checklist' },
+  { id: 'signature', label: 'Signature' },
+]
+
+const nowDate = () => new Date().toISOString().split('T')[0]
+const nowTime = () => {
+  const d = new Date()
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`
+}
+
+const labelClass = 'block text-xs font-semibold text-slate-600 mb-1'
+const inputClass = 'w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white'
+const sectionTitleClass = 'text-sm font-semibold text-slate-800 mb-3 pb-1.5 border-b border-slate-200'
+
+// ─── Main Modal ───────────────────────────────────────────────────────────────
+
+export const PreEctChecklistModal = ({ admissionNo, patient, patientName, onClose, onSuccess }: PreEctChecklistModalProps) => {
+  const [activeTab, setActiveTab] = useState<TabId>('general')
+  const [form, setFormState] = useState<FormState>({
+    patient_visit: '',
+    date: nowDate(),
+    time: nowTime(),
+    staff_nurse: '',
+    nurse_name: '',
+    sign_time: nowTime(),
+  })
+  const [checklist, setChecklist] = useState<ChecklistRow[]>([])
+  const [signatureUrl, setSignatureUrl] = useState('')
+  const [signatureUploading, setSignatureUploading] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+
+  // Link display labels
+  const [patientVisitLabel, setPatientVisitLabel] = useState('')
+  const [nurseLabel, setNurseLabel] = useState('')
+  const [templateLabel, setTemplateLabel] = useState('')
+  const [templateName, setTemplateName] = useState('')
+  const [templateLoading, setTemplateLoading] = useState(false)
+
+  const setField = <K extends keyof FormState>(k: K, v: FormState[K]) =>
+    setFormState(prev => ({ ...prev, [k]: v }))
+
+  const fetchPractitioners = useCallback(
+    (search: string) => fetchHealthcarePractitioners(search || undefined),
+    []
+  )
+  const fetchVisits = useCallback(
+    (search: string) => fetchPatientVisits(patient, search || undefined),
+    [patient]
+  )
+
+  // Fetch Pre-ECT Checklist Templates
+  const fetchTemplates = useCallback(async (search: string): Promise<LinkFieldOption[]> => {
+    try {
+      const params = new URLSearchParams({
+        doctype: 'Pre-ECT Checklist Template',
+        txt: search || '',
+        page_length: '20',
+      })
+      const res = await fetch(`/api/method/frappe.client.get_list?${params}`)
+      const data = await res.json()
+      const rows = Array.isArray(data?.message) ? data.message : []
+      return rows.map((r: any) => ({
+        name: r.name,
+        label: r.template_name || r.name,
+      }))
+    } catch {
+      return []
+    }
+  }, [])
+
+  // On template select: fetch its checklist rows and populate child table
+  const handleTemplateSelect = async (opt: LinkFieldOption) => {
+    setTemplateName(opt.name)
+    setTemplateLabel(opt.label)
+    setTemplateLoading(true)
+    try {
+      const res = await fetch(
+        `/api/resource/Pre-ECT%20Checklist%20Template/${encodeURIComponent(opt.name)}`
+      )
+      const data = await res.json()
+      const doc = data?.data ?? data?.message
+      const rows: any[] = Array.isArray(doc?.checklist) ? doc.checklist : []
+      setChecklist(
+        rows.map(r => ({
+          _key: Math.random().toString(36).slice(2),
+          checklist: r.checklist ?? '',
+          answer: '',
+          remarks: r.remarks ?? '',
+        }))
+      )
+      toast.success(`Loaded ${rows.length} item${rows.length !== 1 ? 's' : ''} from template.`)
+    } catch {
+      toast.error('Failed to load template checklist.')
+    } finally {
+      setTemplateLoading(false)
+    }
+  }
+
+  const addRow = () =>
+    setChecklist(prev => [...prev, { _key: Math.random().toString(36).slice(2), checklist: '', answer: '', remarks: '' }])
+
+  const removeRow = (key: string) =>
+    setChecklist(prev => prev.filter(r => r._key !== key))
+
+  const updateRow = (key: string, field: keyof Omit<ChecklistRow, '_key'>, value: string) =>
+    setChecklist(prev => prev.map(r => r._key === key ? { ...r, [field]: value } : r))
+
+  const handleSignatureSave = async (file: File) => {
+    setSignatureUploading(true)
+    try {
+      const url = await uploadPatientFile(file)
+      setSignatureUrl(url)
+      toast.success('Signature saved.')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Signature upload failed.')
+    } finally {
+      setSignatureUploading(false)
+    }
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setSubmitting(true)
+    try {
+      const payload = {
+        inpatient_admission: admissionNo,
+        patient_visit: form.patient_visit || undefined,
+        date: form.date || undefined,
+        time: form.time || undefined,
+        staff_nurse: form.staff_nurse || undefined,
+        nurse_name: form.nurse_name || undefined,
+        signature: signatureUrl || undefined,
+        checklist: checklist.map(({ _key: _unused, ...rest }) => rest),
+      }
+      await apiRequest('/api/resource/Pre-ECT%20Checklist', {
+        method: 'POST',
+        body: JSON.stringify({ data: payload }),
+      })
+      toast.success('Pre-ECT Checklist saved successfully.')
+      onSuccess?.()
+      onClose()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to save checklist.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const currentTabIdx = TABS.findIndex(t => t.id === activeTab)
+  const unansweredCount = checklist.filter(r => !r.answer).length
+
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+      onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div className="absolute inset-0 bg-black/50" />
+
+      <div
+        className="relative z-10 w-full max-w-3xl max-h-[92vh] bg-white rounded-xl shadow-2xl flex flex-col overflow-hidden"
+        onMouseDown={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-start justify-between px-6 py-4 border-b border-slate-200 bg-slate-50 shrink-0">
+          <div>
+            <h2 className="text-lg font-bold text-slate-900">Pre-ECT Checklist</h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              {patientName ? `${patientName} · ` : ''}{admissionNo}
+            </p>
+          </div>
+          <button type="button" onClick={onClose}
+            className="inline-flex items-center justify-center w-8 h-8 rounded-md text-slate-500 hover:text-slate-800 hover:bg-slate-200 transition-colors ml-4 shrink-0"
+            aria-label="Close">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex border-b border-slate-200 bg-white shrink-0">
+          {TABS.map(tab => (
+            <button key={tab.id} type="button" onClick={() => setActiveTab(tab.id)}
+              className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex items-center gap-1.5 ${
+                activeTab === tab.id
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+              }`}>
+              {tab.label}
+              {tab.id === 'checklist' && checklist.length > 0 && (
+                <span className={`inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold ${
+                  unansweredCount > 0 ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'
+                }`}>
+                  {checklist.length}
+                </span>
+              )}
+              {tab.id === 'signature' && signatureUrl && (
+                <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-green-500 text-white">
+                  <Check className="w-2.5 h-2.5" />
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* Form */}
+        <form onSubmit={handleSubmit} noValidate className="flex-1 overflow-y-auto">
+          <div className="px-6 py-5">
+
+            {/* ── Tab 1: General ── */}
+            {activeTab === 'general' && (
+              <div className="space-y-6">
+                {/* Basic Info */}
+                <div>
+                  <h3 className={sectionTitleClass}>Basic Information</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className={labelClass}>Inpatient Admission</label>
+                      <input type="text" value={admissionNo} readOnly
+                        className={`${inputClass} bg-slate-100 cursor-not-allowed`} />
+                    </div>
+                    <LinkCombobox
+                      label="Patient Visit"
+                      value={patientVisitLabel}
+                      onSelect={opt => { setField('patient_visit', opt.name); setPatientVisitLabel(opt.label) }}
+                      onClear={() => { setField('patient_visit', ''); setPatientVisitLabel('') }}
+                      fetchOptions={fetchVisits}
+                      placeholder="Search patient visits..."
+                    />
+                    <div>
+                      <label className={labelClass}>Date</label>
+                      <input type="date" value={form.date} onChange={e => setField('date', e.target.value)}
+                        className={inputClass} />
+                    </div>
+                    <div>
+                      <label className={labelClass}>Time</label>
+                      <input type="time" step="1" value={form.time} onChange={e => setField('time', e.target.value)}
+                        className={inputClass} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Staff Nurse */}
+                <div>
+                  <h3 className={sectionTitleClass}>Staff Nurse</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <LinkCombobox
+                      label="Staff Nurse"
+                      value={nurseLabel}
+                      onSelect={opt => {
+                        setField('staff_nurse', opt.name)
+                        setField('nurse_name', opt.label)
+                        setNurseLabel(opt.label)
+                      }}
+                      onClear={() => {
+                        setField('staff_nurse', '')
+                        setField('nurse_name', '')
+                        setNurseLabel('')
+                      }}
+                      fetchOptions={fetchPractitioners}
+                      placeholder="Search practitioners..."
+                    />
+                    <div>
+                      <label className={labelClass}>Nurse Name</label>
+                      <input type="text" value={form.nurse_name}
+                        onChange={e => setField('nurse_name', e.target.value)}
+                        placeholder="Auto-filled on selection..."
+                        className={inputClass} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Template */}
+                <div>
+                  <h3 className={sectionTitleClass}>Template</h3>
+                  <p className="text-xs text-slate-500 mb-3 bg-slate-50 border border-slate-200 rounded-md px-3 py-2">
+                    Select a template to automatically populate the checklist. You can then set each item's answer and add remarks.
+                  </p>
+                  <LinkCombobox
+                    label="Checklist Template"
+                    value={templateLabel}
+                    onSelect={handleTemplateSelect}
+                    onClear={() => { setTemplateName(''); setTemplateLabel('') }}
+                    fetchOptions={fetchTemplates}
+                    placeholder="Search templates..."
+                  />
+                  {templateLoading && (
+                    <div className="mt-2 flex items-center gap-2 text-xs text-primary">
+                      <span className="w-3.5 h-3.5 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                      Loading template checklist…
+                    </div>
+                  )}
+                  {templateName && !templateLoading && checklist.length > 0 && (
+                    <p className="mt-2 text-xs text-green-600 flex items-center gap-1">
+                      <Check className="w-3.5 h-3.5" />
+                      {checklist.length} item{checklist.length !== 1 ? 's' : ''} loaded — go to Checklist tab to fill answers.
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* ── Tab 2: Checklist ── */}
+            {activeTab === 'checklist' && (
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <h3 className={sectionTitleClass}>Pre-ECT Checklist</h3>
+                    {unansweredCount > 0 && (
+                      <p className="text-xs text-amber-600 flex items-center gap-1 -mt-2 mb-2">
+                        <AlertCircle className="w-3.5 h-3.5" />
+                        {unansweredCount} item{unansweredCount !== 1 ? 's' : ''} without an answer
+                      </p>
+                    )}
+                  </div>
+                  <button type="button" onClick={addRow}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-primary rounded-md hover:bg-primary/90 transition-colors shrink-0">
+                    <Plus className="w-3.5 h-3.5" /> Add Item
+                  </button>
+                </div>
+
+                {checklist.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 rounded-lg border-2 border-dashed border-slate-200 bg-slate-50">
+                    <p className="text-sm text-slate-500 mb-1">No checklist items yet.</p>
+                    <p className="text-xs text-slate-400 mb-4">Select a template on the General tab, or add items manually.</p>
+                    <button type="button" onClick={addRow}
+                      className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-primary border border-primary rounded-md hover:bg-primary/5 transition-colors">
+                      <Plus className="w-4 h-4" /> Add First Item
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {checklist.map((row, idx) => (
+                      <div key={row._key}
+                        className="rounded-lg border border-slate-200 bg-white p-3 group hover:border-slate-300 transition-colors">
+                        <div className="flex items-start gap-3">
+                          {/* Row number */}
+                          <span className="text-xs text-slate-400 font-mono w-5 pt-2 shrink-0">{idx + 1}</span>
+
+                          {/* Content column */}
+                          <div className="flex-1 space-y-2">
+                            {/* Checklist text */}
+                            <div>
+                              <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1">
+                                Checklist Item
+                              </label>
+                              <textarea
+                                rows={2}
+                                value={row.checklist}
+                                onChange={e => updateRow(row._key, 'checklist', e.target.value)}
+                                placeholder="Describe the checklist item..."
+                                className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary bg-white resize-none"
+                              />
+                            </div>
+
+                            {/* Answer + Remarks row */}
+                            <div className="flex gap-3 items-start">
+                              {/* Yes / No / N/A toggle buttons */}
+                              <div>
+                                <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1">
+                                  Answer
+                                </label>
+                                <div className="flex gap-1">
+                                  {(['Yes', 'No', 'N/A'] as const).map(opt => (
+                                    <button
+                                      key={opt}
+                                      type="button"
+                                      onClick={() => updateRow(row._key, 'answer', row.answer === opt ? '' : opt)}
+                                      className={`px-3 py-1.5 text-xs font-semibold rounded transition-colors ${
+                                        row.answer === opt
+                                          ? opt === 'Yes'
+                                            ? 'bg-green-600 text-white'
+                                            : opt === 'No'
+                                              ? 'bg-red-600 text-white'
+                                              : 'bg-slate-500 text-white'
+                                          : 'border border-slate-300 text-slate-500 hover:border-slate-400 hover:bg-slate-50'
+                                      }`}
+                                    >
+                                      {opt}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+
+                              {/* Remarks */}
+                              <div className="flex-1">
+                                <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1">
+                                  Remarks
+                                </label>
+                                <input
+                                  type="text"
+                                  value={row.remarks}
+                                  onChange={e => updateRow(row._key, 'remarks', e.target.value)}
+                                  placeholder="Optional remarks..."
+                                  className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary bg-white"
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Remove */}
+                          <button type="button" onClick={() => removeRow(row._key)}
+                            className="inline-flex items-center justify-center w-7 h-7 rounded text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors mt-1 opacity-0 group-hover:opacity-100">
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Summary bar */}
+                {checklist.length > 0 && (
+                  <div className="mt-4 flex gap-4 text-xs text-slate-500 bg-slate-50 rounded-lg border border-slate-200 px-4 py-2.5">
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-2.5 h-2.5 rounded-sm bg-green-600 inline-block" />
+                      Yes: <strong>{checklist.filter(r => r.answer === 'Yes').length}</strong>
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-2.5 h-2.5 rounded-sm bg-red-600 inline-block" />
+                      No: <strong>{checklist.filter(r => r.answer === 'No').length}</strong>
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-2.5 h-2.5 rounded-sm bg-slate-500 inline-block" />
+                      N/A: <strong>{checklist.filter(r => r.answer === 'N/A').length}</strong>
+                    </span>
+                    <span className={`flex items-center gap-1.5 ${unansweredCount > 0 ? 'text-amber-600 font-medium' : ''}`}>
+                      <span className="w-2.5 h-2.5 rounded-sm bg-amber-300 border border-amber-400 inline-block" />
+                      Unanswered: <strong>{unansweredCount}</strong>
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── Tab 3: Signature ── */}
+            {activeTab === 'signature' && (
+              <div className="space-y-6">
+                <div>
+                  <h3 className={sectionTitleClass}>Signature</h3>
+                  <p className="text-xs text-slate-500 mb-4 bg-slate-50 border border-slate-200 rounded-md px-3 py-2">
+                    Draw the staff nurse's signature below. The sign time defaults to now.
+                  </p>
+                  <div className="grid grid-cols-2 gap-4 mb-5">
+                    <div>
+                      <label className={labelClass}>Date of Signing</label>
+                      <input type="date" value={form.date} onChange={e => setField('date', e.target.value)}
+                        className={inputClass} />
+                    </div>
+                    <div>
+                      <label className={labelClass}>Time of Signing</label>
+                      <input type="time" step="1" value={form.sign_time} onChange={e => setField('sign_time', e.target.value)}
+                        className={inputClass} />
+                      <p className="text-xs text-slate-400 mt-1">Defaults to the current time.</p>
+                    </div>
+                  </div>
+                  <div>
+                    <label className={labelClass}>Signature</label>
+                    <SignaturePad
+                      onSave={handleSignatureSave}
+                      onClear={() => setSignatureUrl('')}
+                      existingUrl={signatureUrl || undefined}
+                      uploading={signatureUploading}
+                    />
+                    {signatureUrl && (
+                      <p className="text-xs text-green-600 flex items-center gap-1 mt-2">
+                        <Check className="w-3.5 h-3.5" /> Signature captured and ready to save with record.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div className="sticky bottom-0 bg-white border-t border-slate-200 px-6 py-4 flex items-center justify-between gap-3 shrink-0">
+            <div className="flex gap-1">
+              {TABS.map((tab, i) => (
+                <button key={tab.id} type="button" onClick={() => setActiveTab(tab.id)}
+                  className={`w-2 h-2 rounded-full transition-colors ${activeTab === tab.id ? 'bg-primary' : 'bg-slate-300 hover:bg-slate-400'}`}
+                  aria-label={`${i + 1}. ${tab.label}`} />
+              ))}
+            </div>
+            <div className="flex gap-3">
+              {currentTabIdx > 0 && (
+                <button type="button" onClick={() => setActiveTab(TABS[currentTabIdx - 1].id)}
+                  className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50">
+                  ← Previous
+                </button>
+              )}
+              {currentTabIdx < TABS.length - 1 && (
+                <button type="button" onClick={() => setActiveTab(TABS[currentTabIdx + 1].id)}
+                  className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90">
+                  Next →
+                </button>
+              )}
+              <button type="button" onClick={onClose}
+                className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50">
+                Cancel
+              </button>
+              <button type="submit" disabled={submitting}
+                className="px-5 py-2 text-sm font-semibold text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-60 disabled:cursor-not-allowed">
+                {submitting ? 'Saving...' : 'Save Checklist'}
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
