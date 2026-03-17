@@ -1,0 +1,275 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "AR-.MM-.YY-.#####",
+ "creation": "2026-03-17 16:07:27.834725",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "inpatient_admission",
+  "patient_visit",
+  "column_break_rkzm",
+  "patient",
+  "patient_name",
+  "section_break_izbu",
+  "bp",
+  "hr",
+  "rr",
+  "column_break_zlfk",
+  "spo2",
+  "ect_done",
+  "section_break_yopr",
+  "anesthetist",
+  "full_name",
+  "column_break_ckgf",
+  "psychiatrist__assistant_doctor",
+  "psychiatrist__assistant",
+  "section_break_cxhv",
+  "preanesthesia_stages",
+  "anesthesia_type",
+  "column_break_mfjg",
+  "oxygen_support",
+  "section_break_bfga",
+  "doctor_signature_and_stamp",
+  "date",
+  "column_break_btlz",
+  "time",
+  "anesthesia_records_tab",
+  "pos_ect_section",
+  "awakearousable",
+  "responds_to_command",
+  "sustained_head_lift",
+  "normal_breathing_pattern",
+  "confused",
+  "unrespoonsive",
+  "section_break_xmvn",
+  "post_ect_orders"
+ ],
+ "fields": [
+  {
+   "fieldname": "date",
+   "fieldtype": "Date",
+   "label": "Date"
+  },
+  {
+   "fieldname": "section_break_izbu",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "bp",
+   "fieldtype": "Data",
+   "label": "BP"
+  },
+  {
+   "fieldname": "hr",
+   "fieldtype": "Data",
+   "label": "HR"
+  },
+  {
+   "fieldname": "rr",
+   "fieldtype": "Data",
+   "label": "RR"
+  },
+  {
+   "fieldname": "column_break_zlfk",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "spo2",
+   "fieldtype": "Data",
+   "label": "SPO2"
+  },
+  {
+   "fieldname": "ect_done",
+   "fieldtype": "Select",
+   "label": "ECT Done",
+   "options": "\nYes\nNo"
+  },
+  {
+   "fieldname": "section_break_yopr",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "anesthetist",
+   "fieldtype": "Link",
+   "label": "Anesthetist",
+   "options": "Healthcare Practitioner"
+  },
+  {
+   "fetch_from": "anesthetist.practitioner_name",
+   "fieldname": "full_name",
+   "fieldtype": "Data",
+   "label": "Anesthetist Full Name"
+  },
+  {
+   "fieldname": "column_break_ckgf",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "psychiatrist__assistant_doctor",
+   "fieldtype": "Link",
+   "label": "Psychiatrist / Assistant Doctor",
+   "options": "Healthcare Practitioner"
+  },
+  {
+   "fetch_from": "psychiatrist__assistant_doctor.first_name",
+   "fieldname": "psychiatrist__assistant",
+   "fieldtype": "Data",
+   "label": "Psychiatrist / Assistant"
+  },
+  {
+   "fieldname": "section_break_cxhv",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "preanesthesia_stages",
+   "fieldtype": "Select",
+   "label": "Pre-Anesthesia Stages",
+   "options": "\nAwake\nCalm\nAnxious\nSedated\nUncooperative"
+  },
+  {
+   "fieldname": "anesthesia_type",
+   "fieldtype": "Select",
+   "label": "Anesthesia Type",
+   "options": "\nGeneral\nRegional\nLocal\nIV Sedation\nOthers"
+  },
+  {
+   "fieldname": "column_break_mfjg",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "oxygen_support",
+   "fieldtype": "Select",
+   "label": "Oxygen Support",
+   "options": "\nIntubated\n02 Mask\nNasal Cannula\nNone"
+  },
+  {
+   "fieldname": "section_break_bfga",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "doctor_signature_and_stamp",
+   "fieldtype": "Attach",
+   "label": "Doctor Signature and Stamp"
+  },
+  {
+   "fieldname": "column_break_btlz",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "time",
+   "fieldtype": "Time",
+   "label": "Time"
+  },
+  {
+   "fieldname": "anesthesia_records_tab",
+   "fieldtype": "Tab Break",
+   "label": "Anesthesia Records"
+  },
+  {
+   "fieldname": "pos_ect_section",
+   "fieldtype": "Section Break",
+   "label": "POS ECT"
+  },
+  {
+   "default": "0",
+   "fieldname": "awakearousable",
+   "fieldtype": "Check",
+   "label": "Awake/Arousable"
+  },
+  {
+   "default": "0",
+   "fieldname": "responds_to_command",
+   "fieldtype": "Check",
+   "label": "Responds to command"
+  },
+  {
+   "default": "0",
+   "fieldname": "sustained_head_lift",
+   "fieldtype": "Check",
+   "label": "Sustained head Lift"
+  },
+  {
+   "default": "0",
+   "fieldname": "normal_breathing_pattern",
+   "fieldtype": "Check",
+   "label": "Normal Breathing Pattern"
+  },
+  {
+   "default": "0",
+   "fieldname": "confused",
+   "fieldtype": "Check",
+   "label": "Confused"
+  },
+  {
+   "default": "0",
+   "fieldname": "unrespoonsive",
+   "fieldtype": "Check",
+   "label": "Unrespoonsive"
+  },
+  {
+   "fieldname": "section_break_xmvn",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "post_ect_orders",
+   "fieldtype": "Text Editor",
+   "label": "Post ECT Orders"
+  },
+  {
+   "fieldname": "inpatient_admission",
+   "fieldtype": "Link",
+   "label": "Inpatient Admission",
+   "options": "Inpatient Admission"
+  },
+  {
+   "fieldname": "patient_visit",
+   "fieldtype": "Link",
+   "label": "Patient Visit",
+   "options": "Patient Visit"
+  },
+  {
+   "fieldname": "column_break_rkzm",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "patient",
+   "fieldtype": "Link",
+   "label": "Patient",
+   "options": "Patient"
+  },
+  {
+   "fieldname": "patient_name",
+   "fieldtype": "Data",
+   "label": "Patient Name"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-03-17 17:00:35.941089",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Anesthesia Record",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}
