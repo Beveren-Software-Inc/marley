@@ -1,0 +1,156 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "RRR-.MM-.#####",
+ "creation": "2026-03-17 12:45:20.853436",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "date",
+  "time",
+  "admission",
+  "column_break_hqly",
+  "patient",
+  "patient_name",
+  "section_break_wzss",
+  "level_of_conciousness",
+  "respiration",
+  "column_break_xtqw",
+  "oxygen_support",
+  "oxygen",
+  "recovery_room_events_section",
+  "events",
+  "section_break_cmme",
+  "special_notes_remarks",
+  "pos_anesthesia_visit",
+  "nurse_notes_on_discharge_from_recovery_room_section",
+  "nurse_notes"
+ ],
+ "fields": [
+  {
+   "fieldname": "date",
+   "fieldtype": "Date",
+   "label": "Date"
+  },
+  {
+   "fieldname": "admission",
+   "fieldtype": "Link",
+   "label": "Admission",
+   "options": "Inpatient Admission"
+  },
+  {
+   "fieldname": "column_break_hqly",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "patient",
+   "fieldtype": "Link",
+   "label": "Patient",
+   "options": "Patient"
+  },
+  {
+   "fieldname": "time",
+   "fieldtype": "Time",
+   "label": "Time"
+  },
+  {
+   "fieldname": "patient_name",
+   "fieldtype": "Data",
+   "label": "Patient Name"
+  },
+  {
+   "fieldname": "section_break_wzss",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "level_of_conciousness",
+   "fieldtype": "Select",
+   "label": "Level of Conciousness",
+   "options": "\nAwake\nSemi-conscious\nArousable to pain\nNot Arousable"
+  },
+  {
+   "fieldname": "respiration",
+   "fieldtype": "Select",
+   "label": "Respiration",
+   "options": "\nSpontaneous\nControlled/Assisted\nNo Spontaneous Breathing"
+  },
+  {
+   "fieldname": "column_break_xtqw",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "oxygen_support",
+   "fieldtype": "Select",
+   "label": "Oxygen Support",
+   "options": "\nSpontaneous\nNasal Cannula\nO2 Mask\nETT"
+  },
+  {
+   "fieldname": "oxygen",
+   "fieldtype": "Data",
+   "label": "Oxygen(Liters/min)"
+  },
+  {
+   "fieldname": "recovery_room_events_section",
+   "fieldtype": "Section Break",
+   "label": "Recovery Room Events"
+  },
+  {
+   "fieldname": "events",
+   "fieldtype": "Table",
+   "label": "Events",
+   "options": "Recovery Room Event"
+  },
+  {
+   "fieldname": "section_break_cmme",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "special_notes_remarks",
+   "fieldtype": "Small Text",
+   "label": "Special Notes & Remarks"
+  },
+  {
+   "fieldname": "pos_anesthesia_visit",
+   "fieldtype": "Small Text",
+   "label": "Pos Anesthesia Visit"
+  },
+  {
+   "fieldname": "nurse_notes_on_discharge_from_recovery_room_section",
+   "fieldtype": "Section Break",
+   "label": "Nurse Notes on Discharge From Recovery Room"
+  },
+  {
+   "fieldname": "nurse_notes",
+   "fieldtype": "Text Editor",
+   "label": "Nurse Notes"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-03-17 13:10:00.294450",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Recovery Room Record",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

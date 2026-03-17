@@ -10,6 +10,10 @@ import { DischargeModal } from './DischargeModal'
 import { TransferCostCenterModal } from './TransferCostCenterModal'
 import { InpatientAdmissionDetails } from './InpatientAdmissionDetails'
 import { AddVisitorModal } from './AddVisitorModal'
+import { SuicidalPatientAssessmentModal } from './SuicidalPatientAssessmentModal'
+import { RecoveryRoomRecordModal } from './RecoveryRoomRecordModal'
+import { AnesthesiaRecordModal } from './AnesthesiaRecordModal'
+import { TimeOutProcedureModal } from './TimeOutProcedureModal'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import type { InpatientRecord, InpatientPackage } from '../../services/inpatientRecords'
@@ -43,6 +47,14 @@ export const AdmissionList = ({ onAdmissionSelect, searchQuery: externalSearchQu
   const [selectedAdmissionForTransfer, setSelectedAdmissionForTransfer] = useState<InpatientRecord | null>(null)
   const [showVisitorModal, setShowVisitorModal] = useState(false)
   const [visitorAdmission, setVisitorAdmission] = useState<InpatientRecord | null>(null)
+  const [showSuicideAssessment, setShowSuicideAssessment] = useState(false)
+  const [suicideAssessmentAdmission, setSuicideAssessmentAdmission] = useState<InpatientRecord | null>(null)
+  const [showRecoveryRoom, setShowRecoveryRoom] = useState(false)
+  const [recoveryRoomAdmission, setRecoveryRoomAdmission] = useState<InpatientRecord | null>(null)
+  const [showAnesthesia, setShowAnesthesia] = useState(false)
+  const [anesthesiaAdmission, setAnesthesiaAdmission] = useState<InpatientRecord | null>(null)
+  const [showTimeOut, setShowTimeOut] = useState(false)
+  const [timeOutAdmission, setTimeOutAdmission] = useState<InpatientRecord | null>(null)
 
   // --- Filter: Admission No (searchable dropdown) ---
   const [admissionNoQuery, setAdmissionNoQuery] = useState('')
@@ -471,6 +483,58 @@ export const AdmissionList = ({ onAdmissionSelect, searchQuery: externalSearchQu
                                   Add Visitor
                                 </button>
                               )}
+                              {(record.status === 'Admission Scheduled' || record.status === 'Admitted') && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSuicideAssessmentAdmission(record)
+                                    setShowSuicideAssessment(true)
+                                    setOpenActionRow(null)
+                                  }}
+                                  className="block w-full text-left px-3 py-2 text-sm text-purple-700 hover:bg-purple-50"
+                                >
+                                  Suicide Patient Assessment
+                                </button>
+                              )}
+                              {(record.status === 'Admission Scheduled' || record.status === 'Admitted') && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setRecoveryRoomAdmission(record)
+                                    setShowRecoveryRoom(true)
+                                    setOpenActionRow(null)
+                                  }}
+                                  className="block w-full text-left px-3 py-2 text-sm text-teal-700 hover:bg-teal-50"
+                                >
+                                  Recovery Room Record
+                                </button>
+                              )}
+                              {(record.status === 'Admission Scheduled' || record.status === 'Admitted') && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setAnesthesiaAdmission(record)
+                                    setShowAnesthesia(true)
+                                    setOpenActionRow(null)
+                                  }}
+                                  className="block w-full text-left px-3 py-2 text-sm text-indigo-700 hover:bg-indigo-50"
+                                >
+                                  Anesthesia Record
+                                </button>
+                              )}
+                              {(record.status === 'Admission Scheduled' || record.status === 'Admitted') && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setTimeOutAdmission(record)
+                                    setShowTimeOut(true)
+                                    setOpenActionRow(null)
+                                  }}
+                                  className="block w-full text-left px-3 py-2 text-sm text-orange-700 hover:bg-orange-50"
+                                >
+                                  Time Out Procedure
+                                </button>
+                              )}
                               {record.status === 'Discharge Scheduled' && (
                                 <button
                                   type="button"
@@ -617,6 +681,46 @@ export const AdmissionList = ({ onAdmissionSelect, searchQuery: externalSearchQu
           }}
           onClose={() => { setShowTransferCostCenter(false); setSelectedAdmissionForTransfer(null) }}
           onSuccess={handleTransferComplete}
+        />
+      )}
+
+      {showSuicideAssessment && suicideAssessmentAdmission && (
+        <SuicidalPatientAssessmentModal
+          admissionNo={suicideAssessmentAdmission.name}
+          patient={suicideAssessmentAdmission.patient}
+          patientName={suicideAssessmentAdmission.patient_name}
+          onClose={() => { setShowSuicideAssessment(false); setSuicideAssessmentAdmission(null) }}
+          onSuccess={() => { setShowSuicideAssessment(false); setSuicideAssessmentAdmission(null) }}
+        />
+      )}
+
+      {showRecoveryRoom && recoveryRoomAdmission && (
+        <RecoveryRoomRecordModal
+          admissionNo={recoveryRoomAdmission.name}
+          patient={recoveryRoomAdmission.patient}
+          patientName={recoveryRoomAdmission.patient_name}
+          onClose={() => { setShowRecoveryRoom(false); setRecoveryRoomAdmission(null) }}
+          onSuccess={() => { setShowRecoveryRoom(false); setRecoveryRoomAdmission(null) }}
+        />
+      )}
+
+      {showAnesthesia && anesthesiaAdmission && (
+        <AnesthesiaRecordModal
+          admissionNo={anesthesiaAdmission.name}
+          patient={anesthesiaAdmission.patient}
+          patientName={anesthesiaAdmission.patient_name}
+          onClose={() => { setShowAnesthesia(false); setAnesthesiaAdmission(null) }}
+          onSuccess={() => { setShowAnesthesia(false); setAnesthesiaAdmission(null) }}
+        />
+      )}
+
+      {showTimeOut && timeOutAdmission && (
+        <TimeOutProcedureModal
+          admissionNo={timeOutAdmission.name}
+          patient={timeOutAdmission.patient}
+          patientName={timeOutAdmission.patient_name}
+          onClose={() => { setShowTimeOut(false); setTimeOutAdmission(null) }}
+          onSuccess={() => { setShowTimeOut(false); setTimeOutAdmission(null) }}
         />
       )}
     </>

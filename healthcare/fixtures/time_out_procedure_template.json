@@ -1,0 +1,66 @@
+[
+ {
+  "date": "2026-03-17",
+  "docstatus": 0,
+  "doctype": "Time Out Procedure Template",
+  "modified": "2026-03-17 17:27:59.331559",
+  "name": "Think right",
+  "procedures": [
+   {
+    "criteria": "sasasa",
+    "selection": ""
+   },
+   {
+    "criteria": "Oky wapi",
+    "selection": ""
+   },
+   {
+    "criteria": "I dot know man",
+    "selection": ""
+   }
+  ],
+  "template_name": "Think right"
+ },
+ {
+  "date": "2026-03-17",
+  "docstatus": 0,
+  "doctype": "Time Out Procedure Template",
+  "modified": "2026-03-17 17:36:52.401343",
+  "name": "Default Procedure Template",
+  "procedures": [
+   {
+    "criteria": "Pre procedural verification has been done",
+    "selection": ""
+   },
+   {
+    "criteria": "Correct Patient Identity",
+    "selection": ""
+   },
+   {
+    "criteria": "Correct Site",
+    "selection": ""
+   },
+   {
+    "criteria": "Correct Side",
+    "selection": ""
+   },
+   {
+    "criteria": "Correct Procedure \"Consent matching the procedure to be performed\"",
+    "selection": ""
+   },
+   {
+    "criteria": "Availability & Functionality of all equipment",
+    "selection": ""
+   },
+   {
+    "criteria": "Availability of the  required team for performing the procedure",
+    "selection": ""
+   },
+   {
+    "criteria": "Availability of the correct medication required",
+    "selection": ""
+   }
+  ],
+  "template_name": "Default Procedure Template"
+ }
+]

@@ -1,0 +1,78 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-03-17 12:53:40.446734",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "time",
+  "bp",
+  "pulse",
+  "column_break_yyfp",
+  "rr",
+  "temp",
+  "spo2"
+ ],
+ "fields": [
+  {
+   "fieldname": "time",
+   "fieldtype": "Time",
+   "in_list_view": 1,
+   "label": "Time"
+  },
+  {
+   "fieldname": "bp",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "BP"
+  },
+  {
+   "fieldname": "pulse",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Pulse"
+  },
+  {
+   "fieldname": "rr",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "RR"
+  },
+  {
+   "fieldname": "temp",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Temp"
+  },
+  {
+   "fieldname": "spo2",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "SPO2(%)"
+  },
+  {
+   "fieldname": "column_break_yyfp",
+   "fieldtype": "Column Break"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-03-17 12:54:48.860872",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Recovery Room Event",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

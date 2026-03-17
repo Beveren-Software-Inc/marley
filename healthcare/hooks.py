@@ -100,7 +100,10 @@ fixtures = [
 	},
     {
 		"doctype":"Patient Visit Type"
-	}
+	},
+    {
+		"doctype":"Time Out Procedure Template"
+	},
 ]
 
 

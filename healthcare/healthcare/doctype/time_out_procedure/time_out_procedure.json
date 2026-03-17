@@ -1,0 +1,145 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "TOP-.{MM}-.{YY}-.#####",
+ "creation": "2026-03-17 17:12:35.013377",
+ "default_view": "List",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "date",
+  "inpatient_admission",
+  "patient_visit",
+  "column_break_hwft",
+  "patient",
+  "patient_name",
+  "template",
+  "procedure_details_section",
+  "procedures",
+  "section_break_zytp",
+  "time_out_time",
+  "procedure_start_time",
+  "column_break_ccrh",
+  "nurse",
+  "nurse_name",
+  "column_break_srhd",
+  "signature"
+ ],
+ "fields": [
+  {
+   "fieldname": "date",
+   "fieldtype": "Date",
+   "label": "Date"
+  },
+  {
+   "fieldname": "procedure_details_section",
+   "fieldtype": "Section Break",
+   "label": "Procedure Details"
+  },
+  {
+   "fieldname": "procedures",
+   "fieldtype": "Table",
+   "label": "Procedures",
+   "options": "Time Out Procedure Detail"
+  },
+  {
+   "fieldname": "template",
+   "fieldtype": "Link",
+   "label": "Template",
+   "options": "Time Out Procedure Template"
+  },
+  {
+   "fieldname": "column_break_hwft",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_zytp",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "time_out_time",
+   "fieldtype": "Datetime",
+   "label": "Time Out Time"
+  },
+  {
+   "fieldname": "procedure_start_time",
+   "fieldtype": "Time",
+   "label": "Procedure Start Time"
+  },
+  {
+   "fieldname": "column_break_ccrh",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "nurse",
+   "fieldtype": "Link",
+   "label": "Nurse",
+   "options": "Healthcare Practitioner"
+  },
+  {
+   "fieldname": "nurse_name",
+   "fieldtype": "Data",
+   "label": "Nurse Name"
+  },
+  {
+   "fieldname": "column_break_srhd",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "signature",
+   "fieldtype": "Attach",
+   "label": "SIgnature"
+  },
+  {
+   "fieldname": "inpatient_admission",
+   "fieldtype": "Link",
+   "label": "Inpatient Admission",
+   "options": "Inpatient Admission"
+  },
+  {
+   "fieldname": "patient_visit",
+   "fieldtype": "Link",
+   "label": "Patient Visit",
+   "options": "Patient Visit"
+  },
+  {
+   "fieldname": "patient",
+   "fieldtype": "Link",
+   "label": "Patient",
+   "options": "Patient"
+  },
+  {
+   "fieldname": "patient_name",
+   "fieldtype": "Data",
+   "label": "Patient Name"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-03-17 17:29:35.094597",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Time Out Procedure",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

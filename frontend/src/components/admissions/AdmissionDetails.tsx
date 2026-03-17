@@ -4,6 +4,7 @@ import { PackageSelectionModal } from './PackageSelectionModal'
 import { AdmissionFormModal } from './AdmissionFormModal'
 import { ScheduleDischargeModal } from './ScheduleDischargeModal'
 import { DischargeModal } from './DischargeModal'
+import { SuicidalPatientAssessmentModal } from './SuicidalPatientAssessmentModal'
 
 interface AdmissionDetailsProps {
   admissionNo: string
@@ -20,6 +21,7 @@ export const AdmissionDetails = ({ admissionNo, onUpdate }: AdmissionDetailsProp
   const [showPackages, setShowPackages] = useState(false)
   const [selectedPackage, setSelectedPackage] = useState<InpatientPackage | null>(null)
   const [actionLoading, setActionLoading] = useState(false)
+  const [showSuicideAssessment, setShowSuicideAssessment] = useState(false)
 
   useEffect(() => {
     const loadAdmission = async () => {
@@ -274,6 +276,15 @@ export const AdmissionDetails = ({ admissionNo, onUpdate }: AdmissionDetailsProp
               Discharge
             </button>
           )}
+          {(admission.status === 'Admission Scheduled' || admission.status === 'Admitted') && (
+            <button
+              type="button"
+              onClick={() => setShowSuicideAssessment(true)}
+              className="px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded-md hover:bg-purple-700"
+            >
+              Suicide Patient Assessment
+            </button>
+          )}
         </div>
       </div>
 
@@ -317,6 +328,16 @@ export const AdmissionDetails = ({ admissionNo, onUpdate }: AdmissionDetailsProp
           }}
           onClose={() => setShowDischargeModal(false)}
           onSuccess={handleDischargeComplete}
+        />
+      )}
+
+      {showSuicideAssessment && admission && (
+        <SuicidalPatientAssessmentModal
+          admissionNo={admission.name}
+          patient={admission.patient}
+          patientName={admission.patient_name}
+          onClose={() => setShowSuicideAssessment(false)}
+          onSuccess={() => setShowSuicideAssessment(false)}
         />
       )}
     </div>
