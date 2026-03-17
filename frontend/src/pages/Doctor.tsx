@@ -39,6 +39,7 @@ import { EnvironmentalChecklistList } from '../components/environmental/Environm
 import { MorseFallScaleList } from '../components/morse/MorseFallScaleList'
 import { IOPDayListWithHeader } from '../components/iop/IOPDayList'
 import { IOPEnrollmentListWithHeader } from '../components/iop/IOPEnrollmentList'
+import { ReceptionLongActingMedicineList } from '../components/medication/ReceptionLongActingMedicineList'
 import { CreateMedicineGivenModal } from '../components/medication/CreateMedicineGivenModal'
 import { MedicineGivenList } from '../components/medication/MedicineGivenList'
 import { LongActingMedicineList } from '../components/medication/LongActingMedicineList'
@@ -96,6 +97,7 @@ export const DoctorPage = () => {
   const [showSleepingPatternModal, setShowSleepingPatternModal] = useState(false)
   const [sleepingPatternRefreshKey, setSleepingPatternRefreshKey] = useState(0)
   const [showCreateNursingTaskModal, setShowCreateNursingTaskModal] = useState(false)
+  const [longActingRefreshKey] = useState(0)
   const screen = searchParams.get('screen')
 
   // Sync selectedPatient with URL on mount and when URL changes
@@ -1185,6 +1187,41 @@ export const DoctorPage = () => {
             </div>
           </div>
         )}
+      </div>
+    )
+  }
+
+  // Long Acting Medicine (doctor subtopic)
+  if (screen === 'd-long-acting-meds') {
+    return (
+      <div className="flex flex-col">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+        <div className="p-4">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-semibold text-slate-900">Long Acting Medicine</h2>
+              <p className="text-sm text-slate-600 mt-1">
+                View long acting medicines for the selected patient. Filter by start date and frequency. Click a row for details.
+              </p>
+            </div>
+          </div>
+          <ReceptionLongActingMedicineList
+            patient={selectedPatient || undefined}
+            refreshKey={longActingRefreshKey}
+          />
+        </div>
       </div>
     )
   }

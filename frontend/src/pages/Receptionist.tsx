@@ -19,6 +19,8 @@ import { IOPDayListWithHeader } from '../components/iop/IOPDayList'
 import { IOPEnrollmentListWithHeader } from '../components/iop/IOPEnrollmentList'
 import { DischargeList } from '../components/discharges/DischargeList'
 import { MedicalHistoryView } from '../components/medicalHistory/MedicalHistoryView'
+import { ReceptionLongActingMedicineList } from '../components/medication/ReceptionLongActingMedicineList'
+import { CreateLongActingMedicineModal } from '../components/medication/CreateLongActingMedicineModal'
 
 type View =
   | 'default'
@@ -34,6 +36,7 @@ type View =
   | 'op-dashboard'
   | 'ip-dashboard'
   | 'discharge'
+  | 'long-acting-medicine'
 
 export const ReceptionistPage = () => {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -51,6 +54,8 @@ export const ReceptionistPage = () => {
   const [showPatientModal, setShowPatientModal] = useState(false)
   const [patientRefreshKey, setPatientRefreshKey] = useState(0)
   const [showBulkScheduleModal, setShowBulkScheduleModal] = useState(false)
+  const [showCreateLongActing, setShowCreateLongActing] = useState(false)
+  const [longActingRefreshKey, setLongActingRefreshKey] = useState(0)
 
   const handlePatientSelect = (patient: string | undefined) => {
     setSelectedPatient(patient || '')
@@ -100,6 +105,8 @@ export const ReceptionistPage = () => {
       setCurrentView('ip-dashboard')
     } else if (screen === 'r-discharge') {
       setCurrentView('discharge')
+    } else if (screen === 'r-long-acting-meds') {
+      setCurrentView('long-acting-medicine')
     } else {
       // No screen param or unknown: show reception homepage (e.g. after "Back to Reception" or sidebar Home)
       setCurrentView('default')
@@ -256,6 +263,42 @@ export const ReceptionistPage = () => {
               <IOPDayListWithHeader refreshKey={patientVisitRefreshKey} />
               <IOPEnrollmentListWithHeader refreshKey={patientVisitRefreshKey} />
             </div>
+          </div>
+        )}
+
+        {currentView === 'long-acting-medicine' && (
+          <div className="p-4">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-semibold text-slate-900">Long Acting Medicine</h2>
+                <p className="text-sm text-slate-600 mt-1">
+                  View long acting medicines across patients. Filter by start date and frequency. Click a row for details.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCreateLongActing(true)}
+                className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
+                title="Create Long Acting Medicine"
+              >
+                +
+              </button>
+            </div>
+            <ReceptionLongActingMedicineList
+              patient={selectedPatient || undefined}
+              refreshKey={longActingRefreshKey}
+            />
+
+            {showCreateLongActing && (
+              <CreateLongActingMedicineModal
+                initialPatient={selectedPatient || undefined}
+                onClose={() => setShowCreateLongActing(false)}
+                onSuccess={() => {
+                  setShowCreateLongActing(false)
+                  setLongActingRefreshKey((k) => k + 1)
+                }}
+              />
+            )}
           </div>
         )}
 
