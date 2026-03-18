@@ -1,0 +1,670 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-03-18 02:33:48.268121",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "inpatient_admission",
+  "patient_visit",
+  "patient",
+  "patient_name",
+  "column_break_sbfy",
+  "assessment_date",
+  "asa_class",
+  "section_cardiovascular",
+  "exercise_tolerance",
+  "cv_normal",
+  "hypertension_dysrhythmia",
+  "angina_mi",
+  "ccf",
+  "vascular_valvular",
+  "pacemaker",
+  "cv_notes",
+  "section_pulmonary",
+  "resp_normal",
+  "smoker",
+  "smoking_years",
+  "chronic_cough",
+  "sob",
+  "copd_emphysema",
+  "asthma_bronchitis",
+  "urti_tb",
+  "resp_notes",
+  "section_hepatic",
+  "jaundice_hepatitis",
+  "cirrhosis",
+  "gall_bladder",
+  "etoh_consumption",
+  "chemical_substances",
+  "hepatic_notes",
+  "section_renal",
+  "renal_failure",
+  "dialysis",
+  "renal_calculi",
+  "recent_uti",
+  "renal_notes",
+  "section_endocrine",
+  "diabetes",
+  "diet_control",
+  "oral_agent",
+  "insulin",
+  "dm_complications",
+  "thyroid",
+  "endocrine_notes",
+  "section_hematology",
+  "coagulopathy",
+  "anemia",
+  "sickle_cell",
+  "g6pd",
+  "anticoagulation",
+  "blood_transfusion",
+  "hematology_notes",
+  "section_neurology",
+  "seizure",
+  "stroke_tia",
+  "head_injury",
+  "paraesthesia",
+  "mental_status",
+  "neurology_notes",
+  "section_miscellaneous",
+  "pregnancy_lmp",
+  "illness_and_pregnancy",
+  "congenital",
+  "hiv_hbsag",
+  "drug_allergy",
+  "miscellaneous_notes",
+  "section_gastrointestinal",
+  "reflux",
+  "nausea_vomiting",
+  "ulcer",
+  "gi_notes",
+  "section_history",
+  "surgical_history",
+  "anesthesia_history",
+  "anesthesia_complications",
+  "section_final_assessment",
+  "fit_for_anesthesia",
+  "risk_level",
+  "allergies",
+  "current_medications",
+  "previous_anesthesia_complications",
+  "remarks",
+  "section_break_rytp",
+  "anesthesiologist",
+  "anesthesiologist_name",
+  "sign",
+  "column_break_dijd",
+  "date",
+  "time"
+ ],
+ "fields": [
+  {
+   "fieldname": "inpatient_admission",
+   "fieldtype": "Link",
+   "label": "Inpatient Admission",
+   "options": "Inpatient Admission"
+  },
+  {
+   "fieldname": "patient_visit",
+   "fieldtype": "Link",
+   "label": "Patient Visit",
+   "options": "Patient Appointment"
+  },
+  {
+   "fieldname": "patient",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Patient",
+   "options": "Patient",
+   "reqd": 1
+  },
+  {
+   "fieldname": "patient_name",
+   "fieldtype": "Data",
+   "label": "Patient Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_sbfy",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Now",
+   "fieldname": "assessment_date",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Assessment Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "asa_class",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "ASA Classification",
+   "options": "ASA I\nASA II\nASA III\nASA IV\nASA V\nASA VI",
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_cardiovascular",
+   "fieldtype": "Section Break",
+   "label": "Cardiovascular System"
+  },
+  {
+   "default": "0",
+   "fieldname": "cv_normal",
+   "fieldtype": "Check",
+   "label": "No Cardiovascular Disease"
+  },
+  {
+   "default": "0",
+   "fieldname": "hypertension_dysrhythmia",
+   "fieldtype": "Check",
+   "label": "Hypertension / Dysrhythmia"
+  },
+  {
+   "default": "0",
+   "fieldname": "angina_mi",
+   "fieldtype": "Check",
+   "label": "Angina / MI (Myocardial Infarction)"
+  },
+  {
+   "default": "0",
+   "fieldname": "ccf",
+   "fieldtype": "Check",
+   "label": "Congestive Cardiac Failure"
+  },
+  {
+   "default": "0",
+   "fieldname": "vascular_valvular",
+   "fieldtype": "Check",
+   "label": "Vascular / Valvular Disease"
+  },
+  {
+   "default": "0",
+   "fieldname": "pacemaker",
+   "fieldtype": "Check",
+   "label": "Pacemaker"
+  },
+  {
+   "fieldname": "cv_notes",
+   "fieldtype": "Small Text",
+   "label": "Cardiovascular Notes"
+  },
+  {
+   "fieldname": "section_pulmonary",
+   "fieldtype": "Section Break",
+   "label": "Pulmonary System"
+  },
+  {
+   "default": "0",
+   "fieldname": "resp_normal",
+   "fieldtype": "Check",
+   "label": "No Respiratory Disease"
+  },
+  {
+   "default": "0",
+   "fieldname": "smoker",
+   "fieldtype": "Check",
+   "label": "Smoker"
+  },
+  {
+   "fieldname": "smoking_years",
+   "fieldtype": "Data",
+   "label": "Years (Quit)"
+  },
+  {
+   "default": "0",
+   "fieldname": "chronic_cough",
+   "fieldtype": "Check",
+   "label": "Chronic Cough"
+  },
+  {
+   "default": "0",
+   "fieldname": "sob",
+   "fieldtype": "Check",
+   "label": "Shortness of Breath"
+  },
+  {
+   "default": "0",
+   "fieldname": "copd_emphysema",
+   "fieldtype": "Check",
+   "label": "COPD / Emphysema"
+  },
+  {
+   "default": "0",
+   "fieldname": "asthma_bronchitis",
+   "fieldtype": "Check",
+   "label": "Asthma / Bronchitis"
+  },
+  {
+   "default": "0",
+   "fieldname": "urti_tb",
+   "fieldtype": "Check",
+   "label": "URTI / Pneumonia / TB"
+  },
+  {
+   "fieldname": "resp_notes",
+   "fieldtype": "Small Text",
+   "label": "Respiratory Notes"
+  },
+  {
+   "fieldname": "section_hepatic",
+   "fieldtype": "Section Break",
+   "label": "Hepatic System"
+  },
+  {
+   "default": "0",
+   "fieldname": "jaundice_hepatitis",
+   "fieldtype": "Check",
+   "label": "Jaundice / Hepatitis / HBsAg"
+  },
+  {
+   "default": "0",
+   "fieldname": "cirrhosis",
+   "fieldtype": "Check",
+   "label": "Cirrhosis"
+  },
+  {
+   "default": "0",
+   "fieldname": "gall_bladder",
+   "fieldtype": "Check",
+   "label": "Gall Bladder Disease"
+  },
+  {
+   "fieldname": "hepatic_notes",
+   "fieldtype": "Small Text",
+   "label": "Hepatic Notes"
+  },
+  {
+   "fieldname": "section_renal",
+   "fieldtype": "Section Break",
+   "label": "Renal System"
+  },
+  {
+   "default": "0",
+   "fieldname": "renal_failure",
+   "fieldtype": "Check",
+   "label": "Insufficiency / Failure"
+  },
+  {
+   "default": "0",
+   "fieldname": "dialysis",
+   "fieldtype": "Check",
+   "label": "Dialysis (Hemo/CAPD)"
+  },
+  {
+   "default": "0",
+   "fieldname": "renal_calculi",
+   "fieldtype": "Check",
+   "label": "Calculi"
+  },
+  {
+   "default": "0",
+   "fieldname": "recent_uti",
+   "fieldtype": "Check",
+   "label": "Recent UTI"
+  },
+  {
+   "fieldname": "renal_notes",
+   "fieldtype": "Small Text",
+   "label": "Renal Notes"
+  },
+  {
+   "fieldname": "section_endocrine",
+   "fieldtype": "Section Break",
+   "label": "Endocrine System"
+  },
+  {
+   "default": "0",
+   "fieldname": "diabetes",
+   "fieldtype": "Check",
+   "label": "Diabetes"
+  },
+  {
+   "default": "0",
+   "fieldname": "diet_control",
+   "fieldtype": "Check",
+   "label": "Diet Control"
+  },
+  {
+   "default": "0",
+   "fieldname": "oral_agent",
+   "fieldtype": "Check",
+   "label": "Oral Agent"
+  },
+  {
+   "default": "0",
+   "fieldname": "insulin",
+   "fieldtype": "Check",
+   "label": "Insulin"
+  },
+  {
+   "default": "0",
+   "fieldname": "dm_complications",
+   "fieldtype": "Check",
+   "label": "Complications"
+  },
+  {
+   "default": "0",
+   "fieldname": "thyroid",
+   "fieldtype": "Check",
+   "label": "Thyroid Disease"
+  },
+  {
+   "fieldname": "endocrine_notes",
+   "fieldtype": "Small Text",
+   "label": "Endocrine Notes"
+  },
+  {
+   "fieldname": "section_hematology",
+   "fieldtype": "Section Break",
+   "label": "Hematology"
+  },
+  {
+   "default": "0",
+   "fieldname": "coagulopathy",
+   "fieldtype": "Check",
+   "label": "Coagulopathy / Family History"
+  },
+  {
+   "default": "0",
+   "fieldname": "anemia",
+   "fieldtype": "Check",
+   "label": "Anemia"
+  },
+  {
+   "default": "0",
+   "fieldname": "sickle_cell",
+   "fieldtype": "Check",
+   "label": "Sickle Cell Disease"
+  },
+  {
+   "default": "0",
+   "fieldname": "g6pd",
+   "fieldtype": "Check",
+   "label": "G6PD Deficiency"
+  },
+  {
+   "default": "0",
+   "fieldname": "anticoagulation",
+   "fieldtype": "Check",
+   "label": "On Anticoagulation"
+  },
+  {
+   "default": "0",
+   "fieldname": "blood_transfusion",
+   "fieldtype": "Check",
+   "label": "Previous Blood Transfusion"
+  },
+  {
+   "fieldname": "hematology_notes",
+   "fieldtype": "Small Text",
+   "label": "Hematology Notes"
+  },
+  {
+   "fieldname": "section_neurology",
+   "fieldtype": "Section Break",
+   "label": "Neurology"
+  },
+  {
+   "default": "0",
+   "fieldname": "seizure",
+   "fieldtype": "Check",
+   "label": "Seizure Disorder"
+  },
+  {
+   "default": "0",
+   "fieldname": "stroke_tia",
+   "fieldtype": "Check",
+   "label": "Stroke / TIA"
+  },
+  {
+   "default": "0",
+   "fieldname": "head_injury",
+   "fieldtype": "Check",
+   "label": "Head Injury"
+  },
+  {
+   "default": "0",
+   "fieldname": "paraesthesia",
+   "fieldtype": "Check",
+   "label": "Paraesthesia / Paralysis"
+  },
+  {
+   "default": "0",
+   "fieldname": "mental_status",
+   "fieldtype": "Check",
+   "label": "Psychiatric / Mental Status"
+  },
+  {
+   "fieldname": "neurology_notes",
+   "fieldtype": "Small Text",
+   "label": "Neurology Notes"
+  },
+  {
+   "default": "0",
+   "fieldname": "pregnancy_lmp",
+   "fieldtype": "Check",
+   "label": "Pregnancy LMP"
+  },
+  {
+   "fieldname": "section_miscellaneous",
+   "fieldtype": "Section Break",
+   "label": "Miscellaneous"
+  },
+  {
+   "default": "0",
+   "fieldname": "congenital",
+   "fieldtype": "Check",
+   "label": "Congenital Abnormality"
+  },
+  {
+   "default": "0",
+   "fieldname": "hiv_hbsag",
+   "fieldtype": "Check",
+   "label": "HIV / HBsAg Positive"
+  },
+  {
+   "default": "0",
+   "fieldname": "drug_allergy",
+   "fieldtype": "Check",
+   "label": "Drug Intake / Allergies"
+  },
+  {
+   "fieldname": "miscellaneous_notes",
+   "fieldtype": "Small Text",
+   "label": "Miscellaneous Notes"
+  },
+  {
+   "fieldname": "section_gastrointestinal",
+   "fieldtype": "Section Break",
+   "label": "Gastrointestinal"
+  },
+  {
+   "default": "0",
+   "fieldname": "reflux",
+   "fieldtype": "Check",
+   "label": "Hiatal Hernia / Reflux"
+  },
+  {
+   "default": "0",
+   "fieldname": "nausea_vomiting",
+   "fieldtype": "Check",
+   "label": "Nausea / Vomiting"
+  },
+  {
+   "default": "0",
+   "fieldname": "ulcer",
+   "fieldtype": "Check",
+   "label": "Ulcer Disease"
+  },
+  {
+   "fieldname": "gi_notes",
+   "fieldtype": "Small Text",
+   "label": "Gastrointestinal Notes"
+  },
+  {
+   "fieldname": "section_history",
+   "fieldtype": "Section Break",
+   "label": "History"
+  },
+  {
+   "fieldname": "surgical_history",
+   "fieldtype": "Small Text",
+   "label": "Surgical History"
+  },
+  {
+   "fieldname": "anesthesia_history",
+   "fieldtype": "Small Text",
+   "label": "Anesthesia History"
+  },
+  {
+   "fieldname": "anesthesia_complications",
+   "fieldtype": "Small Text",
+   "label": "Previous Anesthesia Complications"
+  },
+  {
+   "fieldname": "section_final_assessment",
+   "fieldtype": "Section Break",
+   "label": "Final Assessment"
+  },
+  {
+   "fieldname": "fit_for_anesthesia",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Fit for Anesthesia",
+   "options": "Yes\nNo\nConditional"
+  },
+  {
+   "fieldname": "risk_level",
+   "fieldtype": "Select",
+   "label": "Risk Level",
+   "options": "Low\nModerate\nHigh\nVery High"
+  },
+  {
+   "fieldname": "allergies",
+   "fieldtype": "Small Text",
+   "label": "Known Allergies"
+  },
+  {
+   "fieldname": "current_medications",
+   "fieldtype": "Small Text",
+   "label": "Current Medications"
+  },
+  {
+   "fieldname": "previous_anesthesia_complications",
+   "fieldtype": "Small Text",
+   "label": "Previous Anesthesia Complications"
+  },
+  {
+   "fieldname": "remarks",
+   "fieldtype": "Text Editor",
+   "label": "Remarks / Recommendations"
+  },
+  {
+   "default": "0",
+   "fieldname": "exercise_tolerance",
+   "fieldtype": "Check",
+   "label": "Exercise Tolerance"
+  },
+  {
+   "default": "0",
+   "fieldname": "etoh_consumption",
+   "fieldtype": "Check",
+   "label": "ETOH Consumption"
+  },
+  {
+   "default": "0",
+   "fieldname": "chemical_substances",
+   "fieldtype": "Check",
+   "label": "Chemical Substances"
+  },
+  {
+   "default": "0",
+   "fieldname": "illness_and_pregnancy",
+   "fieldtype": "Check",
+   "label": "Illness and Pregnancy"
+  },
+  {
+   "fieldname": "section_break_rytp",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fetch_from": "anesthesiologist.practitioner_name",
+   "fieldname": "anesthesiologist_name",
+   "fieldtype": "Data",
+   "label": "Anesthesiologist Name"
+  },
+  {
+   "fieldname": "sign",
+   "fieldtype": "Attach",
+   "label": "SIgn"
+  },
+  {
+   "fieldname": "column_break_dijd",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "date",
+   "fieldtype": "Date",
+   "label": "Date"
+  },
+  {
+   "fieldname": "time",
+   "fieldtype": "Time",
+   "label": "Time"
+  },
+  {
+   "fieldname": "anesthesiologist",
+   "fieldtype": "Link",
+   "label": "Anesthesiologist",
+   "options": "Healthcare Practitioner"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-03-18 03:05:07.316888",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Pre Anesthesia Assessment",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Healthcare Administrator",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "print": 1,
+   "read": 1,
+   "role": "Physician",
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}
