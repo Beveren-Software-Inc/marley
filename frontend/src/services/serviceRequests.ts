@@ -87,7 +87,7 @@ export interface UpdateServiceRequestData {
   patient_instructions?: string
   expected_date?: string
   amount?: number
-  cost?: number
+  cost?: number | null
   source?: string
   referring_practitioner?: string
   referred_to_practitioner?: string
@@ -99,6 +99,11 @@ export interface UpdateServiceRequestData {
   dosage?: string
   period?: string
   cost_center?: string
+  patient_category?: string
+  discount?: number
+  discount_value?: string
+  discount_amount?: number
+  grand_total?: number
 }
 
 /** Update an existing Service Request. */
@@ -173,7 +178,11 @@ export interface CreateServiceRequestData {
   occurrence_date?: string
   occurrence_time?: string
   cost_center?: string
-  cost?: number
+  cost?: number | null
+  discount?: number
+  discount_value?: string
+  discount_amount?: number
+  grand_total?: number
 }
 
 export async function createServiceRequest(data: CreateServiceRequestData): Promise<ServiceRequest> {

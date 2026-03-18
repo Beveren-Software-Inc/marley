@@ -194,11 +194,71 @@ export async function requestLabConsumables(
   return mrName
 }
 
+/** One editable row of Normal Test Result (compound lab test). */
+export interface NormalTestResultRow {
+  lab_test_name?: string
+  lab_test_event?: string
+  result_value?: string
+  lab_test_uom?: string
+  normal_range?: string
+  lab_test_comment?: string
+  template?: string
+  secondary_uom?: string
+  conversion_factor?: number
+  secondary_uom_result?: string
+  bold?: boolean
+  italic?: boolean
+  underline?: boolean
+  require_result_value?: boolean
+  allow_blank?: boolean
+}
+
+/** Details fetched from a Lab Test Template for the result-entry UI. */
+export interface LabTestTemplateDetails {
+  lab_test_template_type?: string
+  min_range?: number | null
+  max_range?: number | null
+  worksheet_instructions?: string
+  sample_details?: string
+  lab_test_uom?: string
+  normal_range?: string
+  /** Compound test rows from normal_test_templates child table on the template */
+  normal_test_templates?: Array<{
+    lab_test_event?: string
+    lab_test_uom?: string
+    normal_range?: string
+  }>
+}
+
+/** One row in the Observation Sample Collection child table. */
+export interface ObservationSampleCollectionRow {
+  sample?: string
+  sample_type?: string
+  uom?: string
+  status?: string
+  observation_template?: string
+  collection_date_time?: string
+  sample_qty?: number
+  collection_point?: string
+  collected_by?: string
+  medical_department?: string
+  specimen?: string
+}
+
+export async function fetchLabTestTemplateDetails(template: string): Promise<LabTestTemplateDetails> {
+  const res = await fetch(
+    `/api/method/healthcare.api.lab_test.get_lab_test_template_details?template=${encodeURIComponent(template)}`
+  )
+  const data = await res.json()
+  return (data?.message || {}) as LabTestTemplateDetails
+}
+
 export interface SaveAndSubmitLabTestInput {
   custom_result?: string
   lab_test_comment?: string
   worksheet_instructions?: string
   documents?: Array<{ file_name?: string; document_type?: string; transaction_no?: string; upload_remarks?: string; document?: string }>
+  normal_test_items?: NormalTestResultRow[]
   submit?: boolean
   amount?: number
   discount_margin?: string
@@ -289,7 +349,8 @@ export async function createSampleCollectionForLabSample(
   rowIndex: number,
   sampleDetails?: string,
   collectionPoint?: string,
-  referringPractitioner?: string
+  referringPractitioner?: string,
+  observationRows?: ObservationSampleCollectionRow[]
 ): Promise<{ sample_collection: string }> {
   const { apiRequest } = await import('./apiClient')
   return apiRequest<{ sample_collection: string }>(
@@ -302,6 +363,7 @@ export async function createSampleCollectionForLabSample(
         sample_details: sampleDetails,
         collection_point: collectionPoint,
         referring_practitioner: referringPractitioner,
+        observation_rows: observationRows?.length ? observationRows : undefined,
       }),
     }
   )
