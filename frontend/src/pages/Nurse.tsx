@@ -42,6 +42,8 @@ import { EnvironmentalChecklistList } from '../components/environmental/Environm
 import { MorseFallScaleList } from '../components/morse/MorseFallScaleList'
 import { SleepingPatternList } from '../components/sleeping/SleepingPatternList'
 import { CreateSleepingPatternModal } from '../components/sleeping/CreateSleepingPatternModal'
+import { PatientHistoryList } from '../components/patientHistory/PatientHistoryList'
+import { PatientHistoryModal } from '../components/patientHistory/PatientHistoryModal'
 import { ECTAdmissionList } from '../components/ect/ECTAdmissionList'
 import { ECTProcedureList } from '../components/ect/ECTProcedureList'
 import { IOPDayListWithHeader } from '../components/iop/IOPDayList'
@@ -80,6 +82,8 @@ export const NursePage = () => {
   const [showVitalSignModal, setShowVitalSignModal] = useState(false)
   const [showSleepingPatternModal, setShowSleepingPatternModal] = useState(false)
   const [sleepingPatternRefreshKey, setSleepingPatternRefreshKey] = useState(0)
+  const [showPatientHistoryModal, setShowPatientHistoryModal] = useState(false)
+  const [patientHistoryRefreshKey, setPatientHistoryRefreshKey] = useState(0)
   const [showGivenMedicineModal, setShowGivenMedicineModal] = useState(false)
   const [givenRefreshKey, setGivenRefreshKey] = useState(0)
   const [reconcileLoading, setReconcileLoading] = useState(false)
@@ -1273,6 +1277,59 @@ export const NursePage = () => {
               setShowSleepingPatternModal(false)
             }}
             initialPatient={selectedPatient}
+          />
+        )}
+      </div>
+    )
+  }
+
+  if (screen === 'n-patient-history') {
+    return (
+      <div className="flex flex-col">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+        <div className="p-4">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+            <div className="font-semibold mb-4 flex items-center justify-between">
+              <span>Patient History</span>
+              <button
+                onClick={() => setShowPatientHistoryModal(true)}
+                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
+                title="New Patient History"
+              >
+                +
+              </button>
+            </div>
+            <p className="text-sm text-slate-600 mb-3">
+              Structured patient history records with template-driven attribute items and detailed descriptions.
+            </p>
+            <PatientHistoryList
+              patient={selectedPatient}
+              refreshKey={patientHistoryRefreshKey}
+            />
+          </section>
+        </div>
+        {showPatientHistoryModal && (
+          <PatientHistoryModal
+            admissionNo=""
+            patient={selectedPatient}
+            patientName=""
+            onClose={() => setShowPatientHistoryModal(false)}
+            onSuccess={() => {
+              setPatientHistoryRefreshKey(prev => prev + 1)
+              setShowPatientHistoryModal(false)
+            }}
           />
         )}
       </div>

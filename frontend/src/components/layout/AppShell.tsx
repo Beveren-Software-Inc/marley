@@ -34,6 +34,7 @@ const nurseScreens = [
   { id: 'n-assess', title: 'Patient Assessment' },
   { id: 'n-groom', title: 'Grooming Chart' },
   { id: 'n-sleep', title: 'Sleeping Pattern' },
+  { id: 'n-patient-history', title: 'Patient History' },
   { id: 'n-mental', title: 'Mental Status' },
   { id: 'n-env', title: 'Environmental Checklist' },
   { id: 'n-discharge', title: 'Discharge Form / Procedure' },

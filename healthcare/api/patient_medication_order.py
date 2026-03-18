@@ -22,15 +22,21 @@ def get_medication_orders(
 	"""Get list of Patient Medication Orders for Prescription listing.
 	Supports filters: patient, status, search (name/patient name), practitioner, from_date, to_date.
 	"""
+	from healthcare.api.common import get_permitted_cost_centers
 	limit = int(limit) if limit else 50
 	offset = int(offset) if offset else 0
 	use_sql = bool(search or practitioner or from_date or to_date)
+
+	# Resolve cost-centre restriction once for both paths
+	permitted_cc = get_permitted_cost_centers()
+	if permitted_cc is not None and not permitted_cc:
+		return []
 
 	fields = [
 		'name', 'patient', 'patient_name', 'care_context', 'patient_encounter',
 		'inpatient_record', 'practitioner', 'posting_date', 'start_date', 'end_date',
 		'status', 'total_orders', 'completed_orders', 'company',
-		'reference_doctype', 'reference_document_name',
+		'reference_doctype', 'reference_document_name', 'cost_center',
 	]
 
 	if use_sql:
@@ -62,6 +68,13 @@ def get_medication_orders(
 			conditions.append('posting_date <= %(to_date)s')
 			params['to_date'] = to_date
 
+		# ── Cost-centre User Permission enforcement ───────────────────────
+		if permitted_cc is not None:
+			placeholders = ', '.join(f'%(cc_{i})s' for i in range(len(permitted_cc)))
+			conditions.append(f'cost_center IN ({placeholders})')
+			for i, cc in enumerate(permitted_cc):
+				params[f'cc_{i}'] = cc
+
 		where_sql = ' AND '.join(conditions)
 		orders = frappe.db.sql(
 			f"""
@@ -84,6 +97,10 @@ def get_medication_orders(
 			filters.append(['status', '!=', 'Cancelled'])
 		if care_context in ('Patient Visit', 'Inpatient Admission'):
 			filters.append(['care_context', '=', care_context])
+
+		# ── Cost-centre User Permission enforcement ───────────────────────
+		if permitted_cc is not None:
+			filters.append(['cost_center', 'in', permitted_cc])
 
 		orders = frappe.get_all(
 			'Patient Medication Order',

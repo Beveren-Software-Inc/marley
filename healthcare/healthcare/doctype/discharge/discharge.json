@@ -12,6 +12,7 @@
   "column_break_talh",
   "patient_name",
   "discharge_type",
+  "ama_type",
   "section_break_ujbp",
   "discharged_by_user",
   "user_name",
@@ -183,7 +184,7 @@
    "fieldname": "discharge_type",
    "fieldtype": "Select",
    "label": "Discharge Type",
-   "options": "\nHome\nDama\nRefer To Another Hospital"
+   "options": "\nHome\nRefer To Another Hospital\nAMA"
   },
   {
    "fieldname": "discharge_treatment_plan",
@@ -344,13 +345,20 @@
    "fieldtype": "Table",
    "label": "Patient Relatives",
    "options": "IP Patient Relative"
+  },
+  {
+   "depends_on": "eval: doc.discharge_type==\"AMA\"",
+   "fieldname": "ama_type",
+   "fieldtype": "Select",
+   "label": "AMA Type",
+   "options": "\nRefuse Admission\nRefuse Treatment / Procedure\nDischarge Against Medical Advice(DAMA)"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-03-11 18:19:48.107513",
+ "modified": "2026-03-18 11:49:29.704554",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Discharge",

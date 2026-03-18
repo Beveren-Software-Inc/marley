@@ -332,6 +332,7 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
 
   const [formData, setFormData] = useState({
     discharge_type: '',
+    ama_type: '',
     discharge_date: new Date().toISOString().slice(0, 16),
     discharge_time: new Date().toISOString().slice(0, 10),
     final_discharge_date: new Date().toISOString().slice(0, 10),
@@ -752,14 +753,32 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Discharge Type</label>
-                    <select value={formData.discharge_type} onChange={(e) => setFormData({ ...formData, discharge_type: e.target.value })}
-                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                    <select
+                      value={formData.discharge_type}
+                      onChange={(e) => setFormData({ ...formData, discharge_type: e.target.value, ama_type: '' })}
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    >
                       <option value="">Select Discharge Type</option>
                       <option value="Home">Home</option>
-                      <option value="Dama">Dama</option>
                       <option value="Refer To Another Hospital">Refer To Another Hospital</option>
+                      <option value="AMA">AMA</option>
                     </select>
                   </div>
+                  {formData.discharge_type === 'AMA' && (
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">AMA Type</label>
+                      <select
+                        value={formData.ama_type}
+                        onChange={(e) => setFormData({ ...formData, ama_type: e.target.value })}
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      >
+                        <option value="">Select AMA Type</option>
+                        <option value="Refuse Admission">Refuse Admission</option>
+                        <option value="Refuse Treatment / Procedure">Refuse Treatment / Procedure</option>
+                        <option value="Discharge Against Medical Advice(DAMA)">Discharge Against Medical Advice (DAMA)</option>
+                      </select>
+                    </div>
+                  )}
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Discharge Date</label>
                     <input type="datetime-local" value={formData.discharge_date}

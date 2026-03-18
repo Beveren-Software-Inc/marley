@@ -56,6 +56,10 @@ import { PreAnesthesiaAssessmentList } from '../components/ect/PreAnesthesiaAsse
 import { PreAnesthesiaAssessmentModal } from '../components/ect/PreAnesthesiaAssessmentModal'
 import { SleepingPatternList } from '../components/sleeping/SleepingPatternList'
 import { CreateSleepingPatternModal } from '../components/sleeping/CreateSleepingPatternModal'
+import { PhysicalExaminationList } from '../components/physicalExam/PhysicalExaminationList'
+import { PhysicalExaminationModal } from '../components/physicalExam/PhysicalExaminationModal'
+import { PatientHistoryList } from '../components/patientHistory/PatientHistoryList'
+import { PatientHistoryModal } from '../components/patientHistory/PatientHistoryModal'
 
 export const DoctorPage = () => {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -104,6 +108,10 @@ export const DoctorPage = () => {
   const [ectRefreshKey, setEctRefreshKey] = useState(0)
   const [showSleepingPatternModal, setShowSleepingPatternModal] = useState(false)
   const [sleepingPatternRefreshKey, setSleepingPatternRefreshKey] = useState(0)
+  const [showPhysicalExamModal, setShowPhysicalExamModal] = useState(false)
+  const [physicalExamRefreshKey, setPhysicalExamRefreshKey] = useState(0)
+  const [showPatientHistoryModal, setShowPatientHistoryModal] = useState(false)
+  const [patientHistoryRefreshKey, setPatientHistoryRefreshKey] = useState(0)
   const [showCreateNursingTaskModal, setShowCreateNursingTaskModal] = useState(false)
   const [longActingRefreshKey] = useState(0)
   const screen = searchParams.get('screen')
@@ -1264,6 +1272,112 @@ export const DoctorPage = () => {
   }
 
   // Long Acting Medicine (doctor subtopic)
+  if (screen === 'physical-exam') {
+    return (
+      <div className="flex flex-col">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+        <div className="p-4">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+            <div className="font-semibold mb-4 flex items-center justify-between">
+              <span>Physical Examination</span>
+              <button
+                onClick={() => setShowPhysicalExamModal(true)}
+                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
+                title="New Physical Examination"
+              >
+                +
+              </button>
+            </div>
+            <p className="text-sm text-slate-600 mb-3">
+              Record physical examination findings by body system — skin, CVS/Resp, CNC, GIT and others.
+            </p>
+            <PhysicalExaminationList
+              patient={selectedPatient}
+              refreshKey={physicalExamRefreshKey}
+            />
+          </section>
+        </div>
+        {showPhysicalExamModal && (
+          <PhysicalExaminationModal
+            admissionNo=""
+            patient={selectedPatient}
+            patientName=""
+            onClose={() => setShowPhysicalExamModal(false)}
+            onSuccess={() => {
+              setPhysicalExamRefreshKey(prev => prev + 1)
+              setShowPhysicalExamModal(false)
+            }}
+          />
+        )}
+      </div>
+    )
+  }
+
+  if (screen === 'patient-history') {
+    return (
+      <div className="flex flex-col">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+        <div className="p-4">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+            <div className="font-semibold mb-4 flex items-center justify-between">
+              <span>Patient History</span>
+              <button
+                onClick={() => setShowPatientHistoryModal(true)}
+                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
+                title="New Patient History"
+              >
+                +
+              </button>
+            </div>
+            <p className="text-sm text-slate-600 mb-3">
+              Structured patient history records with template-driven attribute items and detailed descriptions.
+            </p>
+            <PatientHistoryList
+              patient={selectedPatient}
+              refreshKey={patientHistoryRefreshKey}
+            />
+          </section>
+        </div>
+        {showPatientHistoryModal && (
+          <PatientHistoryModal
+            admissionNo=""
+            patient={selectedPatient}
+            patientName=""
+            onClose={() => setShowPatientHistoryModal(false)}
+            onSuccess={() => {
+              setPatientHistoryRefreshKey(prev => prev + 1)
+              setShowPatientHistoryModal(false)
+            }}
+          />
+        )}
+      </div>
+    )
+  }
+
   if (screen === 'd-long-acting-meds') {
     return (
       <div className="flex flex-col">

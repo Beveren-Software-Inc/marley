@@ -32,7 +32,9 @@ export const doctorScreens = [
   { id: 'pvh', title: 'Patient Visit History', desc: 'Prior encounters.' },
   { id: 'pkg', title: 'Package Detail', desc: 'Package info.' },
   { id: 'nurse-tasks', title: 'Nursing Task Assignment', desc: 'Assign and view nursing tasks.' },
-  { id: 'd-long-acting-meds', title: 'Long Acting Medicine', desc: 'View and manage long acting medicine.' }
+  { id: 'd-long-acting-meds', title: 'Long Acting Medicine', desc: 'View and manage long acting medicine.' },
+  { id: 'physical-exam', title: 'Physical Examination', desc: 'Document physical examination findings by body system.' },
+  { id: 'patient-history', title: 'Patient History', desc: 'Structured patient history with template-driven detail items.' }
 ].sort((a, b) => a.title.localeCompare(b.title))
 
 

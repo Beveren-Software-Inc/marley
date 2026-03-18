@@ -1,0 +1,87 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "PH-.{MM}-.{YY}-.#####",
+ "creation": "2026-03-18 12:04:29.384506",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "inpatient_admission",
+  "patient_visit",
+  "column_break_utvm",
+  "patient",
+  "template",
+  "detail_descriptions_section",
+  "history_detail"
+ ],
+ "fields": [
+  {
+   "fieldname": "detail_descriptions_section",
+   "fieldtype": "Section Break",
+   "label": "Detail Descriptions"
+  },
+  {
+   "fieldname": "history_detail",
+   "fieldtype": "Table",
+   "label": "History Detail",
+   "options": "Patient History Detail"
+  },
+  {
+   "fieldname": "inpatient_admission",
+   "fieldtype": "Link",
+   "label": "Inpatient Admission",
+   "options": "Inpatient Admission"
+  },
+  {
+   "fieldname": "patient_visit",
+   "fieldtype": "Link",
+   "label": "Patient Visit",
+   "options": "Patient Visit"
+  },
+  {
+   "fieldname": "column_break_utvm",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "patient",
+   "fieldtype": "Link",
+   "label": "Patient",
+   "options": "Patient"
+  },
+  {
+   "default": "Default History Form",
+   "fieldname": "template",
+   "fieldtype": "Link",
+   "label": "Template",
+   "options": "Patient History Template"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-03-18 12:25:29.155525",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Patient History",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

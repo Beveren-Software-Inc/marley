@@ -874,3 +874,114 @@ def get_salutations(query: str = "") -> list[Dict]:
     )
 
     return salutations
+
+
+# ─── Cost Centre User Permission ──────────────────────────────────────────────
+
+EXEMPT_ROLES = {"Administrator", "System Manager", "Healthcare Administrator"}
+
+
+def _user_is_exempt(user=None):
+	"""Return True if the user holds any role that bypasses Cost Centre restrictions."""
+	user = user or frappe.session.user
+	if user == "Administrator":
+		return True
+	roles = set(frappe.get_roles(user))
+	return bool(roles & EXEMPT_ROLES)
+
+
+def get_permitted_cost_centers():
+	"""
+	Shared helper — call this at the top of any list-fetching API function.
+
+	Returns
+	-------
+	``None``    The current user has no Cost Center restriction; show everything.
+	``[...]``   The user is restricted to this list of Cost Centers only.
+	``[]``      The user has a permission row but it holds no values; show nothing.
+	"""
+	user = frappe.session.user
+	if user == "Administrator":
+		return None
+	if _user_is_exempt(user):
+		return None
+
+	perms = frappe.get_all(
+		"User Permission",
+		filters={"user": user, "allow": "Cost Center"},
+		fields=["for_value"],
+	)
+	if not perms:
+		return None  # No restriction — see everything
+
+	return [p["for_value"] for p in perms]
+
+
+@frappe.whitelist()
+def get_user_cost_center_permission():
+	"""
+	Return the Cost Center currently restricted to the logged-in user via
+	User Permission, plus whether they are exempt (admin / system manager).
+	"""
+	user = frappe.session.user
+	exempt = _user_is_exempt(user)
+
+	existing = frappe.get_all(
+		"User Permission",
+		filters={
+			"user": user,
+			"allow": "Cost Center",
+		},
+		fields=["name", "for_value"],
+		limit=1,
+	)
+
+	return {
+		"cost_center": existing[0]["for_value"] if existing else "",
+		"is_exempt": exempt,
+	}
+
+
+@frappe.whitelist()
+def set_cost_center_permission(cost_center=None):
+	"""
+	Set (or clear) a Cost Center User Permission for the logged-in user.
+
+	- If the user is Administrator, System Manager, or Healthcare Administrator the
+	  call is a no-op (permissions are ignored for these roles).
+	- Deletes any existing ``Cost Center`` User Permission rows for this user first.
+	- If *cost_center* is a non-empty string, creates a fresh User Permission row.
+	"""
+	user = frappe.session.user
+
+	if _user_is_exempt(user):
+		return {"status": "skipped", "message": "User has elevated privileges — permission not changed."}
+
+	# ── Remove all existing Cost Center permissions for this user ──────────────
+	old_perms = frappe.get_all(
+		"User Permission",
+		filters={"user": user, "allow": "Cost Center"},
+		fields=["name"],
+	)
+	for perm in old_perms:
+		frappe.delete_doc("User Permission", perm["name"], ignore_permissions=True, force=True)
+
+	# ── Create new permission if a cost center was supplied ────────────────────
+	if cost_center and cost_center.strip():
+		# Verify the cost center actually exists
+		if not frappe.db.exists("Cost Center", cost_center.strip()):
+			frappe.throw(f"Cost Center '{cost_center}' does not exist.")
+
+		doc = frappe.get_doc({
+			"doctype": "User Permission",
+			"user": user,
+			"allow": "Cost Center",
+			"for_value": cost_center.strip(),
+			"apply_to_all_doctypes": 1,
+		})
+		doc.insert(ignore_permissions=True)
+		frappe.db.commit()
+		return {"status": "set", "cost_center": cost_center.strip()}
+
+	frappe.db.commit()
+	return {"status": "cleared", "cost_center": ""}

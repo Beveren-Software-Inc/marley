@@ -18,6 +18,8 @@ import { PreEctChecklistModal } from './PreEctChecklistModal'
 import { ModifiedAldereteScoreModal } from './ModifiedAldereteScoreModal'
 import { ECTAnesthesiaConsentModal } from '../ect/ECTAnesthesiaConsentModal'
 import { PreAnesthesiaAssessmentModal } from '../ect/PreAnesthesiaAssessmentModal'
+import { PhysicalExaminationModal } from '../physicalExam/PhysicalExaminationModal'
+import { PatientHistoryModal } from '../patientHistory/PatientHistoryModal'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import type { InpatientRecord, InpatientPackage } from '../../services/inpatientRecords'
@@ -67,6 +69,10 @@ export const AdmissionList = ({ onAdmissionSelect, searchQuery: externalSearchQu
   const [ectAnesthesiaConsentAdmission, setEctAnesthesiaConsentAdmission] = useState<InpatientRecord | null>(null)
   const [showPreAnesthesia, setShowPreAnesthesia] = useState(false)
   const [preAnesthesiaAdmission, setPreAnesthesiaAdmission] = useState<InpatientRecord | null>(null)
+  const [showPhysicalExam, setShowPhysicalExam] = useState(false)
+  const [physicalExamAdmission, setPhysicalExamAdmission] = useState<InpatientRecord | null>(null)
+  const [showPatientHistory, setShowPatientHistory] = useState(false)
+  const [patientHistoryAdmission, setPatientHistoryAdmission] = useState<InpatientRecord | null>(null)
 
   // --- Filter: Admission No (searchable dropdown) ---
   const [admissionNoQuery, setAdmissionNoQuery] = useState('')
@@ -599,6 +605,32 @@ export const AdmissionList = ({ onAdmissionSelect, searchQuery: externalSearchQu
                                   Pre Anesthesia Assessment
                                 </button>
                               )}
+                              {(record.status === 'Admission Scheduled' || record.status === 'Admitted') && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setPhysicalExamAdmission(record)
+                                    setShowPhysicalExam(true)
+                                    setOpenActionRow(null)
+                                  }}
+                                  className="block w-full text-left px-3 py-2 text-sm text-teal-700 hover:bg-teal-50"
+                                >
+                                  Physical Examination
+                                </button>
+                              )}
+                              {(record.status === 'Admission Scheduled' || record.status === 'Admitted') && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setPatientHistoryAdmission(record)
+                                    setShowPatientHistory(true)
+                                    setOpenActionRow(null)
+                                  }}
+                                  className="block w-full text-left px-3 py-2 text-sm text-teal-700 hover:bg-teal-50"
+                                >
+                                  Patient History
+                                </button>
+                              )}
                               {record.status === 'Discharge Scheduled' && (
                                 <button
                                   type="button"
@@ -825,6 +857,26 @@ export const AdmissionList = ({ onAdmissionSelect, searchQuery: externalSearchQu
           patientName={preAnesthesiaAdmission.patient_name}
           onClose={() => { setShowPreAnesthesia(false); setPreAnesthesiaAdmission(null) }}
           onSuccess={() => { setShowPreAnesthesia(false); setPreAnesthesiaAdmission(null) }}
+        />
+      )}
+
+      {showPhysicalExam && physicalExamAdmission && (
+        <PhysicalExaminationModal
+          admissionNo={physicalExamAdmission.name}
+          patient={physicalExamAdmission.patient}
+          patientName={physicalExamAdmission.patient_name}
+          onClose={() => { setShowPhysicalExam(false); setPhysicalExamAdmission(null) }}
+          onSuccess={() => { setShowPhysicalExam(false); setPhysicalExamAdmission(null) }}
+        />
+      )}
+
+      {showPatientHistory && patientHistoryAdmission && (
+        <PatientHistoryModal
+          admissionNo={patientHistoryAdmission.name}
+          patient={patientHistoryAdmission.patient}
+          patientName={patientHistoryAdmission.patient_name}
+          onClose={() => { setShowPatientHistory(false); setPatientHistoryAdmission(null) }}
+          onSuccess={() => { setShowPatientHistory(false); setPatientHistoryAdmission(null) }}
         />
       )}
     </>

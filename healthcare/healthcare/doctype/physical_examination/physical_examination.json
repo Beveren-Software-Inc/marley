@@ -1,0 +1,107 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "PE-.{MM}-.{YY}-.#####",
+ "creation": "2026-03-18 11:34:08.542697",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "patient_visit",
+  "inpatient_admission",
+  "column_break_lskw",
+  "patient",
+  "patient_name",
+  "section_break_mbec",
+  "skin_",
+  "cvsresp",
+  "cnc",
+  "git",
+  "others"
+ ],
+ "fields": [
+  {
+   "fieldname": "patient_visit",
+   "fieldtype": "Link",
+   "label": "Patient Visit",
+   "options": "Patient Visit"
+  },
+  {
+   "fieldname": "inpatient_admission",
+   "fieldtype": "Link",
+   "label": "Inpatient Admission",
+   "options": "Inpatient Admission"
+  },
+  {
+   "fieldname": "column_break_lskw",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "patient",
+   "fieldtype": "Link",
+   "label": "Patient",
+   "options": "Patient"
+  },
+  {
+   "fieldname": "patient_name",
+   "fieldtype": "Date",
+   "label": "Patient Name"
+  },
+  {
+   "fieldname": "section_break_mbec",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "skin_",
+   "fieldtype": "Small Text",
+   "label": "Skin, Hair, Nail,Gait, Surface, Abnormalities"
+  },
+  {
+   "fieldname": "cvsresp",
+   "fieldtype": "Small Text",
+   "label": "CVS/RESP"
+  },
+  {
+   "fieldname": "cnc",
+   "fieldtype": "Small Text",
+   "label": "CNC: Include abnormal involuntary movements(AIMS):"
+  },
+  {
+   "fieldname": "git",
+   "fieldtype": "Small Text",
+   "label": "GIT"
+  },
+  {
+   "fieldname": "others",
+   "fieldtype": "Small Text",
+   "label": "Others"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-03-18 11:39:36.738515",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Physical Examination",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}
