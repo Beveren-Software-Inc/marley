@@ -13,6 +13,7 @@
   "column_break_3",
   "disabled",
   "nursing_checklist_template",
+  "is_group",
   "billing_section",
   "column_break_hih3",
   "link_existing_item",
@@ -22,8 +23,7 @@
   "column_break_buub",
   "is_billable",
   "lab_test_rate",
-  "inpatient_rate",
-  "outpatient_rate",
+  "pricing",
   "inventory_section",
   "consumables",
   "section_break_description",
@@ -37,6 +37,8 @@
   "lab_test_uom",
   "secondary_uom",
   "conversion_factor",
+  "min_range",
+  "max_range",
   "column_break_10",
   "lab_test_normal_range",
   "section_break_compound",
@@ -146,6 +148,7 @@
    "description": "This value is updated in the Default Sales Price List.",
    "fieldname": "lab_test_rate",
    "fieldtype": "Currency",
+   "hidden": 1,
    "in_list_view": 1,
    "label": "IP Rate",
    "mandatory_depends_on": "eval:doc.is_billable && !doc.link_existing_item"
@@ -434,18 +437,30 @@
    "fieldtype": "Column Break"
   },
   {
-   "fieldname": "outpatient_rate",
-   "fieldtype": "Currency",
-   "label": "OP Rate"
-  },
-  {
    "fieldname": "section_break_bcai",
    "fieldtype": "Section Break"
   },
   {
-   "fieldname": "inpatient_rate",
-   "fieldtype": "Currency",
-   "label": "Inpatient Rate"
+   "fieldname": "min_range",
+   "fieldtype": "Float",
+   "label": "Min Range"
+  },
+  {
+   "fieldname": "max_range",
+   "fieldtype": "Float",
+   "label": "Max Range"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_group",
+   "fieldtype": "Check",
+   "label": "Is Group"
+  },
+  {
+   "fieldname": "pricing",
+   "fieldtype": "Table",
+   "label": "Pricing",
+   "options": "Lab Test Pricing"
   }
  ],
  "grid_page_length": 50,
@@ -456,7 +471,7 @@
    "link_fieldname": "template"
   }
  ],
- "modified": "2026-03-12 17:30:15.090829",
+ "modified": "2026-03-18 16:00:53.835668",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Lab Test Template",

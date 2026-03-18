@@ -5,6 +5,39 @@
 import frappe
 from frappe import _
 
+
+@frappe.whitelist(allow_guest=False)
+def get_lab_test_template_details(template):
+	"""Return display/meta fields from a Lab Test Template for result-entry UI.
+
+	Also returns normal_test_templates rows so the frontend can pre-populate
+	an empty result entry table even before any results have been saved.
+	"""
+	if not template or not frappe.db.exists('Lab Test Template', template):
+		return {}
+	doc = frappe.get_doc('Lab Test Template', template)
+
+	# Compound test rows (normal_test_templates child table on the template)
+	compound_rows = []
+	for r in (doc.get('normal_test_templates') or []):
+		compound_rows.append({
+			'lab_test_event': getattr(r, 'lab_test_event', '') or '',
+			'lab_test_uom': getattr(r, 'lab_test_uom', '') or '',
+			'normal_range': getattr(r, 'normal_range', '') or '',
+		})
+
+	return {
+		'lab_test_template_type': doc.lab_test_template_type,
+		'min_range': doc.get('min_range'),
+		'max_range': doc.get('max_range'),
+		'worksheet_instructions': doc.get('worksheet_instructions') or '',
+		'sample_details': doc.get('sample_details') or '',
+		'lab_test_uom': doc.get('lab_test_uom') or '',
+		'normal_range': doc.get('lab_test_normal_range') or '',
+		'normal_test_templates': compound_rows,
+	}
+
+
 @frappe.whitelist()
 def get_lab_tests(
 	limit=50,
@@ -161,6 +194,20 @@ def get_lab_test(name):
 		}
 		for r in sample_instances
 	]
+	# Include normal_test_items child table (compound test results)
+	normal_items = getattr(lab_test, 'normal_test_items', None) or []
+	out['normal_test_items'] = [
+		{
+			'lab_test_name': getattr(r, 'lab_test_name', None) or '',
+			'lab_test_event': getattr(r, 'lab_test_event', None) or '',
+			'result_value': getattr(r, 'result_value', None) or '',
+			'lab_test_uom': getattr(r, 'lab_test_uom', None) or '',
+			'normal_range': getattr(r, 'normal_range', None) or '',
+			'lab_test_comment': getattr(r, 'lab_test_comment', None) or '',
+			'template': getattr(r, 'template', None) or '',
+		}
+		for r in normal_items
+	]
 	return out
 
 
@@ -298,13 +345,14 @@ def save_and_submit_lab_test(
 	lab_test_comment=None,
 	worksheet_instructions=None,
 	documents=None,
+	normal_test_items=None,
 	amount=None,
 	discount_margin=None,
 	discount=None,
 	discount_amount=None,
 	submit: bool = False,
 ):
-	"""Save custom result/comment/worksheet/documents/pricing on Lab Test and optionally submit it."""
+	"""Save custom result/comment/worksheet/documents/normal_test_items/pricing on Lab Test and optionally submit it."""
 	if not name:
 		frappe.throw(_("Lab Test name is required"))
 
@@ -316,6 +364,33 @@ def save_and_submit_lab_test(
 		doc.lab_test_comment = lab_test_comment
 	if worksheet_instructions is not None:
 		doc.worksheet_instructions = worksheet_instructions
+
+	# Save editable normal test result rows (result_value + lab_test_comment per row)
+	if normal_test_items is not None:
+		if isinstance(normal_test_items, str):
+			import json
+			normal_test_items = json.loads(normal_test_items)
+		# Build a lookup by lab_test_event so we can update existing rows in-place
+		existing = {(r.get('lab_test_event') or r.get('lab_test_name') or ''): r for r in doc.normal_test_items or []}
+		for item in (normal_test_items or []):
+			event_key = item.get('lab_test_event') or item.get('lab_test_name') or ''
+			if event_key in existing:
+				row = existing[event_key]
+				if item.get('result_value') is not None:
+					row.result_value = item['result_value']
+				if item.get('lab_test_comment') is not None:
+					row.lab_test_comment = item['lab_test_comment']
+			else:
+				# New row (shouldn't happen normally but handle gracefully)
+				doc.append('normal_test_items', {
+					'lab_test_name': item.get('lab_test_name') or event_key,
+					'lab_test_event': event_key,
+					'result_value': item.get('result_value') or '',
+					'lab_test_uom': item.get('lab_test_uom') or '',
+					'normal_range': item.get('normal_range') or '',
+					'lab_test_comment': item.get('lab_test_comment') or '',
+					'template': item.get('template') or '',
+				})
 
 	# Pricing updates
 	if amount is not None:
@@ -588,6 +663,7 @@ def create_sample_collection_for_lab_sample(
 	sample_details: str | None = None,
 	collection_point: str | None = None,
 	referring_practitioner: str | None = None,
+	observation_rows: str | list | None = None,
 ):
 	"""Create (or return existing) Sample Collection for a specific sample_instances row on Lab Test.
 
@@ -639,6 +715,28 @@ def create_sample_collection_for_lab_sample(
 	if referring_practitioner:
 		sample_doc.referring_practitioner = referring_practitioner
 
+	# Add observation rows if provided
+	if observation_rows:
+		if isinstance(observation_rows, str):
+			import json
+			observation_rows = json.loads(observation_rows)
+		for obs in (observation_rows or []):
+			if not isinstance(obs, dict):
+				continue
+			sample_doc.append('observation_sample_collection', {
+				'sample': obs.get('sample') or row.sample,
+				'sample_type': obs.get('sample_type') or '',
+				'uom': obs.get('uom') or '',
+				'status': obs.get('status') or 'Active',
+				'observation_template': obs.get('observation_template') or '',
+				'collection_date_time': obs.get('collection_date_time') or frappe.utils.now_datetime(),
+				'sample_qty': frappe.utils.flt(obs.get('sample_qty') or getattr(row, 'sample_qty', 0) or 0),
+				'collection_point': obs.get('collection_point') or '',
+				'collected_by': obs.get('collected_by') or '',
+				'medical_department': obs.get('medical_department') or '',
+				'specimen': obs.get('specimen') or '',
+			})
+
 	sample_doc.save(ignore_permissions=True)
 
 	# Link back to sample_instances row (and keep latest details in row)
@@ -659,10 +757,10 @@ def create_sample_collection_for_lab_sample(
 		doc.status = "Awaiting sample collection"
 	elif linked < total:
 		# At least one collected, but not all
-		doc.status = "Sample collection in progress"
+		doc.status = "Sample Collection in Progress"
 	else:
-		# All samples have a Sample Collection: testing can start, but results not yet entered
-		doc.status = "Sample collected"
+		# All samples have a Sample Collection
+		doc.status = "Sample Collected"
 
 	doc.save(ignore_permissions=True)
 

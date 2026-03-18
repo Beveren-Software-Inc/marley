@@ -13,7 +13,9 @@
   "sample",
   "container_closure_color",
   "column_break_0sbu",
-  "sample_uom"
+  "sample_uom",
+  "collection_details",
+  "results"
  ],
  "fields": [
   {
@@ -48,10 +50,20 @@
    "fieldtype": "Link",
    "label": "Container Closure Color",
    "options": "Color"
+  },
+  {
+   "fieldname": "collection_details",
+   "fieldtype": "Text Editor",
+   "label": "Collection Details"
+  },
+  {
+   "fieldname": "results",
+   "fieldtype": "Float",
+   "label": "Results"
   }
  ],
  "links": [],
- "modified": "2023-06-29 12:37:11.086348",
+ "modified": "2026-03-18 15:51:01.935730",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Lab Test Sample",
@@ -81,6 +93,7 @@
  ],
  "quick_entry": 1,
  "restrict_to_domain": "Healthcare",
+ "row_format": "Dynamic",
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": [],

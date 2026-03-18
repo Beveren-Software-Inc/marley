@@ -74,11 +74,17 @@
   "service_details_section",
   "template_dt",
   "template_dn",
-  "cost",
   "amount",
   "column_break_uafs",
   "reference_document_type",
   "reference_document_name",
+  "section_break_rrgz",
+  "cost",
+  "discount_margin",
+  "discount",
+  "column_break_gqgr",
+  "discount_amount",
+  "grand_total",
   "booked_lab_section",
   "patient_accepted_cost",
   "booked",
@@ -599,6 +605,35 @@
    "fieldname": "cost",
    "fieldtype": "Currency",
    "label": "Cost"
+  },
+  {
+   "fieldname": "section_break_rrgz",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "discount",
+   "fieldtype": "Percent",
+   "label": "Discount(%)"
+  },
+  {
+   "fieldname": "column_break_gqgr",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "discount_amount",
+   "fieldtype": "Currency",
+   "label": "Discount Amount"
+  },
+  {
+   "fieldname": "grand_total",
+   "fieldtype": "Currency",
+   "label": "Grand Total"
+  },
+  {
+   "fieldname": "discount_margin",
+   "fieldtype": "Select",
+   "label": "Discount Margin",
+   "options": "\nPercentage\nAmount"
   }
  ],
  "index_web_pages_for_search": 1,
@@ -617,7 +652,7 @@
    "link_fieldname": "service_request"
   }
  ],
- "modified": "2026-03-12 17:31:52.687404",
+ "modified": "2026-03-18 17:01:11.807085",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Service Request",
