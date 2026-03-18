@@ -10,6 +10,7 @@ from frappe.utils import getdate, flt
 @frappe.whitelist()
 def get_ip_services(limit=50, offset=0, patient=None, admission_no=None):
 	"""Get list of IP Service documents. Optionally filter by patient (file_number) or admission."""
+	from healthcare.api.common import get_permitted_cost_centers
 	if not frappe.db.exists("DocType", "IP Service"):
 		return []
 
@@ -18,6 +19,13 @@ def get_ip_services(limit=50, offset=0, patient=None, admission_no=None):
 		filters["file_number"] = patient
 	if admission_no:
 		filters["admission_no"] = admission_no
+
+	# ── Cost-centre User Permission enforcement ──────────────────────────────
+	permitted_cc = get_permitted_cost_centers()
+	if permitted_cc is not None:
+		if not permitted_cc:
+			return []
+		filters["cost_center"] = ["in", permitted_cc]
 
 	services = frappe.get_all(
 		"IP Service",

@@ -19,6 +19,7 @@ def get_lab_tests(
 	patient_type=None,
 ):
 	"""Get list of Lab Tests with optional filters (patient, status, date range, OP/IP, template, outsourcing)."""
+	from healthcare.api.common import get_permitted_cost_centers
 	filters = {"docstatus": ["!=", 2]}  # Exclude cancelled
 
 	if patient:
@@ -53,6 +54,13 @@ def get_lab_tests(
 		elif to_date:
 			filters["result_date"] = ["<=", to_date]
 
+	# ── Cost-centre User Permission enforcement ──────────────────────────────
+	permitted_cc = get_permitted_cost_centers()
+	if permitted_cc is not None:
+		if not permitted_cc:
+			return []
+		filters["cost_center"] = ["in", permitted_cc]
+
 	lab_tests = frappe.get_all(
 		"Lab Test",
 		filters=filters,
@@ -75,6 +83,7 @@ def get_lab_tests(
 			"material_request",
 			"amount",
 			"grand_total",
+			"cost_center",
 		],
 		limit=limit,
 		limit_start=offset,

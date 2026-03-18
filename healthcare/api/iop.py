@@ -9,11 +9,20 @@ from frappe import _
 @frappe.whitelist()
 def get_iop_days(limit=50, offset=0, from_date=None, to_date=None):
 	"""List IOP Days for reception dashboard."""
+	from healthcare.api.common import get_permitted_cost_centers
 	filters = {}
 	if from_date:
 		filters["posting_date"] = [">=", from_date]
 	if to_date:
 		filters["posting_date"] = ["<=", to_date]
+
+	# ── Cost-centre User Permission enforcement ──────────────────────────────
+	permitted_cc = get_permitted_cost_centers()
+	if permitted_cc is not None:
+		if not permitted_cc:
+			return []
+		filters["cost_center"] = ["in", permitted_cc]
+
 	days = frappe.get_all(
 		"IOP Day",
 		filters=filters,

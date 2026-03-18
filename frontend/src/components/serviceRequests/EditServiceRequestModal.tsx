@@ -20,12 +20,17 @@ import {
 import { toast } from '../../hooks/useToast'
 import { X } from 'lucide-react'
 
-type SRTab = 'patient_order' | 'service_details' | 'billing_refs'
+type SRTab = 'patient_order' | 'service_details' | 'billing_pricing'
 
 interface EditServiceRequestModalProps {
   serviceRequestName: string
   onClose: () => void
   onSuccess: () => void
+}
+
+interface PricingRow {
+  patient_category: string
+  price: number | null
 }
 
 const defaultFormData = {
@@ -62,7 +67,13 @@ const defaultFormData = {
   order_reference_doctype: '',
   order_reference_name: '',
   reference_document_type: '',
-  reference_document_name: ''
+  reference_document_name: '',
+  patient_category: '',
+  // discount_value (Select) stores the margin type label; discount (Percent) stores the % value
+  discount_value: 'Percentage' as string,
+  discount: 0,
+  discount_amount: 0,
+  grand_total: 0
 }
 
 export const EditServiceRequestModal = ({
@@ -93,8 +104,14 @@ export const EditServiceRequestModal = ({
   const [referredToOpen, setReferredToOpen] = useState(false)
   const [referredToQuery, setReferredToQuery] = useState('')
 
+  const [pricing, setPricing] = useState<PricingRow[]>([])
+  const [selectedPrice, setSelectedPrice] = useState<number | null>(null)
+  const [patientCategory, setPatientCategory] = useState('')
+
   const [formData, setFormData] = useState(defaultFormData)
   const [readOnly, setReadOnly] = useState<Record<string, unknown>>({})
+
+  /* ────────────── INITIAL LOAD ────────────── */
 
   useEffect(() => {
     const load = async () => {
@@ -148,11 +165,42 @@ export const EditServiceRequestModal = ({
           order_reference_doctype: (doc.order_reference_doctype as string) || '',
           order_reference_name: (doc.order_reference_name as string) || '',
           reference_document_type: (doc.reference_document_type as string) || '',
-          reference_document_name: (doc.reference_document_name as string) || ''
+          reference_document_name: (doc.reference_document_name as string) || '',
+          patient_category: (doc.patient_category as string) || '',
+          discount_value: (doc.discount_value as string) || 'Percentage',
+          discount: (doc.discount as number) || 0,
+          discount_amount: (doc.discount_amount as number) || 0,
+          grand_total: (doc.grand_total as number) ?? (doc.cost as number) ?? 0
         })
+        
         setPractQuery((doc.practitioner_name as string) || (doc.practitioner as string) || '')
         setReferringQuery((doc.referring_practitioner as string) || '')
         setReferredToQuery((doc.referred_to_practitioner as string) || '')
+
+        setSelectedPrice((doc.cost as number) ?? null)
+
+        // Load patient category for pricing highlight
+        const patientId = (doc.patient as string) || ''
+        if (patientId) {
+          try {
+            const catRes = await fetch(`/api/resource/Patient/${encodeURIComponent(patientId)}?fields=["category"]`)
+            const catData = await catRes.json()
+            setPatientCategory(catData?.data?.category || '')
+          } catch { /* ignore */ }
+        }
+
+        // Load Lab Test Template pricing if applicable
+        if ((doc.template_dt as string) === 'Lab Test Template' && (doc.template_dn as string)) {
+          try {
+            const pRes = await fetch(
+              `/api/method/healthcare.api.service_request.get_lab_test_template_pricing?template=${encodeURIComponent(doc.template_dn as string)}`
+            )
+            const pData = await pRes.json()
+            const rows: PricingRow[] = pData?.message || []
+            setPricing(rows)
+          } catch { /* ignore */ }
+        }
+
         setReadOnly({
           patient_accepted_cost: doc.patient_accepted_cost,
           booked: doc.booked,
@@ -170,6 +218,8 @@ export const EditServiceRequestModal = ({
     load()
   }, [serviceRequestName])
 
+  /* ────────────── TEMPLATE CHANGE ────────────── */
+
   useEffect(() => {
     if (!formData.template_dt) {
       setTemplates([])
@@ -180,11 +230,41 @@ export const EditServiceRequestModal = ({
       .catch(() => setTemplates([]))
   }, [formData.template_dt])
 
+  /* ────────────── LOAD PRICING WHEN TEMPLATE CHANGES ────────────── */
+
+  useEffect(() => {
+    if (formData.template_dt !== 'Lab Test Template' || !formData.template_dn) {
+      setPricing([])
+      return
+    }
+    const load = async () => {
+      try {
+        const res = await fetch(
+          `/api/method/healthcare.api.service_request.get_lab_test_template_pricing?template=${encodeURIComponent(formData.template_dn)}`
+        )
+        const resData = await res.json()
+        const rows: PricingRow[] = resData?.message || []
+        setPricing(rows)
+        if (rows.length > 0 && patientCategory) {
+          const match = rows.find((r) => r.patient_category === patientCategory)
+          if (match?.price) setSelectedPrice(match.price)
+        }
+      } catch {
+        setPricing([])
+      }
+    }
+    load()
+  }, [formData.template_dt, formData.template_dn, patientCategory])
+
+  /* ────────────── LOAD VISITS + ADMISSIONS ────────────── */
+
   useEffect(() => {
     if (!selectedPatient) return
     fetchPatientVisits(selectedPatient.name).then(setPatientVisits).catch(() => setPatientVisits([]))
     fetchInpatientAdmissions(selectedPatient.name).then(setAdmissions).catch(() => setAdmissions([]))
   }, [selectedPatient])
+
+  /* ────────────── PATIENT SEARCH ────────────── */
 
   useEffect(() => {
     if (!patientOpen) return
@@ -203,6 +283,8 @@ export const EditServiceRequestModal = ({
     return () => clearTimeout(t)
   }, [patientQuery, patientOpen])
 
+  /* ────────────── PRACTITIONER SEARCH ────────────── */
+
   useEffect(() => {
     if (!practOpen) return
     const t = setTimeout(() => {
@@ -211,19 +293,48 @@ export const EditServiceRequestModal = ({
     return () => clearTimeout(t)
   }, [practQuery, practOpen])
 
+  /* ────────────── RECALCULATE GRAND TOTAL ────────────── */
+
+  useEffect(() => {
+    if (selectedPrice === null) {
+      setFormData(prev => ({ ...prev, grand_total: 0, discount_amount: 0 }))
+      return
+    }
+
+    let total = selectedPrice
+    const isPercentage = formData.discount_value !== 'Fixed Amount'
+
+    if (isPercentage && formData.discount > 0) {
+      const discAmt = (total * formData.discount) / 100
+      setFormData(prev => ({ ...prev, discount_amount: discAmt }))
+      total -= discAmt
+    } else if (!isPercentage && formData.discount_amount > 0) {
+      total -= formData.discount_amount
+    } else {
+      setFormData(prev => ({ ...prev, discount_amount: 0 }))
+    }
+
+    setFormData(prev => ({ ...prev, grand_total: Math.max(0, total) }))
+  }, [selectedPrice, formData.discount_value, formData.discount, formData.discount_amount])
+
+  /* ────────────── SUBMIT ────────────── */
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
+    
     if (!selectedPatient) {
       setError('Please select a patient')
       setActiveTab('patient_order')
       return
     }
+    
     if (!formData.template_dt || !formData.template_dn) {
       setError('Please select template type and template')
       setActiveTab('service_details')
       return
     }
+    
     try {
       setSubmitting(true)
       const payload: UpdateServiceRequestData = {
@@ -243,7 +354,7 @@ export const EditServiceRequestModal = ({
         order_description: formData.order_description || undefined,
         patient_instructions: formData.patient_instructions || undefined,
         expected_date: formData.expected_date || undefined,
-        cost: formData.cost === '' ? undefined : Number(formData.cost),
+        cost: selectedPrice ?? undefined,
         amount: formData.amount === '' ? undefined : Number(formData.amount),
         source: formData.source || undefined,
         referring_practitioner: formData.referring_practitioner || undefined,
@@ -257,8 +368,14 @@ export const EditServiceRequestModal = ({
         dosage_form: formData.dosage_form || undefined,
         dosage: formData.dosage || undefined,
         period: formData.period || undefined,
-        order_group: formData.order_group || undefined
+        order_group: formData.order_group || undefined,
+        patient_category: formData.patient_category || undefined,
+        discount_value: formData.discount_value || undefined,
+        discount: formData.discount,
+        discount_amount: formData.discount_amount,
+        grand_total: formData.grand_total
       }
+      
       await updateServiceRequest(serviceRequestName, payload)
       toast.success('Service request updated')
       onSuccess()
@@ -292,22 +409,25 @@ export const EditServiceRequestModal = ({
   const tabs: { id: SRTab; label: string }[] = [
     { id: 'patient_order', label: 'Patient & Order' },
     { id: 'service_details', label: 'Service & Details' },
-    { id: 'billing_refs', label: 'Billing & References' }
+    { id: 'billing_pricing', label: 'Billing & Pricing' }
   ]
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-        <div className="flex-shrink-0 px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+      <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+        
+        {/* HEADER */}
+        <div className="flex-shrink-0 px-6 py-4 border-b border-slate-200 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-slate-900">
             Edit Service Request — {serviceRequestName}
           </h2>
-          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600">
+          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600 transition">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="flex border-b border-slate-200 px-4 flex-shrink-0">
+        {/* TABS */}
+        <div className="flex border-b border-slate-200 px-6 flex-shrink-0 bg-slate-50">
           {tabs.map((tab) => (
             <button
               key={tab.id}
@@ -315,7 +435,7 @@ export const EditServiceRequestModal = ({
               onClick={() => setActiveTab(tab.id)}
               className={`px-4 py-3 text-sm font-medium transition-colors border-b-2 -mb-px ${
                 activeTab === tab.id
-                  ? 'border-primary text-primary bg-white'
+                  ? 'border-primary text-primary'
                   : 'border-transparent text-slate-500 hover:text-slate-700'
               }`}
             >
@@ -326,17 +446,20 @@ export const EditServiceRequestModal = ({
 
         <form onSubmit={handleSubmit} className="flex flex-col min-h-0 flex-1 overflow-hidden">
           {error && (
-            <div className="mx-4 mt-3 flex-shrink-0 bg-red-50 border border-red-200 rounded-md p-3 text-sm text-red-800">
+            <div className="mx-6 mt-3 flex-shrink-0 bg-red-50 border border-red-200 rounded-md p-3 text-sm text-red-800">
               {error}
             </div>
           )}
 
-          <div className="p-4 overflow-y-auto flex-1 min-h-0 space-y-4">
-            {/* Tab 1: Patient & Order */}
+          <div className="p-6 overflow-y-auto flex-1 min-h-0 space-y-4">
+            
+            {/* ═══════════ TAB 1: PATIENT & ORDER ═══════════ */}
             {activeTab === 'patient_order' && (
               <div className="space-y-4">
+                
+                {/* PATIENT */}
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Patient <span className="text-red-500">*</span></label>
+                  <label className="block text-sm font-semibold text-slate-900 mb-2">Patient <span className="text-red-500">*</span></label>
                   <div className="relative">
                     <input
                       type="text"
@@ -348,7 +471,7 @@ export const EditServiceRequestModal = ({
                       }}
                       onFocus={() => setPatientOpen(true)}
                       placeholder="Search patient..."
-                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                     />
                     {patientOpen && (
                       <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-auto">
@@ -359,14 +482,15 @@ export const EditServiceRequestModal = ({
                             <button
                               key={p.name}
                               type="button"
-                              className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50"
+                              className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 border-b border-slate-100 last:border-0 transition"
                               onClick={() => {
                                 setSelectedPatient(p)
                                 setPatientQuery(p.patient_name || p.name)
+                                set('patient_category', (p as any).patient_category || (p as any).category || '')
                                 setPatientOpen(false)
                               }}
                             >
-                              <div className="font-medium">{p.patient_name || p.name}</div>
+                              <div className="font-medium text-slate-900">{p.patient_name || p.name}</div>
                               {p.file_number && <div className="text-xs text-slate-500">File: {p.file_number}</div>}
                             </button>
                           ))
@@ -380,11 +504,11 @@ export const EditServiceRequestModal = ({
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Patient Visit</label>
+                    <label className="block text-sm font-semibold text-slate-900 mb-2">Patient Visit</label>
                     <select
                       value={formData.patient_visit}
                       onChange={(e) => set('patient_visit', e.target.value)}
-                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary bg-white"
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-transparent bg-white"
                     >
                       <option value="">Select visit</option>
                       {patientVisits.map((v) => (
@@ -393,11 +517,11 @@ export const EditServiceRequestModal = ({
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Inpatient Admission</label>
+                    <label className="block text-sm font-semibold text-slate-900 mb-2">Inpatient Admission</label>
                     <select
                       value={formData.inpatient_record}
                       onChange={(e) => set('inpatient_record', e.target.value)}
-                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary bg-white"
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-transparent bg-white"
                     >
                       <option value="">Select admission</option>
                       {admissions.map((a) => (
@@ -409,27 +533,27 @@ export const EditServiceRequestModal = ({
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Order Date <span className="text-red-500">*</span></label>
+                    <label className="block text-sm font-semibold text-slate-900 mb-2">Order Date <span className="text-red-500">*</span></label>
                     <input
                       type="date"
                       value={formData.order_date}
                       onChange={(e) => set('order_date', e.target.value)}
-                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary"
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Order Time</label>
+                    <label className="block text-sm font-semibold text-slate-900 mb-2">Order Time</label>
                     <input
                       type="time"
                       value={formData.order_time}
                       onChange={(e) => set('order_time', e.target.value)}
-                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary"
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Ordered by Practitioner</label>
+                  <label className="block text-sm font-semibold text-slate-900 mb-2">Ordered by Practitioner</label>
                   <div className="relative">
                     <input
                       type="text"
@@ -441,7 +565,7 @@ export const EditServiceRequestModal = ({
                       }}
                       onFocus={() => setPractOpen(true)}
                       placeholder="Search practitioner..."
-                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                     />
                     {practOpen && (
                       <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-auto">
@@ -449,7 +573,7 @@ export const EditServiceRequestModal = ({
                           <button
                             key={p.name}
                             type="button"
-                            className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50"
+                            className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 border-b border-slate-100 last:border-0 transition"
                             onClick={() => {
                               set('practitioner', p.name)
                               setPractQuery(p.label || p.name)
@@ -465,22 +589,22 @@ export const EditServiceRequestModal = ({
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Medical Department</label>
+                  <label className="block text-sm font-semibold text-slate-900 mb-2">Medical Department</label>
                   <input
                     type="text"
                     value={formData.department}
                     onChange={(e) => set('department', e.target.value)}
                     placeholder="Medical department"
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary"
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Source</label>
+                  <label className="block text-sm font-semibold text-slate-900 mb-2">Source</label>
                   <select
                     value={formData.source}
                     onChange={(e) => set('source', e.target.value)}
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary bg-white"
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-transparent bg-white"
                   >
                     <option value="">—</option>
                     <option value="Direct">Direct</option>
@@ -490,7 +614,7 @@ export const EditServiceRequestModal = ({
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Referring Practitioner</label>
+                  <label className="block text-sm font-semibold text-slate-900 mb-2">Referring Practitioner</label>
                   <div className="relative">
                     <input
                       type="text"
@@ -502,12 +626,12 @@ export const EditServiceRequestModal = ({
                       }}
                       onFocus={() => setReferringOpen(true)}
                       placeholder="Search..."
-                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
                     />
                     {referringOpen && (
                       <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-auto">
                         {practitioners.filter(p => !referringQuery || (p.label || p.name).toLowerCase().includes(referringQuery.toLowerCase())).map((p) => (
-                          <button key={p.name} type="button" className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50" onClick={() => { set('referring_practitioner', p.name); setReferringQuery(p.label || p.name); setReferringOpen(false) }}>
+                          <button key={p.name} type="button" className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 border-b border-slate-100 last:border-0 transition" onClick={() => { set('referring_practitioner', p.name); setReferringQuery(p.label || p.name); setReferringOpen(false) }}>
                             {p.label || p.name}
                           </button>
                         ))}
@@ -517,7 +641,7 @@ export const EditServiceRequestModal = ({
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Referred to Practitioner</label>
+                  <label className="block text-sm font-semibold text-slate-900 mb-2">Referred to Practitioner</label>
                   <div className="relative">
                     <input
                       type="text"
@@ -529,12 +653,12 @@ export const EditServiceRequestModal = ({
                       }}
                       onFocus={() => setReferredToOpen(true)}
                       placeholder="Search..."
-                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
                     />
                     {referredToOpen && (
                       <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-auto">
                         {practitioners.filter(p => !referredToQuery || (p.label || p.name).toLowerCase().includes(referredToQuery.toLowerCase())).map((p) => (
-                          <button key={p.name} type="button" className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50" onClick={() => { set('referred_to_practitioner', p.name); setReferredToQuery(p.label || p.name); setReferredToOpen(false) }}>
+                          <button key={p.name} type="button" className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 border-b border-slate-100 last:border-0 transition" onClick={() => { set('referred_to_practitioner', p.name); setReferredToQuery(p.label || p.name); setReferredToOpen(false) }}>
                             {p.label || p.name}
                           </button>
                         ))}
@@ -545,31 +669,31 @@ export const EditServiceRequestModal = ({
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Expected Date</label>
-                    <input type="date" value={formData.expected_date} onChange={(e) => set('expected_date', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary" />
+                    <label className="block text-sm font-semibold text-slate-900 mb-2">Expected Date</label>
+                    <input type="date" value={formData.expected_date} onChange={(e) => set('expected_date', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-transparent" />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Order Group</label>
-                    <input type="text" value={formData.order_group} onChange={(e) => set('order_group', e.target.value)} placeholder="Optional" className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary" />
+                    <label className="block text-sm font-semibold text-slate-900 mb-2">Order Group</label>
+                    <input type="text" value={formData.order_group} onChange={(e) => set('order_group', e.target.value)} placeholder="Optional" className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-transparent" />
                   </div>
                 </div>
               </div>
             )}
 
-            {/* Tab 2: Service & Details */}
+            {/* ═══════════ TAB 2: SERVICE & DETAILS ═══════════ */}
             {activeTab === 'service_details' && (
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Template Type <span className="text-red-500">*</span></label>
-                    <select value={formData.template_dt} onChange={(e) => set('template_dt', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary bg-white">
+                    <label className="block text-sm font-semibold text-slate-900 mb-2">Template Type <span className="text-red-500">*</span></label>
+                    <select value={formData.template_dt} onChange={(e) => set('template_dt', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-transparent bg-white">
                       <option value="">Select type</option>
                       {templateTypes.map((t) => <option key={t.name} value={t.name}>{t.label || t.name}</option>)}
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Template <span className="text-red-500">*</span></label>
-                    <select value={formData.template_dn} disabled={!formData.template_dt} onChange={(e) => set('template_dn', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary bg-white">
+                    <label className="block text-sm font-semibold text-slate-900 mb-2">Template <span className="text-red-500">*</span></label>
+                    <select value={formData.template_dn} disabled={!formData.template_dt} onChange={(e) => set('template_dn', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-transparent bg-white disabled:bg-slate-50">
                       <option value="">Select template</option>
                       {templates.map((t) => <option key={t.name} value={t.name}>{t.label || t.name}</option>)}
                     </select>
@@ -578,122 +702,216 @@ export const EditServiceRequestModal = ({
 
                 <div className="grid grid-cols-3 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Status</label>
-                    <input type="text" value={formData.status} onChange={(e) => set('status', e.target.value)} placeholder="e.g. draft" className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary" />
+                    <label className="block text-sm font-semibold text-slate-900 mb-2">Status</label>
+                    <input type="text" value={formData.status} onChange={(e) => set('status', e.target.value)} placeholder="e.g. draft" className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-transparent" />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Priority</label>
-                    <input type="text" value={formData.priority} onChange={(e) => set('priority', e.target.value)} placeholder="Optional" className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary" />
+                    <label className="block text-sm font-semibold text-slate-900 mb-2">Priority</label>
+                    <input type="text" value={formData.priority} onChange={(e) => set('priority', e.target.value)} placeholder="Optional" className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-transparent" />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Intent</label>
-                    <input type="text" value={formData.intent} onChange={(e) => set('intent', e.target.value)} placeholder="Optional" className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary" />
+                    <label className="block text-sm font-semibold text-slate-900 mb-2">Intent</label>
+                    <input type="text" value={formData.intent} onChange={(e) => set('intent', e.target.value)} placeholder="Optional" className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-transparent" />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-3 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Quantity</label>
+                    <label className="block text-sm font-semibold text-slate-900 mb-2">Quantity</label>
                     <input
                       type="number"
                       min={1}
                       value={formData.quantity}
                       onChange={(e) => set('quantity', parseInt(e.target.value, 10) || 1)}
-                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary"
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Cost</label>
+                    <label className="block text-sm font-semibold text-slate-900 mb-2">Cost</label>
                     <input
                       type="number"
                       step="any"
-                      value={formData.cost}
-                      onChange={(e) => set('cost', e.target.value === '' ? '' : e.target.value)}
-                      placeholder="0"
-                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary"
+                      value={selectedPrice ?? ''}
+                      readOnly
+                      className="w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Approved Amount</label>
+                    <label className="block text-sm font-semibold text-slate-900 mb-2">Approved Amount</label>
                     <input
                       type="number"
                       step="any"
                       value={formData.amount}
                       onChange={(e) => set('amount', e.target.value === '' ? '' : e.target.value)}
                       placeholder="0"
-                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary"
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Order Description</label>
-                  <textarea value={formData.order_description} onChange={(e) => set('order_description', e.target.value)} rows={2} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary" placeholder="Optional" />
+                  <label className="block text-sm font-semibold text-slate-900 mb-2">Order Description</label>
+                  <textarea value={formData.order_description} onChange={(e) => set('order_description', e.target.value)} rows={2} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-transparent" placeholder="Optional" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Patient Instructions</label>
-                  <textarea value={formData.patient_instructions} onChange={(e) => set('patient_instructions', e.target.value)} rows={2} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary" placeholder="Optional" />
+                  <label className="block text-sm font-semibold text-slate-900 mb-2">Patient Instructions</label>
+                  <textarea value={formData.patient_instructions} onChange={(e) => set('patient_instructions', e.target.value)} rows={2} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-transparent" placeholder="Optional" />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Staff Role</label>
-                    <input type="text" value={formData.staff_role} onChange={(e) => set('staff_role', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary" />
+                    <label className="block text-sm font-semibold text-slate-900 mb-2">Staff Role</label>
+                    <input type="text" value={formData.staff_role} onChange={(e) => set('staff_role', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-transparent" />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Patient Care Type</label>
-                    <input type="text" value={formData.patient_care_type} onChange={(e) => set('patient_care_type', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary" />
+                    <label className="block text-sm font-semibold text-slate-900 mb-2">Patient Care Type</label>
+                    <input type="text" value={formData.patient_care_type} onChange={(e) => set('patient_care_type', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-transparent" />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Healthcare Service Unit Type</label>
-                  <input type="text" value={formData.healthcare_service_unit_type} onChange={(e) => set('healthcare_service_unit_type', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary" />
+                  <label className="block text-sm font-semibold text-slate-900 mb-2">Healthcare Service Unit Type</label>
+                  <input type="text" value={formData.healthcare_service_unit_type} onChange={(e) => set('healthcare_service_unit_type', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-transparent" />
                 </div>
 
                 <div className="flex items-center gap-2">
                   <input type="checkbox" id="as_needed" checked={formData.as_needed} onChange={(e) => set('as_needed', e.target.checked)} className="rounded border-slate-300 text-primary focus:ring-primary" />
-                  <label htmlFor="as_needed" className="text-sm text-slate-700">Occurrence As Needed</label>
+                  <label htmlFor="as_needed" className="text-sm font-medium text-slate-900">Occurrence As Needed</label>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Occurrence Date</label>
-                    <input type="date" value={formData.occurrence_date} onChange={(e) => set('occurrence_date', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary" />
+                    <label className="block text-sm font-semibold text-slate-900 mb-2">Occurrence Date</label>
+                    <input type="date" value={formData.occurrence_date} onChange={(e) => set('occurrence_date', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-transparent" />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Occurrence Time</label>
-                    <input type="time" value={formData.occurrence_time} onChange={(e) => set('occurrence_time', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary" />
+                    <label className="block text-sm font-semibold text-slate-900 mb-2">Occurrence Time</label>
+                    <input type="time" value={formData.occurrence_time} onChange={(e) => set('occurrence_time', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-transparent" />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-3 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Dosage Form</label>
-                    <input type="text" value={formData.dosage_form} onChange={(e) => set('dosage_form', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary" />
+                    <label className="block text-sm font-semibold text-slate-900 mb-2">Dosage Form</label>
+                    <input type="text" value={formData.dosage_form} onChange={(e) => set('dosage_form', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-transparent" />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Dosage</label>
-                    <input type="text" value={formData.dosage} onChange={(e) => set('dosage', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary" />
+                    <label className="block text-sm font-semibold text-slate-900 mb-2">Dosage</label>
+                    <input type="text" value={formData.dosage} onChange={(e) => set('dosage', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-transparent" />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Period</label>
-                    <input type="text" value={formData.period} onChange={(e) => set('period', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary" />
+                    <label className="block text-sm font-semibold text-slate-900 mb-2">Period</label>
+                    <input type="text" value={formData.period} onChange={(e) => set('period', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-transparent" />
                   </div>
                 </div>
               </div>
             )}
 
-            {/* Tab 3: Billing & References */}
-            {activeTab === 'billing_refs' && (
+            {/* ═══════════ TAB 3: BILLING & PRICING ═══════════ */}
+            {activeTab === 'billing_pricing' && (
               <div className="space-y-4">
+
+                {/* PRICING TABLE */}
+                {pricing.length > 0 && (
+                  <div className="border border-slate-200 rounded-lg p-4 bg-slate-50">
+                    <label className="block text-sm font-semibold text-slate-900 mb-3">
+                      Price by Patient Category
+                    </label>
+                    <div className="space-y-2">
+                      {pricing.map((row, idx) => (
+                        <label key={idx} className={`flex items-center gap-3 p-2 rounded cursor-pointer transition ${row.patient_category === patientCategory ? 'bg-green-50 border border-green-200' : 'hover:bg-white'}`}>
+                          <input
+                            type="radio"
+                            name="edit_pricing"
+                            checked={selectedPrice === row.price}
+                            onChange={() => setSelectedPrice(row.price || null)}
+                            className="w-4 h-4 text-primary focus:ring-primary border-slate-300"
+                          />
+                          <div className="flex-1">
+                            <span className="text-sm font-medium text-slate-900">{row.patient_category}</span>
+                            {row.patient_category === patientCategory && (
+                              <span className="ml-2 text-xs text-green-600 font-medium">(Patient's category)</span>
+                            )}
+                          </div>
+                          <div className="text-sm font-semibold text-slate-900">{row.price?.toFixed(2) || 'N/A'}</div>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* DISCOUNT SECTION */}
+                {selectedPrice !== null && (
+                  <div className="border border-blue-200 rounded-lg p-4 bg-blue-50">
+                    <label className="block text-sm font-semibold text-slate-900 mb-1">
+                      Discount Management
+                    </label>
+                    <p className="text-xs text-slate-500 mb-4">Base price: <strong>{(selectedPrice || 0).toFixed(2)}</strong></p>
+
+                    <div className="grid grid-cols-3 gap-4 mb-4">
+                      <div>
+                        <label className="block text-xs font-medium text-slate-700 mb-2">
+                          Discount Margin
+                        </label>
+                        <select
+                          value={formData.discount_value}
+                          onChange={(e) => set('discount_value', e.target.value)}
+                          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-transparent bg-white"
+                        >
+                          <option value="Percentage">Percentage (%)</option>
+                          <option value="Fixed Amount">Fixed Amount</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium text-slate-700 mb-2">
+                          {formData.discount_value === 'Fixed Amount' ? 'Discount Amount' : 'Discount (%)'}
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="any"
+                          value={formData.discount_value === 'Fixed Amount' ? formData.discount_amount : formData.discount}
+                          onChange={(e) => {
+                            const val = parseFloat(e.target.value) || 0
+                            if (formData.discount_value === 'Fixed Amount') {
+                              set('discount_amount', val)
+                            } else {
+                              set('discount', val)
+                            }
+                          }}
+                          placeholder="0"
+                          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium text-slate-700 mb-2">
+                          Calculated Discount
+                        </label>
+                        <input
+                          type="text"
+                          readOnly
+                          value={formData.discount_amount.toFixed(2)}
+                          className="w-full rounded-md border border-slate-200 bg-slate-100 px-3 py-2 text-sm text-slate-600"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="bg-white rounded-md border border-slate-200 p-3 flex items-center justify-between">
+                      <span className="text-sm font-semibold text-slate-900">Grand Total</span>
+                      <span className="text-lg font-bold text-primary">{formData.grand_total.toFixed(2)}</span>
+                    </div>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Reference Document Type</label>
+                    <label className="block text-sm font-semibold text-slate-900 mb-2">Reference Document Type</label>
                     <input type="text" value={formData.reference_document_type} readOnly className="w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600" />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Reference Document Name</label>
+                    <label className="block text-sm font-semibold text-slate-900 mb-2">Reference Document Name</label>
                     <input type="text" value={formData.reference_document_name} readOnly className="w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600" />
                   </div>
                 </div>
@@ -723,11 +941,11 @@ export const EditServiceRequestModal = ({
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Order Reference DocType</label>
+                    <label className="block text-sm font-semibold text-slate-900 mb-2">Order Reference DocType</label>
                     <input type="text" value={formData.order_reference_doctype} readOnly className="w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600" />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Order Reference Name</label>
+                    <label className="block text-sm font-semibold text-slate-900 mb-2">Order Reference Name</label>
                     <input type="text" value={formData.order_reference_name} readOnly className="w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600" />
                   </div>
                 </div>
@@ -735,11 +953,11 @@ export const EditServiceRequestModal = ({
             )}
           </div>
 
-          <div className="flex-shrink-0 flex justify-end gap-3 p-4 border-t border-slate-200 bg-white">
-            <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50">
+          <div className="flex-shrink-0 flex justify-end gap-3 p-6 border-t border-slate-200 bg-white">
+            <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition">
               Cancel
             </button>
-            <button type="submit" disabled={submitting} className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-50">
+            <button type="submit" disabled={submitting} className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition">
               {submitting ? 'Saving…' : 'Save changes'}
             </button>
           </div>

@@ -9,15 +9,23 @@ from frappe import _
 @frappe.whitelist()
 def get_service_requests(limit=50, offset=0, patient=None, template_dt=None, status=None):
 	"""Get list of Service Requests"""
-	filters = {'docstatus': ['!=', 2]} 
-	
+	from healthcare.api.common import get_permitted_cost_centers
+	filters = {'docstatus': ['!=', 2]}
+
 	if patient:
 		filters['patient'] = patient
 	if template_dt:
 		filters['template_dt'] = template_dt
 	if status:
 		filters['status'] = status
-	
+
+	# ── Cost-centre User Permission enforcement ──────────────────────────────
+	permitted_cc = get_permitted_cost_centers()
+	if permitted_cc is not None:
+		if not permitted_cc:
+			return []
+		filters['cost_center'] = ['in', permitted_cc]
+
 	service_requests = frappe.get_all(
 		'Service Request',
 		filters=filters,

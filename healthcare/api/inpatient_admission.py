@@ -49,7 +49,14 @@ def get_patient_active_admission(patient):
 
 @frappe.whitelist()
 def get_inpatient_records(status=None, search=None, patient=None, practitioner=None, from_date=None, to_date=None):
-	"""Get list of Inpatient Admissions with optional status, search, patient, practitioner and date filters"""
+	"""Get list of Inpatient Admissions with optional status, search, patient, practitioner and date filters.
+
+	Always enforces Cost Center User Permissions so that users restricted to a
+	specific cost center cannot see admissions belonging to other cost centers.
+	"""
+	from healthcare.api.common import get_permitted_cost_centers
+	permitted_cc = get_permitted_cost_centers()
+
 	# Use SQL path when we have search, practitioner or date filters (avoids get_all OR filter format issues)
 	use_sql = bool(search or practitioner or from_date or to_date)
 
@@ -75,6 +82,16 @@ def get_inpatient_records(status=None, search=None, patient=None, practitioner=N
 			conditions.append("ia.scheduled_date <= %(to_date)s")
 			params['to_date'] = to_date
 
+		# ── Cost-centre User Permission enforcement ──────────────────────────
+		if permitted_cc is not None:
+			if not permitted_cc:
+				# Restricted but permitted list is empty → return nothing
+				return []
+			placeholders = ", ".join(f"%(cc_{i})s" for i in range(len(permitted_cc)))
+			conditions.append(f"ia.cost_center IN ({placeholders})")
+			for i, cc in enumerate(permitted_cc):
+				params[f"cc_{i}"] = cc
+
 		where_sql = " AND ".join(conditions)
 		records = frappe.db.sql("""
 			SELECT 
@@ -90,7 +107,8 @@ def get_inpatient_records(status=None, search=None, patient=None, practitioner=N
 				ia.primary_practitioner,
 				ia.secondary_practitioner,
 				ia.admission_encounter,
-				ia.expected_length_of_stay
+				ia.expected_length_of_stay,
+				ia.cost_center
 			FROM `tabInpatient Admission` ia
 			LEFT JOIN `tabPatient` p ON ia.patient = p.name
 			WHERE """ + where_sql,
@@ -104,6 +122,13 @@ def get_inpatient_records(status=None, search=None, patient=None, practitioner=N
 			filters['status'] = status
 		if patient:
 			filters['patient'] = patient
+
+		# ── Cost-centre User Permission enforcement ──────────────────────────
+		if permitted_cc is not None:
+			if not permitted_cc:
+				return []
+			filters['cost_center'] = ['in', permitted_cc]
+
 		records = frappe.get_all(
 			'Inpatient Admission',
 			filters=filters,
@@ -120,9 +145,10 @@ def get_inpatient_records(status=None, search=None, patient=None, practitioner=N
 				'primary_practitioner',
 				'secondary_practitioner',
 				'admission_encounter',
-				'expected_length_of_stay'
+				'expected_length_of_stay',
+				'cost_center',
 			],
-			order_by='scheduled_date desc'
+			order_by='scheduled_date desc',
 		)
 
 	return records

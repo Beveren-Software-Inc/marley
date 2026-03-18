@@ -9,8 +9,12 @@ import {
   updateLabTestStatus,
   updateLabTestRemarks,
   createSampleCollectionForLabSample,
+  fetchLabTestTemplateDetails,
   type LabConsumableRow,
   type LabTest,
+  type NormalTestResultRow,
+  type ObservationSampleCollectionRow,
+  type LabTestTemplateDetails,
 } from '../../services/labTests'
 import {
   fetchItems,
@@ -34,6 +38,10 @@ import { Search, X, ChevronDown } from 'lucide-react'
 const STATUS_OPTIONS = [
   'Draft',
   'Requested',
+  'Awaiting sample collection',
+  'Sample Collection in Progress',
+  'Sample Collected',
+  'Testing in progress',
   'Completed',
   'Pending Review',
   'Reviewed',
@@ -51,6 +59,10 @@ const statusColors: Record<string, string> = {
   'Draft': 'warning',
   'Pending': 'warning',
   'Requested': 'info',
+  'Awaiting sample collection': 'warning',
+  'Sample Collection in Progress': 'info',
+  'Sample Collected': 'info',
+  'Testing in progress': 'info',
 }
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -325,6 +337,10 @@ export const LabTestList = ({
   const [resultDocuments, setResultDocuments] = useState<PatientDocumentRow[]>([])
   const [resultDocumentTypes, setResultDocumentTypes] = useState<{ name: string; document_name?: string }[]>([])
   const [resultDocumentUploading, setResultDocumentUploading] = useState<number | null>(null)
+  // Normal test items + template meta for result entry
+  const [normalTestItems, setNormalTestItems] = useState<NormalTestResultRow[]>([])
+  const [templateDetails, setTemplateDetails] = useState<LabTestTemplateDetails>({})
+  const [worksheetExpanded, setWorksheetExpanded] = useState(false)
 
   // ── Review actions ───────────────────────────────────────────────────────
 
@@ -347,6 +363,9 @@ export const LabTestList = ({
   const [refPractitionerOptions, setRefPractitionerOptions] = useState<LinkFieldOption[]>([])
   const [refPractitionerQuery, setRefPractitionerQuery] = useState('')
   const [refPractitionerOpen, setRefPractitionerOpen] = useState(false)
+  const [sampleObsRows, setSampleObsRows] = useState<ObservationSampleCollectionRow[]>([])
+  const [templateSampleDetails, setTemplateSampleDetails] = useState('')
+  const [expandedSampleDetailIdx, setExpandedSampleDetailIdx] = useState<number | null>(null)
 
   useEffect(() => {
     const loadCollectionPoints = async () => {
@@ -553,6 +572,7 @@ export const LabTestList = ({
       setResultDialogLoading(true)
       setResultDialogOpen(true)
       setResultDialogTab('results')
+      setWorksheetExpanded(false)
       setActiveLabTest({ name: labTestName, patient: '' })
       const [doc, docTypes] = await Promise.all([fetchLabTest(labTestName), fetchDocumentTypes()])
       setActiveLabTest(doc)
@@ -560,6 +580,36 @@ export const LabTestList = ({
       setLabComment(doc.lab_test_comment || '')
       setWorksheetText(doc.worksheet_instructions || '')
       setResultDocumentTypes(docTypes)
+      // Load normal test items (editable copy) — may be empty for brand-new tests
+      const existingItems: NormalTestResultRow[] = (doc.normal_test_items || []).map((r: any) => ({ ...r }))
+      setNormalTestItems(existingItems)
+      // Fetch template details for min/max/worksheet/sample_details + compound rows
+      if (doc.template) {
+        fetchLabTestTemplateDetails(doc.template)
+          .then((d) => {
+            setTemplateDetails(d)
+            // Pre-fill worksheet if lab test doesn't have its own
+            if (!doc.worksheet_instructions && d.worksheet_instructions) {
+              setWorksheetText(d.worksheet_instructions)
+            }
+            // If the lab test has no normal_test_items yet, build them from the template rows
+            if (existingItems.length === 0 && (d.normal_test_templates || []).length > 0) {
+              const fromTemplate: NormalTestResultRow[] = (d.normal_test_templates || []).map((t) => ({
+                lab_test_event: t.lab_test_event || '',
+                lab_test_name: t.lab_test_event || '',
+                lab_test_uom: t.lab_test_uom || '',
+                normal_range: t.normal_range || '',
+                result_value: '',
+                lab_test_comment: '',
+                template: doc.template || '',
+              }))
+              setNormalTestItems(fromTemplate)
+            }
+          })
+          .catch(() => setTemplateDetails({}))
+      } else {
+        setTemplateDetails({})
+      }
       const docs = (doc as LabTest).documents && (doc as LabTest).documents!.length > 0
         ? (doc as LabTest).documents!.map((d) => ({ file_name: d.file_name || '', document_type: d.document_type || '', transaction_no: d.transaction_no || '', upload_remarks: d.upload_remarks || '', document: d.document || '' }))
         : [{ file_name: '', document_type: '', transaction_no: '', upload_remarks: '' }]
@@ -581,6 +631,9 @@ export const LabTestList = ({
     setResultDocuments([])
     setResultDialogError(null)
     setResultDialogLoading(false)
+    setNormalTestItems([])
+    setTemplateDetails({})
+    setWorksheetExpanded(false)
   }
 
   const addResultDocumentRow = () => setResultDocuments(prev => [...prev, { file_name: '', document_type: '', transaction_no: '', upload_remarks: '' }])
@@ -625,6 +678,7 @@ export const LabTestList = ({
         lab_test_comment: labComment,
         worksheet_instructions: worksheetText,
         documents: docPayload.length ? docPayload : undefined,
+        normal_test_items: normalTestItems.length ? normalTestItems : undefined,
         submit: true,
       })
       await refetch()
@@ -890,25 +944,26 @@ export const LabTestList = ({
       {/* ── Sample Collection modal ── */}
       {sampleModalLabTest && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col">
-            <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+          <div className="bg-white rounded-lg shadow-xl max-w-5xl w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
               <div>
-                <h2 className="text-sm font-semibold text-slate-900">
-                  Sample Collection for {sampleModalLabTest.name}
+                <h2 className="text-base font-semibold text-slate-900">
+                  Sample Collection — {sampleModalLabTest.name}
                 </h2>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-slate-500 mt-0.5">
                   Patient: {sampleModalLabTest.patient_name || sampleModalLabTest.patient || '-'}
+                  {sampleModalLabTest.lab_test_name ? ` · ${sampleModalLabTest.lab_test_name}` : ''}
                 </p>
               </div>
               <button
                 type="button"
-                onClick={() => { setSampleModalLabTest(null); setSampleModalError(null) }}
-                className="text-slate-400 hover:text-slate-600"
+                onClick={() => { setSampleModalLabTest(null); setSampleModalError(null); setTemplateSampleDetails('') }}
+                className="text-slate-400 hover:text-slate-600 text-lg leading-none"
               >
                 ✕
               </button>
             </div>
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            <div className="flex-1 overflow-y-auto p-5 space-y-4">
               {sampleModalLoading && (
                 <div className="text-sm text-slate-600">Loading sample instances…</div>
               )}
@@ -920,53 +975,78 @@ export const LabTestList = ({
               {!sampleModalLoading && !sampleModalError && (
                 <>
                   {(!sampleModalLabTest.sample_instances || sampleModalLabTest.sample_instances.length === 0) ? (
-                    <div className="text-sm text-slate-500">
+                    <div className="text-sm text-slate-500 bg-slate-50 border border-slate-200 rounded-md p-4">
                       No sample instances are defined for this lab test. Please configure Sample Requirements on the Lab Test Template.
                     </div>
                   ) : (
-                    <table className="w-full text-xs border border-slate-200 rounded-md overflow-hidden">
+                    <table className="w-full text-xs border border-slate-200 rounded-lg overflow-hidden">
                       <thead className="bg-slate-50 border-b border-slate-200">
                         <tr>
-                          <th className="px-3 py-2 text-left font-semibold text-slate-600">Sample</th>
-                          <th className="px-3 py-2 text-left font-semibold text-slate-600">Qty</th>
-                          <th className="px-3 py-2 text-left font-semibold text-slate-600">Details</th>
-                          <th className="px-3 py-2 text-left font-semibold text-slate-600 w-40">Sample Collection</th>
+                          <th className="px-3 py-2.5 text-left font-semibold text-slate-600">Sample</th>
+                          <th className="px-3 py-2.5 text-left font-semibold text-slate-600 w-16">Qty</th>
+                          <th className="px-3 py-2.5 text-left font-semibold text-slate-600">Collection Instructions</th>
+                          <th className="px-3 py-2.5 text-left font-semibold text-slate-600 w-44">Sample Collection</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
                         {sampleModalLabTest.sample_instances!.map((row, idx) => (
-                          <tr key={idx}>
-                            <td className="px-3 py-2 text-slate-800">
-                              {row.sample || '-'}
+                          <tr key={idx} className="hover:bg-slate-50/60">
+                            <td className="px-3 py-2.5 text-slate-800 font-medium">{row.sample || '-'}</td>
+                            <td className="px-3 py-2.5 text-slate-700">{row.sample_qty ?? '-'}</td>
+                            <td className="px-3 py-2.5 text-slate-600">
+                              {row.sample_details ? (
+                                <div>
+                                  <button
+                                    type="button"
+                                    className="flex items-center gap-1.5 text-blue-600 hover:text-blue-800 text-sm font-semibold"
+                                    onClick={() => setExpandedSampleDetailIdx(expandedSampleDetailIdx === idx ? null : idx)}
+                                  >
+                                    <span>📋 View Instructions</span>
+                                    <span className="text-slate-400">{expandedSampleDetailIdx === idx ? '▲' : '▼'}</span>
+                                  </button>
+                                  {expandedSampleDetailIdx === idx && (
+                                    <div className="mt-3 p-3 bg-blue-50 border border-blue-300 rounded text-sm text-slate-800 max-h-96 overflow-y-auto">
+                                      {row.sample_details.includes('<') ? (
+                                        <div 
+                                          className="prose prose-base max-w-none [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:mb-2 [&_li]:leading-relaxed [&_strong]:font-semibold [&_strong]:text-slate-900 [&_em]:italic [&_p]:mb-2.5"
+                                          dangerouslySetInnerHTML={{ __html: row.sample_details }}
+                                        />
+                                      ) : (
+                                        <div className="whitespace-pre-wrap leading-relaxed text-base">{row.sample_details}</div>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-slate-400 italic">No instructions</span>
+                              )}
                             </td>
-                            <td className="px-3 py-2 text-slate-800">
-                              {row.sample_qty ?? '-'}
-                            </td>
-                            <td className="px-3 py-2 text-slate-700 whitespace-pre-wrap">
-                              {row.sample_details || <span className="text-slate-400 italic">No details yet</span>}
-                            </td>
-                            <td className="px-3 py-2">
+                            <td className="px-3 py-2.5">
                               {row.sample_collection ? (
                                 <button
                                   type="button"
-                                  onClick={() => {
-                                    const url = `/app/sample-collection/${encodeURIComponent(row.sample_collection!)}`
-                                    window.open(url, '_blank')
-                                  }}
-                                  className="inline-flex items-center px-2 py-1 rounded border border-slate-300 text-xs text-slate-700 hover:bg-slate-50"
+                                  onClick={() => window.open(`/app/sample-collection/${encodeURIComponent(row.sample_collection!)}`, '_blank')}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-slate-300 text-xs text-slate-700 hover:bg-slate-50"
                                 >
-                                  Open Sample Collection
+                                  ✓ Open Record
                                 </button>
                               ) : (
                                 <button
                                   type="button"
-                                  onClick={() => {
+                                  onClick={async () => {
                                     setSampleFormError(null)
+                                    setSampleObsRows([{ sample: row.sample, sample_qty: row.sample_qty, collection_date_time: new Date().toISOString().slice(0, 16).replace('T', ' ') }])
+                                    // Fetch template sample_details as instructions
+                                    if (sampleModalLabTest.template) {
+                                      fetchLabTestTemplateDetails(sampleModalLabTest.template)
+                                        .then((d) => setTemplateSampleDetails(d.sample_details || ''))
+                                        .catch(() => setTemplateSampleDetails(''))
+                                    }
                                     setSampleFormRowIndex(idx)
                                   }}
-                                  className="inline-flex items-center px-2 py-1 rounded bg-primary text-white text-xs hover:bg-primary/90"
+                                  className="inline-flex items-center px-2.5 py-1 rounded bg-primary text-white text-xs hover:bg-primary/90"
                                 >
-                                  Create Sample Collection
+                                  + Create
                                 </button>
                               )}
                             </td>
@@ -978,10 +1058,10 @@ export const LabTestList = ({
                 </>
               )}
             </div>
-            <div className="px-4 py-3 border-t border-slate-200 bg-slate-50 flex justify-end">
+            <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 flex justify-end">
               <button
                 type="button"
-                onClick={() => { setSampleModalLabTest(null); setSampleModalError(null) }}
+                onClick={() => { setSampleModalLabTest(null); setSampleModalError(null); setTemplateSampleDetails('') }}
                 className="px-3 py-1.5 text-xs rounded-md border border-slate-300 text-slate-700 hover:bg-white"
               >
                 Close
@@ -989,256 +1069,235 @@ export const LabTestList = ({
             </div>
           </div>
           {sampleFormRowIndex !== null && sampleModalLabTest && (
-            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-hidden flex flex-col">
-                <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+              <div className="bg-white rounded-lg shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+                <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
                   <div>
-                    <h3 className="text-sm font-semibold text-slate-900">
-                      Create Sample Collection
-                    </h3>
-                    <p className="text-xs text-slate-500">
-                      Fill in collection details, then create the Sample Collection document.
+                    <h3 className="text-base font-semibold text-slate-900">Create Sample Collection</h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Sample: <strong>{sampleModalLabTest.sample_instances?.[sampleFormRowIndex!]?.sample || '—'}</strong>
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (!sampleFormLoading) {
-                        setSampleFormRowIndex(null)
-                        setSampleFormError(null)
-                        setSampleFormCollectionPoint('')
-                        setCollectionPointQuery('')
-                        setCollectionPointOptions([])
-                        setSampleFormRefPractitioner('')
-                        setRefPractitionerQuery('')
-                        setRefPractitionerOptions([])
-                        setCollectionPointOpen(false)
-                        setRefPractitionerOpen(false)
-                      }
-                    }}
-                    className="text-slate-400 hover:text-slate-600 disabled:opacity-50"
-                    disabled={sampleFormLoading}
-                  >
-                    ✕
-                  </button>
+                  <button type="button" disabled={sampleFormLoading}
+                    onClick={() => { if (!sampleFormLoading) { setSampleFormRowIndex(null); setSampleFormError(null); setSampleFormCollectionPoint(''); setCollectionPointQuery(''); setCollectionPointOptions([]); setSampleFormRefPractitioner(''); setRefPractitionerQuery(''); setRefPractitionerOptions([]); setCollectionPointOpen(false); setRefPractitionerOpen(false); setSampleObsRows([]); setTemplateSampleDetails('') } }}
+                    className="text-slate-400 hover:text-slate-600 disabled:opacity-40 text-lg"
+                  >✕</button>
                 </div>
-                <div className="p-4 space-y-3 overflow-y-auto flex-1">
+                <div className="p-5 space-y-4 overflow-y-auto flex-1">
                   {sampleFormError && (
-                    <div className="bg-red-50 border border-red-200 text-red-700 text-xs rounded-md px-3 py-2">
-                      {sampleFormError}
+                    <div className="bg-red-50 border border-red-200 text-red-700 text-xs rounded-md px-3 py-2">{sampleFormError}</div>
+                  )}
+
+                  {/* Template Instructions - Large display */}
+                  {templateSampleDetails && (
+                    <div className="rounded-md border border-blue-200 bg-blue-50 px-5 py-4">
+                      <p className="text-sm font-bold text-blue-800 mb-3">📋 Collection Instructions (from template)</p>
+                      <div 
+                        className="prose prose-base max-w-none text-base text-blue-900 leading-relaxed [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:mb-2.5 [&_li]:leading-relaxed [&_strong]:font-semibold [&_strong]:text-blue-950 [&_em]:italic [&_p]:mb-3"
+                        dangerouslySetInnerHTML={{ __html: templateSampleDetails }}
+                      />
                     </div>
                   )}
+
                   {(() => {
                     const row = sampleModalLabTest.sample_instances?.[sampleFormRowIndex!]
                     if (!row) return null
                     return (
                       <>
-                        <div className="grid grid-cols-2 gap-3 text-xs">
+                        {/* Basic info - COMPACT (2 columns for more horizontal space) */}
+                        <div className="grid grid-cols-2 gap-3 text-xs bg-slate-100 border border-slate-300 rounded-lg p-2">
                           <div>
-                            <div className="text-[11px] font-medium text-slate-500">Sample</div>
-                            <div className="mt-0.5 text-slate-900 border border-slate-200 rounded px-2 py-1 bg-slate-50">
-                              {row.sample || '-'}
-                            </div>
+                            <div className="text-[9px] font-medium text-slate-500 mb-0.5">Sample</div>
+                            <div className="text-slate-900 font-semibold text-sm truncate">{row.sample || '-'}</div>
                           </div>
                           <div>
-                            <div className="text-[11px] font-medium text-slate-500">Quantity</div>
-                            <div className="mt-0.5 text-slate-900 border border-slate-200 rounded px-2 py-1 bg-slate-50">
-                              {row.sample_qty ?? '-'}
+                            <div className="text-[9px] font-medium text-slate-500 mb-0.5">Qty / Patient</div>
+                            <div className="text-slate-900 font-semibold text-sm truncate">
+                              {row.sample_qty ?? '-'} · {sampleModalLabTest.patient_name || sampleModalLabTest.patient || '-'}
                             </div>
                           </div>
                         </div>
+
+                        {/* Collection Details - Large display for detailed instructions */}
                         <div>
-                          <label className="block text-[11px] font-medium text-slate-500 mb-1">
-                            Collection details / observations
-                          </label>
-                          <textarea
-                            value={row.sample_details || ''}
-                            onChange={(e) => {
-                              const value = e.target.value
-                              setSampleModalLabTest((prev) => {
-                                if (!prev) return prev
-                                const next = { ...prev }
-                                const arr = [...(next.sample_instances || [])]
-                                arr[sampleFormRowIndex!] = {
-                                  ...(arr[sampleFormRowIndex!] || {}),
-                                  sample_details: value,
-                                }
-                                next.sample_instances = arr
-                                return next
-                              })
-                            }}
-                            className="w-full rounded border border-slate-300 px-2 py-1 text-xs min-h-[80px] focus:outline-none focus:ring-1 focus:ring-primary"
-                            placeholder="Enter collection details / observations"
-                          />
+                          <label className="block text-sm font-bold text-slate-800 mb-2">Collection Details & Observations</label>
+                          {row.sample_details && row.sample_details.includes('<') ? (
+                            // HTML/Rich text display (from Quill editor) - LARGE
+                            <div className="w-full rounded-md border border-slate-300 px-4 py-3 bg-slate-50 min-h-[280px] overflow-y-auto">
+                              <div 
+                                className="prose prose-base max-w-none text-base text-slate-800 leading-relaxed [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:mb-2.5 [&_li]:leading-relaxed [&_strong]:font-semibold [&_strong]:text-slate-900 [&_em]:italic [&_p]:mb-3"
+                                dangerouslySetInnerHTML={{ __html: row.sample_details }}
+                              />
+                            </div>
+                          ) : row.sample_details ? (
+                            // Plain text display - LARGE
+                            <div className="w-full rounded-md border border-slate-300 px-4 py-3 text-base bg-slate-50 min-h-[280px] whitespace-pre-wrap leading-relaxed text-slate-800 font-medium">
+                              {row.sample_details}
+                            </div>
+                          ) : (
+                            // Empty state - show placeholder
+                            <div className="w-full rounded-md border border-slate-300 px-4 py-3 text-base bg-slate-50 min-h-[280px] text-slate-400 flex items-center justify-center">
+                              Collection details will appear here...
+                            </div>
+                          )}
                         </div>
-                        <div className="grid grid-cols-2 gap-3 text-xs">
-                          {/* Collection Point (Healthcare Service Unit link-style dropdown) */}
+
+                        {/* Collection Point + Referring Practitioner */}
+                        <div className="grid grid-cols-2 gap-4">
                           <div className="relative">
-                            <label className="block text-[11px] font-medium text-slate-500 mb-1">
-                              Collection Point (Service Unit)
-                            </label>
-                            <input
-                              type="text"
-                              value={sampleFormCollectionPoint || collectionPointQuery}
-                              onChange={(e) => {
-                                const val = e.target.value
-                                setSampleFormCollectionPoint('')
-                                setCollectionPointQuery(val)
-                                setCollectionPointOpen(true)
-                              }}
-                              onFocus={() => {
-                                setCollectionPointOpen(true)
-                              }}
-                              placeholder="Search Healthcare Service Unit..."
-                              className="w-full rounded-md border border-slate-300 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                            <label className="block text-xs font-semibold text-slate-700 mb-1">Collection Point</label>
+                            <input type="text" value={sampleFormCollectionPoint || collectionPointQuery}
+                              onChange={(e) => { setSampleFormCollectionPoint(''); setCollectionPointQuery(e.target.value); setCollectionPointOpen(true) }}
+                              onFocus={() => setCollectionPointOpen(true)}
+                              placeholder="Search service unit..."
+                              className="w-full rounded-md border border-slate-300 px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
                             />
                             {collectionPointOpen && (collectionPointQuery || collectionPointOptions.length > 0) && (
                               <div className="absolute z-20 mt-1 w-full max-h-48 overflow-auto rounded-md bg-white border border-slate-200 shadow-lg">
-                                {collectionPointOptions.length === 0 && (
-                                  <div className="px-2 py-1 text-[11px] text-slate-500">
-                                    Type to search service units…
-                                  </div>
-                                )}
-                                {collectionPointOptions.map((su) => (
-                                  <button
-                                    key={su.name}
-                                    type="button"
-                                    onClick={() => {
-                                      setSampleFormCollectionPoint(su.name)
-                                      setCollectionPointQuery(su.healthcare_service_unit_name || su.name)
-                                      setCollectionPointOpen(false)
-                                    }}
-                                    className="w-full flex items-center justify-between px-2 py-1 text-left text-[11px] hover:bg-slate-100"
-                                  >
-                                    <span className="truncate">
-                                      {su.healthcare_service_unit_name || su.name}
-                                    </span>
-                                    {su.healthcare_service_unit_name && su.healthcare_service_unit_name !== su.name && (
-                                      <span className="ml-2 text-slate-400 text-[10px]">{su.name}</span>
-                                    )}
+                                {collectionPointOptions.length === 0 ? (
+                                  <div className="px-3 py-2 text-[11px] text-slate-500">Type to search…</div>
+                                ) : collectionPointOptions.map((su) => (
+                                  <button key={su.name} type="button"
+                                    onClick={() => { setSampleFormCollectionPoint(su.name); setCollectionPointQuery(su.healthcare_service_unit_name || su.name); setCollectionPointOpen(false) }}
+                                    className="w-full text-left px-3 py-1.5 text-[11px] hover:bg-slate-100">
+                                    {su.healthcare_service_unit_name || su.name}
                                   </button>
                                 ))}
                               </div>
                             )}
                           </div>
-
-                          {/* Referring Practitioner (Healthcare Practitioner link-style dropdown) */}
                           <div className="relative">
-                            <label className="block text-[11px] font-medium text-slate-500 mb-1">
-                              Referring Practitioner
-                            </label>
-                            <input
-                              type="text"
-                              value={sampleFormRefPractitioner || refPractitionerQuery}
-                              onChange={(e) => {
-                                const val = e.target.value
-                                setSampleFormRefPractitioner('')
-                                setRefPractitionerQuery(val)
-                                setRefPractitionerOpen(true)
-                              }}
-                              onFocus={() => {
-                                setRefPractitionerOpen(true)
-                              }}
-                              placeholder="Search Healthcare Practitioner..."
-                              className="w-full rounded-md border border-slate-300 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                            <label className="block text-xs font-semibold text-slate-700 mb-1">Referring Practitioner</label>
+                            <input type="text" value={sampleFormRefPractitioner || refPractitionerQuery}
+                              onChange={(e) => { setSampleFormRefPractitioner(''); setRefPractitionerQuery(e.target.value); setRefPractitionerOpen(true) }}
+                              onFocus={() => setRefPractitionerOpen(true)}
+                              placeholder="Search practitioner..."
+                              className="w-full rounded-md border border-slate-300 px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
                             />
                             {refPractitionerOpen && (refPractitionerQuery || refPractitionerOptions.length > 0) && (
                               <div className="absolute z-20 mt-1 w-full max-h-48 overflow-auto rounded-md bg-white border border-slate-200 shadow-lg">
-                                {refPractitionerOptions.length === 0 && (
-                                  <div className="px-2 py-1 text-[11px] text-slate-500">
-                                    Type to search practitioners…
-                                  </div>
-                                )}
-                                {refPractitionerOptions.map((opt) => (
-                                  <button
-                                    key={opt.name}
-                                    type="button"
-                                    onClick={() => {
-                                      setSampleFormRefPractitioner(opt.name)
-                                      setRefPractitionerQuery(opt.label || opt.name)
-                                      setRefPractitionerOpen(false)
-                                    }}
-                                    className="w-full flex items-center justify-between px-2 py-1 text-left text-[11px] hover:bg-slate-100"
-                                  >
-                                    <span className="truncate">{opt.label || opt.name}</span>
-                                    {opt.label && opt.label !== opt.name && (
-                                      <span className="ml-2 text-slate-400 text-[10px]">{opt.name}</span>
-                                    )}
+                                {refPractitionerOptions.length === 0 ? (
+                                  <div className="px-3 py-2 text-[11px] text-slate-500">Type to search…</div>
+                                ) : refPractitionerOptions.map((opt) => (
+                                  <button key={opt.name} type="button"
+                                    onClick={() => { setSampleFormRefPractitioner(opt.name); setRefPractitionerQuery(opt.label || opt.name); setRefPractitionerOpen(false) }}
+                                    className="w-full text-left px-3 py-1.5 text-[11px] hover:bg-slate-100">
+                                    {opt.label || opt.name}
                                   </button>
                                 ))}
                               </div>
                             )}
                           </div>
+                        </div>
+
+                        {/* Observation Sample Collection child table */}
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <label className="block text-xs font-semibold text-slate-700">Observation Sample Collection</label>
+                            <button type="button"
+                              onClick={() => setSampleObsRows((prev) => [...prev, { sample: row.sample, sample_qty: row.sample_qty, collection_date_time: new Date().toISOString().slice(0, 16).replace('T', ' ') }])}
+                              className="text-xs text-primary font-medium hover:underline">+ Add Row</button>
+                          </div>
+                          {sampleObsRows.length === 0 ? (
+                            <div className="text-xs text-slate-400 italic border border-dashed border-slate-200 rounded p-3 text-center">No observation rows. Click "+ Add Row" to add.</div>
+                          ) : (
+                            <div className="overflow-x-auto rounded-lg border border-slate-200">
+                              <table className="w-full text-xs">
+                                <thead className="bg-slate-50 border-b border-slate-200">
+                                  <tr>
+                                    <th className="px-2 py-2 text-left font-medium text-slate-500">Sample</th>
+                                    <th className="px-2 py-2 text-left font-medium text-slate-500">Qty</th>
+                                    <th className="px-2 py-2 text-left font-medium text-slate-500">Specimen</th>
+                                    <th className="px-2 py-2 text-left font-medium text-slate-500">Collected By</th>
+                                    <th className="px-2 py-2 text-left font-medium text-slate-500">Date Time</th>
+                                    <th className="px-2 py-2 text-left font-medium text-slate-500">Status</th>
+                                    <th className="px-2 py-2 w-8"></th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                  {sampleObsRows.map((obsRow, obsIdx) => (
+                                    <tr key={obsIdx}>
+                                      <td className="px-2 py-1.5">
+                                        <input value={obsRow.sample || ''} onChange={(e) => setSampleObsRows((prev) => { const n=[...prev]; n[obsIdx]={...n[obsIdx],sample:e.target.value}; return n })}
+                                          className="w-full border border-slate-300 rounded px-1.5 py-1 focus:ring-1 focus:ring-primary focus:outline-none" placeholder="Sample" />
+                                      </td>
+                                      <td className="px-2 py-1.5">
+                                        <input type="number" step="any" value={obsRow.sample_qty ?? ''} onChange={(e) => setSampleObsRows((prev) => { const n=[...prev]; n[obsIdx]={...n[obsIdx],sample_qty:parseFloat(e.target.value)||0}; return n })}
+                                          className="w-16 border border-slate-300 rounded px-1.5 py-1 focus:ring-1 focus:ring-primary focus:outline-none" />
+                                      </td>
+                                      <td className="px-2 py-1.5">
+                                        <input value={obsRow.specimen || ''} onChange={(e) => setSampleObsRows((prev) => { const n=[...prev]; n[obsIdx]={...n[obsIdx],specimen:e.target.value}; return n })}
+                                          className="w-full border border-slate-300 rounded px-1.5 py-1 focus:ring-1 focus:ring-primary focus:outline-none" placeholder="Specimen" />
+                                      </td>
+                                      <td className="px-2 py-1.5">
+                                        <input value={obsRow.collected_by || ''} onChange={(e) => setSampleObsRows((prev) => { const n=[...prev]; n[obsIdx]={...n[obsIdx],collected_by:e.target.value}; return n })}
+                                          className="w-full border border-slate-300 rounded px-1.5 py-1 focus:ring-1 focus:ring-primary focus:outline-none" placeholder="Collected by" />
+                                      </td>
+                                      <td className="px-2 py-1.5">
+                                        <input type="datetime-local" value={(obsRow.collection_date_time || '').replace(' ','T').slice(0,16)} onChange={(e) => setSampleObsRows((prev) => { const n=[...prev]; n[obsIdx]={...n[obsIdx],collection_date_time:e.target.value.replace('T',' ')+':00'}; return n })}
+                                          className="border border-slate-300 rounded px-1.5 py-1 focus:ring-1 focus:ring-primary focus:outline-none" />
+                                      </td>
+                                      <td className="px-2 py-1.5">
+                                        <select value={obsRow.status || 'Open'} onChange={(e) => setSampleObsRows((prev) => { const n=[...prev]; n[obsIdx]={...n[obsIdx],status:e.target.value}; return n })}
+                                          className="border border-slate-300 rounded px-1.5 py-1 bg-white focus:ring-1 focus:ring-primary focus:outline-none">
+                                          <option value="Open">Open</option>
+                                          <option value="Collected">Collected</option>
+                                        </select>
+                                      </td>
+                                      <td className="px-2 py-1.5 text-right">
+                                        <button type="button" onClick={() => setSampleObsRows((prev) => prev.filter((_,i)=>i!==obsIdx))} className="text-red-400 hover:text-red-600">✕</button>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
                         </div>
                       </>
                     )
                   })()}
                 </div>
-                <div className="px-4 py-3 border-t border-slate-200 bg-slate-50 flex justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (!sampleFormLoading) {
-                        setSampleFormRowIndex(null)
-                        setSampleFormError(null)
-                        setSampleFormCollectionPoint('')
-                        setCollectionPointQuery('')
-                        setCollectionPointOptions([])
-                        setSampleFormRefPractitioner('')
-                        setRefPractitionerQuery('')
-                        setRefPractitionerOptions([])
-                        setCollectionPointOpen(false)
-                        setRefPractitionerOpen(false)
-                      }
-                    }}
-                    className="px-3 py-1.5 text-xs rounded-md border border-slate-300 text-slate-700 hover:bg-white disabled:opacity-50"
-                    disabled={sampleFormLoading}
-                  >
+                <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 flex justify-end gap-2">
+                  <button type="button" disabled={sampleFormLoading}
+                    onClick={() => { if (!sampleFormLoading) { setSampleFormRowIndex(null); setSampleFormError(null); setSampleFormCollectionPoint(''); setCollectionPointQuery(''); setCollectionPointOptions([]); setSampleFormRefPractitioner(''); setRefPractitionerQuery(''); setRefPractitionerOptions([]); setCollectionPointOpen(false); setRefPractitionerOpen(false); setSampleObsRows([]); setTemplateSampleDetails('') } }}
+                    className="px-4 py-2 text-xs rounded-md border border-slate-300 text-slate-700 hover:bg-white disabled:opacity-50">
                     Cancel
                   </button>
-                  <button
-                    type="button"
-                    className="px-3 py-1.5 text-xs rounded-md bg-primary text-white hover:bg-primary/90 disabled:opacity-50"
-                    disabled={sampleFormLoading || sampleFormRowIndex === null}
+                  <button type="button" disabled={sampleFormLoading || sampleFormRowIndex === null}
+                    className="px-4 py-2 text-xs rounded-md bg-primary text-white hover:bg-primary/90 disabled:opacity-50 font-medium"
                     onClick={async () => {
                       if (!sampleModalLabTest || sampleFormRowIndex === null) return
                       const row = sampleModalLabTest.sample_instances?.[sampleFormRowIndex]
-                      if (!row) {
-                        setSampleFormError('Missing sample row data')
-                        return
-                      }
+                      if (!row) { setSampleFormError('Missing sample row data'); return }
                       try {
                         setSampleFormLoading(true)
                         setSampleFormError(null)
                         const res = await createSampleCollectionForLabSample(
-                          sampleModalLabTest.name,
-                          sampleFormRowIndex,
+                          sampleModalLabTest.name, sampleFormRowIndex,
                           row.sample_details || '',
                           sampleFormCollectionPoint || undefined,
-                          sampleFormRefPractitioner || undefined
+                          sampleFormRefPractitioner || undefined,
+                          sampleObsRows.length ? sampleObsRows : undefined
                         )
                         toast.success(`Sample Collection ${res.sample_collection} created`)
                         setSampleModalLabTest((prev) => {
                           if (!prev) return prev
                           const next = { ...prev }
                           const arr = [...(next.sample_instances || [])]
-                          arr[sampleFormRowIndex] = {
-                            ...(arr[sampleFormRowIndex] || {}),
-                            sample_collection: res.sample_collection,
-                          }
+                          arr[sampleFormRowIndex] = { ...(arr[sampleFormRowIndex] || {}), sample_collection: res.sample_collection }
                           next.sample_instances = arr
                           return next
                         })
                         setSampleFormRowIndex(null)
+                        setSampleObsRows([])
+                        setTemplateSampleDetails('')
                       } catch (e) {
-                        const msg =
-                          e instanceof Error ? e.message : 'Failed to create Sample Collection'
-                        setSampleFormError(msg)
+                        setSampleFormError(e instanceof Error ? e.message : 'Failed to create Sample Collection')
                       } finally {
                         setSampleFormLoading(false)
                       }
-                    }}
-                  >
+                    }}>
                     {sampleFormLoading ? 'Creating…' : 'Create Sample Collection'}
                   </button>
                 </div>
@@ -1430,7 +1489,7 @@ export const LabTestList = ({
       {/* ── Results dialog ── */}
       {resultDialogOpen && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col">
+          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col">
             <div className="p-4 border-b border-slate-200 flex items-center justify-between flex-shrink-0">
               <h2 className="text-lg font-semibold text-slate-900">
                 Enter Results {activeLabTest?.name ? `for ${activeLabTest.name}` : ''}
@@ -1453,21 +1512,138 @@ export const LabTestList = ({
                 <div className="text-sm text-slate-600">Loading...</div>
               ) : resultDialogTab === 'results' ? (
                 <>
+                  {/* ── Normal Test Items Table ── */}
+                  {normalTestItems.length > 0 && (
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-800 mb-2">Test Results</label>
+                      <div className="rounded-lg border border-slate-200 overflow-hidden">
+                        <table className="w-full text-sm">
+                          <thead className="bg-slate-50 border-b border-slate-200">
+                            <tr>
+                              <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600">Test / Event</th>
+                              <th className="px-3 py-2.5 text-center text-xs font-semibold text-slate-600 w-24">Min</th>
+                              <th className="px-3 py-2.5 text-center text-xs font-semibold text-slate-600 w-24">Max</th>
+                              <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 w-36">Result</th>
+                              <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600">Comment</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {normalTestItems.map((row, idx) => {
+                              const result = parseFloat(row.result_value || '')
+                              const min = templateDetails.min_range
+                              const max = templateDetails.max_range
+                              const outOfRange = row.result_value !== '' && row.result_value != null && !isNaN(result)
+                                && min != null && max != null
+                                ? (result < min || result > max)
+                                : false
+                              return (
+                                <tr key={idx} className={outOfRange ? 'bg-red-50' : 'hover:bg-slate-50/50'}>
+                                  <td className="px-3 py-3">
+                                    <div className="text-sm font-medium text-slate-800">
+                                      {row.lab_test_event || row.lab_test_name || '—'}
+                                    </div>
+                                    {row.lab_test_uom && (
+                                      <div className="text-[11px] text-slate-400 mt-0.5">{row.lab_test_uom}</div>
+                                    )}
+                                  </td>
+                                  <td className="px-3 py-3 text-center">
+                                    <span className={`text-sm font-medium ${min != null ? 'text-slate-700' : 'text-slate-300'}`}>
+                                      {min != null ? min : '—'}
+                                    </span>
+                                  </td>
+                                  <td className="px-3 py-3 text-center">
+                                    <span className={`text-sm font-medium ${max != null ? 'text-slate-700' : 'text-slate-300'}`}>
+                                      {max != null ? max : '—'}
+                                    </span>
+                                  </td>
+                                  <td className="px-3 py-3">
+                                    <input
+                                      type="number"
+                                      step="any"
+                                      value={row.result_value ?? ''}
+                                      onChange={(e) => {
+                                        const v = e.target.value
+                                        setNormalTestItems((prev) => {
+                                          const next = [...prev]
+                                          next[idx] = { ...next[idx], result_value: v }
+                                          return next
+                                        })
+                                      }}
+                                      className={`w-full border rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary ${
+                                        outOfRange
+                                          ? 'border-red-400 bg-red-50 text-red-700 focus:ring-red-300'
+                                          : 'border-slate-300'
+                                      }`}
+                                      placeholder="0.00"
+                                    />
+                                    {outOfRange && (
+                                      <div className="text-[10px] text-red-600 mt-0.5 font-medium">⚠ Out of range</div>
+                                    )}
+                                  </td>
+                                  <td className="px-3 py-3">
+                                    <input
+                                      type="text"
+                                      value={row.lab_test_comment || ''}
+                                      onChange={(e) => {
+                                        const v = e.target.value
+                                        setNormalTestItems((prev) => {
+                                          const next = [...prev]
+                                          next[idx] = { ...next[idx], lab_test_comment: v }
+                                          return next
+                                        })
+                                      }}
+                                      className="w-full border border-slate-300 rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                                      placeholder="Add comment..."
+                                    />
+                                  </td>
+                                </tr>
+                              )
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── Custom Result ── */}
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Custom Result</label>
-                    <textarea className="w-full border border-slate-300 rounded-md p-2 text-sm min-h-[90px]"
-                      value={customResult} onChange={(e) => setCustomResult(e.target.value)} />
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Custom / Descriptive Result</label>
+                    <textarea className="w-full border border-slate-300 rounded-md p-2 text-sm min-h-[80px]"
+                      value={customResult} onChange={(e) => setCustomResult(e.target.value)}
+                      placeholder="Enter descriptive or custom result..." />
                   </div>
+
+                  {/* ── General Comments ── */}
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Comments</label>
-                    <textarea className="w-full border border-slate-300 rounded-md p-2 text-sm min-h-[90px]"
-                      value={labComment} onChange={(e) => setLabComment(e.target.value)} />
+                    <label className="block text-sm font-medium text-slate-700 mb-1">General Comments</label>
+                    <textarea className="w-full border border-slate-300 rounded-md p-2 text-sm min-h-[70px]"
+                      value={labComment} onChange={(e) => setLabComment(e.target.value)}
+                      placeholder="Overall test comments..." />
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Worksheet Instructions</label>
-                    <textarea className="w-full border border-slate-300 rounded-md p-2 text-sm min-h-[90px]"
-                      value={worksheetText} onChange={(e) => setWorksheetText(e.target.value)} />
-                  </div>
+
+                  {/* ── Worksheet Instructions ── */}
+                  {(worksheetText || templateDetails.worksheet_instructions) && (
+                    <div className="rounded-md border border-amber-200 bg-amber-50">
+                      <button
+                        type="button"
+                        className="w-full flex items-center justify-between px-3 py-2 text-sm font-medium text-amber-800 hover:bg-amber-100 transition-colors"
+                        onClick={() => setWorksheetExpanded((v) => !v)}
+                      >
+                        <span>📋 Worksheet Instructions</span>
+                        <span className="text-xs text-amber-600">{worksheetExpanded ? '▲ Hide' : '▼ Show'}</span>
+                      </button>
+                      {worksheetExpanded && (
+                        <div className="px-3 pb-3">
+                          <textarea
+                            className="w-full border border-amber-300 rounded-md p-2 text-sm bg-white min-h-[80px]"
+                            value={worksheetText}
+                            onChange={(e) => setWorksheetText(e.target.value)}
+                            placeholder="Worksheet instructions..."
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </>
               ) : (
                 <div className="space-y-4">

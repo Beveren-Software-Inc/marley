@@ -9,17 +9,25 @@ from frappe import _
 @frappe.whitelist()
 def get_discharges(limit=50, offset=0, patient=None, admission=None, search=None):
 	"""Get list of Discharge documents"""
+	from healthcare.api.common import get_permitted_cost_centers
 	filters = {}
-	
+
 	if patient:
 		filters['file_no'] = patient
-	
+
 	if admission:
 		filters['admission'] = admission
-	
+
 	if search and search.strip():
 		filters['name'] = ['like', f'%{search.strip()}%']
-	
+
+	# ── Cost-centre User Permission enforcement ──────────────────────────────
+	permitted_cc = get_permitted_cost_centers()
+	if permitted_cc is not None:
+		if not permitted_cc:
+			return []
+		filters['cost_center'] = ['in', permitted_cc]
+
 	discharges = frappe.get_all(
 		'Discharge',
 		filters=filters,
@@ -34,7 +42,8 @@ def get_discharges(limit=50, offset=0, patient=None, admission=None, search=None
 			'final_discharge_user_id',
 			'receiving_doctors',
 			'discharge_template',
-			'docstatus'
+			'docstatus',
+			'cost_center',
 		],
 		limit=limit,
 		limit_start=offset,
