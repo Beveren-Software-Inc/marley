@@ -380,6 +380,7 @@ export const NursePage = () => {
             </div>
             <LabTestList
               patient={selectedPatient}
+              defaultStatus="Requested"
               key={labTestRefreshKey}
             />
           </section>
@@ -412,6 +413,7 @@ export const NursePage = () => {
             </div>
             <LabTestList
               patient={selectedPatient}
+              defaultStatus="Requested"
               key={labTestRefreshKey}
             />
           </section>

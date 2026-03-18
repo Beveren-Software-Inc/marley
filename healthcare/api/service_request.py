@@ -6,6 +6,24 @@ import frappe
 from frappe import _
 
 
+@frappe.whitelist(allow_guest=False)
+def get_lab_test_template_pricing(template):
+	"""Return the pricing child table rows for a Lab Test Template."""
+	if not template:
+		return []
+	if not frappe.db.exists('Lab Test Template', template):
+		return []
+
+	rows = frappe.get_all(
+		'Lab Test Pricing',
+		filters={'parent': template, 'parenttype': 'Lab Test Template'},
+		fields=['patient_category', 'price'],
+		order_by='idx asc',
+		ignore_permissions=True
+	)
+	return rows
+
+
 @frappe.whitelist()
 def get_service_requests(limit=50, offset=0, patient=None, template_dt=None, status=None):
 	"""Get list of Service Requests"""
@@ -153,7 +171,12 @@ def create_service_request(data):
 		'quantity': data.get('quantity') or 1,
 		'occurrence_date': data.get('occurrence_date'),
 		'occurrence_time': data.get('occurrence_time'),
-		'naming_series': naming_series
+		'naming_series': naming_series,
+		# Discount fields
+		'discount': frappe.utils.flt(data.get('discount') or 0),
+		'discount_value': data.get('discount_value') or '',
+		'discount_amount': frappe.utils.flt(data.get('discount_amount') or 0),
+		'grand_total': frappe.utils.flt(data.get('grand_total') or data.get('cost') or 0),
 	})
 	
 	service_request.insert()
@@ -229,7 +252,9 @@ def update_service_request(name, data):
 		"order_group", "order_description", "patient_instructions", "expected_date",
 		"amount", "cost", "referred_to_practitioner",
 		"staff_role", "patient_care_type", "healthcare_service_unit_type", "as_needed",
-		"dosage_form", "dosage", "period", "cost_center"
+		"dosage_form", "dosage", "period", "cost_center",
+		# Discount fields
+		"discount", "discount_value", "discount_amount", "grand_total",
 	}
 	for key, value in data.items():
 		if key == "department":
@@ -284,10 +309,12 @@ def confirm_payment(service_request_name):
 	so.customer = sr.patient   # adjust if mapped via Customer
 	so.transaction_date = nowdate()
 	so.delivery_date = delivery_date
+	# Use grand_total if set (reflects any discount); fall back to amount then cost
+	billing_rate = frappe.utils.flt(sr.get("grand_total")) or frappe.utils.flt(sr.get("amount")) or frappe.utils.flt(sr.get("cost")) or 0
 	so.append("items", {
 		"item_code": item_code,
 		"qty": 1,
-		"rate": sr.amount or 0,
+		"rate": billing_rate,
 		"description": f"Service Request {sr.name}"
 	})
 	so.custom_reference_type = "Service Request"

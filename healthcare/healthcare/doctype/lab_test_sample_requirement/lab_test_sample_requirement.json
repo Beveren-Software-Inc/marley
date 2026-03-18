@@ -8,7 +8,8 @@
   "sample",
   "sample_qty",
   "column_break_jkgq",
-  "sample_details"
+  "sample_details",
+  "result"
  ],
  "fields": [
   {
@@ -28,7 +29,7 @@
   },
   {
    "fieldname": "sample_details",
-   "fieldtype": "Small Text",
+   "fieldtype": "Text Editor",
    "ignore_xss_filter": 1,
    "in_list_view": 1,
    "in_standard_filter": 1,
@@ -37,11 +38,18 @@
   {
    "fieldname": "column_break_jkgq",
    "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "result",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Result"
   }
  ],
  "istable": 1,
  "links": [],
- "modified": "2026-03-12 15:18:40.213157",
+ "modified": "2026-03-18 15:51:52.292311",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Lab Test Sample Requirement",
