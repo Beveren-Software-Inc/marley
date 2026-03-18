@@ -1,0 +1,265 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "ECT_AC-.{MM}-.{YY}-.#####",
+ "creation": "2026-03-18 01:51:54.567050",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "inpatient_admission",
+  "patient_visit",
+  "column_break_jzdr",
+  "patient",
+  "patient_name",
+  "section_break_vhzl",
+  "termsenglish",
+  "conscious_sedation_consent_form",
+  "section_break_jsfn",
+  "termsarabic",
+  "conscious",
+  "healthcare_practitioner_section",
+  "anesthesiologist",
+  "anesthesiologit_name",
+  "signature",
+  "column_break_oyqz",
+  "date",
+  "time",
+  "patient_section",
+  "signature_of_the_patient",
+  "column_break_zuuf",
+  "cpr_no",
+  "guardian_section",
+  "patients_legal_guardian",
+  "relation_to_patient",
+  "guardian_cpr_no",
+  "column_break_hxht",
+  "guardian_signature",
+  "guardian_sign_date",
+  "guardian_sign_time",
+  "witness_section",
+  "witness_name",
+  "witness_signature",
+  "witness_cpr_no",
+  "column_break_dfgj",
+  "witness_sign_date",
+  "witness_sign_time"
+ ],
+ "fields": [
+  {
+   "fieldname": "inpatient_admission",
+   "fieldtype": "Link",
+   "label": "Inpatient Admission",
+   "options": "Inpatient Admission"
+  },
+  {
+   "fieldname": "patient_visit",
+   "fieldtype": "Link",
+   "label": "Patient Visit",
+   "options": "Patient Visit"
+  },
+  {
+   "fieldname": "column_break_jzdr",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "patient",
+   "fieldtype": "Link",
+   "label": "Patient",
+   "options": "Patient"
+  },
+  {
+   "fieldname": "patient_name",
+   "fieldtype": "Data",
+   "label": "Patient Name"
+  },
+  {
+   "fieldname": "section_break_vhzl",
+   "fieldtype": "Section Break"
+  },
+  {
+   "default": "Anesthesia/Conscious Sedation Consent - English",
+   "fieldname": "termsenglish",
+   "fieldtype": "Link",
+   "label": "Terms(English)",
+   "options": "Anesthesia Terms"
+  },
+  {
+   "fetch_from": "termsenglish.terms",
+   "fieldname": "conscious_sedation_consent_form",
+   "fieldtype": "Text Editor",
+   "label": "Conscious Sedation Consent Form"
+  },
+  {
+   "fieldname": "section_break_jsfn",
+   "fieldtype": "Section Break"
+  },
+  {
+   "default": "Anesthesia/Conscious Sedation Consent - Arabic",
+   "fieldname": "termsarabic",
+   "fieldtype": "Link",
+   "label": "Terms(Arabic)",
+   "options": "Anesthesia Terms"
+  },
+  {
+   "fetch_from": "termsarabic.terms",
+   "fieldname": "conscious",
+   "fieldtype": "Text Editor",
+   "label": "Conscious"
+  },
+  {
+   "fieldname": "healthcare_practitioner_section",
+   "fieldtype": "Section Break",
+   "label": "Healthcare Practitioner"
+  },
+  {
+   "fieldname": "anesthesiologist",
+   "fieldtype": "Data",
+   "label": "Anesthesiologist"
+  },
+  {
+   "fieldname": "anesthesiologit_name",
+   "fieldtype": "Data",
+   "label": "Anesthesiologit Name"
+  },
+  {
+   "fieldname": "signature",
+   "fieldtype": "Attach",
+   "label": "Signature"
+  },
+  {
+   "fieldname": "column_break_oyqz",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "date",
+   "fieldtype": "Date",
+   "label": "Date"
+  },
+  {
+   "fieldname": "time",
+   "fieldtype": "Time",
+   "label": "Time"
+  },
+  {
+   "fieldname": "patient_section",
+   "fieldtype": "Section Break",
+   "label": "Patient"
+  },
+  {
+   "fieldname": "signature_of_the_patient",
+   "fieldtype": "Attach",
+   "label": "Signature of the Patient"
+  },
+  {
+   "fieldname": "column_break_zuuf",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "cpr_no",
+   "fieldtype": "Data",
+   "label": "CPR No"
+  },
+  {
+   "fieldname": "guardian_section",
+   "fieldtype": "Section Break",
+   "label": "Guardian"
+  },
+  {
+   "fieldname": "patients_legal_guardian",
+   "fieldtype": "Data",
+   "label": "Patients Legal Guardian"
+  },
+  {
+   "fieldname": "relation_to_patient",
+   "fieldtype": "Select",
+   "label": "Relation to Patient",
+   "options": "\nFather\nMother\nBrother\nSister\nHusband\nWife\nSon\nDaughter"
+  },
+  {
+   "fieldname": "guardian_cpr_no",
+   "fieldtype": "Data",
+   "label": "Guardian CPR No"
+  },
+  {
+   "fieldname": "column_break_hxht",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "guardian_signature",
+   "fieldtype": "Attach",
+   "label": "Guardian Signature"
+  },
+  {
+   "fieldname": "guardian_sign_date",
+   "fieldtype": "Date",
+   "label": "Guardian Sign Date"
+  },
+  {
+   "fieldname": "guardian_sign_time",
+   "fieldtype": "Time",
+   "label": "Guardian Sign Time"
+  },
+  {
+   "fieldname": "witness_section",
+   "fieldtype": "Section Break",
+   "label": "Witness "
+  },
+  {
+   "fieldname": "witness_name",
+   "fieldtype": "Data",
+   "label": "Witness Name"
+  },
+  {
+   "fieldname": "witness_signature",
+   "fieldtype": "Attach",
+   "label": "Witness Signature"
+  },
+  {
+   "fieldname": "witness_cpr_no",
+   "fieldtype": "Data",
+   "label": "Witness CPR No"
+  },
+  {
+   "fieldname": "column_break_dfgj",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "witness_sign_date",
+   "fieldtype": "Date",
+   "label": "Witness Sign Date"
+  },
+  {
+   "fieldname": "witness_sign_time",
+   "fieldtype": "Time",
+   "label": "Witness Sign Time"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-03-18 02:26:57.920254",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "ECT Anesthesia Consent",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

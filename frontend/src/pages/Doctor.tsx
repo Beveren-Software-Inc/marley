@@ -50,6 +50,10 @@ import { CreateECTAdmissionModal } from '../components/ect/CreateECTAdmissionMod
 import { CreateECTProcedureModal } from '../components/ect/CreateECTProcedureModal'
 import { ECTAdmissionList } from '../components/ect/ECTAdmissionList'
 import { ECTProcedureList } from '../components/ect/ECTProcedureList'
+import { ECTAnesthesiaConsentList } from '../components/ect/ECTAnesthesiaConsentList'
+import { ECTAnesthesiaConsentModal } from '../components/ect/ECTAnesthesiaConsentModal'
+import { PreAnesthesiaAssessmentList } from '../components/ect/PreAnesthesiaAssessmentList'
+import { PreAnesthesiaAssessmentModal } from '../components/ect/PreAnesthesiaAssessmentModal'
 import { SleepingPatternList } from '../components/sleeping/SleepingPatternList'
 import { CreateSleepingPatternModal } from '../components/sleeping/CreateSleepingPatternModal'
 
@@ -93,6 +97,10 @@ export const DoctorPage = () => {
   const [showECTModal, setShowECTModal] = useState(false)
   const [showECTAdmissionModal, setShowECTAdmissionModal] = useState(false)
   const [showECTProcedureModal, setShowECTProcedureModal] = useState(false)
+  const [showECTAnesthesiaConsentModal, setShowECTAnesthesiaConsentModal] = useState(false)
+  const [ectConsentRefreshKey, setEctConsentRefreshKey] = useState(0)
+  const [showPreAnesthesiaModal, setShowPreAnesthesiaModal] = useState(false)
+  const [preAnesthesiaRefreshKey, setPreAnesthesiaRefreshKey] = useState(0)
   const [ectRefreshKey, setEctRefreshKey] = useState(0)
   const [showSleepingPatternModal, setShowSleepingPatternModal] = useState(false)
   const [sleepingPatternRefreshKey, setSleepingPatternRefreshKey] = useState(0)
@@ -322,6 +330,46 @@ export const DoctorPage = () => {
                 <ECTDetailsList patient={selectedPatient} refreshKey={ectRefreshKey} />
               </div>
             </section>
+
+            {/* ECT Anesthesia Consent card */}
+            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col md:col-span-2">
+              <div className="font-semibold mb-4 flex items-center justify-between">
+                <span>ECT Anesthesia Consent</span>
+                <button
+                  onClick={() => setShowECTAnesthesiaConsentModal(true)}
+                  className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
+                  title="Add ECT Anesthesia Consent"
+                >
+                  +
+                </button>
+              </div>
+              <p className="text-sm text-slate-600 mb-3">
+                Record anesthesia consent with signatures from the anesthesiologist, patient, guardian, and witness.
+              </p>
+              <div className="flex-1 min-h-[80px]">
+                <ECTAnesthesiaConsentList patient={selectedPatient} refreshKey={ectConsentRefreshKey} />
+              </div>
+            </section>
+
+            {/* Pre Anesthesia Assessment card */}
+            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col md:col-span-2">
+              <div className="font-semibold mb-4 flex items-center justify-between">
+                <span>Pre Anesthesia Assessment</span>
+                <button
+                  onClick={() => setShowPreAnesthesiaModal(true)}
+                  className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
+                  title="Add Pre Anesthesia Assessment"
+                >
+                  +
+                </button>
+              </div>
+              <p className="text-sm text-slate-600 mb-3">
+                Comprehensive pre-operative anesthesia assessment covering all body systems with ASA classification and fitness determination.
+              </p>
+              <div className="flex-1 min-h-[80px]">
+                <PreAnesthesiaAssessmentList patient={selectedPatient} refreshKey={preAnesthesiaRefreshKey} />
+              </div>
+            </section>
           </div>
         </div>
         {showECTAdmissionModal && (
@@ -352,6 +400,30 @@ export const DoctorPage = () => {
               setShowECTModal(false)
             }}
             initialPatient={selectedPatient}
+          />
+        )}
+        {showECTAnesthesiaConsentModal && (
+          <ECTAnesthesiaConsentModal
+            admissionNo=""
+            patient={selectedPatient}
+            patientName=""
+            onClose={() => setShowECTAnesthesiaConsentModal(false)}
+            onSuccess={() => {
+              setEctConsentRefreshKey(prev => prev + 1)
+              setShowECTAnesthesiaConsentModal(false)
+            }}
+          />
+        )}
+        {showPreAnesthesiaModal && (
+          <PreAnesthesiaAssessmentModal
+            admissionNo=""
+            patient={selectedPatient}
+            patientName=""
+            onClose={() => setShowPreAnesthesiaModal(false)}
+            onSuccess={() => {
+              setPreAnesthesiaRefreshKey(prev => prev + 1)
+              setShowPreAnesthesiaModal(false)
+            }}
           />
         )}
       </div>

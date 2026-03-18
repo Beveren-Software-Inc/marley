@@ -16,6 +16,8 @@ import { AnesthesiaRecordModal } from './AnesthesiaRecordModal'
 import { TimeOutProcedureModal } from './TimeOutProcedureModal'
 import { PreEctChecklistModal } from './PreEctChecklistModal'
 import { ModifiedAldereteScoreModal } from './ModifiedAldereteScoreModal'
+import { ECTAnesthesiaConsentModal } from '../ect/ECTAnesthesiaConsentModal'
+import { PreAnesthesiaAssessmentModal } from '../ect/PreAnesthesiaAssessmentModal'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import type { InpatientRecord, InpatientPackage } from '../../services/inpatientRecords'
@@ -61,6 +63,10 @@ export const AdmissionList = ({ onAdmissionSelect, searchQuery: externalSearchQu
   const [preEctAdmission, setPreEctAdmission] = useState<InpatientRecord | null>(null)
   const [showAldereteScore, setShowAldereteScore] = useState(false)
   const [aldereteScoreAdmission, setAldereteScoreAdmission] = useState<InpatientRecord | null>(null)
+  const [showECTAnesthesiaConsent, setShowECTAnesthesiaConsent] = useState(false)
+  const [ectAnesthesiaConsentAdmission, setEctAnesthesiaConsentAdmission] = useState<InpatientRecord | null>(null)
+  const [showPreAnesthesia, setShowPreAnesthesia] = useState(false)
+  const [preAnesthesiaAdmission, setPreAnesthesiaAdmission] = useState<InpatientRecord | null>(null)
 
   // --- Filter: Admission No (searchable dropdown) ---
   const [admissionNoQuery, setAdmissionNoQuery] = useState('')
@@ -567,6 +573,32 @@ export const AdmissionList = ({ onAdmissionSelect, searchQuery: externalSearchQu
                                   Modified Alderete Score
                                 </button>
                               )}
+                              {(record.status === 'Admission Scheduled' || record.status === 'Admitted') && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEctAnesthesiaConsentAdmission(record)
+                                    setShowECTAnesthesiaConsent(true)
+                                    setOpenActionRow(null)
+                                  }}
+                                  className="block w-full text-left px-3 py-2 text-sm text-rose-700 hover:bg-rose-50"
+                                >
+                                  ECT Anesthesia Consent
+                                </button>
+                              )}
+                              {(record.status === 'Admission Scheduled' || record.status === 'Admitted') && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setPreAnesthesiaAdmission(record)
+                                    setShowPreAnesthesia(true)
+                                    setOpenActionRow(null)
+                                  }}
+                                  className="block w-full text-left px-3 py-2 text-sm text-emerald-700 hover:bg-emerald-50"
+                                >
+                                  Pre Anesthesia Assessment
+                                </button>
+                              )}
                               {record.status === 'Discharge Scheduled' && (
                                 <button
                                   type="button"
@@ -773,6 +805,26 @@ export const AdmissionList = ({ onAdmissionSelect, searchQuery: externalSearchQu
           patientName={aldereteScoreAdmission.patient_name}
           onClose={() => { setShowAldereteScore(false); setAldereteScoreAdmission(null) }}
           onSuccess={() => { setShowAldereteScore(false); setAldereteScoreAdmission(null) }}
+        />
+      )}
+
+      {showECTAnesthesiaConsent && ectAnesthesiaConsentAdmission && (
+        <ECTAnesthesiaConsentModal
+          admissionNo={ectAnesthesiaConsentAdmission.name}
+          patient={ectAnesthesiaConsentAdmission.patient}
+          patientName={ectAnesthesiaConsentAdmission.patient_name}
+          onClose={() => { setShowECTAnesthesiaConsent(false); setEctAnesthesiaConsentAdmission(null) }}
+          onSuccess={() => { setShowECTAnesthesiaConsent(false); setEctAnesthesiaConsentAdmission(null) }}
+        />
+      )}
+
+      {showPreAnesthesia && preAnesthesiaAdmission && (
+        <PreAnesthesiaAssessmentModal
+          admissionNo={preAnesthesiaAdmission.name}
+          patient={preAnesthesiaAdmission.patient}
+          patientName={preAnesthesiaAdmission.patient_name}
+          onClose={() => { setShowPreAnesthesia(false); setPreAnesthesiaAdmission(null) }}
+          onSuccess={() => { setShowPreAnesthesia(false); setPreAnesthesiaAdmission(null) }}
         />
       )}
     </>
