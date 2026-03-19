@@ -759,6 +759,110 @@ export async function fetchPatientOptions(search?: string): Promise<LinkFieldOpt
   }))
 }
 
+export interface InsuranceClaimRow {
+  name: string
+  patient: string
+  patient_name: string
+  health_insurance: string
+  insurance_payor: string
+  claim_date: string
+  status: string
+  total_claimed: number
+  total_approved: number
+  total_rejected: number
+  total_patient_liability: number
+  sales_invoice: string
+}
+
+export async function fetchInsuranceClaims(search?: string, patient?: string): Promise<InsuranceClaimRow[]> {
+  const params = new URLSearchParams()
+  if (search) params.append('search', search)
+  if (patient) params.append('patient', patient)
+
+  const url = `/api/method/healthcare.api.common.get_insurance_claims${params.toString() ? `?${params.toString()}` : ''}`
+  const response = await fetch(url)
+  const resData = await response.json()
+
+  if (resData?.message && Array.isArray(resData.message)) {
+    return resData.message as InsuranceClaimRow[]
+  }
+  return []
+}
+
+export interface InsurancePatientRegisterRow {
+  name: string
+  full_name: string
+  national_id_cpr_no: string
+  posting_date: string
+  status: string
+  insurance_provider: string
+  approval_id: string
+  approval_validitydays: number
+  no_of_visits: string
+  patient: string
+}
+
+export async function fetchInsurancePatientRegisters(search?: string): Promise<InsurancePatientRegisterRow[]> {
+  const params = new URLSearchParams()
+  if (search) params.append('search', search)
+
+  const url = `/api/method/healthcare.api.common.get_insurance_patient_registers${params.toString() ? `?${params.toString()}` : ''}`
+  const response = await fetch(url)
+  const resData = await response.json()
+
+  if (resData?.message && Array.isArray(resData.message)) {
+    return resData.message as InsurancePatientRegisterRow[]
+  }
+  return []
+}
+
+export async function linkPatientToInsuranceRegister(registerName: string, patient: string): Promise<void> {
+  const url = `/api/method/healthcare.api.common.link_patient_to_insurance_register`
+  await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Frappe-CSRF-Token': (window as any).csrf_token || '' },
+    body: JSON.stringify({ register_name: registerName, patient }),
+  })
+}
+
+export interface LabTestSampleOption {
+  name: string
+  sample: string
+  sample_type: string
+  sample_uom: string
+}
+
+export async function fetchLabTestSamples(search?: string): Promise<LabTestSampleOption[]> {
+  const params = new URLSearchParams()
+  if (search) params.append('search', search)
+
+  const url = `/api/method/healthcare.api.common.get_lab_test_samples${params.toString() ? `?${params.toString()}` : ''}`
+  const response = await fetch(url)
+  const resData = await response.json()
+
+  if (resData?.message && Array.isArray(resData.message)) {
+    return resData.message as LabTestSampleOption[]
+  }
+  return []
+}
+
+export async function fetchSampleTypes(search?: string): Promise<LinkFieldOption[]> {
+  const params = new URLSearchParams()
+  if (search) params.append('search', search)
+
+  const url = `/api/method/healthcare.api.common.get_sample_types${params.toString() ? `?${params.toString()}` : ''}`
+  const response = await fetch(url)
+  const resData = await response.json()
+
+  if (resData?.message && Array.isArray(resData.message)) {
+    return (resData.message as { name: string; sample_type: string }[]).map(t => ({
+      name: t.name,
+      label: t.sample_type || t.name,
+    }))
+  }
+  return []
+}
+
 export async function fetchInpatientAdmissionOptions(search?: string, patient?: string): Promise<LinkFieldOption[]> {
   const filters: [string, string, string][] = []
   if (search) filters.push(['name', 'like', `%${search}%`])

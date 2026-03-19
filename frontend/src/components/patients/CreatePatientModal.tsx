@@ -204,15 +204,21 @@ const SignaturePad = ({ onSave, onClear, existingUrl, uploading }: SignaturePadP
 interface CreatePatientModalProps {
   onClose: () => void
   onSuccess?: (patientName: string) => void
+  /** Pre-fill patient name (Full Name) */
+  initialName?: string
+  /** Pre-fill ID / CPR number */
+  initialNationalId?: string
+  /** Pre-fill insurance provider (Health Insurance docname) — will auto-set insurance tab */
+  initialInsurance?: string
 }
 
 type Tab = 'details' | 'relations' | 'insurance' | 'documents'
 
-export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalProps) => {
-  const [activeTab, setActiveTab] = useState<Tab>('details')
+export const CreatePatientModal = ({ onClose, onSuccess, initialName, initialNationalId, initialInsurance }: CreatePatientModalProps) => {
+  const [activeTab, setActiveTab] = useState<Tab>(initialInsurance ? 'insurance' : 'details')
 
   const [formData, setFormData] = useState({
-    patient_name: '',
+    patient_name: initialName || '',
     title: '',
     file_no: '',
     sex: '',
@@ -223,7 +229,7 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
     alternative_mobile_no_2: '',
     phone: '',
     email: '',
-    id_number: '',
+    id_number: initialNationalId || '',
     nationality: '',
     category: '',
     source: '',
@@ -240,8 +246,8 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
     full_name: '',
     relation: '',
     mobile_no: '',
-    has_insurance: false,
-    insurance: '',
+    has_insurance: !!initialInsurance,
+    insurance: initialInsurance || '',
     insurance_type: '',
     insurance_company_no: '',
     insurance_policy: '',
@@ -260,11 +266,13 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
   const [selectedSource, setSelectedSource] = useState<LinkFieldOption | null>(null)
   const [showCreateSource, setShowCreateSource] = useState(false)
 
-  // Insurance dropdown
+  // Insurance dropdown — pre-filled when coming from Insurance Patient Register
   const [insuranceOptions, setInsuranceOptions] = useState<LinkFieldOption[]>([])
   const [insuranceOpen, setInsuranceOpen] = useState(false)
-  const [insuranceQuery, setInsuranceQuery] = useState('')
-  const [selectedInsurance, setSelectedInsurance] = useState<LinkFieldOption | null>(null)
+  const [insuranceQuery, setInsuranceQuery] = useState(initialInsurance || '')
+  const [selectedInsurance, setSelectedInsurance] = useState<LinkFieldOption | null>(
+    initialInsurance ? { name: initialInsurance, label: initialInsurance } : null
+  )
 
   // Nationality dropdown state
   const [nationalityOptions, setNationalityOptions] = useState<LinkFieldOption[]>([])
@@ -284,8 +292,8 @@ export const CreatePatientModal = ({ onClose, onSuccess }: CreatePatientModalPro
   const [salutationQuery, setSalutationQuery] = useState('')
   const [selectedSalutation, setSelectedSalutation] = useState<LinkFieldOption | null>(null)
 
-  // Explicit Yes/No choice for Has Insurance
-  const [hasInsuranceChoice, setHasInsuranceChoice] = useState<'Yes' | 'No' | ''>('')
+  // Explicit Yes/No choice for Has Insurance — pre-set to Yes when insurance prefill is provided
+  const [hasInsuranceChoice, setHasInsuranceChoice] = useState<'Yes' | 'No' | ''>(initialInsurance ? 'Yes' : '')
 
   const PATIENT_RELATION_OPTIONS = ['Father', 'Mother', 'Spouse', 'Siblings', 'Family', 'Other'] as const
 

@@ -14,6 +14,7 @@ import { PatientVisitDetailPage } from '../pages/PatientVisitDetailPage'
 import { PatientHistoryPage } from '../pages/PatientHistory'
 import { PsychologistPage } from '../pages/Psychologist'
 import { AnesthesiologistPage } from '../pages/Anesthesiologist'
+import { InsurancePage } from '../pages/Insurance'
 
 export const RouterProvider = () => {
   const routes = useRoutes([
@@ -119,6 +120,14 @@ export const RouterProvider = () => {
       element: (
         <RoleGuard roles={['anesthesiologist']}>
           <AnesthesiologistPage />
+        </RoleGuard>
+      )
+    },
+    {
+      path: '/insurance',
+      element: (
+        <RoleGuard roles={['insurance']}>
+          <InsurancePage />
         </RoleGuard>
       )
     },
