@@ -186,18 +186,23 @@ class LabTest(Document):
 			self.status = "Awaiting sample collection"
 
 		if self.service_request:
-			lab_test = frappe.db.exists(
-				"Lab Test",
-				{"service_request": self.service_request, "docstatus": ["!=", 2]},
-			)
-			if lab_test:
-				frappe.throw(
-					_("Lab Test {0} already created from service request {1}").format(
-						frappe.bold(get_link_to_form("Lab Test", lab_test)),
-						frappe.bold(get_link_to_form("Service Request", self.service_request)),
-					),
-					title=_("Already Exist"),
+			# For group Lab Test Templates, multiple lab tests (one per child) are expected —
+			# skip the duplicate check in that case.
+			sr_template_dn = frappe.db.get_value("Service Request", self.service_request, "template_dn")
+			is_group = sr_template_dn and frappe.db.get_value("Lab Test Template", sr_template_dn, "is_group")
+			if not is_group:
+				lab_test = frappe.db.exists(
+					"Lab Test",
+					{"service_request": self.service_request, "docstatus": ["!=", 2]},
 				)
+				if lab_test:
+					frappe.throw(
+						_("Lab Test {0} already created from service request {1}").format(
+							frappe.bold(get_link_to_form("Lab Test", lab_test)),
+							frappe.bold(get_link_to_form("Service Request", self.service_request)),
+						),
+						title=_("Already Exist"),
+					)
 
 
 def create_test_from_template(lab_test):

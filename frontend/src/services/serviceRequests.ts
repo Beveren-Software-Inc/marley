@@ -133,7 +133,11 @@ export async function updateServiceRequest(name: string, data: UpdateServiceRequ
   throw new Error('Failed to update service request')
 }
 
-export async function createLabTestFromServiceRequest(serviceRequestName: string): Promise<{ name: string; patient: string; patient_name?: string; template?: string; lab_test_name?: string; status?: string }> {
+export type CreateLabTestResult =
+  | { is_group: false; name: string; patient: string; patient_name?: string; template?: string; lab_test_name?: string; status?: string }
+  | { is_group: true; lab_tests: { name: string; patient: string; patient_name?: string; template?: string; lab_test_name?: string; status?: string }[]; count: number }
+
+export async function createLabTestFromServiceRequest(serviceRequestName: string): Promise<CreateLabTestResult> {
   const { ensureCSRF } = await import('./apiClient')
   const csrf = await ensureCSRF()
   const response = await fetch(
@@ -231,7 +235,7 @@ export async function confirmPayment(serviceRequestName: string): Promise<{ ok: 
 }
 
 /** Book Lab: forward to laboratory and reflect approved amount on Patient Visit. Only for Lab Test Template when payment confirmed. */
-export async function bookLabAndForward(serviceRequestName: string): Promise<{ lab_test: string; patient_visit?: string }> {
+export async function bookLabAndForward(serviceRequestName: string): Promise<{ lab_test?: string; lab_tests?: string[]; count?: number; patient_visit?: string }> {
   const { ensureCSRF } = await import('./apiClient')
   const csrf = await ensureCSRF()
   const response = await fetch(

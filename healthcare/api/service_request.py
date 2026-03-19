@@ -24,6 +24,64 @@ def get_lab_test_template_pricing(template):
 	return rows
 
 
+@frappe.whitelist(allow_guest=False)
+def get_lab_test_template_info(template):
+	"""
+	Return full pricing info for a Lab Test Template.
+	For group templates, returns child template details and their pricing.
+	For regular templates, returns the pricing table.
+	"""
+	if not template:
+		return {'is_group': False, 'pricing': []}
+	if not frappe.db.exists('Lab Test Template', template):
+		return {'is_group': False, 'pricing': []}
+
+	is_group = frappe.db.get_value('Lab Test Template', template, 'is_group')
+
+	if not is_group:
+		pricing = frappe.get_all(
+			'Lab Test Pricing',
+			filters={'parent': template, 'parenttype': 'Lab Test Template'},
+			fields=['patient_category', 'price'],
+			order_by='idx asc',
+			ignore_permissions=True
+		)
+		return {'is_group': False, 'pricing': pricing}
+
+	# Group template — fetch each child template with its own pricing
+	group_rows = frappe.get_all(
+		'Lab Test Group Template',
+		filters={
+			'parent': template,
+			'parenttype': 'Lab Test Template',
+			'template_or_new_line': 'Add Test'
+		},
+		fields=['lab_test_template'],
+		order_by='idx asc',
+		ignore_permissions=True
+	)
+
+	group_templates = []
+	for row in group_rows:
+		if not row.lab_test_template:
+			continue
+		lab_test_name = frappe.db.get_value('Lab Test Template', row.lab_test_template, 'lab_test_name') or row.lab_test_template
+		pricing = frappe.get_all(
+			'Lab Test Pricing',
+			filters={'parent': row.lab_test_template, 'parenttype': 'Lab Test Template'},
+			fields=['patient_category', 'price'],
+			order_by='idx asc',
+			ignore_permissions=True
+		)
+		group_templates.append({
+			'lab_test_template': row.lab_test_template,
+			'lab_test_name': lab_test_name,
+			'pricing': pricing,
+		})
+
+	return {'is_group': True, 'group_templates': group_templates}
+
+
 @frappe.whitelist()
 def get_service_requests(limit=50, offset=0, patient=None, template_dt=None, status=None):
 	"""Get list of Service Requests"""
@@ -93,29 +151,78 @@ def get_service_requests(limit=50, offset=0, patient=None, template_dt=None, sta
 
 @frappe.whitelist()
 def create_lab_test_from_service_request(service_request):
-	"""Create a Lab Test from a Service Request"""
+	"""Create Lab Test(s) from a Service Request. For group templates, creates one per child."""
 	if not service_request:
 		frappe.throw(_("Service Request name is required"))
-	
-	# Check if lab test already exists for this service request
-	existing_lab_test = frappe.db.get_value('Lab Test', {'service_request': service_request}, 'name')
-	if existing_lab_test:
-		frappe.throw(_("Lab Test {0} already exists for this Service Request").format(existing_lab_test))
-	
-	# Use the existing make_lab_test function
+
 	try:
 		from healthcare.healthcare.doctype.service_request.service_request import make_lab_test
 	except ImportError:
 		frappe.throw(_("Could not import make_lab_test function"))
-	
+
 	service_request_doc = frappe.get_doc('Service Request', service_request)
+
+	# Handle group Lab Test Template
+	if service_request_doc.template_dt == 'Lab Test Template':
+		is_group = frappe.db.get_value('Lab Test Template', service_request_doc.template_dn, 'is_group')
+		if is_group:
+			existing = frappe.get_all(
+				'Lab Test',
+				filters={'service_request': service_request, 'docstatus': ['!=', 2]},
+				fields=['name']
+			)
+			if existing:
+				frappe.throw(
+					_("Lab Tests already exist for this Service Request: {0}").format(
+						', '.join([e.name for e in existing])
+					)
+				)
+
+			group_rows = frappe.get_all(
+				'Lab Test Group Template',
+				filters={
+					'parent': service_request_doc.template_dn,
+					'parenttype': 'Lab Test Template',
+					'template_or_new_line': 'Add Test'
+				},
+				fields=['lab_test_template'],
+				order_by='idx asc',
+				ignore_permissions=True
+			)
+
+			created_tests = []
+			for row in group_rows:
+				if not row.lab_test_template:
+					continue
+				sr_dict = frappe._dict(service_request_doc.as_dict())
+				sr_dict.template_dn = row.lab_test_template
+				lab_test = make_lab_test(sr_dict)
+				lab_test.service_request = service_request
+				lab_test.insert()
+				created_tests.append({
+					'name': lab_test.name,
+					'patient': lab_test.patient,
+					'patient_name': lab_test.patient_name,
+					'template': lab_test.template,
+					'lab_test_name': lab_test.lab_test_name,
+					'status': lab_test.status,
+				})
+
+			frappe.db.commit()
+			return {'is_group': True, 'lab_tests': created_tests, 'count': len(created_tests)}
+
+	# Non-group: existing single lab test behaviour
+	existing_lab_test = frappe.db.get_value('Lab Test', {'service_request': service_request}, 'name')
+	if existing_lab_test:
+		frappe.throw(_("Lab Test {0} already exists for this Service Request").format(existing_lab_test))
+
 	service_request_dict = service_request_doc.as_dict()
-	
 	lab_test = make_lab_test(service_request_dict)
 	lab_test.insert()
 	frappe.db.commit()
-	
+
 	return {
+		'is_group': False,
 		'name': lab_test.name,
 		'patient': lab_test.patient,
 		'patient_name': lab_test.patient_name,

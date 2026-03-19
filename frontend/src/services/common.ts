@@ -741,3 +741,39 @@ export async function fetchSalutations(search?: string): Promise<LinkFieldOption
 
   return []
 }
+export async function fetchPatientOptions(search?: string): Promise<LinkFieldOption[]> {
+  const filters: [string, string, string][] = []
+  if (search) filters.push(['patient_name', 'like', `%${search}%`])
+  const params = new URLSearchParams({
+    doctype: 'Patient',
+    fields: JSON.stringify(['name', 'patient_name']),
+    filters: JSON.stringify(filters),
+    limit: '20',
+    order_by: 'patient_name asc',
+  })
+  const res = await fetch(`/api/method/frappe.client.get_list?${params}`)
+  const data = await res.json()
+  return (data?.message || []).map((p: { name: string; patient_name?: string }) => ({
+    name: p.name,
+    label: p.patient_name ? `${p.patient_name} (${p.name})` : p.name,
+  }))
+}
+
+export async function fetchInpatientAdmissionOptions(search?: string, patient?: string): Promise<LinkFieldOption[]> {
+  const filters: [string, string, string][] = []
+  if (search) filters.push(['name', 'like', `%${search}%`])
+  if (patient) filters.push(['patient', '=', patient])
+  const params = new URLSearchParams({
+    doctype: 'Inpatient Admission',
+    fields: JSON.stringify(['name', 'patient', 'patient_name', 'status']),
+    filters: JSON.stringify(filters),
+    limit: '20',
+    order_by: 'creation desc',
+  })
+  const res = await fetch(`/api/method/frappe.client.get_list?${params}`)
+  const data = await res.json()
+  return (data?.message || []).map((r: { name: string; patient?: string; patient_name?: string }) => ({
+    name: r.name,
+    label: `${r.name}${r.patient_name || r.patient ? ` – ${r.patient_name || r.patient}` : ''}`,
+  }))
+}

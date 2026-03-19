@@ -79,7 +79,11 @@ export const ServiceRequestList = ({ patient, onLabTestCreated, refreshKey, temp
     setActionLoading(serviceRequestName)
     try {
       const result = await createLabTestFromServiceRequest(serviceRequestName)
-      toast.success(`Lab Test ${result.name} created successfully`)
+      if (result.is_group) {
+        toast.success(`${result.count} Lab Test${result.count !== 1 ? 's' : ''} created successfully`)
+      } else {
+        toast.success(`Lab Test ${result.name} created successfully`)
+      }
       onLabTestCreated?.()
       doRefetch()
     } catch (err) {
@@ -108,7 +112,11 @@ export const ServiceRequestList = ({ patient, onLabTestCreated, refreshKey, temp
     setActionLoading(sr.name)
     try {
       const result = await bookLabAndForward(sr.name)
-      toast.success(result?.lab_test ? `Lab Test ${result.lab_test} created and forwarded` : 'Forwarded to laboratory')
+      if (result?.lab_tests && result.count) {
+        toast.success(`${result.count} Lab Test${result.count !== 1 ? 's' : ''} created and forwarded to laboratory`)
+      } else {
+        toast.success(result?.lab_test ? `Lab Test ${result.lab_test} created and forwarded` : 'Forwarded to laboratory')
+      }
       onLabTestCreated?.()
       doRefetch()
     } catch (err) {

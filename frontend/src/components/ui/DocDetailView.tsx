@@ -158,30 +158,68 @@ export function DocDetailView({ doctype, name }: DocDetailViewProps) {
   if (error) return <div className="text-sm text-red-600">{error}</div>
   if (!doc) return null
 
-  const entries = Object.entries(doc)
-    .filter(([k]) => !SKIP_KEYS.has(k) && !k.startsWith('_'))
+  // Priority keys shown at the top regardless of alphabetical order
+  const TOP_KEYS = ['name', 'patient', 'patient_name', 'status', 'remarks']
+  const isTextBlock = (key: string) =>
+    key.toLowerCase().includes('note') ||
+    key.toLowerCase().includes('comment') ||
+    key.toLowerCase().includes('warning') ||
+    key.toLowerCase().includes('instruction') ||
+    key.toLowerCase().includes('remark')
+
+  const allEntries = Object.entries(doc).filter(([k]) => !SKIP_KEYS.has(k) && !k.startsWith('_'))
+
+  const topEntries = TOP_KEYS
+    .map((k) => allEntries.find(([key]) => key === k))
+    .filter(Boolean) as [string, unknown][]
+
+  const restEntries = allEntries
+    .filter(([k]) => !TOP_KEYS.includes(k))
     .sort(([a], [b]) => a.localeCompare(b))
+
+  const entries = [...topEntries, ...restEntries]
 
   return (
     <dl className="space-y-3">
-      {entries.map(([key, value]) => (
-        <div key={key} className="border-b border-slate-100 pb-2 last:border-0">
-          <dt className="text-xs font-medium text-slate-500 uppercase tracking-wide">{formatLabel(key)}</dt>
-          <dd className="mt-0.5 text-sm text-slate-900 break-words">
-            {isTableValue(value) ? (
-              isDocumentTable(value) ? (
-                <DocumentsTableFieldView value={value} />
+      {entries.map(([key, value]) => {
+        const isEmpty = value == null || value === ''
+        // Always show remarks section even when empty, so user knows it exists
+        const isRemarks = key === 'remarks'
+        if (isEmpty && !isRemarks) return (
+          <div key={key} className="border-b border-slate-100 pb-2 last:border-0">
+            <dt className="text-xs font-medium text-slate-500 uppercase tracking-wide">{formatLabel(key)}</dt>
+            <dd className="mt-0.5 text-sm text-slate-400">—</dd>
+          </div>
+        )
+        return (
+          <div key={key} className={`border-b pb-2 last:border-0 ${isRemarks ? 'border-amber-100' : 'border-slate-100'}`}>
+            <dt className={`text-xs font-medium uppercase tracking-wide ${isRemarks ? 'text-amber-700' : 'text-slate-500'}`}>
+              {formatLabel(key)}
+            </dt>
+            <dd className="mt-1 text-sm text-slate-900 break-words">
+              {isTableValue(value) ? (
+                isDocumentTable(value) ? (
+                  <DocumentsTableFieldView value={value} />
+                ) : (
+                  <TableFieldView value={value} />
+                )
+              ) : isRemarks ? (
+                isEmpty ? (
+                  <span className="text-slate-400 italic text-sm">No remarks added yet.</span>
+                ) : (
+                  <div className="whitespace-pre-wrap bg-amber-50 border border-amber-200 rounded-md px-3 py-2 text-sm text-slate-800 leading-relaxed">
+                    {formatValue(value)}
+                  </div>
+                )
+              ) : isTextBlock(key) ? (
+                <pre className="whitespace-pre-wrap font-sans text-slate-800 bg-slate-50 p-3 rounded-md text-sm">{formatValue(value)}</pre>
               ) : (
-                <TableFieldView value={value} />
-              )
-            ) : key.toLowerCase().includes('note') || key.toLowerCase().includes('comment') || key.toLowerCase().includes('warning') || key.toLowerCase().includes('instruction') ? (
-              <pre className="whitespace-pre-wrap font-sans text-slate-800 bg-slate-50 p-3 rounded-md text-sm">{formatValue(value)}</pre>
-            ) : (
-              formatValue(value)
-            )}
-          </dd>
-        </div>
-      ))}
+                formatValue(value)
+              )}
+            </dd>
+          </div>
+        )
+      })}
     </dl>
   )
 }

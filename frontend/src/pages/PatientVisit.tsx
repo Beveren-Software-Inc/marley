@@ -66,6 +66,7 @@ export const PatientVisitPage = ({ initialPatient }: PatientVisitPageProps = {})
               searchQuery={searchQuery}
               patient={selectedPatient || undefined}
               refreshKey={visitRefreshKey}
+              onPatientFromVisit={handlePatientSelect}
             />
           </section>
         </div>

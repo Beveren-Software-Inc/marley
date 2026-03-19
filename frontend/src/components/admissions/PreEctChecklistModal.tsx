@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { apiRequest } from '../../services/apiClient'
 import { uploadPatientFile } from '../../services/patients'
-import { fetchHealthcarePractitioners, fetchPatientVisits, type LinkFieldOption } from '../../services/common'
+import { fetchHealthcarePractitioners, fetchPatientVisits, fetchPatientOptions, fetchInpatientAdmissionOptions, type LinkFieldOption } from '../../services/common'
 import { toast } from '../../hooks/useToast'
 import { X, PenLine, Trash2, Check, ChevronDown, Plus, AlertCircle } from 'lucide-react'
 
@@ -306,6 +306,17 @@ export const PreEctChecklistModal = ({ admissionNo, patient, patientName, onClos
   const [templateName, setTemplateName] = useState('')
   const [templateLoading, setTemplateLoading] = useState(false)
 
+  const [currentAdmission, setCurrentAdmission] = useState(admissionNo)
+  const [currentPatient, setCurrentPatient] = useState(patient)
+  const [currentPatientName, setCurrentPatientName] = useState(patientName || '')
+  const isLockedContext = Boolean(admissionNo)
+
+  const fetchPatientOpts = useCallback((s: string) => fetchPatientOptions(s || undefined), [])
+  const fetchAdmissionOpts = useCallback(
+    (s: string) => fetchInpatientAdmissionOptions(s || undefined, currentPatient || undefined),
+    [currentPatient]
+  )
+
   const setField = <K extends keyof FormState>(k: K, v: FormState[K]) =>
     setFormState(prev => ({ ...prev, [k]: v }))
 
@@ -314,8 +325,8 @@ export const PreEctChecklistModal = ({ admissionNo, patient, patientName, onClos
     []
   )
   const fetchVisits = useCallback(
-    (search: string) => fetchPatientVisits(patient, search || undefined),
-    [patient]
+    (search: string) => fetchPatientVisits(currentPatient, search || undefined),
+    [currentPatient]
   )
 
   // Fetch Pre-ECT Checklist Templates
@@ -394,7 +405,7 @@ export const PreEctChecklistModal = ({ admissionNo, patient, patientName, onClos
     setSubmitting(true)
     try {
       const payload = {
-        inpatient_admission: admissionNo,
+        inpatient_admission: currentAdmission,
         patient_visit: form.patient_visit || undefined,
         date: form.date || undefined,
         time: form.time || undefined,
@@ -483,11 +494,38 @@ export const PreEctChecklistModal = ({ admissionNo, patient, patientName, onClos
                 <div>
                   <h3 className={sectionTitleClass}>Basic Information</h3>
                   <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className={labelClass}>Inpatient Admission</label>
-                      <input type="text" value={admissionNo} readOnly
-                        className={`${inputClass} bg-slate-100 cursor-not-allowed`} />
-                    </div>
+                    {isLockedContext ? (
+                      <div>
+                        <label className={labelClass}>Patient</label>
+                        <input type="text" value={currentPatient} readOnly
+                          className={`${inputClass} bg-slate-100 cursor-not-allowed`} />
+                      </div>
+                    ) : (
+                      <LinkCombobox
+                        label="Patient"
+                        value={currentPatientName || currentPatient}
+                        onSelect={opt => { setCurrentPatient(opt.name); setCurrentPatientName(opt.label) }}
+                        onClear={() => { setCurrentPatient(''); setCurrentPatientName('') }}
+                        fetchOptions={fetchPatientOpts}
+                        placeholder="Search patients..."
+                      />
+                    )}
+                    {isLockedContext ? (
+                      <div>
+                        <label className={labelClass}>Inpatient Admission</label>
+                        <input type="text" value={currentAdmission} readOnly
+                          className={`${inputClass} bg-slate-100 cursor-not-allowed`} />
+                      </div>
+                    ) : (
+                      <LinkCombobox
+                        label="Inpatient Admission"
+                        value={currentAdmission}
+                        onSelect={opt => setCurrentAdmission(opt.name)}
+                        onClear={() => setCurrentAdmission('')}
+                        fetchOptions={fetchAdmissionOpts}
+                        placeholder="Search admissions..."
+                      />
+                    )}
                     <LinkCombobox
                       label="Patient Visit"
                       value={patientVisitLabel}

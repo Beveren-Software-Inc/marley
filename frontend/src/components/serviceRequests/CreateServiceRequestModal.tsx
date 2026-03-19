@@ -34,6 +34,12 @@ interface PricingRow {
   price: number | null
 }
 
+interface GroupTemplateItem {
+  lab_test_template: string
+  lab_test_name: string
+  pricing: PricingRow[]
+}
+
 export const CreateServiceRequestModal = ({
   onClose,
   onSuccess,
@@ -68,6 +74,10 @@ export const CreateServiceRequestModal = ({
   const [discountValue, setDiscountValue] = useState<number>(0)
   const [discountAmount, setDiscountAmount] = useState<number>(0)
   const [grandTotal, setGrandTotal] = useState<number>(0)
+
+  /* ────────────── GROUP TEMPLATE ────────────── */
+  const [isGroupTemplate, setIsGroupTemplate] = useState(false)
+  const [groupTemplates, setGroupTemplates] = useState<GroupTemplateItem[]>([])
 
   /* ────────────── FORM ────────────── */
   const [formData, setFormData] = useState({
@@ -115,39 +125,67 @@ export const CreateServiceRequestModal = ({
       })
   }, [formData.template_dt])
 
-  /* ────────────── LOAD LAB TEST TEMPLATE PRICING ────────────── */
+  /* ────────────── LOAD LAB TEST TEMPLATE INFO (pricing + group detection) ────────────── */
   useEffect(() => {
     if (formData.template_dt !== 'Lab Test Template' || !formData.template_dn) {
       setPricing([])
       setSelectedPrice(null)
+      setIsGroupTemplate(false)
+      setGroupTemplates([])
       return
     }
 
     const load = async () => {
       try {
         const res = await fetch(
-          `/api/method/healthcare.api.service_request.get_lab_test_template_pricing?template=${encodeURIComponent(formData.template_dn)}`
+          `/api/method/healthcare.api.service_request.get_lab_test_template_info?template=${encodeURIComponent(formData.template_dn)}`
         )
         const resData = await res.json()
-        const pricingRows: PricingRow[] = resData?.message || []
+        const info = resData?.message
 
-        if (pricingRows.length > 0) {
+        if (!info) {
+          setPricing([])
+          setSelectedPrice(null)
+          setIsGroupTemplate(false)
+          setGroupTemplates([])
+          return
+        }
+
+        if (info.is_group) {
+          // Group template: calculate total from child template prices
+          setIsGroupTemplate(true)
+          setGroupTemplates(info.group_templates || [])
+          setPricing([])
+
+          // Sum up prices for the patient's category across all child templates
+          const total = (info.group_templates as GroupTemplateItem[]).reduce((sum, gt) => {
+            const match = patientCategory
+              ? gt.pricing.find((p) => p.patient_category === patientCategory)
+              : gt.pricing[0]
+            return sum + (match?.price ?? 0)
+          }, 0)
+          setSelectedPrice(total > 0 ? total : null)
+        } else {
+          // Regular template
+          setIsGroupTemplate(false)
+          setGroupTemplates([])
+          const pricingRows: PricingRow[] = info.pricing || []
           setPricing(pricingRows)
-          // Auto-select price matching patient's category
-          if (patientCategory) {
+          if (pricingRows.length > 0 && patientCategory) {
             const match = pricingRows.find((p) => p.patient_category === patientCategory)
             setSelectedPrice(match?.price ?? null)
+          } else if (pricingRows.length > 0) {
+            setSelectedPrice(null)
           } else {
             setSelectedPrice(null)
           }
-        } else {
-          setPricing([])
-          setSelectedPrice(null)
         }
       } catch (err) {
-        console.error('Error loading pricing:', err)
+        console.error('Error loading template info:', err)
         setPricing([])
         setSelectedPrice(null)
+        setIsGroupTemplate(false)
+        setGroupTemplates([])
       }
     }
 
@@ -257,7 +295,7 @@ export const CreateServiceRequestModal = ({
       return
     }
 
-    if (selectedPrice === null) {
+    if (selectedPrice === null && !isGroupTemplate) {
       setError('Please select a price from pricing table')
       return
     }
@@ -500,6 +538,44 @@ export const CreateServiceRequestModal = ({
               </select>
             </div>
           </div>
+
+          {/* ═══════════ GROUP TEMPLATE BREAKDOWN ═══════════ */}
+          {formData.template_dt === 'Lab Test Template' && isGroupTemplate && groupTemplates.length > 0 && (
+            <div className="border border-amber-200 rounded-lg p-4 bg-amber-50">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-amber-200 text-amber-800">Group Template</span>
+                <label className="block text-sm font-semibold text-slate-900">
+                  Included Tests
+                </label>
+              </div>
+              <div className="space-y-1 mb-3">
+                {groupTemplates.map((gt, idx) => {
+                  const matchedPrice = patientCategory
+                    ? gt.pricing.find((p) => p.patient_category === patientCategory)?.price
+                    : gt.pricing[0]?.price
+                  return (
+                    <div key={idx} className="flex items-center justify-between py-1.5 px-2 bg-white rounded border border-amber-100 text-sm">
+                      <span className="font-medium text-slate-800">{gt.lab_test_name}</span>
+                      <span className="text-slate-600 font-semibold">
+                        {matchedPrice != null ? matchedPrice.toFixed(2) : <span className="text-slate-400 italic">No price</span>}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+              <div className="flex items-center justify-between pt-2 border-t border-amber-200">
+                <span className="text-sm font-semibold text-slate-700">
+                  Total {patientCategory ? `(${patientCategory})` : ''}
+                </span>
+                <span className="text-base font-bold text-primary">
+                  {(selectedPrice ?? 0).toFixed(2)}
+                </span>
+              </div>
+              {!patientCategory && (
+                <p className="text-xs text-amber-700 mt-2">⚠ Patient has no category — prices may not be accurate.</p>
+              )}
+            </div>
+          )}
 
           {/* ═══════════ PRICING TABLE ═══════════ */}
           {formData.template_dt === 'Lab Test Template' && pricing.length > 0 && (

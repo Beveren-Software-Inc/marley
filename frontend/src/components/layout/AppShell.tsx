@@ -78,13 +78,42 @@ const receptionScreens = [
   // { id: 'r-ip-dashboard', title: 'IP Dashboard' }
 ].sort((a, b) => a.title.localeCompare(b.title))
 
+// Anesthesia-named forms listed first, then the rest alphabetically
+const anesthesiologistScreens = [
+  { id: 'a-anesthesia-consent', title: 'ECT Anesthesia Consent' },
+  { id: 'a-pre-anesthesia', title: 'Pre Anesthesia Assessment' },
+  { id: 'a-anesthesia-record', title: 'Anesthesia Record' },
+  { id: 'a-recovery-room', title: 'Recovery Room Record' },
+  { id: 'a-alderete', title: 'Modified Alderete Score' },
+  { id: 'a-timeout', title: 'Time Out Procedure' },
+  { id: 'a-pre-ect', title: 'Pre-ECT Checklist' },
+  { id: 'a-suicidal', title: 'Suicidal Patient Assessment' },
+  { id: 'a-ect-admission', title: 'ECT Admission' },
+  { id: 'a-ect-procedure', title: 'ECT Procedure' },
+  { id: 'a-ect-details', title: 'ECT Details' },
+  { id: 'a-physical', title: 'Physical Examination' },
+  { id: 'a-patient-history', title: 'Patient History' },
+]
+
+const psychologistScreens = [
+  { id: 'p-notes', title: 'Psychologist Notes' },
+  { id: 'p-orders', title: 'Psychologist Orders' },
+  { id: 'p-dx', title: 'Diagnoses' },
+  { id: 'p-warn', title: 'Warning Messages' },
+  { id: 'p-mh', title: 'Medical History / Allergies' },
+  { id: 'p-patient-history', title: 'Patient History' },
+  { id: 'p-physical', title: 'Physical Examination' },
+].sort((a, b) => a.title.localeCompare(b.title))
+
 const ALL_MAIN_LINKS: MainLinkItem[] = [
   { to: '/doctor', label: 'Doctor', screens: doctorScreens, prefix: '/doctor' },
   { to: '/nurse', label: 'Nurse', screens: nurseScreens, prefix: '/nurse' },
   { to: '/lab', label: 'Lab', screens: labScreens, prefix: '/lab' },
+  { to: '/pharmacy', label: 'Pharmacy', screens: [], prefix: '/pharmacy' },
+  { to: '/psychologist', label: 'Psychologist', screens: psychologistScreens, prefix: '/psychologist' },
+  { to: '/anesthesiologist', label: 'Anesthesiologist', screens: anesthesiologistScreens, prefix: '/anesthesiologist' },
   { to: '/reception', label: 'Reception', screens: receptionScreens, prefix: '/reception' },
   { to: '/patient-history', label: 'Patient History', screens: [], prefix: '/patient-history' },
-  { to: '/pharmacy', label: 'Pharmacy', screens: [], prefix: '/pharmacy' },
   { to: '/employee', label: 'Employee', screens: [], prefix: '/employee' },
   { to: '/patient', label: 'Patient', screens: [], prefix: '/patient' },
   { to: '/qmps', label: 'QMPS', screens: [], prefix: '/qmps' }

@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { apiRequest } from '../../services/apiClient'
-import { fetchPatientVisits, type LinkFieldOption } from '../../services/common'
+import { fetchPatientVisits, fetchPatientOptions, fetchInpatientAdmissionOptions, type LinkFieldOption } from '../../services/common'
 import { toast } from '../../hooks/useToast'
 import { X, ChevronDown, Plus, Trash2, AlertCircle } from 'lucide-react'
 
@@ -127,6 +127,17 @@ export const ModifiedAldereteScoreModal = ({ admissionNo, patient, patientName, 
   const [rows, setRows] = useState<ScoreRow[]>([])
   const [submitting, setSubmitting] = useState(false)
 
+  const [currentAdmission, setCurrentAdmission] = useState(admissionNo)
+  const [currentPatient, setCurrentPatient] = useState(patient)
+  const [currentPatientName, setCurrentPatientName] = useState(patientName || '')
+  const isLockedContext = Boolean(admissionNo)
+
+  const fetchPatientOpts = useCallback((s: string) => fetchPatientOptions(s || undefined), [])
+  const fetchAdmissionOpts = useCallback(
+    (s: string) => fetchInpatientAdmissionOptions(s || undefined, currentPatient || undefined),
+    [currentPatient]
+  )
+
   // Auto-calculated total
   const totalScore = useMemo(
     () => rows.reduce((sum, r) => sum + (typeof r.score === 'number' ? r.score : 0), 0),
@@ -134,8 +145,8 @@ export const ModifiedAldereteScoreModal = ({ admissionNo, patient, patientName, 
   )
 
   const fetchVisits = useCallback(
-    (search: string) => fetchPatientVisits(patient, search || undefined),
-    [patient]
+    (search: string) => fetchPatientVisits(currentPatient, search || undefined),
+    [currentPatient]
   )
 
   const fetchTemplates = useCallback(async (search: string): Promise<LinkFieldOption[]> => {
@@ -194,9 +205,9 @@ export const ModifiedAldereteScoreModal = ({ admissionNo, patient, patientName, 
     setSubmitting(true)
     try {
       const payload = {
-        inpatient_admission: admissionNo,
-        patient,
-        patient_name: patientName ?? '',
+        inpatient_admission: currentAdmission,
+        patient: currentPatient,
+        patient_name: currentPatientName,
         patient_visit: patientVisit || undefined,
         template: templateName || undefined,
         total_score: totalScore,
@@ -278,11 +289,22 @@ export const ModifiedAldereteScoreModal = ({ admissionNo, patient, patientName, 
                 <div>
                   <h3 className={sectionTitleClass}>Basic Information</h3>
                   <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className={labelClass}>Inpatient Admission</label>
-                      <input type="text" value={admissionNo} readOnly
-                        className={`${inputClass} bg-slate-100 cursor-not-allowed`} />
-                    </div>
+                    {isLockedContext ? (
+                      <div>
+                        <label className={labelClass}>Inpatient Admission</label>
+                        <input type="text" value={currentAdmission} readOnly
+                          className={`${inputClass} bg-slate-100 cursor-not-allowed`} />
+                      </div>
+                    ) : (
+                      <LinkCombobox
+                        label="Inpatient Admission"
+                        value={currentAdmission}
+                        onSelect={opt => setCurrentAdmission(opt.name)}
+                        onClear={() => setCurrentAdmission('')}
+                        fetchOptions={fetchAdmissionOpts}
+                        placeholder="Search admissions..."
+                      />
+                    )}
                     <LinkCombobox
                       label="Patient Visit"
                       value={patientVisitLabel}
@@ -291,14 +313,25 @@ export const ModifiedAldereteScoreModal = ({ admissionNo, patient, patientName, 
                       fetchOptions={fetchVisits}
                       placeholder="Search patient visits..."
                     />
-                    <div>
-                      <label className={labelClass}>Patient</label>
-                      <input type="text" value={patient} readOnly
-                        className={`${inputClass} bg-slate-100 cursor-not-allowed`} />
-                    </div>
+                    {isLockedContext ? (
+                      <div>
+                        <label className={labelClass}>Patient</label>
+                        <input type="text" value={currentPatient} readOnly
+                          className={`${inputClass} bg-slate-100 cursor-not-allowed`} />
+                      </div>
+                    ) : (
+                      <LinkCombobox
+                        label="Patient"
+                        value={currentPatientName || currentPatient}
+                        onSelect={opt => { setCurrentPatient(opt.name); setCurrentPatientName(opt.label) }}
+                        onClear={() => { setCurrentPatient(''); setCurrentPatientName('') }}
+                        fetchOptions={fetchPatientOpts}
+                        placeholder="Search patients..."
+                      />
+                    )}
                     <div>
                       <label className={labelClass}>Patient Name</label>
-                      <input type="text" value={patientName ?? ''} readOnly
+                      <input type="text" value={currentPatientName} readOnly
                         className={`${inputClass} bg-slate-100 cursor-not-allowed`} />
                     </div>
                   </div>

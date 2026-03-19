@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { apiRequest } from '../../services/apiClient'
 import { uploadPatientFile } from '../../services/patients'
-import { fetchHealthcarePractitioners, fetchPatientVisits, type LinkFieldOption } from '../../services/common'
+import { fetchHealthcarePractitioners, fetchPatientVisits, fetchPatientOptions, fetchInpatientAdmissionOptions, type LinkFieldOption } from '../../services/common'
 import { toast } from '../../hooks/useToast'
 import { X, PenLine, Trash2, Check, ChevronDown } from 'lucide-react'
 
@@ -393,12 +393,18 @@ interface FormState {
   sign_time: string
 }
 
-function GeneralTab({ form, setField, admissionNo, patient, patientName }: {
+function GeneralTab({ form, setField, admissionNo, patient, patientName, isLockedContext, fetchAdmissionOpts, fetchPatientOpts, setCurrentAdmission, setCurrentPatient, setCurrentPatientName }: {
   form: FormState
   setField: <K extends keyof FormState>(k: K, v: FormState[K]) => void
   admissionNo: string
   patient: string
   patientName?: string
+  isLockedContext: boolean
+  fetchAdmissionOpts: (s: string) => Promise<LinkFieldOption[]>
+  fetchPatientOpts: (s: string) => Promise<LinkFieldOption[]>
+  setCurrentAdmission: (v: string) => void
+  setCurrentPatient: (v: string) => void
+  setCurrentPatientName: (v: string) => void
 }) {
   // Display labels for link fields
   const [anesthetistLabel, setAnesthetistLabel] = useState('')
@@ -420,10 +426,21 @@ function GeneralTab({ form, setField, admissionNo, patient, patientName }: {
       <div>
         <h3 className={sectionTitleClass}>Basic Information</h3>
         <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className={labelClass}>Inpatient Admission</label>
-            <input type="text" value={admissionNo} readOnly className={`${inputClass} bg-slate-100 cursor-not-allowed`} />
-          </div>
+          {isLockedContext ? (
+            <div>
+              <label className={labelClass}>Inpatient Admission</label>
+              <input type="text" value={admissionNo} readOnly className={`${inputClass} bg-slate-100 cursor-not-allowed`} />
+            </div>
+          ) : (
+            <LinkCombobox
+              label="Inpatient Admission"
+              value={admissionNo}
+              onSelect={opt => setCurrentAdmission(opt.name)}
+              onClear={() => setCurrentAdmission('')}
+              fetchOptions={fetchAdmissionOpts}
+              placeholder="Search admissions..."
+            />
+          )}
 
           {/* Patient Visit — searchable link */}
           <LinkCombobox
@@ -441,10 +458,21 @@ function GeneralTab({ form, setField, admissionNo, patient, patientName }: {
             placeholder="Search patient visits..."
           />
 
-          <div>
-            <label className={labelClass}>Patient</label>
-            <input type="text" value={patient} readOnly className={`${inputClass} bg-slate-100 cursor-not-allowed`} />
-          </div>
+          {isLockedContext ? (
+            <div>
+              <label className={labelClass}>Patient</label>
+              <input type="text" value={patient} readOnly className={`${inputClass} bg-slate-100 cursor-not-allowed`} />
+            </div>
+          ) : (
+            <LinkCombobox
+              label="Patient"
+              value={patientName || patient}
+              onSelect={opt => { setCurrentPatient(opt.name); setCurrentPatientName(opt.label) }}
+              onClear={() => { setCurrentPatient(''); setCurrentPatientName('') }}
+              fetchOptions={fetchPatientOpts}
+              placeholder="Search patients..."
+            />
+          )}
           <div>
             <label className={labelClass}>Patient Name</label>
             <input type="text" value={patientName ?? ''} readOnly className={`${inputClass} bg-slate-100 cursor-not-allowed`} />
@@ -753,6 +781,17 @@ export const AnesthesiaRecordModal = ({ admissionNo, patient, patientName, onClo
   const [signatureUrl, setSignatureUrl] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
+  const [currentAdmission, setCurrentAdmission] = useState(admissionNo)
+  const [currentPatient, setCurrentPatient] = useState(patient)
+  const [currentPatientName, setCurrentPatientName] = useState(patientName || '')
+  const isLockedContext = Boolean(admissionNo)
+
+  const fetchPatientOpts = useCallback((s: string) => fetchPatientOptions(s || undefined), [])
+  const fetchAdmissionOpts = useCallback(
+    (s: string) => fetchInpatientAdmissionOptions(s || undefined, currentPatient || undefined),
+    [currentPatient]
+  )
+
   const setField = <K extends keyof FormState>(k: K, v: FormState[K]) => {
     setFormState(prev => ({ ...prev, [k]: v }))
   }
@@ -763,9 +802,9 @@ export const AnesthesiaRecordModal = ({ admissionNo, patient, patientName, onClo
     setSubmitting(true)
     try {
       const payload = {
-        inpatient_admission: admissionNo,
-        patient,
-        patient_name: patientName ?? '',
+        inpatient_admission: currentAdmission,
+        patient: currentPatient,
+        patient_name: currentPatientName,
         patient_visit: form.patient_visit || undefined,
         date: form.date || undefined,
         time: form.time || undefined,
@@ -865,7 +904,19 @@ export const AnesthesiaRecordModal = ({ admissionNo, patient, patientName, onClo
         <form onSubmit={handleSubmit} noValidate className="flex-1 overflow-y-auto">
           <div className="px-6 py-5">
             {activeTab === 'general' && (
-              <GeneralTab form={form} setField={setField} admissionNo={admissionNo} patient={patient} patientName={patientName} />
+              <GeneralTab
+                form={form}
+                setField={setField}
+                admissionNo={currentAdmission}
+                patient={currentPatient}
+                patientName={currentPatientName}
+                isLockedContext={isLockedContext}
+                fetchAdmissionOpts={fetchAdmissionOpts}
+                fetchPatientOpts={fetchPatientOpts}
+                setCurrentAdmission={setCurrentAdmission}
+                setCurrentPatient={setCurrentPatient}
+                setCurrentPatientName={setCurrentPatientName}
+              />
             )}
             {activeTab === 'records' && (
               <AnesthesiaRecordsTab form={form} setField={setField} />

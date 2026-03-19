@@ -12,6 +12,8 @@ import { QMPSPage } from '../pages/QMPS'
 import { EmployeePage } from '../pages/Employee'
 import { PatientVisitDetailPage } from '../pages/PatientVisitDetailPage'
 import { PatientHistoryPage } from '../pages/PatientHistory'
+import { PsychologistPage } from '../pages/Psychologist'
+import { AnesthesiologistPage } from '../pages/Anesthesiologist'
 
 export const RouterProvider = () => {
   const routes = useRoutes([
@@ -101,6 +103,22 @@ export const RouterProvider = () => {
       element: (
         <RoleGuard>
           <PatientVisitDetailPage />
+        </RoleGuard>
+      )
+    },
+    {
+      path: '/psychologist',
+      element: (
+        <RoleGuard roles={['psychologist']}>
+          <PsychologistPage />
+        </RoleGuard>
+      )
+    },
+    {
+      path: '/anesthesiologist',
+      element: (
+        <RoleGuard roles={['anesthesiologist']}>
+          <AnesthesiologistPage />
         </RoleGuard>
       )
     },

@@ -62,6 +62,14 @@ export const AdmissionPage = () => {
     return
   }
 
+  const handlePatientFromAdmission = (patientId: string) => {
+    if (!patientId) return
+    setSelectedPatient(patientId)
+    const newSearchParams = new URLSearchParams(searchParams)
+    newSearchParams.set('patient', patientId)
+    setSearchParams(newSearchParams, { replace: true })
+  }
+
   const handleBackToList = () => {
     // Update URL - this will trigger re-render
     const newSearchParams = new URLSearchParams(searchParams)
@@ -162,7 +170,8 @@ export const AdmissionPage = () => {
             </button>
           </div>
           <AdmissionList 
-            onAdmissionSelect={handleAdmissionSelect} 
+            onAdmissionSelect={handleAdmissionSelect}
+            onPatientFromAdmission={handlePatientFromAdmission}
             searchQuery={searchQuery}
             patient={selectedPatient || undefined}
             refreshKey={listRefreshKey}

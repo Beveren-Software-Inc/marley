@@ -42,6 +42,8 @@ export async function fetchPatientVisits(status?: string, search?: string, patie
 export interface PatientVisitListRow {
   value: string
   label: string
+  patient: string
+  patient_name: string
   encounter_date: string | null
   practitioner_name: string
   status: string
@@ -81,6 +83,8 @@ export async function fetchPatientVisitsFull(
     return data.message.map((m: any) => ({
       value: m.name,
       label: m.label,
+      patient: m.patient ?? '',
+      patient_name: m.patient_name ?? '',
       encounter_date: m.encounter_date ?? null,
       practitioner_name: m.practitioner_name ?? '',
       status: m.status ?? '',
