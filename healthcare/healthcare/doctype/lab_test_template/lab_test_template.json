@@ -150,8 +150,7 @@
    "fieldtype": "Currency",
    "hidden": 1,
    "in_list_view": 1,
-   "label": "IP Rate",
-   "mandatory_depends_on": "eval:doc.is_billable && !doc.link_existing_item"
+   "label": "IP Rate"
   },
   {
    "depends_on": "eval:doc.lab_test_template_type == 'Single'",
@@ -471,7 +470,7 @@
    "link_fieldname": "template"
   }
  ],
- "modified": "2026-03-18 16:00:53.835668",
+ "modified": "2026-03-19 03:31:46.393547",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Lab Test Template",
