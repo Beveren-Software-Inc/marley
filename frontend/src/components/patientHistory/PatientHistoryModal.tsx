@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { apiRequest } from '../../services/apiClient'
-import { fetchPatientVisits, type LinkFieldOption } from '../../services/common'
+import { fetchPatientVisits, fetchPatientOptions, fetchInpatientAdmissionOptions, type LinkFieldOption } from '../../services/common'
 import { toast } from '../../hooks/useToast'
 import { X, ChevronDown, Plus, Trash2, Check, AlertCircle, BookOpen } from 'lucide-react'
 
@@ -125,9 +125,12 @@ export const PatientHistoryModal = ({
   const [submitting, setSubmitting] = useState(false)
 
   // General
-  const [inpatientAdmission] = useState(admissionNo)
+  const [inpatientAdmission, setInpatientAdmission] = useState(admissionNo)
   const [patientVisit, setPatientVisit] = useState('')
   const [patientVisitLabel, setPatientVisitLabel] = useState('')
+  const [patientField, setPatientField] = useState(patient)
+  const [patientNameField, setPatientNameField] = useState(patientName || '')
+  const isLockedContext = Boolean(admissionNo)
 
   const DEFAULT_TEMPLATE = 'Default History Form'
 
@@ -140,8 +143,14 @@ export const PatientHistoryModal = ({
   const [rows, setRows] = useState<HistoryRow[]>([])
 
   const fetchVisits = useCallback(
-    (search: string) => fetchPatientVisits(patient, search || undefined),
-    [patient]
+    (search: string) => fetchPatientVisits(patientField, search || undefined),
+    [patientField]
+  )
+
+  const fetchPatientOpts = useCallback((s: string) => fetchPatientOptions(s || undefined), [])
+  const fetchAdmissionOpts = useCallback(
+    (s: string) => fetchInpatientAdmissionOptions(s || undefined, patientField || undefined),
+    [patientField]
   )
 
   // Auto-load default template on mount
@@ -217,7 +226,7 @@ export const PatientHistoryModal = ({
       const payload = {
         inpatient_admission: inpatientAdmission || undefined,
         patient_visit: patientVisit || undefined,
-        patient: patient || undefined,
+        patient: patientField || undefined,
         history_detail: rows.map(({ _key: _unused, ...rest }) => rest),
       }
       await apiRequest('/api/resource/Patient%20History', {
@@ -291,11 +300,21 @@ export const PatientHistoryModal = ({
                 <div>
                   <p className="text-sm font-semibold text-slate-800 border-b border-slate-200 pb-1.5 mb-4">Patient & Visit Information</p>
                   <div className="grid grid-cols-2 gap-4 mb-5">
-                    <div>
-                      <label className={lc}>Inpatient Admission</label>
-                      <input type="text" value={inpatientAdmission} readOnly
-                        className={`${ic} ${admissionNo ? 'bg-slate-100 cursor-not-allowed' : ''}`} />
-                    </div>
+                    {isLockedContext ? (
+                      <div>
+                        <label className={lc}>Inpatient Admission</label>
+                        <input type="text" value={inpatientAdmission} readOnly className={`${ic} bg-slate-100 cursor-not-allowed`} />
+                      </div>
+                    ) : (
+                      <LinkCombobox
+                        label="Inpatient Admission"
+                        value={inpatientAdmission}
+                        onSelect={opt => setInpatientAdmission(opt.name)}
+                        onClear={() => setInpatientAdmission('')}
+                        fetchOptions={fetchAdmissionOpts}
+                        placeholder="Search admissions..."
+                      />
+                    )}
                     <LinkCombobox
                       label="Patient Visit"
                       value={patientVisitLabel}
@@ -304,13 +323,24 @@ export const PatientHistoryModal = ({
                       fetchOptions={fetchVisits}
                       placeholder="Search patient visits..."
                     />
-                    <div>
-                      <label className={lc}>Patient</label>
-                      <input type="text" value={patient} readOnly className={`${ic} bg-slate-100 cursor-not-allowed`} />
-                    </div>
+                    {isLockedContext ? (
+                      <div>
+                        <label className={lc}>Patient</label>
+                        <input type="text" value={patientField} readOnly className={`${ic} bg-slate-100 cursor-not-allowed`} />
+                      </div>
+                    ) : (
+                      <LinkCombobox
+                        label="Patient"
+                        value={patientNameField || patientField}
+                        onSelect={opt => { setPatientField(opt.name); setPatientNameField(opt.label) }}
+                        onClear={() => { setPatientField(''); setPatientNameField('') }}
+                        fetchOptions={fetchPatientOpts}
+                        placeholder="Search patients..."
+                      />
+                    )}
                     <div>
                       <label className={lc}>Patient Name</label>
-                      <input type="text" value={patientName} readOnly className={`${ic} bg-slate-100 cursor-not-allowed`} />
+                      <input type="text" value={patientNameField} readOnly className={`${ic} bg-slate-100 cursor-not-allowed`} />
                     </div>
                   </div>
                 </div>

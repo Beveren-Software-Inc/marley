@@ -7,22 +7,43 @@ export interface LongActingMedicineRow {
   end_date?: string
   next_run_date?: string
   status?: string
+  remarks?: string
 }
 
-export async function sendLongActingMedicineReminder(name: string): Promise<{ sent: boolean }> {
+export type ReminderChannel = 'email' | 'whatsapp' | 'sms'
+
+export async function sendLongActingMedicineReminder(
+  name: string,
+  channel: ReminderChannel = 'email'
+): Promise<{ sent: boolean; channel: string }> {
   const res = await fetch(
     '/api/method/healthcare.api.common.send_long_acting_medicine_reminder',
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({ name, channel }),
     }
   )
   const data = await res.json()
-  if (data?.exc) {
-    throw new Error(data?.message || 'Failed to send reminder')
-  }
-  return (data?.message as { sent: boolean }) || { sent: true }
+  if (data?.exc) throw new Error(data?.message || 'Failed to send reminder')
+  return (data?.message as { sent: boolean; channel: string }) || { sent: true, channel }
+}
+
+export async function updateLongActingMedicineRemarks(
+  name: string,
+  remarks: string
+): Promise<{ name: string; remarks: string }> {
+  const res = await fetch(
+    '/api/method/healthcare.api.common.update_long_acting_medicine_remarks',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, remarks }),
+    }
+  )
+  const data = await res.json()
+  if (data?.exc) throw new Error(data?.message || 'Failed to update remarks')
+  return (data?.message as { name: string; remarks: string }) || { name, remarks }
 }
 
 export async function fetchLongActingMedicineList(

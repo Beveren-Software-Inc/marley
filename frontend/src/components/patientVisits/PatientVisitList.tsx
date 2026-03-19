@@ -20,6 +20,7 @@ const statusColors: Record<string, string> = {
 
 interface PatientVisitListProps {
   onVisitSelect?: (visitName: string) => void
+  onPatientFromVisit?: (patient: string) => void
   searchQuery?: string
   patient?: string
   refreshKey?: string | number
@@ -27,6 +28,7 @@ interface PatientVisitListProps {
 
 export const PatientVisitList = ({
   onVisitSelect,
+  onPatientFromVisit,
   searchQuery: externalSearchQuery = '',
   patient,
   refreshKey
@@ -379,7 +381,7 @@ export const PatientVisitList = ({
                 <tr key={visit.value} className="hover:bg-slate-50 transition-colors">
                   <td
                     className="px-4 py-3 text-sm font-medium text-primary hover:underline cursor-pointer"
-                    onClick={() => { setDetailVisit(visit.value); onVisitSelect?.(visit.value) }}
+                    onClick={() => { setDetailVisit(visit.value); onVisitSelect?.(visit.value); if (visit.patient) onPatientFromVisit?.(visit.patient) }}
                   >
                     {visit.value}
                   </td>

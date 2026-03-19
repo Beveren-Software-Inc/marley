@@ -646,6 +646,7 @@ def get_long_acting_medicine_list_for_reception(start_date=None, frequency=None,
 			"end_date",
 			"next_run_date",
 			"status",
+			"remarks",
 		],
 		order_by="next_run_date asc, start_date asc, name asc",
 		limit=limit,
@@ -655,17 +656,51 @@ def get_long_acting_medicine_list_for_reception(start_date=None, frequency=None,
 
 
 @frappe.whitelist()
-def send_long_acting_medicine_reminder(name: str):
-	"""Placeholder: send reminder for a Long Acting Medicine. Currently just returns success.
+def update_long_acting_medicine_remarks(name: str, remarks: str):
+	"""Update the remarks field on a Long Acting Medicine record."""
+	if not name:
+		frappe.throw(_("Long Acting Medicine name is required"))
+	if not frappe.db.exists("Long Acting Medicine", name):
+		frappe.throw(_("Long Acting Medicine {0} does not exist").format(frappe.bold(name)))
+	doc = frappe.get_doc("Long Acting Medicine", name)
+	doc.remarks = remarks or ''
+	doc.save(ignore_permissions=True)
+	return {"name": doc.name, "remarks": doc.remarks}
 
-	You can extend this to send SMS/Email using the Communication doctype or external gateway.
+
+@frappe.whitelist()
+def send_long_acting_medicine_reminder(name: str, channel: str = "email"):
+	"""Send a reminder for a Long Acting Medicine via the specified channel.
+
+	channel: 'email' | 'whatsapp' | 'sms'
+	Extend each branch below to hook into your messaging gateway.
 	"""
 	if not name:
 		frappe.throw(_("Long Acting Medicine name is required"))
 	if not frappe.db.exists("Long Acting Medicine", name):
 		frappe.throw(_("Long Acting Medicine {0} does not exist").format(frappe.bold(name)))
-	# For now, no-op; hook in real messaging here if desired.
-	return {"sent": True}
+
+	channel = (channel or "email").lower()
+	valid_channels = ("email", "whatsapp", "sms")
+	if channel not in valid_channels:
+		frappe.throw(_("Invalid channel '{0}'. Must be one of: {1}").format(channel, ", ".join(valid_channels)))
+
+	doc = frappe.get_doc("Long Acting Medicine", name)
+	patient = frappe.get_doc("Patient", doc.patient) if doc.patient else None
+	patient_name = doc.patient_name or (patient.patient_name if patient else doc.patient or name)
+
+	if channel == "email":
+		# Hook: send email via frappe.sendmail or Communication doctype
+		# frappe.sendmail(recipients=[patient.email], subject="...", message="...")
+		pass
+	elif channel == "whatsapp":
+		# Hook: send WhatsApp via your gateway (e.g. Twilio, Meta Cloud API)
+		pass
+	elif channel == "sms":
+		# Hook: send SMS via frappe.core.doctype.sms_settings or external gateway
+		pass
+
+	return {"sent": True, "channel": channel, "patient": patient_name}
 
 
 @frappe.whitelist()

@@ -34,12 +34,13 @@ const statusColors: Record<string, string> = {
 
 interface AdmissionListProps {
   onAdmissionSelect?: (admissionName: string) => void
+  onPatientFromAdmission?: (patient: string) => void
   searchQuery?: string
   patient?: string
   refreshKey?: string | number
 }
 
-export const AdmissionList = ({ onAdmissionSelect, searchQuery: externalSearchQuery = '', patient, refreshKey }: AdmissionListProps = {}) => {
+export const AdmissionList = ({ onAdmissionSelect, onPatientFromAdmission, searchQuery: externalSearchQuery = '', patient, refreshKey }: AdmissionListProps = {}) => {
   const [selectedStatus, setSelectedStatus] = useState<string>('')
   const [selectedRecord, setSelectedRecord] = useState<string | null>(null)
   const [showPackages, setShowPackages] = useState(false)
@@ -423,6 +424,7 @@ export const AdmissionList = ({ onAdmissionSelect, searchQuery: externalSearchQu
                         onClick={() => {
                           setDetailAdmission(record.name)
                           onAdmissionSelect?.(record.name)
+                          if (record.patient) onPatientFromAdmission?.(record.patient)
                         }}
                         className="text-primary hover:underline text-left focus:outline-none"
                         title="View admission details"

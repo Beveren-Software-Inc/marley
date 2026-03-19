@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { apiRequest } from '../../services/apiClient'
+import { fetchPatientOptions, fetchInpatientAdmissionOptions, type LinkFieldOption } from '../../services/common'
 import { toast } from '../../hooks/useToast'
-import { X } from 'lucide-react'
+import { X, ChevronDown } from 'lucide-react'
 
 interface SuicidalPatientAssessmentModalProps {
   admissionNo: string
@@ -241,16 +242,102 @@ function YesNoField({
   )
 }
 
+// ─── Link Combobox ────────────────────────────────────────────────────────────
+
+interface LinkComboboxProps {
+  label: string
+  value: string
+  onSelect: (opt: LinkFieldOption) => void
+  onClear: () => void
+  fetchOptions: (search: string) => Promise<LinkFieldOption[]>
+  placeholder?: string
+}
+
+const LinkCombobox = ({ label, value, onSelect, onClear, fetchOptions, placeholder }: LinkComboboxProps) => {
+  const [query, setQuery] = useState(value)
+  const [options, setOptions] = useState<LinkFieldOption[]>([])
+  const [open, setOpen] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => { setQuery(value) }, [value])
+
+  useEffect(() => {
+    if (!open) return
+    const t = setTimeout(async () => {
+      setLoading(true)
+      try { setOptions(await fetchOptions(query)) }
+      catch { setOptions([]) }
+      finally { setLoading(false) }
+    }, query.trim() === '' ? 0 : 300)
+    return () => clearTimeout(t)
+  }, [query, open, fetchOptions])
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const lc = 'block text-xs font-semibold text-slate-600 mb-1'
+  const ic = 'w-full rounded-md border border-slate-300 px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white'
+
+  return (
+    <div ref={containerRef} className="relative">
+      <label className={lc}>{label}</label>
+      <div className="relative">
+        <input type="text" value={query}
+          onChange={e => { setQuery(e.target.value); onClear(); setOpen(true) }}
+          onFocus={() => setOpen(true)}
+          placeholder={placeholder ?? 'Search...'}
+          className={ic} autoComplete="off" />
+        <span className="absolute inset-y-0 right-2 flex items-center pointer-events-none text-slate-400">
+          {loading
+            ? <span className="w-3.5 h-3.5 border-2 border-slate-300 border-t-primary rounded-full animate-spin" />
+            : <ChevronDown className="w-3.5 h-3.5" />}
+        </span>
+      </div>
+      {open && (
+        <div className="absolute z-30 mt-1 w-full bg-white border border-slate-200 rounded-md shadow-lg max-h-52 overflow-y-auto">
+          {options.length === 0
+            ? <div className="px-3 py-2 text-xs text-slate-400">{loading ? 'Searching…' : 'No results found'}</div>
+            : options.map(opt => (
+              <button key={opt.name} type="button"
+                className="w-full text-left px-3 py-2 text-sm hover:bg-primary/5 focus:outline-none"
+                onClick={() => { onSelect(opt); setQuery(opt.label); setOpen(false) }}>
+                <span className="font-medium text-slate-800">{opt.label}</span>
+                {opt.label !== opt.name && <span className="ml-1.5 text-xs text-slate-400">{opt.name}</span>}
+              </button>
+            ))
+          }
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Tab: General ─────────────────────────────────────────────────────────────
 
 function GeneralTab({
-  form, setField, admission, patient, patientName
+  form, setField,
+  currentAdmission, currentPatient, currentPatientName,
+  isLockedContext,
+  fetchPatientOpts, fetchAdmissionOpts,
+  setCurrentAdmission, setCurrentPatient, setCurrentPatientName,
 }: {
   form: FormState
   setField: (k: keyof FormState, v: unknown) => void
-  admission: string
-  patient: string
-  patientName?: string
+  currentAdmission: string
+  currentPatient: string
+  currentPatientName: string
+  isLockedContext: boolean
+  fetchPatientOpts: (s: string) => Promise<LinkFieldOption[]>
+  fetchAdmissionOpts: (s: string) => Promise<LinkFieldOption[]>
+  setCurrentAdmission: (v: string) => void
+  setCurrentPatient: (v: string) => void
+  setCurrentPatientName: (v: string) => void
 }) {
   return (
     <div className="space-y-1">
@@ -259,8 +346,21 @@ function GeneralTab({
         <h3 className={sectionTitleClass}>Basic Information</h3>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className={labelClass}>Admission No</label>
-            <input type="text" value={admission} readOnly className={`${inputClass} bg-slate-100 cursor-not-allowed`} />
+            {isLockedContext ? (
+              <>
+                <label className={labelClass}>Admission No</label>
+                <input type="text" value={currentAdmission} readOnly className={`${inputClass} bg-slate-100 cursor-not-allowed`} />
+              </>
+            ) : (
+              <LinkCombobox
+                label="Admission No"
+                value={currentAdmission}
+                onSelect={opt => setCurrentAdmission(opt.name)}
+                onClear={() => setCurrentAdmission('')}
+                fetchOptions={fetchAdmissionOpts}
+                placeholder="Search admissions..."
+              />
+            )}
           </div>
           <div>
             <label className={labelClass}>Assessment Date <span className="text-red-500">*</span></label>
@@ -273,12 +373,29 @@ function GeneralTab({
             />
           </div>
           <div>
-            <label className={labelClass}>Patient</label>
-            <input type="text" value={patient} readOnly className={`${inputClass} bg-slate-100 cursor-not-allowed`} />
+            {isLockedContext ? (
+              <>
+                <label className={labelClass}>Patient</label>
+                <input type="text" value={currentPatient} readOnly className={`${inputClass} bg-slate-100 cursor-not-allowed`} />
+              </>
+            ) : (
+              <LinkCombobox
+                label="Patient"
+                value={currentPatient}
+                onSelect={opt => {
+                  setCurrentPatient(opt.name)
+                  const namePart = opt.label.replace(/\s*\([^)]*\)\s*$/, '').trim()
+                  setCurrentPatientName(namePart)
+                }}
+                onClear={() => { setCurrentPatient(''); setCurrentPatientName('') }}
+                fetchOptions={fetchPatientOpts}
+                placeholder="Search patients..."
+              />
+            )}
           </div>
           <div>
             <label className={labelClass}>Patient Name</label>
-            <input type="text" value={patientName ?? ''} readOnly className={`${inputClass} bg-slate-100 cursor-not-allowed`} />
+            <input type="text" value={currentPatientName} readOnly className={`${inputClass} bg-slate-100 cursor-not-allowed`} />
           </div>
           <div className="col-span-2">
             <label className={labelClass}>Assessed By (Healthcare Practitioner)</label>
@@ -661,6 +778,17 @@ export const SuicidalPatientAssessmentModal = ({
     setForm(prev => ({ ...prev, [k]: v }))
   }
 
+  const [currentAdmission, setCurrentAdmission] = useState(admissionNo)
+  const [currentPatient, setCurrentPatient] = useState(patient)
+  const [currentPatientName, setCurrentPatientName] = useState(patientName || '')
+  const isLockedContext = Boolean(admissionNo)
+
+  const fetchPatientOpts = useCallback((s: string) => fetchPatientOptions(s || undefined), [])
+  const fetchAdmissionOpts = useCallback(
+    (s: string) => fetchInpatientAdmissionOptions(s || undefined, currentPatient || undefined),
+    [currentPatient]
+  )
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     e.stopPropagation()
@@ -674,9 +802,9 @@ export const SuicidalPatientAssessmentModal = ({
     setSubmitting(true)
     try {
       const payload = {
-        admission_no: admissionNo,
-        patient,
-        patient_name: patientName ?? '',
+        admission_no: currentAdmission,
+        patient: currentPatient,
+        patient_name: currentPatientName,
         assessment_date: form.assessment_date,
         assessed_by: form.assessed_by || undefined,
         // Suicidal thoughts
@@ -825,7 +953,19 @@ export const SuicidalPatientAssessmentModal = ({
         >
           <div className="px-6 py-5">
             {activeTab === 'general' && (
-              <GeneralTab form={form} setField={setField} admission={admissionNo} patient={patient} patientName={patientName} />
+              <GeneralTab
+                form={form}
+                setField={setField}
+                currentAdmission={currentAdmission}
+                currentPatient={currentPatient}
+                currentPatientName={currentPatientName}
+                isLockedContext={isLockedContext}
+                fetchPatientOpts={fetchPatientOpts}
+                fetchAdmissionOpts={fetchAdmissionOpts}
+                setCurrentAdmission={setCurrentAdmission}
+                setCurrentPatient={setCurrentPatient}
+                setCurrentPatientName={setCurrentPatientName}
+              />
             )}
             {activeTab === 'risk-factors' && (
               <RiskFactorsTab form={form} setField={setField} />

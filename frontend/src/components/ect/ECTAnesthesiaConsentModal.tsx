@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { apiRequest } from '../../services/apiClient'
 import { uploadPatientFile } from '../../services/patients'
-import { fetchPatientVisits, type LinkFieldOption } from '../../services/common'
+import { fetchPatientVisits, fetchPatientOptions, fetchInpatientAdmissionOptions, type LinkFieldOption } from '../../services/common'
 import { toast } from '../../hooks/useToast'
 import { X, ChevronDown, PenLine, Check } from 'lucide-react'
 
@@ -303,8 +303,9 @@ export const ECTAnesthesiaConsentModal = ({
   const [admissionField, setAdmissionField] = useState(admissionNo)
   const [patientVisit, setPatientVisit] = useState('')
   const [patientVisitLabel, setPatientVisitLabel] = useState('')
-  const [patientField] = useState(patient)
-  const [patientNameField] = useState(patientName)
+  const [patientField, setPatientField] = useState(patient)
+  const [patientNameField, setPatientNameField] = useState(patientName || '')
+  const isLockedContext = Boolean(admissionNo)
 
   // ── Consent Terms
   const [termsEnglishName, setTermsEnglishName] = useState('')
@@ -346,6 +347,12 @@ export const ECTAnesthesiaConsentModal = ({
 
   const fetchVisits = useCallback(
     (search: string) => fetchPatientVisits(patientField, search || undefined),
+    [patientField]
+  )
+
+  const fetchPatientOpts = useCallback((s: string) => fetchPatientOptions(s || undefined), [])
+  const fetchAdmissionOpts = useCallback(
+    (s: string) => fetchInpatientAdmissionOptions(s || undefined, patientField || undefined),
     [patientField]
   )
 
@@ -494,13 +501,21 @@ export const ECTAnesthesiaConsentModal = ({
                 <div>
                   <h3 className={secTitle}>Basic Information</h3>
                   <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className={lc}>Inpatient Admission</label>
-                      <input type="text" value={admissionField}
-                        onChange={e => setAdmissionField(e.target.value)}
-                        className={`${ic} ${admissionNo ? 'bg-slate-100 cursor-not-allowed' : ''}`}
-                        readOnly={!!admissionNo} />
-                    </div>
+                    {isLockedContext ? (
+                      <div>
+                        <label className={lc}>Inpatient Admission</label>
+                        <input type="text" value={admissionField} readOnly className={`${ic} bg-slate-100 cursor-not-allowed`} />
+                      </div>
+                    ) : (
+                      <LinkCombobox
+                        label="Inpatient Admission"
+                        value={admissionField}
+                        onSelect={opt => setAdmissionField(opt.name)}
+                        onClear={() => setAdmissionField('')}
+                        fetchOptions={fetchAdmissionOpts}
+                        placeholder="Search admissions..."
+                      />
+                    )}
                     <LinkCombobox
                       label="Patient Visit"
                       value={patientVisitLabel}
@@ -509,11 +524,21 @@ export const ECTAnesthesiaConsentModal = ({
                       fetchOptions={fetchVisits}
                       placeholder="Search patient visits..."
                     />
-                    <div>
-                      <label className={lc}>Patient</label>
-                      <input type="text" value={patientField} readOnly
-                        className={`${ic} bg-slate-100 cursor-not-allowed`} />
-                    </div>
+                    {isLockedContext ? (
+                      <div>
+                        <label className={lc}>Patient</label>
+                        <input type="text" value={patientField} readOnly className={`${ic} bg-slate-100 cursor-not-allowed`} />
+                      </div>
+                    ) : (
+                      <LinkCombobox
+                        label="Patient"
+                        value={patientNameField || patientField}
+                        onSelect={opt => { setPatientField(opt.name); setPatientNameField(opt.label) }}
+                        onClear={() => { setPatientField(''); setPatientNameField('') }}
+                        fetchOptions={fetchPatientOpts}
+                        placeholder="Search patients..."
+                      />
+                    )}
                     <div>
                       <label className={lc}>Patient Name</label>
                       <input type="text" value={patientNameField} readOnly

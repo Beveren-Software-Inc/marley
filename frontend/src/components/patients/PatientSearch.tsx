@@ -15,6 +15,10 @@ interface PatientSearchProps {
   showAlertsBanner?: boolean
 }
 
+// Module-level: track which patient's banner has already been shown so it
+// only appears once per patient selection, surviving component remounts.
+let _bannerShownForPatient: string | null = null
+
 export const PatientSearch = ({
   selectedPatient,
   onPatientSelect,
@@ -31,14 +35,30 @@ export const PatientSearch = ({
   const [secondaryOpen, setSecondaryOpen] = useState(false)
   const [secondaryLoading, setSecondaryLoading] = useState(false)
   const [secondaryResults, setSecondaryResults] = useState<
-    { value: string; label: string; meta?: string }[]
+    { value: string; label: string; meta?: string; patient?: string; patient_name?: string }[]
   >([])
-  const [alertsBannerDismissed, setAlertsBannerDismissed] = useState(false)
 
-  // Reset alerts banner when patient changes so it shows again for the new patient
+  // If banner was already shown for this patient (across remounts), start dismissed
+  const [alertsBannerDismissed, setAlertsBannerDismissed] = useState(
+    () => Boolean(selectedPatient && _bannerShownForPatient === selectedPatient)
+  )
+
+  // When patient changes to a NEW patient → reset so banner shows once for the new one
   useEffect(() => {
-    setAlertsBannerDismissed(false)
+    if (selectedPatient && selectedPatient !== _bannerShownForPatient) {
+      setAlertsBannerDismissed(false)
+    } else if (selectedPatient && _bannerShownForPatient === selectedPatient) {
+      // Already shown for this patient on a previous mount — keep hidden
+      setAlertsBannerDismissed(true)
+    }
   }, [selectedPatient])
+
+  // As soon as the banner renders (not dismissed, patient set), mark it as shown
+  useEffect(() => {
+    if (selectedPatient && !alertsBannerDismissed) {
+      _bannerShownForPatient = selectedPatient
+    }
+  }, [selectedPatient, alertsBannerDismissed])
 
   // Load patient name when selectedPatient changes (e.g., from URL)
   useEffect(() => {
@@ -104,13 +124,16 @@ export const PatientSearch = ({
   const hasPatient = Boolean(selectedPatient)
 
   // OP/IP contextual dropdown search (visits/admissions)
+  // Works even when no patient is selected — shows all records in that case.
   useEffect(() => {
-    if (!hasPatient || !secondaryOpen || secondaryQuery.trim() === '') {
+    if (!secondaryOpen || (mode !== 'OP' && mode !== 'IP')) {
       setSecondaryResults([])
       return
     }
 
     const controller = new AbortController()
+    // Shorter delay when opening fresh (no query); debounce typed queries
+    const delay = secondaryQuery.trim() === '' ? 0 : 300
     const t = setTimeout(async () => {
       setSecondaryLoading(true)
       try {
@@ -123,6 +146,8 @@ export const PatientSearch = ({
             visits.slice(0, 30).map((v) => ({
               value: v.value,
               label: v.label,
+              patient: v.patient,
+              patient_name: v.patient_name,
               meta: v.encounter_date ? `${v.encounter_date} • ${v.status}` : v.status
             }))
           )
@@ -136,6 +161,8 @@ export const PatientSearch = ({
             admissions.slice(0, 30).map((a) => ({
               value: a.name,
               label: `${a.name} - ${a.patient_name || a.patient || ''}`,
+              patient: a.patient,
+              patient_name: a.patient_name,
               meta: a.status
             }))
           )
@@ -148,7 +175,7 @@ export const PatientSearch = ({
       } finally {
         setSecondaryLoading(false)
       }
-    }, 300)
+    }, delay)
 
     return () => {
       clearTimeout(t)
@@ -168,7 +195,7 @@ export const PatientSearch = ({
             <button
               type="button"
               className="fixed inset-0 top-14 left-0 right-0 bottom-0 z-30 md:left-[240px] backdrop-blur-md bg-slate-900/10 cursor-default focus:outline-none"
-              onClick={() => setAlertsBannerDismissed(true)}
+              onClick={() => { _bannerShownForPatient = selectedPatient || null; setAlertsBannerDismissed(true) }}
               aria-label="Close patient alerts"
             />
             <div className="relative z-40">
@@ -176,7 +203,7 @@ export const PatientSearch = ({
                 patient={selectedPatient}
                 patientName={selectedPatientName || undefined}
                 dismissed={alertsBannerDismissed}
-                onDismiss={() => setAlertsBannerDismissed(true)}
+                onDismiss={() => { _bannerShownForPatient = selectedPatient || null; setAlertsBannerDismissed(true) }}
                 visible={Boolean(selectedPatient)}
               />
             </div>
@@ -277,33 +304,27 @@ export const PatientSearch = ({
           <div className="flex items-center gap-1">
             <button
               type="button"
-              onClick={() => hasPatient && setMode('OP')}
-              disabled={!hasPatient}
+              onClick={() => setMode('OP')}
               className={`px-2 md:px-3 py-1 rounded-full text-[10px] md:text-xs font-semibold border transition-colors ${
-                !hasPatient
-                  ? 'bg-white/5 text-white/40 border-white/20 cursor-not-allowed'
-                  : mode === 'OP'
-                    ? 'bg-white text-primary border-white shadow-sm'
-                    : 'bg-white/10 text-white/90 border-white/40 hover:bg-white/20'
+                mode === 'OP'
+                  ? 'bg-white text-primary border-white shadow-sm'
+                  : 'bg-white/10 text-white/90 border-white/40 hover:bg-white/20'
               }`}
             >
               OP
             </button>
             <button
               type="button"
-              onClick={() => hasPatient && setMode('IP')}
-              disabled={!hasPatient}
+              onClick={() => setMode('IP')}
               className={`px-2 md:px-3 py-1 rounded-full text-[10px] md:text-xs font-semibold border transition-colors ${
-                !hasPatient
-                  ? 'bg-white/5 text-white/40 border-white/20 cursor-not-allowed'
-                  : mode === 'IP'
-                    ? 'bg-white text-primary border-white shadow-sm'
-                    : 'bg-white/10 text-white/90 border-white/40 hover:bg-white/20'
+                mode === 'IP'
+                  ? 'bg-white text-primary border-white shadow-sm'
+                  : 'bg-white/10 text-white/90 border-white/40 hover:bg-white/20'
               }`}
             >
               IP
             </button>
-            {hasPatient && (mode === 'OP' || mode === 'IP') && (
+            {(mode === 'OP' || mode === 'IP') && (
               <div className="relative ml-1 w-full max-w-xs">
                 <input
                   type="text"
@@ -317,7 +338,7 @@ export const PatientSearch = ({
                   className="w-full rounded-md border border-white/60 bg-white/10 px-2 md:px-3 py-1.5 md:py-2 text-xs md:text-sm text-white placeholder:text-white/70 focus:outline-none focus:ring-2 focus:ring-white"
                 />
                 {secondaryOpen && (
-                  <div className="absolute z-40 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-56 overflow-auto text-slate-900">
+                  <div className="absolute z-40 mt-1 w-full min-w-[280px] rounded-md border border-slate-200 bg-white shadow-lg max-h-64 overflow-auto text-slate-900">
                     {secondaryLoading ? (
                       <div className="px-3 py-2 text-xs text-slate-500">
                         {mode === 'OP' ? 'Loading visits…' : 'Loading admissions…'}
@@ -335,6 +356,13 @@ export const PatientSearch = ({
                             } else if (mode === 'IP') {
                               setActiveAdmission(row.value)
                             }
+                            // Auto-select patient when none is chosen yet
+                            if (!hasPatient && row.patient) {
+                              onPatientSelect(row.patient)
+                              const displayName = row.patient_name || row.patient
+                              setSelectedPatientName(displayName)
+                              setPatientQuery(displayName)
+                            }
                             setSecondaryOpen(false)
                           }}
                         >
@@ -351,8 +379,8 @@ export const PatientSearch = ({
                             ? 'No visits match your search.'
                             : 'No admissions match your search.'
                           : mode === 'OP'
-                            ? 'Type to search visits.'
-                            : 'Type to search admissions.'}
+                            ? 'Loading visits…'
+                            : 'Loading admissions…'}
                       </div>
                     )}
                   </div>

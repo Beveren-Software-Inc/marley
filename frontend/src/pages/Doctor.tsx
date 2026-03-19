@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { useCareContext } from '../providers/CareContextProvider'
 import { PatientSearch } from '../components/patients/PatientSearch'
 import { WarningMessagesList } from '../components/warnings/WarningMessagesList'
 import { LabTestList } from '../components/labTests/LabTestList'
@@ -60,8 +61,16 @@ import { PhysicalExaminationList } from '../components/physicalExam/PhysicalExam
 import { PhysicalExaminationModal } from '../components/physicalExam/PhysicalExaminationModal'
 import { PatientHistoryList } from '../components/patientHistory/PatientHistoryList'
 import { PatientHistoryModal } from '../components/patientHistory/PatientHistoryModal'
+import { AdmissionAssessmentList } from '../components/admissions/AdmissionAssessmentList'
+import { SuicidalPatientAssessmentModal } from '../components/admissions/SuicidalPatientAssessmentModal'
+import { RecoveryRoomRecordModal } from '../components/admissions/RecoveryRoomRecordModal'
+import { AnesthesiaRecordModal } from '../components/admissions/AnesthesiaRecordModal'
+import { TimeOutProcedureModal } from '../components/admissions/TimeOutProcedureModal'
+import { PreEctChecklistModal } from '../components/admissions/PreEctChecklistModal'
+import { ModifiedAldereteScoreModal } from '../components/admissions/ModifiedAldereteScoreModal'
 
 export const DoctorPage = () => {
+  const { mode, activeVisit, activeAdmission } = useCareContext()
   const [searchParams, setSearchParams] = useSearchParams()
   const patientFromUrl = searchParams.get('patient')
   const [selectedPatient, setSelectedPatient] = useState<string | undefined>(patientFromUrl || undefined)
@@ -114,6 +123,18 @@ export const DoctorPage = () => {
   const [patientHistoryRefreshKey, setPatientHistoryRefreshKey] = useState(0)
   const [showCreateNursingTaskModal, setShowCreateNursingTaskModal] = useState(false)
   const [longActingRefreshKey] = useState(0)
+  const [showSuicidalModal, setShowSuicidalModal] = useState(false)
+  const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
+  const [showRecoveryRoomModal, setShowRecoveryRoomModal] = useState(false)
+  const [recoveryRoomRefreshKey, setRecoveryRoomRefreshKey] = useState(0)
+  const [showAnesthesiaRecordModal, setShowAnesthesiaRecordModal] = useState(false)
+  const [anesthesiaRecordRefreshKey, setAnesthesiaRecordRefreshKey] = useState(0)
+  const [showTimeOutModal, setShowTimeOutModal] = useState(false)
+  const [timeOutRefreshKey, setTimeOutRefreshKey] = useState(0)
+  const [showPreEctModal, setShowPreEctModal] = useState(false)
+  const [preEctRefreshKey, setPreEctRefreshKey] = useState(0)
+  const [showAldereteModal, setShowAldereteModal] = useState(false)
+  const [aldereteRefreshKey, setAldereteRefreshKey] = useState(0)
   const screen = searchParams.get('screen')
 
   // Sync selectedPatient with URL on mount and when URL changes
@@ -323,7 +344,7 @@ export const DoctorPage = () => {
             </section>
 
             {/* ECT Details card */}
-            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col md:col-span-2">
+            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col">
               <div className="font-semibold mb-4 flex items-center justify-between">
                 <span>ECT Details</span>
                 <button
@@ -340,7 +361,7 @@ export const DoctorPage = () => {
             </section>
 
             {/* ECT Anesthesia Consent card */}
-            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col md:col-span-2">
+            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col">
               <div className="font-semibold mb-4 flex items-center justify-between">
                 <span>ECT Anesthesia Consent</span>
                 <button
@@ -360,7 +381,7 @@ export const DoctorPage = () => {
             </section>
 
             {/* Pre Anesthesia Assessment card */}
-            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col md:col-span-2">
+            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col">
               <div className="font-semibold mb-4 flex items-center justify-between">
                 <span>Pre Anesthesia Assessment</span>
                 <button
@@ -376,6 +397,196 @@ export const DoctorPage = () => {
               </p>
               <div className="flex-1 min-h-[80px]">
                 <PreAnesthesiaAssessmentList patient={selectedPatient} refreshKey={preAnesthesiaRefreshKey} />
+              </div>
+            </section>
+
+            {/* Suicidal Patient Assessment card */}
+            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col">
+              <div className="font-semibold mb-4 flex items-center justify-between">
+                <span>Suicidal Patient Assessment</span>
+                <button
+                  onClick={() => setShowSuicidalModal(true)}
+                  className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
+                  title="Add Suicidal Patient Assessment"
+                >
+                  +
+                </button>
+              </div>
+              <p className="text-sm text-slate-600 mb-3">
+                Assess patient suicide risk factors, history, and current ideation with structured clinical evaluation.
+              </p>
+              <div className="flex-1 min-h-[80px]">
+                <AdmissionAssessmentList
+                  doctype="Suicidal Patient Assessment"
+                  doctypeLabel="Suicidal Patient Assessment"
+                  patient={selectedPatient}
+                  refreshKey={suicidalRefreshKey}
+                />
+              </div>
+            </section>
+
+            {/* Recovery Room Record card */}
+            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col">
+              <div className="font-semibold mb-4 flex items-center justify-between">
+                <span>Recovery Room Record</span>
+                <button
+                  onClick={() => setShowRecoveryRoomModal(true)}
+                  className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
+                  title="Add Recovery Room Record"
+                >
+                  +
+                </button>
+              </div>
+              <p className="text-sm text-slate-600 mb-3">
+                Document patient recovery room events, vitals, and nursing observations post-procedure.
+              </p>
+              <div className="flex-1 min-h-[80px]">
+                <AdmissionAssessmentList
+                  doctype="Recovery Room Record"
+                  doctypeLabel="Recovery Room Record"
+                  patient={selectedPatient}
+                  refreshKey={recoveryRoomRefreshKey}
+                />
+              </div>
+            </section>
+
+            {/* Anesthesia Record card */}
+            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col">
+              <div className="font-semibold mb-4 flex items-center justify-between">
+                <span>Anesthesia Record</span>
+                <button
+                  onClick={() => setShowAnesthesiaRecordModal(true)}
+                  className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
+                  title="Add Anesthesia Record"
+                >
+                  +
+                </button>
+              </div>
+              <p className="text-sm text-slate-600 mb-3">
+                Record anesthesia administration details, patient monitoring, and intra-procedure events.
+              </p>
+              <div className="flex-1 min-h-[80px]">
+                <AdmissionAssessmentList
+                  doctype="Anesthesia Record"
+                  doctypeLabel="Anesthesia Record"
+                  patient={selectedPatient}
+                  refreshKey={anesthesiaRecordRefreshKey}
+                />
+              </div>
+            </section>
+
+            {/* Time Out Procedure card */}
+            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col">
+              <div className="font-semibold mb-4 flex items-center justify-between">
+                <span>Time Out Procedure</span>
+                <button
+                  onClick={() => setShowTimeOutModal(true)}
+                  className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
+                  title="Add Time Out Procedure"
+                >
+                  +
+                </button>
+              </div>
+              <p className="text-sm text-slate-600 mb-3">
+                Complete the pre-procedure time-out checklist to verify patient identity, procedure, and site.
+              </p>
+              <div className="flex-1 min-h-[80px]">
+                <AdmissionAssessmentList
+                  doctype="Time Out Procedure"
+                  doctypeLabel="Time Out Procedure"
+                  patient={selectedPatient}
+                  refreshKey={timeOutRefreshKey}
+                />
+              </div>
+            </section>
+
+            {/* Pre-ECT Checklist card */}
+            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col">
+              <div className="font-semibold mb-4 flex items-center justify-between">
+                <span>Pre-ECT Checklist</span>
+                <button
+                  onClick={() => setShowPreEctModal(true)}
+                  className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
+                  title="Add Pre-ECT Checklist"
+                >
+                  +
+                </button>
+              </div>
+              <p className="text-sm text-slate-600 mb-3">
+                Verify all pre-ECT requirements are met before proceeding with the procedure.
+              </p>
+              <div className="flex-1 min-h-[80px]">
+                <AdmissionAssessmentList
+                  doctype="Pre-ECT Checklist"
+                  doctypeLabel="Pre-ECT Checklist"
+                  patient={selectedPatient}
+                  refreshKey={preEctRefreshKey}
+                />
+              </div>
+            </section>
+
+            {/* Modified Alderete Score card */}
+            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col">
+              <div className="font-semibold mb-4 flex items-center justify-between">
+                <span>Modified Alderete Score</span>
+                <button
+                  onClick={() => setShowAldereteModal(true)}
+                  className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
+                  title="Add Modified Alderete Score"
+                >
+                  +
+                </button>
+              </div>
+              <p className="text-sm text-slate-600 mb-3">
+                Score patient recovery readiness for discharge from the recovery room using the Modified Alderete criteria.
+              </p>
+              <div className="flex-1 min-h-[80px]">
+                <AdmissionAssessmentList
+                  doctype="Modified Alderete Score"
+                  doctypeLabel="Modified Alderete Score"
+                  patient={selectedPatient}
+                  refreshKey={aldereteRefreshKey}
+                />
+              </div>
+            </section>
+
+            {/* Physical Examination card */}
+            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col">
+              <div className="font-semibold mb-4 flex items-center justify-between">
+                <span>Physical Examination</span>
+                <button
+                  onClick={() => setShowPhysicalExamModal(true)}
+                  className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
+                  title="Add Physical Examination"
+                >
+                  +
+                </button>
+              </div>
+              <p className="text-sm text-slate-600 mb-3">
+                Document systematic physical examination findings across all body systems.
+              </p>
+              <div className="flex-1 min-h-[80px]">
+                <PhysicalExaminationList patient={selectedPatient} refreshKey={physicalExamRefreshKey} />
+              </div>
+            </section>
+
+            {/* Patient History card */}
+            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col">
+              <div className="font-semibold mb-4 flex items-center justify-between">
+                <span>Patient History</span>
+                <button
+                  onClick={() => setShowPatientHistoryModal(true)}
+                  className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
+                  title="Add Patient History"
+                >
+                  +
+                </button>
+              </div>
+              <p className="text-sm text-slate-600 mb-3">
+                Record detailed patient history including presenting complaints, past medical and psychiatric history.
+              </p>
+              <div className="flex-1 min-h-[80px]">
+                <PatientHistoryList patient={selectedPatient} refreshKey={patientHistoryRefreshKey} />
               </div>
             </section>
           </div>
@@ -431,6 +642,102 @@ export const DoctorPage = () => {
             onSuccess={() => {
               setPreAnesthesiaRefreshKey(prev => prev + 1)
               setShowPreAnesthesiaModal(false)
+            }}
+          />
+        )}
+        {showSuicidalModal && (
+          <SuicidalPatientAssessmentModal
+            admissionNo=""
+            patient={selectedPatient || ''}
+            patientName=""
+            onClose={() => setShowSuicidalModal(false)}
+            onSuccess={() => {
+              setSuicidalRefreshKey(prev => prev + 1)
+              setShowSuicidalModal(false)
+            }}
+          />
+        )}
+        {showRecoveryRoomModal && (
+          <RecoveryRoomRecordModal
+            admissionNo=""
+            patient={selectedPatient || ''}
+            patientName=""
+            onClose={() => setShowRecoveryRoomModal(false)}
+            onSuccess={() => {
+              setRecoveryRoomRefreshKey(prev => prev + 1)
+              setShowRecoveryRoomModal(false)
+            }}
+          />
+        )}
+        {showAnesthesiaRecordModal && (
+          <AnesthesiaRecordModal
+            admissionNo=""
+            patient={selectedPatient || ''}
+            patientName=""
+            onClose={() => setShowAnesthesiaRecordModal(false)}
+            onSuccess={() => {
+              setAnesthesiaRecordRefreshKey(prev => prev + 1)
+              setShowAnesthesiaRecordModal(false)
+            }}
+          />
+        )}
+        {showTimeOutModal && (
+          <TimeOutProcedureModal
+            admissionNo=""
+            patient={selectedPatient || ''}
+            patientName=""
+            onClose={() => setShowTimeOutModal(false)}
+            onSuccess={() => {
+              setTimeOutRefreshKey(prev => prev + 1)
+              setShowTimeOutModal(false)
+            }}
+          />
+        )}
+        {showPreEctModal && (
+          <PreEctChecklistModal
+            admissionNo=""
+            patient={selectedPatient || ''}
+            patientName=""
+            onClose={() => setShowPreEctModal(false)}
+            onSuccess={() => {
+              setPreEctRefreshKey(prev => prev + 1)
+              setShowPreEctModal(false)
+            }}
+          />
+        )}
+        {showAldereteModal && (
+          <ModifiedAldereteScoreModal
+            admissionNo=""
+            patient={selectedPatient || ''}
+            patientName=""
+            onClose={() => setShowAldereteModal(false)}
+            onSuccess={() => {
+              setAldereteRefreshKey(prev => prev + 1)
+              setShowAldereteModal(false)
+            }}
+          />
+        )}
+        {showPhysicalExamModal && (
+          <PhysicalExaminationModal
+            admissionNo=""
+            patient={selectedPatient || ''}
+            patientName=""
+            onClose={() => setShowPhysicalExamModal(false)}
+            onSuccess={() => {
+              setPhysicalExamRefreshKey(prev => prev + 1)
+              setShowPhysicalExamModal(false)
+            }}
+          />
+        )}
+        {showPatientHistoryModal && (
+          <PatientHistoryModal
+            admissionNo=""
+            patient={selectedPatient || ''}
+            patientName=""
+            onClose={() => setShowPatientHistoryModal(false)}
+            onSuccess={() => {
+              setPatientHistoryRefreshKey(prev => prev + 1)
+              setShowPatientHistoryModal(false)
             }}
           />
         )}
@@ -1695,6 +2002,40 @@ export const DoctorPage = () => {
           <NotificationBell />
         </div>
       </header>
+
+      {/* OP / IP mode: full-width top row — hidden once a specific visit/admission is selected */}
+      {(mode === 'OP' && !activeVisit) || (mode === 'IP' && !activeAdmission) ? (
+        <div className="px-4 pt-4 pb-0">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[420px]">
+            <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
+              <span>{mode === 'OP' ? 'Patient Visits (OP)' : 'Inpatient Admissions (IP)'}</span>
+            </div>
+            <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
+              {mode === 'OP' ? (
+                <PatientVisitList
+                  patient={selectedPatient || undefined}
+                  onPatientFromVisit={(p) => {
+                    setSelectedPatient(p)
+                    const sp = new URLSearchParams(searchParams)
+                    sp.set('patient', p)
+                    setSearchParams(sp, { replace: true })
+                  }}
+                />
+              ) : (
+                <AdmissionList
+                  patient={selectedPatient || undefined}
+                  onPatientFromAdmission={(p) => {
+                    setSelectedPatient(p)
+                    const sp = new URLSearchParams(searchParams)
+                    sp.set('patient', p)
+                    setSearchParams(sp, { replace: true })
+                  }}
+                />
+              )}
+            </div>
+          </section>
+        </div>
+      ) : null}
 
       {selectedPatient ? (
         <>
