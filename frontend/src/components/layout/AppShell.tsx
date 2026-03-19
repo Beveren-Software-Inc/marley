@@ -73,10 +73,16 @@ const receptionScreens = [
   { id: 'r-service-requests', title: 'Service Requests / Booked Lab' },
   { id: 'r-discharge', title: 'Discharge' },
   { id: 'r-long-acting-meds', title: 'Long Acting Medicine' },
+  { id: 'r-insurance', title: 'Insurance Patient Register' },
   // { id: 'r-receipt-voucher', title: 'Receipt Voucher' },
   // { id: 'r-op-dashboard', title: 'OP Dashboard' },
   // { id: 'r-ip-dashboard', title: 'IP Dashboard' }
 ].sort((a, b) => a.title.localeCompare(b.title))
+
+const insuranceScreens = [
+  { id: 'i-register', title: 'Patient Register' },
+  { id: 'i-claims', title: 'Claims' },
+]
 
 // Anesthesia-named forms listed first, then the rest alphabetically
 const anesthesiologistScreens = [
@@ -113,6 +119,7 @@ const ALL_MAIN_LINKS: MainLinkItem[] = [
   { to: '/psychologist', label: 'Psychologist', screens: psychologistScreens, prefix: '/psychologist' },
   { to: '/anesthesiologist', label: 'Anesthesiologist', screens: anesthesiologistScreens, prefix: '/anesthesiologist' },
   { to: '/reception', label: 'Reception', screens: receptionScreens, prefix: '/reception' },
+  { to: '/insurance', label: 'Insurance', screens: insuranceScreens, prefix: '/insurance' },
   { to: '/patient-history', label: 'Patient History', screens: [], prefix: '/patient-history' },
   { to: '/employee', label: 'Employee', screens: [], prefix: '/employee' },
   { to: '/patient', label: 'Patient', screens: [], prefix: '/patient' },

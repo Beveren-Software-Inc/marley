@@ -16,7 +16,6 @@
   "insurance_no",
   "expiry_date",
   "deductable_amount",
-  "employee_code",
   "outpatient_discount",
   "inpatient_discount",
   "discounts_section",
@@ -49,14 +48,7 @@
   {
    "fieldname": "insurance_no",
    "fieldtype": "Data",
-   "label": "Insurance No",
-   "reqd": 1
-  },
-  {
-   "fieldname": "employee_code",
-   "fieldtype": "Data",
-   "hidden": 1,
-   "label": "Employee Code"
+   "label": "Insurance No"
   },
   {
    "fieldname": "column_break_udmx",
@@ -137,7 +129,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-03-08 13:49:49.235931",
+ "modified": "2026-03-19 16:31:53.688033",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Health Insurance",

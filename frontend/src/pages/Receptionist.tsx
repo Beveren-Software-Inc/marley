@@ -21,6 +21,8 @@ import { DischargeList } from '../components/discharges/DischargeList'
 import { MedicalHistoryView } from '../components/medicalHistory/MedicalHistoryView'
 import { ReceptionLongActingMedicineList } from '../components/medication/ReceptionLongActingMedicineList'
 import { CreateLongActingMedicineModal } from '../components/medication/CreateLongActingMedicineModal'
+import { InsurancePatientRegisterList } from '../components/insurance/InsurancePatientRegisterList'
+import { CreateInsurancePatientRegisterModal } from '../components/insurance/CreateInsurancePatientRegisterModal'
 
 type View =
   | 'default'
@@ -37,6 +39,7 @@ type View =
   | 'ip-dashboard'
   | 'discharge'
   | 'long-acting-medicine'
+  | 'insurance'
 
 export const ReceptionistPage = () => {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -56,6 +59,8 @@ export const ReceptionistPage = () => {
   const [showBulkScheduleModal, setShowBulkScheduleModal] = useState(false)
   const [showCreateLongActing, setShowCreateLongActing] = useState(false)
   const [longActingRefreshKey, setLongActingRefreshKey] = useState(0)
+  const [showCreateInsuranceRegister, setShowCreateInsuranceRegister] = useState(false)
+  const [insuranceRegisterRefreshKey, setInsuranceRegisterRefreshKey] = useState(0)
 
   const handlePatientSelect = (patient: string | undefined) => {
     setSelectedPatient(patient || '')
@@ -107,6 +112,8 @@ export const ReceptionistPage = () => {
       setCurrentView('discharge')
     } else if (screen === 'r-long-acting-meds') {
       setCurrentView('long-acting-medicine')
+    } else if (screen === 'r-insurance') {
+      setCurrentView('insurance')
     } else {
       // No screen param or unknown: show reception homepage (e.g. after "Back to Reception" or sidebar Home)
       setCurrentView('default')
@@ -299,6 +306,30 @@ export const ReceptionistPage = () => {
                 }}
               />
             )}
+          </div>
+        )}
+
+        {currentView === 'insurance' && (
+          <div className="p-4">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-semibold text-slate-900">Insurance Patient Register</h2>
+                <p className="text-sm text-slate-600 mt-1">
+                  View and manage insurance patient registrations. Create patients directly from here.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCreateInsuranceRegister(true)}
+                className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
+                title="New Insurance Patient Register"
+              >
+                +
+              </button>
+            </div>
+            <div className="bg-white border border-slate-200 rounded-lg p-4">
+              <InsurancePatientRegisterList refreshKey={insuranceRegisterRefreshKey} />
+            </div>
           </div>
         )}
 
@@ -518,6 +549,24 @@ export const ReceptionistPage = () => {
                 </div>
               </section>
 
+              {/* Insurance Patient Register card */}
+              <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
+                <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
+                  <span>Insurance Patient Register</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateInsuranceRegister(true)}
+                    className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
+                    title="New Insurance Patient Register"
+                  >
+                    +
+                  </button>
+                </div>
+                <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
+                  <InsurancePatientRegisterList refreshKey={insuranceRegisterRefreshKey} />
+                </div>
+              </section>
+
               {/* Discharge card - last on landing, same size as others */}
               <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
                 <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
@@ -586,6 +635,16 @@ export const ReceptionistPage = () => {
             if (patientName) {
               setSelectedPatient(patientName)
             }
+          }}
+        />
+      )}
+
+      {showCreateInsuranceRegister && (
+        <CreateInsurancePatientRegisterModal
+          onClose={() => setShowCreateInsuranceRegister(false)}
+          onSuccess={() => {
+            setShowCreateInsuranceRegister(false)
+            setInsuranceRegisterRefreshKey(k => k + 1)
           }}
         />
       )}

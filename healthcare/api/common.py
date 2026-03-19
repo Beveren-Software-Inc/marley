@@ -1020,3 +1020,93 @@ def set_cost_center_permission(cost_center=None):
 
 	frappe.db.commit()
 	return {"status": "cleared", "cost_center": ""}
+
+
+@frappe.whitelist()
+def get_insurance_patient_registers(search=None):
+	"""Get list of Insurance Patient Registers."""
+	filters = {}
+	if search:
+		filters["full_name"] = ["like", f"%{search}%"]
+
+	records = frappe.get_all(
+		"Insurance Patient Register",
+		filters=filters,
+		fields=[
+			"name", "full_name", "national_id_cpr_no", "posting_date",
+			"status", "insurance_provider", "approval_id",
+			"approval_validitydays", "no_of_visits", "patient",
+		],
+		limit=100,
+		order_by="creation desc",
+	)
+	return records
+
+
+@frappe.whitelist()
+def get_insurance_claims(search=None, patient=None):
+	"""Get list of Insurance Claims."""
+	filters = {}
+	if search:
+		filters["name"] = ["like", f"%{search}%"]
+	if patient:
+		filters["patient"] = patient
+
+	claims = frappe.get_all(
+		"Insurance Claim",
+		filters=filters,
+		fields=[
+			"name", "patient", "patient_name", "health_insurance",
+			"insurance_payor", "claim_date", "status",
+			"total_claimed", "total_approved", "total_rejected",
+			"total_patient_liability", "sales_invoice",
+		],
+		limit=100,
+		order_by="creation desc",
+	)
+	return claims
+
+
+@frappe.whitelist()
+def link_patient_to_insurance_register(register_name, patient):
+	"""Link a newly created Patient back to the Insurance Patient Register."""
+	doc = frappe.get_doc("Insurance Patient Register", register_name)
+	doc.patient = patient
+	# allow_on_submit is set on the patient field so db_set works even on submitted docs
+	doc.db_set("patient", patient, update_modified=True)
+	frappe.db.commit()
+	return {"status": "ok", "register": register_name, "patient": patient}
+
+
+@frappe.whitelist()
+def get_lab_test_samples(search=None):
+	"""Get list of Lab Test Samples."""
+	filters = {}
+	if search:
+		filters["sample"] = ["like", f"%{search}%"]
+
+	samples = frappe.get_all(
+		"Lab Test Sample",
+		filters=filters,
+		fields=["name", "sample", "sample_type", "sample_uom"],
+		limit=100,
+		order_by="sample asc",
+	)
+	return samples
+
+
+@frappe.whitelist()
+def get_sample_types(search=None):
+	"""Get list of Sample Types."""
+	filters = {}
+	if search:
+		filters["sample_type"] = ["like", f"%{search}%"]
+
+	types = frappe.get_all(
+		"Sample Type",
+		filters=filters,
+		fields=["name", "sample_type"],
+		limit=100,
+		order_by="sample_type asc",
+	)
+	return types
