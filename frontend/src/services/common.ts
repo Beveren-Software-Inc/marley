@@ -906,3 +906,126 @@ export async function fetchInpatientAdmissionOptions(search?: string, patient?: 
     label: `${r.name}${r.patient_name || r.patient ? ` – ${r.patient_name || r.patient}` : ''}`,
   }))
 }
+
+// ─── Health Insurance ─────────────────────────────────────────────────────────
+
+export interface HealthInsuranceRow {
+  name: string
+  insurance_company: string
+  insurance_type: string
+  policy_no: string
+  outpatient_discount: number
+  inpatient_discount: number
+  insurance_coverage_: number
+  mode_of_payment: string
+  insurance_no: string
+}
+
+export interface HealthInsuranceDetail {
+  doc: Record<string, any>
+  patient_count: number
+  active_register_count: number
+  unused_register_count: number
+}
+
+export async function fetchHealthInsurances(search?: string, insurance_company?: string): Promise<HealthInsuranceRow[]> {
+  const params = new URLSearchParams()
+  if (search) params.append('search', search)
+  if (insurance_company) params.append('insurance_company', insurance_company)
+  const url = `/api/method/healthcare.api.common.get_health_insurances${params.toString() ? `?${params.toString()}` : ''}`
+  const res = await fetch(url)
+  const data = await res.json()
+  return Array.isArray(data?.message) ? (data.message as HealthInsuranceRow[]) : []
+}
+
+export async function fetchHealthInsuranceDetail(name: string): Promise<HealthInsuranceDetail | null> {
+  const params = new URLSearchParams({ name })
+  const url = `/api/method/healthcare.api.common.get_health_insurance_detail?${params}`
+  const res = await fetch(url)
+  const data = await res.json()
+  return data?.message ?? null
+}
+
+export async function fetchInsuranceCompanies(search?: string): Promise<LinkFieldOption[]> {
+  const params = new URLSearchParams()
+  if (search) params.append('search', search)
+  const url = `/api/method/healthcare.api.common.get_insurance_companies${params.toString() ? `?${params.toString()}` : ''}`
+  const res = await fetch(url)
+  const data = await res.json()
+  return Array.isArray(data?.message)
+    ? (data.message as { name: string }[]).map(r => ({ name: r.name, label: r.name }))
+    : []
+}
+
+export async function createHealthInsurance(payload: Record<string, any>): Promise<{ name: string }> {
+  const url = `/api/method/healthcare.api.common.create_health_insurance`
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Frappe-CSRF-Token': (window as any).csrf_token || '' },
+    body: JSON.stringify({ data: JSON.stringify(payload) }),
+  })
+  const data = await res.json()
+  if (!res.ok || data.exc) throw new Error(data.exc_type || data.message || 'Failed to create')
+  return data.message as { name: string }
+}
+
+export async function createInsuranceCompany(company_name: string): Promise<{ name: string }> {
+  const url = `/api/method/healthcare.api.common.create_insurance_company`
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Frappe-CSRF-Token': (window as any).csrf_token || '' },
+    body: JSON.stringify({ company_name }),
+  })
+  const data = await res.json()
+  if (!res.ok || data.exc) throw new Error(data.exc_type || data.message || 'Failed to create')
+  return data.message as { name: string }
+}
+
+export async function fetchModeOfPayments(search?: string): Promise<LinkFieldOption[]> {
+  const filters: [string, string, string][] = []
+  if (search) filters.push(['name', 'like', `%${search}%`])
+  const params = new URLSearchParams({
+    doctype: 'Mode of Payment',
+    fields: JSON.stringify(['name']),
+    filters: JSON.stringify(filters),
+    limit: '30',
+    order_by: 'name asc',
+  })
+  const res = await fetch(`/api/method/frappe.client.get_list?${params}`)
+  const data = await res.json()
+  return (data?.message || []).map((r: { name: string }) => ({ name: r.name, label: r.name }))
+}
+
+export async function fetchItemCodes(search?: string): Promise<LinkFieldOption[]> {
+  const filters: [string, string, string][] = [['disabled', '=', '0']]
+  if (search) filters.push(['name', 'like', `%${search}%`])
+  const params = new URLSearchParams({
+    doctype: 'Item',
+    fields: JSON.stringify(['name', 'item_name']),
+    filters: JSON.stringify(filters),
+    limit: '30',
+    order_by: 'name asc',
+  })
+  const res = await fetch(`/api/method/frappe.client.get_list?${params}`)
+  const data = await res.json()
+  return (data?.message || []).map((r: { name: string; item_name?: string }) => ({
+    name: r.name,
+    label: r.item_name ? `${r.name} — ${r.item_name}` : r.name,
+  }))
+}
+
+export async function fetchItemGroups(search?: string): Promise<LinkFieldOption[]> {
+  const filters: [string, string, string][] = []
+  if (search) filters.push(['name', 'like', `%${search}%`])
+  const params = new URLSearchParams({
+    doctype: 'Item Group',
+    fields: JSON.stringify(['name']),
+    filters: JSON.stringify(filters),
+    limit: '30',
+    order_by: 'name asc',
+  })
+  const res = await fetch(`/api/method/frappe.client.get_list?${params}`)
+  const data = await res.json()
+  return (data?.message || []).map((r: { name: string }) => ({ name: r.name, label: r.name }))
+}
+

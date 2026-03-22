@@ -214,7 +214,7 @@ export const InsurancePatientRegisterList = ({
         <div className="fixed inset-0 z-50 flex items-start justify-end" onClick={() => setDetailRow(null)}>
           <div className="absolute inset-0 bg-black/30" />
           <div
-            className="relative z-10 h-full w-full max-w-lg bg-white shadow-2xl flex flex-col"
+            className="relative z-10 h-full w-full max-w-2xl bg-white shadow-2xl flex flex-col"
             onClick={e => e.stopPropagation()}
           >
             {/* Panel header */}

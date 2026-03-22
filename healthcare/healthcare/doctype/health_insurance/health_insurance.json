@@ -8,7 +8,6 @@
  "field_order": [
   "basic_details_section",
   "insurance_company",
-  "insurance_type",
   "policy_no",
   "insurance_coverage_",
   "mode_of_payment",
@@ -74,12 +73,6 @@
    "label": "Special Note"
   },
   {
-   "fieldname": "insurance_type",
-   "fieldtype": "Link",
-   "label": "Insurance Type",
-   "options": "Insurance Type"
-  },
-  {
    "fieldname": "discounts_section",
    "fieldtype": "Section Break",
    "label": "More Infor"
@@ -141,7 +134,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-03-22 10:52:22.401842",
+ "modified": "2026-03-22 12:20:59.969424",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Health Insurance",

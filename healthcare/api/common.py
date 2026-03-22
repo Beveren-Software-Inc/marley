@@ -1197,3 +1197,87 @@ def get_sample_types(search=None):
 		order_by="sample_type asc",
 	)
 	return types
+
+
+@frappe.whitelist()
+def get_insurance_companies(search=None):
+	"""Get list of Insurance Companies for dropdown."""
+	filters = {}
+	if search:
+		filters["name"] = ["like", f"%{search}%"]
+	return frappe.get_all(
+		"Insurance Company",
+		filters=filters,
+		fields=["name"],
+		limit=50,
+		order_by="name asc",
+	)
+
+
+@frappe.whitelist()
+def get_health_insurances(search=None, insurance_company=None):
+	"""Get list of Health Insurance records."""
+	filters = {}
+	if search:
+		filters["name"] = ["like", f"%{search}%"]
+	if insurance_company:
+		filters["insurance_company"] = insurance_company
+
+	records = frappe.get_all(
+		"Health Insurance",
+		filters=filters,
+		fields=[
+			"name", "insurance_company", "insurance_type", "policy_no",
+			"outpatient_discount", "inpatient_discount", "insurance_coverage_",
+			"mode_of_payment", "insurance_no",
+		],
+		limit=100,
+		order_by="name asc",
+	)
+	return records
+
+
+@frappe.whitelist()
+def get_health_insurance_detail(name):
+	"""Get full detail of a Health Insurance record including summary counts."""
+	doc = frappe.get_doc("Health Insurance", name)
+	patient_count = frappe.db.count("Patient", {"insurance": name, "is_insurance": 1})
+	active_register_count = frappe.db.count(
+		"Insurance Patient Register", {"insurance_provider": name, "status": "Active"}
+	)
+	unused_register_count = frappe.db.count(
+		"Insurance Patient Register", {"insurance_provider": name, "status": "Unused"}
+	)
+	return {
+		"doc": doc.as_dict(),
+		"patient_count": patient_count,
+		"active_register_count": active_register_count,
+		"unused_register_count": unused_register_count,
+	}
+
+
+@frappe.whitelist()
+def create_health_insurance(data):
+	"""Create a new Health Insurance record."""
+	import json as _json
+	if isinstance(data, str):
+		data = _json.loads(data)
+	doc = frappe.new_doc("Health Insurance")
+	for key, val in data.items():
+		if val is not None and val != "":
+			doc.set(key, val)
+	doc.insert(ignore_permissions=True)
+	frappe.db.commit()
+	return {"name": doc.name}
+
+
+@frappe.whitelist()
+def create_insurance_company(company_name):
+	"""Create a new Insurance Company."""
+	if frappe.db.exists("Insurance Company", company_name):
+		frappe.throw(f"Insurance Company '{company_name}' already exists.")
+	doc = frappe.new_doc("Insurance Company")
+	doc.name1 = company_name
+	doc.insert(ignore_permissions=True)
+	frappe.db.commit()
+	return {"name": doc.name}
