@@ -490,11 +490,18 @@ def update_lab_test_basic(name, data=None):
 	if doc.docstatus != 0:
 		frappe.throw(_("Only Draft lab tests can be edited from this screen"))
 
-	allowed = {"template", "practitioner", "department", "service_unit", "date", "time", "status"}
+	allowed = {"template", "practitioner", "department", "service_unit", "date", "time", "status",
+			   "is_outsourced", "outsource_lab_name", "outsource_ref_no"}
 
 	for key, value in data.items():
 		if key in allowed and hasattr(doc, key):
 			doc.set(key, value)
+
+	# Auto-advance status when marking as outsourced
+	if data.get("is_outsourced") and doc.status not in (
+		"Testing in Progress", "Completed", "Pending Review", "Reviewed", "Approved", "Rejected", "Cancelled"
+	):
+		doc.status = "Testing in Progress"
 
 	doc.save(ignore_permissions=True)
 
@@ -511,6 +518,9 @@ def update_lab_test_basic(name, data=None):
 		"date": getattr(doc, "date", None),
 		"time": getattr(doc, "time", None),
 		"status": doc.status,
+		"is_outsourced": getattr(doc, "is_outsourced", 0),
+		"outsource_lab_name": getattr(doc, "outsource_lab_name", None),
+		"outsource_ref_no": getattr(doc, "outsource_ref_no", None),
 	}
 
 

@@ -1044,6 +1044,26 @@ def get_insurance_patient_registers(search=None):
 
 
 @frappe.whitelist()
+def get_lab_test_templates(search=None):
+	"""Get list of Lab Test Templates for the setup screen."""
+	filters = {}
+	if search:
+		filters["lab_test_name"] = ["like", f"%{search}%"]
+
+	templates = frappe.get_all(
+		"Lab Test Template",
+		filters=filters,
+		fields=[
+			"name", "lab_test_name", "department",
+			"lab_test_template_type", "is_group", "is_billable", "disabled",
+		],
+		limit=200,
+		order_by="lab_test_name asc",
+	)
+	return templates
+
+
+@frappe.whitelist()
 def get_insurance_claims(search=None, patient=None):
 	"""Get list of Insurance Claims."""
 	filters = {}

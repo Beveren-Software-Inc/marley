@@ -737,6 +737,7 @@ export const LabTestList = ({
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Test Name</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Practitioner</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Status</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Outsourced</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Date</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase">Amount</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Actions</th>
@@ -763,6 +764,15 @@ export const LabTestList = ({
                   <td className="px-4 py-3 text-sm text-slate-700">{labTest.practitioner_name || labTest.practitioner || '-'}</td>
                   <td className="px-4 py-3">
                     <StatusPill status={labTest.status || 'Draft'} color={statusColors[labTest.status || 'Draft'] || 'default'} />
+                  </td>
+                  <td className="px-4 py-3">
+                    {labTest.is_outsourced ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700">
+                        Outsourced
+                      </span>
+                    ) : (
+                      <span className="text-slate-400 text-xs">—</span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-sm text-slate-700">
                     {labTest.result_date

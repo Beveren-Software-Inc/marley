@@ -233,7 +233,7 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Status",
-   "options": "\nDraft\nRequested\nAwaiting sample collection\nSample Collection in Progress\nSample Collected\nTesting in progress\nCompleted\nPending Review\nReviewed\nApproved\nRejected\nCancelled",
+   "options": "\nDraft\nRequested\nAwaiting sample collection\nSample Collection in Progress\nSample Collected\nTesting in Progress\nCompleted\nPending Review\nReviewed\nApproved\nRejected\nCancelled",
    "read_only": 1,
    "search_index": 1
   },
@@ -823,7 +823,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2026-03-18 17:42:51.390984",
+ "modified": "2026-03-22 07:49:03.473388",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Lab Test",

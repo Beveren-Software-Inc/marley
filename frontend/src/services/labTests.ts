@@ -294,6 +294,9 @@ export interface UpdateLabTestBasicInput {
   date?: string
   time?: string
   status?: string
+  is_outsourced?: number
+  outsource_lab_name?: string
+  outsource_ref_no?: string
 }
 
 export async function updateLabTestBasic(

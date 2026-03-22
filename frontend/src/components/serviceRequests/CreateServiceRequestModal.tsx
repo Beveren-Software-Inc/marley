@@ -27,6 +27,8 @@ interface CreateServiceRequestModalProps {
   onClose: () => void
   onSuccess: () => void
   initialPatient?: string
+  /** Pre-fill with a specific Lab Test Template (name/docname) */
+  initialTemplate?: string
 }
 
 interface PricingRow {
@@ -43,7 +45,8 @@ interface GroupTemplateItem {
 export const CreateServiceRequestModal = ({
   onClose,
   onSuccess,
-  initialPatient
+  initialPatient,
+  initialTemplate,
 }: CreateServiceRequestModalProps) => {
 
   /* ────────────── PATIENT ────────────── */
@@ -81,8 +84,8 @@ export const CreateServiceRequestModal = ({
 
   /* ────────────── FORM ────────────── */
   const [formData, setFormData] = useState({
-    template_dt: '',
-    template_dn: '',
+    template_dt: initialTemplate ? 'Lab Test Template' : '',
+    template_dn: initialTemplate || '',
     practitioner: '',
     patient_visit: '',
     inpatient_record: '',
@@ -99,30 +102,24 @@ export const CreateServiceRequestModal = ({
   useEffect(() => {
     fetchServiceRequestTemplateTypes().then(setTemplateTypes)
     fetchHealthcarePractitioners().then(setPractitioners)
+    // If pre-filled with a template, eagerly load the template list
+    if (initialTemplate) {
+      fetchServiceRequestTemplates('Lab Test Template').then(setTemplates)
+    }
   }, [])
 
-  /* ────────────── TEMPLATE CHANGE ────────────── */
+  /* ────────────── TEMPLATE TYPE CHANGE ────────────── */
+  // Only loads the options list for the selected type.
+  // Clearing template_dn when the type changes is handled by the onChange on the <select> below.
   useEffect(() => {
     if (!formData.template_dt) {
       setTemplates([])
-      setFormData(p => ({ ...p, template_dn: '' }))
-      setPricing([])
-      setSelectedPrice(null)
       return
     }
 
     fetchServiceRequestTemplates(formData.template_dt)
-      .then((list) => {
-        setTemplates(list)
-        setFormData(p => ({ ...p, template_dn: '' }))
-        setPricing([])
-        setSelectedPrice(null)
-      })
-      .catch(() => {
-        setTemplates([])
-        setPricing([])
-        setSelectedPrice(null)
-      })
+      .then(setTemplates)
+      .catch(() => setTemplates([]))
   }, [formData.template_dt])
 
   /* ────────────── LOAD LAB TEST TEMPLATE INFO (pricing + group detection) ────────────── */

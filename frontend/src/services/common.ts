@@ -825,6 +825,30 @@ export async function linkPatientToInsuranceRegister(registerName: string, patie
   })
 }
 
+export interface LabTestTemplateListRow {
+  name: string
+  lab_test_name: string
+  department: string
+  lab_test_template_type: string
+  is_group: number
+  is_billable: number
+  disabled: number
+}
+
+export async function fetchLabTestTemplateList(search?: string): Promise<LabTestTemplateListRow[]> {
+  const params = new URLSearchParams()
+  if (search) params.append('search', search)
+
+  const url = `/api/method/healthcare.api.common.get_lab_test_templates${params.toString() ? `?${params.toString()}` : ''}`
+  const response = await fetch(url)
+  const resData = await response.json()
+
+  if (resData?.message && Array.isArray(resData.message)) {
+    return resData.message as LabTestTemplateListRow[]
+  }
+  return []
+}
+
 export interface LabTestSampleOption {
   name: string
   sample: string
