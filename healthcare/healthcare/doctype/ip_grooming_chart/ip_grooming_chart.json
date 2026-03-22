@@ -1,13 +1,14 @@
 {
  "actions": [],
  "allow_rename": 1,
+ "autoname": "IPC-.{YY}-.#####",
  "creation": "2025-12-17 11:04:20.106659",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
   "date",
   "admission_no",
-  "branch",
+  "cost_center",
   "column_break_lplm",
   "file_no",
   "patient_name",
@@ -50,7 +51,7 @@
    "options": "Inpatient Admission"
   },
   {
-   "fetch_from": "admission_no.file_number",
+   "fetch_from": "admission_no.patient",
    "fieldname": "file_no",
    "fieldtype": "Link",
    "in_list_view": 1,
@@ -67,14 +68,6 @@
    "fieldname": "patient_name",
    "fieldtype": "Data",
    "label": "Patient Name"
-  },
-  {
-   "fieldname": "branch",
-   "fieldtype": "Link",
-   "in_list_view": 1,
-   "in_standard_filter": 1,
-   "label": "Branch",
-   "options": "Branch"
   },
   {
    "fieldname": "daily_records_section",
@@ -185,15 +178,24 @@
    "fieldname": "admission_no_old",
    "fieldtype": "Data",
    "label": "Admission No Old"
+  },
+  {
+   "fieldname": "cost_center",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Cost Center",
+   "options": "Cost Center"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-12-17 11:25:13.149895",
+ "modified": "2026-03-23 02:41:33.417584",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "IP Grooming Chart",
+ "naming_rule": "Expression",
  "owner": "Administrator",
  "permissions": [
   {

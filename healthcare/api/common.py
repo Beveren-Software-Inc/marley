@@ -1702,3 +1702,62 @@ def get_sample_collection_statistics(patient=None):
 			"message": str(e),
 			"data": None
 		}
+
+
+@frappe.whitelist()
+def get_grooming_charts(search=None, patient=None, page=1, page_size=20):
+	"""Fetch IP Grooming Chart records."""
+	try:
+		page = frappe.utils.cint(page) or 1
+		page_size = frappe.utils.cint(page_size) or 20
+		filters = {}
+		if patient:
+			filters["file_no"] = patient
+		if search:
+			filters["patient_name"] = ["like", f"%{search}%"]
+
+		charts = frappe.get_all(
+			"IP Grooming Chart",
+			filters=filters,
+			fields=[
+				"name", "date", "admission_no", "file_no", "patient_name", "cost_center",
+				"brush_teeth_morning", "change_clothes_morning", "brush_teeth_noon",
+				"change_clothes_noon", "shower", "bowel", "bed_wetting",
+				"breakfast", "snack_1", "lunch", "snack_2", "dinner", "snack_3",
+				"weight", "lmp", "creation"
+			],
+			order_by="creation desc",
+			limit_page_length=page_size,
+			limit_start=(page - 1) * page_size,
+		)
+		total = frappe.db.count("IP Grooming Chart", filters=filters)
+		return {"success": True, "data": charts, "page": page, "page_size": page_size, "total": total}
+	except Exception as e:
+		frappe.logger().error(f"Error in get_grooming_charts: {str(e)}")
+		return {"success": False, "message": str(e), "data": []}
+
+
+@frappe.whitelist()
+def create_grooming_chart(data):
+	"""Create a new IP Grooming Chart record."""
+	try:
+		if isinstance(data, str):
+			data = frappe.parse_json(data)
+
+		doc = frappe.new_doc("IP Grooming Chart")
+		allowed_fields = [
+			"date", "admission_no", "file_no", "patient_name", "cost_center",
+			"brush_teeth_morning", "change_clothes_morning", "brush_teeth_noon",
+			"change_clothes_noon", "shower", "bowel", "bed_wetting",
+			"breakfast", "snack_1", "lunch", "snack_2", "dinner", "snack_3",
+			"weight", "lmp",
+		]
+		for field in allowed_fields:
+			if field in data:
+				setattr(doc, field, data[field])
+		doc.insert(ignore_permissions=True)
+		frappe.db.commit()
+		return {"success": True, "name": doc.name}
+	except Exception as e:
+		frappe.logger().error(f"Error creating grooming chart: {str(e)}")
+		return {"success": False, "message": str(e)}
