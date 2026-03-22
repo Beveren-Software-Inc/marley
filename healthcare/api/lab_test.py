@@ -117,6 +117,9 @@ def get_lab_tests(
 			"amount",
 			"grand_total",
 			"cost_center",
+			"min_range",
+			"max_range",
+			"results",
 		],
 		limit=limit,
 		limit_start=offset,
@@ -402,6 +405,16 @@ def save_and_submit_lab_test(
 	if discount_amount is not None:
 		doc.discount_amount = discount_amount
 
+	# Auto-populate doc.results from the result_value entries in normal_test_items
+	if doc.normal_test_items:
+		values = [
+			str(r.result_value).strip()
+			for r in doc.normal_test_items
+			if r.result_value is not None and str(r.result_value).strip()
+		]
+		if values:
+			doc.results = ", ".join(values)
+
 	# Recompute grand_total whenever we have an amount
 	if getattr(doc, "amount", None) is not None:
 		base = doc.amount or 0
@@ -491,7 +504,7 @@ def update_lab_test_basic(name, data=None):
 		frappe.throw(_("Only Draft lab tests can be edited from this screen"))
 
 	allowed = {"template", "practitioner", "department", "service_unit", "date", "time", "status",
-			   "is_outsourced", "outsource_lab_name", "outsource_ref_no"}
+			   "priority", "is_outsourced", "outsource_lab_name", "outsource_ref_no"}
 
 	for key, value in data.items():
 		if key in allowed and hasattr(doc, key):

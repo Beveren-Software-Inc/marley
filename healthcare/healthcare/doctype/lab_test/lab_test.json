@@ -18,6 +18,9 @@
   "priority",
   "inpatient_admission",
   "patient_visit",
+  "min_range",
+  "max_range",
+  "results",
   "column_break_26",
   "company",
   "cost_center",
@@ -814,6 +817,23 @@
    "fieldname": "grand_total",
    "fieldtype": "Currency",
    "label": "Grand Total"
+  },
+  {
+   "fetch_from": "template.min_range",
+   "fieldname": "min_range",
+   "fieldtype": "Float",
+   "label": "Min Range"
+  },
+  {
+   "fetch_from": "template.max_range",
+   "fieldname": "max_range",
+   "fieldtype": "Float",
+   "label": "Max Range"
+  },
+  {
+   "fieldname": "results",
+   "fieldtype": "Data",
+   "label": "Results"
   }
  ],
  "is_submittable": 1,
@@ -823,7 +843,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2026-03-22 07:49:03.473388",
+ "modified": "2026-03-22 17:51:40.387146",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Lab Test",

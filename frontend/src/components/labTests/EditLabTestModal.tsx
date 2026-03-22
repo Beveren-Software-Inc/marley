@@ -29,6 +29,7 @@ export const EditLabTestModal = ({ labTestName, onClose, onSuccess }: EditLabTes
     date: '',
     time: '',
     status: '',
+    priority: '',
     is_outsourced: 0 as 0 | 1,
     outsource_lab_name: '',
     outsource_ref_no: '',
@@ -94,6 +95,7 @@ export const EditLabTestModal = ({ labTestName, onClose, onSuccess }: EditLabTes
             ? new Date(doc.submitted_date).toTimeString().slice(0, 5)
             : new Date().toTimeString().slice(0, 5),
           status: doc.status || 'Draft',
+          priority: (doc as any).priority || '',
           is_outsourced: ((doc as any).is_outsourced ? 1 : 0) as 0 | 1,
           outsource_lab_name: (doc as any).outsource_lab_name || '',
           outsource_ref_no: (doc as any).outsource_ref_no || '',
@@ -240,6 +242,7 @@ export const EditLabTestModal = ({ labTestName, onClose, onSuccess }: EditLabTes
         date: formData.date || undefined,
         time: formData.time || undefined,
         status: formData.status || undefined,
+        priority: formData.priority || undefined,
         is_outsourced: formData.is_outsourced,
         outsource_lab_name: formData.outsource_lab_name || undefined,
         outsource_ref_no: formData.outsource_ref_no || undefined,
@@ -486,6 +489,22 @@ export const EditLabTestModal = ({ labTestName, onClose, onSuccess }: EditLabTes
                     <option value="Pending Review">Pending Review</option>
                     <option value="Completed">Completed</option>
                     <option value="Cancelled">Cancelled</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">
+                    Priority
+                  </label>
+                  <select
+                    value={formData.priority}
+                    onChange={(e) => handleChange('priority', e.target.value)}
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+                  >
+                    <option value="">— Select —</option>
+                    <option value="Routine">Routine</option>
+                    <option value="Urgent">Urgent</option>
+                    <option value="Stat">Stat</option>
                   </select>
                 </div>
               </div>

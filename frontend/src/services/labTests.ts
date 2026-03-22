@@ -40,6 +40,9 @@ export interface LabTest {
   material_request?: string
   amount?: number
   grand_total?: number
+  min_range?: number | null
+  max_range?: number | null
+  results?: string | null
   descriptive_result?: string
   custom_result?: string
   lab_test_comment?: string
@@ -294,6 +297,7 @@ export interface UpdateLabTestBasicInput {
   date?: string
   time?: string
   status?: string
+  priority?: string
   is_outsourced?: number
   outsource_lab_name?: string
   outsource_ref_no?: string

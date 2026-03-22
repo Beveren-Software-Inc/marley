@@ -5,8 +5,12 @@ import {
   fetchNursingChecklistTemplates,
   fetchItems,
   fetchLabTestTemplates,
+  fetchUoms,
+  fetchItemGroups,
+  fetchLabTestSamples,
   type LinkFieldOption,
 } from '../../services/common'
+import { CreateLabTestSampleModal } from './CreateLabTestSampleModal'
 import { Plus, Trash2, ChevronUp, ChevronDown } from 'lucide-react'
 
 /* ─── Types ─────────────────────────────────────────────── */
@@ -72,10 +76,13 @@ interface ComboboxProps {
   onClear?: () => void
   open: boolean
   setOpen: (v: boolean) => void
+  showCreate?: boolean
+  onCreateClick?: () => void
 }
 function LinkCombobox({
   label, required, displayValue, placeholder, options,
   onFocus, onSearch, onSelect, onClear, open, setOpen,
+  showCreate, onCreateClick,
 }: ComboboxProps) {
   return (
     <div>
@@ -89,17 +96,92 @@ function LinkCombobox({
           onChange={e => { onSearch(e.target.value); setOpen(true) }}
           onFocus={() => { setOpen(true); onFocus() }}
           placeholder={placeholder ?? `Search ${label}…`}
-          className="w-full rounded border border-slate-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+          className="w-full rounded border border-slate-300 pr-8 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
         />
-        {displayValue && onClear && (
+        {displayValue && onClear ? (
           <button type="button" onClick={onClear}
             className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs">✕</button>
-        )}
+        ) : (!displayValue && showCreate && onCreateClick) ? (
+          <button type="button" onClick={onCreateClick}
+            className="absolute right-1.5 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-white border border-primary/40 text-primary flex items-center justify-center text-sm leading-none hover:bg-primary/5"
+            title={`Create ${label}`}>+</button>
+        ) : null}
         {open && options.length > 0 && (
           <div className="absolute z-20 w-full mt-1 bg-white border border-slate-300 rounded shadow-lg max-h-48 overflow-y-auto">
             {options.map(o => (
               <button key={o.name} type="button"
                 onClick={() => { onSelect(o); setOpen(false) }}
+                className="w-full text-left px-3 py-1.5 text-sm hover:bg-slate-100">{o.label}</button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/* ─── Self-contained UOM link field with + button inside ─── */
+function UomCombobox({
+  label, value, onChange, onCreateClick,
+}: { label: string; value: string; onChange: (v: string) => void; onCreateClick: () => void }) {
+  const [query, setQuery] = useState(value)
+  const [options, setOptions] = useState<LinkFieldOption[]>([])
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  useEffect(() => {
+    if (!open) return
+    const t = setTimeout(() => {
+      fetchUoms(query || undefined).then(setOptions).catch(() => setOptions([]))
+    }, query ? 250 : 0)
+    return () => clearTimeout(t)
+  }, [query, open])
+
+  const select = (opt: LinkFieldOption) => {
+    setQuery(opt.label)
+    onChange(opt.name)
+    setOpen(false)
+  }
+
+  const clear = () => {
+    setQuery('')
+    onChange('')
+    setOpen(false)
+  }
+
+  return (
+    <div>
+      <label className="block text-xs font-medium text-slate-600 mb-1">{label}</label>
+      <div className="relative" ref={ref}>
+        <input
+          type="text"
+          value={query}
+          onChange={e => { setQuery(e.target.value); setOpen(true); if (value) onChange('') }}
+          onFocus={() => setOpen(true)}
+          placeholder={`Search ${label}…`}
+          className="w-full rounded border border-slate-300 pr-8 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+        />
+        {query ? (
+          <button type="button" onClick={clear}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs">✕</button>
+        ) : (
+          <button type="button" onClick={onCreateClick}
+            className="absolute right-1.5 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-white border border-primary/40 text-primary flex items-center justify-center text-sm leading-none hover:bg-primary/5"
+            title="Create UOM">+</button>
+        )}
+        {open && options.length > 0 && (
+          <div className="absolute z-20 w-full mt-1 bg-white border border-slate-300 rounded shadow-lg max-h-48 overflow-y-auto">
+            {options.map(o => (
+              <button key={o.name} type="button"
+                onMouseDown={e => { e.preventDefault(); select(o) }}
                 className="w-full text-left px-3 py-1.5 text-sm hover:bg-slate-100">{o.label}</button>
             ))}
           </div>
@@ -192,11 +274,23 @@ export const CreateLabTestTemplateModal = ({
   const [groupRowOpts, setGroupRowOpts] = useState<LinkFieldOption[]>([])
 
   // Shared UOM combobox — used by top-level UOM fields and all table-row UOM cells
-  // openUomCellKey: null | "main-uom" | "main-suom" | "g-{i}-uom" | "c-{i}-uom" | "c-{i}-suom"
+  // openUomCellKey: null | "g-{i}-uom" | "c-{i}-uom" | "c-{i}-suom"  (table rows only)
   const [uomSharedOpts, setUomSharedOpts] = useState<LinkFieldOption[]>([])
   const [openUomCellKey, setOpenUomCellKey] = useState<string | null>(null)
-  const [labUomQuery, setLabUomQuery] = useState('')
-  const [secUomQuery, setSecUomQuery] = useState('')
+  // Create UOM mini-modal
+  const [showCreateUom, setShowCreateUom] = useState(false)
+  const [createUomTarget, setCreateUomTarget] = useState<'main-uom' | 'main-suom' | null>(null)
+  const [newUomName, setNewUomName] = useState('')
+  const [creatingUom, setCreatingUom] = useState(false)
+
+  // Create Item Group mini-modal
+  const [showCreateItemGroup, setShowCreateItemGroup] = useState(false)
+  const [newItemGroupName, setNewItemGroupName] = useState('')
+  const [creatingItemGroup, setCreatingItemGroup] = useState(false)
+
+  // Create Lab Test Sample modal
+  const [showCreateSampleModal, setShowCreateSampleModal] = useState(false)
+  const [createSampleForRowIdx, setCreateSampleForRowIdx] = useState<number | null>(null)
 
   /* ── Billing ── */
   const [linkExistingItem, setLinkExistingItem] = useState(false)
@@ -226,8 +320,7 @@ export const CreateLabTestTemplateModal = ({
   const [openSampleRowIdx, setOpenSampleRowIdx] = useState<number | null>(null)
   const [sampleRowOpts, setSampleRowOpts] = useState<LinkFieldOption[]>([])
 
-  /* ─── Load existing template ─────────────── */
-  useEffect(() => {
+  /* ─── Load existing template ─────────────── */  useEffect(() => {
     if (!isEdit) return
     setLoading(true)
     apiRequest<Record<string, unknown>>(`/api/resource/Lab%20Test%20Template/${encodeURIComponent(templateName)}`)
@@ -246,8 +339,8 @@ export const CreateLabTestTemplateModal = ({
         setResultFormat((doc.lab_test_template_type as string) || 'Single')
         const uomVal = (doc.lab_test_uom as string) || ''
         const secUomVal = (doc.secondary_uom as string) || ''
-        setLabTestUom(uomVal); setLabUomQuery(uomVal)
-        setSecondaryUom(secUomVal); setSecUomQuery(secUomVal)
+        setLabTestUom(uomVal)
+        setSecondaryUom(secUomVal)
         setConversionFactor(doc.conversion_factor ? String(doc.conversion_factor) : '')
         setMinRange(doc.min_range ? String(doc.min_range) : '')
         setMaxRange(doc.max_range ? String(doc.max_range) : '')
@@ -327,13 +420,7 @@ export const CreateLabTestTemplateModal = ({
     fetchItems(q).then(setItemOpts).catch(() => setItemOpts([])), [])
 
   const loadItemGroups = useCallback(async (q?: string) => {
-    try {
-      const filters = q ? `[["name","like","%${q}%"]]` : '[]'
-      const res = await apiRequest<{ data: { name: string }[] }>(
-        `/api/resource/Item%20Group?fields=${encodeURIComponent('["name"]')}&filters=${encodeURIComponent(filters)}&limit_page_length=30&order_by=name+asc`
-      )
-      setItemGroupOpts((res.data || []).map(r => ({ name: r.name, label: r.name })))
-    } catch { setItemGroupOpts([]) }
+    fetchItemGroups(q).then(setItemGroupOpts).catch(() => setItemGroupOpts([]))
   }, [])
 
   const loadGroupRowTemplates = useCallback(async (q?: string) => {
@@ -345,22 +432,71 @@ export const CreateLabTestTemplateModal = ({
 
   const loadUoms = useCallback(async (q?: string) => {
     try {
-      const filters = q ? `[["name","like","%${q}%"]]` : '[]'
-      const res = await apiRequest<{ data: { name: string }[] }>(
-        `/api/resource/Lab%20Test%20UOM?fields=${encodeURIComponent('["name"]')}&filters=${encodeURIComponent(filters)}&limit_page_length=30&order_by=name+asc`
-      )
-      setUomSharedOpts((res.data || []).map(r => ({ name: r.name, label: r.name })))
+      const params = new URLSearchParams()
+      params.set('cmd', 'healthcare.healthcare.api.common.get_uoms')
+      if (q) params.set('search', q)
+      const res = await fetch(`/api/method/healthcare.api.common.get_uoms?${params.toString()}`, { credentials: 'include' })
+      if (!res.ok) { setUomSharedOpts([]); return }
+      const data = await res.json()
+      setUomSharedOpts(data.message ?? [])
     } catch { setUomSharedOpts([]) }
   }, [])
 
-  const loadSampleRowOpts = useCallback(async (q?: string) => {
+  // Preload UOMs on mount so dropdown is ready instantly on first focus
+  useEffect(() => { loadUoms() }, [loadUoms])
+
+  const handleCreateUom = async () => {
+    const name = newUomName.trim()
+    if (!name) return
+    setCreatingUom(true)
     try {
-      const filters = q ? `[["name","like","%${q}%"]]` : '[]'
-      const res = await apiRequest<{ data: { name: string }[] }>(
-        `/api/resource/Lab%20Test%20Sample?fields=${encodeURIComponent('["name","sample"]')}&filters=${encodeURIComponent(filters)}&limit_page_length=30`
-      )
-      setSampleRowOpts((res.data || []).map(r => ({ name: r.name, label: r.name })))
-    } catch { setSampleRowOpts([]) }
+      const params = new URLSearchParams()
+      params.set('uom_name', name)
+      const res = await fetch(`/api/method/healthcare.api.common.create_uom?${params.toString()}`, { credentials: 'include' })
+      const data = await res.json()
+      if (!res.ok) {
+        alert(data.message || 'Failed to create UOM')
+        return
+      }
+      const created: LinkFieldOption = data.message
+      setUomSharedOpts(prev => [created, ...prev.filter(o => o.name !== created.name)])
+      if (createUomTarget === 'main-uom') {
+        setLabTestUom(created.name)
+      } else if (createUomTarget === 'main-suom') {
+        setSecondaryUom(created.name)
+      }
+      setShowCreateUom(false)
+      setNewUomName('')
+    } finally {
+      setCreatingUom(false)
+    }
+  }
+
+  const handleCreateItemGroup = async () => {
+    const name = newItemGroupName.trim()
+    if (!name) return
+    setCreatingItemGroup(true)
+    try {
+      const params = new URLSearchParams()
+      params.set('group_name', name)
+      const res = await fetch(`/api/method/healthcare.api.common.create_item_group?${params.toString()}`, { credentials: 'include' })
+      const data = await res.json()
+      if (!res.ok) { alert(data.message || 'Failed to create Item Group'); return }
+      const created: LinkFieldOption = data.message
+      setItemGroupOpts(prev => [created, ...prev.filter(o => o.name !== created.name)])
+      setSelectedItemGroup(created)
+      setItemGroupQuery(created.label)
+      setShowCreateItemGroup(false)
+      setNewItemGroupName('')
+    } finally {
+      setCreatingItemGroup(false)
+    }
+  }
+
+  const loadSampleRowOpts = useCallback(async (q?: string) => {
+    fetchLabTestSamples(q).then(opts =>
+      setSampleRowOpts(opts.map(o => ({ name: o.name, label: o.sample || o.name })))
+    ).catch(() => setSampleRowOpts([]))
   }, [])
 
   /* ─── Submit ─────────────────────────────── */
@@ -546,30 +682,14 @@ export const CreateLabTestTemplateModal = ({
 
         {!isGroup && resultFormat === 'Single' && (
           <div className="space-y-4">
-            {/* Row 1: UOM and Secondary UOM — both Link: Lab Test UOM */}
+            {/* Row 1: UOM and Secondary UOM */}
             <div className="grid grid-cols-2 gap-4">
-              <LinkCombobox label="UOM"
-                displayValue={labUomQuery}
-                options={openUomCellKey === 'main-uom' ? uomSharedOpts : []}
-                open={openUomCellKey === 'main-uom'}
-                setOpen={v => setOpenUomCellKey(v ? 'main-uom' : null)}
-                onFocus={() => { setOpenUomCellKey('main-uom'); loadUoms() }}
-                onSearch={q => { setLabUomQuery(q); setLabTestUom(q); setOpenUomCellKey('main-uom'); loadUoms(q) }}
-                onSelect={o => { setLabTestUom(o.name); setLabUomQuery(o.label); setOpenUomCellKey(null) }}
-                onClear={() => { setLabTestUom(''); setLabUomQuery(''); setOpenUomCellKey(null) }}
-                placeholder="Search UOM…"
-              />
-              <LinkCombobox label="Secondary UOM"
-                displayValue={secUomQuery}
-                options={openUomCellKey === 'main-suom' ? uomSharedOpts : []}
-                open={openUomCellKey === 'main-suom'}
-                setOpen={v => setOpenUomCellKey(v ? 'main-suom' : null)}
-                onFocus={() => { setOpenUomCellKey('main-suom'); loadUoms() }}
-                onSearch={q => { setSecUomQuery(q); setSecondaryUom(q); setOpenUomCellKey('main-suom'); loadUoms(q) }}
-                onSelect={o => { setSecondaryUom(o.name); setSecUomQuery(o.label); setOpenUomCellKey(null) }}
-                onClear={() => { setSecondaryUom(''); setSecUomQuery(''); setOpenUomCellKey(null) }}
-                placeholder="Search UOM…"
-              />
+              <UomCombobox label="UOM" value={labTestUom}
+                onChange={v => setLabTestUom(v)}
+                onCreateClick={() => { setCreateUomTarget('main-uom'); setNewUomName(''); setShowCreateUom(true) }} />
+              <UomCombobox label="Secondary UOM" value={secondaryUom}
+                onChange={v => setSecondaryUom(v)}
+                onCreateClick={() => { setCreateUomTarget('main-suom'); setNewUomName(''); setShowCreateUom(true) }} />
             </div>
 
             {/* Row 2: Conversion Factor and Min Range */}
@@ -865,7 +985,8 @@ export const CreateLabTestTemplateModal = ({
             displayValue={itemGroupQuery} options={itemGroupOpts} open={itemGroupOpen} setOpen={setItemGroupOpen}
             onFocus={() => loadItemGroups()} onSearch={q => { setItemGroupQuery(q); loadItemGroups(q) }}
             onSelect={o => { setSelectedItemGroup(o); setItemGroupQuery(o.label) }}
-            onClear={() => { setSelectedItemGroup(null); setItemGroupQuery('') }} />
+            onClear={() => { setSelectedItemGroup(null); setItemGroupQuery('') }}
+            showCreate onCreateClick={() => { setNewItemGroupName(itemGroupQuery); setShowCreateItemGroup(true) }} />
         </div>
       </div>
 
@@ -997,9 +1118,20 @@ export const CreateLabTestTemplateModal = ({
                           setOpenSampleRowIdx(i)
                           loadSampleRowOpts(row.sample || undefined)
                         }}
+                        onBlur={() => setTimeout(() => setOpenSampleRowIdx(null), 150)}
                         placeholder="Search for a sample type…"
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                       />
+                      {row.sample_display ? (
+                        <button type="button"
+                          onClick={() => { updateSampleReqRow(i, 'sample', ''); updateSampleReqRow(i, 'sample_display', '') }}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs">✕</button>
+                      ) : (
+                        <button type="button"
+                          onClick={() => { setCreateSampleForRowIdx(i); setShowCreateSampleModal(true) }}
+                          className="absolute right-1.5 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-white border border-primary/40 text-primary flex items-center justify-center text-sm leading-none hover:bg-primary/5"
+                          title="Create Lab Test Sample">+</button>
+                      )}
                       {openSampleRowIdx === i && sampleRowOpts.length > 0 && (
                         <div className="absolute z-30 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-48 overflow-y-auto">
                           {sampleRowOpts.map(o => (
@@ -1101,6 +1233,7 @@ export const CreateLabTestTemplateModal = ({
 
   /* ─── Main render ────────────────────────── */
   return (
+    <>
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
       onClick={e => {
         if (e.target === e.currentTarget) onClose()
@@ -1166,5 +1299,82 @@ export const CreateLabTestTemplateModal = ({
         )}
       </div>
     </div>
+
+    {/* Create UOM mini-modal */}
+    {showCreateUom && (
+      <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60]"
+        onClick={() => { setShowCreateUom(false); setNewUomName('') }}>
+        <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6" onClick={e => e.stopPropagation()}>
+          <h3 className="text-base font-semibold text-slate-900 mb-4">Create UOM</h3>
+          <div className="mb-4">
+            <label className="block text-xs font-medium text-slate-600 mb-1">UOM Name <span className="text-red-500">*</span></label>
+            <input
+              type="text"
+              value={newUomName}
+              onChange={e => setNewUomName(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleCreateUom() } }}
+              placeholder="e.g. mg, mL, Units"
+              autoFocus
+              className="w-full rounded border border-slate-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+          </div>
+          <div className="flex justify-end gap-3">
+            <button type="button" onClick={() => { setShowCreateUom(false); setNewUomName('') }}
+              className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50">Cancel</button>
+            <button type="button" onClick={handleCreateUom} disabled={creatingUom || !newUomName.trim()}
+              className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-50">
+              {creatingUom ? 'Creating…' : 'Create UOM'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* Create Item Group mini-modal */}
+    {showCreateItemGroup && (
+      <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60]"
+        onClick={() => { setShowCreateItemGroup(false); setNewItemGroupName('') }}>
+        <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6" onClick={e => e.stopPropagation()}>
+          <h3 className="text-base font-semibold text-slate-900 mb-4">Create Item Group</h3>
+          <div className="mb-4">
+            <label className="block text-xs font-medium text-slate-600 mb-1">Item Group Name <span className="text-red-500">*</span></label>
+            <input
+              type="text"
+              value={newItemGroupName}
+              onChange={e => setNewItemGroupName(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleCreateItemGroup() } }}
+              placeholder="e.g. Laboratory Services"
+              autoFocus
+              className="w-full rounded border border-slate-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+          </div>
+          <div className="flex justify-end gap-3">
+            <button type="button" onClick={() => { setShowCreateItemGroup(false); setNewItemGroupName('') }}
+              className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50">Cancel</button>
+            <button type="button" onClick={handleCreateItemGroup} disabled={creatingItemGroup || !newItemGroupName.trim()}
+              className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-50">
+              {creatingItemGroup ? 'Creating…' : 'Create Item Group'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* Create Lab Test Sample modal */}
+    {showCreateSampleModal && (
+      <CreateLabTestSampleModal
+        onClose={() => { setShowCreateSampleModal(false); setCreateSampleForRowIdx(null) }}
+        onSuccess={sampleName => {
+          if (sampleName && createSampleForRowIdx !== null) {
+            updateSampleReqRow(createSampleForRowIdx, 'sample', sampleName)
+            updateSampleReqRow(createSampleForRowIdx, 'sample_display', sampleName)
+            loadSampleRowOpts()
+          }
+          setShowCreateSampleModal(false)
+          setCreateSampleForRowIdx(null)
+        }}
+      />
+    )}
+    </>
   )
 }

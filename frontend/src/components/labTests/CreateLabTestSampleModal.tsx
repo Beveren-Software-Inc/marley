@@ -1,54 +1,82 @@
-import { useState, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { apiRequest } from '../../services/apiClient'
-
-interface Opt { name: string }
+import { fetchUoms, fetchSampleTypes, fetchColors, type LinkFieldOption } from '../../services/common'
 
 interface CreateLabTestSampleModalProps {
   onClose: () => void
-  onSuccess?: () => void
+  onSuccess?: (sampleName?: string) => void
 }
 
-function LinkField({
-  label, required, query, opts, open,
-  onFocus, onChange, onSelect, onClear, setOpen,
+/* ─── Self-contained link field with + button inside ───────── */
+function SelfLink({
+  label, value, fetchFn, onChange, onCreateClick,
 }: {
   label: string
-  required?: boolean
-  query: string
-  opts: Opt[]
-  open: boolean
-  onFocus: () => void
-  onChange: (q: string) => void
-  onSelect: (name: string) => void
-  onClear: () => void
-  setOpen: (v: boolean) => void
+  value: string
+  fetchFn: (q?: string) => Promise<LinkFieldOption[]>
+  onChange: (name: string) => void
+  onCreateClick: () => void
 }) {
+  const [query, setQuery] = useState(value)
+  const [options, setOptions] = useState<LinkFieldOption[]>([])
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  useEffect(() => {
+    if (!open) return
+    const t = setTimeout(() => {
+      fetchFn(query || undefined).then(setOptions).catch(() => setOptions([]))
+    }, query ? 250 : 0)
+    return () => clearTimeout(t)
+  }, [query, open, fetchFn])
+
+  const select = (opt: LinkFieldOption) => {
+    setQuery(opt.label)
+    onChange(opt.name)
+    setOpen(false)
+  }
+
+  const clear = () => {
+    setQuery('')
+    onChange('')
+    setOpen(false)
+  }
+
   return (
     <div>
-      <label className="block text-xs font-medium text-slate-600 mb-1">
-        {label}{required && <span className="text-red-500 ml-0.5">*</span>}
-      </label>
-      <div className="relative">
+      <label className="block text-xs font-medium text-slate-600 mb-1">{label}</label>
+      <div className="relative" ref={ref}>
         <input
           type="text"
           value={query}
-          onChange={e => { onChange(e.target.value); setOpen(true) }}
-          onFocus={() => { setOpen(true); onFocus() }}
+          onChange={e => { setQuery(e.target.value); setOpen(true); if (e.target.value !== query) onChange('') }}
+          onFocus={() => setOpen(true)}
           placeholder={`Search ${label}…`}
-          className="w-full rounded border border-slate-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary pr-7"
+          className="w-full rounded border border-slate-300 pr-8 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
         />
-        {query && (
-          <button type="button" onClick={onClear}
+        {query ? (
+          <button type="button" onClick={clear}
             className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs">✕</button>
+        ) : (
+          <button type="button" onClick={onCreateClick}
+            className="absolute right-1.5 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-white border border-primary/40 text-primary flex items-center justify-center text-sm leading-none hover:bg-primary/5"
+            title={`Create ${label}`}>+</button>
         )}
-        {open && opts.length > 0 && (
+        {open && options.length > 0 && (
           <div className="absolute z-20 w-full mt-1 bg-white border border-slate-300 rounded shadow-lg max-h-44 overflow-y-auto">
-            {opts.map(o => (
+            {options.map(o => (
               <button key={o.name} type="button"
-                onClick={() => { onSelect(o.name); setOpen(false) }}
-                className="w-full text-left px-3 py-1.5 text-sm hover:bg-slate-100">
-                {o.name}
-              </button>
+                onMouseDown={e => e.preventDefault()}
+                onClick={() => select(o)}
+                className="w-full text-left px-3 py-1.5 text-sm hover:bg-slate-100">{o.label}</button>
             ))}
           </div>
         )}
@@ -57,60 +85,87 @@ function LinkField({
   )
 }
 
+/* ─── Mini inline create modal ─────────────────────────────── */
+function CreateMiniModal({
+  title, label, placeholder, saving, onClose, onSave,
+}: {
+  title: string
+  label: string
+  placeholder?: string
+  saving: boolean
+  onClose: () => void
+  onSave: (name: string) => void
+}) {
+  const [value, setValue] = useState('')
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60]"
+      onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6" onClick={e => e.stopPropagation()}>
+        <h3 className="text-base font-semibold text-slate-900 mb-4">{title}</h3>
+        <div className="mb-4">
+          <label className="block text-xs font-medium text-slate-600 mb-1">{label} <span className="text-red-500">*</span></label>
+          <input
+            type="text" value={value} onChange={e => setValue(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); if (value.trim()) onSave(value.trim()) } }}
+            placeholder={placeholder}
+            autoFocus
+            className="w-full rounded border border-slate-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+          />
+        </div>
+        <div className="flex justify-end gap-3">
+          <button type="button" onClick={onClose}
+            className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50">Cancel</button>
+          <button type="button" onClick={() => { if (value.trim()) onSave(value.trim()) }} disabled={saving || !value.trim()}
+            className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-50">
+            {saving ? 'Creating…' : `Create ${title.replace('Create ', '')}`}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export const CreateLabTestSampleModal = ({ onClose, onSuccess }: CreateLabTestSampleModalProps) => {
   const [sampleName, setSampleName] = useState('')
-
   const [sampleType, setSampleType] = useState('')
-  const [sampleTypeQuery, setSampleTypeQuery] = useState('')
-  const [sampleTypeOpts, setSampleTypeOpts] = useState<Opt[]>([])
-  const [sampleTypeOpen, setSampleTypeOpen] = useState(false)
-
   const [sampleUom, setSampleUom] = useState('')
-  const [uomQuery, setUomQuery] = useState('')
-  const [uomOpts, setUomOpts] = useState<Opt[]>([])
-  const [uomOpen, setUomOpen] = useState(false)
-
   const [containerColor, setContainerColor] = useState('')
-  const [colorQuery, setColorQuery] = useState('')
-  const [colorOpts, setColorOpts] = useState<Opt[]>([])
-  const [colorOpen, setColorOpen] = useState(false)
-
   const [collectionDetails, setCollectionDetails] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const loadSampleTypes = useCallback(async (q?: string) => {
-    try {
-      const filters = q ? `[["name","like","%${q}%"]]` : '[]'
-      const res = await apiRequest<{ data: Opt[] }>(
-        `/api/resource/Sample%20Type?fields=${encodeURIComponent('["name"]')}&filters=${encodeURIComponent(filters)}&limit_page_length=30&order_by=name+asc`
-      )
-      setSampleTypeOpts(res.data || [])
-    } catch { setSampleTypeOpts([]) }
-  }, [])
+  // Create sub-modals
+  const [createModal, setCreateModal] = useState<'uom' | 'sample_type' | 'color' | null>(null)
+  const [creatingSubItem, setCreatingSubItem] = useState(false)
 
-  const loadUoms = useCallback(async (q?: string) => {
-    try {
-      const filters = q ? `[["name","like","%${q}%"]]` : '[]'
-      const res = await apiRequest<{ data: Opt[] }>(
-        `/api/resource/Lab%20Test%20UOM?fields=${encodeURIComponent('["name"]')}&filters=${encodeURIComponent(filters)}&limit_page_length=30&order_by=name+asc`
-      )
-      setUomOpts(res.data || [])
-    } catch { setUomOpts([]) }
-  }, [])
+  const fetchUomsCb = useCallback((q?: string) => fetchUoms(q), [])
+  const fetchSampleTypesCb = useCallback((q?: string) => fetchSampleTypes(q), [])
+  const fetchColorsCb = useCallback((q?: string) => fetchColors(q), [])
 
-  const loadColors = useCallback(async (q?: string) => {
+  const handleCreateSubItem = async (name: string) => {
+    setCreatingSubItem(true)
     try {
-      const filters = q ? `[["name","like","%${q}%"]]` : '[]'
-      const res = await apiRequest<{ data: Opt[] }>(
-        `/api/resource/Color?fields=${encodeURIComponent('["name"]')}&filters=${encodeURIComponent(filters)}&limit_page_length=30&order_by=name+asc`
-      )
-      setColorOpts(res.data || [])
-    } catch { setColorOpts([]) }
-  }, [])
+      let endpoint = ''
+      let paramKey = ''
+      if (createModal === 'uom') { endpoint = 'create_uom'; paramKey = 'uom_name' }
+      else if (createModal === 'sample_type') { endpoint = 'create_sample_type'; paramKey = 'type_name' }
+      else if (createModal === 'color') { endpoint = 'create_color'; paramKey = 'color_name' }
+      if (!endpoint) return
 
-  const closeAll = () => {
-    setSampleTypeOpen(false); setUomOpen(false); setColorOpen(false)
+      const params = new URLSearchParams()
+      params.set(paramKey, name)
+      const res = await fetch(`/api/method/healthcare.api.common.${endpoint}?${params.toString()}`, { credentials: 'include' })
+      const data = await res.json()
+      if (!res.ok) { alert(data.message || 'Failed to create record'); return }
+
+      const created: LinkFieldOption = data.message
+      if (createModal === 'uom') setSampleUom(created.name)
+      else if (createModal === 'sample_type') setSampleType(created.name)
+      else if (createModal === 'color') setContainerColor(created.name)
+      setCreateModal(null)
+    } finally {
+      setCreatingSubItem(false)
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -129,7 +184,7 @@ export const CreateLabTestSampleModal = ({ onClose, onSuccess }: CreateLabTestSa
           collection_details: collectionDetails || null,
         }),
       })
-      onSuccess?.()
+      onSuccess?.(sampleName.trim())
       onClose()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create sample')
@@ -139,10 +194,11 @@ export const CreateLabTestSampleModal = ({ onClose, onSuccess }: CreateLabTestSa
   }
 
   return (
+    <>
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
       onClick={e => { if (e.target === e.currentTarget) onClose() }}>
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh]"
-        onClick={e => { e.stopPropagation(); closeAll() }}>
+        onClick={e => e.stopPropagation()}>
 
         <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between flex-shrink-0">
           <h2 className="text-lg font-semibold text-slate-900">Create Lab Test Sample</h2>
@@ -166,44 +222,32 @@ export const CreateLabTestSampleModal = ({ onClose, onSuccess }: CreateLabTestSa
                 className="w-full rounded border border-slate-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
             </div>
 
-            {/* Sample Type — Link: Sample Type */}
-            <div onClick={e => e.stopPropagation()}>
-              <LinkField
-                label="Sample Type"
-                query={sampleTypeQuery} opts={sampleTypeOpts}
-                open={sampleTypeOpen} setOpen={setSampleTypeOpen}
-                onFocus={() => loadSampleTypes()}
-                onChange={q => { setSampleTypeQuery(q); setSampleType(''); loadSampleTypes(q) }}
-                onSelect={name => { setSampleType(name); setSampleTypeQuery(name) }}
-                onClear={() => { setSampleType(''); setSampleTypeQuery('') }}
-              />
-            </div>
+            {/* Sample Type */}
+            <SelfLink
+              label="Sample Type"
+              value={sampleType}
+              fetchFn={fetchSampleTypesCb}
+              onChange={setSampleType}
+              onCreateClick={() => setCreateModal('sample_type')}
+            />
 
-            {/* UOM — Link: Lab Test UOM */}
-            <div onClick={e => e.stopPropagation()}>
-              <LinkField
-                label="UOM"
-                query={uomQuery} opts={uomOpts}
-                open={uomOpen} setOpen={setUomOpen}
-                onFocus={() => loadUoms()}
-                onChange={q => { setUomQuery(q); setSampleUom(''); loadUoms(q) }}
-                onSelect={name => { setSampleUom(name); setUomQuery(name) }}
-                onClear={() => { setSampleUom(''); setUomQuery('') }}
-              />
-            </div>
+            {/* UOM — Lab Test UOM */}
+            <SelfLink
+              label="UOM"
+              value={sampleUom}
+              fetchFn={fetchUomsCb}
+              onChange={setSampleUom}
+              onCreateClick={() => setCreateModal('uom')}
+            />
 
-            {/* Container Closure Color — Link: Color */}
-            <div onClick={e => e.stopPropagation()}>
-              <LinkField
-                label="Container Closure Color"
-                query={colorQuery} opts={colorOpts}
-                open={colorOpen} setOpen={setColorOpen}
-                onFocus={() => loadColors()}
-                onChange={q => { setColorQuery(q); setContainerColor(''); loadColors(q) }}
-                onSelect={name => { setContainerColor(name); setColorQuery(name) }}
-                onClear={() => { setContainerColor(''); setColorQuery('') }}
-              />
-            </div>
+            {/* Container Closure Color */}
+            <SelfLink
+              label="Container Closure Color"
+              value={containerColor}
+              fetchFn={fetchColorsCb}
+              onChange={setContainerColor}
+              onCreateClick={() => setCreateModal('color')}
+            />
 
             {/* Collection Instructions */}
             <div>
@@ -232,5 +276,17 @@ export const CreateLabTestSampleModal = ({ onClose, onSuccess }: CreateLabTestSa
         </form>
       </div>
     </div>
+
+    {createModal && (
+      <CreateMiniModal
+        title={createModal === 'uom' ? 'Create UOM' : createModal === 'sample_type' ? 'Create Sample Type' : 'Create Color'}
+        label={createModal === 'uom' ? 'UOM Name' : createModal === 'sample_type' ? 'Sample Type Name' : 'Color Name'}
+        placeholder={createModal === 'uom' ? 'e.g. mL, mg, Units' : createModal === 'sample_type' ? 'e.g. Venous Blood' : 'e.g. Red, Purple, Green'}
+        saving={creatingSubItem}
+        onClose={() => setCreateModal(null)}
+        onSave={handleCreateSubItem}
+      />
+    )}
+    </>
   )
 }

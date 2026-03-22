@@ -33,6 +33,28 @@ export async function fetchPrintFormats(doctype: string): Promise<string[]> {
   return ['Standard']
 }
 
+export async function fetchUoms(search?: string): Promise<LinkFieldOption[]> {
+  const params = new URLSearchParams()
+  if (search) params.append('search', search)
+  const url = `/api/method/healthcare.api.common.get_uoms${params.toString() ? `?${params.toString()}` : ''}`
+  try {
+    const response = await fetch(url, { credentials: 'include' })
+    const resData = await response.json()
+    return Array.isArray(resData?.message) ? resData.message : []
+  } catch { return [] }
+}
+
+export async function fetchColors(search?: string): Promise<LinkFieldOption[]> {
+  const params = new URLSearchParams()
+  if (search) params.append('search', search)
+  const url = `/api/method/healthcare.api.common.get_colors${params.toString() ? `?${params.toString()}` : ''}`
+  try {
+    const response = await fetch(url, { credentials: 'include' })
+    const resData = await response.json()
+    return Array.isArray(resData?.message) ? resData.message : []
+  } catch { return [] }
+}
+
 export async function fetchMedicalDepartments(search?: string): Promise<LinkFieldOption[]> {
   const params = new URLSearchParams()
   if (search) params.append('search', search)
@@ -1045,5 +1067,50 @@ export async function fetchItemGroups(search?: string): Promise<LinkFieldOption[
   const res = await fetch(`/api/method/frappe.client.get_list?${params}`)
   const data = await res.json()
   return (data?.message || []).map((r: { name: string }) => ({ name: r.name, label: r.name }))
+}
+
+export interface SampleCollectionLabTest {
+  name: string
+  lab_test_name: string
+  patient_name: string
+}
+
+export interface SampleCollectionRow {
+  name: string
+  patient: string
+  patient_name: string | null
+  patient_age: string | null
+  sample: string
+  sample_type: string | null
+  sample_uom: string | null
+  collected_by: string | null
+  collector_name: string | null
+  collected_time: string | null
+  status: string
+  lab_tests: SampleCollectionLabTest[]
+}
+
+export async function fetchSampleCollections(
+  search?: string,
+  patient?: string,
+  page = 1,
+  pageSize = 20,
+): Promise<SampleCollectionRow[]> {
+  const params = new URLSearchParams()
+  if (search) params.set('search', search)
+  if (patient) params.set('patient', patient)
+  params.set('page', String(page))
+  params.set('page_size', String(pageSize))
+  try {
+    const res = await fetch(
+      `/api/method/healthcare.api.common.get_sample_collections?${params.toString()}`,
+      { credentials: 'include' },
+    )
+    const data = await res.json()
+    const msg = data?.message
+    if (Array.isArray(msg)) return msg
+    if (msg?.data && Array.isArray(msg.data)) return msg.data as SampleCollectionRow[]
+    return []
+  } catch { return [] }
 }
 
