@@ -741,6 +741,9 @@ export const LabTestList = ({
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Date</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase">Amount</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Actions</th>
+                <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600 uppercase">Min</th>
+                <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600 uppercase">Max</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Results</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Inventory</th>
               </tr>
             </thead>
@@ -882,6 +885,32 @@ export const LabTestList = ({
                         triggerPrint={1}
                       />
                     </div>
+                  </td>
+                  {/* Min range */}
+                  <td className="px-4 py-3 text-center text-sm text-slate-700">
+                    {labTest.min_range != null ? (
+                      <span className="font-medium">{labTest.min_range}</span>
+                    ) : (
+                      <span className="text-slate-300">—</span>
+                    )}
+                  </td>
+                  {/* Max range */}
+                  <td className="px-4 py-3 text-center text-sm text-slate-700">
+                    {labTest.max_range != null ? (
+                      <span className="font-medium">{labTest.max_range}</span>
+                    ) : (
+                      <span className="text-slate-300">—</span>
+                    )}
+                  </td>
+                  {/* Results */}
+                  <td className="px-4 py-3 text-sm max-w-[160px]">
+                    {labTest.results ? (
+                      <span className="text-slate-800 font-medium truncate block" title={labTest.results}>
+                        {labTest.results}
+                      </span>
+                    ) : (
+                      <span className="text-slate-300">—</span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-sm text-slate-700">
                     {labTest.docstatus === 0 && !labTest.material_request ? (

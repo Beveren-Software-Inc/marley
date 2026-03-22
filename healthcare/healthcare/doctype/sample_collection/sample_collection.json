@@ -306,7 +306,7 @@
    "link_fieldname": "sample_collection"
   }
  ],
- "modified": "2025-03-26 19:00:19.286785",
+ "modified": "2026-03-22 17:04:05.699315",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Sample Collection",
@@ -341,6 +341,7 @@
   }
  ],
  "restrict_to_domain": "Healthcare",
+ "row_format": "Dynamic",
  "search_fields": "patient, sample",
  "show_name_in_global_search": 1,
  "sort_field": "modified",

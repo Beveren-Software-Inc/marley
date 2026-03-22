@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { ClipboardList, FlaskConical, BookOpen, AlertTriangle, Droplet } from 'lucide-react'
 import { PatientSearch } from '../components/patients/PatientSearch'
 import { NotificationBell } from '../components/notifications/NotificationBell'
 import { UserMenu } from '../components/user/UserMenu'
@@ -13,17 +14,67 @@ import { CreateLabTestTemplateModal } from '../components/labTests/CreateLabTest
 import { LabTestTemplateList } from '../components/labTests/LabTestTemplateList'
 import { CreateLabTestSampleModal } from '../components/labTests/CreateLabTestSampleModal'
 import { CreateSampleTypeModal } from '../components/labTests/CreateSampleTypeModal'
+import { SampleCollectionList } from '../components/labTests/SampleCollectionList'
 import { fetchLabTestSamples, fetchSampleTypes, type LabTestSampleOption, type LinkFieldOption } from '../services/common'
+
+type LabTab = 'service-requests' | 'lab-tests' | 'medical-history' | 'warnings' | 'sample-collection'
+
+const NAV_CARDS = [
+  {
+    id: 'service-requests' as LabTab,
+    title: 'Service Requests',
+    desc: 'Lab test requests from doctors and departments',
+    icon: ClipboardList,
+    color: 'bg-primary/10 text-primary border-primary/20',
+    iconColor: 'text-primary',
+  },
+  {
+    id: 'lab-tests' as LabTab,
+    title: 'Lab Tests & Results',
+    desc: 'Process tests, enter results and track status',
+    icon: FlaskConical,
+    color: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    iconColor: 'text-emerald-600',
+  },
+  {
+    id: 'sample-collection' as LabTab,
+    title: 'Sample Collection',
+    desc: 'Track sample collection details and linked tests',
+    icon: Droplet,
+    color: 'bg-cyan-50 text-cyan-700 border-cyan-200',
+    iconColor: 'text-cyan-600',
+  },
+  {
+    id: 'medical-history' as LabTab,
+    title: 'Medical History',
+    desc: 'Patient background, diagnoses and clinical notes',
+    icon: BookOpen,
+    color: 'bg-blue-50 text-blue-700 border-blue-200',
+    iconColor: 'text-blue-600',
+  },
+  {
+    id: 'warnings' as LabTab,
+    title: 'Allergies & Warnings',
+    desc: 'Critical alerts, allergies and contraindications',
+    icon: AlertTriangle,
+    color: 'bg-amber-50 text-amber-700 border-amber-200',
+    iconColor: 'text-amber-600',
+  },
+]
 
 export const LabPage = () => {
   const [searchParams, setSearchParams] = useSearchParams()
   const patientFromUrl = searchParams.get('patient')
   const screen = searchParams.get('screen')
+  const tabFromUrl = (searchParams.get('tab') || 'service-requests') as LabTab
+  
   const [selectedPatient, setSelectedPatient] = useState<string | undefined>(patientFromUrl || undefined)
+  const [activeTab, setActiveTab] = useState<LabTab>(tabFromUrl)
   const [labTestRefreshKey, setLabTestRefreshKey] = useState(0)
   const [showLabTestModal, setShowLabTestModal] = useState(false)
   const [showServiceRequestModal, setShowServiceRequestModal] = useState(false)
   const [serviceRequestRefreshKey, setServiceRequestRefreshKey] = useState(0)
+  const [sampleCollectionRefreshKey, setSampleCollectionRefreshKey] = useState(0)
 
   // Setup screen state
   const [templateRefreshKey, setTemplateRefreshKey] = useState(0)
@@ -65,7 +116,7 @@ export const LabPage = () => {
     }
   }, [screen, loadLabSamples, loadSampleTypes])
 
-  // Sync selectedPatient with URL on mount and when URL changes
+  // Sync selectedPatient and activeTab with URL
   useEffect(() => {
     const patientParam = searchParams.get('patient')
     if (patientParam && patientParam !== selectedPatient) {
@@ -84,9 +135,17 @@ export const LabPage = () => {
     setSearchParams(newSearchParams, { replace: true })
   }
 
+  const handleTabChange = (newTab: LabTab) => {
+    setActiveTab(newTab)
+    const newSearchParams = new URLSearchParams(searchParams)
+    newSearchParams.set('tab', newTab)
+    setSearchParams(newSearchParams, { replace: true })
+  }
+
   const handleLabTestCreated = () => {
     setLabTestRefreshKey(prev => prev + 1)
-    setServiceRequestRefreshKey(prev => prev + 1) // Also refresh service requests
+    setServiceRequestRefreshKey(prev => prev + 1)
+    setSampleCollectionRefreshKey(prev => prev + 1)
   }
 
   const handleServiceRequestCreated = () => {
@@ -383,10 +442,13 @@ export const LabPage = () => {
     )
   }
 
-  // Default view - when no special screen is selected
+  // Default view — card-based navigation
+  const activeCard = NAV_CARDS.find(c => c.id === activeTab)!
+  const needsPatient = activeTab === 'medical-history' || activeTab === 'warnings'
+
   return (
-    <div className="flex flex-col">
-      <header className="flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+    <div className="flex flex-col h-full">
+      <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
         <div className="flex-1 min-w-0">
           <PatientSearch
             selectedPatient={selectedPatient || ''}
@@ -400,152 +462,118 @@ export const LabPage = () => {
         </div>
       </header>
 
-      {selectedPatient ? (
-        <>
-          {/* Patient context: medical background and warnings */}
-          <div className="grid gap-4 md:grid-cols-2 p-4">
-            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-              <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
-                <span>Patient Medical History</span>
-              </div>
-              <div
-                className="overflow-x-auto overflow-y-auto flex-1 min-h-0"
-                style={{ scrollbarWidth: 'thin' }}
-              >
-                <MedicalHistoryView patient={selectedPatient} />
-              </div>
-            </section>
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
 
-            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-              <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
-                <span>Warnings & Allergies</span>
-              </div>
-              <div
-                className="overflow-x-auto overflow-y-auto flex-1 min-h-0"
-                style={{ scrollbarWidth: 'thin' }}
-              >
-                <WarningMessagesList patient={selectedPatient} />
-              </div>
-            </section>
-          </div>
-
-          {/* Requests and tests for this patient */}
-          <div className="grid gap-4 md:grid-cols-2 px-4 pb-4">
-            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-              <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
-                <span>Service Requests</span>
-                <button
-                  onClick={() => setShowServiceRequestModal(true)}
-                  className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
-                  title="Add Service Request"
-                >
-                  +
-                </button>
-              </div>
-              <div
-                className="overflow-x-auto overflow-y-auto flex-1 min-h-0"
-                style={{ scrollbarWidth: 'thin' }}
-              >
-                <ServiceRequestList
-                  patient={selectedPatient}
-                  onLabTestCreated={handleLabTestCreated}
-                  refreshKey={serviceRequestRefreshKey}
-                  template_dt="Lab Test Template"
-                />
-              </div>
-            </section>
-
-            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-              <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
-                <span>Lab Tests</span>
-                <button
-                  onClick={() => setShowLabTestModal(true)}
-                  className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
-                  title="Add Lab Test"
-                >
-                  +
-                </button>
-              </div>
-              <div
-                className="overflow-x-auto overflow-y-auto flex-1 min-h-0"
-                style={{ scrollbarWidth: 'thin' }}
-              >
-                <LabTestList patient={selectedPatient} key={labTestRefreshKey} />
-              </div>
-            </section>
-          </div>
-        </>
-      ) : (
-        <div className="grid gap-4 md:grid-cols-2 p-4">
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-            <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
-              <span>Service Requests</span>
+        {/* Navigation cards */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          {NAV_CARDS.map(card => {
+            const Icon = card.icon
+            const isActive = activeTab === card.id
+            return (
               <button
-                onClick={() => setShowServiceRequestModal(true)}
-                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
-                title="Add Service Request"
+                key={card.id}
+                type="button"
+                onClick={() => handleTabChange(card.id)}
+                className={`flex items-start gap-3 rounded-xl border-2 px-4 py-3.5 text-left transition-all hover:shadow-md ${
+                  isActive
+                    ? `${card.color} shadow-sm`
+                    : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+                }`}
+              >
+                <div className={`p-2 rounded-lg shrink-0 ${isActive ? 'bg-white/60' : 'bg-slate-100'}`}>
+                  <Icon className={`w-5 h-5 ${isActive ? card.iconColor : 'text-slate-500'}`} />
+                </div>
+                <div>
+                  <p className={`text-sm font-semibold ${isActive ? '' : 'text-slate-800'}`}>{card.title}</p>
+                  <p className={`text-xs mt-0.5 ${isActive ? 'opacity-80' : 'text-slate-500'}`}>{card.desc}</p>
+                </div>
+              </button>
+            )
+          })}
+        </div>
+
+        {/* Active section */}
+        <section className="bg-white border border-slate-200 rounded-lg shadow-sm">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
+            <div>
+              <h2 className="text-sm font-semibold text-slate-800">{activeCard.title}</h2>
+              <p className="text-xs text-slate-500 mt-0.5">{activeCard.desc}</p>
+            </div>
+            {(activeTab === 'service-requests' || activeTab === 'lab-tests') && (
+              <button
+                type="button"
+                onClick={() => activeTab === 'service-requests' ? setShowServiceRequestModal(true) : setShowLabTestModal(true)}
+                className="w-7 h-7 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-base font-bold"
+                title={activeTab === 'service-requests' ? 'New Service Request' : 'New Lab Test'}
               >
                 +
               </button>
-            </div>
-            <div
-              className="overflow-x-auto overflow-y-auto flex-1 min-h-0"
-              style={{ scrollbarWidth: 'thin' }}
-            >
+            )}
+          </div>
+
+          <div className="overflow-x-auto overflow-y-auto max-h-[480px] p-1" style={{ scrollbarWidth: 'thin' }}>
+            {activeTab === 'service-requests' && (
               <ServiceRequestList
                 patient={selectedPatient}
                 onLabTestCreated={handleLabTestCreated}
                 refreshKey={serviceRequestRefreshKey}
                 template_dt="Lab Test Template"
               />
-            </div>
-          </section>
-
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-            <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
-              <span>Lab Tests</span>
-              <button
-                onClick={() => setShowLabTestModal(true)}
-                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
-                title="Add Lab Test"
-              >
-                +
-              </button>
-            </div>
-            <div
-              className="overflow-x-auto overflow-y-auto flex-1 min-h-0"
-              style={{ scrollbarWidth: 'thin' }}
-            >
+            )}
+            {activeTab === 'lab-tests' && (
               <LabTestList patient={selectedPatient} key={labTestRefreshKey} />
-            </div>
-          </section>
-        </div>
-      )}
+            )}
+            {activeTab === 'sample-collection' && (
+              <div className="p-3">
+                <SampleCollectionList
+                  patient={selectedPatient}
+                  refreshKey={sampleCollectionRefreshKey}
+                />
+              </div>
+            )}
+            {activeTab === 'medical-history' && (
+              needsPatient && !selectedPatient ? (
+                <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                  <BookOpen className="w-10 h-10 mb-3 opacity-40" />
+                  <p className="text-sm font-medium">Select a patient to view medical history</p>
+                </div>
+              ) : (
+                <div className="p-3">
+                  <MedicalHistoryView patient={selectedPatient!} />
+                </div>
+              )
+            )}
+            {activeTab === 'warnings' && (
+              needsPatient && !selectedPatient ? (
+                <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                  <AlertTriangle className="w-10 h-10 mb-3 opacity-40" />
+                  <p className="text-sm font-medium">Select a patient to view allergies & warnings</p>
+                </div>
+              ) : (
+                <div className="p-3">
+                  <WarningMessagesList patient={selectedPatient!} />
+                </div>
+              )
+            )}
+          </div>
+        </section>
+
+      </div>
 
       {showLabTestModal && (
         <CreateLabTestModal
           onClose={() => setShowLabTestModal(false)}
-          onSuccess={() => {
-            setShowLabTestModal(false)
-            handleLabTestCreated()
-          }}
+          onSuccess={() => { setShowLabTestModal(false); handleLabTestCreated() }}
           initialPatient={selectedPatient}
         />
       )}
-
       {showServiceRequestModal && (
         <CreateServiceRequestModal
           onClose={() => setShowServiceRequestModal(false)}
-          onSuccess={() => {
-            setShowServiceRequestModal(false)
-            handleServiceRequestCreated()
-          }}
+          onSuccess={() => { setShowServiceRequestModal(false); handleServiceRequestCreated() }}
           initialPatient={selectedPatient}
         />
       )}
     </div>
   )
 }
-
-
-

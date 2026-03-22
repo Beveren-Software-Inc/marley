@@ -1297,3 +1297,408 @@ def create_insurance_company(company_name):
 	doc.insert(ignore_permissions=True)
 	frappe.db.commit()
 	return {"name": doc.name}
+
+
+@frappe.whitelist()
+def get_uoms(search=None):
+	"""Fetch Lab Test UOM records for dropdown selection."""
+	filters = []
+	if search:
+		filters.append(["name", "like", f"%{search}%"])
+	uoms = frappe.get_all(
+		"Lab Test UOM",
+		filters=filters,
+		fields=["name"],
+		order_by="name asc",
+		limit=50,
+	)
+	return [{"name": u.name, "label": u.name} for u in uoms]
+
+
+@frappe.whitelist()
+def create_uom(uom_name):
+	"""Create a new Lab Test UOM record."""
+	uom_name = (uom_name or "").strip()
+	if not uom_name:
+		frappe.throw("UOM name is required.")
+	if frappe.db.exists("Lab Test UOM", uom_name):
+		frappe.throw(f"Lab Test UOM '{uom_name}' already exists.")
+	doc = frappe.new_doc("Lab Test UOM")
+	doc.lab_test_uom = uom_name
+	doc.insert(ignore_permissions=True)
+	frappe.db.commit()
+	return {"name": doc.name, "label": doc.name}
+
+
+@frappe.whitelist()
+def create_item_group(group_name):
+	"""Create a new Item Group under All Item Groups."""
+	group_name = (group_name or "").strip()
+	if not group_name:
+		frappe.throw("Item Group name is required.")
+	if frappe.db.exists("Item Group", group_name):
+		frappe.throw(f"Item Group '{group_name}' already exists.")
+	doc = frappe.new_doc("Item Group")
+	doc.item_group_name = group_name
+	doc.parent_item_group = "All Item Groups"
+	doc.insert(ignore_permissions=True)
+	frappe.db.commit()
+	return {"name": doc.name, "label": doc.name}
+
+
+@frappe.whitelist()
+def get_colors(search=None):
+	"""Fetch Color records for dropdown selection."""
+	filters = []
+	if search:
+		filters.append(["name", "like", f"%{search}%"])
+	colors = frappe.get_all(
+		"Color",
+		filters=filters,
+		fields=["name"],
+		order_by="name asc",
+		limit=50,
+	)
+	return [{"name": c.name, "label": c.name} for c in colors]
+
+
+@frappe.whitelist()
+def create_color(color_name):
+	"""Create a new Color record."""
+	color_name = (color_name or "").strip()
+	if not color_name:
+		frappe.throw("Color name is required.")
+	if frappe.db.exists("Color", color_name):
+		frappe.throw(f"Color '{color_name}' already exists.")
+	doc = frappe.new_doc("Color")
+	doc.name = color_name
+	doc.insert(ignore_permissions=True)
+	frappe.db.commit()
+	return {"name": doc.name, "label": doc.name}
+
+
+@frappe.whitelist()
+def create_sample_type(type_name):
+	"""Create a new Sample Type record."""
+	type_name = (type_name or "").strip()
+	if not type_name:
+		frappe.throw("Sample Type name is required.")
+	if frappe.db.exists("Sample Type", type_name):
+		frappe.throw(f"Sample Type '{type_name}' already exists.")
+	doc = frappe.new_doc("Sample Type")
+	doc.sample_type = type_name
+	doc.insert(ignore_permissions=True)
+	frappe.db.commit()
+	return {"name": doc.name, "label": doc.name}
+
+
+@frappe.whitelist()
+def get_sample_collections(search=None, patient=None, page=1, page_size=20):
+	"""
+	Fetch Sample Collection records with linked lab tests and sample type.
+	
+	Args:
+		search (str, optional): Search by Sample Collection name
+		patient (str, optional): Filter by patient
+		page (int, optional): Page number for pagination (default: 1)
+		page_size (int, optional): Records per page (default: 20)
+	
+	Returns:
+		list: List of Sample Collection records with enriched data
+	"""
+	try:
+		# Validate inputs
+		page = int(page) if page else 1
+		page_size = int(page_size) if page_size else 20
+		
+		if page < 1:
+			page = 1
+		if page_size < 1:
+			page_size = 20
+
+		# Build filters
+		filters = {}
+		if search:
+			filters["name"] = ["like", f"%{search}%"]
+		if patient:
+			filters["patient"] = patient
+
+		# Fetch Sample Collections
+		collections = frappe.get_all(
+			"Sample Collection",
+			filters=filters,
+			fields=[
+				"name",
+				"patient",
+				"patient_name",
+				"patient_age",
+				"sample",
+				"sample_uom",
+				"owner",
+				"creation",
+				"status"
+			],
+			order_by="creation desc",
+			limit_page_length=page_size,
+			limit_start=(page - 1) * page_size,
+		)
+
+		# Enrich each collection record
+		for col in collections:
+			# Get sample type from the linked Lab Test Sample record
+			col["sample_type"] = None
+			if col.get("sample"):
+				try:
+					col["sample_type"] = frappe.db.get_value(
+						"Lab Test Sample",
+						col["sample"],
+						"sample_type"
+					)
+				except frappe.DoesNotExistError:
+					col["sample_type"] = None
+
+			# Get collector display name from the document owner
+			col["collected_by"] = col.get("owner")
+			col["collector_name"] = None
+			if col.get("owner"):
+				try:
+					full_name = frappe.db.get_value(
+						"User",
+						col["owner"],
+						"full_name"
+					)
+					col["collector_name"] = full_name or col["owner"]
+				except frappe.DoesNotExistError:
+					col["collector_name"] = col["owner"]
+
+			# Get collected time from creation time
+			col["collected_time"] = col.get("creation")
+
+			# Get Lab Tests that have this Sample Collection in their sample_instances child table
+			# Lab Test.sample_instances.sample_collection → Sample Collection.name
+			try:
+				lab_tests = frappe.db.sql(
+					"""
+					SELECT DISTINCT lt.name, lt.lab_test_name, lt.patient_name
+					FROM `tabLab Test` lt
+					INNER JOIN `tabLab Test Sample Instance` ltsi 
+						ON ltsi.parent = lt.name
+					WHERE ltsi.sample_collection = %s
+					LIMIT 5
+					""",
+					(col["name"],),
+					as_dict=True
+				)
+				col["lab_tests"] = lab_tests or []
+			except Exception as e:
+				frappe.logger().warning(f"Error fetching lab tests for {col['name']}: {str(e)}")
+				col["lab_tests"] = []
+		return {
+			"success": True,
+			"data": collections,
+			"page": page,
+			"page_size": page_size,
+			"total": len(collections)
+		}
+
+	except Exception as e:
+		frappe.logger().error(f"Error in get_sample_collections: {str(e)}")
+		return {
+			"success": False,
+			"message": str(e),
+			"data": []
+		}
+
+
+@frappe.whitelist()
+def get_sample_collection_detail(name):
+	"""
+	Fetch detailed information about a specific Sample Collection.
+	
+	Args:
+		name (str): Sample Collection document name
+	
+	Returns:
+		dict: Detailed Sample Collection data
+	"""
+	try:
+		# Check if document exists
+		if not frappe.db.exists("Sample Collection", name):
+			return {
+				"success": False,
+				"message": _("Sample Collection not found"),
+				"data": None
+			}
+
+		# Fetch the full document
+		doc = frappe.get_doc("Sample Collection", name)
+
+		# Build response
+		data = {
+			"name": doc.name,
+			"patient": doc.patient,
+			"patient_name": doc.patient_name,
+			"patient_age": doc.patient_age,
+			"sample": doc.sample,
+			"sample_uom": doc.sample_uom,
+			"status": doc.status,
+			"owner": doc.owner,
+			"creation": doc.creation,
+			"modified": doc.modified,
+			"sample_type": None,
+			"collected_by": doc.owner,
+			"collector_name": None,
+			"collected_time": doc.creation,
+			"lab_tests": []
+		}
+
+		# Get sample type
+		if doc.sample:
+			try:
+				data["sample_type"] = frappe.db.get_value(
+					"Lab Test Sample",
+					doc.sample,
+					"sample_type"
+				)
+			except frappe.DoesNotExistError:
+				data["sample_type"] = None
+
+		# Get collector name
+		if doc.owner:
+			try:
+				full_name = frappe.db.get_value("User", doc.owner, "full_name")
+				data["collector_name"] = full_name or doc.owner
+			except frappe.DoesNotExistError:
+				data["collector_name"] = doc.owner
+
+		# Get linked lab tests
+		try:
+			lab_tests = frappe.db.sql(
+				"""
+				SELECT DISTINCT lt.name, lt.lab_test_name, lt.patient_name, ltsi.sample_collection
+				FROM `tabLab Test` lt
+				INNER JOIN `tabLab Test Sample Instance` ltsi 
+					ON ltsi.parent = lt.name
+				WHERE ltsi.sample_collection = %s
+				""",
+				(doc.name,),
+				as_dict=True
+			)
+			data["lab_tests"] = lab_tests or []
+		except Exception as e:
+			frappe.logger().warning(f"Error fetching lab tests for {doc.name}: {str(e)}")
+			data["lab_tests"] = []
+
+		return {
+			"success": True,
+			"data": data
+		}
+
+	except Exception as e:
+		frappe.logger().error(f"Error in get_sample_collection_detail: {str(e)}")
+		return {
+			"success": False,
+			"message": str(e),
+			"data": None
+		}
+
+
+@frappe.whitelist()
+def get_sample_collections_by_patient(patient, page=1, page_size=20):
+	"""
+	Fetch Sample Collections for a specific patient.
+	
+	Args:
+		patient (str): Patient name/ID
+		page (int, optional): Page number for pagination
+		page_size (int, optional): Records per page
+	
+	Returns:
+		dict: Sample Collections for the patient
+	"""
+	try:
+		# Validate patient exists
+		if not frappe.db.exists("Patient", patient):
+			return {
+				"success": False,
+				"message": _("Patient not found"),
+				"data": []
+			}
+
+		# Reuse the main function with patient filter
+		result = get_sample_collections(
+			search=None,
+			patient=patient,
+			page=page,
+			page_size=page_size
+		)
+		
+		return result
+
+	except Exception as e:
+		frappe.logger().error(f"Error in get_sample_collections_by_patient: {str(e)}")
+		return {
+			"success": False,
+			"message": str(e),
+			"data": []
+		}
+
+
+@frappe.whitelist()
+def get_sample_collection_statistics(patient=None):
+	"""
+	Get statistics about Sample Collections.
+	
+	Args:
+		patient (str, optional): Filter by patient
+	
+	Returns:
+		dict: Statistics about sample collections
+	"""
+	try:
+		filters = {}
+		if patient:
+			filters["patient"] = patient
+
+		# Get total count
+		total = frappe.db.count("Sample Collection", filters=filters)
+
+		# Get count by status
+		status_counts = frappe.db.sql(
+			"""
+			SELECT status, COUNT(*) as count
+			FROM `tabSample Collection`
+			{}
+			GROUP BY status
+			""".format(
+				"WHERE patient = %s" if patient else ""
+			),
+			(patient,) if patient else (),
+			as_dict=True
+		)
+
+		# Get recent collections (last 7 days)
+		recent_count = frappe.db.count(
+			"Sample Collection",
+			filters={
+				**filters,
+				"creation": [">=", frappe.utils.add_days(frappe.utils.today(), -7)]
+			}
+		)
+
+		return {
+			"success": True,
+			"data": {
+				"total": total,
+				"recent_7_days": recent_count,
+				"by_status": {item["status"]: item["count"] for item in status_counts}
+			}
+		}
+
+	except Exception as e:
+		frappe.logger().error(f"Error in get_sample_collection_statistics: {str(e)}")
+		return {
+			"success": False,
+			"message": str(e),
+			"data": None
+		}
