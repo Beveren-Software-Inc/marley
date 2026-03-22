@@ -8,7 +8,6 @@
  "field_order": [
   "template_name",
   "type",
-  "column_break_audp",
   "item_details_section",
   "item_code",
   "item_name",
@@ -30,10 +29,6 @@
    "in_standard_filter": 1,
    "label": "Type",
    "options": "\nInternal Service\nExternal Service"
-  },
-  {
-   "fieldname": "column_break_audp",
-   "fieldtype": "Column Break"
   },
   {
    "fieldname": "section_break_kusj",
@@ -107,7 +102,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-03-22 10:10:44.460354",
+ "modified": "2026-03-22 11:02:47.312715",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Consultation Service Template",

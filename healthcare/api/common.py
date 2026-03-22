@@ -1049,6 +1049,7 @@ def get_insurance_patient_registers(search=None):
 			"name", "full_name", "national_id_cpr_no", "posting_date",
 			"status", "insurance_provider", "approval_id",
 			"approval_validitydays", "no_of_visits", "patient",
+			"no_of_patient_visit",
 		],
 		limit=100,
 		order_by="creation desc",

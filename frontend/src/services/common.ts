@@ -800,6 +800,7 @@ export interface InsurancePatientRegisterRow {
   approval_validitydays: number
   no_of_visits: string
   patient: string
+  no_of_patient_visit?: number
 }
 
 export async function fetchInsurancePatientRegisters(search?: string): Promise<InsurancePatientRegisterRow[]> {

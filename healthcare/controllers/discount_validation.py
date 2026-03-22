@@ -57,6 +57,13 @@ def apply_insurance_discounts(doc):
     if not getattr(patient_doc, "is_insurance", 0) or not getattr(patient_doc, "insurance", None):
         return
 
+    # Only apply insurance discount when the linked register is Active
+    insurance_register = getattr(patient_doc, "insurance_register", None)
+    if insurance_register:
+        ipr_status = frappe.db.get_value("Insurance Patient Register", insurance_register, "status")
+        if ipr_status != "Active":
+            return
+
     insurance_doc = frappe.get_doc("Health Insurance", patient_doc.insurance)
     
     # Infer context if still unknown: default to outpatient unless a clear inpatient flag exists

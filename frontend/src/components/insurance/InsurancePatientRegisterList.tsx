@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { MoreHorizontal, UserPlus, Eye } from 'lucide-react'
+import { MoreHorizontal, UserPlus, Eye, X, ExternalLink, ShieldCheck } from 'lucide-react'
 import { fetchInsurancePatientRegisters, linkPatientToInsuranceRegister, type InsurancePatientRegisterRow } from '../../services/common'
 import { CreatePatientModal } from '../patients/CreatePatientModal'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
@@ -12,14 +12,21 @@ const STATUS_COLORS: Record<string, string> = {
   Cancelled: 'bg-slate-200 text-slate-500',
 }
 
+function Field({ label, value }: { label: string; value?: string | number | null }) {
+  return (
+    <div>
+      <p className="text-xs text-slate-500 mb-0.5">{label}</p>
+      <p className="text-sm font-medium text-slate-900">{value ?? <span className="text-slate-400 italic">—</span>}</p>
+    </div>
+  )
+}
+
 interface InsurancePatientRegisterListProps {
   refreshKey?: number
-  onRowClick?: (row: InsurancePatientRegisterRow) => void
 }
 
 export const InsurancePatientRegisterList = ({
   refreshKey = 0,
-  onRowClick,
 }: InsurancePatientRegisterListProps) => {
   const [rows, setRows] = useState<InsurancePatientRegisterRow[]>([])
   const [loading, setLoading] = useState(false)
@@ -29,6 +36,9 @@ export const InsurancePatientRegisterList = ({
   // Three-dot menu — one row open at a time
   const [openActionRow, setOpenActionRow] = useState<string | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
+
+  // Detail slide-over
+  const [detailRow, setDetailRow] = useState<InsurancePatientRegisterRow | null>(null)
 
   // Create patient modal (prefilled from register)
   const [createPatientForRegister, setCreatePatientForRegister] = useState<InsurancePatientRegisterRow | null>(null)
@@ -118,7 +128,7 @@ export const InsurancePatientRegisterList = ({
                   <td className="px-3 py-2">
                     <button
                       type="button"
-                      onClick={() => onRowClick?.(row)}
+                      onClick={() => setDetailRow(row)}
                       className="text-primary font-medium hover:underline text-xs"
                     >
                       {row.name}
@@ -162,7 +172,7 @@ export const InsurancePatientRegisterList = ({
                         >
                           <button
                             type="button"
-                            onClick={() => { onRowClick?.(row); setOpenActionRow(null) }}
+                            onClick={() => { setDetailRow(row); setOpenActionRow(null) }}
                             className="flex w-full items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
                           >
                             <Eye className="w-4 h-4 text-slate-400" />
@@ -195,7 +205,134 @@ export const InsurancePatientRegisterList = ({
           initialName={createPatientForRegister.full_name}
           initialNationalId={createPatientForRegister.national_id_cpr_no}
           initialInsurance={createPatientForRegister.insurance_provider}
+          initialInsuranceRegister={createPatientForRegister.name}
         />
+      )}
+
+      {/* Detail slide-over */}
+      {detailRow && (
+        <div className="fixed inset-0 z-50 flex items-start justify-end" onClick={() => setDetailRow(null)}>
+          <div className="absolute inset-0 bg-black/30" />
+          <div
+            className="relative z-10 h-full w-full max-w-lg bg-white shadow-2xl flex flex-col"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Panel header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50 shrink-0">
+              <div className="flex items-center gap-3">
+                <ShieldCheck className="w-5 h-5 text-primary" />
+                <div>
+                  <p className="text-xs text-slate-500 uppercase tracking-wide">Insurance Patient Register</p>
+                  <p className="text-sm font-semibold text-slate-800">{detailRow.name}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <a
+                  href={`/app/insurance-patient-register/${encodeURIComponent(detailRow.name)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 border border-slate-300 rounded-md hover:bg-slate-100 transition"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  Open in Frappe
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setDetailRow(null)}
+                  className="inline-flex items-center justify-center w-8 h-8 rounded-md text-slate-500 hover:text-slate-800 hover:bg-slate-200"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Panel body */}
+            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
+              {/* Status badge */}
+              <div className="flex items-center gap-3">
+                <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold ${STATUS_COLORS[detailRow.status] || 'bg-slate-100 text-slate-600'}`}>
+                  {detailRow.status || 'Unused'}
+                </span>
+              </div>
+
+              {/* Patient info */}
+              <div>
+                <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3 pb-1 border-b border-slate-100">Patient Information</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <Field label="Full Name" value={detailRow.full_name} />
+                  <Field label="National ID / CPR No" value={detailRow.national_id_cpr_no} />
+                  <Field label="Linked Patient" value={detailRow.patient} />
+                  <Field label="Posting Date" value={detailRow.posting_date
+                    ? new Date(detailRow.posting_date).toLocaleDateString()
+                    : undefined}
+                  />
+                </div>
+              </div>
+
+              {/* Insurance info */}
+              <div>
+                <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3 pb-1 border-b border-slate-100">Insurance Details</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <Field label="Insurance Provider" value={detailRow.insurance_provider} />
+                  <Field label="Approval ID" value={detailRow.approval_id} />
+                  <Field label="Approval Validity (Days)" value={detailRow.approval_validitydays} />
+                  <Field label="No of Approved Visits" value={detailRow.no_of_visits} />
+                </div>
+              </div>
+
+              {/* Visit stats */}
+              <div>
+                <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3 pb-1 border-b border-slate-100">Visit Statistics</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-primary/5 border border-primary/20 rounded-lg px-4 py-3 text-center">
+                    <p className="text-2xl font-bold text-primary">{detailRow.no_of_patient_visit ?? 0}</p>
+                    <p className="text-xs text-slate-500 mt-1">Patient Visits Used</p>
+                  </div>
+                  <div className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-center">
+                    <p className="text-2xl font-bold text-slate-700">{detailRow.no_of_visits || '—'}</p>
+                    <p className="text-xs text-slate-500 mt-1">Approved Visits</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Panel footer actions */}
+            <div className="shrink-0 px-6 py-4 border-t border-slate-200 bg-slate-50 flex gap-3">
+              {/* Exhausted / Expired / Active — edit only, no patient create/reassign */}
+              {(detailRow.status === 'Exhausted' || detailRow.status === 'Expired') ? (
+                <a
+                  href={`/app/insurance-patient-register/${encodeURIComponent(detailRow.name)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary/90 transition"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  Edit Register
+                </a>
+              ) : detailRow.status === 'Active' ? (
+                /* Already linked — no create/reassign needed */
+                null
+              ) : (
+                /* Unused / other — show Create / Reassign */
+                <button
+                  type="button"
+                  onClick={() => { setCreatePatientForRegister(detailRow); setDetailRow(null) }}
+                  className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary/90 transition"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  {detailRow.patient ? 'Reassign Patient' : 'Create Patient'}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setDetailRow(null)}
+                className="flex-1 px-4 py-2 text-sm font-medium text-slate-700 border border-slate-300 rounded-lg hover:bg-slate-100 transition"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

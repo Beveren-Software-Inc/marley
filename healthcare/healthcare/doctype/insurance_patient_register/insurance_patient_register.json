@@ -89,7 +89,7 @@
   },
   {
    "fieldname": "national_id_cpr_no",
-   "fieldtype": "Date",
+   "fieldtype": "Data",
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "National ID /CPR No"
@@ -130,7 +130,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-03-19 17:02:50.984288",
+ "modified": "2026-03-22 11:48:43.267689",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Insurance Patient Register",
@@ -153,6 +153,7 @@
  ],
  "row_format": "Dynamic",
  "rows_threshold_for_grid_search": 20,
+ "search_fields": "full_name,national_id_cpr_no",
  "sort_field": "creation",
  "sort_order": "DESC",
  "states": [
