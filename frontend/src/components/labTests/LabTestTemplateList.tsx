@@ -1,15 +1,17 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { MoreHorizontal, FlaskConical } from 'lucide-react'
+import { MoreHorizontal, FlaskConical, Pencil } from 'lucide-react'
 import { fetchLabTestTemplateList, type LabTestTemplateListRow } from '../../services/common'
 import { CreateServiceRequestModal } from '../serviceRequests/CreateServiceRequestModal'
+import { LabTestTemplateDetailPanel } from './LabTestTemplateDetailPanel'
 
 interface LabTestTemplateListProps {
   refreshKey?: number
-  onRowClick?: (name: string) => void
+  /** Called when user chooses Edit from the action menu */
+  onEditClick?: (name: string) => void
   selectedPatient?: string
 }
 
-export const LabTestTemplateList = ({ refreshKey = 0, onRowClick }: LabTestTemplateListProps) => {
+export const LabTestTemplateList = ({ refreshKey = 0, onEditClick, selectedPatient }: LabTestTemplateListProps) => {
   const [rows, setRows] = useState<LabTestTemplateListRow[]>([])
   const [allRows, setAllRows] = useState<LabTestTemplateListRow[]>([])
   const [loading, setLoading] = useState(false)
@@ -23,6 +25,9 @@ export const LabTestTemplateList = ({ refreshKey = 0, onRowClick }: LabTestTempl
   // 3-dot action menu
   const [openMenuRow, setOpenMenuRow] = useState<string | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
+
+  // Detail panel
+  const [detailTemplate, setDetailTemplate] = useState<LabTestTemplateListRow | null>(null)
 
   // Service request modal
   const [requestTemplate, setRequestTemplate] = useState<LabTestTemplateListRow | null>(null)
@@ -57,7 +62,7 @@ export const LabTestTemplateList = ({ refreshKey = 0, onRowClick }: LabTestTempl
     }
   }, [searchQuery, allRows])
 
-  // Close dropdown on outside click
+  // Close dropdowns on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
@@ -154,11 +159,17 @@ export const LabTestTemplateList = ({ refreshKey = 0, onRowClick }: LabTestTempl
               {rows.map(row => (
                 <tr
                   key={row.name}
-                  onClick={() => onRowClick?.(row.name)}
-                  className="border-t border-slate-100 hover:bg-slate-50 cursor-pointer transition-colors"
+                  className="border-t border-slate-100 hover:bg-slate-50 transition-colors"
                 >
+                  {/* Clicking the name opens the detail panel */}
                   <td className="px-3 py-2">
-                    <span className="font-medium text-primary">{row.lab_test_name || row.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => setDetailTemplate(row)}
+                      className="font-medium text-primary hover:underline text-left"
+                    >
+                      {row.lab_test_name || row.name}
+                    </button>
                   </td>
                   <td className="px-3 py-2 text-slate-600">{row.department || '—'}</td>
                   <td className="px-3 py-2 text-slate-600">{row.lab_test_template_type || '—'}</td>
@@ -201,6 +212,17 @@ export const LabTestTemplateList = ({ refreshKey = 0, onRowClick }: LabTestTempl
                       <div ref={menuRef} className="absolute right-0 top-8 z-30 bg-white border border-slate-200 rounded-lg shadow-lg min-w-[180px] py-1">
                         <button
                           type="button"
+                          onClick={() => {
+                            onEditClick?.(row.name)
+                            setOpenMenuRow(null)
+                          }}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                        >
+                          <Pencil className="w-4 h-4 text-slate-400" />
+                          Edit Template
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => { setRequestTemplate(row); setOpenMenuRow(null) }}
                           className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
                         >
@@ -217,12 +239,29 @@ export const LabTestTemplateList = ({ refreshKey = 0, onRowClick }: LabTestTempl
         </div>
       )}
 
+      {/* Right-side detail panel */}
+      {detailTemplate && (
+        <LabTestTemplateDetailPanel
+          templateName={detailTemplate.name}
+          onClose={() => setDetailTemplate(null)}
+          onEdit={() => {
+            onEditClick?.(detailTemplate.name)
+            setDetailTemplate(null)
+          }}
+          onRequestLabTest={() => {
+            setRequestTemplate(detailTemplate)
+            setDetailTemplate(null)
+          }}
+        />
+      )}
+
       {/* Service Request modal pre-filled with this template */}
       {requestTemplate && (
         <CreateServiceRequestModal
           onClose={() => setRequestTemplate(null)}
           onSuccess={() => setRequestTemplate(null)}
           initialTemplate={requestTemplate.name}
+          initialPatient={selectedPatient}
         />
       )}
     </div>

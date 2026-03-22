@@ -1044,6 +1044,59 @@ def get_insurance_patient_registers(search=None):
 
 
 @frappe.whitelist()
+def get_lab_test_template_detail(name):
+	"""Fetch a single Lab Test Template with all display fields and full child table rows."""
+	doc = frappe.get_doc("Lab Test Template", name)
+
+	def rows(child_list, fields):
+		result = []
+		for row in (child_list or []):
+			result.append({f: getattr(row, f, None) for f in fields})
+		return result
+
+	return {
+		"name": doc.name,
+		"lab_test_name": doc.lab_test_name,
+		"department": doc.department,
+		"lab_test_template_type": doc.lab_test_template_type,
+		"is_group": doc.is_group,
+		"is_billable": doc.is_billable,
+		"disabled": doc.disabled,
+		"nursing_checklist_template": doc.nursing_checklist_template,
+		# Billing
+		"item": doc.item,
+		"lab_test_code": doc.lab_test_code,
+		"lab_test_group": doc.lab_test_group,
+		"link_existing_item": doc.link_existing_item,
+		# Single/Compound UOM
+		"lab_test_uom": getattr(doc, "lab_test_uom", None),
+		"secondary_uom": getattr(doc, "secondary_uom", None),
+		# Imaging
+		"lab_test_description": getattr(doc, "lab_test_description", None),
+		# Worksheet
+		"worksheet_instructions": doc.worksheet_instructions,
+		"legend_print_position": doc.legend_print_position,
+		"result_legend": doc.result_legend,
+		# Child tables — full rows
+		"pricing": rows(doc.get("pricing"), ["patient_category", "price"]),
+		"lab_test_groups": rows(doc.get("lab_test_groups"), [
+			"lab_test_template", "lab_test_description", "group_event",
+			"group_test_uom", "secondary_uom",
+		]),
+		"normal_test_templates": rows(doc.get("normal_test_templates"), [
+			"lab_test_event", "lab_test_uom", "normal_range",
+			"secondary_uom", "conversion_factor",
+		]),
+		"descriptive_test_templates": rows(doc.get("descriptive_test_templates"), [
+			"particulars",
+		]),
+		"sample_requirements": rows(doc.get("sample_requirements"), [
+			"sample", "sample_qty", "sample_details",
+		]),
+	}
+
+
+@frappe.whitelist()
 def get_lab_test_templates(search=None):
 	"""Get list of Lab Test Templates for the setup screen."""
 	filters = {}
