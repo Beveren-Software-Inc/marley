@@ -4,10 +4,9 @@ import { toast } from '../../hooks/useToast'
 import { apiRequest } from '../../services/apiClient'
 import { 
   fetchHealthcarePractitioners, 
-  fetchServiceUnitTypes, 
   fetchCompanies,
   fetchCostCenters,
-  type LinkFieldOption 
+  type LinkFieldOption
 } from '../../services/common'
 import { CreatePatientModal } from '../patients/CreatePatientModal'
 import { CreatePractitionerModal } from '../practitioners/CreatePractitionerModal'
@@ -53,19 +52,16 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
   const [consultantOptions, setConsultantOptions] = useState<LinkFieldOption[]>([])
   const [psychologistOptions, setPsychologistOptions] = useState<LinkFieldOption[]>([])
   const [residentOptions, setResidentOptions] = useState<LinkFieldOption[]>([])
-  const [serviceUnitTypes, setServiceUnitTypes] = useState<LinkFieldOption[]>([])
-  
+
   // Dropdown open states
   const [consultantOpen, setConsultantOpen] = useState(false)
   const [psychologistOpen, setPsychologistOpen] = useState(false)
   const [residentOpen, setResidentOpen] = useState(false)
-  const [serviceUnitOpen, setServiceUnitOpen] = useState(false)
   
   // Search queries for link fields
   const [consultantQuery, setConsultantQuery] = useState('')
   const [psychologistQuery, setPsychologistQuery] = useState('')
   const [residentQuery, setResidentQuery] = useState('')
-  const [serviceUnitQuery, setServiceUnitQuery] = useState('')
 
   const [formData, setFormData] = useState({
     company: '',
@@ -74,9 +70,8 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
     consultant_doctor: '',
     psychologist_doctor: '',
     residents_doctor: '',
-    admission_service_unit_type: '',
     admission_ordered_for: new Date().toISOString().split('T')[0],
-    expected_length_of_stay: '',
+    expected_length_of_stay: '1',
     admission_instruction: '',
     admission_nursing_checklist_template: ''
   })
@@ -123,19 +118,6 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
     }, 300)
     return () => clearTimeout(timeoutId)
   }, [formData.company, costCenterQuery, costCenterOpen])
-
-  // Load initial service unit types
-  useEffect(() => {
-    const loadOptions = async () => {
-      try {
-        const serviceUnits = await fetchServiceUnitTypes()
-        setServiceUnitTypes(serviceUnits)
-      } catch (err) {
-        console.error('Failed to load options:', err)
-      }
-    }
-    loadOptions()
-  }, [])
 
   // Search/fetch patients
   useEffect(() => {
@@ -224,22 +206,6 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
     }
   }, [residentQuery, residentOpen, formData.medical_department])
 
-  // Search service unit types
-  useEffect(() => {
-    if (serviceUnitOpen || serviceUnitQuery) {
-      const search = async () => {
-        try {
-          const results = await fetchServiceUnitTypes(serviceUnitQuery || undefined)
-          setServiceUnitTypes(results)
-        } catch (err) {
-          console.error('Failed to search service unit types:', err)
-        }
-      }
-      const timeoutId = setTimeout(search, 300)
-      return () => clearTimeout(timeoutId)
-    }
-  }, [serviceUnitQuery, serviceUnitOpen])
-
   // Search nursing templates
   // (UI currently disabled; keep hook placeholder if needed in future)
 
@@ -295,9 +261,6 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
         args.admission_encounter = encounterName
       }
       
-      if (formData.admission_service_unit_type) {
-        args.admission_service_unit_type = formData.admission_service_unit_type
-      }
       if (formData.expected_length_of_stay) {
         args.expected_length_of_stay = parseInt(formData.expected_length_of_stay)
       }
@@ -374,7 +337,6 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
     setConsultantOpen(false)
     setPsychologistOpen(false)
     setResidentOpen(false)
-    setServiceUnitOpen(false)
   }
 
   return (
@@ -778,50 +740,6 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                       ))
                     ) : (
                       <div className="px-3 py-2 text-xs text-slate-500">No practitioners found</div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Service Unit Type */}
-            <div className="relative">
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Service Unit Type
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  value={formData.admission_service_unit_type ? serviceUnitTypes.find(s => s.name === formData.admission_service_unit_type)?.label || formData.admission_service_unit_type : serviceUnitQuery}
-                  onChange={(e) => {
-                    // Clear current selection so user can freely edit text
-                    setFormData(prev => ({ ...prev, admission_service_unit_type: '' }))
-                    setServiceUnitQuery(e.target.value)
-                    setServiceUnitOpen(true)
-                  }}
-                  onFocus={() => setServiceUnitOpen(true)}
-                  placeholder="Search Service Unit Type..."
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-                {serviceUnitOpen && (
-                  <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-auto">
-                    {serviceUnitTypes.length > 0 ? (
-                      serviceUnitTypes.map((unit) => (
-                        <button
-                          key={unit.name}
-                          type="button"
-                          className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50"
-                          onClick={() => {
-                            setFormData(prev => ({ ...prev, admission_service_unit_type: unit.name }))
-                            setServiceUnitQuery(unit.label)
-                            setServiceUnitOpen(false)
-                          }}
-                        >
-                          {unit.label}
-                        </button>
-                      ))
-                    ) : (
-                      <div className="px-3 py-2 text-xs text-slate-500">No service unit types found</div>
                     )}
                   </div>
                 )}

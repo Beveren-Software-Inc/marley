@@ -1272,6 +1272,22 @@ def create_health_insurance(data):
 
 
 @frappe.whitelist()
+def get_inpatient_packages(search=None):
+	"""Fetch Inpatient Package records for dropdown selection."""
+	filters = [["active", "=", 1]]
+	if search:
+		filters.append(["package_name", "like", f"%{search}%"])
+	packages = frappe.get_all(
+		"Inpatient Package",
+		filters=filters,
+		fields=["name", "package_name", "package_rate", "no_of_days", "package_category"],
+		order_by="package_name asc",
+		limit=50,
+	)
+	return packages
+
+
+@frappe.whitelist()
 def create_insurance_company(company_name):
 	"""Create a new Insurance Company."""
 	if frappe.db.exists("Insurance Company", company_name):

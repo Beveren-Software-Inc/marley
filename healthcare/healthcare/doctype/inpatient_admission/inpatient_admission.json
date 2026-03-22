@@ -61,9 +61,12 @@
   "admission_charges_section",
   "charges",
   "costs_section",
-  "admission_cost",
+  "standard_package",
+  "inpatient_package",
+  "rate_per_day",
   "case_management_fee",
   "column_break_costs",
+  "admission_cost",
   "room_charges",
   "medical_details_tab",
   "sb_discharge_details",
@@ -884,6 +887,23 @@
    "fieldtype": "Select",
    "label": "Patient IP Category",
    "options": "\nINSURANCE-BUPA\nINSURANCE-MILITARY\nINSURANCE-OTHERS\nJAU HOSPITAL PATIENT\nNORMAL-REGULAR\nROYAL/VIP-REGULAR"
+  },
+  {
+   "default": "0",
+   "fieldname": "standard_package",
+   "fieldtype": "Check",
+   "label": "Standard Package"
+  },
+  {
+   "fieldname": "rate_per_day",
+   "fieldtype": "Currency",
+   "label": "Rate Per Day"
+  },
+  {
+   "fieldname": "inpatient_package",
+   "fieldtype": "Link",
+   "label": "Inpatient Package",
+   "options": "Inpatient Package"
   }
  ],
  "index_web_pages_for_search": 1,
@@ -897,7 +917,7 @@
    "link_fieldname": "admission"
   }
  ],
- "modified": "2026-03-11 17:23:33.681588",
+ "modified": "2026-03-22 13:45:36.984935",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Inpatient Admission",

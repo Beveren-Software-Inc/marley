@@ -1014,6 +1014,24 @@ export async function fetchItemCodes(search?: string): Promise<LinkFieldOption[]
   }))
 }
 
+export interface InpatientPackageOption {
+  name: string
+  package_name: string
+  package_rate: number
+  no_of_days: number | null
+  package_category: string
+}
+
+export async function fetchInpatientPackages(search?: string): Promise<InpatientPackageOption[]> {
+  const params = new URLSearchParams()
+  params.set('cmd', 'healthcare.healthcare.api.common.get_inpatient_packages')
+  if (search) params.set('search', search)
+  const res = await fetch(`/api/method/healthcare.healthcare.api.common.get_inpatient_packages?${params.toString()}`, { credentials: 'include' })
+  if (!res.ok) return []
+  const data = await res.json()
+  return data.message ?? []
+}
+
 export async function fetchItemGroups(search?: string): Promise<LinkFieldOption[]> {
   const filters: [string, string, string][] = []
   if (search) filters.push(['name', 'like', `%${search}%`])

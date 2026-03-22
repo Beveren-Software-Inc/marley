@@ -13,6 +13,7 @@ from frappe.model.document import Document
 
 class InpatientPackage(Document):
 	def validate(self):
+		pass
 		# Validate that at least one service is added
-		if not self.services or len(self.services) == 0:
-			frappe.throw(_("Please add at least one service to the package."))
+		# if not self.services or len(self.services) == 0:
+		# 	frappe.throw(_("Please add at least one service to the package."))
