@@ -460,6 +460,17 @@
    "fieldtype": "Table",
    "label": "Pricing",
    "options": "Lab Test Pricing"
+  },
+  {
+   "fieldname": "service_pricing_section",
+   "fieldtype": "Section Break",
+   "label": "Service Pricing"
+  },
+  {
+   "fieldname": "service_pricing",
+   "fieldtype": "Table",
+   "label": "Service Pricing",
+   "options": "Service Pricing"
   }
  ],
  "grid_page_length": 50,

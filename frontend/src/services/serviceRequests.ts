@@ -29,7 +29,8 @@ export async function fetchServiceRequests(
   offset: number = 0,
   patient?: string,
   template_dt?: string,
-  status?: string
+  status?: string,
+  search?: string
 ): Promise<ServiceRequest[]> {
   const params = new URLSearchParams()
   params.append('limit', limit.toString())
@@ -37,6 +38,7 @@ export async function fetchServiceRequests(
   if (patient) params.append('patient', patient)
   if (template_dt) params.append('template_dt', template_dt)
   if (status) params.append('status', status)
+  if (search) params.append('search', search)
 
   const response = await fetch(
     `/api/method/healthcare.api.service_request.get_service_requests?${params.toString()}`
@@ -253,6 +255,28 @@ export async function bookLabAndForward(serviceRequestName: string): Promise<{ l
   const resData = await response.json()
   if (resData?.message) return resData.message
   throw new Error(resData?.exc || 'Failed to book lab')
+}
+
+export async function confirmSessionPayment(serviceRequestName: string): Promise<{ ok: boolean }> {
+  const response = await fetch(
+    `/api/method/healthcare.api.service_request.confirm_session_payment?service_request_name=${encodeURIComponent(serviceRequestName)}`,
+    { method: 'POST' }
+  )
+  const resData = await response.json()
+  if (resData?.message?.ok) return resData.message
+  throw new Error(resData?.exc || 'Failed to confirm payment')
+}
+
+export async function bookSession(serviceRequestName: string, appointment?: string): Promise<{ ok: boolean; created?: { doctype: string; name: string } }> {
+  const params = new URLSearchParams({ service_request_name: serviceRequestName })
+  if (appointment) params.append('appointment', appointment)
+  const response = await fetch(
+    `/api/method/healthcare.api.service_request.book_session?${params.toString()}`,
+    { method: 'POST' }
+  )
+  const resData = await response.json()
+  if (resData?.message?.ok) return resData.message
+  throw new Error(resData?.exc || 'Failed to book session')
 }
 
 

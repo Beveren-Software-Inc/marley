@@ -1,8 +1,8 @@
 {
  "actions": [],
  "allow_rename": 1,
- "autoname": "IPS-.{service_request}-.#####",
- "creation": "2025-12-17 13:00:00",
+ "autoname": "CS-.{service_request}-.#####",
+ "creation": "2026-03-22 08:47:06.592265",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -41,12 +41,47 @@
    "reqd": 1
   },
   {
+   "default": "External Service",
+   "fieldname": "type",
+   "fieldtype": "Select",
+   "label": "Type",
+   "options": "\nInternal Service\nExternal Service"
+  },
+  {
+   "fieldname": "column_break_audp",
+   "fieldtype": "Column Break"
+  },
+  {
    "fetch_from": "file_number.patient_name",
    "fieldname": "patient_full_name",
    "fieldtype": "Data",
    "in_list_view": 1,
    "label": "Patient Full Name",
    "read_only": 1
+  },
+  {
+   "fieldname": "cost_center",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Cost Center",
+   "options": "Cost Center"
+  },
+  {
+   "fieldname": "service_request",
+   "fieldtype": "Link",
+   "label": "Service Request",
+   "options": "Service Request"
+  },
+  {
+   "fieldname": "section_break_kusj",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "patient_charges",
+   "fieldtype": "Table",
+   "label": "Patient Charges",
+   "options": "Service Pricing"
   },
   {
    "fieldname": "section_break_services",
@@ -71,50 +106,15 @@
    "in_list_view": 1,
    "label": "Total Amount",
    "read_only": 1
-  },
-  {
-   "fieldname": "column_break_audp",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "cost_center",
-   "fieldtype": "Link",
-   "in_list_view": 1,
-   "in_standard_filter": 1,
-   "label": "Cost Center",
-   "options": "Cost Center"
-  },
-  {
-   "default": "External Service",
-   "fieldname": "type",
-   "fieldtype": "Select",
-   "label": "Type",
-   "options": "\nInternal Service\nExternal Service"
-  },
-  {
-   "fieldname": "service_request",
-   "fieldtype": "Link",
-   "label": "Service Request",
-   "options": "Service Request"
-  },
-  {
-   "fieldname": "section_break_kusj",
-   "fieldtype": "Section Break"
-  },
-  {
-   "fieldname": "patient_charges",
-   "fieldtype": "Table",
-   "label": "Patient Charges",
-   "options": "Service Pricing"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-03-22 08:35:05.917950",
+ "modified": "2026-03-22 08:47:06.592265",
  "modified_by": "Administrator",
  "module": "Healthcare",
- "name": "IP Service",
+ "name": "Consultation Service",
  "naming_rule": "Expression",
  "owner": "Administrator",
  "permissions": [

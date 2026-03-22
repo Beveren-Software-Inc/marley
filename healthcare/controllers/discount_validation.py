@@ -76,7 +76,18 @@ def apply_insurance_discounts(doc):
         return
     # Exclusive items: never discounted
     exclusive_items = {row.item_code for row in getattr(insurance_doc, "exclusive_item", []) if getattr(row, "item_code", None)}
-    
+
+    # Exclusive item groups: items belonging to any of these groups are also excluded
+    exclusive_groups = {row.item_group for row in getattr(insurance_doc, "exclusive_item_group", []) if getattr(row, "item_group", None)}
+
+    # Cache item_group lookups to avoid repeated DB hits
+    item_group_cache: dict = {}
+
+    def get_item_group(item_code: str) -> str:
+        if item_code not in item_group_cache:
+            item_group_cache[item_code] = frappe.db.get_value("Item", item_code, "item_group") or ""
+        return item_group_cache[item_code]
+
     # Optional: per-item overrides from inclusive_item
     inclusive_map = {
         row.item_code: row
@@ -90,8 +101,12 @@ def apply_insurance_discounts(doc):
         if not item_code:
             continue
 
-        # Skip exclusive items
+        # Skip items explicitly listed as exclusive
         if item_code in exclusive_items:
+            continue
+
+        # Skip items whose item_group is in the exclusive groups list
+        if exclusive_groups and get_item_group(item_code) in exclusive_groups:
             continue
        
         # Start with base discount, allow item-level override if present

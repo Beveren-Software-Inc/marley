@@ -259,6 +259,17 @@
    "fieldname": "service_request_defaults_tab",
    "fieldtype": "Tab Break",
    "label": "Service Request Defaults"
+  },
+  {
+   "fieldname": "service_pricing_section",
+   "fieldtype": "Section Break",
+   "label": "Service Pricing"
+  },
+  {
+   "fieldname": "service_pricing",
+   "fieldtype": "Table",
+   "label": "Service Pricing",
+   "options": "Service Pricing"
   }
  ],
  "links": [

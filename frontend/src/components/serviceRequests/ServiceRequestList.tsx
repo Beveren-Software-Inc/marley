@@ -1,17 +1,21 @@
 import { useState, useEffect, useRef } from 'react'
 import {
   fetchServiceRequests,
-  createLabTestFromServiceRequest,
   confirmPayment,
   bookLabAndForward,
+  confirmSessionPayment,
+  bookSession,
   type ServiceRequest
 } from '../../services/serviceRequests'
+import { fetchServiceRequestTemplateTypes, type LinkFieldOption } from '../../services/common'
 import { toast } from '../../hooks/useToast'
 import { StatusPill } from '../ui/StatusPill'
 import { DetailSlideOver } from '../ui/DetailSlideOver'
 import { DocDetailView } from '../ui/DocDetailView'
 import { EditServiceRequestModal } from './EditServiceRequestModal'
+import { BookConsultationSessionModal } from './BookConsultationSessionModal'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
+import { Search, X } from 'lucide-react'
 
 interface ServiceRequestListProps {
   patient?: string
@@ -30,15 +34,26 @@ const statusColors: Record<string, string> = {
   'Draft': 'warning'
 }
 
+const SR_STATUSES = [
+  'draft-Request Status',
+  'active-Request Status',
+  'on-hold-Request Status',
+  'revoked-Request Status',
+  'completed-Request Status',
+  'entered-in-error-Request Status',
+]
+
 const refetch = (
   setLoading: (v: boolean) => void,
   setServiceRequests: (v: ServiceRequest[]) => void,
   setError: (v: Error | null) => void,
   patient?: string,
-  template_dt?: string
+  template_dt?: string,
+  statusFilter?: string,
+  search?: string
 ) => {
   setLoading(true)
-  fetchServiceRequests(50, 0, patient, template_dt)
+  fetchServiceRequests(50, 0, patient, template_dt || undefined, statusFilter || undefined, search || undefined)
     .then(setServiceRequests)
     .catch((err) => setError(err instanceof Error ? err : new Error('Failed to fetch service requests')))
     .finally(() => setLoading(false))
@@ -52,7 +67,18 @@ export const ServiceRequestList = ({ patient, onLabTestCreated, refreshKey, temp
   const [detailName, setDetailName] = useState<string | null>(null)
   const [openActionRow, setOpenActionRow] = useState<string | null>(null)
   const [editServiceRequestName, setEditServiceRequestName] = useState<string | null>(null)
+  const [bookingSessionSR, setBookingSessionSR] = useState<ServiceRequest | null>(null)
   const actionMenuRef = useRef<HTMLDivElement>(null)
+
+  // Filter state
+  const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
+  const [templateDtFilter, setTemplateDtFilter] = useState(template_dt || '')
+  const [templateTypes, setTemplateTypes] = useState<LinkFieldOption[]>([])
+
+  useEffect(() => {
+    fetchServiceRequestTemplateTypes().then(setTemplateTypes).catch(() => {})
+  }, [])
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -69,29 +95,18 @@ export const ServiceRequestList = ({ patient, onLabTestCreated, refreshKey, temp
 
   useEffect(() => {
     setError(null)
-    refetch(setLoading, setServiceRequests, setError, patient, template_dt)
-  }, [patient, refreshKey])
+    refetch(setLoading, setServiceRequests, setError, patient, templateDtFilter, statusFilter, search)
+  }, [patient, refreshKey, templateDtFilter, statusFilter])
 
-  const doRefetch = () => refetch(setLoading, setServiceRequests, setError, patient, template_dt)
+  // Debounced search
+  useEffect(() => {
+    const t = setTimeout(() => {
+      refetch(setLoading, setServiceRequests, setError, patient, templateDtFilter, statusFilter, search)
+    }, 350)
+    return () => clearTimeout(t)
+  }, [search])
 
-  const handleCreateLabTest = async (serviceRequestName: string) => {
-    setOpenActionRow(null)
-    setActionLoading(serviceRequestName)
-    try {
-      const result = await createLabTestFromServiceRequest(serviceRequestName)
-      if (result.is_group) {
-        toast.success(`${result.count} Lab Test${result.count !== 1 ? 's' : ''} created successfully`)
-      } else {
-        toast.success(`Lab Test ${result.name} created successfully`)
-      }
-      onLabTestCreated?.()
-      doRefetch()
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to create lab test')
-    } finally {
-      setActionLoading(null)
-    }
-  }
+  const doRefetch = () => refetch(setLoading, setServiceRequests, setError, patient, templateDtFilter, statusFilter, search)
 
   const handleConfirmPayment = async (sr: ServiceRequest) => {
     setOpenActionRow(null)
@@ -131,6 +146,44 @@ export const ServiceRequestList = ({ patient, onLabTestCreated, refreshKey, temp
     setEditServiceRequestName(sr.name)
   }
 
+  const handleConfirmSessionPayment = async (sr: ServiceRequest) => {
+    setOpenActionRow(null)
+    setActionLoading(sr.name)
+    try {
+      await confirmSessionPayment(sr.name)
+      toast.success('Payment confirmed')
+      doRefetch()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to confirm payment')
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const handleBookSession = async (sr: ServiceRequest) => {
+    setOpenActionRow(null)
+    // Consultation Service Template → open slot-picker modal
+    if (sr.template_dt === 'Consultation Service Template') {
+      setBookingSessionSR(sr)
+      return
+    }
+    // All other non-lab types → book directly
+    setActionLoading(sr.name)
+    try {
+      const result = await bookSession(sr.name)
+      if (result.created) {
+        toast.success(`${result.created.doctype} ${result.created.name} created and session booked`)
+      } else {
+        toast.success('Session booked successfully')
+      }
+      doRefetch()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to book session')
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
   const getStatusColor = (status?: string): string => {
     if (!status) return 'default'
     
@@ -161,16 +214,71 @@ export const ServiceRequestList = ({ patient, onLabTestCreated, refreshKey, temp
     )
   }
 
-  if (serviceRequests.length === 0) {
-    return (
-      <div className="flex items-center justify-center p-8">
-        <div className="text-slate-500">No service requests found</div>
-      </div>
-    )
-  }
-
   return (
     <div className="min-w-full">
+      {/* ── FILTER BAR ── */}
+      <div className="flex flex-wrap items-center gap-3 mb-4">
+        {/* Search */}
+        <div className="relative flex-1 min-w-[180px]">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by SR ID..."
+            className="w-full pl-8 pr-8 py-2 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+          />
+          {search && (
+            <button type="button" onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+
+        {/* Template Type filter (only if not fixed by prop) */}
+        {!template_dt && (
+          <select
+            value={templateDtFilter}
+            onChange={(e) => setTemplateDtFilter(e.target.value)}
+            className="py-2 px-3 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-white text-slate-700 min-w-[170px]"
+          >
+            <option value="">All Template Types</option>
+            {templateTypes.map((t) => (
+              <option key={t.name} value={t.name}>{t.label || t.name}</option>
+            ))}
+          </select>
+        )}
+
+        {/* Status filter */}
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          className="py-2 px-3 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-white text-slate-700 min-w-[140px]"
+        >
+          <option value="">All Statuses</option>
+          {SR_STATUSES.map((s) => (
+            <option key={s} value={s}>{s.split('-')[0].replace(/-/g, ' ')
+              .split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}</option>
+          ))}
+        </select>
+
+        {/* Clear filters */}
+        {(search || statusFilter || (templateDtFilter && !template_dt)) && (
+          <button
+            type="button"
+            onClick={() => { setSearch(''); setStatusFilter(''); if (!template_dt) setTemplateDtFilter('') }}
+            className="text-xs text-slate-500 hover:text-slate-700 underline whitespace-nowrap"
+          >
+            Clear filters
+          </button>
+        )}
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center p-8 text-slate-500 text-sm">Loading...</div>
+      ) : serviceRequests.length === 0 ? (
+        <div className="flex items-center justify-center p-8 text-slate-500 text-sm">No service requests found</div>
+      ) : (
       <table className="w-full min-w-[1000px]">
         <thead className="bg-slate-50 border-b border-slate-200">
           <tr>
@@ -269,6 +377,7 @@ export const ServiceRequestList = ({ patient, onLabTestCreated, refreshKey, temp
                         triggerRef={actionMenuRef}
                         minWidth={180}
                       >
+                        {/* ── LAB TEST TEMPLATE flow ── */}
                         {isLab && !accepted && (
                           <button
                             type="button"
@@ -289,16 +398,30 @@ export const ServiceRequestList = ({ patient, onLabTestCreated, refreshKey, temp
                             {loadingThis ? '…' : 'Book Lab'}
                           </button>
                         )}
-                        {!isLab && sr.status && !sr.status.toLowerCase().includes('completed') && (
+
+                        {/* ── ALL OTHER TEMPLATE TYPES flow ── */}
+                        {!isLab && !accepted && (
                           <button
                             type="button"
-                            onClick={() => handleCreateLabTest(sr.name)}
+                            onClick={() => handleConfirmSessionPayment(sr)}
                             disabled={loadingThis}
-                            className="block w-full text-left px-3 py-2 text-sm text-primary hover:bg-primary/5"
+                            className="block w-full text-left px-3 py-2 text-sm text-amber-700 hover:bg-amber-50 disabled:opacity-50"
                           >
-                            {loadingThis ? '…' : 'Create Lab Test'}
+                            Confirm Payment
                           </button>
                         )}
+                        {!isLab && accepted && !booked && (
+                          <button
+                            type="button"
+                            onClick={() => handleBookSession(sr)}
+                            disabled={loadingThis}
+                            className="block w-full text-left px-3 py-2 text-sm text-primary hover:bg-primary/5 font-medium"
+                          >
+                            {loadingThis ? '…' : 'Book Session'}
+                          </button>
+                        )}
+
+                        {/* ── IP SERVICE TYPE ── */}
                         {sr.template_dt === 'IP Service Type' && onCreateIPService && (
                           <button
                             type="button"
@@ -308,6 +431,7 @@ export const ServiceRequestList = ({ patient, onLabTestCreated, refreshKey, temp
                             Create IP Service
                           </button>
                         )}
+
                         <button
                           type="button"
                           onClick={() => handleEdit(sr)}
@@ -318,7 +442,7 @@ export const ServiceRequestList = ({ patient, onLabTestCreated, refreshKey, temp
                       </PortalActionsMenu>
                     </div>
 
-{isLab && booked && (
+{booked && (
                       <span className="text-xs text-slate-500">Booked</span>
                     )}
                   </div>
@@ -328,6 +452,7 @@ export const ServiceRequestList = ({ patient, onLabTestCreated, refreshKey, temp
           })}
         </tbody>
       </table>
+      )}
 
       {detailName && (
         <DetailSlideOver
@@ -344,6 +469,14 @@ export const ServiceRequestList = ({ patient, onLabTestCreated, refreshKey, temp
           serviceRequestName={editServiceRequestName}
           onClose={() => setEditServiceRequestName(null)}
           onSuccess={doRefetch}
+        />
+      )}
+
+      {bookingSessionSR && (
+        <BookConsultationSessionModal
+          serviceRequest={bookingSessionSR}
+          onClose={() => setBookingSessionSR(null)}
+          onSuccess={() => { setBookingSessionSR(null); doRefetch() }}
         />
       )}
     </div>

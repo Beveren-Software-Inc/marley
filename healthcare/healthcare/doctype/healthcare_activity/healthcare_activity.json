@@ -56,6 +56,17 @@
    "fieldname": "activity_duration",
    "fieldtype": "Duration",
    "label": "Activity Duration"
+  },
+  {
+   "fieldname": "service_pricing_section",
+   "fieldtype": "Section Break",
+   "label": "Service Pricing"
+  },
+  {
+   "fieldname": "service_pricing",
+   "fieldtype": "Table",
+   "label": "Service Pricing",
+   "options": "Service Pricing"
   }
  ],
  "index_web_pages_for_search": 1,

@@ -383,7 +383,6 @@ export const ReceptionistPage = () => {
               <ServiceRequestList
                 patient={selectedPatient || undefined}
                 refreshKey={serviceRequestRefreshKey}
-                template_dt="Lab Test Template"
               />
             </div>
             {showCreateServiceRequest && (

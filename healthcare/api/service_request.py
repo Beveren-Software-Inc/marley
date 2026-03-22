@@ -4,6 +4,7 @@
 
 import frappe
 from frappe import _
+from frappe.utils import nowdate
 
 
 @frappe.whitelist(allow_guest=False)
@@ -82,67 +83,132 @@ def get_lab_test_template_info(template):
 	return {'is_group': True, 'group_templates': group_templates}
 
 
+@frappe.whitelist(allow_guest=False)
+def get_service_request_template_pricing(template_dt, template_dn):
+	"""
+	Return Service Pricing rows for any service request template type.
+	For Lab Test Templates that are groups, also returns child template pricing breakdowns.
+	All templates now share the 'service_pricing' child table (linked to Service Pricing doctype).
+	"""
+	if not template_dt or not template_dn:
+		return {'is_group': False, 'pricing': [], 'group_templates': []}
+
+	if not frappe.db.exists(template_dt, template_dn):
+		return {'is_group': False, 'pricing': [], 'group_templates': []}
+
+	def get_pricing(parent, parenttype=''):
+		return frappe.get_all(
+			'Service Pricing',
+			filters={'parent': parent, 'parenttype': parenttype or template_dt},
+			fields=['patient_category', 'price'],
+			order_by='idx asc',
+			ignore_permissions=True,
+		)
+
+	# Lab Test Template — handle group templates specially
+	if template_dt == 'Lab Test Template':
+		is_group = frappe.db.get_value('Lab Test Template', template_dn, 'is_group')
+		if is_group:
+			group_rows = frappe.get_all(
+				'Lab Test Group Template',
+				filters={
+					'parent': template_dn,
+					'parenttype': 'Lab Test Template',
+					'template_or_new_line': 'Add Test',
+				},
+				fields=['lab_test_template'],
+				order_by='idx asc',
+				ignore_permissions=True,
+			)
+			group_templates = []
+			for row in group_rows:
+				if not row.lab_test_template:
+					continue
+				label = (
+					frappe.db.get_value('Lab Test Template', row.lab_test_template, 'lab_test_name')
+					or row.lab_test_template
+				)
+				group_templates.append({
+					'template_dn': row.lab_test_template,
+					'template_label': label,
+					'pricing': get_pricing(row.lab_test_template, 'Lab Test Template'),
+				})
+			return {'is_group': True, 'pricing': [], 'group_templates': group_templates}
+
+	# Regular / all other template types
+	pricing = get_pricing(template_dn)
+	return {'is_group': False, 'pricing': pricing, 'group_templates': []}
+
+
 @frappe.whitelist()
-def get_service_requests(limit=50, offset=0, patient=None, template_dt=None, status=None):
+def get_service_requests(limit=50, offset=0, patient=None, template_dt=None, status=None, search=None):
 	"""Get list of Service Requests"""
 	from healthcare.api.common import get_permitted_cost_centers
 	filters = {'docstatus': ['!=', 2]}
 
 	if patient:
 		filters['patient'] = patient
-	if template_dt:
-		filters['template_dt'] = template_dt
+	# print("Template dt", str(template_dt))
+	# if template_dt:
+	# 	filters['template_dt'] = template_dt
 	if status:
 		filters['status'] = status
+	if search:
+		filters['name'] = ['like', f'%{search}%']
 
 	# ── Cost-centre User Permission enforcement ──────────────────────────────
+	# Records with no cost_center are visible regardless (use or_filters).
 	permitted_cc = get_permitted_cost_centers()
+	or_filters = None
 	if permitted_cc is not None:
 		if not permitted_cc:
 			return []
-		filters['cost_center'] = ['in', permitted_cc]
+		or_filters = [
+			['Service Request', 'cost_center', 'in', permitted_cc],
+			['Service Request', 'cost_center', 'is', 'not set'],
+		]
 
-	service_requests = frappe.get_all(
-		'Service Request',
+	# Resolve human-readable template names for all supported template types
+	_template_name_field = {
+		'Lab Test Template': 'lab_test_name',
+		'Clinical Procedure Template': 'procedure_name',
+		'Observation Template': 'observation',
+		'Therapy Type': 'therapy_type',
+		'Healthcare Activity': 'activity_type',
+		'IP Service Type': 'service_name',
+		'Consultation Service Template': 'template_name',
+		'Appointment Type': 'name',
+	}
+
+	fetch_kwargs = dict(
 		filters=filters,
 		fields=[
-			'name',
-			'patient',
-			'patient_name',
-			'practitioner',
-			'template_dt',
-			'template_dn',
-			'status',
-			'order_date',
-			'order_time',
-			'occurrence_date',
-			'occurrence_time',
-			'medical_department',
-			'billing_status',
-			'priority',
-			'intent',
-			'patient_accepted_cost',
-			'booked',
-			'order_group',
-   			'cost'
+			'name', 'patient', 'patient_name', 'practitioner',
+			'template_dt', 'template_dn', 'status', 'order_date', 'order_time',
+			'occurrence_date', 'occurrence_time', 'medical_department',
+			'billing_status', 'priority', 'intent', 'patient_accepted_cost',
+			'booked', 'order_group', 'cost', 'cost_center',
 		],
 		limit=limit,
 		limit_start=offset,
-		order_by='order_date desc, order_time desc'
+		order_by='order_date desc, order_time desc',
 	)
-	# Get practitioner names and template names
+	if or_filters:
+		fetch_kwargs['or_filters'] = or_filters
+
+	service_requests = frappe.get_all('Service Request', **fetch_kwargs)
 	for sr in service_requests:
 		if sr.practitioner:
-			practitioner_name = frappe.db.get_value('Healthcare Practitioner', sr.practitioner, 'practitioner_name')
-			sr['practitioner_name'] = practitioner_name or sr.practitioner
-		
-		if sr.template_dn:
-			if sr.template_dt == 'Lab Test Template':
-				template_name = frappe.db.get_value('Lab Test Template', sr.template_dn, 'lab_test_name')
-				sr['template_name'] = template_name or sr.template_dn
-			elif sr.template_dt == 'IP Service Type':
-				template_name = frappe.db.get_value('IP Service Type', sr.template_dn, 'service_name')
-				sr['template_name'] = template_name or sr.template_dn
+			sr['practitioner_name'] = (
+				frappe.db.get_value('Healthcare Practitioner', sr.practitioner, 'practitioner_name')
+				or sr.practitioner
+			)
+
+		if sr.template_dn and sr.template_dt:
+			name_field = _template_name_field.get(sr.template_dt)
+			if name_field and name_field != 'name':
+				resolved = frappe.db.get_value(sr.template_dt, sr.template_dn, name_field)
+				sr['template_name'] = resolved or sr.template_dn
 			else:
 				sr['template_name'] = sr.template_dn
 	
@@ -416,12 +482,14 @@ def confirm_payment(service_request_name):
 	so.customer = sr.patient   # adjust if mapped via Customer
 	so.transaction_date = nowdate()
 	so.delivery_date = delivery_date
-	# Use grand_total if set (reflects any discount); fall back to amount then cost
-	billing_rate = frappe.utils.flt(sr.get("grand_total")) or frappe.utils.flt(sr.get("amount")) or frappe.utils.flt(sr.get("cost")) or 0
+	so.ignore_pricing_rule = 1
+	# Use grand_total (post-discount) if set and non-zero; fall back to cost
+	billing_rate = frappe.utils.flt(sr.grand_total) or frappe.utils.flt(sr.cost) or 0
 	so.append("items", {
 		"item_code": item_code,
 		"qty": 1,
 		"rate": billing_rate,
+		"price_list_rate": billing_rate,
 		"description": f"Service Request {sr.name}"
 	})
 	so.custom_reference_type = "Service Request"
@@ -474,4 +542,122 @@ def confirm_payment(service_request_name):
 		"ok": True,
 		"patient_accepted_cost": 1,
 		"sales_order": so.name
+	}
+
+
+@frappe.whitelist(allow_guest=False)
+def confirm_session_payment(service_request_name):
+	"""
+	Confirm payment for non-Lab Test service requests.
+	Looks up the item/item_code from the linked template, creates a Sales Order,
+	and marks the service request as payment accepted.
+	"""
+	if not service_request_name:
+		frappe.throw(_("Service Request name is required"))
+
+	sr = frappe.get_doc("Service Request", service_request_name)
+
+	if sr.patient_accepted_cost:
+		return {"ok": True, "patient_accepted_cost": 1}
+
+	if not sr.template_dt or not sr.template_dn:
+		frappe.throw(_("Template is required on the Service Request"))
+
+	template_doc = frappe.get_doc(sr.template_dt, sr.template_dn)
+
+	# Resolve item code — templates use either `item` (Link) or `item_code` (Data)
+	item_code = (
+		getattr(template_doc, "item", None)
+		or getattr(template_doc, "item_code", None)
+	)
+	if not item_code:
+		frappe.throw(
+			_("{0} '{1}' must have an Item or Item Code configured before confirming payment").format(
+				sr.template_dt, sr.template_dn
+			)
+		)
+
+	billing_rate = (
+		frappe.utils.flt(sr.grand_total)
+		or frappe.utils.flt(sr.cost)
+		or 0
+	)
+	delivery_date = sr.get("expected_date") or nowdate()
+
+	so = frappe.new_doc("Sales Order")
+	so.patient = sr.patient
+	so.customer = sr.patient
+	so.transaction_date = nowdate()
+	so.delivery_date = delivery_date
+	so.ignore_pricing_rule = 1
+	so.append("items", {
+		"item_code": item_code,
+		"qty": 1,
+		"rate": billing_rate,
+		"price_list_rate": billing_rate,
+		"description": f"Service Request {sr.name}",
+	})
+	so.custom_reference_type = "Service Request"
+	so.custom_reference_name = sr.name
+	so.insert(ignore_permissions=True)
+	so.submit()
+
+	sr.db_set("patient_accepted_cost", 1)
+	sr.db_set("status", "active-Request Status")
+	sr.db_set("reference_document_type", "Sales Order")
+	sr.db_set("reference_document_name", so.name)
+	frappe.db.commit()
+
+	return {"ok": True, "patient_accepted_cost": 1, "sales_order": so.name}
+
+
+@frappe.whitelist(allow_guest=False)
+def book_session(service_request_name, appointment=None):
+	"""
+	Book a session for a non-Lab Test service request.
+	- For 'Consultation Service Template': creates a Consultation Service linked to the SR.
+	  If an appointment name is provided it is linked to the SR and the Consultation Service.
+	- For all other types: marks the SR as booked.
+	"""
+	if not service_request_name:
+		frappe.throw(_("Service Request name is required"))
+
+	sr = frappe.get_doc("Service Request", service_request_name)
+
+	if not sr.patient_accepted_cost:
+		frappe.throw(_("Payment must be confirmed before booking a session"))
+
+	if sr.booked:
+		return {"ok": True, "already_booked": True}
+
+	created_doc = None
+
+	# Link the Patient Appointment back to this Service Request
+	if appointment and frappe.db.exists("Patient Appointment", appointment):
+		frappe.db.set_value("Patient Appointment", appointment, "service_request", sr.name)
+
+	if sr.template_dt == "Consultation Service Template":
+		cs = frappe.new_doc("Consultation Service")
+		cs.file_number = sr.patient
+		cs.admission_no = sr.get("inpatient_record") or None
+		cs.patient_full_name = (
+			sr.patient_name
+			or frappe.db.get_value("Patient", sr.patient, "patient_name")
+			or ""
+		)
+		cs.cost_center = sr.cost_center or None
+		cs.service_request = sr.name
+		cs.type = "Internal Service"
+		cs.flags.ignore_mandatory = True
+		cs.flags.ignore_permissions = True
+		cs.insert()
+		created_doc = {"doctype": "Consultation Service", "name": cs.name}
+
+	sr.db_set("booked", 1)
+	frappe.db.commit()
+
+	return {
+		"ok": True,
+		"booked": 1,
+		"created": created_doc,
 	}
