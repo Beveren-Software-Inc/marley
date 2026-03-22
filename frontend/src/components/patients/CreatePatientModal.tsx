@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { createPatient, uploadPatientFile, type PatientDocumentRow } from '../../services/patients'
-import { fetchLeadSources, fetchNationalities, fetchCountries, fetchDocumentTypes,fetchHealthcareInsurance,fetchSalutations, type LinkFieldOption } from '../../services/common'
+import { fetchLeadSources, fetchNationalities, fetchCountries, fetchDocumentTypes, fetchHealthcareInsurance, fetchSalutations, fetchInsurancePatientRegisters, type LinkFieldOption, type InsurancePatientRegisterRow } from '../../services/common'
 import { CreateLeadSourceModal } from './CreateLeadSourceModal'
 import { CreateNationalityModal } from './CreateNationalityModal'
 import { toast } from '../../hooks/useToast'
@@ -210,11 +210,13 @@ interface CreatePatientModalProps {
   initialNationalId?: string
   /** Pre-fill insurance provider (Health Insurance docname) — will auto-set insurance tab */
   initialInsurance?: string
+  /** Pre-fill insurance register (Insurance Patient Register docname) */
+  initialInsuranceRegister?: string
 }
 
 type Tab = 'details' | 'relations' | 'insurance' | 'documents'
 
-export const CreatePatientModal = ({ onClose, onSuccess, initialName, initialNationalId, initialInsurance }: CreatePatientModalProps) => {
+export const CreatePatientModal = ({ onClose, onSuccess, initialName, initialNationalId, initialInsurance, initialInsuranceRegister }: CreatePatientModalProps) => {
   const [activeTab, setActiveTab] = useState<Tab>(initialInsurance ? 'insurance' : 'details')
 
   const [formData, setFormData] = useState({
@@ -254,6 +256,7 @@ export const CreatePatientModal = ({ onClose, onSuccess, initialName, initialNat
     ref_no: '',
     job_title: '',
     job_company: '',
+    insurance_register: initialInsuranceRegister || '',
   })
 
   const [loading, setLoading] = useState(false)
@@ -291,6 +294,14 @@ export const CreatePatientModal = ({ onClose, onSuccess, initialName, initialNat
   const [salutationOpen, setSalutationOpen] = useState(false)
   const [salutationQuery, setSalutationQuery] = useState('')
   const [selectedSalutation, setSelectedSalutation] = useState<LinkFieldOption | null>(null)
+
+  // Insurance Patient Register dropdown
+  const [iprOptions, setIprOptions] = useState<InsurancePatientRegisterRow[]>([])
+  const [iprOpen, setIprOpen] = useState(false)
+  const [iprQuery, setIprQuery] = useState(initialInsuranceRegister || '')
+  const [selectedIpr, setSelectedIpr] = useState<{ name: string; label: string } | null>(
+    initialInsuranceRegister ? { name: initialInsuranceRegister, label: initialInsuranceRegister } : null
+  )
 
   // Explicit Yes/No choice for Has Insurance — pre-set to Yes when insurance prefill is provided
   const [hasInsuranceChoice, setHasInsuranceChoice] = useState<'Yes' | 'No' | ''>(initialInsurance ? 'Yes' : '')
@@ -432,6 +443,7 @@ export const CreatePatientModal = ({ onClose, onSuccess, initialName, initialNat
         last_name: undefined,
         is_black_list: formData.is_black_list,
         remarks: formData.remarks || undefined,
+        insurance_register: formData.insurance_register || undefined,
         patient_relation: relations
           .filter((r) => (r.full_name || r.relation || r.mobile_no || r.email || '').trim())
           .map((r) => ({
@@ -507,6 +519,16 @@ export const CreatePatientModal = ({ onClose, onSuccess, initialName, initialNat
     const t = setTimeout(search, 300)
     return () => clearTimeout(t)
   }, [insuranceQuery, insuranceOpen])
+
+  useEffect(() => {
+    if (!iprOpen) return
+    const search = async () => {
+      const results = await fetchInsurancePatientRegisters(iprQuery || undefined)
+      setIprOptions(results)
+    }
+    const t = setTimeout(search, 300)
+    return () => clearTimeout(t)
+  }, [iprQuery, iprOpen])
 
   useEffect(() => {
     const loadOptions = async () => {
@@ -1054,6 +1076,53 @@ export const CreatePatientModal = ({ onClose, onSuccess, initialName, initialNat
                       <label className="text-xs font-medium text-slate-600">Reference No</label>
                       <input value={formData.ref_no || ''} onChange={(e) => handleChange('ref_no', e.target.value)}
                         className="w-full rounded-md border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none" />
+                    </div>
+                    <div className="md:col-span-2 flex flex-col gap-1">
+                      <label className="text-xs font-medium text-slate-600">Insurance Patient Register</label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={selectedIpr ? selectedIpr.label : iprQuery}
+                          onChange={(e) => { setIprQuery(e.target.value); setIprOpen(true) }}
+                          onFocus={() => setIprOpen(true)}
+                          placeholder="Search insurance register..."
+                          className="w-full rounded-md border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none"
+                        />
+                        {selectedIpr && (
+                          <button
+                            type="button"
+                            onClick={() => { setSelectedIpr(null); setIprQuery(''); handleChange('insurance_register', '') }}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                          >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        )}
+                        {iprOpen && iprOptions.length > 0 && (
+                          <div className="absolute z-10 w-full bg-white text-slate-900 border border-slate-200 rounded-md shadow max-h-60 overflow-y-auto">
+                            {iprOptions.map((reg) => (
+                              <button
+                                key={reg.name}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedIpr({ name: reg.name, label: reg.name })
+                                  handleChange('insurance_register', reg.name)
+                                  setIprOpen(false)
+                                  setIprQuery('')
+                                }}
+                                className="w-full text-left px-3 py-2 text-sm text-slate-900 hover:bg-slate-100"
+                              >
+                                <span className="font-medium">{reg.name}</span>
+                                {reg.full_name && <span className="ml-2 text-slate-500 text-xs">— {reg.full_name}</span>}
+                                <span className={`ml-2 text-xs px-1.5 py-0.5 rounded-full ${reg.status === 'Active' ? 'bg-green-100 text-green-700' : reg.status === 'Unused' ? 'bg-slate-100 text-slate-500' : 'bg-red-100 text-red-600'}`}>
+                                  {reg.status || 'Unused'}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 )}

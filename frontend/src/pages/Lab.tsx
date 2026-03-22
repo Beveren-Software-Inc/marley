@@ -124,7 +124,8 @@ export const LabPage = () => {
             <div className="overflow-y-auto max-h-72" style={{ scrollbarWidth: 'thin' }}>
               <LabTestTemplateList
                 refreshKey={templateRefreshKey}
-                onRowClick={name => { setEditTemplateName(name); setShowCreateTemplateModal(true) }}
+                selectedPatient={selectedPatient}
+                onEditClick={name => { setEditTemplateName(name); setShowCreateTemplateModal(true) }}
               />
             </div>
           </section>

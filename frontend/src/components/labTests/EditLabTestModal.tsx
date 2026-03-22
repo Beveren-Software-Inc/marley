@@ -29,6 +29,9 @@ export const EditLabTestModal = ({ labTestName, onClose, onSuccess }: EditLabTes
     date: '',
     time: '',
     status: '',
+    is_outsourced: 0 as 0 | 1,
+    outsource_lab_name: '',
+    outsource_ref_no: '',
     amount: '' as string | number,
     discount_margin: 'Percentage',
     discount: '' as string | number,
@@ -91,6 +94,9 @@ export const EditLabTestModal = ({ labTestName, onClose, onSuccess }: EditLabTes
             ? new Date(doc.submitted_date).toTimeString().slice(0, 5)
             : new Date().toTimeString().slice(0, 5),
           status: doc.status || 'Draft',
+          is_outsourced: ((doc as any).is_outsourced ? 1 : 0) as 0 | 1,
+          outsource_lab_name: (doc as any).outsource_lab_name || '',
+          outsource_ref_no: (doc as any).outsource_ref_no || '',
           amount: (doc as any).amount ?? '',
           discount_margin: (doc as any).discount_margin || 'Percentage',
           discount: (doc as any).discount ?? '',
@@ -234,6 +240,9 @@ export const EditLabTestModal = ({ labTestName, onClose, onSuccess }: EditLabTes
         date: formData.date || undefined,
         time: formData.time || undefined,
         status: formData.status || undefined,
+        is_outsourced: formData.is_outsourced,
+        outsource_lab_name: formData.outsource_lab_name || undefined,
+        outsource_ref_no: formData.outsource_ref_no || undefined,
       })
       // Billing payload (optional)
       const billingPayload: any = {}
@@ -479,6 +488,69 @@ export const EditLabTestModal = ({ labTestName, onClose, onSuccess }: EditLabTes
                     <option value="Cancelled">Cancelled</option>
                   </select>
                 </div>
+              </div>
+
+              {/* Outsourcing section */}
+              <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
+                <div className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    id="is_outsourced"
+                    checked={formData.is_outsourced === 1}
+                    onChange={(e) => {
+                      const checked = e.target.checked
+                      const newOutsourced = checked ? 1 : 0
+                      // Auto-advance status to Testing in Progress when outsourced
+                      const shouldAdvanceStatus = checked && ![
+                        'Testing in Progress', 'Completed', 'Pending Review',
+                        'Reviewed', 'Approved', 'Rejected', 'Cancelled',
+                      ].includes(formData.status)
+                      setFormData(prev => ({
+                        ...prev,
+                        is_outsourced: newOutsourced as 0 | 1,
+                        ...(shouldAdvanceStatus ? { status: 'Testing in Progress' } : {}),
+                      }))
+                    }}
+                    className="w-4 h-4 accent-primary rounded"
+                  />
+                  <label htmlFor="is_outsourced" className="text-sm font-medium text-slate-700 cursor-pointer select-none">
+                    Is Outsourced?
+                  </label>
+                  {formData.is_outsourced === 1 && (
+                    <span className="ml-auto inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700">
+                      ↗ Status set to Testing in Progress
+                    </span>
+                  )}
+                </div>
+
+                {formData.is_outsourced === 1 && (
+                  <div className="grid grid-cols-2 gap-4 mt-4">
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">
+                        Outsource Lab Name
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.outsource_lab_name}
+                        onChange={(e) => handleChange('outsource_lab_name', e.target.value)}
+                        placeholder="Name of external lab…"
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">
+                        Outsource Ref No
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.outsource_ref_no}
+                        onChange={(e) => handleChange('outsource_ref_no', e.target.value)}
+                        placeholder="Reference / tracking number…"
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}

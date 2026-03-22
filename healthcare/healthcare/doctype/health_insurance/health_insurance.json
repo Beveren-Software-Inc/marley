@@ -8,7 +8,6 @@
  "field_order": [
   "basic_details_section",
   "insurance_company",
-  "insurance_type",
   "policy_no",
   "insurance_coverage_",
   "mode_of_payment",
@@ -23,7 +22,9 @@
   "inclusive_items_tab",
   "inclusive_item",
   "exclusive_items_tab",
-  "exclusive_item"
+  "exclusive_item",
+  "section_break_xwio",
+  "exclusive_item_group"
  ],
  "fields": [
   {
@@ -72,12 +73,6 @@
    "label": "Special Note"
   },
   {
-   "fieldname": "insurance_type",
-   "fieldtype": "Link",
-   "label": "Insurance Type",
-   "options": "Insurance Type"
-  },
-  {
    "fieldname": "discounts_section",
    "fieldtype": "Section Break",
    "label": "More Infor"
@@ -124,12 +119,22 @@
    "fieldtype": "Link",
    "label": "Mode of Payment",
    "options": "Mode of Payment"
+  },
+  {
+   "fieldname": "section_break_xwio",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "exclusive_item_group",
+   "fieldtype": "Table MultiSelect",
+   "label": "Exclusive Item Group",
+   "options": "Item Group TableMultiselecet"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-03-19 16:31:53.688033",
+ "modified": "2026-03-22 12:20:59.969424",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Health Insurance",

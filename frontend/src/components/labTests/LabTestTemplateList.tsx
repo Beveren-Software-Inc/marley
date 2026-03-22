@@ -1,63 +1,134 @@
-import { useState, useEffect, useCallback } from 'react'
-import { apiRequest } from '../../services/apiClient'
-
-interface LabTestTemplateRow {
-  name: string
-  lab_test_name: string
-  department: string
-  lab_test_template_type: string
-  is_group: number
-  is_billable: number
-  disabled: number
-}
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { MoreHorizontal, FlaskConical, Pencil } from 'lucide-react'
+import { fetchLabTestTemplateList, type LabTestTemplateListRow } from '../../services/common'
+import { CreateServiceRequestModal } from '../serviceRequests/CreateServiceRequestModal'
+import { LabTestTemplateDetailPanel } from './LabTestTemplateDetailPanel'
 
 interface LabTestTemplateListProps {
   refreshKey?: number
-  onRowClick?: (name: string) => void
+  /** Called when user chooses Edit from the action menu */
+  onEditClick?: (name: string) => void
+  selectedPatient?: string
 }
 
-export const LabTestTemplateList = ({ refreshKey = 0, onRowClick }: LabTestTemplateListProps) => {
-  const [rows, setRows] = useState<LabTestTemplateRow[]>([])
+export const LabTestTemplateList = ({ refreshKey = 0, onEditClick, selectedPatient }: LabTestTemplateListProps) => {
+  const [rows, setRows] = useState<LabTestTemplateListRow[]>([])
+  const [allRows, setAllRows] = useState<LabTestTemplateListRow[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [search, setSearch] = useState('')
+
+  // Dropdown search state
+  const [searchQuery, setSearchQuery] = useState('')
+  const [dropdownOpen, setDropdownOpen] = useState(false)
+  const searchRef = useRef<HTMLDivElement>(null)
+
+  // 3-dot action menu
+  const [openMenuRow, setOpenMenuRow] = useState<string | null>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  // Detail panel
+  const [detailTemplate, setDetailTemplate] = useState<LabTestTemplateListRow | null>(null)
+
+  // Service request modal
+  const [requestTemplate, setRequestTemplate] = useState<LabTestTemplateListRow | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const filters: unknown[] = []
-      if (search.trim()) {
-        filters.push(['lab_test_name', 'like', `%${search.trim()}%`])
-      }
-      const filtersStr = encodeURIComponent(JSON.stringify(filters))
-      const fields = encodeURIComponent(JSON.stringify([
-        'name', 'lab_test_name', 'department',
-        'lab_test_template_type', 'is_group', 'is_billable', 'disabled',
-      ]))
-      const res = await apiRequest<{ data: LabTestTemplateRow[] }>(
-        `/api/resource/Lab%20Test%20Template?fields=${fields}&filters=${filtersStr}&limit_page_length=100&order_by=lab_test_name+asc`
-      )
-      setRows(res.data || [])
+      const data = await fetchLabTestTemplateList()
+      setAllRows(data)
+      setRows(data)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load templates')
     } finally {
       setLoading(false)
     }
-  }, [search, refreshKey])
+  }, [refreshKey])
 
   useEffect(() => { load() }, [load])
 
+  // Filter rows when search query changes
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setRows(allRows)
+    } else {
+      const q = searchQuery.toLowerCase()
+      setRows(allRows.filter(r =>
+        (r.lab_test_name || r.name).toLowerCase().includes(q) ||
+        (r.department || '').toLowerCase().includes(q) ||
+        (r.lab_test_template_type || '').toLowerCase().includes(q)
+      ))
+    }
+  }, [searchQuery, allRows])
+
+  // Close dropdowns on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false)
+      }
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setOpenMenuRow(null)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  // Suggestions shown in the dropdown (max 8)
+  const suggestions = searchQuery.trim()
+    ? allRows.filter(r => (r.lab_test_name || r.name).toLowerCase().includes(searchQuery.toLowerCase())).slice(0, 8)
+    : allRows.slice(0, 8)
+
+  const handleSuggestionClick = (row: LabTestTemplateListRow) => {
+    setSearchQuery(row.lab_test_name || row.name)
+    setDropdownOpen(false)
+    setRows([row])
+  }
+
+  const handleSearchClear = () => {
+    setSearchQuery('')
+    setRows(allRows)
+    setDropdownOpen(false)
+  }
+
   return (
     <div className="flex flex-col gap-3">
-      <div>
+      {/* Dropdown search */}
+      <div ref={searchRef} className="relative w-full max-w-xs">
         <input
           type="text"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Search by name…"
-          className="w-full max-w-xs rounded border border-slate-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+          value={searchQuery}
+          onChange={e => { setSearchQuery(e.target.value); setDropdownOpen(true) }}
+          onFocus={() => setDropdownOpen(true)}
+          placeholder="Search templates…"
+          className="w-full rounded border border-slate-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary pr-7"
         />
+        {searchQuery && (
+          <button
+            type="button"
+            onClick={handleSearchClear}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
+          >
+            ✕
+          </button>
+        )}
+        {dropdownOpen && suggestions.length > 0 && (
+          <div className="absolute z-20 w-full mt-1 bg-white border border-slate-300 rounded-lg shadow-lg max-h-52 overflow-y-auto">
+            {suggestions.map(s => (
+              <button
+                key={s.name}
+                type="button"
+                onClick={() => handleSuggestionClick(s)}
+                className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 flex items-center justify-between gap-2"
+              >
+                <span className="font-medium text-slate-800">{s.lab_test_name || s.name}</span>
+                {s.department && <span className="text-xs text-slate-400 shrink-0">{s.department}</span>}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {loading && <div className="text-center text-sm text-slate-400 py-4">Loading…</div>}
@@ -74,22 +145,31 @@ export const LabTestTemplateList = ({ refreshKey = 0, onRowClick }: LabTestTempl
                 <th className="px-3 py-2 font-semibold text-slate-600 text-xs">Group</th>
                 <th className="px-3 py-2 font-semibold text-slate-600 text-xs">Billable</th>
                 <th className="px-3 py-2 font-semibold text-slate-600 text-xs">Status</th>
+                <th className="px-2 py-2 w-8"></th>
               </tr>
             </thead>
             <tbody>
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="text-center text-slate-400 py-6">
-                    No Lab Test Templates found
+                  <td colSpan={7} className="text-center text-slate-400 py-6">
+                    {searchQuery ? 'No templates match your search' : 'No Lab Test Templates found'}
                   </td>
                 </tr>
               )}
               {rows.map(row => (
-                <tr key={row.name}
-                  onClick={() => onRowClick?.(row.name)}
-                  className="border-t border-slate-100 hover:bg-slate-50 cursor-pointer transition-colors">
+                <tr
+                  key={row.name}
+                  className="border-t border-slate-100 hover:bg-slate-50 transition-colors"
+                >
+                  {/* Clicking the name opens the detail panel */}
                   <td className="px-3 py-2">
-                    <span className="font-medium text-primary">{row.lab_test_name || row.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => setDetailTemplate(row)}
+                      className="font-medium text-primary hover:underline text-left"
+                    >
+                      {row.lab_test_name || row.name}
+                    </button>
                   </td>
                   <td className="px-3 py-2 text-slate-600">{row.department || '—'}</td>
                   <td className="px-3 py-2 text-slate-600">{row.lab_test_template_type || '—'}</td>
@@ -114,11 +194,75 @@ export const LabTestTemplateList = ({ refreshKey = 0, onRowClick }: LabTestTempl
                       <span className="inline-block px-1.5 py-0.5 rounded text-xs bg-emerald-100 text-emerald-700">Active</span>
                     )}
                   </td>
+
+                  {/* Three-dot action menu */}
+                  <td
+                    className="px-2 py-2 relative"
+                    onClick={e => e.stopPropagation()}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setOpenMenuRow(openMenuRow === row.name ? null : row.name)}
+                      className="p-1 rounded hover:bg-slate-200 text-slate-400 hover:text-slate-700 transition-colors"
+                    >
+                      <MoreHorizontal className="w-4 h-4" />
+                    </button>
+
+                    {openMenuRow === row.name && (
+                      <div ref={menuRef} className="absolute right-0 top-8 z-30 bg-white border border-slate-200 rounded-lg shadow-lg min-w-[180px] py-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onEditClick?.(row.name)
+                            setOpenMenuRow(null)
+                          }}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                        >
+                          <Pencil className="w-4 h-4 text-slate-400" />
+                          Edit Template
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setRequestTemplate(row); setOpenMenuRow(null) }}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                        >
+                          <FlaskConical className="w-4 h-4 text-primary" />
+                          Request Lab Test
+                        </button>
+                      </div>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+      )}
+
+      {/* Right-side detail panel */}
+      {detailTemplate && (
+        <LabTestTemplateDetailPanel
+          templateName={detailTemplate.name}
+          onClose={() => setDetailTemplate(null)}
+          onEdit={() => {
+            onEditClick?.(detailTemplate.name)
+            setDetailTemplate(null)
+          }}
+          onRequestLabTest={() => {
+            setRequestTemplate(detailTemplate)
+            setDetailTemplate(null)
+          }}
+        />
+      )}
+
+      {/* Service Request modal pre-filled with this template */}
+      {requestTemplate && (
+        <CreateServiceRequestModal
+          onClose={() => setRequestTemplate(null)}
+          onSuccess={() => setRequestTemplate(null)}
+          initialTemplate={requestTemplate.name}
+          initialPatient={selectedPatient}
+        />
       )}
     </div>
   )

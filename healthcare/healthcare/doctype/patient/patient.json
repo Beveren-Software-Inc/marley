@@ -62,8 +62,8 @@
   "is_marketing",
   "insurance_section",
   "is_insurance",
+  "insurance_register",
   "insurance",
-  "insurance_type",
   "insurance_company_no",
   "insurance_policy_no",
   "column_break_eqbb",
@@ -711,14 +711,6 @@
    "fieldtype": "Column Break"
   },
   {
-   "fetch_from": "insurance.insurance_type",
-   "fieldname": "insurance_type",
-   "fieldtype": "Link",
-   "hidden": 1,
-   "label": "Insurance Type",
-   "options": "Insurance Type"
-  },
-  {
    "fieldname": "primary_address_and_contact_section",
    "fieldtype": "Section Break",
    "label": "Primary Address and Contact"
@@ -795,6 +787,12 @@
    "fieldname": "employee_code",
    "fieldtype": "Data",
    "label": "Employee Code"
+  },
+  {
+   "fieldname": "insurance_register",
+   "fieldtype": "Link",
+   "label": "Insurance Register",
+   "options": "Insurance Patient Register"
   }
  ],
  "grid_page_length": 50,
@@ -898,7 +896,7 @@
   }
  ],
  "max_attachments": 50,
- "modified": "2026-03-19 17:47:14.802546",
+ "modified": "2026-03-22 11:28:47.387848",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient",

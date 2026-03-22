@@ -37,8 +37,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Room Category",
-   "options": "Room Category",
-   "reqd": 1
+   "options": "Room Category"
   },
   {
    "fieldname": "column_break_1",
@@ -109,7 +108,7 @@
    "link_fieldname": "package"
   }
  ],
- "modified": "2026-01-19 12:38:22.859487",
+ "modified": "2026-03-22 13:28:48.662916",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Inpatient Package",

@@ -102,7 +102,32 @@ class PatientVisit(Document):
 		next_number = max_number + 1
 		return str(next_number)
 
+	def _track_insurance_visit(self):
+		"""On the first save of a new patient visit, increment the linked IPR's visit counter."""
+		if not self.is_new():
+			return
+		if not self.patient:
+			return
+		reg = frappe.db.get_value("Patient", self.patient, "insurance_register")
+		if not reg:
+			return
+		ipr = frappe.db.get_value(
+			"Insurance Patient Register", reg, ["status", "no_of_patient_visit", "no_of_visits"], as_dict=True
+		)
+		if not ipr or ipr.status != "Active":
+			return
+		new_count = (ipr.no_of_patient_visit or 0) + 1
+		updates = {"no_of_patient_visit": new_count}
+		approved = ipr.no_of_visits
+		try:
+			if approved and new_count >= int(approved):
+				updates["status"] = "Exhausted"
+		except (ValueError, TypeError):
+			pass
+		frappe.db.set_value("Insurance Patient Register", reg, updates)
+
 	def on_update(self):
+		self._track_insurance_visit()
 		if self.appointment:
 			frappe.db.set_value("Patient Appointment", self.appointment, "status", "Closed")
 

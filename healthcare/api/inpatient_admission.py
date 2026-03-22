@@ -596,6 +596,9 @@ def admit_patient(
 	patient_documents=None,
 	patient_relatives=None,
 	service_units=None,
+	inpatient_package=None,
+	rate_per_day=None,
+	standard_package=None,
 ):
 	"""Admit a patient - wrapper for the DocType method"""
 	if not name:
@@ -610,6 +613,14 @@ def admit_patient(
 	# Update patient IP category if provided
 	if patient_ip_category:
 		record.patient_ip_category = patient_ip_category
+
+	# Set package fields if provided
+	if inpatient_package and inpatient_package != '__custom__':
+		record.inpatient_package = inpatient_package
+	if rate_per_day is not None:
+		record.rate_per_day = flt(rate_per_day)
+	if standard_package is not None:
+		record.standard_package = cint(standard_package)
 
 	# Perform admit (sets status, occupancy, etc.)
 	record.admit(service_unit, check_in, expected_discharge)
@@ -707,8 +718,9 @@ def create_admission_quotation(admission_name, package_name, days, total_amount,
 		frappe.throw(_("Patient {0} does not have a linked customer").format(patient))
 	
 	# Get package details
-	package = frappe.get_doc('Inpatient Package', package_name)
-	
+	is_custom = package_name == '__custom__'
+	package = None if is_custom else frappe.get_doc('Inpatient Package', package_name)
+
 	# Get service unit (room) name
 	service_unit_name = frappe.db.get_value(
 		'Healthcare Service Unit',
@@ -755,7 +767,7 @@ def create_admission_quotation(admission_name, package_name, days, total_amount,
 	quotation.company = company
 	quotation.transaction_date = getdate()
 	quotation.valid_till = getdate()
-	quotation.custom_package = package_name
+	quotation.custom_package = package_name if not is_custom else None
 	quotation.custom_inpatient_admission= admission_name
 	quotation.custom_reference_type = "Inpatient Admission"
 	quotation.custom_reference_name = admission_name
@@ -764,16 +776,16 @@ def create_admission_quotation(admission_name, package_name, days, total_amount,
 	item_row = quotation.append("items", {})
 	item_row.item_code = item_code
 	item_row.item_name = service_unit_name
+	package_label = "Custom Package" if is_custom else package.package_name
 	item_row.description = (
-		f"Inpatient Package: {package.package_name} - "
+		f"Inpatient Package: {package_label} - "
 		f"Room: {service_unit_name} ({days} days)"
 	)
 	item_row.qty = 1
 	item_row.rate = flt(total_amount)
 	item_row.amount = flt(total_amount)
-	# item_row.discount_percentage = 6
 	
-	if package.cost_center:
+	if not is_custom and package.cost_center:
 		item_row.cost_center = package.cost_center
 	
 	# Link to admission if field exists

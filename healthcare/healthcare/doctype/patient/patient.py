@@ -47,6 +47,8 @@ class Patient(Document):
 		self.reload()
 
 	def on_update(self):
+		self._activate_insurance_register()
+
 		if frappe.db.get_single_value("Healthcare Settings", "link_customer_to_patient"):
 			if self.customer:
 				if self.flags.existing_customer or frappe.db.exists(
@@ -66,6 +68,24 @@ class Patient(Document):
 
 		if not self.user_id and self.email and self.invite_user:
 			self.create_website_user()
+
+	def _activate_insurance_register(self):
+		"""When insurance_register is set on a patient, mark that register as Active."""
+		reg = self.get("insurance_register")
+		if not reg:
+			return
+		current = frappe.db.get_value(
+			"Insurance Patient Register", reg, ["patient", "status"], as_dict=True
+		)
+		if not current:
+			return
+		updates = {}
+		if current.patient != self.name:
+			updates["patient"] = self.name
+		if current.status != "Active":
+			updates["status"] = "Active"
+		if updates:
+			frappe.db.set_value("Insurance Patient Register", reg, updates)
 
 	def load_dashboard_info(self):
 		if self.customer:

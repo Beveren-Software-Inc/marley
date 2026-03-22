@@ -430,7 +430,10 @@ export async function admitPatient(
     relative_id_num?: string
     any_remarks?: string
   }[],
-  allServiceUnits?: string[]
+  allServiceUnits?: string[],
+  inpatientPackage?: string,
+  ratePerDay?: number,
+  standardPackage?: 0 | 1,
 ) {
   const { ensureCSRF } = await import('./apiClient')
   const csrf = await ensureCSRF()
@@ -457,6 +460,9 @@ export async function admitPatient(
         patient_relatives: patientRelatives && patientRelatives.length > 0
           ? patientRelatives
           : null,
+        inpatient_package: inpatientPackage || null,
+        rate_per_day: ratePerDay ?? null,
+        standard_package: standardPackage ?? null,
       })
     }
   )

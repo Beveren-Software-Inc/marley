@@ -13,6 +13,8 @@
   "patient_full_name",
   "cost_center",
   "service_request",
+  "section_break_kusj",
+  "patient_charges",
   "section_break_services",
   "services",
   "section_break_totals",
@@ -94,12 +96,22 @@
    "fieldtype": "Link",
    "label": "Service Request",
    "options": "Service Request"
+  },
+  {
+   "fieldname": "section_break_kusj",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "patient_charges",
+   "fieldtype": "Table",
+   "label": "Patient Charges",
+   "options": "Service Pricing"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-03-11 02:53:08.736294",
+ "modified": "2026-03-22 08:35:05.917950",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "IP Service",

@@ -1,0 +1,138 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "CS-.{service_request}-.#####",
+ "creation": "2026-03-22 08:47:06.592265",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "admission_no",
+  "file_number",
+  "type",
+  "column_break_audp",
+  "patient_full_name",
+  "cost_center",
+  "service_request",
+  "section_break_kusj",
+  "patient_charges",
+  "section_break_services",
+  "services",
+  "section_break_totals",
+  "total_amount"
+ ],
+ "fields": [
+  {
+   "fieldname": "admission_no",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Admission No",
+   "options": "Inpatient Admission",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "admission_no.patient",
+   "fieldname": "file_number",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "File Number",
+   "options": "Patient",
+   "reqd": 1
+  },
+  {
+   "default": "External Service",
+   "fieldname": "type",
+   "fieldtype": "Select",
+   "label": "Type",
+   "options": "\nInternal Service\nExternal Service"
+  },
+  {
+   "fieldname": "column_break_audp",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "file_number.patient_name",
+   "fieldname": "patient_full_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Patient Full Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "cost_center",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Cost Center",
+   "options": "Cost Center"
+  },
+  {
+   "fieldname": "service_request",
+   "fieldtype": "Link",
+   "label": "Service Request",
+   "options": "Service Request"
+  },
+  {
+   "fieldname": "section_break_kusj",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "patient_charges",
+   "fieldtype": "Table",
+   "label": "Patient Charges",
+   "options": "Service Pricing"
+  },
+  {
+   "fieldname": "section_break_services",
+   "fieldtype": "Section Break",
+   "label": "External Services"
+  },
+  {
+   "fieldname": "services",
+   "fieldtype": "Table",
+   "label": "Services",
+   "options": "IP External Trip Service",
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_break_totals",
+   "fieldtype": "Section Break",
+   "label": "Totals"
+  },
+  {
+   "fieldname": "total_amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Total Amount",
+   "read_only": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-03-22 08:47:06.592265",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Consultation Service",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

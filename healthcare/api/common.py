@@ -358,6 +358,7 @@ def get_service_request_template_types():
 		"Appointment Type",
 		"Observation Template",
 		"Healthcare Activity",
+		"Consultation Service Template",
 	]
 	if frappe.db.exists("DocType", "IP Service Type"):
 		order_template_doctypes.append("IP Service Type")
@@ -474,6 +475,18 @@ def get_service_request_templates(template_dt, search=None, department=None):
 			order_by='service_name'
 		)
 		return [{'name': t.name, 'label': getattr(t, 'service_name', None) or t.name} for t in templates]
+
+	elif template_dt == 'Consultation Service Template':
+		if search:
+			filters['template_name'] = ['like', f'%{search}%']
+		templates = frappe.get_all(
+			'Consultation Service Template',
+			filters=filters,
+			fields=['name', 'template_name', 'type'],
+			limit=50,
+			order_by='template_name'
+		)
+		return [{'name': t.name, 'label': t.template_name or t.name, 'type': t.type} for t in templates]
 
 	return []
 
@@ -1036,11 +1049,85 @@ def get_insurance_patient_registers(search=None):
 			"name", "full_name", "national_id_cpr_no", "posting_date",
 			"status", "insurance_provider", "approval_id",
 			"approval_validitydays", "no_of_visits", "patient",
+			"no_of_patient_visit",
 		],
 		limit=100,
 		order_by="creation desc",
 	)
 	return records
+
+
+@frappe.whitelist()
+def get_lab_test_template_detail(name):
+	"""Fetch a single Lab Test Template with all display fields and full child table rows."""
+	doc = frappe.get_doc("Lab Test Template", name)
+
+	def rows(child_list, fields):
+		result = []
+		for row in (child_list or []):
+			result.append({f: getattr(row, f, None) for f in fields})
+		return result
+
+	return {
+		"name": doc.name,
+		"lab_test_name": doc.lab_test_name,
+		"department": doc.department,
+		"lab_test_template_type": doc.lab_test_template_type,
+		"is_group": doc.is_group,
+		"is_billable": doc.is_billable,
+		"disabled": doc.disabled,
+		"nursing_checklist_template": doc.nursing_checklist_template,
+		# Billing
+		"item": doc.item,
+		"lab_test_code": doc.lab_test_code,
+		"lab_test_group": doc.lab_test_group,
+		"link_existing_item": doc.link_existing_item,
+		# Single/Compound UOM
+		"lab_test_uom": getattr(doc, "lab_test_uom", None),
+		"secondary_uom": getattr(doc, "secondary_uom", None),
+		# Imaging
+		"lab_test_description": getattr(doc, "lab_test_description", None),
+		# Worksheet
+		"worksheet_instructions": doc.worksheet_instructions,
+		"legend_print_position": doc.legend_print_position,
+		"result_legend": doc.result_legend,
+		# Child tables — full rows
+		"pricing": rows(doc.get("pricing"), ["patient_category", "price"]),
+		"lab_test_groups": rows(doc.get("lab_test_groups"), [
+			"lab_test_template", "lab_test_description", "group_event",
+			"group_test_uom", "secondary_uom",
+		]),
+		"normal_test_templates": rows(doc.get("normal_test_templates"), [
+			"lab_test_event", "lab_test_uom", "normal_range",
+			"secondary_uom", "conversion_factor",
+		]),
+		"descriptive_test_templates": rows(doc.get("descriptive_test_templates"), [
+			"particulars",
+		]),
+		"sample_requirements": rows(doc.get("sample_requirements"), [
+			"sample", "sample_qty", "sample_details",
+		]),
+	}
+
+
+@frappe.whitelist()
+def get_lab_test_templates(search=None):
+	"""Get list of Lab Test Templates for the setup screen."""
+	filters = {}
+	if search:
+		filters["lab_test_name"] = ["like", f"%{search}%"]
+
+	templates = frappe.get_all(
+		"Lab Test Template",
+		filters=filters,
+		fields=[
+			"name", "lab_test_name", "department",
+			"lab_test_template_type", "is_group", "is_billable", "disabled",
+		],
+		limit=200,
+		order_by="lab_test_name asc",
+	)
+	return templates
 
 
 @frappe.whitelist()
@@ -1110,3 +1197,103 @@ def get_sample_types(search=None):
 		order_by="sample_type asc",
 	)
 	return types
+
+
+@frappe.whitelist()
+def get_insurance_companies(search=None):
+	"""Get list of Insurance Companies for dropdown."""
+	filters = {}
+	if search:
+		filters["name"] = ["like", f"%{search}%"]
+	return frappe.get_all(
+		"Insurance Company",
+		filters=filters,
+		fields=["name"],
+		limit=50,
+		order_by="name asc",
+	)
+
+
+@frappe.whitelist()
+def get_health_insurances(search=None, insurance_company=None):
+	"""Get list of Health Insurance records."""
+	filters = {}
+	if search:
+		filters["name"] = ["like", f"%{search}%"]
+	if insurance_company:
+		filters["insurance_company"] = insurance_company
+
+	records = frappe.get_all(
+		"Health Insurance",
+		filters=filters,
+		fields=[
+			"name", "insurance_company", "insurance_type", "policy_no",
+			"outpatient_discount", "inpatient_discount", "insurance_coverage_",
+			"mode_of_payment", "insurance_no",
+		],
+		limit=100,
+		order_by="name asc",
+	)
+	return records
+
+
+@frappe.whitelist()
+def get_health_insurance_detail(name):
+	"""Get full detail of a Health Insurance record including summary counts."""
+	doc = frappe.get_doc("Health Insurance", name)
+	patient_count = frappe.db.count("Patient", {"insurance": name, "is_insurance": 1})
+	active_register_count = frappe.db.count(
+		"Insurance Patient Register", {"insurance_provider": name, "status": "Active"}
+	)
+	unused_register_count = frappe.db.count(
+		"Insurance Patient Register", {"insurance_provider": name, "status": "Unused"}
+	)
+	return {
+		"doc": doc.as_dict(),
+		"patient_count": patient_count,
+		"active_register_count": active_register_count,
+		"unused_register_count": unused_register_count,
+	}
+
+
+@frappe.whitelist()
+def create_health_insurance(data):
+	"""Create a new Health Insurance record."""
+	import json as _json
+	if isinstance(data, str):
+		data = _json.loads(data)
+	doc = frappe.new_doc("Health Insurance")
+	for key, val in data.items():
+		if val is not None and val != "":
+			doc.set(key, val)
+	doc.insert(ignore_permissions=True)
+	frappe.db.commit()
+	return {"name": doc.name}
+
+
+@frappe.whitelist()
+def get_inpatient_packages(search=None):
+	"""Fetch Inpatient Package records for dropdown selection."""
+	filters = [["active", "=", 1]]
+	if search:
+		filters.append(["package_name", "like", f"%{search}%"])
+	packages = frappe.get_all(
+		"Inpatient Package",
+		filters=filters,
+		fields=["name", "package_name", "package_rate", "no_of_days", "package_category"],
+		order_by="package_name asc",
+		limit=50,
+	)
+	return packages
+
+
+@frappe.whitelist()
+def create_insurance_company(company_name):
+	"""Create a new Insurance Company."""
+	if frappe.db.exists("Insurance Company", company_name):
+		frappe.throw(f"Insurance Company '{company_name}' already exists.")
+	doc = frappe.new_doc("Insurance Company")
+	doc.name1 = company_name
+	doc.insert(ignore_permissions=True)
+	frappe.db.commit()
+	return {"name": doc.name}

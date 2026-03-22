@@ -422,6 +422,12 @@ export const AdmissionFormModal = ({
   useEffect(() => {
     const calculatePrice = async () => {
       if (days > 0 && selectedPackage.name) {
+        // For custom packages, compute directly from the entered rate
+        if (selectedPackage.name === '__custom__') {
+          setCalculatedPrice(selectedPackage.package_rate * days)
+          setFormData(prev => ({ ...prev, expectedDischarge: calculateExpectedDischarge(days) }))
+          return
+        }
         try {
           setCalculatingPrice(true)
           const result = await calculatePackagePrice(selectedPackage.name, days)
@@ -521,6 +527,7 @@ export const AdmissionFormModal = ({
 
   useEffect(() => {
     const checkQuotation = async () => {
+      if (selectedPackage.name === '__custom__') return
       try {
         setCheckingQuotation(true)
         const result = await checkAdmissionQuotation(admissionNo, selectedPackage.name)
@@ -688,7 +695,10 @@ export const AdmissionFormModal = ({
         formData.patientIpCategory || undefined,
         patientDocuments.length > 0 ? patientDocuments : undefined,
         patientRelatives.length > 0 ? patientRelatives : undefined,
-        selectedServiceUnits.map(su => su.name)
+        selectedServiceUnits.map(su => su.name),
+        selectedPackage.name,
+        selectedPackage.package_rate,
+        selectedPackage.name === '__custom__' ? 0 : 1,
       )
 
       onComplete()
@@ -767,10 +777,13 @@ export const AdmissionFormModal = ({
             {activeTab === 'admission' && (
               <>
                 {/* Package Info */}
-                <div className="bg-slate-50 rounded-lg p-4">
+                <div className={`rounded-lg p-4 ${selectedPackage.name === '__custom__' ? 'bg-amber-50 border border-amber-200' : 'bg-slate-50'}`}>
                   <h3 className="font-semibold text-slate-900 mb-2">Selected Package</h3>
-                  <div className="mb-2">
+                  <div className="mb-2 flex items-center gap-2">
                     <p className="font-medium text-slate-900">{selectedPackage.package_name}</p>
+                    {selectedPackage.name === '__custom__' && (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">Custom</span>
+                    )}
                     {selectedPackage.category_name && (
                       <p className="text-xs text-slate-500">
                         <span className="font-medium">Room Category:</span> {selectedPackage.category_name}
@@ -779,11 +792,11 @@ export const AdmissionFormModal = ({
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-sm mb-2">
                     <div>
-                      <span className="text-slate-600">Base Rate:</span>{' '}
+                      <span className="text-slate-600">Rate Per Day:</span>{' '}
                       <span className="font-medium">{selectedPackage.package_rate.toLocaleString()} BHD / day</span>
                     </div>
                   </div>
-                  {selectedPackage.duration_pricing && selectedPackage.duration_pricing.length > 0 && (
+                  {selectedPackage.name !== '__custom__' && selectedPackage.duration_pricing && selectedPackage.duration_pricing.length > 0 && (
                     <div className="mt-2 pt-2 border-t border-slate-300">
                       <p className="text-xs font-medium text-slate-700 mb-1">Duration Pricing:</p>
                       <div className="space-y-1">
