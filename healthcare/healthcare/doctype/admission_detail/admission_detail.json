@@ -44,8 +44,6 @@
   "tpr_chart",
   "observation_level_tab",
   "observation_level_details",
-  "sick_leave_tab",
-  "sick_leave",
   "ip_medical_report_tab",
   "ip_medical_report",
   "sleeping_pattern_tab",
@@ -247,17 +245,6 @@
    "options": "Observation Level details"
   },
   {
-   "fieldname": "sick_leave_tab",
-   "fieldtype": "Tab Break",
-   "label": "Sick Leave"
-  },
-  {
-   "fieldname": "sick_leave",
-   "fieldtype": "Table",
-   "label": "Sick Leave",
-   "options": "Sick Leave"
-  },
-  {
    "fieldname": "ip_medical_report_tab",
    "fieldtype": "Tab Break",
    "label": "IP Medical Report"
@@ -294,7 +281,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-03-10 13:44:32.044910",
+ "modified": "2026-03-23 03:17:54.376579",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Admission Detail",

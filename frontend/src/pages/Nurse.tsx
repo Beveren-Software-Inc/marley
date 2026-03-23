@@ -72,6 +72,8 @@ import { GroomingChartList } from '../components/nursing/GroomingChartList'
 import { CreateGroomingChartModal } from '../components/nursing/CreateGroomingChartModal'
 import { MentalStateList } from '../components/nursing/MentalStateList'
 import { CreateMentalStateModal } from '../components/nursing/CreateMentalStateModal'
+import { SickLeaveList } from '../components/nursing/SickLeaveList'
+import { CreateSickLeaveModal } from '../components/nursing/CreateSickLeaveModal'
 
 export const NursePage = () => {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -117,6 +119,8 @@ export const NursePage = () => {
   const [groomingRefreshKey, setGroomingRefreshKey] = useState(0)
   const [showMentalStateModal, setShowMentalStateModal] = useState(false)
   const [mentalStateRefreshKey, setMentalStateRefreshKey] = useState(0)
+  const [showSickLeaveModal, setShowSickLeaveModal] = useState(false)
+  const [sickLeaveRefreshKey, setSickLeaveRefreshKey] = useState(0)
   // ECT dashboard state
   const [showECTModal, setShowECTModal] = useState(false)
   const [ectRefreshKey, setEctRefreshKey] = useState(0)
@@ -1720,6 +1724,57 @@ export const NursePage = () => {
             <PackageDetailView patient={selectedPatient} />
           </section>
         </div>
+      </div>
+    )
+  }
+
+  // Sick Leave
+  if (screen === 'n-sick') {
+    return (
+      <div className="flex flex-col">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+        <div className="p-4">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+            <div className="font-semibold mb-4 flex items-center justify-between">
+              <span>Sick Leave</span>
+              <button
+                onClick={() => setShowSickLeaveModal(true)}
+                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
+                title="New Sick Leave"
+              >
+                +
+              </button>
+            </div>
+            <SickLeaveList
+              patient={selectedPatient}
+              refreshKey={sickLeaveRefreshKey}
+              onCreateNew={() => setShowSickLeaveModal(true)}
+            />
+          </section>
+        </div>
+        {showSickLeaveModal && (
+          <CreateSickLeaveModal
+            patient={selectedPatient}
+            onClose={() => setShowSickLeaveModal(false)}
+            onSuccess={() => {
+              setShowSickLeaveModal(false)
+              setSickLeaveRefreshKey((prev) => prev + 1)
+              toast.success('Sick leave saved')
+            }}
+          />
+        )}
       </div>
     )
   }

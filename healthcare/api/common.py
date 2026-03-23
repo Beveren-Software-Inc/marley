@@ -1847,3 +1847,57 @@ def create_mental_state(data):
 	except Exception as e:
 		frappe.logger().error(f"Error creating mental state: {str(e)}")
 		return {"success": False, "message": str(e)}
+
+
+@frappe.whitelist()
+def get_sick_leaves(search=None, patient=None, page=1, page_size=20):
+	"""Fetch Sick Leave records."""
+	try:
+		page = frappe.utils.cint(page) or 1
+		page_size = frappe.utils.cint(page_size) or 20
+		filters = {}
+		if patient:
+			filters["patient"] = patient
+		if search:
+			filters["patient_name"] = ["like", f"%{search}%"]
+
+		records = frappe.get_all(
+			"Sick Leave",
+			filters=filters,
+			fields=[
+				"name", "admission_no", "patient", "patient_name",
+				"from_date", "to_date", "days", "diagnosis", "doctor", "source",
+				"creation"
+			],
+			order_by="creation desc",
+			limit_page_length=page_size,
+			limit_start=(page - 1) * page_size,
+		)
+		total = frappe.db.count("Sick Leave", filters=filters)
+		return {"success": True, "data": records, "page": page, "page_size": page_size, "total": total}
+	except Exception as e:
+		frappe.logger().error(f"Error in get_sick_leaves: {str(e)}")
+		return {"success": False, "message": str(e), "data": []}
+
+
+@frappe.whitelist()
+def create_sick_leave(data):
+	"""Create a new Sick Leave record."""
+	try:
+		if isinstance(data, str):
+			data = frappe.parse_json(data)
+
+		doc = frappe.new_doc("Sick Leave")
+		allowed_fields = [
+			"admission_no", "patient", "patient_name",
+			"from_date", "to_date", "days", "diagnosis", "doctor", "source",
+		]
+		for field in allowed_fields:
+			if field in data:
+				setattr(doc, field, data[field])
+		doc.insert(ignore_permissions=True)
+		frappe.db.commit()
+		return {"success": True, "name": doc.name}
+	except Exception as e:
+		frappe.logger().error(f"Error creating sick leave: {str(e)}")
+		return {"success": False, "message": str(e)}
