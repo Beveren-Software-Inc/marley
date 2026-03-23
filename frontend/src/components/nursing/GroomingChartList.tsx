@@ -76,24 +76,32 @@ export const GroomingChartList = ({ patient, refreshKey, onCreateNew }: Grooming
   }
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-4">
       {/* Toolbar */}
-      <div className="flex items-center gap-2 flex-wrap justify-between">
-        <input
-          type="search"
-          placeholder="Search by patient name…"
-          value={search}
-          onChange={(e) => handleSearchChange(e.target.value)}
-          className="rounded-md border border-slate-300 px-3 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-primary w-56"
-        />
+      <div className="flex items-center gap-3 flex-wrap justify-between">
+        <div>
+          <label className="block text-xs font-medium text-slate-600 mb-1">Search Patient</label>
+          <input
+            type="search"
+            placeholder="Search by patient name…"
+            value={search}
+            onChange={(e) => handleSearchChange(e.target.value)}
+            className="rounded-md border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary"
+          />
+        </div>
         {onCreateNew && (
-          <button
-            onClick={onCreateNew}
-            className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
-            title="New Grooming Chart"
-          >
-            +
-          </button>
+          <div className="flex items-end">
+            <button
+              onClick={onCreateNew}
+              className="px-3 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 transition-colors flex items-center gap-2"
+              title="New Grooming Chart"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              New Chart
+            </button>
+          </div>
         )}
       </div>
 
@@ -116,7 +124,7 @@ export const GroomingChartList = ({ patient, refreshKey, onCreateNew }: Grooming
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">Date</th>
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">Patient</th>
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">Admission No</th>
-                    <th className="px-3 py-2 text-left font-semibold text-slate-600">Cost Centre</th>
+                <th className="px-3 py-2 text-left font-semibold text-slate-600">Cost Centre</th>
                 <th className="px-3 py-2 text-center font-semibold text-slate-600">Hygiene</th>
                 <th className="px-3 py-2 text-center font-semibold text-slate-600">Meals</th>
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">Weight</th>

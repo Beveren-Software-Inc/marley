@@ -409,6 +409,21 @@ export async function fetchCostCenters(company?: string, search?: string): Promi
 }
 
 
+export async function fetchBranches(search?: string): Promise<LinkFieldOption[]> {
+  const params = new URLSearchParams()
+  if (search) params.append('search', search)
+  const url =
+    `/api/method/healthcare.api.common.get_branches` +
+    (params.toString() ? `?${params.toString()}` : '')
+  const response = await fetch(url)
+  const resData = await response.json()
+  if (resData?.message && Array.isArray(resData.message)) {
+    return resData.message as LinkFieldOption[]
+  }
+  return []
+}
+
+
 
 export async function fetchItems(search?: string): Promise<LinkFieldOption[]> {
   const params = new URLSearchParams()

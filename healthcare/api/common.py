@@ -1761,3 +1761,89 @@ def create_grooming_chart(data):
 	except Exception as e:
 		frappe.logger().error(f"Error creating grooming chart: {str(e)}")
 		return {"success": False, "message": str(e)}
+
+
+@frappe.whitelist()
+def get_branches(search=None):
+	"""Fetch Branch records."""
+	filters = {}
+	if search:
+		filters["name"] = ["like", f"%{search}%"]
+	branches = frappe.get_all("Cost Center", filters=filters, fields=["name"], order_by="name asc", limit=50)
+	return [{"name": b.name, "label": b.name} for b in branches]
+
+
+@frappe.whitelist()
+def get_mental_states(search=None, patient=None, page=1, page_size=20):
+	"""Fetch Mental State records."""
+	try:
+		page = frappe.utils.cint(page) or 1
+		page_size = frappe.utils.cint(page_size) or 20
+		filters = {}
+		if patient:
+			filters["file_no"] = patient
+		if search:
+			filters["patient_name"] = ["like", f"%{search}%"]
+
+		records = frappe.get_all(
+			"Mental State",
+			filters=filters,
+			fields=[
+				"name", "admission_no", "file_no", "patient_name", "branch", "trans_shift",
+				"normal_at",
+				"cooperative", "aggressive", "paranoid", "demanding", "preoccupied",
+				"defence", "impulsive", "sedative",
+				"normal_s", "rapid", "slow", "poor_sp", "slurred", "coherent",
+				"incoherent", "talkative", "anxious", "angry", "depressed", "elated",
+				"euthymic", "irritable", "twitches", "hyperactive", "stereotypes",
+				"restless", "gait", "tics", "agitated", "abnormal", "hallucinatory_behaviour",
+				"place", "time", "normal_ap", "person",
+				"increased", "poor_ap", "reported", "non_reported", "normal_b", "reported_type",
+				"sleep_duration", "normal_sleep", "disturbed", "intermittent",
+				"excessive", "a_little",
+				"conscious", "alert", "disturbed_con",
+				"creation"
+			],
+			order_by="creation desc",
+			limit_page_length=page_size,
+			limit_start=(page - 1) * page_size,
+		)
+		total = frappe.db.count("Mental State", filters=filters)
+		return {"success": True, "data": records, "page": page, "page_size": page_size, "total": total}
+	except Exception as e:
+		frappe.logger().error(f"Error in get_mental_states: {str(e)}")
+		return {"success": False, "message": str(e), "data": []}
+
+
+@frappe.whitelist()
+def create_mental_state(data):
+	"""Create a new Mental State record."""
+	try:
+		if isinstance(data, str):
+			data = frappe.parse_json(data)
+
+		doc = frappe.new_doc("Mental State")
+		allowed_fields = [
+			"admission_no", "file_no", "patient_name", "branch", "trans_shift",
+			"normal_at",
+			"cooperative", "aggressive", "paranoid", "demanding", "preoccupied",
+			"defence", "impulsive", "sedative",
+			"normal_s", "rapid", "slow", "poor_sp", "slurred", "coherent",
+			"incoherent", "talkative", "anxious", "angry", "depressed", "elated",
+			"euthymic", "irritable", "twitches", "hyperactive", "stereotypes",
+			"restless", "gait", "tics", "agitated", "abnormal", "hallucinatory_behaviour",
+			"place", "time", "normal_ap", "person",
+			"increased", "poor_ap", "reported", "non_reported", "normal_b", "reported_type",
+			"sleep_duration", "normal_sleep", "disturbed", "intermittent",
+			"excessive", "a_little",
+			"conscious", "alert", "disturbed_con",
+		]
+		for field in allowed_fields:
+			if field in data:
+				setattr(doc, field, data[field])
+		doc.insert(ignore_permissions=True)
+		frappe.db.commit()
+		return {"success": True, "name": doc.name}
+	except Exception as e:
+		frappe.logger().error(f"Error creating mental state: {str(e)}")
+		return {"success": False, "message": str(e)}
