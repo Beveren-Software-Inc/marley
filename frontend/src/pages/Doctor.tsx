@@ -13,6 +13,8 @@ import { MedicalHistoryView } from '../components/medicalHistory/MedicalHistoryV
 import { PackageDetailView } from '../components/packageDetails/PackageDetailView'
 import { NursingTaskList } from '../components/nursing/NursingTaskList'
 import { CreateNursingTaskModal } from '../components/nursing/CreateNursingTaskModal'
+import { NurseTaskList } from '../components/nurseTask/NurseTaskList'
+import { CreateNurseTaskModal } from '../components/nurseTask/CreateNurseTaskModal'
 import { DischargeList } from '../components/discharges/DischargeList'
 import { PatientSummaryCard } from '../components/patients/PatientSummaryCard'
 import { DoctorServiceDetailsTable } from '../components/services/DoctorServiceDetailsTable'
@@ -122,6 +124,7 @@ export const DoctorPage = () => {
   const [showPatientHistoryModal, setShowPatientHistoryModal] = useState(false)
   const [patientHistoryRefreshKey, setPatientHistoryRefreshKey] = useState(0)
   const [showCreateNursingTaskModal, setShowCreateNursingTaskModal] = useState(false)
+  const [showCreateNurseTaskModal, setShowCreateNurseTaskModal] = useState(false)
   const [longActingRefreshKey] = useState(0)
   const [showSuicidalModal, setShowSuicidalModal] = useState(false)
   const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
@@ -1148,7 +1151,7 @@ export const DoctorPage = () => {
     )
   }
 
-  // Nursing Task Assignment – Doctor view of nursing tasks for this patient
+  // Nurse Task Assignment – Doctor view of custom Nurse Tasks for this patient
   if (screen === 'nurse-tasks') {
     return (
       <div className="flex flex-col">
@@ -1169,30 +1172,28 @@ export const DoctorPage = () => {
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h2 className="text-base font-semibold text-slate-900">Nursing Task Assignment</h2>
+                <h2 className="text-base font-semibold text-slate-900">Nurse Tasks</h2>
                 <p className="text-xs text-slate-600 mt-1">
-                  Nursing tasks generated from admission, procedures, therapy, or checklist templates or added manually for this patient.
+                  Tasks assigned to nurses for this patient — medication administration, vitals, lab support, and more.
                 </p>
               </div>
               <button
                 type="button"
-                onClick={() => setShowCreateNursingTaskModal(true)}
-                className="w-7 h-7 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 text-sm font-bold"
-                title="New Nursing Task"
+                onClick={() => setShowCreateNurseTaskModal(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-white text-sm font-medium hover:bg-primary/90"
+                title="New Nurse Task"
               >
-                +
+                + New Task
               </button>
             </div>
-            <NursingTaskList patient={selectedPatient} />
+            <NurseTaskList patient={selectedPatient} />
           </section>
         </div>
-        {showCreateNursingTaskModal && (
-          <CreateNursingTaskModal
+        {showCreateNurseTaskModal && (
+          <CreateNurseTaskModal
             patient={selectedPatient || undefined}
-            onClose={() => setShowCreateNursingTaskModal(false)}
-            onSuccess={() => {
-              setShowCreateNursingTaskModal(false)
-            }}
+            onClose={() => setShowCreateNurseTaskModal(false)}
+            onSuccess={() => setShowCreateNurseTaskModal(false)}
           />
         )}
       </div>
@@ -1362,14 +1363,14 @@ export const DoctorPage = () => {
             <div className="font-semibold mb-4 flex items-center justify-between">
               <span>Given Medicines</span>
               <div className="flex items-center gap-2">
-                <button
+                {/* <button
                   onClick={handleReconcileGiven}
                   className="px-3 py-1 rounded-md bg-primary text-white text-xs font-semibold hover:bg-primary/90 disabled:opacity-50"
                   disabled={reconcileLoading}
                   title="Create Stock Entry for remaining medicines"
                 >
                   {reconcileLoading ? 'Reconciling…' : 'Reconcile for Discharge'}
-                </button>
+                </button> */}
                 <button
                   onClick={() => setShowGivenMedicineModal(true)}
                   className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"

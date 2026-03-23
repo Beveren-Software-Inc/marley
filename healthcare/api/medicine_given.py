@@ -1,7 +1,7 @@
 import json
 import frappe
 from frappe import _
-from frappe.utils import nowdate, nowtime, cint, flt, getdate
+from frappe.utils import nowdate, nowtime, now_datetime, cint, flt, getdate
 
 
 def _get_or_create_admission_detail(admission: str):
@@ -41,6 +41,7 @@ def create_medicine_given(
 	dose_notes: str | None = None,
 	allow_override: int | None = 0,
 	override_reason: str | None = None,
+	is_prn: int | None = 0,
 ) -> dict:
 	"""Create a Medicine Given row on Admission Detail from a Patient Medication Order.
 
@@ -93,6 +94,8 @@ def create_medicine_given(
 	row.dose_notes = dose_notes
 	row.medicine_given_timing = None
 	row.user = frappe.session.user
+	if hasattr(row, "is_prn"):
+		row.is_prn = cint(is_prn)
 
 	# Custom link field we added on Medicine Given child table
 	if hasattr(row, "medication_order") and pmo:
@@ -178,6 +181,15 @@ def create_medicine_given(
 							_("Override reason is required to exceed prescribed daily frequency."),
 							title=_("Override reason required"),
 						)
+					# Record override audit fields on the row
+					if hasattr(row, "override_exceeded_frequency"):
+						row.override_exceeded_frequency = 1
+					if hasattr(row, "override_reason"):
+						row.override_reason = override_reason
+					if hasattr(row, "override_user"):
+						row.override_user = frappe.session.user
+					if hasattr(row, "override_timestamp"):
+						row.override_timestamp = now_datetime()
 
 	admission_detail.save()
 

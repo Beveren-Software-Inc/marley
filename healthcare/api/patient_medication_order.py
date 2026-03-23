@@ -135,6 +135,7 @@ def _set_medication_row(doc, row):
 	entry.end_date = row.get('end_date')
 	entry.patient_frequency = row.get('patient_frequency')
 	entry.is_pink = 1 if row.get('is_pink') else 0
+	entry.is_prn = 1 if row.get('is_prn') else 0
 	entry.reference_no = row.get('reference_no') or ''
 	entry.route_of_administration = row.get('route_of_administration') or ''
 	entry.is_long_acting_medicine = 1 if row.get('is_long_acting_medicine') or row.get('is_long_acting') else 0

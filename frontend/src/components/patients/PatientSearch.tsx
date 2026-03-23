@@ -11,8 +11,8 @@ interface PatientSearchProps {
   selectedPatient: string
   onPatientSelect: (patient: string | undefined) => void
   patients?: string[]
-  /** When true (default), shows warnings/allergies and medical history banner when a patient is selected. */
   showAlertsBanner?: boolean
+  alertsAutoDismissMs?: number
 }
 
 // Module-level: track which patient's banner has already been shown so it
@@ -71,6 +71,7 @@ export const PatientSearch = ({
   selectedPatient,
   onPatientSelect,
   showAlertsBanner = true,
+  alertsAutoDismissMs = 10000,
 }: PatientSearchProps) => {
   const { mode, setMode, setActiveVisit, setActiveAdmission } = useCareContext()
   const [patientQuery, setPatientQuery] = useState('')
@@ -298,7 +299,10 @@ export const PatientSearch = ({
             <button
               type="button"
               className="fixed inset-0 top-14 left-0 right-0 bottom-0 z-30 md:left-[240px] backdrop-blur-md bg-slate-900/10 cursor-default focus:outline-none"
-              onClick={() => { _bannerShownForPatient = selectedPatient || null; setAlertsBannerDismissed(true) }}
+              onClick={() => {
+                _bannerShownForPatient = selectedPatient || null
+                setAlertsBannerDismissed(true)
+              }}
               aria-label="Close patient alerts"
             />
             <div className="relative z-40">
@@ -306,8 +310,12 @@ export const PatientSearch = ({
                 patient={selectedPatient}
                 patientName={selectedPatientName || undefined}
                 dismissed={alertsBannerDismissed}
-                onDismiss={() => { _bannerShownForPatient = selectedPatient || null; setAlertsBannerDismissed(true) }}
+                onDismiss={() => {
+                  _bannerShownForPatient = selectedPatient || null
+                  setAlertsBannerDismissed(true)
+                }}
                 visible={Boolean(selectedPatient)}
+                autoDismissMs={alertsAutoDismissMs}
               />
             </div>
           </>,
@@ -360,8 +368,18 @@ export const PatientSearch = ({
                   className="text-slate-400 hover:text-slate-600"
                   title="Clear selection"
                 >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M6 18L18 6M6 6l12 12"
+                    />
                   </svg>
                 </button>
               )}
@@ -371,8 +389,18 @@ export const PatientSearch = ({
                 className="w-7 h-7 md:w-8 md:h-8 rounded-md text-primary bg-white flex items-center justify-center hover:bg-primary/30 transition-colors flex-shrink-0"
                 title="Create New Patient"
               >
-                <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                <svg
+                  className="w-4 h-4 md:w-5 md:h-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 4v16m8-8H4"
+                  />
                 </svg>
               </button>
             </div>

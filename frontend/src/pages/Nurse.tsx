@@ -14,6 +14,8 @@ import { DischargeList } from '../components/discharges/DischargeList'
 import { DischargeModal } from '../components/admissions/DischargeModal'
 import { PackageDetailView } from '../components/packageDetails/PackageDetailView'
 import { NursingTaskList } from '../components/nursing/NursingTaskList'
+import { NurseTaskList } from '../components/nurseTask/NurseTaskList'
+import { CreateNurseTaskModal } from '../components/nurseTask/CreateNurseTaskModal'
 import { PatientSummaryCard } from '../components/patients/PatientSummaryCard'
 import { DoctorServiceDetailsTable } from '../components/services/DoctorServiceDetailsTable'
 import { CreateClinicalNoteModal } from '../components/clinicalNotes/CreateClinicalNoteModal'
@@ -102,7 +104,7 @@ export const NursePage = () => {
   const [showPrescriptionModal, setShowPrescriptionModal] = useState(false)
   const [prescriptionRefreshKey, setPrescriptionRefreshKey] = useState(0)
   const [showPsychOrderModal, setShowPsychOrderModal] = useState(false)
-  const [showDoctorNoteModal, setShowDoctorNoteModal] = useState(false)
+  // Doctor notes are read-only on the nurse screen — no create modal state needed
   const [showNutritionNoteModal, setShowNutritionNoteModal] = useState(false)
   const [showTherapistNoteModal, setShowTherapistNoteModal] = useState(false)
   const [showVitalSignModal, setShowVitalSignModal] = useState(false)
@@ -144,6 +146,8 @@ export const NursePage = () => {
   const [aldereteRefreshKey, setAldereteRefreshKey] = useState(0)
   const [showPhysicalExamModal, setShowPhysicalExamModal] = useState(false)
   const [physicalExamRefreshKey, setPhysicalExamRefreshKey] = useState(0)
+  const [showCreateNurseTaskModal, setShowCreateNurseTaskModal] = useState(false)
+  const [nurseTaskRefreshKey, setNurseTaskRefreshKey] = useState(0)
   const screen = searchParams.get('screen')
 
   // Sync selectedPatient with URL on mount and when URL changes
@@ -633,6 +637,63 @@ export const NursePage = () => {
     )
   }
 
+  // Nurse Tasks (custom Nurse Task doctype) — role-aware: nurses see only their own tasks,
+  // admins see all tasks for the selected patient (or all if no patient selected).
+  if (screen === 'n-nurse-tasks') {
+    return (
+      <div className="flex flex-col">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+        <div className="p-4">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-base font-semibold text-slate-900">Nurse Tasks</h2>
+                <p className="text-xs text-slate-600 mt-1">
+                  Tasks assigned to you. Administrators see all tasks.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCreateNurseTaskModal(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-white text-sm font-medium hover:bg-primary/90"
+              >
+                + New Task
+              </button>
+            </div>
+            <NurseTaskList
+              key={nurseTaskRefreshKey}
+              patient={selectedPatient}
+              allowStatusChange
+              onRefresh={() => setNurseTaskRefreshKey((k) => k + 1)}
+            />
+          </section>
+        </div>
+        {showCreateNurseTaskModal && (
+          <CreateNurseTaskModal
+            patient={selectedPatient || undefined}
+            onClose={() => setShowCreateNurseTaskModal(false)}
+            onSuccess={() => {
+              setShowCreateNurseTaskModal(false)
+              setNurseTaskRefreshKey((k) => k + 1)
+            }}
+          />
+        )}
+      </div>
+    )
+  }
+
   // Lab Reports Status – show lab listings (Pending Review by default)
   if (screen === 'n-labs') {
     return (
@@ -718,15 +779,9 @@ export const NursePage = () => {
         </header>
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4 flex items-center justify-between">
+            <div className="font-semibold mb-1 flex items-center justify-between">
               <span>Doctors Notes</span>
-              <button
-                onClick={() => setShowDoctorNoteModal(true)}
-                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
-                title="Add Doctors Note"
-              >
-                +
-              </button>
+              <span className="text-xs font-normal text-slate-400 italic">Read-only — only doctors can add notes</span>
             </div>
             <ClinicalNotesList 
               patient={selectedPatient} 
@@ -736,18 +791,6 @@ export const NursePage = () => {
             />
           </section>
         </div>
-        {showDoctorNoteModal && (
-          <CreateClinicalNoteModal
-            onClose={() => setShowDoctorNoteModal(false)}
-            onSuccess={() => {
-              setClinicalNotesRefreshKey(prev => prev + 1)
-              setShowDoctorNoteModal(false)
-            }}
-            initialPatient={selectedPatient}
-            defaultClinicalNoteType="Doctors Note"
-            title="Add Doctors Note"
-          />
-        )}
       </div>
     )
   }
@@ -1189,14 +1232,14 @@ export const NursePage = () => {
             <div className="font-semibold mb-4 flex items-center justify-between">
               <span>Given Medicines</span>
               <div className="flex items-center gap-2">
-                <button
+                {/* <button
                   onClick={handleReconcileGiven}
                   className="px-3 py-1 rounded-md bg-primary text-white text-xs font-semibold hover:bg-primary/90 disabled:opacity-50"
                   disabled={reconcileLoading}
                   title="Create Stock Entry for remaining medicines"
                 >
                   {reconcileLoading ? 'Reconciling…' : 'Reconcile for Discharge'}
-                </button>
+                </button> */}
                 <button
                   onClick={() => setShowGivenMedicineModal(true)}
                   className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
@@ -2037,17 +2080,11 @@ export const NursePage = () => {
               </div>
             </section>
 
-            {/* Doctors Notes */}
+            {/* Doctors Notes — read-only for nurses */}
             <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
               <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
                 <span>Doctors Notes</span>
-                <button
-                  onClick={() => setShowDoctorNoteModal(true)}
-                  className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
-                  title="Add Doctors Note"
-                >
-                  +
-                </button>
+                <span className="text-xs font-normal text-slate-400 italic">Read-only</span>
               </div>
               <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
                 <ClinicalNotesList

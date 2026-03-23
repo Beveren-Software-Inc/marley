@@ -617,6 +617,7 @@ def get_long_acting_medicine_list(patient=None, limit=50, offset=0):
 		return []
 	limit = int(limit) if limit else 50
 	offset = int(offset) if offset else 0
+	print("Unafika hapa")
 	docs = frappe.get_all(
 		"Long Acting Medicine",
 		filters={"patient": patient, "docstatus": ["!=", 2]},
@@ -1901,3 +1902,27 @@ def create_sick_leave(data):
 	except Exception as e:
 		frappe.logger().error(f"Error creating sick leave: {str(e)}")
 		return {"success": False, "message": str(e)}
+
+
+@frappe.whitelist()
+def get_employees(search=None):
+	"""Fetch Employee records for nurse/staff assignment dropdowns."""
+	filters = {"status": "Active"}
+	if search:
+		filters["employee_name"] = ["like", f"%{search}%"]
+	employees = frappe.get_all(
+		"Employee",
+		filters=filters,
+		fields=["name", "employee_name", "designation", "department"],
+		order_by="employee_name asc",
+		limit=50,
+	)
+	return [
+		{
+			"name": e.name,
+			"label": e.employee_name or e.name,
+			"designation": e.designation or "",
+			"department": e.department or "",
+		}
+		for e in employees
+	]

@@ -20,6 +20,7 @@
   "is_active",
   "dose_notes",
   "user",
+  "is_prn",
   "override_section",
   "override_exceeded_frequency",
   "override_reason",
@@ -138,13 +139,19 @@
    "fieldname": "override_timestamp",
    "fieldtype": "Datetime",
    "label": "Override Timestamp"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_prn",
+   "fieldtype": "Check",
+   "label": "Is PRN"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-03-09 11:10:19.783383",
+ "modified": "2026-03-23 12:26:10.304092",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Medicine Given",

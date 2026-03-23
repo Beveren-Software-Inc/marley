@@ -423,6 +423,27 @@ export async function fetchBranches(search?: string): Promise<LinkFieldOption[]>
   return []
 }
 
+export interface EmployeeOption {
+  name: string
+  label: string
+  designation?: string
+  department?: string
+}
+
+export async function fetchEmployees(search?: string): Promise<EmployeeOption[]> {
+  const params = new URLSearchParams()
+  if (search) params.append('search', search)
+  const url =
+    `/api/method/healthcare.api.common.get_employees` +
+    (params.toString() ? `?${params.toString()}` : '')
+  const response = await fetch(url)
+  const resData = await response.json()
+  if (resData?.message && Array.isArray(resData.message)) {
+    return resData.message as EmployeeOption[]
+  }
+  return []
+}
+
 
 
 export async function fetchItems(search?: string): Promise<LinkFieldOption[]> {

@@ -1,0 +1,298 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "NT-.#####",
+ "creation": "2026-03-23 15:38:11.189371",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "section_patient",
+  "patient",
+  "reference_doctype",
+  "column_break_kspd",
+  "encounter",
+  "section_task",
+  "task_type",
+  "priority",
+  "column_break_fpdn",
+  "description",
+  "section_assignment",
+  "assigned_nurse",
+  "nurse_name",
+  "column_break_jbtn",
+  "shift",
+  "cost_center",
+  "section_timing",
+  "scheduled_time",
+  "due_time",
+  "column_break_yhpd",
+  "completed_time",
+  "section_medication",
+  "medication",
+  "dosage",
+  "column_break_kcul",
+  "route",
+  "section_prn",
+  "is_prn",
+  "prn_indication",
+  "column_break_vpoz",
+  "min_interval_hours",
+  "frequency",
+  "section_status",
+  "status",
+  "notes",
+  "section_audit",
+  "completed_by",
+  "column_break_tctj",
+  "delay_minutes"
+ ],
+ "fields": [
+  {
+   "fieldname": "section_patient",
+   "fieldtype": "Section Break",
+   "label": "Patient Details"
+  },
+  {
+   "fieldname": "patient",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Patient",
+   "options": "Patient",
+   "reqd": 1
+  },
+  {
+   "fieldname": "reference_doctype",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Reference Type",
+   "options": "\nPatient Visit\nInpatient Admission"
+  },
+  {
+   "fieldname": "encounter",
+   "fieldtype": "Dynamic Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Encounter",
+   "options": "reference_doctype"
+  },
+  {
+   "fieldname": "section_task",
+   "fieldtype": "Section Break",
+   "label": "Task Details"
+  },
+  {
+   "fieldname": "task_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Task Type",
+   "options": "Medication Administration\nVital Monitoring\nTherapy Assistance\nGrooming / Care\nLab Support\nDocumentation",
+   "reqd": 1
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description"
+  },
+  {
+   "default": "Routine",
+   "fieldname": "priority",
+   "fieldtype": "Select",
+   "label": "Priority",
+   "options": "Routine\nUrgent\nSTAT"
+  },
+  {
+   "fieldname": "section_assignment",
+   "fieldtype": "Section Break",
+   "label": "Assignment"
+  },
+  {
+   "fieldname": "assigned_nurse",
+   "fieldtype": "Link",
+   "label": "Assigned Nurse",
+   "options": "Healthcare Practitioner"
+  },
+  {
+   "fieldname": "shift",
+   "fieldtype": "Link",
+   "label": "Shift",
+   "options": "Shift Assignment"
+  },
+  {
+   "fieldname": "section_timing",
+   "fieldtype": "Section Break",
+   "label": "Timing"
+  },
+  {
+   "fieldname": "scheduled_time",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Scheduled Date & Time",
+   "reqd": 1
+  },
+  {
+   "fieldname": "due_time",
+   "fieldtype": "Datetime",
+   "label": "Due Date & Time"
+  },
+  {
+   "fieldname": "completed_time",
+   "fieldtype": "Datetime",
+   "label": "Completed Date & Time",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_medication",
+   "fieldtype": "Section Break",
+   "label": "Medication Info"
+  },
+  {
+   "fieldname": "medication",
+   "fieldtype": "Link",
+   "label": "Medication",
+   "options": "Item"
+  },
+  {
+   "fieldname": "dosage",
+   "fieldtype": "Data",
+   "label": "Dosage"
+  },
+  {
+   "fieldname": "route",
+   "fieldtype": "Link",
+   "label": "Administraton Route",
+   "options": "Route of Administration"
+  },
+  {
+   "fieldname": "section_prn",
+   "fieldtype": "Section Break",
+   "label": "PRN Details"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_prn",
+   "fieldtype": "Check",
+   "label": "PRN"
+  },
+  {
+   "depends_on": "eval:doc.is_prn==1",
+   "fieldname": "prn_indication",
+   "fieldtype": "Data",
+   "label": "PRN Indication (Reason)"
+  },
+  {
+   "depends_on": "eval:doc.is_prn==1",
+   "fieldname": "min_interval_hours",
+   "fieldtype": "Float",
+   "label": "Minimum Interval (Hours)"
+  },
+  {
+   "fieldname": "section_status",
+   "fieldtype": "Section Break",
+   "label": "Status"
+  },
+  {
+   "default": "Pending",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Task Status",
+   "options": "Pending\nIn Progress\nCompleted\nMissed\nCancelled"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes"
+  },
+  {
+   "fieldname": "section_audit",
+   "fieldtype": "Section Break",
+   "label": "Audit"
+  },
+  {
+   "fieldname": "completed_by",
+   "fieldtype": "Link",
+   "label": "Completed By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "delay_minutes",
+   "fieldtype": "Int",
+   "label": "Delay (Minutes)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "nurse_name",
+   "fieldtype": "Data",
+   "label": "Nurse Name"
+  },
+  {
+   "fieldname": "column_break_jbtn",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "cost_center",
+   "fieldtype": "Link",
+   "label": "Cost Center",
+   "options": "Cost Center"
+  },
+  {
+   "fieldname": "column_break_yhpd",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_kcul",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "frequency",
+   "fieldtype": "Link",
+   "label": "Frequency",
+   "options": "Prescription Frequency"
+  },
+  {
+   "fieldname": "column_break_fpdn",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_vpoz",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_kspd",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_tctj",
+   "fieldtype": "Column Break"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-03-23 16:30:23.717399",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Nurse Task",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

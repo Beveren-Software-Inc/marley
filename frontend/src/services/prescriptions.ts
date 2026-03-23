@@ -104,6 +104,8 @@ export interface MedicationOrderRow {
   time: string
   patient_frequency?: string
   is_pink?: boolean
+  /** PRN (Pro Re Nata) — give only as needed */
+  is_prn?: boolean
   reference_no?: string
   route_of_administration?: string
   /** When true, row is long-acting; show long_acting_frequency and create Long Acting Medicine on backend */
@@ -117,6 +119,8 @@ export interface MedicationOrderEntry {
   drug_name?: string
   dosage: string
   dosage_form: string
+  /** 1 if this is a PRN (as-needed) medication */
+  is_prn?: 0 | 1
 }
 
 export async function createPrescription(
@@ -144,6 +148,7 @@ export async function createPrescription(
       time: row.time,
       patient_frequency: row.patient_frequency,
       is_pink: row.is_pink,
+      is_prn: row.is_prn ?? false,
       reference_no: row.reference_no,
       route_of_administration: row.route_of_administration,
       is_long_acting_medicine: row.is_long_acting ?? false,
