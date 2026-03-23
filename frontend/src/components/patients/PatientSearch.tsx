@@ -19,6 +19,54 @@ interface PatientSearchProps {
 // only appears once per patient selection, surviving component remounts.
 let _bannerShownForPatient: string | null = null
 
+// LocalStorage keys for persistence
+const STORAGE_KEYS = {
+  SELECTED_PATIENT: 'patientSearch_selectedPatient',
+  SELECTED_PATIENT_NAME: 'patientSearch_selectedPatientName',
+  ACTIVE_MODE: 'patientSearch_activeMode',
+  ACTIVE_VISIT: 'patientSearch_activeVisit',
+  ACTIVE_ADMISSION: 'patientSearch_activeAdmission',
+  ACTIVE_VISIT_LABEL: 'patientSearch_activeVisitLabel',
+  ACTIVE_ADMISSION_LABEL: 'patientSearch_activeAdmissionLabel',
+} as const
+
+// Helper functions to manage localStorage
+const getStoredValue = (key: string, defaultValue: string = ''): string => {
+  if (typeof window === 'undefined') return defaultValue
+  try {
+    return localStorage.getItem(key) || defaultValue
+  } catch {
+    return defaultValue
+  }
+}
+
+const setStoredValue = (key: string, value: string): void => {
+  if (typeof window === 'undefined') return
+  try {
+    if (value) {
+      localStorage.setItem(key, value)
+    } else {
+      localStorage.removeItem(key)
+    }
+  } catch {
+    // Silently fail if localStorage is unavailable
+  }
+}
+
+const clearPatientData = (): void => {
+  if (typeof window === 'undefined') return
+  try {
+    localStorage.removeItem(STORAGE_KEYS.SELECTED_PATIENT)
+    localStorage.removeItem(STORAGE_KEYS.SELECTED_PATIENT_NAME)
+    localStorage.removeItem(STORAGE_KEYS.ACTIVE_VISIT)
+    localStorage.removeItem(STORAGE_KEYS.ACTIVE_ADMISSION)
+    localStorage.removeItem(STORAGE_KEYS.ACTIVE_VISIT_LABEL)
+    localStorage.removeItem(STORAGE_KEYS.ACTIVE_ADMISSION_LABEL)
+  } catch {
+    // Silently fail if localStorage is unavailable
+  }
+}
+
 export const PatientSearch = ({
   selectedPatient,
   onPatientSelect,
@@ -37,11 +85,48 @@ export const PatientSearch = ({
   const [secondaryResults, setSecondaryResults] = useState<
     { value: string; label: string; meta?: string; patient?: string; patient_name?: string }[]
   >([])
+  const [isHydrated, setIsHydrated] = useState(false)
 
   // If banner was already shown for this patient (across remounts), start dismissed
   const [alertsBannerDismissed, setAlertsBannerDismissed] = useState(
     () => Boolean(selectedPatient && _bannerShownForPatient === selectedPatient)
   )
+
+  // Hydrate from localStorage on mount and restore previous state
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const storedPatient = getStoredValue(STORAGE_KEYS.SELECTED_PATIENT)
+    const storedPatientName = getStoredValue(STORAGE_KEYS.SELECTED_PATIENT_NAME)
+    const storedMode = getStoredValue(STORAGE_KEYS.ACTIVE_MODE, 'OP') as 'OP' | 'IP'
+    const storedVisit = getStoredValue(STORAGE_KEYS.ACTIVE_VISIT)
+    const storedAdmission = getStoredValue(STORAGE_KEYS.ACTIVE_ADMISSION)
+    const storedVisitLabel = getStoredValue(STORAGE_KEYS.ACTIVE_VISIT_LABEL)
+    const storedAdmissionLabel = getStoredValue(STORAGE_KEYS.ACTIVE_ADMISSION_LABEL)
+
+    // Only restore if we don't have an active selection from props (props take precedence)
+    if (!selectedPatient && storedPatient) {
+      onPatientSelect(storedPatient)
+      setSelectedPatientName(storedPatientName)
+      setPatientQuery(storedPatientName)
+    }
+
+    // Restore mode
+    if (storedMode) {
+      setMode(storedMode)
+    }
+
+    // Restore visit or admission
+    if (storedMode === 'OP' && storedVisit) {
+      setActiveVisit(storedVisit)
+      setSecondaryQuery(storedVisitLabel)
+    } else if (storedMode === 'IP' && storedAdmission) {
+      setActiveAdmission(storedAdmission)
+      setSecondaryQuery(storedAdmissionLabel)
+    }
+
+    setIsHydrated(true)
+  }, [])
 
   // When patient changes to a NEW patient → reset so banner shows once for the new one
   useEffect(() => {
@@ -60,6 +145,11 @@ export const PatientSearch = ({
     }
   }, [selectedPatient, alertsBannerDismissed])
 
+  // Persist mode to localStorage when it changes
+  useEffect(() => {
+    setStoredValue(STORAGE_KEYS.ACTIVE_MODE, mode)
+  }, [mode])
+
   // Load patient name when selectedPatient changes (e.g., from URL)
   useEffect(() => {
     if (selectedPatient) {
@@ -72,20 +162,26 @@ export const PatientSearch = ({
           if (resData?.message?.patient_name) {
             setSelectedPatientName(resData.message.patient_name)
             setPatientQuery(resData.message.patient_name)
+            setStoredValue(STORAGE_KEYS.SELECTED_PATIENT_NAME, resData.message.patient_name)
           } else {
             setSelectedPatientName(selectedPatient)
             setPatientQuery(selectedPatient)
+            setStoredValue(STORAGE_KEYS.SELECTED_PATIENT_NAME, selectedPatient)
           }
         } catch (error) {
           console.error('Failed to load patient name:', error)
           setSelectedPatientName(selectedPatient)
           setPatientQuery(selectedPatient)
+          setStoredValue(STORAGE_KEYS.SELECTED_PATIENT_NAME, selectedPatient)
         }
       }
       loadPatientName()
+      // Persist selected patient
+      setStoredValue(STORAGE_KEYS.SELECTED_PATIENT, selectedPatient)
     } else {
       setSelectedPatientName('')
       setPatientQuery('')
+      clearPatientData()
     }
   }, [selectedPatient])
 
@@ -183,6 +279,13 @@ export const PatientSearch = ({
     }
   }, [secondaryQuery, secondaryOpen, hasPatient, mode, selectedPatient])
 
+  // Persist active visit/admission to localStorage
+  useEffect(() => {
+    // This effect monitors context changes and persists them
+    // You'll need to subscribe to context changes or add a callback
+    // For now, we'll handle this in the onClick handlers below
+  }, [])
+
   const alertsPortal =
     showAlertsBanner &&
     selectedPatient &&
@@ -211,6 +314,11 @@ export const PatientSearch = ({
           document.getElementById('patient-alerts-portal')!
         )
       : null
+
+  // Skip rendering until hydration is complete to avoid hydration mismatches
+  if (!isHydrated) {
+    return <div className="w-full max-w-xs md:max-w-xl" />
+  }
 
   return (
     <>
@@ -247,6 +355,7 @@ export const PatientSearch = ({
                     setSelectedPatientName('')
                     setPatientQuery('')
                     setPatientOpen(false)
+                    clearPatientData()
                   }}
                   className="text-slate-400 hover:text-slate-600"
                   title="Clear selection"
@@ -353,8 +462,12 @@ export const PatientSearch = ({
                             setSecondaryQuery(row.label)
                             if (mode === 'OP') {
                               setActiveVisit(row.value)
+                              setStoredValue(STORAGE_KEYS.ACTIVE_VISIT, row.value)
+                              setStoredValue(STORAGE_KEYS.ACTIVE_VISIT_LABEL, row.label)
                             } else if (mode === 'IP') {
                               setActiveAdmission(row.value)
+                              setStoredValue(STORAGE_KEYS.ACTIVE_ADMISSION, row.value)
+                              setStoredValue(STORAGE_KEYS.ACTIVE_ADMISSION_LABEL, row.label)
                             }
                             // Auto-select patient when none is chosen yet
                             if (!hasPatient && row.patient) {
@@ -403,4 +516,3 @@ export const PatientSearch = ({
     </>
   )
 }
-
