@@ -37,6 +37,7 @@ export const LongActingMedReminderList = ({ patient, daysAhead = 7 }: LongActing
           patient: patient || undefined,
           days_ahead: daysAhead,
         })
+        console.log("Here ius am ", data)
         setReminders(data)
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Failed to load reminders')

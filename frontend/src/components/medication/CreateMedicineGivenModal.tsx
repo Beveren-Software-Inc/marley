@@ -33,6 +33,7 @@ export const CreateMedicineGivenModal = ({
   const [error, setError] = useState<string | null>(null)
   const [overrideChecked, setOverrideChecked] = useState(false)
   const [overrideReason, setOverrideReason] = useState('')
+  const [isPrn, setIsPrn] = useState(false)
 
   useEffect(() => {
     const now = new Date()
@@ -158,6 +159,7 @@ export const CreateMedicineGivenModal = ({
         date,
         time,
         dose_notes: notes || undefined,
+        is_prn: isPrn || undefined,
       })
 
       toast.success(overrideChecked ? 'Given medicine recorded with override' : 'Given medicine recorded')
@@ -236,8 +238,8 @@ export const CreateMedicineGivenModal = ({
             </div>
           )}
 
-          {/* Mode toggle */}
-          <div className="flex gap-3 text-xs font-medium text-slate-600">
+          {/* Mode toggle + PRN filter */}
+          <div className="flex flex-wrap items-center gap-3 text-xs font-medium text-slate-600">
             <label className="inline-flex items-center gap-1">
               <input
                 type="radio"
@@ -256,6 +258,21 @@ export const CreateMedicineGivenModal = ({
               />
               Direct Medicine
             </label>
+            {mode === 'prescription' && (
+              <label className="inline-flex items-center gap-1.5 ml-auto cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  className="h-3.5 w-3.5 rounded accent-amber-500"
+                  checked={isPrn}
+                  onChange={(e) => {
+                    setIsPrn(e.target.checked)
+                    setSelectedOrder('')
+                  }}
+                />
+                <span className="text-amber-700 font-semibold">PRN only</span>
+                <span className="text-slate-400 font-normal">(as-needed)</span>
+              </label>
+            )}
           </div>
 
           {mode === 'prescription' && (
@@ -280,17 +297,32 @@ export const CreateMedicineGivenModal = ({
 
           <div className="space-y-1">
             <label className="block text-xs font-medium text-slate-600">
-              Medicine from Prescription
+              {isPrn ? (
+                <span className="text-amber-700">PRN Medicine from Prescription</span>
+              ) : (
+                'Medicine from Prescription'
+              )}
             </label>
+            {isPrn && (
+              <p className="text-[11px] text-amber-600 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+                Showing only PRN (as-needed) medications from this prescription.
+              </p>
+            )}
             <select
               value={selectedOrder}
               onChange={(e) => setSelectedOrder(e.target.value)}
               className="w-full rounded-md border border-slate-300 px-2 py-2 text-sm"
               disabled={loading || !orders.length}
             >
-              {orders.map((o) => (
+              <option value="">
+                {isPrn && orders.filter((o) => o.is_prn === 1).length === 0
+                  ? 'No PRN medicines on this prescription'
+                  : 'Select medicine...'}
+              </option>
+              {(isPrn ? orders.filter((o) => o.is_prn === 1) : orders).map((o) => (
                 <option key={o.name} value={o.name}>
                   {o.drug_name || o.drug} – {o.dosage}
+                  {o.is_prn === 1 ? ' (PRN)' : ''}
                 </option>
               ))}
             </select>

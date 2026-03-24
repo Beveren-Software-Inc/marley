@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { fetchInpatientRecord, type InpatientRecord, type InpatientPackage, scheduleDischarge, cancelAdmission } from '../../services/inpatientRecords'
+import { hasDischargeDraft, draftSavedAt } from '../../services/dischargeDraft'
 import { PackageSelectionModal } from './PackageSelectionModal'
 import { AdmissionFormModal } from './AdmissionFormModal'
 import { ScheduleDischargeModal } from './ScheduleDischargeModal'
@@ -17,6 +18,7 @@ export const AdmissionDetails = ({ admissionNo, onUpdate }: AdmissionDetailsProp
   const [error, setError] = useState<Error | null>(null)
   const [showScheduleDischarge, setShowScheduleDischarge] = useState(false)
   const [showDischargeModal, setShowDischargeModal] = useState(false)
+  const [hasDraft, setHasDraft] = useState(false)
   const [showAdmitModal, setShowAdmitModal] = useState(false)
   const [showPackages, setShowPackages] = useState(false)
   const [selectedPackage, setSelectedPackage] = useState<InpatientPackage | null>(null)
@@ -38,6 +40,7 @@ export const AdmissionDetails = ({ admissionNo, onUpdate }: AdmissionDetailsProp
     }
 
     loadAdmission()
+    setHasDraft(hasDischargeDraft(admissionNo))
   }, [admissionNo])
 
   const handleScheduleDischarge = async (dischargeData: any) => {
@@ -68,7 +71,7 @@ export const AdmissionDetails = ({ admissionNo, onUpdate }: AdmissionDetailsProp
 
   const handleDischargeComplete = async () => {
     setShowDischargeModal(false)
-    // Reload admission data
+    setHasDraft(false)
     try {
       const data = await fetchInpatientRecord(admissionNo)
       setAdmission(data)
@@ -76,6 +79,12 @@ export const AdmissionDetails = ({ admissionNo, onUpdate }: AdmissionDetailsProp
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Failed to reload admission data'))
     }
+  }
+
+  const handleDischargeModalClose = () => {
+    setShowDischargeModal(false)
+    // Re-check draft (user may have saved one)
+    setHasDraft(hasDischargeDraft(admissionNo))
   }
 
   const handleCancelAdmission = async () => {
@@ -269,12 +278,23 @@ export const AdmissionDetails = ({ admissionNo, onUpdate }: AdmissionDetailsProp
             </>
           )}
           {admission.status === 'Discharge Scheduled' && (
-            <button
-              onClick={handleDischarge}
-              className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700"
-            >
-              Discharge
-            </button>
+            <div className="flex flex-col items-start gap-0.5">
+              <button
+                onClick={handleDischarge}
+                className={`px-4 py-2 text-sm font-medium text-white rounded-md ${
+                  hasDraft
+                    ? 'bg-amber-500 hover:bg-amber-600'
+                    : 'bg-green-600 hover:bg-green-700'
+                }`}
+              >
+                {hasDraft ? '▶ Continue Discharge' : 'Discharge'}
+              </button>
+              {hasDraft && (
+                <span className="text-[11px] text-amber-700 pl-1">
+                  Draft saved {draftSavedAt(admissionNo)}
+                </span>
+              )}
+            </div>
           )}
           {(admission.status === 'Admission Scheduled' || admission.status === 'Admitted') && (
             <button
@@ -326,7 +346,7 @@ export const AdmissionDetails = ({ admissionNo, onUpdate }: AdmissionDetailsProp
             patient: admission.patient,
             patient_name: admission.patient_name
           }}
-          onClose={() => setShowDischargeModal(false)}
+          onClose={handleDischargeModalClose}
           onSuccess={handleDischargeComplete}
         />
       )}

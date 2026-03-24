@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import { hasDischargeDraft, draftSavedAt } from '../services/dischargeDraft'
 import { useSearchParams } from 'react-router-dom'
 import { useCareContext } from '../providers/CareContextProvider'
 import { PatientSearch } from '../components/patients/PatientSearch'
@@ -11,8 +12,8 @@ import { VitalSignsList } from '../components/vitalSigns/VitalSignsList'
 import { CreateObservationModal } from '../components/observations/CreateObservationModal'
 import { MedicalHistoryView } from '../components/medicalHistory/MedicalHistoryView'
 import { PackageDetailView } from '../components/packageDetails/PackageDetailView'
-import { NursingTaskList } from '../components/nursing/NursingTaskList'
-import { CreateNursingTaskModal } from '../components/nursing/CreateNursingTaskModal'
+import { NurseTaskList } from '../components/nurseTask/NurseTaskList'
+import { CreateNurseTaskModal } from '../components/nurseTask/CreateNurseTaskModal'
 import { DischargeList } from '../components/discharges/DischargeList'
 import { PatientSummaryCard } from '../components/patients/PatientSummaryCard'
 import { DoctorServiceDetailsTable } from '../components/services/DoctorServiceDetailsTable'
@@ -44,7 +45,6 @@ import { ReceptionLongActingMedicineList } from '../components/medication/Recept
 import { CreateMedicineGivenModal } from '../components/medication/CreateMedicineGivenModal'
 import { MedicineGivenList } from '../components/medication/MedicineGivenList'
 import { LongActingMedicineList } from '../components/medication/LongActingMedicineList'
-import { reconcileDischargeMedicines } from '../services/medicineGiven'
 import { CreateVitalSignModal } from '../components/vitalSigns/CreateVitalSignModal'
 import { CreateECTDetailModal } from '../components/ect/CreateECTDetailModal'
 import { CreateECTAdmissionModal } from '../components/ect/CreateECTAdmissionModal'
@@ -70,13 +70,14 @@ import { PreEctChecklistModal } from '../components/admissions/PreEctChecklistMo
 import { ModifiedAldereteScoreModal } from '../components/admissions/ModifiedAldereteScoreModal'
 
 export const DoctorPage = () => {
-  const { mode, activeVisit, activeAdmission } = useCareContext()
+  const { mode, activeVisit, activeAdmission, selectedPatient: globalPatient, setSelectedPatient: setGlobalPatient } = useCareContext()
   const [searchParams, setSearchParams] = useSearchParams()
   const patientFromUrl = searchParams.get('patient')
-  const [selectedPatient, setSelectedPatient] = useState<string | undefined>(patientFromUrl || undefined)
+  const [selectedPatient, setSelectedPatient] = useState<string | undefined>(() => patientFromUrl || globalPatient || undefined)
   const [showWarningModal, setShowWarningModal] = useState(false)
   const [showLabTestModal, setShowLabTestModal] = useState(false)
   const [showDischargeModal, setShowDischargeModal] = useState(false)
+  const [dischargeHasDraft, setDischargeHasDraft] = useState(false)
   const [showObservationModal, setShowObservationModal] = useState(false)
   const [showDiagnosisModal, setShowDiagnosisModal] = useState(false)
   const [showServiceModal, setShowServiceModal] = useState(false)
@@ -97,7 +98,6 @@ export const DoctorPage = () => {
   const [showBulkScheduleModal, setShowBulkScheduleModal] = useState(false)
   const [showGivenMedicineModal, setShowGivenMedicineModal] = useState(false)
   const [givenRefreshKey, setGivenRefreshKey] = useState(0)
-  const [reconcileLoading, setReconcileLoading] = useState(false)
   const [showDoctorNoteModal, setShowDoctorNoteModal] = useState(false)
   const [showDoctorOrderModal, setShowDoctorOrderModal] = useState(false)
   const [showNursingNoteModal, setShowNursingNoteModal] = useState(false)
@@ -121,7 +121,7 @@ export const DoctorPage = () => {
   const [physicalExamRefreshKey, setPhysicalExamRefreshKey] = useState(0)
   const [showPatientHistoryModal, setShowPatientHistoryModal] = useState(false)
   const [patientHistoryRefreshKey, setPatientHistoryRefreshKey] = useState(0)
-  const [showCreateNursingTaskModal, setShowCreateNursingTaskModal] = useState(false)
+  const [showCreateNurseTaskModal, setShowCreateNurseTaskModal] = useState(false)
   const [longActingRefreshKey] = useState(0)
   const [showSuicidalModal, setShowSuicidalModal] = useState(false)
   const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
@@ -162,33 +162,38 @@ export const DoctorPage = () => {
   }, [screen, selectedPatient, searchParams, setSearchParams])
 
   const handleCreateDischarge = async () => {
-    // Handle create discharge from Discharge Form screen
     if (!selectedPatient) {
       toast.error('Please select a patient first')
       return
     }
-    
     try {
       const admission = await getPatientActiveAdmission(selectedPatient)
       if (!admission) {
         toast.error('No active admission found for this patient')
         return
       }
-      
       setSelectedAdmission({
         name: admission.name,
         patient: admission.patient,
         patient_name: admission.patient_name
       })
+      setDischargeHasDraft(hasDischargeDraft(admission.name))
       setShowDischargeModal(true)
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch admission'
-      toast.error(errorMessage)
+      toast.error(err instanceof Error ? err.message : 'Failed to fetch admission')
     }
   }
 
+  const handleDischargeModalClose = useCallback(() => {
+    setShowDischargeModal(false)
+    if (selectedAdmission) {
+      setDischargeHasDraft(hasDischargeDraft(selectedAdmission.name))
+    }
+  }, [selectedAdmission])
+
   const handlePatientSelect = (patient: string | undefined) => {
     setSelectedPatient(patient)
+    setGlobalPatient(patient)
     const newSearchParams = new URLSearchParams(searchParams)
     if (patient) {
       newSearchParams.set('patient', patient)
@@ -196,33 +201,6 @@ export const DoctorPage = () => {
       newSearchParams.delete('patient')
     }
     setSearchParams(newSearchParams, { replace: true })
-  }
-
-  const handleReconcileGiven = async () => {
-    if (!selectedPatient) {
-      toast.error('Please select a patient first')
-      return
-    }
-    try {
-      setReconcileLoading(true)
-      const admission = await getPatientActiveAdmission(selectedPatient)
-      if (!admission) {
-        toast.error('No active admission found for this patient')
-        return
-      }
-      const res = await reconcileDischargeMedicines(admission.name)
-      if (res.stock_entry) {
-        toast.success(`Stock Entry ${res.stock_entry} created`)
-        window.open(`/app/stock-entry/${encodeURIComponent(res.stock_entry)}`, '_blank')
-      } else {
-        toast.info('No remaining medicines to return')
-      }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Failed to reconcile medicines'
-      toast.error(msg)
-    } finally {
-      setReconcileLoading(false)
-    }
   }
 
   // Show Admission page when screen=admission
@@ -1148,7 +1126,7 @@ export const DoctorPage = () => {
     )
   }
 
-  // Nursing Task Assignment – Doctor view of nursing tasks for this patient
+  // Nurse Task Assignment – Doctor view of custom Nurse Tasks for this patient
   if (screen === 'nurse-tasks') {
     return (
       <div className="flex flex-col">
@@ -1169,30 +1147,28 @@ export const DoctorPage = () => {
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h2 className="text-base font-semibold text-slate-900">Nursing Task Assignment</h2>
+                <h2 className="text-base font-semibold text-slate-900">Nurse Tasks</h2>
                 <p className="text-xs text-slate-600 mt-1">
-                  Nursing tasks generated from admission, procedures, therapy, or checklist templates or added manually for this patient.
+                  Tasks assigned to nurses for this patient — medication administration, vitals, lab support, and more.
                 </p>
               </div>
               <button
                 type="button"
-                onClick={() => setShowCreateNursingTaskModal(true)}
-                className="w-7 h-7 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 text-sm font-bold"
-                title="New Nursing Task"
+                onClick={() => setShowCreateNurseTaskModal(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-white text-sm font-medium hover:bg-primary/90"
+                title="New Nurse Task"
               >
-                +
+                + New Task
               </button>
             </div>
-            <NursingTaskList patient={selectedPatient} />
+            <NurseTaskList patient={selectedPatient} />
           </section>
         </div>
-        {showCreateNursingTaskModal && (
-          <CreateNursingTaskModal
+        {showCreateNurseTaskModal && (
+          <CreateNurseTaskModal
             patient={selectedPatient || undefined}
-            onClose={() => setShowCreateNursingTaskModal(false)}
-            onSuccess={() => {
-              setShowCreateNursingTaskModal(false)
-            }}
+            onClose={() => setShowCreateNurseTaskModal(false)}
+            onSuccess={() => setShowCreateNurseTaskModal(false)}
           />
         )}
       </div>
@@ -1362,14 +1338,14 @@ export const DoctorPage = () => {
             <div className="font-semibold mb-4 flex items-center justify-between">
               <span>Given Medicines</span>
               <div className="flex items-center gap-2">
-                <button
+                {/* <button
                   onClick={handleReconcileGiven}
                   className="px-3 py-1 rounded-md bg-primary text-white text-xs font-semibold hover:bg-primary/90 disabled:opacity-50"
                   disabled={reconcileLoading}
                   title="Create Stock Entry for remaining medicines"
                 >
                   {reconcileLoading ? 'Reconciling…' : 'Reconcile for Discharge'}
-                </button>
+                </button> */}
                 <button
                   onClick={() => setShowGivenMedicineModal(true)}
                   className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
@@ -1957,13 +1933,24 @@ export const DoctorPage = () => {
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
             <div className="font-semibold mb-4 flex items-center justify-between">
               <span>Discharge Form</span>
-              <button
-                onClick={handleCreateDischarge}
-                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
-                title="Add Discharge"
-              >
-                +
-              </button>
+              <div className="flex items-center gap-2">
+                {dischargeHasDraft && selectedAdmission && (
+                  <span className="text-xs text-amber-700">
+                    Draft — {draftSavedAt(selectedAdmission.name)}
+                  </span>
+                )}
+                <button
+                  onClick={handleCreateDischarge}
+                  className={`inline-flex items-center gap-1 px-2 py-1 rounded text-white text-xs font-medium transition-colors ${
+                    dischargeHasDraft
+                      ? 'bg-amber-500 hover:bg-amber-600'
+                      : 'bg-primary hover:bg-primary/90'
+                  }`}
+                  title={dischargeHasDraft ? 'Continue saved discharge' : 'Start discharge'}
+                >
+                  {dischargeHasDraft ? '▶ Continue' : '+'}
+                </button>
+              </div>
             </div>
             <DischargeList patient={selectedPatient} key={dischargeRefreshKey} />
           </section>
@@ -1971,13 +1958,11 @@ export const DoctorPage = () => {
         {showDischargeModal && selectedAdmission && (
           <DischargeModal
             admission={selectedAdmission}
-            onClose={() => {
-              setShowDischargeModal(false)
-              setSelectedAdmission(null)
-            }}
+            onClose={handleDischargeModalClose}
             onSuccess={() => {
               setShowDischargeModal(false)
               setSelectedAdmission(null)
+              setDischargeHasDraft(false)
               setDischargeRefreshKey(prev => prev + 1)
               toast.success('Discharge completed successfully')
             }}
@@ -2344,13 +2329,11 @@ export const DoctorPage = () => {
       {showDischargeModal && selectedAdmission && (
         <DischargeModal
           admission={selectedAdmission}
-          onClose={() => {
-            setShowDischargeModal(false)
-            setSelectedAdmission(null)
-          }}
+          onClose={handleDischargeModalClose}
           onSuccess={() => {
             setShowDischargeModal(false)
             setSelectedAdmission(null)
+            setDischargeHasDraft(false)
             toast.success('Discharge completed successfully')
           }}
         />

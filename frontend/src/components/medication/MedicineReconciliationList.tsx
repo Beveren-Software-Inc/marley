@@ -112,9 +112,15 @@ export const MedicineReconciliationList = ({
   const [returnLoading, setReturnLoading] = useState(false)
   const menuTriggerRef = useRef<HTMLButtonElement | null>(null)
 
-  // Checkbox = for transfer. Unchecked = for return (default). Return selected creates stock entry for unchecked, non-returned (each must have reason_stopped).
-  const nonReturnedRows = rows.filter((r) => !r.returned_to_store)
-  const returnCandidateCount = rows.filter((r) => !selected.has(r.name) && !r.returned_to_store).length
+  // Local session tracking so rows are immediately disabled after an action
+  // even if the backend hasn't re-filtered them yet (e.g. column not yet created).
+  const [processedRows, setProcessedRows] = useState<Map<string, 'returned' | 'transferred'>>(new Map())
+
+  const isProcessed = (name: string) => processedRows.has(name)
+
+  // A row is "actionable" if it hasn't been returned to store AND hasn't been processed in this session.
+  const actionableRows = rows.filter((r) => !r.returned_to_store && !isProcessed(r.name))
+  const returnCandidateCount = actionableRows.filter((r) => !selected.has(r.name)).length
 
   const loadRows = async () => {
     if (!admission) {
@@ -150,10 +156,10 @@ export const MedicineReconciliationList = ({
   }
 
   const toggleSelectAll = () => {
-    if (selected.size === nonReturnedRows.length) {
+    if (selected.size === actionableRows.length) {
       setSelected(new Set())
     } else {
-      setSelected(new Set(nonReturnedRows.map((r) => r.name)))
+      setSelected(new Set(actionableRows.map((r) => r.name)))
     }
   }
 
@@ -180,13 +186,20 @@ export const MedicineReconciliationList = ({
   }
 
   const handleReturnSelected = async () => {
-    const toReturn = rows.filter((r) => !selected.has(r.name) && !r.returned_to_store).map((r) => r.name)
+    const toReturn = actionableRows.filter((r) => !selected.has(r.name)).map((r) => r.name)
     if (toReturn.length === 0) return
     try {
       setReturnLoading(true)
       const result = await returnStoppedMedicationsToStore(admission, toReturn)
       if (result.stock_entry) {
         toast.success(`Stock entry ${result.stock_entry} created for ${result.items?.length ?? 0} item(s)`)
+        // Immediately mark as processed so the UI disables them before the reload
+        setProcessedRows((prev) => {
+          const next = new Map(prev)
+          toReturn.forEach((n) => next.set(n, 'returned'))
+          return next
+        })
+        setSelected(new Set())
       } else {
         toast.info(result.message ?? 'No medicines to return.')
       }
@@ -205,10 +218,17 @@ export const MedicineReconciliationList = ({
       toast.error('Select at least one medication to transfer')
       return
     }
+    const transferNames = Array.from(selected)
     try {
       setTransferLoading(true)
-      const result = await transferMedicationsOnDischarge(admission, Array.from(selected))
+      const result = await transferMedicationsOnDischarge(admission, transferNames)
       toast.success(`Created visit ${result.patient_visit} and prescription ${result.patient_medication_order}`)
+      // Immediately mark as processed so the UI disables them before the reload
+      setProcessedRows((prev) => {
+        const next = new Map(prev)
+        transferNames.forEach((n) => next.set(n, 'transferred'))
+        return next
+      })
       setSelected(new Set())
       await loadRows()
       onRefresh?.()
@@ -242,24 +262,35 @@ export const MedicineReconciliationList = ({
 
   if (rows.length === 0) {
     return (
-      <div className="text-sm text-slate-500 py-2">
+      <div className="text-sm text-slate-500 py-2 flex items-center gap-2">
+        <CheckSquare className="w-4 h-4 text-green-500" />
         No remaining medicines to reconcile. All ordered quantities have been given or reconciled.
       </div>
     )
   }
 
+  // All rows in this session have been processed even if list isn't empty yet
+  const allDone = actionableRows.length === 0 && rows.length > 0
+
   return (
     <>
       <div className="space-y-2">
         <div className="flex items-center justify-between gap-2 flex-wrap">
-          <span className="text-xs text-slate-500">
-            By default all are for <strong>Return</strong>. Tick to <strong>Transfer</strong>. For return, enter reason (Stopped) for each, then click Return selected. Each returned item must have a reason.
-          </span>
+          {allDone ? (
+            <span className="text-xs text-green-700 font-medium flex items-center gap-1.5">
+              <CheckSquare className="w-4 h-4" />
+              All medicines have been returned or transferred — reconciliation complete.
+            </span>
+          ) : (
+            <span className="text-xs text-slate-500">
+              By default all are for <strong>Return</strong>. Tick to <strong>Transfer</strong>. For return, enter reason (Stopped) for each, then click Return selected. Each returned item must have a reason.
+            </span>
+          )}
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={handleReturnSelected}
-              disabled={returnCandidateCount === 0 || returnLoading}
+              disabled={returnCandidateCount === 0 || returnLoading || allDone}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded border border-amber-600 bg-amber-50 text-amber-800 hover:bg-amber-100 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Package className="w-4 h-4" />
@@ -268,7 +299,7 @@ export const MedicineReconciliationList = ({
             <button
               type="button"
               onClick={handleTransferSelected}
-              disabled={selected.size === 0 || transferLoading}
+              disabled={selected.size === 0 || transferLoading || allDone}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded border border-primary bg-primary/10 text-primary hover:bg-primary/20 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <ArrowRightCircle className="w-4 h-4" />
@@ -285,10 +316,10 @@ export const MedicineReconciliationList = ({
                     type="button"
                     onClick={toggleSelectAll}
                     className="text-slate-500 hover:text-slate-700 disabled:opacity-50"
-                    title={selected.size === nonReturnedRows.length ? 'Deselect all (all for return)' : 'Select all for transfer'}
-                    disabled={nonReturnedRows.length === 0}
+                    title={selected.size === actionableRows.length && actionableRows.length > 0 ? 'Deselect all (all for return)' : 'Select all for transfer'}
+                    disabled={actionableRows.length === 0}
                   >
-                    {selected.size === nonReturnedRows.length && nonReturnedRows.length > 0 ? (
+                    {selected.size === actionableRows.length && actionableRows.length > 0 ? (
                       <CheckSquare className="w-4 h-4 inline" />
                     ) : (
                       <Square className="w-4 h-4 inline" />
@@ -312,10 +343,12 @@ export const MedicineReconciliationList = ({
             <tbody className="divide-y divide-slate-200">
               {rows.map((row) => {
                 const isStopped = Boolean(row.reason_stopped)
-                const isReturned = Boolean(row.returned_to_store)
-                const showCheckbox = !isReturned
+                const isReturned = Boolean(row.returned_to_store) || processedRows.get(row.name) === 'returned'
+                const isTransferred = processedRows.get(row.name) === 'transferred'
+                const isDone = isReturned || isTransferred
+                const showCheckbox = !isDone
                 return (
-                <tr key={row.name} className={`hover:bg-slate-50 ${isStopped ? 'bg-slate-50/50' : ''}`}>
+                <tr key={row.name} className={`hover:bg-slate-50 ${isDone ? 'opacity-50 bg-slate-50' : isStopped ? 'bg-amber-50/30' : ''}`}>
                   <td className="px-3 py-2">
                     {showCheckbox ? (
                       <button
@@ -331,22 +364,29 @@ export const MedicineReconciliationList = ({
                         )}
                       </button>
                     ) : (
-                      <span className="text-slate-300" title="Already returned">
+                      <span className="text-slate-300" title={isTransferred ? 'Already transferred' : 'Already returned'}>
                         <Square className="w-4 h-4 inline" />
                       </span>
                     )}
                   </td>
                   <td className="px-3 py-2 text-slate-800">
                     <span className="inline-flex items-center gap-1.5">
-                      {row.drug_name || row.drug || row.name}
-                      {isStopped && (
+                      <span className={isDone ? 'line-through text-slate-400' : ''}>
+                        {row.drug_name || row.drug || row.name}
+                      </span>
+                      {isStopped && !isDone && (
                         <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-medium">
                           Stopped
                         </span>
                       )}
                       {isReturned && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-200 text-slate-600 font-medium">
-                          Returned
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-100 text-green-700 font-medium">
+                          Returned ✓
+                        </span>
+                      )}
+                      {isTransferred && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 font-medium">
+                          Transferred ✓
                         </span>
                       )}
                     </span>
@@ -354,6 +394,7 @@ export const MedicineReconciliationList = ({
                   <td className="px-3 py-2 text-slate-700">{row.quantity}</td>
                   <td className="px-3 py-2 text-slate-700 font-medium">{row.remaining}</td>
                   <td className="px-3 py-2 text-right">
+                    {!isDone && (
                     <div className="inline-flex items-center">
                       <button
                         ref={menuOpenForRow === row.name ? menuTriggerRef : undefined}
@@ -401,6 +442,7 @@ export const MedicineReconciliationList = ({
                         </PortalActionsMenu>
                       )}
                     </div>
+                    )}
                   </td>
                 </tr>
               )})}

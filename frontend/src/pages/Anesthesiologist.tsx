@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { useCareContext } from '../providers/CareContextProvider'
 import { PatientSearch } from '../components/patients/PatientSearch'
 import { NotificationBell } from '../components/notifications/NotificationBell'
 import { UserMenu } from '../components/user/UserMenu'
@@ -26,11 +27,12 @@ import { PatientHistoryList } from '../components/patientHistory/PatientHistoryL
 import { PatientHistoryModal } from '../components/patientHistory/PatientHistoryModal'
 
 export const AnesthesiologistPage = () => {
+  const { selectedPatient: globalPatient, setSelectedPatient: setGlobalPatient } = useCareContext()
   const [searchParams, setSearchParams] = useSearchParams()
   const screen = searchParams.get('screen') || ''
   const patientFromUrl = searchParams.get('patient') || ''
 
-  const [selectedPatient, setSelectedPatient] = useState<string | undefined>(patientFromUrl || undefined)
+  const [selectedPatient, setSelectedPatient] = useState<string | undefined>(() => patientFromUrl || globalPatient || undefined)
 
   // Modal show states
   const [showECTModal, setShowECTModal] = useState(false)
@@ -69,6 +71,7 @@ export const AnesthesiologistPage = () => {
 
   const handlePatientSelect = (patient: string | undefined) => {
     setSelectedPatient(patient)
+    setGlobalPatient(patient)
     const next = new URLSearchParams(searchParams)
     if (patient) next.set('patient', patient)
     else next.delete('patient')

@@ -216,39 +216,6 @@ def get_medication_sheet(admission: str, from_date: str | None = None, to_date: 
 	return rows
 
 
-# Fallback: interval in days when Prescription Frequency has long_acting=1 but no reminder_interval_days.
-# Used for known names only; other long-acting frequencies default to 7 if reminder_interval_days is not set.
-DEFAULT_LONG_ACTING_INTERVAL_DAYS = {"Q1W": 7, "Q2W": 14, "Q3W": 21, "Q4W": 28}
-
-
-def _get_long_acting_frequency_names_and_intervals():
-	"""Return (list of frequency names with long_acting=1, dict name -> interval_days)."""
-	rows = frappe.get_all(
-		"Prescription Frequency",
-		filters={"long_acting": 1},
-		fields=["name"],
-	)
-	names = [r.name for r in rows if r.name]
-	if not names:
-		return [], {}
-
-	intervals = {}
-	for name in names:
-		interval = None
-		try:
-			interval = frappe.db.get_value("Prescription Frequency", name, "reminder_interval_days")
-		except Exception:
-			pass
-		if interval is not None and interval != "":
-			try:
-				intervals[name] = int(interval)
-			except (TypeError, ValueError):
-				intervals[name] = DEFAULT_LONG_ACTING_INTERVAL_DAYS.get(name, 7)
-		else:
-			intervals[name] = DEFAULT_LONG_ACTING_INTERVAL_DAYS.get(name, 7)
-	return names, intervals
-
-
 @frappe.whitelist()
 def get_long_acting_medication_reminders(
 	patient: str | None = None,
@@ -257,56 +224,59 @@ def get_long_acting_medication_reminders(
 ) -> list[dict]:
 	"""Return long-acting medication reminders: doses due today, soon, or overdue.
 
-	Long-acting = Prescription Frequency with long_acting checkbox checked.
-	Interval in days = reminder_interval_days on the frequency if set, else a default (e.g. Q1W=7, Q2W=14, …).
+	Long-acting = is_long_acting_medicine=1 directly on the Inpatient Medication
+	Order Entry child row. Interval is read from long_acting_frequency on that
+	same row (Weekly/Biweekly/Monthly/Every 2 Months/Every 3 Months).
 	Next due date = last Medicine Given date (or order start_date) + interval.
 	"""
+	from healthcare.api.patient_medication_order import _long_acting_frequency_interval_days
+
 	days_ahead = int(days_ahead or 7)
 	today = getdate(nowdate())
 
-	long_acting_names, long_acting_intervals = _get_long_acting_frequency_names_and_intervals()
-	if not long_acting_names:
-		return []
-
-	# All submitted IP medication orders that have at least one long-acting frequency
-	filters = {"care_context": "Inpatient Admission", "docstatus": 1}
+	pmo_filters = {"care_context": "Inpatient Admission", "docstatus": 1}
 	if patient:
-		filters["patient"] = patient
+		pmo_filters["patient"] = patient
 	if admission:
-		filters["inpatient_record"] = admission
+		pmo_filters["inpatient_record"] = admission
 
 	prescriptions = frappe.get_all(
 		"Patient Medication Order",
-		filters=filters,
-		fields=["name", "patient", "patient_name", "inpatient_record", "start_date", "end_date"],
+		filters=pmo_filters,
+		fields=["name", "patient", "patient_name", "inpatient_record", "start_date"],
 	)
 	if not prescriptions:
 		return []
 
 	pmo_names = [p.name for p in prescriptions]
-	# Order entries with long-acting frequency (from Prescription Frequency long_acting=1)
+
+	# Build field list; include long_acting_frequency only if the column exists
+	entry_fields = ["name", "parent", "drug", "drug_name", "dosage", "patient_frequency"]
+	if frappe.db.has_column("Inpatient Medication Order Entry", "long_acting_frequency"):
+		entry_fields.append("long_acting_frequency")
+
+	# Filter directly on is_long_acting_medicine=1 — no Prescription Frequency lookup needed
 	order_entries = frappe.get_all(
 		"Inpatient Medication Order Entry",
 		filters={
 			"parent": ["in", pmo_names],
-			"patient_frequency": ["in", long_acting_names],
+			"is_long_acting_medicine": 1,
 		},
-		fields=["name", "parent", "drug", "drug_name", "dosage", "patient_frequency"],
+		fields=entry_fields,
 	)
 	if not order_entries:
 		return []
 
-	# Build prescription lookup
 	pmo_by_name = {p.name: p for p in prescriptions}
 
-	# Admission Detail names per admission
+	# Admission Detail per admission (needed to query Medicine Given)
 	admission_details = {}
 	for p in prescriptions:
 		adm = p.get("inpatient_record")
-		if not adm:
-			continue
-		if adm not in admission_details:
-			admission_details[adm] = frappe.db.get_value("Admission Detail", {"admission": adm}, "name")
+		if adm and adm not in admission_details:
+			admission_details[adm] = frappe.db.get_value(
+				"Admission Detail", {"admission": adm}, "name"
+			)
 	admission_details = {k: v for k, v in admission_details.items() if v}
 
 	reminders = []
@@ -314,11 +284,13 @@ def get_long_acting_medication_reminders(
 		pmo = pmo_by_name.get(entry.parent)
 		if not pmo or not pmo.get("inpatient_record"):
 			continue
+
 		adm = pmo.inpatient_record
 		adm_detail = admission_details.get(adm)
-		interval_days = long_acting_intervals.get(entry.patient_frequency)
-		if not interval_days:
-			continue
+
+		# Interval from long_acting_frequency on the child row itself
+		long_acting_freq = entry.get("long_acting_frequency") or ""
+		interval_days = _long_acting_frequency_interval_days(long_acting_freq)
 
 		# Last given date for this drug in this admission
 		last_given_date = None
@@ -342,7 +314,7 @@ def get_long_acting_medication_reminders(
 
 		next_due = add_days(last_given_date, interval_days)
 
-		# Only include if next_due is in range [today - 30, today + days_ahead] (show overdue up to 30 days)
+		# Show overdue up to 30 days back; ignore doses not yet due beyond the window
 		if next_due > add_days(today, days_ahead) and next_due > today:
 			continue
 		if next_due < add_days(today, -30):
@@ -364,13 +336,12 @@ def get_long_acting_medication_reminders(
 			"drug": entry.drug,
 			"drug_name": entry.drug_name or entry.drug,
 			"dosage": entry.dosage,
-			"frequency": entry.patient_frequency,
+			"frequency": long_acting_freq or entry.get("patient_frequency") or "Long Acting",
 			"last_given_date": str(last_given_date),
 			"next_due_date": str(next_due),
 			"status": status,
 		})
 
-	# Sort: overdue first, then due_today, then due_soon by date
 	def _sort_key(r):
 		s = r["status"]
 		d = getdate(r["next_due_date"])

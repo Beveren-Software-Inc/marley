@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { createLabTest } from '../../services/labTests'
 import { fetchHealthcarePractitioners, fetchLabTestTemplates, fetchMedicalDepartments, fetchDocumentTypes, fetchCostCenters, type LinkFieldOption } from '../../services/common'
+import { createNurseTask } from '../../services/nurseTask'
 import { searchPatients, fetchPatients, uploadPatientFile, type PatientListItem, type PatientDocumentRow } from '../../services/patients'
 import { CreatePatientModal } from '../patients/CreatePatientModal'
 import { CreatePractitionerModal } from '../practitioners/CreatePractitionerModal'
@@ -27,6 +28,7 @@ export const CreateLabTestModal = ({ onClose, onSuccess, initialPatient }: Creat
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [createNurseTaskFlag, setCreateNurseTaskFlag] = useState(false)
   
   // Patient dropdown state
   const [patientOptions, setPatientOptions] = useState<PatientListItem[]>([])
@@ -133,7 +135,24 @@ export const CreateLabTestModal = ({ onClose, onSuccess, initialPatient }: Creat
         status: formData.status || undefined,
         documents: docPayload.length ? docPayload : undefined
       })
-      
+
+      if (createNurseTaskFlag && formData.patient) {
+        const scheduledDateTime = formData.date && formData.time
+          ? `${formData.date} ${formData.time}:00`
+          : new Date().toISOString().replace('T', ' ').slice(0, 19)
+        const templateLabel = selectedTemplate?.label || formData.template || 'Lab Test'
+        try {
+          await createNurseTask({
+            patient: formData.patient,
+            task_type: 'Lab Support',
+            scheduled_time: scheduledDateTime,
+            description: `Collect sample for: ${templateLabel}`,
+          })
+        } catch {
+          // Don't block the flow — lab test was already created
+        }
+      }
+
       if (onSuccess) {
         onSuccess()
       }
@@ -698,6 +717,20 @@ export const CreateLabTestModal = ({ onClose, onSuccess, initialPatient }: Creat
               {error}
             </div>
           )}
+
+          {/* Nurse Task checkbox */}
+          <div className="rounded-md border border-teal-200 bg-teal-50 px-3 py-2 flex items-center gap-2">
+            <input
+              id="lab-create-nurse-task"
+              type="checkbox"
+              checked={createNurseTaskFlag}
+              onChange={(e) => setCreateNurseTaskFlag(e.target.checked)}
+              className="w-4 h-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+            />
+            <label htmlFor="lab-create-nurse-task" className="text-xs font-medium text-teal-800 cursor-pointer select-none">
+              Create a Nurse Task (Lab Support) for sample collection
+            </label>
+          </div>
 
           <div className="flex justify-end gap-3 pt-4">
             <button

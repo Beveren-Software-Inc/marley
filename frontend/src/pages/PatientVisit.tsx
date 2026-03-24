@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { useCareContext } from '../providers/CareContextProvider'
 import { PatientVisitList } from '../components/patientVisits/PatientVisitList'
 import { CreatePatientVisitModal } from '../components/patientVisits/CreatePatientVisitModal'
 import { NotificationBell } from '../components/notifications/NotificationBell'
@@ -12,17 +13,19 @@ interface PatientVisitPageProps {
 }
 
 export const PatientVisitPage = ({ initialPatient }: PatientVisitPageProps = {}) => {
+  const { selectedPatient: globalPatient, setSelectedPatient: setGlobalPatient } = useCareContext()
   const [searchParams, setSearchParams] = useSearchParams()
   const searchFromUrl = searchParams.get('search')
   const patientFromUrl = searchParams.get('patient') || initialPatient || ''
   const [searchQuery] = useState<string>(searchFromUrl || '')
   const [showCreateVisit, setShowCreateVisit] = useState(false)
   const [visitRefreshKey, setVisitRefreshKey] = useState(0)
-  const [selectedPatient, setSelectedPatient] = useState<string>(patientFromUrl || '')
+  const [selectedPatient, setSelectedPatient] = useState<string>(() => patientFromUrl || globalPatient || '')
 
   const handlePatientSelect = (patient: string | undefined) => {
     const value = patient || ''
     setSelectedPatient(value)
+    setGlobalPatient(patient)
     const newSearchParams = new URLSearchParams(searchParams)
     if (value) {
       newSearchParams.set('patient', value)

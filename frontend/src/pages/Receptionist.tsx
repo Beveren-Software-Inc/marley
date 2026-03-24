@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { useCareContext } from '../providers/CareContextProvider'
 import { dummyPatients } from '../config/patients'
 import { AdmissionList } from '../components/admissions/AdmissionList'
 import { PatientList } from '../components/patients/PatientList'
@@ -42,9 +43,10 @@ type View =
   | 'insurance'
 
 export const ReceptionistPage = () => {
+  const { selectedPatient: globalPatient, setSelectedPatient: setGlobalPatient } = useCareContext()
   const [searchParams, setSearchParams] = useSearchParams()
   const screen = searchParams.get('screen')
-  const [selectedPatient, setSelectedPatient] = useState<string>('')
+  const [selectedPatient, setSelectedPatient] = useState<string>(() => searchParams.get('patient') || globalPatient || '')
   const [currentView, setCurrentView] = useState<View>('default')
   const [showAppointmentModal, setShowAppointmentModal] = useState(false)
   const [appointmentRefreshKey, setAppointmentRefreshKey] = useState(0)
@@ -64,6 +66,7 @@ export const ReceptionistPage = () => {
 
   const handlePatientSelect = (patient: string | undefined) => {
     setSelectedPatient(patient || '')
+    setGlobalPatient(patient)
   }
 
   // Sync view with URL: when screen param is missing or unknown, show reception homepage
@@ -633,6 +636,7 @@ export const ReceptionistPage = () => {
             setShowPatientModal(false)
             if (patientName) {
               setSelectedPatient(patientName)
+              setGlobalPatient(patientName)
             }
           }}
         />

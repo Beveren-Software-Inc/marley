@@ -28,9 +28,10 @@ import {
 } from 'lucide-react'
 
 export const PatientHistoryPage = () => {
+  const { mode, selectedPatient: globalPatient, setSelectedPatient: setGlobalPatient } = useCareContext()
   const [searchParams, setSearchParams] = useSearchParams()
   const patientFromUrl = searchParams.get('patient')
-  const [selectedPatient, setSelectedPatient] = useState<string | undefined>(patientFromUrl || undefined)
+  const [selectedPatient, setSelectedPatient] = useState<string | undefined>(() => patientFromUrl || globalPatient || undefined)
   const [summary, setSummary] = useState<PatientHistorySummary | null>(null)
   const [summaryLoading, setSummaryLoading] = useState(false)
 
@@ -65,6 +66,7 @@ export const PatientHistoryPage = () => {
 
   const handlePatientSelect = (patient: string | undefined) => {
     setSelectedPatient(patient)
+    setGlobalPatient(patient)
     const newSearchParams = new URLSearchParams(searchParams)
     if (patient) {
       newSearchParams.set('patient', patient)
@@ -79,7 +81,6 @@ export const PatientHistoryPage = () => {
     return Number(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   }
 
-  const { mode } = useCareContext()
 
   return (
     <div className="flex flex-col min-h-full">

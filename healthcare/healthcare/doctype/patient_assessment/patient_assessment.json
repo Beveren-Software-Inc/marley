@@ -11,6 +11,8 @@
   "patient",
   "patient_name",
   "assessment_template",
+  "reference_type",
+  "encounter",
   "column_break_4",
   "company",
   "healthcare_practitioner",
@@ -153,11 +155,23 @@
    "fieldname": "family_history",
    "fieldtype": "Small Text",
    "label": "Family History"
+  },
+  {
+   "fieldname": "reference_type",
+   "fieldtype": "Select",
+   "label": "Reference Type",
+   "options": "\nPatient Visit\nInpatient Admission"
+  },
+  {
+   "fieldname": "encounter",
+   "fieldtype": "Dynamic Link",
+   "label": "Encounter",
+   "options": "reference_type"
   }
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2025-12-22 14:21:31.063132",
+ "modified": "2026-03-23 17:49:14.347458",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Assessment",

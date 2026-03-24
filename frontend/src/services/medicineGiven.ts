@@ -12,6 +12,8 @@ export interface CreateMedicineGivenData {
   time?: string
   frequency?: number
   dose_notes?: string
+  /** Set to true when recording a PRN (as-needed) administration */
+  is_prn?: boolean
 }
 
 export interface CreateMedicineGivenResponse {
@@ -284,7 +286,7 @@ export async function fetchLongActingMedicationReminders(
     `/api/method/healthcare.api.medication_chart.get_long_acting_medication_reminders?${params.toString()}`
   )
   const data = await res.json()
-
+  console.log("nadai haoa", data)
   if (data?.exc || !res.ok) {
     throw new Error(data?.exc || data?.message || 'Failed to load long-acting medication reminders')
   }

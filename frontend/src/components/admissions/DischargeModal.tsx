@@ -6,7 +6,8 @@ import { MedicineReconciliationList } from '../medication/MedicineReconciliation
 import { fetchHealthcarePractitioners, fetchUsers, fetchDischargeTemplates, fetchDischargeChecklist, fetchDepartments, fetchDocumentTypes, type LinkFieldOption } from '../../services/common'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { toast } from '../../hooks/useToast'
-import { X, CheckCircle2, Circle, ChevronDown, ChevronUp, AlertCircle, Receipt, PenLine, Trash2, Check } from 'lucide-react'
+import { saveDischargeDraft, loadDischargeDraft, clearDischargeDraft, draftSavedAt } from '../../services/dischargeDraft'
+import { X, CheckCircle2, Circle, ChevronDown, ChevronUp, AlertCircle, Receipt, PenLine, Trash2, Check, Save, Clock } from 'lucide-react'
 
 // ─── Signature Pad Component ────────────────────────────────────────────────
 
@@ -354,7 +355,7 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
     next_appointment_time: ''
   })
 
-  // Load initial data
+  // Load initial data, then restore any saved draft
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -370,6 +371,43 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
         setDischargeTemplates(templates)
         setDocumentTypes(docTypes)
 
+        // Try to restore a saved draft first
+        const draft = loadDischargeDraft(admission.name)
+        if (draft) {
+          setFormData(prev => ({ ...prev, ...draft.formData }))
+          if (draft.selectedOptions.dischargedBy) {
+            setSelectedDischargedBy(draft.selectedOptions.dischargedBy)
+            setDischargedByQuery(draft.selectedOptions.dischargedByQuery || draft.selectedOptions.dischargedBy.label)
+          }
+          if (draft.selectedOptions.finalDischarge) {
+            setSelectedFinalDischarge(draft.selectedOptions.finalDischarge)
+            setFinalDischargeQuery(draft.selectedOptions.finalDischargeQuery || draft.selectedOptions.finalDischarge.label)
+          }
+          if (draft.selectedOptions.receivingDoctor) {
+            setSelectedReceivingDoctor(draft.selectedOptions.receivingDoctor)
+            setReceivingDoctorsQuery(draft.selectedOptions.receivingDoctorsQuery || draft.selectedOptions.receivingDoctor.label)
+          }
+          if (draft.selectedOptions.dischargeTemplate) {
+            setSelectedDischargeTemplate(draft.selectedOptions.dischargeTemplate)
+            setDischargeTemplateQuery(draft.selectedOptions.dischargeTemplateQuery || draft.selectedOptions.dischargeTemplate.label)
+            await loadChecklist(draft.selectedOptions.dischargeTemplate.name)
+          } else {
+            await loadChecklist('Inpatient Discharge')
+          }
+          if (Array.isArray(draft.checklistItems) && draft.checklistItems.length > 0) {
+            setChecklistItems(draft.checklistItems as ChecklistItem[])
+          }
+          if (Array.isArray(draft.documents) && draft.documents.length > 0) {
+            setDocuments(draft.documents as PatientDocumentRow[])
+          }
+          if (Array.isArray(draft.relatives) && draft.relatives.length > 0) {
+            setRelatives(draft.relatives as typeof relatives)
+          }
+          toast.info('Resumed from saved draft', 3000)
+          return
+        }
+
+        // No draft — apply defaults
         await loadChecklist('Inpatient Discharge')
         const defaultTemplate = templates.find(t => t.label === 'Inpatient Discharge' || t.name === 'Inpatient Discharge')
         if (defaultTemplate) {
@@ -601,6 +639,7 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
           })),
         patient_relatives: patientRelatives,
       })
+      clearDischargeDraft(admission.name)
       toast.success('Patient discharged successfully!', 3000)
       onSuccess()
     } catch (err) {
@@ -615,6 +654,28 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
     } finally {
       setSubmitting(false)
     }
+  }
+
+  /** Save current form state to localStorage and close the modal. */
+  const handleSaveAndClose = () => {
+    saveDischargeDraft(admission.name, {
+      formData,
+      selectedOptions: {
+        dischargedBy: selectedDischargedBy,
+        finalDischarge: selectedFinalDischarge,
+        receivingDoctor: selectedReceivingDoctor,
+        dischargeTemplate: selectedDischargeTemplate,
+        dischargedByQuery,
+        finalDischargeQuery,
+        receivingDoctorsQuery,
+        dischargeTemplateQuery,
+      },
+      checklistItems,
+      documents,
+      relatives,
+    })
+    toast.success('Discharge progress saved. You can continue later.', 4000)
+    onClose()
   }
 
   const closeAllDropdowns = () => {
@@ -633,7 +694,15 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
           <div>
-            <h2 className="text-xl font-semibold text-slate-900">Discharge Patient</h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-xl font-semibold text-slate-900">Discharge Patient</h2>
+              {draftSavedAt(admission.name) && (
+                <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">
+                  <Clock className="w-3 h-3" />
+                  Draft saved
+                </span>
+              )}
+            </div>
             <p className="text-sm text-slate-500 mt-0.5">
               {admission.patient_name || admission.patient} &mdash; {admission.name}
             </p>
@@ -1446,13 +1515,29 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
                 </span>
               )}
             </div>
-            <div className="flex gap-3">
-              <button type="button" onClick={onClose}
-                className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50">
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50"
+              >
                 Cancel
               </button>
-              <button type="submit" disabled={submitting}
-                className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed">
+              <button
+                type="button"
+                onClick={handleSaveAndClose}
+                disabled={submitting}
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-amber-800 bg-amber-50 border border-amber-300 rounded-md hover:bg-amber-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Save progress and close. You can continue this discharge later."
+              >
+                <Save className="w-4 h-4" />
+                Save &amp; Close
+              </button>
+              <button
+                type="submit"
+                disabled={submitting}
+                className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
                 {submitting ? 'Discharging...' : 'Discharge Patient'}
               </button>
             </div>

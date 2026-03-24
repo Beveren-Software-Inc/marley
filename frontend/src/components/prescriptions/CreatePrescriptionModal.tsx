@@ -17,6 +17,7 @@ import {
   type MedicationOrderRow,
   LONG_ACTING_FREQUENCY_OPTIONS,
 } from '../../services/prescriptions'
+import { bulkCreateNurseTasks, type CreateNurseTaskData } from '../../services/nurseTask'
 import { toast } from '../../hooks/useToast'
 import { X, Plus, Trash2, Pill, ChevronDown, ChevronUp } from 'lucide-react'
 import { useCareContext } from '../../providers/CareContextProvider'
@@ -51,16 +52,17 @@ const emptyMedicationRow = (startDate: string): MedicationOrderRow => ({
   instructions: '',
   date: startDate,
   end_date: addDays(startDate, 1),
-  time: '08:00',
+  time: '',
   patient_frequency: '',
   is_pink: false,
+  is_prn: false,
   is_long_acting: false,
   long_acting_frequency: 'Weekly',
   reference_no: '',
   route_of_administration: '',
 })
 
-// Reusable combobox dropdown component
+// COMBOBOX WITH FIXED POSITIONING - DROPDOWNS ESCAPE MODAL
 interface ComboboxProps {
   value: string
   displayValue: string
@@ -136,8 +138,10 @@ const Combobox = ({
           <ChevronDown className="w-4 h-4 text-slate-400 pointer-events-none" />
         </div>
       </div>
+      
+      {/* DROPDOWN - INLINE (z-50 to escape modal) */}
       {open && (
-        <div className="absolute z-30 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-52 overflow-auto">
+        <div className="absolute z-50 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-xl max-h-52 overflow-auto text-slate-900">
           {loading ? (
             <div className="px-3 py-2 text-xs text-slate-500">Loading...</div>
           ) : options.length ? (
@@ -146,7 +150,6 @@ const Combobox = ({
                 key={opt.name}
                 type="button"
                 className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 transition-colors"
-                onMouseDown={(e) => e.preventDefault()}
                 onClick={() => {
                   onSelect(opt)
                   setOpen(false)
@@ -197,7 +200,6 @@ export const CreatePrescriptionModal = ({
     emptyMedicationRow(new Date().toISOString().split('T')[0]),
   ])
 
-  // Per-row drug state
   const [drugQueries, setDrugQueries] = useState<Record<number, string>>({})
   const [drugOptions, setDrugOptions] = useState<Record<number, LinkFieldOption[]>>({})
   const [drugLoading, setDrugLoading] = useState<Record<number, boolean>>({})
@@ -209,7 +211,10 @@ export const CreatePrescriptionModal = ({
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Initialise care context based on global OP/IP mode and any active visit/admission
+  // Nurse Task creation per medication
+  const [createNurseTasks, setCreateNurseTasks] = useState(false)
+  const [nurseTaskRows, setNurseTaskRows] = useState<Record<number, boolean>>({})
+
   useEffect(() => {
     setFormData((prev) => {
       const next = { ...prev }
@@ -253,7 +258,6 @@ export const CreatePrescriptionModal = ({
     fetchInpatientAdmissions(selectedPatient.name).then(setAdmissions).catch(() => setAdmissions([]))
   }, [selectedPatient?.name])
 
-  // When we have an active visit/admission in the global care context, pre-select it
   useEffect(() => {
     setFormData((prev) => {
       const next = { ...prev }
@@ -290,7 +294,6 @@ export const CreatePrescriptionModal = ({
   const addMedicationRow = () => {
     const newIndex = medications.length
     setMedications((prev) => [...prev, emptyMedicationRow(formData.start_date)])
-    // When adding a new medication (3rd onwards), expand only the latest one
     if (medications.length >= 2) {
       setExpandedMedications(new Set([newIndex]))
     }
@@ -324,7 +327,6 @@ export const CreatePrescriptionModal = ({
       const next = [...prev]
       if (!next[index]) return next
       const row = { ...next[index], [field]: value }
-      // Derive date/days/end_date: start+end → days; start+days → end
       if (field === 'date' || field === 'end_date' || field === 'no_of_days') {
         const start = row.date || ''
         const end = (field === 'end_date' ? value : row.end_date) as string
@@ -344,7 +346,7 @@ export const CreatePrescriptionModal = ({
     })
   }
 
-  const validMedications = medications.filter((m) => m.drug && m.dosage && m.dosage_form && m.date && m.time)
+  const validMedications = medications.filter((m) => m.drug && m.dosage && m.dosage_form && m.date)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -352,9 +354,8 @@ export const CreatePrescriptionModal = ({
     if (!selectedPatient) { setError('Please select a patient'); setActiveTab('details'); return }
     if (!formData.company) { setError('Please select a company'); setActiveTab('details'); return }
     if (!formData.start_date) { setError('Please set start date'); setActiveTab('details'); return }
-    // Care context is optional: we can create an order for a patient without linking to visit/admission.
     if (validMedications.length === 0) {
-      setError('Please add at least one medication with Drug, Dosage, Dosage Form, Date and Time')
+      setError('Please add at least one medication with Drug, Dosage, Dosage Form, and Date')
       setActiveTab('medications'); return
     }
 
@@ -376,7 +377,43 @@ export const CreatePrescriptionModal = ({
       }
 
       await createPrescription(payload)
-      toast.success('Prescription created')
+
+      // Create a Nurse Task for each medication row that has the checkbox ticked
+      if (createNurseTasks) {
+        const tasksToCreate: CreateNurseTaskData[] = validMedications.flatMap((med, idx) => {
+          const shouldCreate = nurseTaskRows[idx] !== false
+          if (!shouldCreate) return []
+          const scheduledDatetime = med.date
+            ? `${med.date} ${med.time ?? '08:00:00'}`
+            : `${formData.start_date} 08:00:00`
+          const task: CreateNurseTaskData = {
+            patient: selectedPatient.name,
+            task_type: 'Medication Administration',
+            scheduled_time: scheduledDatetime,
+            description: `${med.drug_name || med.drug} — ${med.dosage}${med.instructions ? `\n${med.instructions}` : ''}`,
+            medication: med.drug,
+            dosage: med.dosage,
+            route: med.route_of_administration || undefined,
+            is_prn: med.is_prn ?? false,
+          }
+          return [task]
+        })
+
+        if (tasksToCreate.length > 0) {
+          try {
+            const result = await bulkCreateNurseTasks(tasksToCreate)
+            toast.success(`Prescription created · ${result.count} nurse task${result.count !== 1 ? 's' : ''} created`)
+          } catch {
+            toast.success('Prescription created')
+            toast.error('Prescription saved but some nurse tasks could not be created.')
+          }
+        } else {
+          toast.success('Prescription created')
+        }
+      } else {
+        toast.success('Prescription created')
+      }
+
       onSuccess()
       onClose()
     } catch (err) {
@@ -397,7 +434,7 @@ export const CreatePrescriptionModal = ({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] flex flex-col">
+      <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] min-h-[500px] flex flex-col">
         {/* Header */}
         <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between shrink-0 rounded-t-xl">
           <h2 className="text-xl font-semibold text-slate-900">Create Prescription</h2>
@@ -599,7 +636,7 @@ export const CreatePrescriptionModal = ({
               <div className="space-y-4">
                 <div className="flex justify-between items-center">
                   <p className="text-sm text-slate-500">
-                    Fill in Drug, Dosage, Dosage Form, Date and Time for each medication.
+                    Fill in Drug, Dosage, Dosage Form, and Date for each medication.
                   </p>
                   <button
                     type="button"
@@ -609,6 +646,22 @@ export const CreatePrescriptionModal = ({
                     <Plus className="w-4 h-4" /> Add Medication
                   </button>
                 </div>
+
+                {/* Nurse Task master toggle */}
+                {formData.care_context === 'Inpatient Admission' && (
+                  <div className="rounded-md border border-teal-200 bg-teal-50 px-3 py-2 flex items-center gap-2">
+                    <input
+                      id="create-nurse-tasks"
+                      type="checkbox"
+                      checked={createNurseTasks}
+                      onChange={(e) => setCreateNurseTasks(e.target.checked)}
+                      className="w-4 h-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+                    />
+                    <label htmlFor="create-nurse-tasks" className="text-xs font-medium text-teal-800 cursor-pointer select-none">
+                      Create a Nurse Task (Medication Administration) for each medication
+                    </label>
+                  </div>
+                )}
 
                 <div className="space-y-3">
                   {medications.map((row, index) => (
@@ -630,6 +683,11 @@ export const CreatePrescriptionModal = ({
                           <span>Medication {index + 1}</span>
                           {row.drug && drugQueries[index] && (
                             <span className="text-slate-400 font-normal">— {drugQueries[index]}</span>
+                          )}
+                          {row.is_prn && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-700 border border-amber-200">
+                              PRN
+                            </span>
                           )}
                         </div>
                         <div className="flex items-center gap-2">
@@ -655,6 +713,27 @@ export const CreatePrescriptionModal = ({
                           )}
                         </div>
                       </button>
+
+                      {/* Per-row Nurse Task opt-out (visible when master toggle is on) */}
+                      {createNurseTasks && formData.care_context === 'Inpatient Admission' && (
+                        <div className="px-4 py-1.5 bg-teal-50 border-b border-teal-100 flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            id={`nt-row-${index}`}
+                            checked={nurseTaskRows[index] !== false}
+                            onChange={(e) =>
+                              setNurseTaskRows((prev) => ({ ...prev, [index]: e.target.checked }))
+                            }
+                            className="w-3.5 h-3.5 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+                          />
+                          <label
+                            htmlFor={`nt-row-${index}`}
+                            className="text-[11px] text-teal-700 cursor-pointer select-none"
+                          >
+                            Create nurse task for this medication
+                          </label>
+                        </div>
+                      )}
 
                       {/* Collapsible content */}
                       {(isExpanded(index) || !shouldShowCollapse) && (
@@ -710,8 +789,8 @@ export const CreatePrescriptionModal = ({
                             </div>
                           </div>
 
-                          {/* Row B: Start Date, End Date, Days, Time (start+end → days; start+days → end) */}
-                          <div className="grid grid-cols-4 gap-3">
+                          {/* Row B: Start Date, End Date, Days (uniform 3 fields) */}
+                          <div className="grid grid-cols-3 gap-3">
                             <div>
                               <label className="block text-xs font-medium text-slate-600 mb-1">
                                 Start Date <span className="text-red-500">*</span>
@@ -743,21 +822,10 @@ export const CreatePrescriptionModal = ({
                                 className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
                               />
                             </div>
-                            <div>
-                              <label className="block text-xs font-medium text-slate-600 mb-1">
-                                Time <span className="text-red-500">*</span>
-                              </label>
-                              <input
-                                type="time"
-                                value={row.time ?? '08:00'}
-                                onChange={(e) => updateMedicationRow(index, 'time', e.target.value)}
-                                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
-                              />
-                            </div>
                           </div>
                           <p className="text-[11px] text-slate-500">Start + End Date → Days; or Start Date + Days → End Date</p>
 
-                          {/* Row C: Frequency, Route of Administration, Instructions */}
+                          {/* Row C: Frequency, Route of Administration, Ref No */}
                           <div className="grid grid-cols-3 gap-3">
                             <div>
                               <label className="block text-xs font-medium text-slate-600 mb-1">Frequency</label>
@@ -794,19 +862,6 @@ export const CreatePrescriptionModal = ({
                               />
                             </div>
                             <div>
-                              <label className="block text-xs font-medium text-slate-600 mb-1">Instructions</label>
-                              <input
-                                type="text"
-                                value={row.instructions ?? ''}
-                                onChange={(e) => updateMedicationRow(index, 'instructions', e.target.value)}
-                                placeholder="Notes..."
-                                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
-                              />
-                            </div>
-                          </div>
-                          {/* Row D: Ref No, Is Pink, Long Acting Medication */}
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                            <div>
                               <label className="block text-xs font-medium text-slate-600 mb-1">Ref No</label>
                               <input
                                 type="text"
@@ -816,9 +871,13 @@ export const CreatePrescriptionModal = ({
                                 className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
                               />
                             </div>
+                          </div>
+
+                          {/* Row D: Checkboxes (3 cols) */}
+                          <div className="grid grid-cols-3 gap-3">
                             <div>
-                              <label className="block text-xs font-medium text-slate-600 mb-1">Is Pink</label>
-                              <div className="flex items-center h-9">
+                              <label className="block text-xs font-medium text-slate-600 mb-2">Is Pink</label>
+                              <div className="flex items-center">
                                 <label className="flex items-center gap-2 cursor-pointer">
                                   <input
                                     type="checkbox"
@@ -830,9 +889,27 @@ export const CreatePrescriptionModal = ({
                                 </label>
                               </div>
                             </div>
+
                             <div>
-                              <label className="block text-xs font-medium text-slate-600 mb-1">Long Acting Medication</label>
-                              <div className="flex items-center h-9">
+                              <label className="block text-xs font-medium text-slate-600 mb-2">
+                                PRN <span className="text-slate-400 font-normal">(as needed)</span>
+                              </label>
+                              <div className="flex items-center">
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={!!row.is_prn}
+                                    onChange={(e) => updateMedicationRow(index, 'is_prn', e.target.checked)}
+                                    className="w-4 h-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500"
+                                  />
+                                  <span className="text-sm text-slate-600">Yes</span>
+                                </label>
+                              </div>
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-medium text-slate-600 mb-2">Long Acting</label>
+                              <div className="flex items-center">
                                 <label className="flex items-center gap-2 cursor-pointer">
                                   <input
                                     type="checkbox"
@@ -845,6 +922,7 @@ export const CreatePrescriptionModal = ({
                               </div>
                             </div>
                           </div>
+
                           {/* Row E: Time Frequency (only when Long Acting is ticked) */}
                           {row.is_long_acting && (
                             <div className="rounded-md bg-amber-50 border border-amber-200 p-3">
@@ -865,6 +943,18 @@ export const CreatePrescriptionModal = ({
                               </p>
                             </div>
                           )}
+
+                          {/* Row F: Instructions (full width - last row) */}
+                          <div>
+                            <label className="block text-xs font-medium text-slate-600 mb-1">Instructions</label>
+                            <textarea
+                              value={row.instructions ?? ''}
+                              onChange={(e) => updateMedicationRow(index, 'instructions', e.target.value)}
+                              placeholder="Add any special instructions or notes for this medication..."
+                              rows={3}
+                              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white resize-none"
+                            />
+                          </div>
                         </div>
                       )}
                     </div>
