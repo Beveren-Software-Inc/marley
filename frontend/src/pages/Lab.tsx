@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { useCareContext } from '../providers/CareContextProvider'
 import { ClipboardList, FlaskConical, BookOpen, AlertTriangle, Droplet } from 'lucide-react'
 import { PatientSearch } from '../components/patients/PatientSearch'
 import { NotificationBell } from '../components/notifications/NotificationBell'
@@ -63,12 +64,13 @@ const NAV_CARDS = [
 ]
 
 export const LabPage = () => {
+  const { selectedPatient: globalPatient, setSelectedPatient: setGlobalPatient } = useCareContext()
   const [searchParams, setSearchParams] = useSearchParams()
   const patientFromUrl = searchParams.get('patient')
   const screen = searchParams.get('screen')
   const tabFromUrl = (searchParams.get('tab') || 'service-requests') as LabTab
   
-  const [selectedPatient, setSelectedPatient] = useState<string | undefined>(patientFromUrl || undefined)
+  const [selectedPatient, setSelectedPatient] = useState<string | undefined>(() => patientFromUrl || globalPatient || undefined)
   const [activeTab, setActiveTab] = useState<LabTab>(tabFromUrl)
   const [labTestRefreshKey, setLabTestRefreshKey] = useState(0)
   const [showLabTestModal, setShowLabTestModal] = useState(false)
@@ -126,6 +128,7 @@ export const LabPage = () => {
 
   const handlePatientSelect = (patient: string | undefined) => {
     setSelectedPatient(patient)
+    setGlobalPatient(patient)
     const newSearchParams = new URLSearchParams(searchParams)
     if (patient) {
       newSearchParams.set('patient', patient)

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { useCareContext } from '../providers/CareContextProvider'
 import { PatientSearch } from '../components/patients/PatientSearch'
 import { NotificationBell } from '../components/notifications/NotificationBell'
 import { UserMenu } from '../components/user/UserMenu'
@@ -17,11 +18,12 @@ import { PatientSummaryCard } from '../components/patients/PatientSummaryCard'
 import { toast } from '../hooks/useToast'
 
 export const PsychologistPage = () => {
+  const { selectedPatient: globalPatient, setSelectedPatient: setGlobalPatient } = useCareContext()
   const [searchParams, setSearchParams] = useSearchParams()
   const screen = searchParams.get('screen') || ''
   const patientFromUrl = searchParams.get('patient') || ''
 
-  const [selectedPatient, setSelectedPatient] = useState<string | undefined>(patientFromUrl || undefined)
+  const [selectedPatient, setSelectedPatient] = useState<string | undefined>(() => patientFromUrl || globalPatient || undefined)
 
   const [showPsychNoteModal, setShowPsychNoteModal] = useState(false)
   const [showPsychOrderModal, setShowPsychOrderModal] = useState(false)
@@ -45,6 +47,7 @@ export const PsychologistPage = () => {
 
   const handlePatientSelect = (patient: string | undefined) => {
     setSelectedPatient(patient)
+    setGlobalPatient(patient)
     const next = new URLSearchParams(searchParams)
     if (patient) next.set('patient', patient)
     else next.delete('patient')

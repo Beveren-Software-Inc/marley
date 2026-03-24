@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { useCareContext } from '../providers/CareContextProvider'
 import { ShieldCheck, ClipboardList, FileText } from 'lucide-react'
 import { PatientSearch } from '../components/patients/PatientSearch'
 import { NotificationBell } from '../components/notifications/NotificationBell'
@@ -41,10 +42,11 @@ const NAV_CARDS = [
 ]
 
 export const InsurancePage = () => {
+  const { selectedPatient: globalPatient, setSelectedPatient: setGlobalPatient } = useCareContext()
   const [searchParams, setSearchParams] = useSearchParams()
   const [activeTab, setActiveTab] = useState<Tab>('health-insurance')
   const [selectedPatient, setSelectedPatient] = useState<string | undefined>(
-    searchParams.get('patient') || undefined
+    () => searchParams.get('patient') || globalPatient || undefined
   )
 
   const [registerRefreshKey, setRegisterRefreshKey] = useState(0)
@@ -58,6 +60,7 @@ export const InsurancePage = () => {
 
   const handlePatientSelect = (patient: string | undefined) => {
     setSelectedPatient(patient)
+    setGlobalPatient(patient)
     const p = new URLSearchParams(searchParams)
     if (patient) p.set('patient', patient)
     else p.delete('patient')

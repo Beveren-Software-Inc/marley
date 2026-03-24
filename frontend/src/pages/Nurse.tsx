@@ -72,6 +72,8 @@ import { AdmissionList } from '../components/admissions/AdmissionList'
 import { PatientVisitPage } from './PatientVisit'
 import { GroomingChartList } from '../components/nursing/GroomingChartList'
 import { CreateGroomingChartModal } from '../components/nursing/CreateGroomingChartModal'
+import { PatientAssessmentList } from '../components/patientAssessment/PatientAssessmentList'
+import { CreatePatientAssessmentModal } from '../components/patientAssessment/CreatePatientAssessmentModal'
 import { MentalStateList } from '../components/nursing/MentalStateList'
 import { CreateMentalStateModal } from '../components/nursing/CreateMentalStateModal'
 import { SickLeaveList } from '../components/nursing/SickLeaveList'
@@ -79,9 +81,9 @@ import { CreateSickLeaveModal } from '../components/nursing/CreateSickLeaveModal
 
 export const NursePage = () => {
   const [searchParams, setSearchParams] = useSearchParams()
-  const { mode } = useCareContext()
+  const { mode, selectedPatient: globalPatient, setSelectedPatient: setGlobalPatient } = useCareContext()
   const patientFromUrl = searchParams.get('patient')
-  const [selectedPatient, setSelectedPatient] = useState<string | undefined>(patientFromUrl || undefined)
+  const [selectedPatient, setSelectedPatient] = useState<string | undefined>(() => patientFromUrl || globalPatient || undefined)
   const [showWarningModal, setShowWarningModal] = useState(false)
   const [showLabTestModal, setShowLabTestModal] = useState(false)
   const [showObservationModal, setShowObservationModal] = useState(false)
@@ -119,6 +121,8 @@ export const NursePage = () => {
   const [iopRefreshKey] = useState(0)
   const [showGroomingModal, setShowGroomingModal] = useState(false)
   const [groomingRefreshKey, setGroomingRefreshKey] = useState(0)
+  const [showPatientAssessmentModal, setShowPatientAssessmentModal] = useState(false)
+  const [patientAssessmentRefreshKey, setPatientAssessmentRefreshKey] = useState(0)
   const [showMentalStateModal, setShowMentalStateModal] = useState(false)
   const [mentalStateRefreshKey, setMentalStateRefreshKey] = useState(0)
   const [showSickLeaveModal, setShowSickLeaveModal] = useState(false)
@@ -163,6 +167,7 @@ export const NursePage = () => {
 
   const handlePatientSelect = (patient: string | undefined) => {
     setSelectedPatient(patient)
+    setGlobalPatient(patient)
     const newSearchParams = new URLSearchParams(searchParams)
     if (patient) {
       newSearchParams.set('patient', patient)
@@ -1917,6 +1922,56 @@ export const NursePage = () => {
               setShowGroomingModal(false)
               setGroomingRefreshKey((prev) => prev + 1)
               toast.success('Grooming chart saved')
+            }}
+          />
+        )}
+      </div>
+    )
+  }
+
+  // Patient Assessment
+  if (screen === 'n-assess') {
+    return (
+      <div className="flex flex-col">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+        <div className="p-4">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+            <div className="font-semibold mb-4 flex items-center justify-between">
+              <span>Patient Assessment</span>
+              <button
+                onClick={() => setShowPatientAssessmentModal(true)}
+                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
+                title="New Patient Assessment"
+              >
+                +
+              </button>
+            </div>
+            <PatientAssessmentList
+              patient={selectedPatient}
+              refreshKey={patientAssessmentRefreshKey}
+              onCreateNew={() => setShowPatientAssessmentModal(true)}
+            />
+          </section>
+        </div>
+        {showPatientAssessmentModal && (
+          <CreatePatientAssessmentModal
+            patient={selectedPatient}
+            onClose={() => setShowPatientAssessmentModal(false)}
+            onSuccess={() => {
+              setShowPatientAssessmentModal(false)
+              setPatientAssessmentRefreshKey((prev) => prev + 1)
             }}
           />
         )}

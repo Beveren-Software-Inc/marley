@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import { hasDischargeDraft, draftSavedAt } from '../services/dischargeDraft'
 import { useSearchParams } from 'react-router-dom'
 import { useCareContext } from '../providers/CareContextProvider'
 import { PatientSearch } from '../components/patients/PatientSearch'
@@ -72,13 +73,14 @@ import { PreEctChecklistModal } from '../components/admissions/PreEctChecklistMo
 import { ModifiedAldereteScoreModal } from '../components/admissions/ModifiedAldereteScoreModal'
 
 export const DoctorPage = () => {
-  const { mode, activeVisit, activeAdmission } = useCareContext()
+  const { mode, activeVisit, activeAdmission, selectedPatient: globalPatient, setSelectedPatient: setGlobalPatient } = useCareContext()
   const [searchParams, setSearchParams] = useSearchParams()
   const patientFromUrl = searchParams.get('patient')
-  const [selectedPatient, setSelectedPatient] = useState<string | undefined>(patientFromUrl || undefined)
+  const [selectedPatient, setSelectedPatient] = useState<string | undefined>(() => patientFromUrl || globalPatient || undefined)
   const [showWarningModal, setShowWarningModal] = useState(false)
   const [showLabTestModal, setShowLabTestModal] = useState(false)
   const [showDischargeModal, setShowDischargeModal] = useState(false)
+  const [dischargeHasDraft, setDischargeHasDraft] = useState(false)
   const [showObservationModal, setShowObservationModal] = useState(false)
   const [showDiagnosisModal, setShowDiagnosisModal] = useState(false)
   const [showServiceModal, setShowServiceModal] = useState(false)
@@ -165,33 +167,38 @@ export const DoctorPage = () => {
   }, [screen, selectedPatient, searchParams, setSearchParams])
 
   const handleCreateDischarge = async () => {
-    // Handle create discharge from Discharge Form screen
     if (!selectedPatient) {
       toast.error('Please select a patient first')
       return
     }
-    
     try {
       const admission = await getPatientActiveAdmission(selectedPatient)
       if (!admission) {
         toast.error('No active admission found for this patient')
         return
       }
-      
       setSelectedAdmission({
         name: admission.name,
         patient: admission.patient,
         patient_name: admission.patient_name
       })
+      setDischargeHasDraft(hasDischargeDraft(admission.name))
       setShowDischargeModal(true)
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch admission'
-      toast.error(errorMessage)
+      toast.error(err instanceof Error ? err.message : 'Failed to fetch admission')
     }
   }
 
+  const handleDischargeModalClose = useCallback(() => {
+    setShowDischargeModal(false)
+    if (selectedAdmission) {
+      setDischargeHasDraft(hasDischargeDraft(selectedAdmission.name))
+    }
+  }, [selectedAdmission])
+
   const handlePatientSelect = (patient: string | undefined) => {
     setSelectedPatient(patient)
+    setGlobalPatient(patient)
     const newSearchParams = new URLSearchParams(searchParams)
     if (patient) {
       newSearchParams.set('patient', patient)
@@ -1958,13 +1965,24 @@ export const DoctorPage = () => {
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
             <div className="font-semibold mb-4 flex items-center justify-between">
               <span>Discharge Form</span>
-              <button
-                onClick={handleCreateDischarge}
-                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
-                title="Add Discharge"
-              >
-                +
-              </button>
+              <div className="flex items-center gap-2">
+                {dischargeHasDraft && selectedAdmission && (
+                  <span className="text-xs text-amber-700">
+                    Draft — {draftSavedAt(selectedAdmission.name)}
+                  </span>
+                )}
+                <button
+                  onClick={handleCreateDischarge}
+                  className={`inline-flex items-center gap-1 px-2 py-1 rounded text-white text-xs font-medium transition-colors ${
+                    dischargeHasDraft
+                      ? 'bg-amber-500 hover:bg-amber-600'
+                      : 'bg-primary hover:bg-primary/90'
+                  }`}
+                  title={dischargeHasDraft ? 'Continue saved discharge' : 'Start discharge'}
+                >
+                  {dischargeHasDraft ? '▶ Continue' : '+'}
+                </button>
+              </div>
             </div>
             <DischargeList patient={selectedPatient} key={dischargeRefreshKey} />
           </section>
@@ -1972,13 +1990,11 @@ export const DoctorPage = () => {
         {showDischargeModal && selectedAdmission && (
           <DischargeModal
             admission={selectedAdmission}
-            onClose={() => {
-              setShowDischargeModal(false)
-              setSelectedAdmission(null)
-            }}
+            onClose={handleDischargeModalClose}
             onSuccess={() => {
               setShowDischargeModal(false)
               setSelectedAdmission(null)
+              setDischargeHasDraft(false)
               setDischargeRefreshKey(prev => prev + 1)
               toast.success('Discharge completed successfully')
             }}
@@ -2345,13 +2361,11 @@ export const DoctorPage = () => {
       {showDischargeModal && selectedAdmission && (
         <DischargeModal
           admission={selectedAdmission}
-          onClose={() => {
-            setShowDischargeModal(false)
-            setSelectedAdmission(null)
-          }}
+          onClose={handleDischargeModalClose}
           onSuccess={() => {
             setShowDischargeModal(false)
             setSelectedAdmission(null)
+            setDischargeHasDraft(false)
             toast.success('Discharge completed successfully')
           }}
         />

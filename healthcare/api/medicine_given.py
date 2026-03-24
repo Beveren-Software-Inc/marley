@@ -374,9 +374,11 @@ def reconcile_discharge_medicines(admission: str) -> dict:
 
 def _get_reconciliation_remaining_per_entry(admission: str) -> list[dict]:
 	"""For an admission, compute remaining quantity per Inpatient Medication Order Entry using FIFO allocation of Medicine Given."""
+	# Exclude transfer-created PMOs: those always have patient_encounter set (linked to a follow-up visit).
+	# Original inpatient PMOs never have patient_encounter, regardless of care_context value.
 	order_names = frappe.get_all(
 		"Patient Medication Order",
-		filters={"inpatient_record": admission, "docstatus": 1},
+		filters={"inpatient_record": admission, "docstatus": 1, "patient_encounter": ["is", "not set"]},
 		pluck="name",
 	)
 	if not order_names:
@@ -493,7 +495,7 @@ def stop_medication_on_discharge(admission: str, order_entry_name: str, reason_s
 
 	order_names = frappe.get_all(
 		"Patient Medication Order",
-		filters={"inpatient_record": admission, "docstatus": 1},
+		filters={"inpatient_record": admission, "docstatus": 1, "patient_encounter": ["is", "not set"]},
 		pluck="name",
 	)
 	if not order_names:
@@ -511,7 +513,7 @@ def _get_stopped_entries_with_remaining(admission: str) -> list[dict]:
 	"""Return order entries for this admission that have reason_stopped set, not yet returned_to_store, with their remaining qty (FIFO)."""
 	order_names = frappe.get_all(
 		"Patient Medication Order",
-		filters={"inpatient_record": admission, "docstatus": 1},
+		filters={"inpatient_record": admission, "docstatus": 1, "patient_encounter": ["is", "not set"]},
 		pluck="name",
 	)
 	if not order_names:
@@ -565,7 +567,7 @@ def return_stopped_medications_to_store(admission: str, order_entry_names: str |
 		# Validate each has reason_stopped; get remaining for each
 		order_names = frappe.get_all(
 			"Patient Medication Order",
-			filters={"inpatient_record": admission, "docstatus": 1},
+			filters={"inpatient_record": admission, "docstatus": 1, "patient_encounter": ["is", "not set"]},
 			pluck="name",
 		)
 		entries = frappe.get_all(
@@ -660,10 +662,10 @@ def transfer_medications_on_discharge(admission: str, order_entry_names: str | l
 	if not company:
 		frappe.throw(_("Company is required"))
 
-	# Validate all entries belong to this admission's PMOs
+	# Validate entries belong to original inpatient PMOs only (patient_encounter not set)
 	order_names = frappe.get_all(
 		"Patient Medication Order",
-		filters={"inpatient_record": admission, "docstatus": 1},
+		filters={"inpatient_record": admission, "docstatus": 1, "patient_encounter": ["is", "not set"]},
 		pluck="name",
 	)
 	entries = frappe.get_all(
@@ -723,10 +725,9 @@ def transfer_medications_on_discharge(admission: str, order_entry_names: str | l
 	)
 	pmo_name = result.get("name")
 
-	# Link the new PMO to the inpatient admission as well (inpatient_record field)
-	if pmo_name:
-		frappe.db.set_value("Patient Medication Order", pmo_name, "inpatient_record", admission)
-		frappe.db.commit()
+	# NOTE: we intentionally do NOT set inpatient_record on the new PMO.
+	# The Patient Visit already carries inpatient_record → admission so the trail is preserved.
+	# Back-linking the PMO would make its entries reappear in reconciliation (same admission query).
 
 	# Mark these order entries as transferred so they no longer appear in reconciliation list
 	if frappe.db.has_column("Inpatient Medication Order Entry", "transferred_to_visit"):

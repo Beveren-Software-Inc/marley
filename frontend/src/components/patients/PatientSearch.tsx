@@ -15,11 +15,8 @@ interface PatientSearchProps {
   alertsAutoDismissMs?: number
 }
 
-// Module-level: track which patient's banner has already been shown so it
-// only appears once per patient selection, surviving component remounts.
 let _bannerShownForPatient: string | null = null
 
-// LocalStorage keys for persistence
 const STORAGE_KEYS = {
   SELECTED_PATIENT: 'patientSearch_selectedPatient',
   SELECTED_PATIENT_NAME: 'patientSearch_selectedPatientName',
@@ -30,7 +27,6 @@ const STORAGE_KEYS = {
   ACTIVE_ADMISSION_LABEL: 'patientSearch_activeAdmissionLabel',
 } as const
 
-// Helper functions to manage localStorage
 const getStoredValue = (key: string, defaultValue: string = ''): string => {
   if (typeof window === 'undefined') return defaultValue
   try {
@@ -73,7 +69,7 @@ export const PatientSearch = ({
   showAlertsBanner = true,
   alertsAutoDismissMs = 10000,
 }: PatientSearchProps) => {
-  const { mode, setMode, setActiveVisit, setActiveAdmission } = useCareContext()
+  const { mode, setMode, setActiveVisit, setActiveAdmission, setSelectedPatient: setGlobalPatient } = useCareContext()
   const [patientQuery, setPatientQuery] = useState('')
   const [patientOpen, setPatientOpen] = useState(false)
   const [showCreatePatient, setShowCreatePatient] = useState(false)
@@ -88,12 +84,10 @@ export const PatientSearch = ({
   >([])
   const [isHydrated, setIsHydrated] = useState(false)
 
-  // If banner was already shown for this patient (across remounts), start dismissed
   const [alertsBannerDismissed, setAlertsBannerDismissed] = useState(
     () => Boolean(selectedPatient && _bannerShownForPatient === selectedPatient)
   )
 
-  // Hydrate from localStorage on mount and restore previous state
   useEffect(() => {
     if (typeof window === 'undefined') return
 
@@ -105,19 +99,16 @@ export const PatientSearch = ({
     const storedVisitLabel = getStoredValue(STORAGE_KEYS.ACTIVE_VISIT_LABEL)
     const storedAdmissionLabel = getStoredValue(STORAGE_KEYS.ACTIVE_ADMISSION_LABEL)
 
-    // Only restore if we don't have an active selection from props (props take precedence)
     if (!selectedPatient && storedPatient) {
       onPatientSelect(storedPatient)
       setSelectedPatientName(storedPatientName)
       setPatientQuery(storedPatientName)
     }
 
-    // Restore mode
     if (storedMode) {
       setMode(storedMode)
     }
 
-    // Restore visit or admission
     if (storedMode === 'OP' && storedVisit) {
       setActiveVisit(storedVisit)
       setSecondaryQuery(storedVisitLabel)
@@ -129,29 +120,24 @@ export const PatientSearch = ({
     setIsHydrated(true)
   }, [])
 
-  // When patient changes to a NEW patient → reset so banner shows once for the new one
   useEffect(() => {
     if (selectedPatient && selectedPatient !== _bannerShownForPatient) {
       setAlertsBannerDismissed(false)
     } else if (selectedPatient && _bannerShownForPatient === selectedPatient) {
-      // Already shown for this patient on a previous mount — keep hidden
       setAlertsBannerDismissed(true)
     }
   }, [selectedPatient])
 
-  // As soon as the banner renders (not dismissed, patient set), mark it as shown
   useEffect(() => {
     if (selectedPatient && !alertsBannerDismissed) {
       _bannerShownForPatient = selectedPatient
     }
   }, [selectedPatient, alertsBannerDismissed])
 
-  // Persist mode to localStorage when it changes
   useEffect(() => {
     setStoredValue(STORAGE_KEYS.ACTIVE_MODE, mode)
   }, [mode])
 
-  // Load patient name when selectedPatient changes (e.g., from URL)
   useEffect(() => {
     if (selectedPatient) {
       const loadPatientName = async () => {
@@ -177,7 +163,6 @@ export const PatientSearch = ({
         }
       }
       loadPatientName()
-      // Persist selected patient
       setStoredValue(STORAGE_KEYS.SELECTED_PATIENT, selectedPatient)
     } else {
       setSelectedPatientName('')
@@ -186,7 +171,6 @@ export const PatientSearch = ({
     }
   }, [selectedPatient])
 
-  // Fetch or search patients when dropdown is open
   useEffect(() => {
     if (!patientOpen) return
 
@@ -195,10 +179,8 @@ export const PatientSearch = ({
       try {
         let results: PatientListItem[] = []
         if (patientQuery.trim() === '') {
-          // If empty, fetch initial list
           results = await fetchPatients(20, 0)
         } else {
-          // Search with query
           results = await searchPatients(patientQuery, 20)
         }
         setPatients(results)
@@ -210,18 +192,15 @@ export const PatientSearch = ({
       }
     }
 
-    // Debounce search by 300ms
     const timeoutId = setTimeout(() => {
       search()
-    }, patientQuery.trim() === '' ? 0 : 300) // No delay for initial load
+    }, patientQuery.trim() === '' ? 0 : 300)
 
     return () => clearTimeout(timeoutId)
   }, [patientQuery, patientOpen])
 
   const hasPatient = Boolean(selectedPatient)
 
-  // OP/IP contextual dropdown search (visits/admissions)
-  // Works even when no patient is selected — shows all records in that case.
   useEffect(() => {
     if (!secondaryOpen || (mode !== 'OP' && mode !== 'IP')) {
       setSecondaryResults([])
@@ -229,7 +208,6 @@ export const PatientSearch = ({
     }
 
     const controller = new AbortController()
-    // Shorter delay when opening fresh (no query); debounce typed queries
     const delay = secondaryQuery.trim() === '' ? 0 : 300
     const t = setTimeout(async () => {
       setSecondaryLoading(true)
@@ -280,13 +258,6 @@ export const PatientSearch = ({
     }
   }, [secondaryQuery, secondaryOpen, hasPatient, mode, selectedPatient])
 
-  // Persist active visit/admission to localStorage
-  useEffect(() => {
-    // This effect monitors context changes and persists them
-    // You'll need to subscribe to context changes or add a callback
-    // For now, we'll handle this in the onClick handlers below
-  }, [])
-
   const alertsPortal =
     showAlertsBanner &&
     selectedPatient &&
@@ -295,7 +266,6 @@ export const PatientSearch = ({
     document.getElementById('patient-alerts-portal')
       ? createPortal(
           <>
-            {/* Blurred backdrop over main body so the banner stands out; click to close */}
             <button
               type="button"
               className="fixed inset-0 top-14 left-0 right-0 bottom-0 z-30 md:left-[240px] backdrop-blur-md bg-slate-900/10 cursor-default focus:outline-none"
@@ -323,9 +293,20 @@ export const PatientSearch = ({
         )
       : null
 
-  // Skip rendering until hydration is complete to avoid hydration mismatches
   if (!isHydrated) {
     return <div className="w-full max-w-xs md:max-w-xl" />
+  }
+
+  // Handler for clear button
+  const handleClearPatient = () => {
+    onPatientSelect(undefined)
+    setGlobalPatient(undefined)
+    setSelectedPatientName('')
+    setPatientQuery('')
+    setSecondaryQuery('')
+    setPatientOpen(false)
+    setSecondaryOpen(false)
+    clearPatientData()
   }
 
   return (
@@ -340,13 +321,14 @@ export const PatientSearch = ({
                 const value = e.target.value
                 setPatientQuery(value)
                 setPatientOpen(true)
-                // Clear selection when user clears the input or types something different
                 if (selectedPatient && (value === '' || value !== selectedPatientName)) {
                   if (value === '') {
                     onPatientSelect(undefined)
+                    setGlobalPatient(undefined)
                     setSelectedPatientName('')
                   } else if (value !== selectedPatientName) {
                     onPatientSelect(undefined)
+                    setGlobalPatient(undefined)
                   }
                 }
               }}
@@ -355,18 +337,16 @@ export const PatientSearch = ({
               className="w-full rounded-md border border-primary/40 pl-2 md:pl-3 pr-20 md:pr-24 py-1.5 md:py-2 text-xs md:text-sm text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-white focus:border-white"
             />
             <div className="absolute inset-y-0 right-2 flex items-center gap-1">
-              {selectedPatient && patientQuery === selectedPatientName && (
+              {selectedPatient && (
                 <button
                   type="button"
-                  onClick={() => {
-                    onPatientSelect(undefined)
-                    setSelectedPatientName('')
-                    setPatientQuery('')
-                    setPatientOpen(false)
-                    clearPatientData()
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    handleClearPatient()
                   }}
-                  className="text-slate-400 hover:text-slate-600"
-                  title="Clear selection"
+                  className="text-slate-400 hover:text-slate-600 transition-colors p-0.5"
+                  title="Clear patient"
                 >
                   <svg
                     className="w-4 h-4"
@@ -417,6 +397,7 @@ export const PatientSearch = ({
                       onClick={() => {
                         const patientName = patient.patient_name || patient.name
                         onPatientSelect(patient.name)
+                        setGlobalPatient(patient.name)
                         setSelectedPatientName(patientName)
                         setPatientQuery(patientName)
                         setPatientOpen(false)
@@ -497,9 +478,9 @@ export const PatientSearch = ({
                               setStoredValue(STORAGE_KEYS.ACTIVE_ADMISSION, row.value)
                               setStoredValue(STORAGE_KEYS.ACTIVE_ADMISSION_LABEL, row.label)
                             }
-                            // Auto-select patient when none is chosen yet
                             if (!hasPatient && row.patient) {
                               onPatientSelect(row.patient)
+                              setGlobalPatient(row.patient)
                               const displayName = row.patient_name || row.patient
                               setSelectedPatientName(displayName)
                               setPatientQuery(displayName)

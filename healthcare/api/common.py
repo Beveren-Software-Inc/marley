@@ -1926,3 +1926,150 @@ def get_employees(search=None):
 		}
 		for e in employees
 	]
+
+
+@frappe.whitelist()
+def get_patient_assessments(patient=None, search=None, page=1, page_size=20):
+	"""Fetch Patient Assessment records."""
+	try:
+		page = frappe.utils.cint(page) or 1
+		page_size = frappe.utils.cint(page_size) or 20
+		filters = {}
+		if patient:
+			filters["patient"] = patient
+		if search:
+			filters["patient_name"] = ["like", f"%{search}%"]
+
+		records = frappe.get_all(
+			"Patient Assessment",
+			filters=filters,
+			fields=[
+				"name", "patient", "patient_name", "assessment_template",
+				"reference_type", "encounter", "healthcare_practitioner",
+				"assessment_datetime", "assessment_description",
+				"total_score", "total_score_obtained", "docstatus", "creation",
+			],
+			order_by="creation desc",
+			limit_page_length=page_size,
+			limit_start=(page - 1) * page_size,
+		)
+		total = frappe.db.count("Patient Assessment", filters=filters)
+		return {"success": True, "data": records, "page": page, "page_size": page_size, "total": total}
+	except Exception as e:
+		frappe.logger().error(f"Error in get_patient_assessments: {str(e)}")
+		return {"success": False, "message": str(e), "data": []}
+
+
+@frappe.whitelist()
+def create_patient_assessment(data):
+	"""Create a new Patient Assessment record.
+
+	If assessment_sheet rows are provided in data, they are used directly.
+	Otherwise, if assessment_template is set, the sheet is auto-populated from the template.
+	"""
+	try:
+		if isinstance(data, str):
+			data = frappe.parse_json(data)
+
+		doc = frappe.new_doc("Patient Assessment")
+		doc.naming_series = "HLC-PA-.YYYY.-"
+		for field in [
+			"patient", "patient_name", "assessment_template",
+			"reference_type", "encounter", "healthcare_practitioner",
+			"assessment_datetime", "assessment_description",
+			"company", "therapy_session", "family_history",
+		]:
+			if data.get(field):
+				setattr(doc, field, data[field])
+
+		sheet_rows = data.get("assessment_sheet") or []
+		template_name = data.get("assessment_template")
+
+		if sheet_rows:
+			# Use rows supplied from the frontend (may have scores, times, comments)
+			for row in sheet_rows:
+				doc.append("assessment_sheet", {
+					"parameter": row.get("parameter"),
+					"score": frappe.utils.flt(row.get("score") or 0),
+					"time": row.get("time") or None,
+					"comments": row.get("comments") or "",
+				})
+		elif template_name:
+			# Fall back: auto-populate from template with zero scores
+			try:
+				tmpl = frappe.get_doc("Patient Assessment Template", template_name)
+				doc.scale_min = tmpl.scale_min
+				doc.scale_max = tmpl.scale_max
+				for p in (tmpl.parameters or []):
+					doc.append("assessment_sheet", {
+						"parameter": p.assessment_parameter,
+						"score": 0,
+					})
+			except Exception:
+				pass
+
+		doc.insert(ignore_permissions=True)
+		frappe.db.commit()
+		return {"success": True, "name": doc.name}
+	except Exception as e:
+		frappe.logger().error(f"Error creating patient assessment: {str(e)}")
+		return {"success": False, "message": str(e)}
+
+
+@frappe.whitelist()
+def get_patient_assessment_templates(search=None):
+	"""Return Patient Assessment Template names for the combobox."""
+	filters = {}
+	if search:
+		filters["assessment_name"] = ["like", f"%{search}%"]
+	rows = frappe.get_all(
+		"Patient Assessment Template",
+		filters=filters,
+		fields=["name", "assessment_name"],
+		order_by="assessment_name asc",
+		limit=50,
+	)
+	return [{"name": r.name, "label": r.assessment_name or r.name} for r in rows]
+
+
+@frappe.whitelist()
+def get_assessment_template_parameters(template_name):
+	"""Return the parameter list for a Patient Assessment Template.
+
+	Used by the frontend to pre-fill the Assessment Sheet tab when a template is selected.
+	Returns list of {parameter, parameter_label, scale_min, scale_max}.
+	"""
+	if not template_name:
+		return []
+	try:
+		tmpl = frappe.get_doc("Patient Assessment Template", template_name)
+		params = []
+		for p in (tmpl.parameters or []):
+			params.append({
+				"parameter": p.assessment_parameter,
+				"parameter_label": p.assessment_parameter,
+			})
+		return {
+			"parameters": params,
+			"scale_min": tmpl.scale_min or 0,
+			"scale_max": tmpl.scale_max or 100,
+		}
+	except Exception as e:
+		frappe.logger().error(f"get_assessment_template_parameters error: {e}")
+		return {"parameters": [], "scale_min": 0, "scale_max": 100}
+
+
+@frappe.whitelist()
+def get_assessment_parameters(search=None):
+	"""Return all Patient Assessment Parameter records for the dropdown combobox."""
+	filters = {}
+	if search:
+		filters["assessment_parameter"] = ["like", f"%{search}%"]
+	rows = frappe.get_all(
+		"Patient Assessment Parameter",
+		filters=filters,
+		fields=["name", "assessment_parameter"],
+		order_by="assessment_parameter asc",
+		limit=100,
+	)
+	return [{"name": r.name, "label": r.assessment_parameter or r.name} for r in rows]

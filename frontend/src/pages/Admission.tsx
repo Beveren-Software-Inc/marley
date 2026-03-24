@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { useCareContext } from '../providers/CareContextProvider'
 import { AdmissionList } from '../components/admissions/AdmissionList'
 import { WarningMessagesList } from '../components/warnings/WarningMessagesList'
 import { LabTestList } from '../components/labTests/LabTestList'
@@ -10,6 +11,7 @@ import { UserMenu } from '../components/user/UserMenu'
 import { PatientSearch } from '../components/patients/PatientSearch'
 
 export const AdmissionPage = () => {
+  const { selectedPatient: globalPatient, setSelectedPatient: setGlobalPatient } = useCareContext()
   const [searchParams, setSearchParams] = useSearchParams()
   const admissionFromUrl = searchParams.get('admission')
   const searchFromUrl = searchParams.get('search')
@@ -17,7 +19,7 @@ export const AdmissionPage = () => {
   const [admissionPatient, setAdmissionPatient] = useState<string | undefined>(undefined)
   const [searchQuery, setSearchQuery] = useState<string>(searchFromUrl || '')
   const [showCreateAdmission, setShowCreateAdmission] = useState(false)
-  const [selectedPatient, setSelectedPatient] = useState<string>(patientFromUrl || '')
+  const [selectedPatient, setSelectedPatient] = useState<string>(() => patientFromUrl || globalPatient || '')
   const [listRefreshKey, setListRefreshKey] = useState(0)
 
   // Sync searchQuery with URL
@@ -65,6 +67,7 @@ export const AdmissionPage = () => {
   const handlePatientFromAdmission = (patientId: string) => {
     if (!patientId) return
     setSelectedPatient(patientId)
+    setGlobalPatient(patientId)
     const newSearchParams = new URLSearchParams(searchParams)
     newSearchParams.set('patient', patientId)
     setSearchParams(newSearchParams, { replace: true })
@@ -137,6 +140,7 @@ export const AdmissionPage = () => {
               onPatientSelect={(patient) => {
                 const value = patient || ''
                 setSelectedPatient(value)
+                setGlobalPatient(patient)
                 const newSearchParams = new URLSearchParams(searchParams)
                 if (value) {
                   newSearchParams.set('patient', value)
