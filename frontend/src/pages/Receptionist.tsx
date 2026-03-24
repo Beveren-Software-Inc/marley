@@ -690,6 +690,7 @@ export const ReceptionistPage = () => {
             setAdmissionRefreshKey(prev => prev + 1)
             setShowAdmissionModal(false)
           }}
+          patientName={selectedPatient || undefined}
         />
       )}
 

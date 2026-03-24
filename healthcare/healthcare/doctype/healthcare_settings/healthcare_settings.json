@@ -74,7 +74,9 @@
   "follow_up_reminder_after_discharge",
   "stock_tab",
   "default_expiry_warehouse",
-  "default_return_medicine"
+  "default_return_medicine",
+  "more_info_tab",
+  "default_patient"
  ],
  "fields": [
   {
@@ -505,11 +507,22 @@
    "fieldtype": "Link",
    "label": "Default Return Medicine",
    "options": "Warehouse"
+  },
+  {
+   "fieldname": "more_info_tab",
+   "fieldtype": "Tab Break",
+   "label": "More info"
+  },
+  {
+   "fieldname": "default_patient",
+   "fieldtype": "Link",
+   "label": "Default Patient",
+   "options": "Patient"
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-03-16 01:56:14.217664",
+ "modified": "2026-03-25 01:41:59.081889",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Settings",

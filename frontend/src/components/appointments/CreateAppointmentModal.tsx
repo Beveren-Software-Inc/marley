@@ -117,6 +117,12 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
   const [showCreatePractitioner, setShowCreatePractitioner] = useState(false)
   const [showCreatePatient, setShowCreatePatient] = useState(false)
   const [showCreateAppointmentType, setShowCreateAppointmentType] = useState(false)
+
+  // Walk-in (no file) mode
+  const [isWalkIn, setIsWalkIn] = useState(false)
+  const [temporaryPatientName, setTemporaryPatientName] = useState('')
+  const [temporaryMobileNo, setTemporaryMobileNo] = useState('')
+  const [notes, setNotes] = useState('')
   
   // Patient dropdown state
   const [patientOptions, setPatientOptions] = useState<PatientListItem[]>([])
@@ -148,10 +154,17 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
-    if (!formData.patient) {
-      setError('Patient is required')
-      return
+
+    if (isWalkIn) {
+      if (!temporaryPatientName.trim()) {
+        setError('Patient name is required for walk-in booking')
+        return
+      }
+    } else {
+      if (!formData.patient) {
+        setError('Please select a patient or use walk-in booking')
+        return
+      }
     }
 
     if (!formData.appointment_type) {
@@ -175,11 +188,14 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
       setError(null)
 
       await createAppointment({
-        patient: formData.patient,
+        patient: isWalkIn ? undefined : formData.patient,
         appointment_type: formData.appointment_type,
         appointment_date: formData.appointment_date,
         appointment_time: appointmentTime,
-        practitioner: formData.practitioner || undefined
+        practitioner: formData.practitioner || undefined,
+        temporary_patient_name: isWalkIn ? temporaryPatientName.trim() : undefined,
+        temporary_mobile_no: isWalkIn ? temporaryMobileNo.trim() || undefined : undefined,
+        notes: notes.trim() || undefined,
       })
       
       toast.success('Appointment created successfully')
@@ -397,61 +413,116 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
             </div>
           )}
 
+          {/* ── Patient / Walk-in toggle ── */}
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              Patient <span className="text-red-500">*</span>
-            </label>
-            <div className="relative flex items-center">
-              <input
-                type="text"
-                value={patientQuery}
-                onChange={(e) => {
-                  setPatientQuery(e.target.value)
-                  setPatientOpen(true)
-                  if (selectedPatient) {
-                    setSelectedPatient(null)
-                    setFormData(prev => ({ ...prev, patient: '' }))
-                  }
-                }}
-                onFocus={() => setPatientOpen(true)}
-                placeholder="Search patient..."
-                className="w-full rounded-md border border-slate-300 px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
-                required
-              />
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm font-medium text-slate-700">
+                Patient <span className="text-red-500">*</span>
+              </label>
               <button
                 type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setShowCreatePatient(true)
+                onClick={() => {
+                  setIsWalkIn(v => !v)
+                  setError(null)
+                  // clear whichever mode we're leaving
+                  if (!isWalkIn) {
+                    setFormData(prev => ({ ...prev, patient: '' }))
+                    setSelectedPatient(null)
+                    setPatientQuery('')
+                  } else {
+                    setTemporaryPatientName('')
+                    setTemporaryMobileNo('')
+                  }
                 }}
-                className="absolute right-2 p-1 text-primary hover:text-primary/80 rounded"
-                title="Create New Patient"
+                className={`text-xs px-2.5 py-1 rounded-full border font-medium transition-colors ${
+                  isWalkIn
+                    ? 'bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-200'
+                    : 'bg-slate-100 text-slate-600 border-slate-300 hover:bg-slate-200'
+                }`}
               >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
+                {isWalkIn ? '↩ Back to file search' : '⚡ Walk-in (no file)'}
               </button>
-              {patientLoading && (
-                <div className="absolute right-10 top-2.5 text-slate-400 text-sm">Loading...</div>
-              )}
-              {patientOpen && patientOptions.length > 0 && (
-                <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto top-full">
-                  {patientOptions.map((patient) => (
-                    <button
-                      key={patient.name}
-                      type="button"
-                      onClick={() => handlePatientSelect(patient)}
-                      className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 focus:bg-slate-100 focus:outline-none"
-                    >
-                      <div className="font-medium">{patient.patient_name || patient.name}</div>
-                      {patient.mobile && (
-                        <div className="text-xs text-slate-500">{patient.mobile}</div>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              )}
             </div>
+
+            {isWalkIn ? (
+              /* Walk-in fields */
+              <div className="space-y-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                <p className="text-xs text-amber-700 font-medium">
+                  Patient has no file — enter their name and mobile number below.
+                </p>
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">
+                    Patient Name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={temporaryPatientName}
+                    onChange={e => setTemporaryPatientName(e.target.value)}
+                    placeholder="Full name…"
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">Mobile No</label>
+                  <input
+                    type="tel"
+                    value={temporaryMobileNo}
+                    onChange={e => setTemporaryMobileNo(e.target.value)}
+                    placeholder="Phone number…"
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+              </div>
+            ) : (
+              /* Existing patient search */
+              <div className="relative flex items-center">
+                <input
+                  type="text"
+                  value={patientQuery}
+                  onChange={(e) => {
+                    setPatientQuery(e.target.value)
+                    setPatientOpen(true)
+                    if (selectedPatient) {
+                      setSelectedPatient(null)
+                      setFormData(prev => ({ ...prev, patient: '' }))
+                    }
+                  }}
+                  onFocus={() => setPatientOpen(true)}
+                  placeholder="Search patient..."
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                />
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setShowCreatePatient(true) }}
+                  className="absolute right-2 p-1 text-primary hover:text-primary/80 rounded"
+                  title="Create New Patient"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                </button>
+                {patientLoading && (
+                  <div className="absolute right-10 top-2.5 text-slate-400 text-sm">Loading...</div>
+                )}
+                {patientOpen && patientOptions.length > 0 && (
+                  <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto top-full">
+                    {patientOptions.map((patient) => (
+                      <button
+                        key={patient.name}
+                        type="button"
+                        onClick={() => handlePatientSelect(patient)}
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 focus:bg-slate-100 focus:outline-none"
+                      >
+                        <div className="font-medium">{patient.patient_name || patient.name}</div>
+                        {patient.mobile && (
+                          <div className="text-xs text-slate-500">{patient.mobile}</div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <div>
@@ -606,7 +677,16 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
             )}
           </div>
 
-          
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Remarks</label>
+            <textarea
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              placeholder="Any notes or remarks about this appointment…"
+              rows={3}
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary resize-none"
+            />
+          </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
             <button

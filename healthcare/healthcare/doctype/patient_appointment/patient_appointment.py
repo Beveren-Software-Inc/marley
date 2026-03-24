@@ -308,10 +308,16 @@ class PatientAppointment(Document):
 		)
 		participants = []
 
-		participants.append(
-			{"reference_doctype": "Healthcare Practitioner", "reference_docname": self.practitioner}
-		)
-		participants.append({"reference_doctype": "Patient", "reference_docname": self.patient})
+		if self.practitioner:
+			participants.append(
+				{"reference_doctype": "Healthcare Practitioner", "reference_docname": self.practitioner}
+			)
+
+		patient_for_event = self.patient
+		if not patient_for_event:
+			patient_for_event = frappe.db.get_single_value("Healthcare Settings", "default_patient")
+		if patient_for_event:
+			participants.append({"reference_doctype": "Patient", "reference_docname": patient_for_event})
 
 		event.update({"event_participants": participants})
 

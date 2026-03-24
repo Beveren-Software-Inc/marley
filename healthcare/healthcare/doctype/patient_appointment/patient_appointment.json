@@ -24,6 +24,8 @@
   "patient",
   "patient_name",
   "inpatient_record",
+  "temporary_patient_name",
+  "temporary_mobile_no",
   "column_break_4pp7",
   "patient_sex",
   "patient_age",
@@ -76,7 +78,6 @@
    "in_standard_filter": 1,
    "label": "Patient",
    "options": "Patient",
-   "reqd": 1,
    "search_index": 1,
    "set_only_once": 1
   },
@@ -445,6 +446,16 @@
    "fieldtype": "Link",
    "label": "Source",
    "options": "Patient Source"
+  },
+  {
+   "fieldname": "temporary_patient_name",
+   "fieldtype": "Data",
+   "label": "Temporary Patient Name"
+  },
+  {
+   "fieldname": "temporary_mobile_no",
+   "fieldtype": "Data",
+   "label": "Temporary Mobile No"
   }
  ],
  "grid_page_length": 50,
@@ -465,7 +476,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2026-02-08 11:52:12.576795",
+ "modified": "2026-03-25 01:20:35.609033",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Appointment",

@@ -10,8 +10,8 @@ import {
 } from '../../services/appointments'
 import { StatusPill } from '../ui/StatusPill'
 import { DetailSlideOver } from '../ui/DetailSlideOver'
-import { DocDetailView } from '../ui/DocDetailView'
 import { RescheduleAppointmentModal } from './RescheduleAppointmentModal'
+import { AppointmentDetailPanel } from './AppointmentDetailPanel'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { toast } from '../../hooks/useToast'
 
@@ -52,7 +52,7 @@ export const AppointmentList = ({ refreshKey, showAll = false, patient }: Appoin
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
   const [rescheduleAppointment, setRescheduleAppointment] = useState<Appointment | null>(null)
-  const [detailName, setDetailName] = useState<string | null>(null)
+  const [detailApt, setDetailApt] = useState<Appointment | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
 
   // Filters
@@ -346,7 +346,7 @@ export const AppointmentList = ({ refreshKey, showAll = false, patient }: Appoin
                 <tr key={apt.name} className="hover:bg-slate-50">
                   <td
                     className="px-4 py-3 text-sm font-medium text-primary cursor-pointer hover:underline"
-                    onClick={() => setDetailName(apt.name)}
+                    onClick={() => setDetailApt(apt)}
                   >
                     {apt.name}
                   </td>
@@ -445,13 +445,13 @@ export const AppointmentList = ({ refreshKey, showAll = false, patient }: Appoin
         />
       )}
 
-      {detailName && (
+      {detailApt && (
         <DetailSlideOver
-          title="Appointment"
-          subtitle={detailName}
-          onClose={() => setDetailName(null)}
+          title={detailApt.temporary_patient_name && !detailApt.patient ? '⚡ Walk-in Appointment' : 'Appointment'}
+          subtitle={detailApt.patient_name || detailApt.temporary_patient_name || detailApt.name}
+          onClose={() => setDetailApt(null)}
         >
-          <DocDetailView doctype="Patient Appointment" name={detailName} />
+          <AppointmentDetailPanel name={detailApt.name} />
         </DetailSlideOver>
       )}
     </>

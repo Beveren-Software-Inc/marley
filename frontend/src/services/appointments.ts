@@ -2,6 +2,8 @@ export interface Appointment {
   name: string
   patient?: string
   patient_name?: string
+  patient_sex?: string
+  patient_age?: string
   appointment_date?: string
   appointment_time?: string
   status?: string
@@ -10,14 +12,25 @@ export interface Appointment {
   practitioner?: string
   practitioner_name?: string
   company?: string
+  service_unit?: string
+  notes?: string
+  temporary_patient_name?: string
+  temporary_mobile_no?: string
+  referring_practitioner?: string
+  mode_of_payment?: string
+  paid_amount?: number
+  source?: string
 }
 
 export interface CreateAppointmentData {
-  patient: string
+  patient?: string
   appointment_type: string
   appointment_date: string
   appointment_time?: string
   practitioner?: string
+  temporary_patient_name?: string
+  temporary_mobile_no?: string
+  notes?: string
 }
 
 export async function fetchPractitionerAppointments(

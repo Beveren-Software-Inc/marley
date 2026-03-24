@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
+import { searchPatients, fetchPatients, fetchPatientDoc, type PatientListItem } from '../../services/patients'
 import { toast } from '../../hooks/useToast'
 import { apiRequest } from '../../services/apiClient'
 import { 
@@ -75,6 +75,20 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
     admission_instruction: '',
     admission_nursing_checklist_template: ''
   })
+
+  // When patientName prop is provided, resolve the real display name
+  useEffect(() => {
+    if (!patientName) return
+    fetchPatientDoc(patientName)
+      .then(doc => {
+        const displayName = doc.patient_name || patientName
+        setSelectedPatient({ name: patientName, patient_name: displayName } as PatientListItem)
+        setPatientQuery(displayName)
+      })
+      .catch(() => {
+        // fallback — keep the ID as display name
+      })
+  }, [patientName])
 
   // Load companies on mount
   useEffect(() => {
