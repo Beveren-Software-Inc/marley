@@ -12,8 +12,6 @@ import { VitalSignsList } from '../components/vitalSigns/VitalSignsList'
 import { CreateObservationModal } from '../components/observations/CreateObservationModal'
 import { MedicalHistoryView } from '../components/medicalHistory/MedicalHistoryView'
 import { PackageDetailView } from '../components/packageDetails/PackageDetailView'
-import { NursingTaskList } from '../components/nursing/NursingTaskList'
-import { CreateNursingTaskModal } from '../components/nursing/CreateNursingTaskModal'
 import { NurseTaskList } from '../components/nurseTask/NurseTaskList'
 import { CreateNurseTaskModal } from '../components/nurseTask/CreateNurseTaskModal'
 import { DischargeList } from '../components/discharges/DischargeList'
@@ -47,7 +45,6 @@ import { ReceptionLongActingMedicineList } from '../components/medication/Recept
 import { CreateMedicineGivenModal } from '../components/medication/CreateMedicineGivenModal'
 import { MedicineGivenList } from '../components/medication/MedicineGivenList'
 import { LongActingMedicineList } from '../components/medication/LongActingMedicineList'
-import { reconcileDischargeMedicines } from '../services/medicineGiven'
 import { CreateVitalSignModal } from '../components/vitalSigns/CreateVitalSignModal'
 import { CreateECTDetailModal } from '../components/ect/CreateECTDetailModal'
 import { CreateECTAdmissionModal } from '../components/ect/CreateECTAdmissionModal'
@@ -101,7 +98,6 @@ export const DoctorPage = () => {
   const [showBulkScheduleModal, setShowBulkScheduleModal] = useState(false)
   const [showGivenMedicineModal, setShowGivenMedicineModal] = useState(false)
   const [givenRefreshKey, setGivenRefreshKey] = useState(0)
-  const [reconcileLoading, setReconcileLoading] = useState(false)
   const [showDoctorNoteModal, setShowDoctorNoteModal] = useState(false)
   const [showDoctorOrderModal, setShowDoctorOrderModal] = useState(false)
   const [showNursingNoteModal, setShowNursingNoteModal] = useState(false)
@@ -125,7 +121,6 @@ export const DoctorPage = () => {
   const [physicalExamRefreshKey, setPhysicalExamRefreshKey] = useState(0)
   const [showPatientHistoryModal, setShowPatientHistoryModal] = useState(false)
   const [patientHistoryRefreshKey, setPatientHistoryRefreshKey] = useState(0)
-  const [showCreateNursingTaskModal, setShowCreateNursingTaskModal] = useState(false)
   const [showCreateNurseTaskModal, setShowCreateNurseTaskModal] = useState(false)
   const [longActingRefreshKey] = useState(0)
   const [showSuicidalModal, setShowSuicidalModal] = useState(false)
@@ -206,33 +201,6 @@ export const DoctorPage = () => {
       newSearchParams.delete('patient')
     }
     setSearchParams(newSearchParams, { replace: true })
-  }
-
-  const handleReconcileGiven = async () => {
-    if (!selectedPatient) {
-      toast.error('Please select a patient first')
-      return
-    }
-    try {
-      setReconcileLoading(true)
-      const admission = await getPatientActiveAdmission(selectedPatient)
-      if (!admission) {
-        toast.error('No active admission found for this patient')
-        return
-      }
-      const res = await reconcileDischargeMedicines(admission.name)
-      if (res.stock_entry) {
-        toast.success(`Stock Entry ${res.stock_entry} created`)
-        window.open(`/app/stock-entry/${encodeURIComponent(res.stock_entry)}`, '_blank')
-      } else {
-        toast.info('No remaining medicines to return')
-      }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Failed to reconcile medicines'
-      toast.error(msg)
-    } finally {
-      setReconcileLoading(false)
-    }
   }
 
   // Show Admission page when screen=admission

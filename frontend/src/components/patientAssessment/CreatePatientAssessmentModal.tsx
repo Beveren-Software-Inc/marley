@@ -16,7 +16,6 @@ import {
   type LinkFieldOption,
 } from '../../services/common'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
-import { toast } from '../../hooks/useToast'
 
 interface CreatePatientAssessmentModalProps {
   onClose: () => void

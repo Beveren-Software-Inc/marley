@@ -2,19 +2,12 @@ import { useState, useEffect } from 'react'
 import { createGroomingChart, type CreateGroomingChartInput } from '../../services/groomingCharts'
 import { fetchCostCenters, fetchInpatientAdmissions, type LinkFieldOption } from '../../services/common'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
-import { toast } from '../../hooks/useToast'
 
 interface CreateGroomingChartModalProps {
   onClose: () => void
   onSuccess: () => void
   patient?: string
 }
-
-const PlusIcon = () => (
-  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-  </svg>
-)
 
 const CheckField = ({
   label,

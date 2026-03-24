@@ -120,7 +120,6 @@ export const MedicineReconciliationList = ({
 
   // A row is "actionable" if it hasn't been returned to store AND hasn't been processed in this session.
   const actionableRows = rows.filter((r) => !r.returned_to_store && !isProcessed(r.name))
-  const nonReturnedRows = actionableRows
   const returnCandidateCount = actionableRows.filter((r) => !selected.has(r.name)).length
 
   const loadRows = async () => {

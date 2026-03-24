@@ -95,7 +95,7 @@ export const NursePage = () => {
   const [labTestRefreshKey, setLabTestRefreshKey] = useState(0)
   const [observationRefreshKey, setObservationRefreshKey] = useState(0)
   const [dischargeRefreshKey, setDischargeRefreshKey] = useState(0)
-  const [diagnosisRefreshKey, setDiagnosisRefreshKey] = useState(0)
+  const [_diagnosisRefreshKey, setDiagnosisRefreshKey] = useState(0)
   const [clinicalNotesRefreshKey, setClinicalNotesRefreshKey] = useState(0)
   const [vitalSignsRefreshKey, setVitalSignsRefreshKey] = useState(0)
   const [showServiceRequestModal, setShowServiceRequestModal] = useState(false)

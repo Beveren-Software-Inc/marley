@@ -52,6 +52,7 @@ const emptyMedicationRow = (startDate: string): MedicationOrderRow => ({
   instructions: '',
   date: startDate,
   end_date: addDays(startDate, 1),
+  time: '',
   patient_frequency: '',
   is_pink: false,
   is_prn: false,
@@ -379,26 +380,24 @@ export const CreatePrescriptionModal = ({
 
       // Create a Nurse Task for each medication row that has the checkbox ticked
       if (createNurseTasks) {
-        const tasksToCreate: CreateNurseTaskData[] = validMedications
-          .map((med, idx) => {
-            // Per-row checkbox defaults to true unless explicitly unticked
-            const shouldCreate = nurseTaskRows[idx] !== false
-            if (!shouldCreate) return null
-            const scheduledDatetime = med.date
-              ? `${med.date} ${med.time ?? '08:00:00'}`
-              : `${formData.start_date} 08:00:00`
-            return {
-              patient: selectedPatient.name,
-              task_type: 'Medication Administration',
-              scheduled_time: scheduledDatetime,
-              description: `${med.drug_name || med.drug} — ${med.dosage}${med.instructions ? `\n${med.instructions}` : ''}`,
-              medication: med.drug,
-              dosage: med.dosage,
-              route: med.route_of_administration || undefined,
-              is_prn: med.is_prn ?? false,
-            } satisfies CreateNurseTaskData
-          })
-          .filter((t): t is CreateNurseTaskData => t !== null)
+        const tasksToCreate: CreateNurseTaskData[] = validMedications.flatMap((med, idx) => {
+          const shouldCreate = nurseTaskRows[idx] !== false
+          if (!shouldCreate) return []
+          const scheduledDatetime = med.date
+            ? `${med.date} ${med.time ?? '08:00:00'}`
+            : `${formData.start_date} 08:00:00`
+          const task: CreateNurseTaskData = {
+            patient: selectedPatient.name,
+            task_type: 'Medication Administration',
+            scheduled_time: scheduledDatetime,
+            description: `${med.drug_name || med.drug} — ${med.dosage}${med.instructions ? `\n${med.instructions}` : ''}`,
+            medication: med.drug,
+            dosage: med.dosage,
+            route: med.route_of_administration || undefined,
+            is_prn: med.is_prn ?? false,
+          }
+          return [task]
+        })
 
         if (tasksToCreate.length > 0) {
           try {
