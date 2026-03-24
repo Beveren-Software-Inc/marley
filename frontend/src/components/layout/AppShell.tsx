@@ -75,6 +75,7 @@ const receptionScreens = [
   { id: 'r-discharge', title: 'Discharge' },
   { id: 'r-long-acting-meds', title: 'Long Acting Medicine' },
   { id: 'r-insurance', title: 'Insurance Patient Register' },
+  { id: 'r-referral', title: 'Patient Referral' },
   // { id: 'r-receipt-voucher', title: 'Receipt Voucher' },
   // { id: 'r-op-dashboard', title: 'OP Dashboard' },
   // { id: 'r-ip-dashboard', title: 'IP Dashboard' }

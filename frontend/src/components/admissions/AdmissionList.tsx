@@ -23,6 +23,7 @@ import { PatientHistoryModal } from '../patientHistory/PatientHistoryModal'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import type { InpatientRecord, InpatientPackage } from '../../services/inpatientRecords'
+import { CreatePatientReferralModal } from '../referrals/CreatePatientReferralModal'
 
 const statusColors: Record<string, string> = {
   'Admission Scheduled': 'warning',
@@ -74,6 +75,7 @@ export const AdmissionList = ({ onAdmissionSelect, onPatientFromAdmission, searc
   const [physicalExamAdmission, setPhysicalExamAdmission] = useState<InpatientRecord | null>(null)
   const [showPatientHistory, setShowPatientHistory] = useState(false)
   const [patientHistoryAdmission, setPatientHistoryAdmission] = useState<InpatientRecord | null>(null)
+  const [referralAdmission, setReferralAdmission] = useState<InpatientRecord | null>(null)
 
   // --- Filter: Admission No (searchable dropdown) ---
   const [admissionNoQuery, setAdmissionNoQuery] = useState('')
@@ -633,6 +635,15 @@ export const AdmissionList = ({ onAdmissionSelect, onPatientFromAdmission, searc
                                   Patient History
                                 </button>
                               )}
+                              {(record.status === 'Admission Scheduled' || record.status === 'Admitted' || record.status === 'Discharge Scheduled') && (
+                                <button
+                                  type="button"
+                                  onClick={() => { setReferralAdmission(record); setOpenActionRow(null) }}
+                                  className="block w-full text-left px-3 py-2 text-sm text-orange-700 hover:bg-orange-50"
+                                >
+                                  Create Referral
+                                </button>
+                              )}
                               {record.status === 'Discharge Scheduled' && (
                                 <button
                                   type="button"
@@ -879,6 +890,17 @@ export const AdmissionList = ({ onAdmissionSelect, onPatientFromAdmission, searc
           patientName={patientHistoryAdmission.patient_name}
           onClose={() => { setShowPatientHistory(false); setPatientHistoryAdmission(null) }}
           onSuccess={() => { setShowPatientHistory(false); setPatientHistoryAdmission(null) }}
+        />
+      )}
+
+      {referralAdmission && (
+        <CreatePatientReferralModal
+          initialPatient={referralAdmission.patient}
+          initialPatientName={referralAdmission.patient_name}
+          referredFromDoctype="Inpatient Admission"
+          referredFromDocname={referralAdmission.name}
+          onClose={() => setReferralAdmission(null)}
+          onSuccess={() => setReferralAdmission(null)}
         />
       )}
     </>

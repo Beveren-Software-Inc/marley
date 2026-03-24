@@ -227,7 +227,7 @@
    "fieldname": "status",
    "fieldtype": "Select",
    "label": "Status",
-   "options": "\nOpen\nOrdered\nCompleted\nCancelled",
+   "options": "\nOpen\nOrdered\nCompleted\nExternal Referral\nCancelled",
    "read_only": 1
   },
   {
@@ -590,7 +590,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2026-03-03 12:06:37.294933",
+ "modified": "2026-03-24 16:21:40.678558",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Visit",

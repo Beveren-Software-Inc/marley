@@ -2072,4 +2072,122 @@ def get_assessment_parameters(search=None):
 		order_by="assessment_parameter asc",
 		limit=100,
 	)
+
+
+# ─────────────────────────────────────────────────────────────────
+# Patient Referral
+# ─────────────────────────────────────────────────────────────────
+
+@frappe.whitelist()
+def create_patient_referral(
+	patient,
+	referral_date,
+	referred_to_hospital,
+	reason_for_referral,
+	referred_from_doctype=None,
+	referred_from_docname=None,
+	referred_to_doctor=None,
+	referred_to_address=None,
+	referred_to_contact=None,
+	referral_status="Pending",
+	notes=None,
+	company=None,
+	cost_center=None,
+	referral_doctor=None,
+):
+	"""Create a Patient Referral and update the source document's status to 'External Referral'."""
+	doc = frappe.new_doc("Patient Referral")
+	doc.patient = patient
+	doc.referral_date = referral_date
+	doc.referred_to_hospital = referred_to_hospital
+	doc.reason_for_referral = reason_for_referral
+	doc.referred_from_doctype = referred_from_doctype or None
+	doc.referred_from_docname = referred_from_docname or None
+	doc.referred_to_doctor = referred_to_doctor
+	doc.referred_to_address = referred_to_address
+	doc.referred_to_contact = referred_to_contact
+	doc.referral_status = referral_status
+	doc.notes = notes
+	if company:
+		doc.company = company
+	if cost_center:
+		doc.cost_center = cost_center
+	if referral_doctor:
+		doc.referral_doctor = referral_doctor
+	doc.insert(ignore_permissions=True)
+
+	# Update source document status to External Referral
+	if referred_from_doctype and referred_from_docname:
+		try:
+			if referred_from_doctype == "Patient Visit":
+				frappe.db.set_value("Patient Visit", referred_from_docname, "status", "External Referral")
+			elif referred_from_doctype == "Inpatient Admission":
+				frappe.db.set_value("Inpatient Admission", referred_from_docname, "status", "External Referral")
+		except Exception:
+			pass  # don't fail referral creation if status update fails
+
+	return {"name": doc.name}
+
+
+@frappe.whitelist()
+def search_referral_source_documents(doctype, patient=None, search=None, limit=20):
+	"""Return a list of Patient Visit or Inpatient Admission names for the Dynamic Link field."""
+	if doctype not in ("Patient Visit", "Inpatient Admission"):
+		return []
+	filters = {}
+	if patient:
+		filters["patient"] = patient
+	if search:
+		filters["name"] = ["like", f"%{search}%"]
+
+	if doctype == "Patient Visit":
+		rows = frappe.get_all(
+			"Patient Visit",
+			filters=filters,
+			fields=["name", "patient", "patient_name", "encounter_date", "status"],
+			order_by="encounter_date desc",
+			limit=int(limit),
+		)
+	else:
+		rows = frappe.get_all(
+			"Inpatient Admission",
+			filters=filters,
+			fields=["name", "patient", "patient_name", "admission_date", "status"],
+			order_by="admission_date desc",
+			limit=int(limit),
+		)
+	return rows
+
+
+@frappe.whitelist()
+def get_patient_referrals(patient=None, referral_status=None, date_from=None, date_to=None, limit=50, offset=0):
+	"""Return a list of Patient Referral records."""
+	filters = {}
+	if patient:
+		filters["patient"] = patient
+	if referral_status:
+		filters["referral_status"] = referral_status
+	if date_from:
+		filters["referral_date"] = [">=", date_from]
+	if date_to:
+		if "referral_date" in filters:
+			filters["referral_date"] = ["between", [date_from, date_to]]
+		else:
+			filters["referral_date"] = ["<=", date_to]
+
+	rows = frappe.get_all(
+		"Patient Referral",
+		filters=filters,
+		fields=[
+			"name", "patient", "patient_name", "referral_date",
+			"referred_from_doctype", "referred_from_docname",
+			"referred_to_hospital", "referred_to_doctor",
+			"reason_for_referral", "referral_status", "notes",
+			"company", "cost_center",
+		],
+		order_by="referral_date desc, creation desc",
+		limit=int(limit),
+		start=int(offset),
+	)
+	return rows
 	return [{"name": r.name, "label": r.assessment_parameter or r.name} for r in rows]

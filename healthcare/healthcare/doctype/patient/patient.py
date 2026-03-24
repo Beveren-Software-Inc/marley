@@ -32,7 +32,7 @@ class Patient(Document):
 		self.load_dashboard_info()
 
 	def validate(self):
-		self.set_full_name()
+		# self.set_full_name()
 		self.flags.is_new_doc = self.is_new()
 		self.flags.existing_customer = self.is_new() and bool(self.customer)
 
@@ -92,10 +92,10 @@ class Patient(Document):
 			info = get_dashboard_info("Customer", self.customer, None)
 			self.set_onload("dashboard_info", info)
 
-	def set_full_name(self):
-		self.patient_name = " ".join(
-			[name for name in [self.first_name, self.middle_name, self.last_name] if name]
-		)
+	# def set_full_name(self):
+	# 	self.patient_name = " ".join(
+	# 		[name for name in [self.first_name, self.middle_name, self.last_name] if name]
+	# 	)
 
 	def set_missing_customer_details(self):
 		if not self.customer_group:
@@ -165,7 +165,7 @@ class Patient(Document):
 			set_name_from_naming_options(frappe.get_meta(self.doctype).autoname, self)
 
 	def get_patient_name(self):
-		self.set_full_name()
+		# self.set_full_name()
 		name = self.patient_name
 		if frappe.db.get_value("Patient", name):
 			count = frappe.db.sql(

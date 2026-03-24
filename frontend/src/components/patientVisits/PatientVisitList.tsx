@@ -10,6 +10,7 @@ import { CreatePaymentModal } from './CreatePaymentModal'
 import { toast } from '../../hooks/useToast'
 import { fetchHealthcarePractitioners, type LinkFieldOption } from '../../services/common'
 import { fetchPatientVisitsFull } from '../../services/patientVisits'
+import { CreatePatientReferralModal } from '../referrals/CreatePatientReferralModal'
 
 const statusColors: Record<string, string> = {
   'Open': 'warning',
@@ -62,6 +63,7 @@ export const PatientVisitList = ({
   const [selectedVisitForCancel, setSelectedVisitForCancel] = useState<PatientVisitListRow | null>(null)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [paymentVisit, setPaymentVisit] = useState<PatientVisitListRow | null>(null)
+  const [referralVisit, setReferralVisit] = useState<PatientVisitListRow | null>(null)
 
   // --- Visit No: debounced search when dropdown is open ---
   useEffect(() => {
@@ -448,6 +450,13 @@ export const PatientVisitList = ({
                         </button>
                         <button
                           type="button"
+                          onClick={() => { setReferralVisit(visit); setOpenActionRow(null) }}
+                          className="block w-full text-left px-3 py-2 text-sm text-orange-700 hover:bg-orange-50"
+                        >
+                          Create Referral
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => { setSelectedVisitForCancel(visit); setShowCancelModal(true); setOpenActionRow(null) }}
                           className="block w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50"
                         >
@@ -469,6 +478,18 @@ export const PatientVisitList = ({
           </table>
         )}
       </div>
+
+      {/* Referral Modal */}
+      {referralVisit && (
+        <CreatePatientReferralModal
+          initialPatient={referralVisit.patient}
+          initialPatientName={referralVisit.patient_name}
+          referredFromDoctype="Patient Visit"
+          referredFromDocname={referralVisit.value}
+          onClose={() => setReferralVisit(null)}
+          onSuccess={() => setReferralVisit(null)}
+        />
+      )}
 
       {/* Cancel Modal */}
       {showCancelModal && selectedVisitForCancel && (
