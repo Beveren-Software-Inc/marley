@@ -153,6 +153,7 @@
    "set_only_once": 1
   },
   {
+   "allow_in_quick_entry": 1,
    "bold": 1,
    "fieldname": "patient_name",
    "fieldtype": "Data",
@@ -161,7 +162,6 @@
    "in_standard_filter": 1,
    "label": "Full Name",
    "no_copy": 1,
-   "read_only": 1,
    "search_index": 1
   },
   {
@@ -408,12 +408,14 @@
   {
    "fieldname": "last_name",
    "fieldtype": "Data",
+   "hidden": 1,
    "label": "Last Name",
    "no_copy": 1
   },
   {
    "fieldname": "first_name",
    "fieldtype": "Data",
+   "hidden": 1,
    "label": "First Name",
    "no_copy": 1,
    "oldfieldtype": "Data"
@@ -421,6 +423,7 @@
   {
    "fieldname": "middle_name",
    "fieldtype": "Data",
+   "hidden": 1,
    "label": "Middle Name (optional)",
    "no_copy": 1
   },
@@ -694,6 +697,7 @@
    "reqd": 1
   },
   {
+   "allow_in_quick_entry": 1,
    "fieldname": "file_no",
    "fieldtype": "Data",
    "label": "File No",
@@ -896,7 +900,7 @@
   }
  ],
  "max_attachments": 50,
- "modified": "2026-03-22 11:28:47.387848",
+ "modified": "2026-03-24 15:16:27.403453",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient",

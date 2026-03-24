@@ -24,6 +24,8 @@ import { ReceptionLongActingMedicineList } from '../components/medication/Recept
 import { CreateLongActingMedicineModal } from '../components/medication/CreateLongActingMedicineModal'
 import { InsurancePatientRegisterList } from '../components/insurance/InsurancePatientRegisterList'
 import { CreateInsurancePatientRegisterModal } from '../components/insurance/CreateInsurancePatientRegisterModal'
+import { PatientReferralList } from '../components/referrals/PatientReferralList'
+import { CreatePatientReferralModal } from '../components/referrals/CreatePatientReferralModal'
 
 type View =
   | 'default'
@@ -41,6 +43,7 @@ type View =
   | 'discharge'
   | 'long-acting-medicine'
   | 'insurance'
+  | 'referral'
 
 export const ReceptionistPage = () => {
   const { selectedPatient: globalPatient, setSelectedPatient: setGlobalPatient } = useCareContext()
@@ -63,6 +66,8 @@ export const ReceptionistPage = () => {
   const [longActingRefreshKey, setLongActingRefreshKey] = useState(0)
   const [showCreateInsuranceRegister, setShowCreateInsuranceRegister] = useState(false)
   const [insuranceRegisterRefreshKey, setInsuranceRegisterRefreshKey] = useState(0)
+  const [showCreateReferral, setShowCreateReferral] = useState(false)
+  const [referralRefreshKey, setReferralRefreshKey] = useState(0)
 
   const handlePatientSelect = (patient: string | undefined) => {
     setSelectedPatient(patient || '')
@@ -117,6 +122,8 @@ export const ReceptionistPage = () => {
       setCurrentView('long-acting-medicine')
     } else if (screen === 'r-insurance') {
       setCurrentView('insurance')
+    } else if (screen === 'r-referral') {
+      setCurrentView('referral')
     } else {
       // No screen param or unknown: show reception homepage (e.g. after "Back to Reception" or sidebar Home)
       setCurrentView('default')
@@ -333,6 +340,43 @@ export const ReceptionistPage = () => {
             <div className="bg-white border border-slate-200 rounded-lg p-4">
               <InsurancePatientRegisterList refreshKey={insuranceRegisterRefreshKey} />
             </div>
+          </div>
+        )}
+
+        {currentView === 'referral' && (
+          <div className="p-4">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-semibold text-slate-900">Patient Referral</h2>
+                <p className="text-sm text-slate-600 mt-1">
+                  External referrals — create and track referrals to other hospitals or specialists.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCreateReferral(true)}
+                className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
+                title="New Referral"
+              >
+                +
+              </button>
+            </div>
+            <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+              <PatientReferralList
+                patient={selectedPatient || undefined}
+                refreshKey={referralRefreshKey}
+              />
+            </div>
+            {showCreateReferral && (
+              <CreatePatientReferralModal
+                initialPatient={selectedPatient || undefined}
+                onClose={() => setShowCreateReferral(false)}
+                onSuccess={() => {
+                  setShowCreateReferral(false)
+                  setReferralRefreshKey(k => k + 1)
+                }}
+              />
+            )}
           </div>
         )}
 
@@ -592,6 +636,27 @@ export const ReceptionistPage = () => {
                   />
                 </div>
               </section>
+
+              {/* Patient Referral card */}
+              <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
+                <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
+                  <span>Patient Referral</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateReferral(true)}
+                    className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
+                    title="New Referral"
+                  >
+                    +
+                  </button>
+                </div>
+                <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
+                  <PatientReferralList
+                    patient={selectedPatient || undefined}
+                    refreshKey={referralRefreshKey}
+                  />
+                </div>
+              </section>
             </div>
           </>
         )}
@@ -648,6 +713,17 @@ export const ReceptionistPage = () => {
           onSuccess={() => {
             setShowCreateInsuranceRegister(false)
             setInsuranceRegisterRefreshKey(k => k + 1)
+          }}
+        />
+      )}
+
+      {showCreateReferral && (
+        <CreatePatientReferralModal
+          initialPatient={selectedPatient || undefined}
+          onClose={() => setShowCreateReferral(false)}
+          onSuccess={() => {
+            setShowCreateReferral(false)
+            setReferralRefreshKey(k => k + 1)
           }}
         />
       )}

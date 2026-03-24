@@ -199,16 +199,16 @@ export async function fetchDoc(doctype: string, name: string): Promise<Record<st
 }
 
 export interface CreateLeadSourceData {
-  source_name: string
+  source: string
 }
 
 export async function createLeadSource(
   data: CreateLeadSourceData
-): Promise<{ name: string; source_name: string }> {
+): Promise<{ name: string; source: string }> {
   const { apiRequest } = await import('./apiClient')
 
-  const created = await apiRequest<{ name: string; source_name: string }>(
-    '/api/resource/Lead%20Source',
+  const created = await apiRequest<{ name: string; source: string }>(
+    '/api/resource/Patient%20Source',
     {
       method: 'POST',
       body: JSON.stringify(data),

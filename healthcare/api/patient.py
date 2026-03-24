@@ -102,9 +102,10 @@ def create_patient(data):
 	patient = frappe.get_doc({
 		"doctype": "Patient",
 		"title": data.get("title") or None,
-		"first_name": data.get("first_name"),
-		"middle_name": data.get("middle_name") or "",
-		"last_name": data.get("last_name") or "",
+		# "first_name": data.get("first_name"),
+		# "middle_name": data.get("middle_name") or "",
+		# "last_name": data.get("last_name") or "",
+		"patient_name": data.get("patient_name"),
 		"file_no": data.get("file_no") or None,
 		"sex": data.get("sex"),
 		"dob": data.get("dob") or None,

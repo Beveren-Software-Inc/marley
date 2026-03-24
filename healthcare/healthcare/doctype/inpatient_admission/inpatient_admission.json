@@ -239,7 +239,7 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Status",
-   "options": "Admission Scheduled\nAdmitted\nDischarge Scheduled\nDischarged\nCancelled",
+   "options": "Admission Scheduled\nAdmitted\nDischarge Scheduled\nDischarged\nExternal Referral\nCancelled",
    "read_only": 1
   },
   {
@@ -917,7 +917,7 @@
    "link_fieldname": "admission"
   }
  ],
- "modified": "2026-03-22 13:45:36.984935",
+ "modified": "2026-03-24 16:04:20.695142",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Inpatient Admission",
