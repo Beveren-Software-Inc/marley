@@ -139,7 +139,7 @@ export const CreateServiceRequestModal = ({
         )
         const resData = await res.json()
         const info = resData?.message
-
+        console.log("Here is", info)
         if (!info) {
           setPricing([])
           setSelectedPrice(null)

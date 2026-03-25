@@ -419,7 +419,7 @@ def get_service_request_templates(template_dt, search=None, department=None):
 			filters=filters,
 			fields=['name', 'procedure_name', 'medical_department'],
 			limit=50,
-			order_by='procedure_name'
+			# order_by='procedure_name'
 		)
 		return [{'name': t.name, 'label': t.procedure_name or t.name, 'department': t.medical_department} for t in templates]
 	
