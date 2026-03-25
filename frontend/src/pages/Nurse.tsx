@@ -63,7 +63,7 @@ import { CreateSickLeaveModal } from '../components/nursing/CreateSickLeaveModal
 
 export const NursePage = () => {
   const [searchParams, setSearchParams] = useSearchParams()
-  const { mode, selectedPatient: globalPatient, setSelectedPatient: setGlobalPatient } = useCareContext()
+  const { mode, selectedPatient: globalPatient, setSelectedPatient: setGlobalPatient, activeAdmission } = useCareContext()
   const patientFromUrl = searchParams.get('patient')
   const [selectedPatient, setSelectedPatient] = useState<string | undefined>(() => patientFromUrl || globalPatient || undefined)
   const [showWarningModal, setShowWarningModal] = useState(false)
@@ -992,7 +992,7 @@ export const NursePage = () => {
         </header>
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <DailyMedicationChart patient={selectedPatient} />
+            <DailyMedicationChart patient={selectedPatient} admission={activeAdmission} />
           </section>
         </div>
       </div>

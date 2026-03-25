@@ -43,6 +43,7 @@
   "get_applicable_treatment_plans",
   "physical_examination",
   "diagnosis",
+  "patient_diagnosis",
   "diagnosis_in_print",
   "codification",
   "codification_table",
@@ -545,6 +546,12 @@
    "fieldtype": "Table",
    "label": "documents",
    "options": "Patient Upload Document"
+  },
+  {
+   "fieldname": "patient_diagnosis",
+   "fieldtype": "Table",
+   "label": "Patient Diagnosis",
+   "options": "Patient Diagnosis"
   }
  ],
  "is_submittable": 1,
@@ -590,7 +597,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2026-03-24 16:21:40.678558",
+ "modified": "2026-03-25 16:48:39.411326",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Visit",

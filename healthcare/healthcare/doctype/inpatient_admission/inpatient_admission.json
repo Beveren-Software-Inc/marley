@@ -60,6 +60,8 @@
   "reference_by",
   "admission_charges_section",
   "charges",
+  "section_break_uxsd",
+  "plan",
   "costs_section",
   "standard_package",
   "inpatient_package",
@@ -95,6 +97,8 @@
   "btn_transfer",
   "investigations_section",
   "lab_test_prescription",
+  "section_break_mzja",
+  "patient_diagnosis",
   "medical_history_tab",
   "allergy_medical_and_surgical_history",
   "allergies",
@@ -904,6 +908,25 @@
    "fieldtype": "Link",
    "label": "Inpatient Package",
    "options": "Inpatient Package"
+  },
+  {
+   "fieldname": "section_break_mzja",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "patient_diagnosis",
+   "fieldtype": "Table",
+   "label": "Patient Diagnosis",
+   "options": "Patient Diagnosis"
+  },
+  {
+   "fieldname": "section_break_uxsd",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "plan",
+   "fieldtype": "Text Editor",
+   "label": "Plan"
   }
  ],
  "index_web_pages_for_search": 1,
@@ -917,7 +940,7 @@
    "link_fieldname": "admission"
   }
  ],
- "modified": "2026-03-24 16:04:20.695142",
+ "modified": "2026-03-25 16:53:38.596219",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Inpatient Admission",

@@ -20,7 +20,9 @@ export interface PatientMedicalHistory {
   patient?: string
   patient_name?: string
   template?: string | null
+  inpatient_admission?: string | null
   patient_history_details?: PatientMedicalHistoryRow[]
+  creation?: string
 }
 
 export interface PatientSummary {
@@ -277,6 +279,23 @@ export async function fetchPatientMedicalHistory(patient: string): Promise<Patie
   }
 }
 
+export async function fetchPatientMedicalHistories(patient: string): Promise<PatientMedicalHistory[]> {
+  const res = await fetch(
+    `/api/method/healthcare.api.patient.get_patient_medical_histories?patient=${encodeURIComponent(patient)}`
+  )
+  const data = await res.json()
+  return Array.isArray(data?.message) ? (data.message as PatientMedicalHistory[]) : []
+}
+
+export async function fetchPatientMedicalHistoryDetail(name: string): Promise<PatientMedicalHistory> {
+  const res = await fetch(
+    `/api/method/healthcare.api.patient.get_patient_medical_history_detail?name=${encodeURIComponent(name)}`
+  )
+  const data = await res.json()
+  if (data?.exc_type) throw new Error(data?.message || 'Failed to load')
+  return data.message as PatientMedicalHistory
+}
+
 export async function savePatientMedicalHistory(
   history: PatientMedicalHistory
 ): Promise<PatientMedicalHistory> {
@@ -284,6 +303,7 @@ export async function savePatientMedicalHistory(
     patient: history.patient,
     patient_name: history.patient_name,
     template: history.template,
+    inpatient_admission: history.inpatient_admission || null,
     patient_history_details: (history.patient_history_details || []).map(row => ({
       attributes: row.attributes,
       yesno: row.yesno,

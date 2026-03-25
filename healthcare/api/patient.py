@@ -319,6 +319,44 @@ def get_patient_health_history_template_details(template_name: str):
 
 
 @frappe.whitelist()
+def get_patient_medical_histories(patient):
+	"""Return list of all Patient Medical History records for a patient."""
+	if not patient:
+		return []
+	records = frappe.get_all(
+		"Patient Medical History",
+		filters={"patient": patient},
+		fields=["name", "patient", "patient_name", "template", "inpatient_admission", "creation"],
+		order_by="creation desc",
+	)
+	return records
+
+
+@frappe.whitelist()
+def get_patient_medical_history_detail(name):
+	"""Return full Patient Medical History document with details rows."""
+	if not name:
+		frappe.throw(_("Name is required"))
+	doc = frappe.get_doc("Patient Medical History", name)
+	return {
+		"name": doc.name,
+		"patient": doc.patient,
+		"patient_name": getattr(doc, "patient_name", None),
+		"template": doc.get("template"),
+		"inpatient_admission": doc.get("inpatient_admission"),
+		"creation": str(doc.creation) if doc.creation else None,
+		"patient_history_details": [
+			{
+				"attributes": row.attributes,
+				"description": row.description,
+				"yesno": row.yesno,
+			}
+			for row in (doc.patient_history_details or [])
+		],
+	}
+
+
+@frappe.whitelist()
 def get_patient_medical_history(patient: str):
 	"""Return Patient Medical History document (template-driven child table)."""
 	if not patient:

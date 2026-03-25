@@ -24,6 +24,7 @@ import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import type { InpatientRecord, InpatientPackage } from '../../services/inpatientRecords'
 import { CreatePatientReferralModal } from '../referrals/CreatePatientReferralModal'
+import { PatientDiagnosisModal } from '../diagnosis/PatientDiagnosisModal'
 
 const statusColors: Record<string, string> = {
   'Admission Scheduled': 'warning',
@@ -76,6 +77,7 @@ export const AdmissionList = ({ onAdmissionSelect, onPatientFromAdmission, searc
   const [showPatientHistory, setShowPatientHistory] = useState(false)
   const [patientHistoryAdmission, setPatientHistoryAdmission] = useState<InpatientRecord | null>(null)
   const [referralAdmission, setReferralAdmission] = useState<InpatientRecord | null>(null)
+  const [diagnosisAdmission, setDiagnosisAdmission] = useState<InpatientRecord | null>(null)
 
   // --- Filter: Admission No (searchable dropdown) ---
   const [admissionNoQuery, setAdmissionNoQuery] = useState('')
@@ -638,6 +640,18 @@ export const AdmissionList = ({ onAdmissionSelect, onPatientFromAdmission, searc
                               {(record.status === 'Admission Scheduled' || record.status === 'Admitted' || record.status === 'Discharge Scheduled') && (
                                 <button
                                   type="button"
+                                  onClick={() => { setDiagnosisAdmission(record); setOpenActionRow(null) }}
+                                  className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-sky-700 hover:bg-sky-50"
+                                >
+                                  <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                  </svg>
+                                  Diagnosis
+                                </button>
+                              )}
+                              {(record.status === 'Admission Scheduled' || record.status === 'Admitted' || record.status === 'Discharge Scheduled') && (
+                                <button
+                                  type="button"
                                   onClick={() => { setReferralAdmission(record); setOpenActionRow(null) }}
                                   className="block w-full text-left px-3 py-2 text-sm text-orange-700 hover:bg-orange-50"
                                 >
@@ -890,6 +904,17 @@ export const AdmissionList = ({ onAdmissionSelect, onPatientFromAdmission, searc
           patientName={patientHistoryAdmission.patient_name}
           onClose={() => { setShowPatientHistory(false); setPatientHistoryAdmission(null) }}
           onSuccess={() => { setShowPatientHistory(false); setPatientHistoryAdmission(null) }}
+        />
+      )}
+
+      {diagnosisAdmission && (
+        <PatientDiagnosisModal
+          parentDoctype="Inpatient Admission"
+          parentName={diagnosisAdmission.name}
+          patient={diagnosisAdmission.patient}
+          patientName={diagnosisAdmission.patient_name}
+          onClose={() => setDiagnosisAdmission(null)}
+          onSuccess={() => setDiagnosisAdmission(null)}
         />
       )}
 

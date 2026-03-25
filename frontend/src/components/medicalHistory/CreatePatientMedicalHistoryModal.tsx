@@ -5,11 +5,13 @@ import {
   fetchPatientHealthHistoryTemplateDetails,
   savePatientMedicalHistory,
 } from '../../services/patients'
+import { fetchInpatientAdmissionOptions, type LinkFieldOption } from '../../services/common'
 import { toast } from '../../hooks/useToast'
 
 interface CreatePatientMedicalHistoryModalProps {
   patient: string
   patientName?: string
+  defaultAdmission?: string
   onClose: () => void
   onCreated: (history: PatientMedicalHistory) => void
 }
@@ -17,6 +19,7 @@ interface CreatePatientMedicalHistoryModalProps {
 export const CreatePatientMedicalHistoryModal = ({
   patient,
   patientName,
+  defaultAdmission,
   onClose,
   onCreated,
 }: CreatePatientMedicalHistoryModalProps) => {
@@ -32,6 +35,15 @@ export const CreatePatientMedicalHistoryModal = ({
   const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number } | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  // Inpatient admission
+  const [admissionOptions, setAdmissionOptions] = useState<LinkFieldOption[]>([])
+  const [selectedAdmission, setSelectedAdmission] = useState<string>(defaultAdmission ?? '')
+
+  useEffect(() => {
+    fetchInpatientAdmissionOptions(undefined, patient)
+      .then(setAdmissionOptions)
+      .catch(() => setAdmissionOptions([]))
+  }, [patient])
 
   useEffect(() => {
     let cancelled = false
@@ -129,6 +141,7 @@ export const CreatePatientMedicalHistoryModal = ({
         patient,
         patient_name: patientName,
         template: selectedTemplate,
+        inpatient_admission: selectedAdmission || null,
         patient_history_details: rows,
       }
       const created = await savePatientMedicalHistory(payload)
@@ -178,6 +191,19 @@ export const CreatePatientMedicalHistoryModal = ({
           )}
 
           <div className="flex-1 overflow-auto px-4 py-3 space-y-3">
+            <div>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Inpatient Admission</label>
+              <select
+                value={selectedAdmission}
+                onChange={(e) => setSelectedAdmission(e.target.value)}
+                className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 transition-colors"
+              >
+                <option value="">— None —</option>
+                {admissionOptions.map((a) => (
+                  <option key={a.name} value={a.name}>{a.label}</option>
+                ))}
+              </select>
+            </div>
             <div>
               <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Template</label>
               <div className="relative">
