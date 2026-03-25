@@ -1,0 +1,20 @@
+[
+ {
+  "disabled": 0,
+  "docstatus": 0,
+  "doctype": "Anesthesia Terms",
+  "modified": "2026-03-18 02:13:03.844718",
+  "name": "Anesthesia/Conscious Sedation Consent - English",
+  "terms": "<div class=\"ql-editor read-mode\"><p>• That I will need anesthesia for the ECT procedure, which will be performed one time or more as per the doctor’s recommendation based on my treatment requirement/plan.</p><p>• The anesthesiologist discussed with me the type of anesthesia required for this treatment, namely: ____________________.</p><p>• The practice of medicine and anesthesiology is not an exact science, and I acknowledge that no guarantees have been made to me concerning the results of the procedure.</p><p>• I have to follow the precautions and instructions before the procedure, which have been explained to me by the anesthesiologist (e.g., NPO — nothing by mouth for 8 hours, etc.).</p><p>• The anesthesiologist has explained to me the alternative forms of anesthesia, the possible side effects, risks involved, and the possible complications that could arise during the procedure, and assured me that should any of these complications occur, they will be dealt with promptly and effectively, but without any guarantee of the outcome.</p><p>• I understand the importance of providing my healthcare providers with a complete medical history, including disclosure of any medications that I am taking, both prescription and over-the-counter. I also understand that my use of herbal remedies, alcohol, or any type of illegal drug may give rise to serious complications and must also be disclosed. I further understand that I should disclose any complications that arose from past anesthetics.</p><p>• I hereby authorize the anesthesiologist to administer the anesthesia prescribed for me. I have been given the opportunity to ask questions, and I now have sufficient information to provide informed consent.</p><p><br></p></div>",
+  "title": "Anesthesia/Conscious Sedation Consent - English"
+ },
+ {
+  "disabled": 0,
+  "docstatus": 0,
+  "doctype": "Anesthesia Terms",
+  "modified": "2026-03-18 02:13:45.943303",
+  "name": "Anesthesia/Conscious Sedation Consent - Arabic",
+  "terms": "<div class=\"ql-editor read-mode\"><p>أُقر بأن الاتي قد شُرح بطريقه و لغه أفهمها;</p><p>•. أنني سأحتاج إلى تخدير لإجراء العلاج بالصدمات الكهربائية والذي</p><p>سيتم إجراؤه مرة واحدة أو أكثر حسب توصية الطبيب بناءً على متطلبات</p><p>/ خطة العلاج الخاصة بي.</p><p>• ناقش طبيب التخدير معي نوع التخدير المطلوب لهذا العلاج وهو</p><p>____________________</p><p>• إن ممارسة الطب والتخدير ليست علمًا دقيقًا وأقر بأنه لم يتم تقديم أي</p><p>ضمانات لي فيما يتعلق بنتائج الإجراء</p><p>•. لا بد لي من اتباع الاحتياطات والتعليمات قبل الإجراء التي شرحها لي</p><p>طبيب التخدير) لا يوضع شئ في الفم حتى 8 ساعات OPN )</p><p>• شرح لي طبيب التخدير الأشكال البديلة للتخدير ، والآثار الجانبية</p><p>المحتملة ، والمخاطر التي تنطوي عليها ، والمضاعفات المحتملة التي</p><p>يمكن أن تنشأ أثناء العملية وأكد لي أنه في حالة حدوث أي من هذه</p><p>المضاعفات ، سيتم التعامل معها على الفور وبشكل فعال ولكن بدون أي</p><p>ضمان للنتيجة</p><p>• أفهم أهمية تزويد مقدمي الرعاية الصحية بسجل طبي كامل ، بما في</p><p>ذلك الكشف عن أي أدوية أتناولها ، سواء بوصفة طبية أو بدون وصفة</p><p>طبية. أفهم أيضًا أن استخدامي للعلاجات العشبية أو الكحول أو أي نوع</p><p>من العقاقير غير المشروعة قد يؤدي إلى مضاعفات خطيرة ويجب</p><p>الكشف عنها أيضًا. كما أفهم أنه يجب علي أيضًا الكشف عن أي</p><p>مضاعفات نشأت عن التخدير السابق.</p><p>أفوض بموجب هذا لطبيب التخدير بإدارة التخدير الموصوف لي. لقد</p><p>أتيحت لي الفرصة لطرح الأسئلة ولدي الآن معلومات كافية لتقديم</p><p>الموافقة المستنيرة.</p></div>",
+  "title": "Anesthesia/Conscious Sedation Consent - Arabic"
+ }
+]

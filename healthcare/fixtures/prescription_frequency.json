@@ -10,7 +10,6 @@
    }
   ],
   "frequency_in_a_day": 0,
-  "long_acting": 0,
   "modified": "2025-12-17 13:02:12.136941",
   "name": "Once Bedtime"
  },
@@ -41,7 +40,6 @@
    }
   ],
   "frequency_in_a_day": 0,
-  "long_acting": 0,
   "modified": "2025-12-17 13:02:12.137790",
   "name": "5 times a day"
  },
@@ -68,7 +66,6 @@
    }
   ],
   "frequency_in_a_day": 4,
-  "long_acting": 0,
   "modified": "2026-03-23 12:20:57.621366",
   "name": "QID"
  },
@@ -91,7 +88,6 @@
    }
   ],
   "frequency_in_a_day": 3,
-  "long_acting": 0,
   "modified": "2026-03-23 12:18:18.592241",
   "name": "TID"
  },
@@ -110,7 +106,6 @@
    }
   ],
   "frequency_in_a_day": 2,
-  "long_acting": 0,
   "modified": "2026-03-23 12:19:54.805263",
   "name": "BID"
  },
@@ -125,7 +120,6 @@
    }
   ],
   "frequency_in_a_day": 1,
-  "long_acting": 0,
   "modified": "2026-03-23 12:21:18.606387",
   "name": "Once Daily"
  },
@@ -140,7 +134,6 @@
    }
   ],
   "frequency_in_a_day": 1,
-  "long_acting": 0,
   "modified": "2026-03-23 12:20:18.754713",
   "name": "HS"
  },
@@ -159,7 +152,6 @@
    }
   ],
   "frequency_in_a_day": 2,
-  "long_acting": 0,
   "modified": "2026-03-23 12:19:29.210400",
   "name": "BD"
  },
@@ -174,7 +166,6 @@
    }
   ],
   "frequency_in_a_day": 1,
-  "long_acting": 0,
   "modified": "2026-03-23 12:18:48.971363",
   "name": "OD"
  },
@@ -184,7 +175,6 @@
   "dosage": "Q1W",
   "dosage_strength": [],
   "frequency_in_a_day": 0,
-  "long_acting": 0,
   "modified": "2025-12-24 14:54:55.467872",
   "name": "Q1W"
  },
@@ -194,7 +184,6 @@
   "dosage": "Q2W",
   "dosage_strength": [],
   "frequency_in_a_day": 0,
-  "long_acting": 0,
   "modified": "2025-12-24 14:55:18.075865",
   "name": "Q2W"
  },
@@ -204,7 +193,6 @@
   "dosage": "Q3W",
   "dosage_strength": [],
   "frequency_in_a_day": 0,
-  "long_acting": 0,
   "modified": "2025-12-24 14:55:25.015760",
   "name": "Q3W"
  },
@@ -214,7 +202,6 @@
   "dosage": "Q4W",
   "dosage_strength": [],
   "frequency_in_a_day": 0,
-  "long_acting": 0,
   "modified": "2025-12-24 14:55:40.154067",
   "name": "Q4W"
  }
