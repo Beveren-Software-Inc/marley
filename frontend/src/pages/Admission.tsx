@@ -188,9 +188,9 @@ export const AdmissionPage = () => {
           onClose={() => setShowCreateAdmission(false)}
           onSuccess={() => {
             setShowCreateAdmission(false)
-            // After creating, refresh the list so the new admission appears immediately
             setListRefreshKey(prev => prev + 1)
           }}
+          patientName={selectedPatient || undefined}
         />
       )}
     </>

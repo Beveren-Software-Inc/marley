@@ -4,6 +4,7 @@ import { useCareContext } from '../providers/CareContextProvider'
 import { PatientSearch } from '../components/patients/PatientSearch'
 import { NotificationBell } from '../components/notifications/NotificationBell'
 import { UserMenu } from '../components/user/UserMenu'
+import { ECTDashboard } from '../components/ect/ECTDashboard'
 import { ECTDetailsList } from '../components/ect/ECTDetailsList'
 import { ECTAdmissionList } from '../components/ect/ECTAdmissionList'
 import { ECTProcedureList } from '../components/ect/ECTProcedureList'
@@ -34,11 +35,7 @@ export const AnesthesiologistPage = () => {
 
   const [selectedPatient, setSelectedPatient] = useState<string | undefined>(() => patientFromUrl || globalPatient || undefined)
 
-  // Modal show states
-  const [showECTModal, setShowECTModal] = useState(false)
-  const [ectRefreshKey, setEctRefreshKey] = useState(0)
-  const [showECTAdmissionModal, setShowECTAdmissionModal] = useState(false)
-  const [showECTProcedureModal, setShowECTProcedureModal] = useState(false)
+  // Modal show/refresh states for sidebar single-screen views
   const [showECTAnesthesiaConsentModal, setShowECTAnesthesiaConsentModal] = useState(false)
   const [ectConsentRefreshKey, setEctConsentRefreshKey] = useState(0)
   const [showPreAnesthesiaModal, setShowPreAnesthesiaModal] = useState(false)
@@ -55,6 +52,10 @@ export const AnesthesiologistPage = () => {
   const [preEctRefreshKey, setPreEctRefreshKey] = useState(0)
   const [showSuicidalModal, setShowSuicidalModal] = useState(false)
   const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
+  const [showECTAdmissionModal, setShowECTAdmissionModal] = useState(false)
+  const [showECTProcedureModal, setShowECTProcedureModal] = useState(false)
+  const [showECTModal, setShowECTModal] = useState(false)
+  const [ectRefreshKey, setEctRefreshKey] = useState(0)
   const [showPhysicalExamModal, setShowPhysicalExamModal] = useState(false)
   const [physicalExamRefreshKey, setPhysicalExamRefreshKey] = useState(0)
   const [showPatientHistoryModal, setShowPatientHistoryModal] = useState(false)
@@ -398,210 +399,13 @@ export const AnesthesiologistPage = () => {
     )
   }
 
-  // ── Default: Full ECT Dashboard ───────────────────────────────────────────────
+  // ── Default: ECT Dashboard ─────────────────────────────────────────────────────
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col h-full">
       {header}
-      <div className="p-4">
-        <div className="grid gap-4 md:grid-cols-2">
-
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col">
-            <div className="font-semibold mb-4 flex items-center justify-between">
-              <span>ECT Anesthesia Consent</span>
-              {plusBtn(() => setShowECTAnesthesiaConsentModal(true), 'Add ECT Anesthesia Consent')}
-            </div>
-            <p className="text-sm text-slate-600 mb-3">Record anesthesia consent with signatures from all parties.</p>
-            <div className="flex-1 min-h-[80px]"><ECTAnesthesiaConsentList patient={selectedPatient} refreshKey={ectConsentRefreshKey} /></div>
-          </section>
-
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col">
-            <div className="font-semibold mb-4 flex items-center justify-between">
-              <span>Pre Anesthesia Assessment</span>
-              {plusBtn(() => setShowPreAnesthesiaModal(true), 'Add Pre Anesthesia Assessment')}
-            </div>
-            <p className="text-sm text-slate-600 mb-3">Comprehensive pre-operative assessment covering all body systems.</p>
-            <div className="flex-1 min-h-[80px]"><PreAnesthesiaAssessmentList patient={selectedPatient} refreshKey={preAnesthesiaRefreshKey} /></div>
-          </section>
-
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col">
-            <div className="font-semibold mb-4 flex items-center justify-between">
-              <span>Anesthesia Record</span>
-              {plusBtn(() => setShowAnesthesiaRecordModal(true), 'Add Anesthesia Record')}
-            </div>
-            <p className="text-sm text-slate-600 mb-3">Record anesthesia administration details and intra-procedure monitoring.</p>
-            <div className="flex-1 min-h-[80px]">
-              <AdmissionAssessmentList doctype="Anesthesia Record" doctypeLabel="Anesthesia Record" patient={selectedPatient} refreshKey={anesthesiaRecordRefreshKey} />
-            </div>
-          </section>
-
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col">
-            <div className="font-semibold mb-4 flex items-center justify-between">
-              <span>Recovery Room Record</span>
-              {plusBtn(() => setShowRecoveryRoomModal(true), 'Add Recovery Room Record')}
-            </div>
-            <p className="text-sm text-slate-600 mb-3">Document post-procedure recovery room events and vitals.</p>
-            <div className="flex-1 min-h-[80px]">
-              <AdmissionAssessmentList doctype="Recovery Room Record" doctypeLabel="Recovery Room Record" patient={selectedPatient} refreshKey={recoveryRoomRefreshKey} />
-            </div>
-          </section>
-
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col">
-            <div className="font-semibold mb-4 flex items-center justify-between">
-              <span>Modified Alderete Score</span>
-              {plusBtn(() => setShowAldereteModal(true), 'Add Modified Alderete Score')}
-            </div>
-            <p className="text-sm text-slate-600 mb-3">Score patient recovery readiness for discharge from the recovery room.</p>
-            <div className="flex-1 min-h-[80px]">
-              <AdmissionAssessmentList doctype="Modified Alderete Score" doctypeLabel="Modified Alderete Score" patient={selectedPatient} refreshKey={aldereteRefreshKey} />
-            </div>
-          </section>
-
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col">
-            <div className="font-semibold mb-4 flex items-center justify-between">
-              <span>Time Out Procedure</span>
-              {plusBtn(() => setShowTimeOutModal(true), 'Add Time Out Procedure')}
-            </div>
-            <p className="text-sm text-slate-600 mb-3">Complete the pre-procedure time-out checklist to verify patient identity and site.</p>
-            <div className="flex-1 min-h-[80px]">
-              <AdmissionAssessmentList doctype="Time Out Procedure" doctypeLabel="Time Out Procedure" patient={selectedPatient} refreshKey={timeOutRefreshKey} />
-            </div>
-          </section>
-
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col">
-            <div className="font-semibold mb-4 flex items-center justify-between">
-              <span>Pre-ECT Checklist</span>
-              {plusBtn(() => setShowPreEctModal(true), 'Add Pre-ECT Checklist')}
-            </div>
-            <p className="text-sm text-slate-600 mb-3">Verify all pre-ECT requirements are met before proceeding.</p>
-            <div className="flex-1 min-h-[80px]">
-              <AdmissionAssessmentList doctype="Pre-ECT Checklist" doctypeLabel="Pre-ECT Checklist" patient={selectedPatient} refreshKey={preEctRefreshKey} />
-            </div>
-          </section>
-
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col">
-            <div className="font-semibold mb-4 flex items-center justify-between">
-              <span>Suicidal Patient Assessment</span>
-              {plusBtn(() => setShowSuicidalModal(true), 'Add Suicidal Patient Assessment')}
-            </div>
-            <p className="text-sm text-slate-600 mb-3">Assess patient suicide risk factors and current ideation.</p>
-            <div className="flex-1 min-h-[80px]">
-              <AdmissionAssessmentList doctype="Suicidal Patient Assessment" doctypeLabel="Suicidal Patient Assessment" patient={selectedPatient} refreshKey={suicidalRefreshKey} />
-            </div>
-          </section>
-
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col">
-            <div className="font-semibold mb-4 flex items-center justify-between">
-              <span>ECT Admission</span>
-              {plusBtn(() => setShowECTAdmissionModal(true), 'Add ECT Admission')}
-            </div>
-            <p className="text-sm text-slate-600 mb-3">Record admission details for patients undergoing ECT.</p>
-            <div className="flex-1 min-h-[80px]"><ECTAdmissionList patient={selectedPatient} /></div>
-          </section>
-
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col">
-            <div className="font-semibold mb-4 flex items-center justify-between">
-              <span>ECT Procedure</span>
-              {plusBtn(() => setShowECTProcedureModal(true), 'Add ECT Procedure')}
-            </div>
-            <p className="text-sm text-slate-600 mb-3">Capture procedure details for each ECT session including vitals and notes.</p>
-            <div className="flex-1 min-h-[80px]"><ECTProcedureList patient={selectedPatient} /></div>
-          </section>
-
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col">
-            <div className="font-semibold mb-4 flex items-center justify-between">
-              <span>ECT Details</span>
-              {plusBtn(() => setShowECTModal(true), 'Add ECT Detail')}
-            </div>
-            <div className="flex-1 min-h-[120px]"><ECTDetailsList patient={selectedPatient} refreshKey={ectRefreshKey} /></div>
-          </section>
-
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col">
-            <div className="font-semibold mb-4 flex items-center justify-between">
-              <span>Physical Examination</span>
-              {plusBtn(() => setShowPhysicalExamModal(true), 'Add Physical Examination')}
-            </div>
-            <p className="text-sm text-slate-600 mb-3">Document systematic physical examination findings across all body systems.</p>
-            <div className="flex-1 min-h-[80px]"><PhysicalExaminationList patient={selectedPatient} refreshKey={physicalExamRefreshKey} /></div>
-          </section>
-
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col">
-            <div className="font-semibold mb-4 flex items-center justify-between">
-              <span>Patient History</span>
-              {plusBtn(() => setShowPatientHistoryModal(true), 'Add Patient History')}
-            </div>
-            <p className="text-sm text-slate-600 mb-3">Record detailed patient history including presenting complaints and past history.</p>
-            <div className="flex-1 min-h-[80px]"><PatientHistoryList patient={selectedPatient} refreshKey={patientHistoryRefreshKey} /></div>
-          </section>
-
-        </div>
+      <div className="flex-1 overflow-y-auto p-4">
+        <ECTDashboard selectedPatient={selectedPatient} />
       </div>
-
-      {/* ── Modals ──────────────────────────────────────────────────────────── */}
-      {showECTAdmissionModal && (
-        <CreateECTAdmissionModal onClose={() => setShowECTAdmissionModal(false)}
-          onSuccess={() => { setShowECTAdmissionModal(false); window.location.reload() }}
-          initialPatient={selectedPatient} />
-      )}
-      {showECTProcedureModal && (
-        <CreateECTProcedureModal onClose={() => setShowECTProcedureModal(false)}
-          onSuccess={() => setShowECTProcedureModal(false)}
-          initialPatient={selectedPatient} />
-      )}
-      {showECTModal && (
-        <CreateECTDetailModal onClose={() => setShowECTModal(false)}
-          onSuccess={() => { setEctRefreshKey(p => p + 1); setShowECTModal(false) }}
-          initialPatient={selectedPatient} />
-      )}
-      {showECTAnesthesiaConsentModal && (
-        <ECTAnesthesiaConsentModal admissionNo="" patient={selectedPatient} patientName=""
-          onClose={() => setShowECTAnesthesiaConsentModal(false)}
-          onSuccess={() => { setEctConsentRefreshKey(p => p + 1); setShowECTAnesthesiaConsentModal(false) }} />
-      )}
-      {showPreAnesthesiaModal && (
-        <PreAnesthesiaAssessmentModal admissionNo="" patient={selectedPatient} patientName=""
-          onClose={() => setShowPreAnesthesiaModal(false)}
-          onSuccess={() => { setPreAnesthesiaRefreshKey(p => p + 1); setShowPreAnesthesiaModal(false) }} />
-      )}
-      {showAnesthesiaRecordModal && (
-        <AnesthesiaRecordModal admissionNo="" patient={selectedPatient || ''} patientName=""
-          onClose={() => setShowAnesthesiaRecordModal(false)}
-          onSuccess={() => { setAnesthesiaRecordRefreshKey(p => p + 1); setShowAnesthesiaRecordModal(false) }} />
-      )}
-      {showRecoveryRoomModal && (
-        <RecoveryRoomRecordModal admissionNo="" patient={selectedPatient || ''} patientName=""
-          onClose={() => setShowRecoveryRoomModal(false)}
-          onSuccess={() => { setRecoveryRoomRefreshKey(p => p + 1); setShowRecoveryRoomModal(false) }} />
-      )}
-      {showAldereteModal && (
-        <ModifiedAldereteScoreModal admissionNo="" patient={selectedPatient || ''} patientName=""
-          onClose={() => setShowAldereteModal(false)}
-          onSuccess={() => { setAldereteRefreshKey(p => p + 1); setShowAldereteModal(false) }} />
-      )}
-      {showTimeOutModal && (
-        <TimeOutProcedureModal admissionNo="" patient={selectedPatient || ''} patientName=""
-          onClose={() => setShowTimeOutModal(false)}
-          onSuccess={() => { setTimeOutRefreshKey(p => p + 1); setShowTimeOutModal(false) }} />
-      )}
-      {showPreEctModal && (
-        <PreEctChecklistModal admissionNo="" patient={selectedPatient || ''} patientName=""
-          onClose={() => setShowPreEctModal(false)}
-          onSuccess={() => { setPreEctRefreshKey(p => p + 1); setShowPreEctModal(false) }} />
-      )}
-      {showSuicidalModal && (
-        <SuicidalPatientAssessmentModal admissionNo="" patient={selectedPatient || ''} patientName=""
-          onClose={() => setShowSuicidalModal(false)}
-          onSuccess={() => { setSuicidalRefreshKey(p => p + 1); setShowSuicidalModal(false) }} />
-      )}
-      {showPhysicalExamModal && (
-        <PhysicalExaminationModal admissionNo="" patient={selectedPatient || ''} patientName=""
-          onClose={() => setShowPhysicalExamModal(false)}
-          onSuccess={() => { setPhysicalExamRefreshKey(p => p + 1); setShowPhysicalExamModal(false) }} />
-      )}
-      {showPatientHistoryModal && (
-        <PatientHistoryModal admissionNo="" patient={selectedPatient || ''} patientName=""
-          onClose={() => setShowPatientHistoryModal(false)}
-          onSuccess={() => { setPatientHistoryRefreshKey(p => p + 1); setShowPatientHistoryModal(false) }} />
-      )}
     </div>
   )
 }

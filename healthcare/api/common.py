@@ -1148,6 +1148,7 @@ def get_insurance_claims(search=None, patient=None):
 			"insurance_payor", "claim_date", "status",
 			"total_claimed", "total_approved", "total_rejected",
 			"total_patient_liability", "sales_invoice",
+			"authorization_no", "remark",
 		],
 		limit=100,
 		order_by="creation desc",
@@ -2156,6 +2157,168 @@ def search_referral_source_documents(doctype, patient=None, search=None, limit=2
 			order_by="admission_date desc",
 			limit=int(limit),
 		)
+	return rows
+
+
+@frappe.whitelist()
+def get_sales_invoice_with_items(invoice_name):
+	"""Return a Sales Invoice document with its items for pre-filling an Insurance Claim."""
+	if not invoice_name:
+		return None
+
+	doc = frappe.get_doc("Sales Invoice", invoice_name)
+
+	items = []
+	for item in doc.items:
+		items.append({
+			"item_code": item.item_code,
+			"item_name": item.item_name,
+			"description": item.description or "",
+			"qty": item.qty,
+			"rate": item.rate,
+			"amount": item.amount,
+			"net_rate": item.net_rate,
+			"net_amount": item.net_amount,
+			"discount_percentage": item.discount_percentage,
+		})
+
+	return {
+		"name": doc.name,
+		"grand_total": doc.grand_total,
+		"net_total": doc.net_total,
+		"discount_amount": doc.discount_amount or 0,
+		"outstanding_amount": doc.outstanding_amount,
+		"status": doc.status,
+		"posting_date": str(doc.posting_date) if doc.posting_date else None,
+		"custom_base_reference": doc.get("custom_base_reference"),
+		"custom_base_reference_name": doc.get("custom_base_reference_name"),
+		"custom_health_insurance": doc.get("custom_health_insurance"),
+		"items": items,
+	}
+
+
+@frappe.whitelist()
+def create_and_submit_insurance_claim(data):
+	"""Create an Insurance Claim document and immediately submit it (docstatus=1)."""
+	import json
+	if isinstance(data, str):
+		data = json.loads(data)
+
+	doc = frappe.get_doc({
+		"doctype": "Insurance Claim",
+		"patient": data.get("patient"),
+		"health_insurance": data.get("health_insurance") or None,
+		"insurance_payor": data.get("insurance_payor") or None,
+		"claim_date": data.get("claim_date") or None,
+		"status": data.get("status") or "Submitted",
+		"sales_invoice": data.get("sales_invoice") or None,
+		"reference_doctype": data.get("reference_doctype") or None,
+		"reference_name": data.get("reference_name") or None,
+		"authorization_no": data.get("authorization_no") or None,
+		"remark": data.get("remark") or None,
+	})
+
+	claim_items = data.get("claim_items") or []
+	for ci in claim_items:
+		doc.append("claim_items", {
+			"service_type": ci.get("service_type") or "OP",
+			"item_name": ci.get("item_name") or "",
+			"description": ci.get("description") or "",
+			"sales_invoice_item": ci.get("sales_invoice_item") or None,
+			"gross_amount": ci.get("gross_amount") or 0,
+			"covered_amount": ci.get("covered_amount") or 0,
+			"co_pay_amount": ci.get("co_pay_amount") or 0,
+			"non_covered_amount": ci.get("non_covered_amount") or 0,
+			"patient_liability": ci.get("patient_liability") or 0,
+			"paid_amount": ci.get("paid_amount") or 0,
+		})
+
+	doc.insert(ignore_permissions=True)
+	doc.submit()
+	frappe.db.commit()
+
+	return {"name": doc.name}
+
+
+@frappe.whitelist()
+def update_insurance_claim(claim_name, status=None, total_approved=None, total_rejected=None,
+	authorization_no=None, remark=None):
+	"""Update editable fields on a submitted Insurance Claim.
+
+	Status is auto-derived from approved vs claimed amounts unless the caller
+	explicitly passes 'Rejected':
+	  - total_approved >= total_claimed  → Paid
+	  - 0 < total_approved < total_claimed → Partially Paid
+	  - total_approved == 0  → Submitted (no payment yet)
+	"""
+	if not claim_name:
+		frappe.throw(_("Claim name is required"))
+
+	updates = {}
+
+	approved = float(total_approved) if total_approved is not None else None
+	rejected = float(total_rejected) if total_rejected is not None else None
+
+	if approved is not None:
+		updates["total_approved"] = approved
+	if rejected is not None:
+		updates["total_rejected"] = rejected
+	if authorization_no is not None:
+		updates["authorization_no"] = authorization_no
+	if remark is not None:
+		updates["remark"] = remark
+
+	# Derive status from amounts when approved amount is provided
+	if approved is not None and status != "Rejected":
+		total_claimed = frappe.db.get_value("Insurance Claim", claim_name, "total_claimed") or 0
+		total_claimed = float(total_claimed)
+		if total_claimed > 0 and approved >= total_claimed:
+			updates["status"] = "Paid"
+		elif approved > 0:
+			updates["status"] = "Partially Paid"
+		else:
+			updates["status"] = "Submitted"
+	elif status is not None:
+		updates["status"] = status
+
+	if updates:
+		frappe.db.set_value("Insurance Claim", claim_name, updates)
+		frappe.db.commit()
+
+	return {"name": claim_name, "derived_status": updates.get("status")}
+
+
+@frappe.whitelist()
+def get_patient_unpaid_invoices(patient):
+	"""Return unpaid or partly-paid Sales Invoices for the given patient.
+
+	Each row includes:
+	  name, posting_date, grand_total, discount_amount, outstanding_amount, status,
+	  custom_base_reference, custom_base_reference_name
+	"""
+	if not patient:
+		return []
+
+	rows = frappe.get_all(
+		"Sales Invoice",
+		filters={
+			"patient": patient,
+			"docstatus": 1,
+			"status": ["in", ["Unpaid", "Partly Paid"]],
+		},
+		fields=[
+			"name",
+			"posting_date",
+			"grand_total",
+			"discount_amount",
+			"outstanding_amount",
+			"status",
+			"custom_base_reference",
+			"custom_base_reference_name",
+		],
+		order_by="posting_date desc, creation desc",
+		limit=100,
+	)
 	return rows
 
 

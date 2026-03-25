@@ -82,13 +82,16 @@ def create_appointment(data):
 	# Create the appointment document
 	appointment = frappe.get_doc({
 		'doctype': 'Patient Appointment',
-		'patient': data.get('patient'),
+		'patient': data.get('patient') or None,
 		'appointment_type': data.get('appointment_type'),
 		'appointment_date': data.get('appointment_date'),
 		'appointment_time': data.get('appointment_time'),
 		'practitioner': data.get('practitioner'),
 		'appointment_for': 'Practitioner',
-		'status': 'Scheduled'
+		'status': 'Scheduled',
+		'temporary_patient_name': data.get('temporary_patient_name'),
+		'temporary_mobile_no': data.get('temporary_mobile_no'),
+		'notes': data.get('notes'),
 	})
 	
 	appointment.insert()

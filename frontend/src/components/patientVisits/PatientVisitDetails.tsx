@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { fetchPatientVisit, type PatientVisit, cancelVisit, createInvoice } from '../../services/patientVisits'
 import { CreateAdmissionModal } from '../admissions/CreateAdmissionModal'
 import { CancelVisitModal } from './CancelVisitModal'
+import { CreateVitalSignModal } from '../vitalSigns/CreateVitalSignModal'
+import { CreateObservationModal } from '../observations/CreateObservationModal'
 import { toast } from '../../hooks/useToast'
 
 interface PatientVisitDetailsProps {
@@ -14,6 +16,8 @@ export const PatientVisitDetails = ({ visitNo, onUpdate }: PatientVisitDetailsPr
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
   const [showAdmissionModal, setShowAdmissionModal] = useState(false)
+  const [showVitalSignModal, setShowVitalSignModal] = useState(false)
+  const [showObservationModal, setShowObservationModal] = useState(false)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'details' | 'documents'>('details')
 
@@ -162,6 +166,32 @@ const handleCancelVisitConfirm = async (reason: string) => {
                 </button>
               )}
 
+              {/* Create Vital Sign */}
+              {visit.status !== 'Cancelled' && (
+                <button
+                  onClick={() => setShowVitalSignModal(true)}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-teal-600 rounded-md hover:bg-teal-700"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                  </svg>
+                  Create Vital Sign
+                </button>
+              )}
+
+              {/* Create Observation */}
+              {visit.status !== 'Cancelled' && (
+                <button
+                  onClick={() => setShowObservationModal(true)}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-violet-600 rounded-md hover:bg-violet-700"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                  </svg>
+                  Create Observation
+                </button>
+              )}
+
               {/* Schedule Admission (blue) */}
               {!visit.inpatient_record && visit.status === 'Completed' && (
                 <button
@@ -246,6 +276,22 @@ const handleCancelVisitConfirm = async (reason: string) => {
           encounterName={visit.name}
           onClose={() => setShowAdmissionModal(false)}
           onSuccess={() => { setShowAdmissionModal(false); loadVisit(); onUpdate?.() }}
+        />
+      )}
+
+      {showVitalSignModal && visit && (
+        <CreateVitalSignModal
+          initialPatient={visit.patient}
+          onClose={() => setShowVitalSignModal(false)}
+          onSuccess={() => setShowVitalSignModal(false)}
+        />
+      )}
+
+      {showObservationModal && visit && (
+        <CreateObservationModal
+          initialPatient={visit.patient}
+          onClose={() => setShowObservationModal(false)}
+          onSuccess={() => setShowObservationModal(false)}
         />
       )}
     </div>

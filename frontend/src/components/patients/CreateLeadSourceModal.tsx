@@ -3,7 +3,7 @@ import { createLeadSource } from '../../services/common'
 
 interface CreateLeadSourceModalProps {
   onClose: () => void
-  onSuccess?: (source: { name: string; source_name: string }) => void
+  onSuccess?: (source: { name: string; source: string }) => void
 }
 
 export const CreateLeadSourceModal = ({ onClose, onSuccess }: CreateLeadSourceModalProps) => {

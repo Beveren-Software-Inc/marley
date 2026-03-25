@@ -463,7 +463,7 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
         <CreateLeadSourceModal
           onClose={() => setShowCreateSource(false)}
           onSuccess={(created) => {
-            const option: LinkFieldOption = { name: created.name, label: created.source_name }
+            const option: LinkFieldOption = { name: created.name, label: created.source }
             setSourceOptions((prev) => [option, ...prev])
             setSelectedSource(option)
             setFormData((prev) => ({ ...prev, source: created.name }))
