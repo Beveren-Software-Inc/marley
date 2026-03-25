@@ -218,7 +218,6 @@ def get_patient_visits_full(search=None, patient=None, practitioner=None, from_d
 	- from_date / to_date: filters by encounter date
 	"""
 	filters = [["docstatus", "!=", 2]]
-	print("Practioner hapa:", practitioner)
 	if patient:
 		filters.append(["patient", "=", patient])
 

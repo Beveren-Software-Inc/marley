@@ -7,6 +7,8 @@ import { WarningMessagesList } from '../components/warnings/WarningMessagesList'
 import { LabTestList } from '../components/labTests/LabTestList'
 import { ECTDashboard } from '../components/ect/ECTDashboard'
 import { ClinicalNotesList } from '../components/clinicalNotes/ClinicalNotesList'
+import { PatientDiagnosisList } from '../components/diagnosis/PatientDiagnosisList'
+import { PatientDiagnosisModal } from '../components/diagnosis/PatientDiagnosisModal'
 import { ObservationList } from '../components/observations/ObservationList'
 import { VitalSignsList } from '../components/vitalSigns/VitalSignsList'
 import { CreateObservationModal } from '../components/observations/CreateObservationModal'
@@ -1629,24 +1631,22 @@ export const DoctorPage = () => {
               </div>
             </section>
 
-            {/* Card 4: Diagnosis detail (Diagnosis Notes) */}
+            {/* Card 4: Diagnosis detail */}
             <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
               <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
                 <span>Diagnosis Detail</span>
                 <button
                   onClick={() => setShowDiagnosisModal(true)}
                   className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
-                  title="Add Diagnosis Note"
+                  title="Add / Edit Diagnosis"
                 >
                   +
                 </button>
               </div>
               <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                <ClinicalNotesList 
+                <PatientDiagnosisList
                   patient={selectedPatient}
-                  clinicalNoteType="Diagnosis Note"
-                  hideTypes={true}
-                  key={diagnosisRefreshKey}
+                  refreshKey={diagnosisRefreshKey}
                 />
               </div>
             </section>
@@ -1879,15 +1879,16 @@ export const DoctorPage = () => {
       )}
 
       {showDiagnosisModal && selectedPatient && (
-        <CreateClinicalNoteModal
+        <PatientDiagnosisModal
+          parentDoctype={mode === 'IP' ? 'Inpatient Admission' : 'Patient Visit'}
+          parentName={mode === 'IP' ? (activeAdmission ?? undefined) : (activeVisit ?? undefined)}
+          patient={selectedPatient}
+          patientName={undefined}
           onClose={() => setShowDiagnosisModal(false)}
           onSuccess={() => {
-            setDiagnosisRefreshKey(prev => prev + 1)
+            setDiagnosisRefreshKey((prev) => prev + 1)
             setShowDiagnosisModal(false)
           }}
-          initialPatient={selectedPatient}
-          defaultClinicalNoteType="Diagnosis Note"
-          title="Add Diagnosis Note"
         />
       )}
 

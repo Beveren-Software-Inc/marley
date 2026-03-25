@@ -562,6 +562,52 @@ export async function updateEncounterDiagnosisSymptoms(
   if (data?.exc_type) throw new Error(data?.message || 'Failed to save')
 }
 
+export interface PatientDiagnosisRow {
+  name?: string
+  diagnosis: string
+  details?: string
+  posting_date?: string
+}
+
+export interface PatientDiagnosisAggRow extends PatientDiagnosisRow {
+  parent: string
+  parent_type: 'Patient Visit' | 'Inpatient Admission'
+  parent_date?: string
+}
+
+export async function getAllPatientDiagnoses(patient: string): Promise<PatientDiagnosisAggRow[]> {
+  const params = new URLSearchParams({ patient })
+  const res = await fetch(`/api/method/healthcare.api.common.get_all_patient_diagnoses?${params}`)
+  const data = await res.json()
+  if (data?.exc_type) throw new Error(data?.message || 'Failed to load diagnoses')
+  return (Array.isArray(data?.message) ? data.message : []) as PatientDiagnosisAggRow[]
+}
+
+export async function getPatientDiagnosis(
+  parentDoctype: string,
+  parentName: string
+): Promise<PatientDiagnosisRow[]> {
+  const params = new URLSearchParams({ parent_doctype: parentDoctype, parent_name: parentName })
+  const res = await fetch(`/api/method/healthcare.api.common.get_patient_diagnosis?${params}`)
+  const data = await res.json()
+  if (data?.exc_type) throw new Error(data?.message || 'Failed to load diagnosis')
+  return (Array.isArray(data?.message) ? data.message : []) as PatientDiagnosisRow[]
+}
+
+export async function savePatientDiagnosis(
+  parentDoctype: string,
+  parentName: string,
+  rows: PatientDiagnosisRow[]
+): Promise<void> {
+  const res = await fetch('/api/method/healthcare.api.common.save_patient_diagnosis', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ parent_doctype: parentDoctype, parent_name: parentName, rows }),
+  })
+  const data = await res.json()
+  if (data?.exc_type) throw new Error(data?.message || 'Failed to save diagnosis')
+}
+
 /** Fetch ERPNext Departments (Link to `Department`). */
 export async function fetchDepartments(search?: string): Promise<LinkFieldOption[]> {
   const params = new URLSearchParams()

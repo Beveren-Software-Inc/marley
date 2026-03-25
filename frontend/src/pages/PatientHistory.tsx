@@ -5,7 +5,7 @@ import { useCareContext } from '../providers/CareContextProvider'
 import { PatientSummaryCard } from '../components/patients/PatientSummaryCard'
 import { WarningMessagesList } from '../components/warnings/WarningMessagesList'
 import { LabTestList } from '../components/labTests/LabTestList'
-import { ClinicalNotesList } from '../components/clinicalNotes/ClinicalNotesList'
+import { PatientDiagnosisList } from '../components/diagnosis/PatientDiagnosisList'
 import { DischargeList } from '../components/discharges/DischargeList'
 import { MedicalHistoryView } from '../components/medicalHistory/MedicalHistoryView'
 import { PackageDetailsList } from '../components/packageDetails/PackageDetailsList'
@@ -202,11 +202,7 @@ export const PatientHistoryPage = () => {
             <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[420px]">
               <div className="font-semibold mb-4 flex-shrink-0">Diagnosis Detail</div>
               <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                <ClinicalNotesList
-                  patient={selectedPatient}
-                  clinicalNoteType="Diagnosis Note"
-                  hideTypes={true}
-                />
+                <PatientDiagnosisList patient={selectedPatient} />
               </div>
             </section>
           </div>

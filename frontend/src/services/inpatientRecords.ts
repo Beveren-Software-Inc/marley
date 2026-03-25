@@ -629,14 +629,18 @@ export async function getPatientActiveAdmission(patient: string): Promise<Inpati
   const response = await fetch(
     `/api/method/healthcare.api.inpatient_admission.get_patient_active_admission?patient=${encodeURIComponent(patient)}`
   )
-  const resData = await response.json()
+  const resData = await response.json().catch(() => ({}))
 
-  if (resData?.message) {
-    return resData.message as InpatientRecord
-  } else if (resData?.message === null) {
-    return null
+  if (!response.ok) {
+    const msg = resData?.message || resData?.exc || 'Failed to fetch active admission'
+    throw new Error(typeof msg === 'string' ? msg : String(msg))
   }
-  
-  throw new Error('Invalid response format')
+
+  // Frappe wraps return value in `message`; null means no active admission
+  if ('message' in resData) {
+    return resData.message ? (resData.message as InpatientRecord) : null
+  }
+
+  return null
 }
 

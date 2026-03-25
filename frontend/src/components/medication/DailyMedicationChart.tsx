@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { getPatientActiveAdmission, type InpatientRecord } from '../../services/inpatientRecords'
+import { getPatientActiveAdmission } from '../../services/inpatientRecords'
+import { fetchInpatientAdmissionOptions } from '../../services/common'
 import {
   fetchDailyMedicationChart,
   type MedicationChartResponse,
@@ -11,6 +12,8 @@ import { toast } from '../../hooks/useToast'
 
 interface DailyMedicationChartProps {
   patient?: string
+  /** When provided (from the top navbar context), the admission dropdown is hidden. */
+  admission?: string
 }
 
 type PendingCell = {
@@ -20,8 +23,12 @@ type PendingCell = {
   sessionId: string
 }
 
-export const DailyMedicationChart = ({ patient }: DailyMedicationChartProps) => {
-  const [admission, setAdmission] = useState<InpatientRecord | null>(null)
+export const DailyMedicationChart = ({ patient, admission: admissionProp }: DailyMedicationChartProps) => {
+  // If admission is provided from context (navbar selection), we don't show the dropdown at all.
+  const admissionFromContext = !!admissionProp
+
+  const [admissionOptions, setAdmissionOptions] = useState<{ name: string; label: string }[]>([])
+  const [selectedAdmissionName, setSelectedAdmissionName] = useState<string>(admissionProp ?? '')
   const [date, setDate] = useState<string>(() => new Date().toISOString().slice(0, 10))
   const [data, setData] = useState<MedicationChartResponse | null>(null)
   const [loading, setLoading] = useState(false)
@@ -29,10 +36,37 @@ export const DailyMedicationChart = ({ patient }: DailyMedicationChartProps) => 
   const [pendingCell, setPendingCell] = useState<PendingCell | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
 
+  // When an admission is pre-selected from context, sync it; otherwise try to auto-detect
+  useEffect(() => {
+    if (admissionProp) {
+      setSelectedAdmissionName(admissionProp)
+      return
+    }
+    // No admission from context — load the dropdown options and auto-detect active
+    if (!patient) {
+      setAdmissionOptions([])
+      setSelectedAdmissionName('')
+      return
+    }
+    fetchInpatientAdmissionOptions(undefined, patient)
+      .then((opts) => {
+        setAdmissionOptions(opts)
+        getPatientActiveAdmission(patient)
+          .then((adm) => { if (adm) setSelectedAdmissionName(adm.name) })
+          .catch(() => {})
+      })
+      .catch(() => setAdmissionOptions([]))
+  }, [patient, admissionProp])
+
+  // Load chart when selected admission or date changes
   useEffect(() => {
     const load = async () => {
       if (!patient) {
-        setAdmission(null)
+        setData(null)
+        setError(null)
+        return
+      }
+      if (!selectedAdmissionName) {
         setData(null)
         setError(null)
         return
@@ -40,29 +74,22 @@ export const DailyMedicationChart = ({ patient }: DailyMedicationChartProps) => 
       try {
         setLoading(true)
         setError(null)
-        const adm = await getPatientActiveAdmission(patient)
-        if (!adm) {
-          setAdmission(null)
-          setData(null)
-          setError('No active inpatient admission found for this patient')
-          return
-        }
-        setAdmission(adm)
-        const chart = await fetchDailyMedicationChart(adm.name, date)
+        const chart = await fetchDailyMedicationChart(selectedAdmissionName, date)
         setData(chart)
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Failed to load medication chart'
         setError(msg)
+        setData(null)
       } finally {
         setLoading(false)
       }
     }
 
     load()
-  }, [patient, date, refreshKey])
+  }, [patient, selectedAdmissionName, date, refreshKey])
 
   const handleOpenGive = (row: MedicationChartRow, session: MedicationChartSession) => {
-    if (!admission || !patient) return
+    if (!selectedAdmissionName || !patient) return
     setPendingCell({
       prescription: row.prescription,
       orderEntry: row.order_entry,
@@ -75,10 +102,6 @@ export const DailyMedicationChart = ({ patient }: DailyMedicationChartProps) => 
     return <div className="text-sm text-slate-600">Select a patient to view the medication chart.</div>
   }
 
-  if (loading && !data) {
-    return <div className="text-sm text-slate-600">Loading daily medication chart...</div>
-  }
-
   return (
     <div className="space-y-4">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
@@ -88,30 +111,64 @@ export const DailyMedicationChart = ({ patient }: DailyMedicationChartProps) => 
             View prescribed inpatient medications for the selected day, grouped by session.
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <label className="text-xs font-medium text-slate-600">Date</label>
-          <input
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            className="rounded-md border border-slate-300 px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-primary bg-white"
-          />
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Admission selector — only shown when no admission is already selected from the navbar */}
+          {!admissionFromContext && (
+            <div className="flex items-center gap-1.5">
+              <label className="text-xs font-medium text-slate-600 whitespace-nowrap">Admission</label>
+              <select
+                value={selectedAdmissionName}
+                onChange={(e) => setSelectedAdmissionName(e.target.value)}
+                className="rounded-md border border-slate-300 px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-primary bg-white min-w-[160px]"
+              >
+                <option value="">— Select admission —</option>
+                {admissionOptions.map((a) => (
+                  <option key={a.name} value={a.name}>{a.label}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          {/* Date selector */}
+          <div className="flex items-center gap-1.5">
+            <label className="text-xs font-medium text-slate-600">Date</label>
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="rounded-md border border-slate-300 px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+            />
+          </div>
         </div>
       </div>
 
-      {error && (
+      {!selectedAdmissionName && !admissionFromContext && (
+        <div className="text-sm text-slate-500 border border-dashed border-slate-300 rounded-md px-3 py-4 text-center">
+          Please select an inpatient admission above.
+        </div>
+      )}
+      {!selectedAdmissionName && admissionFromContext && (
+        <div className="text-sm text-slate-500 border border-dashed border-slate-300 rounded-md px-3 py-4 text-center">
+          No inpatient admission selected. Please select a patient with an active IP admission from the search bar.
+        </div>
+      )}
+
+      {loading && selectedAdmissionName && (
+        <div className="text-sm text-slate-600">Loading daily medication chart...</div>
+      )}
+
+      {!loading && error && (
         <div className="bg-red-50 border border-red-200 text-red-700 text-xs rounded-md px-3 py-2">
           {error}
         </div>
       )}
 
-      {!error && (!data || data.rows.length === 0) && (
+      {!loading && !error && selectedAdmissionName && (!data || data.rows.length === 0) && (
         <div className="text-sm text-slate-600 border border-dashed border-slate-300 rounded-md px-3 py-4 text-center">
-          No inpatient prescriptions found for this patient on the selected date.
+          No inpatient prescriptions found for this admission on the selected date.
         </div>
       )}
 
-      {data && data.rows.length > 0 && (
+      {!loading && data && data.rows.length > 0 && (
         <div className="overflow-x-auto border border-slate-200 rounded-lg">
           <table className="min-w-full text-xs">
             <thead className="bg-slate-50 border-b border-slate-200">
@@ -190,7 +247,7 @@ export const DailyMedicationChart = ({ patient }: DailyMedicationChartProps) => 
         </div>
       )}
 
-      {pendingCell && admission && patient && (
+      {pendingCell && selectedAdmissionName && patient && (
         <CreateMedicineGivenModal
           initialPatient={patient}
           onClose={() => setPendingCell(null)}
@@ -204,4 +261,3 @@ export const DailyMedicationChart = ({ patient }: DailyMedicationChartProps) => 
     </div>
   )
 }
-

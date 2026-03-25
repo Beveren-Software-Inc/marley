@@ -19,31 +19,30 @@ except ImportError:
 
 @frappe.whitelist()
 def get_patient_active_admission(patient):
-	"""Get patient's active admission (Admitted or Discharge Scheduled status)"""
+	"""Get patient's most recent active admission (Admitted or Discharge Scheduled status)."""
 	if not patient:
 		frappe.throw(_("Patient is required"))
-	
-	# Get active admission (Admitted or Discharge Scheduled)
-	admission = frappe.db.get_value(
-		'Inpatient Admission',
-		{
-			'patient': patient,
-			'status': ['in', ['Admitted', 'Discharge Scheduled']]
+
+	records = frappe.get_all(
+		"Inpatient Admission",
+		filters={
+			"patient": patient,
+			"status": ["in", ["Admitted", "Discharge Scheduled"]],
 		},
-		'name',
-		order_by='scheduled_date desc'
+		fields=["name", "patient", "patient_name", "status"],
+		order_by="scheduled_date desc",
+		limit=1,
 	)
-	
-	if not admission:
+
+	if not records:
 		return None
-	
-	# Get full admission details
-	record = frappe.get_doc('Inpatient Admission', admission)
+
+	rec = records[0]
 	return {
-		'name': record.name,
-		'patient': record.patient,
-		'patient_name': record.patient_name,
-		'status': record.status
+		"name": rec.name,
+		"patient": rec.patient,
+		"patient_name": rec.patient_name,
+		"status": rec.status,
 	}
 
 

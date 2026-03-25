@@ -8,6 +8,7 @@
  "field_order": [
   "patient",
   "patient_name",
+  "inpatient_admission",
   "column_break_vdtn",
   "template",
   "history_section",
@@ -50,12 +51,18 @@
    "fieldtype": "Link",
    "label": "Template",
    "options": "Patient Health History Template"
+  },
+  {
+   "fieldname": "inpatient_admission",
+   "fieldtype": "Link",
+   "label": "Inpatient Admission",
+   "options": "Inpatient Admission"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-03-10 01:22:30.811595",
+ "modified": "2026-03-25 17:09:55.097278",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Medical History",
