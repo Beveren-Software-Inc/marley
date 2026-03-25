@@ -5,6 +5,27 @@ import { PatientSearch } from '../components/patients/PatientSearch'
 import { NotificationBell } from '../components/notifications/NotificationBell'
 import { UserMenu } from '../components/user/UserMenu'
 import { ECTDashboard } from '../components/ect/ECTDashboard'
+import { ECTDetailsList } from '../components/ect/ECTDetailsList'
+import { ECTAdmissionList } from '../components/ect/ECTAdmissionList'
+import { ECTProcedureList } from '../components/ect/ECTProcedureList'
+import { CreateECTAdmissionModal } from '../components/ect/CreateECTAdmissionModal'
+import { CreateECTProcedureModal } from '../components/ect/CreateECTProcedureModal'
+import { CreateECTDetailModal } from '../components/ect/CreateECTDetailModal'
+import { ECTAnesthesiaConsentList } from '../components/ect/ECTAnesthesiaConsentList'
+import { ECTAnesthesiaConsentModal } from '../components/ect/ECTAnesthesiaConsentModal'
+import { PreAnesthesiaAssessmentList } from '../components/ect/PreAnesthesiaAssessmentList'
+import { PreAnesthesiaAssessmentModal } from '../components/ect/PreAnesthesiaAssessmentModal'
+import { AdmissionAssessmentList } from '../components/admissions/AdmissionAssessmentList'
+import { SuicidalPatientAssessmentModal } from '../components/admissions/SuicidalPatientAssessmentModal'
+import { RecoveryRoomRecordModal } from '../components/admissions/RecoveryRoomRecordModal'
+import { AnesthesiaRecordModal } from '../components/admissions/AnesthesiaRecordModal'
+import { TimeOutProcedureModal } from '../components/admissions/TimeOutProcedureModal'
+import { PreEctChecklistModal } from '../components/admissions/PreEctChecklistModal'
+import { ModifiedAldereteScoreModal } from '../components/admissions/ModifiedAldereteScoreModal'
+import { PhysicalExaminationList } from '../components/physicalExam/PhysicalExaminationList'
+import { PhysicalExaminationModal } from '../components/physicalExam/PhysicalExaminationModal'
+import { PatientHistoryList } from '../components/patientHistory/PatientHistoryList'
+import { PatientHistoryModal } from '../components/patientHistory/PatientHistoryModal'
 
 export const AnesthesiologistPage = () => {
   const { selectedPatient: globalPatient, setSelectedPatient: setGlobalPatient } = useCareContext()
@@ -14,7 +35,31 @@ export const AnesthesiologistPage = () => {
 
   const [selectedPatient, setSelectedPatient] = useState<string | undefined>(() => patientFromUrl || globalPatient || undefined)
 
-  // Modal show states
+  // Modal show/refresh states for sidebar single-screen views
+  const [showECTAnesthesiaConsentModal, setShowECTAnesthesiaConsentModal] = useState(false)
+  const [ectConsentRefreshKey, setEctConsentRefreshKey] = useState(0)
+  const [showPreAnesthesiaModal, setShowPreAnesthesiaModal] = useState(false)
+  const [preAnesthesiaRefreshKey, setPreAnesthesiaRefreshKey] = useState(0)
+  const [showAnesthesiaRecordModal, setShowAnesthesiaRecordModal] = useState(false)
+  const [anesthesiaRecordRefreshKey, setAnesthesiaRecordRefreshKey] = useState(0)
+  const [showRecoveryRoomModal, setShowRecoveryRoomModal] = useState(false)
+  const [recoveryRoomRefreshKey, setRecoveryRoomRefreshKey] = useState(0)
+  const [showAldereteModal, setShowAldereteModal] = useState(false)
+  const [aldereteRefreshKey, setAldereteRefreshKey] = useState(0)
+  const [showTimeOutModal, setShowTimeOutModal] = useState(false)
+  const [timeOutRefreshKey, setTimeOutRefreshKey] = useState(0)
+  const [showPreEctModal, setShowPreEctModal] = useState(false)
+  const [preEctRefreshKey, setPreEctRefreshKey] = useState(0)
+  const [showSuicidalModal, setShowSuicidalModal] = useState(false)
+  const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
+  const [showECTAdmissionModal, setShowECTAdmissionModal] = useState(false)
+  const [showECTProcedureModal, setShowECTProcedureModal] = useState(false)
+  const [showECTModal, setShowECTModal] = useState(false)
+  const [ectRefreshKey, setEctRefreshKey] = useState(0)
+  const [showPhysicalExamModal, setShowPhysicalExamModal] = useState(false)
+  const [physicalExamRefreshKey, setPhysicalExamRefreshKey] = useState(0)
+  const [showPatientHistoryModal, setShowPatientHistoryModal] = useState(false)
+  const [patientHistoryRefreshKey, setPatientHistoryRefreshKey] = useState(0)
 
   useEffect(() => {
     const patientParam = searchParams.get('patient') || ''

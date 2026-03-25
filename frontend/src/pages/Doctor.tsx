@@ -48,7 +48,10 @@ import { LongActingMedicineList } from '../components/medication/LongActingMedic
 import { CreateVitalSignModal } from '../components/vitalSigns/CreateVitalSignModal'
 import { SleepingPatternList } from '../components/sleeping/SleepingPatternList'
 import { CreateSleepingPatternModal } from '../components/sleeping/CreateSleepingPatternModal'
-import { AdmissionAssessmentList } from '../components/admissions/AdmissionAssessmentList'
+import { PhysicalExaminationList } from '../components/physicalExam/PhysicalExaminationList'
+import { PhysicalExaminationModal } from '../components/physicalExam/PhysicalExaminationModal'
+import { PatientHistoryList } from '../components/patientHistory/PatientHistoryList'
+import { PatientHistoryModal } from '../components/patientHistory/PatientHistoryModal'
 
 export const DoctorPage = () => {
   const { mode, activeVisit, activeAdmission, selectedPatient: globalPatient, setSelectedPatient: setGlobalPatient } = useCareContext()
@@ -92,6 +95,10 @@ export const DoctorPage = () => {
   const [sleepingPatternRefreshKey, setSleepingPatternRefreshKey] = useState(0)
   const [showCreateNurseTaskModal, setShowCreateNurseTaskModal] = useState(false)
   const [longActingRefreshKey] = useState(0)
+  const [showPhysicalExamModal, setShowPhysicalExamModal] = useState(false)
+  const [physicalExamRefreshKey, setPhysicalExamRefreshKey] = useState(0)
+  const [showPatientHistoryModal, setShowPatientHistoryModal] = useState(false)
+  const [patientHistoryRefreshKey, setPatientHistoryRefreshKey] = useState(0)
   const screen = searchParams.get('screen')
 
   // Sync selectedPatient with URL on mount and when URL changes

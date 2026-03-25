@@ -41,7 +41,7 @@ export interface ReferralSourceDoc {
 }
 
 function csrfToken(): string {
-  return (window as Record<string, unknown>).csrf_token as string ?? ''
+  return (window as unknown as { frappe?: { csrf_token?: string } }).frappe?.csrf_token ?? ''
 }
 
 export async function createPatientReferral(data: CreatePatientReferralData): Promise<{ name: string }> {

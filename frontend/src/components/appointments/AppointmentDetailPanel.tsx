@@ -187,8 +187,8 @@ export function AppointmentDetailPanel({ name }: AppointmentDetailPanelProps) {
           <>
             <InfoRow label="Patient ID" value={str(doc.patient)} />
             <InfoRow label="Patient Name" value={str(doc.patient_name)} />
-            {doc.patient_sex && <InfoRow label="Sex" value={str(doc.patient_sex)} />}
-            {doc.patient_age && <InfoRow label="Age" value={str(doc.patient_age)} />}
+            {!!doc.patient_sex && <InfoRow label="Sex" value={str(doc.patient_sex)} />}
+            {!!doc.patient_age && <InfoRow label="Age" value={str(doc.patient_age)} />}
           </>
         )}
       </Section>
@@ -206,13 +206,13 @@ export function AppointmentDetailPanel({ name }: AppointmentDetailPanelProps) {
         <InfoRow label="Time" value={formatTime(doc.appointment_time as string)} />
         <InfoRow label="Type" value={str(doc.appointment_type)} />
         <InfoRow label="Status" value={status} />
-        {doc.service_unit && <InfoRow label="Service Unit" value={str(doc.service_unit)} />}
-        {doc.company && <InfoRow label="Company" value={str(doc.company)} />}
-        {doc.source && <InfoRow label="Source" value={str(doc.source)} />}
+        {!!doc.service_unit && <InfoRow label="Service Unit" value={str(doc.service_unit)} />}
+        {!!doc.company && <InfoRow label="Company" value={str(doc.company)} />}
+        {!!doc.source && <InfoRow label="Source" value={str(doc.source)} />}
       </Section>
 
       {/* ── Practitioner ── */}
-      {(doc.practitioner || doc.department) && (
+      {!!(doc.practitioner || doc.department) && (
         <Section
           title="Practitioner"
           icon={
@@ -223,14 +223,14 @@ export function AppointmentDetailPanel({ name }: AppointmentDetailPanelProps) {
         >
           <InfoRow label="Practitioner" value={str(doc.practitioner_name || doc.practitioner)} />
           <InfoRow label="Department" value={str(doc.department)} />
-          {doc.referring_practitioner && (
+          {!!doc.referring_practitioner && (
             <InfoRow label="Referring Practitioner" value={str(doc.referring_practitioner)} />
           )}
         </Section>
       )}
 
       {/* ── Billing ── */}
-      {(doc.mode_of_payment || doc.paid_amount) && (
+      {!!(doc.mode_of_payment || doc.paid_amount) && (
         <Section
           title="Billing"
           icon={
@@ -245,7 +245,7 @@ export function AppointmentDetailPanel({ name }: AppointmentDetailPanelProps) {
       )}
 
       {/* ── Notes / Remarks ── */}
-      {(doc.notes || doc.notes === '') && (
+      {!!(doc.notes || doc.notes === '') && (
         <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
           <div className="flex items-center gap-2 px-4 py-2.5 bg-slate-50 border-b border-slate-100">
             <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

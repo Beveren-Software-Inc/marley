@@ -45,7 +45,8 @@ import { EnvironmentalChecklistList } from '../components/environmental/Environm
 import { MorseFallScaleList } from '../components/morse/MorseFallScaleList'
 import { SleepingPatternList } from '../components/sleeping/SleepingPatternList'
 import { CreateSleepingPatternModal } from '../components/sleeping/CreateSleepingPatternModal'
-import { AdmissionAssessmentList } from '../components/admissions/AdmissionAssessmentList'
+import { PatientHistoryList } from '../components/patientHistory/PatientHistoryList'
+import { PatientHistoryModal } from '../components/patientHistory/PatientHistoryModal'
 import { IOPDayListWithHeader } from '../components/iop/IOPDayList'
 import { IOPEnrollmentListWithHeader } from '../components/iop/IOPEnrollmentList'
 import { PatientVisitList } from '../components/patientVisits/PatientVisitList'
@@ -109,6 +110,8 @@ export const NursePage = () => {
   // ECT dashboard state
   const [showCreateNurseTaskModal, setShowCreateNurseTaskModal] = useState(false)
   const [nurseTaskRefreshKey, setNurseTaskRefreshKey] = useState(0)
+  const [showPatientHistoryModal, setShowPatientHistoryModal] = useState(false)
+  const [patientHistoryRefreshKey, setPatientHistoryRefreshKey] = useState(0)
   const screen = searchParams.get('screen')
 
   // Sync selectedPatient with URL on mount and when URL changes

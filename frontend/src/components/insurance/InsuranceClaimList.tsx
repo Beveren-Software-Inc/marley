@@ -6,8 +6,6 @@ import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const STATUS_OPTIONS = ['Submitted', 'Partially Paid', 'Paid', 'Rejected']
-
 const STATUS_COLORS: Record<string, string> = {
   Draft: 'bg-slate-100 text-slate-600',
   Submitted: 'bg-blue-100 text-blue-700',
@@ -67,7 +65,7 @@ function UpdateClaimModal({ row, currency, onClose, onSuccess }: UpdateClaimModa
     setSaving(true)
     setError(null)
     try {
-      const csrfToken = (window as Record<string, unknown>)?.frappe?.csrf_token as string | undefined
+      const csrfToken = (window as unknown as { frappe?: { csrf_token?: string } }).frappe?.csrf_token
       const params = new URLSearchParams({
         claim_name: row.name,
         ...(isRejected ? { status: 'Rejected' } : {}),

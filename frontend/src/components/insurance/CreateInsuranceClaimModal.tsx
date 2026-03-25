@@ -393,7 +393,7 @@ export const CreateInsuranceClaimModal = ({
       setSaving(true)
       setError(null)
 
-      const csrfToken = (window as Record<string, unknown>)?.frappe?.csrf_token as string | undefined
+      const csrfToken = (window as unknown as { frappe?: { csrf_token?: string } }).frappe?.csrf_token
 
       const payload = {
         patient: selectedPatient.name,
