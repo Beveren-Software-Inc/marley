@@ -11,6 +11,8 @@ import { toast } from '../../hooks/useToast'
 import { fetchHealthcarePractitioners, type LinkFieldOption } from '../../services/common'
 import { fetchPatientVisitsFull } from '../../services/patientVisits'
 import { CreatePatientReferralModal } from '../referrals/CreatePatientReferralModal'
+import { CreateVitalSignModal } from '../vitalSigns/CreateVitalSignModal'
+import { CreateObservationModal } from '../observations/CreateObservationModal'
 
 const statusColors: Record<string, string> = {
   'Open': 'warning',
@@ -64,6 +66,8 @@ export const PatientVisitList = ({
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [paymentVisit, setPaymentVisit] = useState<PatientVisitListRow | null>(null)
   const [referralVisit, setReferralVisit] = useState<PatientVisitListRow | null>(null)
+  const [vitalSignVisit, setVitalSignVisit] = useState<PatientVisitListRow | null>(null)
+  const [observationVisit, setObservationVisit] = useState<PatientVisitListRow | null>(null)
 
   // --- Visit No: debounced search when dropdown is open ---
   useEffect(() => {
@@ -455,6 +459,30 @@ export const PatientVisitList = ({
                         >
                           Create Referral
                         </button>
+                        {visit.patient && (
+                          <button
+                            type="button"
+                            onClick={() => { setVitalSignVisit(visit); setOpenActionRow(null) }}
+                            className="flex items-center gap-2 px-3 py-2 text-sm text-teal-700 hover:bg-teal-50 w-full text-left"
+                          >
+                            <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                            </svg>
+                            Create Vital Sign
+                          </button>
+                        )}
+                        {visit.patient && (
+                          <button
+                            type="button"
+                            onClick={() => { setObservationVisit(visit); setOpenActionRow(null) }}
+                            className="flex items-center gap-2 px-3 py-2 text-sm text-violet-700 hover:bg-violet-50 w-full text-left"
+                          >
+                            <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                            </svg>
+                            Create Observation
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => { setSelectedVisitForCancel(visit); setShowCancelModal(true); setOpenActionRow(null) }}
@@ -488,6 +516,24 @@ export const PatientVisitList = ({
           referredFromDocname={referralVisit.value}
           onClose={() => setReferralVisit(null)}
           onSuccess={() => setReferralVisit(null)}
+        />
+      )}
+
+      {/* Vital Sign Modal */}
+      {vitalSignVisit && (
+        <CreateVitalSignModal
+          initialPatient={vitalSignVisit.patient}
+          onClose={() => setVitalSignVisit(null)}
+          onSuccess={() => setVitalSignVisit(null)}
+        />
+      )}
+
+      {/* Observation Modal */}
+      {observationVisit && (
+        <CreateObservationModal
+          initialPatient={observationVisit.patient}
+          onClose={() => setObservationVisit(null)}
+          onSuccess={() => setObservationVisit(null)}
         />
       )}
 

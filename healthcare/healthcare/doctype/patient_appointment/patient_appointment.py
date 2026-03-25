@@ -552,7 +552,7 @@ def cancel_appointment(appointment_id):
 				frappe.db.set_value("Fee Validity", fee_validity, "status", "Cancelled")
 
 	else:
-		fee_validity = manage_fee_validity(appointment)
+		fee_validity = manage_fee_validity(appointment) if appointment.patient else None
 		msg = _("Appointment Cancelled.")
 		if fee_validity:
 			msg += _("Fee Validity {0} updated.").format(fee_validity.name)

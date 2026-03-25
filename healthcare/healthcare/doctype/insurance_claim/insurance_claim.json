@@ -27,7 +27,10 @@
   "total_rejected",
   "total_patient_liability",
   "section_break_bpsy",
-  "amended_from"
+  "authorization_no",
+  "amended_from",
+  "remarks_section",
+  "remark"
  ],
  "fields": [
   {
@@ -78,7 +81,7 @@
   {
    "fieldname": "reference_name",
    "fieldtype": "Dynamic Link",
-   "label": "Reference Name",
+   "label": "Reference Name(Case No)",
    "options": "reference_doctype"
   },
   {
@@ -168,6 +171,22 @@
    "fieldtype": "Link",
    "label": "Amended From",
    "options": "Insurance Claim"
+  },
+  {
+   "fieldname": "authorization_no",
+   "fieldtype": "Data",
+   "label": "Authorization No"
+  },
+  {
+   "fieldname": "remarks_section",
+   "fieldtype": "Section Break",
+   "label": "Remarks"
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "remark",
+   "fieldtype": "Small Text",
+   "label": "Remark"
   }
  ],
  "is_submittable": 1,
@@ -177,7 +196,7 @@
    "link_fieldname": "custom_insurance_claim"
   }
  ],
- "modified": "2026-02-25 14:04:45.620487",
+ "modified": "2026-03-25 03:51:42.662614",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Insurance Claim",

@@ -830,6 +830,8 @@ export interface InsuranceClaimRow {
   total_rejected: number
   total_patient_liability: number
   sales_invoice: string
+  authorization_no?: string
+  remark?: string
 }
 
 export async function fetchInsuranceClaims(search?: string, patient?: string): Promise<InsuranceClaimRow[]> {

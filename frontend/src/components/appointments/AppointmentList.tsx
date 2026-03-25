@@ -13,6 +13,7 @@ import { DetailSlideOver } from '../ui/DetailSlideOver'
 import { RescheduleAppointmentModal } from './RescheduleAppointmentModal'
 import { AppointmentDetailPanel } from './AppointmentDetailPanel'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
+import { ConfirmDialog } from '../ui/ConfirmDialog'
 import { toast } from '../../hooks/useToast'
 
 const statusColors: Record<string, string> = {
@@ -53,6 +54,8 @@ export const AppointmentList = ({ refreshKey, showAll = false, patient }: Appoin
   const [refreshTrigger, setRefreshTrigger] = useState(0)
   const [rescheduleAppointment, setRescheduleAppointment] = useState<Appointment | null>(null)
   const [detailApt, setDetailApt] = useState<Appointment | null>(null)
+  const [cancelTarget, setCancelTarget] = useState<Appointment | null>(null)
+  const [cancelLoading, setCancelLoading] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
   // Filters
@@ -122,16 +125,24 @@ export const AppointmentList = ({ refreshKey, showAll = false, patient }: Appoin
   const canCancel = (status?: string) => status && ACTIVE_STATUSES.includes(status)
   const canConfirm = (status?: string) => status && CAN_CONFIRM_STATUSES.includes(status)
 
-  const handleCancel = async (apt: Appointment) => {
-    if (!window.confirm('Are you sure you want to cancel this appointment?')) return
-    setActionLoading(apt.name)
+  const handleCancel = (apt: Appointment) => {
     setOpenActionRow(null)
+    setCancelTarget(apt)
+  }
+
+  const handleConfirmCancel = async () => {
+    if (!cancelTarget) return
+    setCancelLoading(true)
+    setActionLoading(cancelTarget.name)
     try {
-      await updateAppointmentStatus(apt.name, 'Cancelled')
+      await updateAppointmentStatus(cancelTarget.name, 'Cancelled')
       setRefreshTrigger((t) => t + 1)
+      toast.success('Appointment cancelled successfully')
+      setCancelTarget(null)
     } catch (e) {
-      window.alert(e instanceof Error ? e.message : 'Failed to cancel')
+      toast.error(e instanceof Error ? e.message : 'Failed to cancel appointment')
     } finally {
+      setCancelLoading(false)
       setActionLoading(null)
     }
   }
@@ -454,6 +465,24 @@ export const AppointmentList = ({ refreshKey, showAll = false, patient }: Appoin
           <AppointmentDetailPanel name={detailApt.name} />
         </DetailSlideOver>
       )}
+
+      <ConfirmDialog
+        open={!!cancelTarget}
+        variant="danger"
+        title="Cancel Appointment"
+        message={
+          cancelTarget
+            ? `Are you sure you want to cancel the appointment for ${
+                cancelTarget.patient_name || cancelTarget.temporary_patient_name || cancelTarget.name
+              }? This action cannot be undone.`
+            : ''
+        }
+        confirmLabel="Yes, Cancel Appointment"
+        cancelLabel="Keep Appointment"
+        loading={cancelLoading}
+        onConfirm={handleConfirmCancel}
+        onCancel={() => setCancelTarget(null)}
+      />
     </>
   )
 }
