@@ -1,0 +1,95 @@
+[
+ {
+  "docstatus": 0,
+  "doctype": "Patient History Template",
+  "history_detail": [
+   {
+    "attribute": "Scholastic and/or Work Record",
+    "description": null
+   },
+   {
+    "attribute": "Forensic History",
+    "description": null
+   },
+   {
+    "attribute": "Psychosexual History",
+    "description": null
+   },
+   {
+    "attribute": "Any Specific Ethnic, Cultural or Religious Factors",
+    "description": null
+   },
+   {
+    "attribute": "Appearance, Behaviour and Attitude",
+    "description": null
+   },
+   {
+    "attribute": "Orientation and Cognition",
+    "description": null
+   },
+   {
+    "attribute": "Speech",
+    "description": null
+   },
+   {
+    "attribute": "Thought Process / Content",
+    "description": null
+   },
+   {
+    "attribute": "Perception",
+    "description": null
+   },
+   {
+    "attribute": "Mood and Affect",
+    "description": null
+   },
+   {
+    "attribute": "Impulsivity",
+    "description": null
+   },
+   {
+    "attribute": "Insight and Judgement",
+    "description": null
+   },
+   {
+    "attribute": "Provisional Diagnosis",
+    "description": null
+   },
+   {
+    "attribute": "Formulation",
+    "description": null
+   },
+   {
+    "attribute": "Plan",
+    "description": null
+   },
+   {
+    "attribute": "Discharge Plan",
+    "description": null
+   },
+   {
+    "attribute": "Complaint",
+    "description": null
+   },
+   {
+    "attribute": "History of Present Illnesss",
+    "description": null
+   },
+   {
+    "attribute": "Past Medical and Psychiatry History",
+    "description": null
+   },
+   {
+    "attribute": "Personal and social History",
+    "description": null
+   },
+   {
+    "attribute": "Family History",
+    "description": null
+   }
+  ],
+  "modified": "2026-03-18 12:24:01.097846",
+  "name": "Default History Form",
+  "template": "Default History Form"
+ }
+]
