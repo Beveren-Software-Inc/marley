@@ -37,10 +37,26 @@ fixtures = [
                 (
                     "Contact-custom_mobile_owner",
                     "Contact-custom_whatsapp",
+                    
+                    #Sales invoice
+                    "Sales Invoice-custom_base_reference_name",
+                    "Sales Invoice-custom_column_break_oy8ws",
+                    "Sales Invoice-custom_reference_name",
+                    "Sales Invoice-custom_reference_name",
+                    "Sales Invoice-custom_base_reference",
+                    "Sales Invoice-custom_reference_type",
+                    "Sales Invoice-custom_health_reference",
+                    "Sales Invoice-custom_amount_to_be_covered",
+                    "Sales Invoice-custom_column_break_tbrxu",
+                    "Sales Invoice-custom_health_insurance",
+                    "Sales Invoice-custom_insurance",
+                    
                     "Sales Invoice Item-custom_prescription",
                     "Sales Invoice Item-custom_dosage",
                     "Sales Invoice Item-custom_column_break_wqds5",
                     "Sales Invoice Item-custom_prescription_dosage",
+                    
+                    #Order
                     "Sales Order Item-custom_prescription",
                     "Sales Order Item-custom_dosage",
                     "Sales Order Item-custom_column_break_3vdka",
@@ -51,6 +67,11 @@ fixtures = [
                     "Sales Order-custom_reference_type",
                     "Sales Order-custom_column_break_rq7zb",
                     "Sales Order-custom_reference_name",
+                    "Sales Order-custom_amount_to_be_covered",
+                    "Sales Order-custom_column_break_aiazv",
+                    "Sales Order-custom_health_insurance",
+                    "Sales Order-custom_insurance",
+                  
                     "Quotation-custom_paient_name",
                     "Quotation-custom_patient",
                     "Sales Order-custom_patient_name",
@@ -66,7 +87,8 @@ fixtures = [
                     
                     #sales
                     "Sales Order-custom_base_reference",
-                    "Sales Order-custom_base_reference_name"
+                    "Sales Order-custom_base_reference_name",
+                    
                 ),
             ]
         ],
@@ -103,6 +125,12 @@ fixtures = [
 	},
     {
 		"doctype":"Time Out Procedure Template"
+	},
+    {
+	"doctype":"Anesthesia Terms"	
+	},
+    {
+	"doctype":"Patient History Template"	
 	},
 ]
 

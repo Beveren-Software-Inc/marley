@@ -4,9 +4,10 @@ import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 
 interface MorseFallScaleListProps {
   patient?: string
+  refreshKey?: number
 }
 
-export const MorseFallScaleList = ({ patient }: MorseFallScaleListProps) => {
+export const MorseFallScaleList = ({ patient, refreshKey }: MorseFallScaleListProps) => {
   const [rows, setRows] = useState<MorseFallScale[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
@@ -25,7 +26,7 @@ export const MorseFallScaleList = ({ patient }: MorseFallScaleListProps) => {
       }
     }
     load()
-  }, [patient])
+  }, [patient, refreshKey])
 
   if (loading) {
     return (

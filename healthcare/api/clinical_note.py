@@ -32,12 +32,12 @@ def get_clinical_notes(limit=50, offset=0, patient=None, medical_role=None, clin
 	
 	if medical_role:
 		filters['medical_role'] = medical_role
+	print("Clinical note",clinical_note_type )
+	# if clinical_note_type:
+	# 	filters['clinical_note_type'] = clinical_note_type
 	
-	if clinical_note_type:
-		filters['clinical_note_type'] = clinical_note_type
-	
-	# if note_type:
-	# 	filters['note_type'] = note_type
+	if note_type:
+		filters['note_type'] = note_type
 	
 	print("here nafikjal filters", filters)
 	clinical_notes = frappe.get_all(
@@ -61,6 +61,7 @@ def get_clinical_notes(limit=50, offset=0, patient=None, medical_role=None, clin
 		limit_start=offset,
 		order_by='posting_date desc'
 	)
+	print(str(clinical_notes))
 	# Get patient names and practitioner names
 	for note in clinical_notes:
 		if note.patient:
