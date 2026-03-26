@@ -3,6 +3,7 @@ import { fetchSleepingPatterns, type SleepingPattern } from '../../services/slee
 import { fetchInpatientAdmissions, type LinkFieldOption } from '../../services/common'
 import { DetailSlideOver } from '../ui/DetailSlideOver'
 import { SleepingPatternDetail } from './SleepingPatternDetail'
+import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 
 interface SleepingPatternListProps {
   patient?: string
@@ -132,6 +133,7 @@ export const SleepingPatternList = ({ patient, refreshKey, onRowClick }: Sleepin
               </div>
             )}
           </div>
+
           {admissionFilter && (
             <button
               type="button"
@@ -140,22 +142,34 @@ export const SleepingPatternList = ({ patient, refreshKey, onRowClick }: Sleepin
                 setAdmissionQuery('')
                 setAdmissionOpen(false)
               }}
-              className="text-xs text-slate-600 hover:text-slate-900 px-2 py-1 rounded-md border border-slate-200 hover:border-slate-400 ml-auto"
+              className="text-xs text-slate-600 hover:text-slate-900 px-2 py-1 rounded-md border border-slate-200 hover:border-slate-400"
             >
               Clear
             </button>
           )}
+
+          {/* Print button — top of Sleeping Pattern document */}
+          <div className="ml-auto">
+            <PrintFormatDropdown
+              doctype="Sleeping Pattern"
+              docName={admissionFilter || (rows[0]?.name ?? '')}
+              noLetterhead={0}
+              triggerPrint={1}
+              className="inline-flex items-center justify-center w-7 h-7 rounded-md text-slate-400 hover:text-primary hover:bg-slate-100 transition-colors"
+            />
+          </div>
         </div>
+
         <table className="w-full">
-        <thead className="bg-slate-50 border-b border-slate-200">
-          <tr>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Date</th>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Admission</th>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Patient</th>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Total Hours</th>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">User</th>
-          </tr>
-        </thead>
+          <thead className="bg-slate-50 border-b border-slate-200">
+            <tr>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Date</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Admission</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Patient</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Total Hours</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">User</th>
+            </tr>
+          </thead>
           <tbody className="divide-y divide-slate-200">
             {filteredRows.map((row) => (
               <tr
@@ -264,4 +278,3 @@ export const SleepingPatternList = ({ patient, refreshKey, onRowClick }: Sleepin
     </>
   )
 }
-

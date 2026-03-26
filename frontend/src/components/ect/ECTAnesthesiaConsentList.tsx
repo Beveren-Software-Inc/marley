@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { DocDetailView } from '../ui/DocDetailView'
 import { X } from 'lucide-react'
+import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 
 interface ConsentRecord {
   name: string
@@ -81,6 +82,7 @@ export const ECTAnesthesiaConsentList = ({ patient, refreshKey }: ECTAnesthesiaC
               <th className="px-3 py-2 text-left text-[11px] font-semibold text-slate-600 uppercase">Patient</th>
               <th className="px-3 py-2 text-left text-[11px] font-semibold text-slate-600 uppercase">Admission</th>
               <th className="px-3 py-2 text-left text-[11px] font-semibold text-slate-600 uppercase">Date</th>
+              <th className="px-3 py-2 text-left text-[11px] font-semibold text-slate-600 uppercase">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -103,6 +105,16 @@ export const ECTAnesthesiaConsentList = ({ patient, refreshKey }: ECTAnesthesiaC
                 </td>
                 <td className="px-3 py-2 text-slate-500 text-xs">
                   {row.creation ? new Date(row.creation).toLocaleDateString() : '—'}
+                </td>
+                <td className="px-3 py-2 text-slate-500 text-xs">
+                   <div className="flex items-center">
+                                      <PrintFormatDropdown
+                                        doctype="ECT Admission"
+                                        docName={row.name}
+                                        noLetterhead={0}
+                                        triggerPrint={1}
+                                      />
+                                    </div>
                 </td>
               </tr>
             ))}

@@ -3,6 +3,8 @@ import {
   fetchPatientAssessments,
   type PatientAssessmentRow,
 } from '../../services/patientAssessment'
+import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
+
 
 interface PatientAssessmentListProps {
   patient?: string
@@ -199,6 +201,9 @@ export const PatientAssessmentList = ({
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">
                   Status
                 </th>
+                <th className="px-3 py-2 text-left font-semibold text-slate-600">
+                  Action
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -237,6 +242,21 @@ export const PatientAssessmentList = ({
                   </td>
                   <td className="px-3 py-2">{scoreDisplay(r)}</td>
                   <td className="px-3 py-2">{statusBadge(r.docstatus)}</td>
+                  {/* stopPropagation prevents the row click (detail modal) from firing when the print button is clicked */}
+                  <td
+                    className="px-3 py-2"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="flex items-center gap-2">
+                      <PrintFormatDropdown
+                        doctype="Patient Assessment"
+                        docName={r.name}
+                        noLetterhead={0}
+                        triggerPrint={1}
+                        className="inline-flex items-center justify-center w-8 h-8 rounded border border-slate-300 bg-white text-primary hover:bg-slate-50"
+                      />
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>

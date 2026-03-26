@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { getPatientActiveAdmission, type InpatientRecord } from '../../services/inpatientRecords'
 import { fetchMedicineGiven, deleteMedicineGiven, type MedicineGivenRow } from '../../services/medicineGiven'
 import { toast } from '../../hooks/useToast'
+import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 
 interface MedicineGivenListProps {
   patient?: string
@@ -97,9 +98,20 @@ export const MedicineGivenList = ({ patient, refreshKey }: MedicineGivenListProp
 
   return (
     <div className="space-y-2">
-      <div className="text-xs text-slate-500">
-        Admission: <span className="font-medium text-slate-700">{admission.name}</span>
+      {/* Toolbar */}
+      <div className="flex items-center justify-between">
+        <div className="text-xs text-slate-500">
+          Admission: <span className="font-medium text-slate-700">{admission.name}</span>
+        </div>
+        <PrintFormatDropdown
+          doctype="Admission Detail"
+          docName={admission.name}
+          noLetterhead={0}
+          triggerPrint={1}
+          className="inline-flex items-center justify-center w-8 h-8 rounded border border-slate-300 bg-white text-primary hover:bg-slate-50"
+        />
       </div>
+
       <div className="bg-white border border-slate-200 rounded-lg overflow-auto max-h-[320px]">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 border-b border-slate-200">
@@ -153,4 +165,3 @@ export const MedicineGivenList = ({ patient, refreshKey }: MedicineGivenListProp
     </div>
   )
 }
-

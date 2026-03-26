@@ -7,6 +7,7 @@ import {
   type EnvironmentalChecklistDetail,
 } from '../../services/environmentalChecklist'
 import { toast } from '../../hooks/useToast'
+import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 
 interface EnvironmentalChecklistListProps {
   patient?: string
@@ -113,40 +114,53 @@ export const EnvironmentalChecklistList = ({ patient }: EnvironmentalChecklistLi
 
   return (
     <div className="space-y-3">
-      <div className="flex items-end gap-3">
-        <div className="flex flex-col">
-          <label className="text-xs font-medium text-slate-600 mb-1">Inpatient Admission</label>
-          <select
-            value={selectedAdmission}
-            onChange={(e) => setSelectedAdmission(e.target.value)}
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm min-w-[220px]"
-          >
-            <option value="">Select admission...</option>
-            {admissions.map((adm) => (
-              <option key={adm.name} value={adm.name}>
-                {adm.label || adm.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        {selectedAdmission && (
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={handleApplyTemplate}
-              className="inline-flex items-center px-3 py-2 rounded-md bg-primary text-white text-sm hover:bg-primary/90"
+      <div className="flex items-end justify-between gap-3 flex-wrap">
+        <div className="flex items-end gap-3 flex-wrap">
+          <div className="flex flex-col">
+            <label className="text-xs font-medium text-slate-600 mb-1">Inpatient Admission</label>
+            <select
+              value={selectedAdmission}
+              onChange={(e) => setSelectedAdmission(e.target.value)}
+              className="rounded-md border border-slate-300 px-3 py-2 text-sm min-w-[220px]"
             >
-              + Load From Template
-            </button>
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={saving || loading}
-              className="inline-flex items-center px-3 py-2 rounded-md border border-slate-300 text-sm hover:bg-slate-50 disabled:opacity-50"
-            >
-              {saving ? 'Saving...' : 'Save'}
-            </button>
+              <option value="">Select admission...</option>
+              {admissions.map((adm) => (
+                <option key={adm.name} value={adm.name}>
+                  {adm.label || adm.name}
+                </option>
+              ))}
+            </select>
           </div>
+          {selectedAdmission && (
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={handleApplyTemplate}
+                className="inline-flex items-center px-3 py-2 rounded-md bg-primary text-white text-sm hover:bg-primary/90"
+              >
+                + Load From Template
+              </button>
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={saving || loading}
+                className="inline-flex items-center px-3 py-2 rounded-md border border-slate-300 text-sm hover:bg-slate-50 disabled:opacity-50"
+              >
+                {saving ? 'Saving...' : 'Save'}
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Print button — only shown when an admission is selected */}
+        {selectedAdmission && (
+          <PrintFormatDropdown
+            doctype="Inpatient Admission"
+            docName={selectedAdmission}
+            noLetterhead={0}
+            triggerPrint={1}
+            className="inline-flex items-center justify-center w-8 h-8 rounded border border-slate-300 bg-white text-primary hover:bg-slate-50"
+          />
         )}
       </div>
 
@@ -196,4 +210,3 @@ export const EnvironmentalChecklistList = ({ patient }: EnvironmentalChecklistLi
     </div>
   )
 }
-
