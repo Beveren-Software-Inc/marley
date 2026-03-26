@@ -43,7 +43,7 @@
   },
   {
    "fieldname": "patient_name",
-   "fieldtype": "Date",
+   "fieldtype": "Data",
    "label": "Patient Name"
   },
   {
@@ -79,7 +79,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-03-18 11:39:36.738515",
+ "modified": "2026-03-26 17:30:41.379412",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Physical Examination",

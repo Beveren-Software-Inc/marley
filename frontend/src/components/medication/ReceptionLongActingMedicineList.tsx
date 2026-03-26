@@ -7,6 +7,8 @@ import { DetailSlideOver } from '../ui/DetailSlideOver'
 import { DocDetailView } from '../ui/DocDetailView'
 import { toast } from '../../hooks/useToast'
 import { Mail, MoreHorizontal } from 'lucide-react'
+import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
+
 
 interface ReceptionLongActingMedicineListProps {
   patient?: string
@@ -82,7 +84,6 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey }: Recepti
     try {
       await updateLongActingMedicineRemarks(remarksModal.name, remarksText)
       toast.success('Remarks updated')
-      // Update local row so it's reflected without a full reload
       setRows((prev) =>
         prev.map((r) => r.name === remarksModal.name ? { ...r, remarks: remarksText } : r)
       )
@@ -113,7 +114,6 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey }: Recepti
   }
 
   const handleRowClick = (name: string) => {
-    // Only open the modal, don't trigger navigation
     setDetailName(name)
   }
 
@@ -259,7 +259,7 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey }: Recepti
                 <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Start</th>
                 <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Next Run</th>
                 <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Status</th>
-                <th className="px-3 py-2 w-20"></th>
+                <th className="px-3 py-2 text-center text-xs font-semibold text-slate-600 uppercase">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -282,58 +282,68 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey }: Recepti
                   <td className="px-3 py-2 text-slate-700">
                     <span>{row.status || 'Draft'}</span>
                   </td>
-                  {/* Three-dot actions */}
-                  <td className="px-2 py-2 text-right" onClick={(e) => e.stopPropagation()}>
-                    <div className="relative inline-block" ref={openMenuRow === row.name ? menuRef : undefined}>
-                      <button
-                        type="button"
-                        aria-label="Actions"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setOpenMenuRow(openMenuRow === row.name ? null : row.name)
-                        }}
-                        className="inline-flex items-center justify-center w-7 h-7 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
-                      >
-                        <MoreHorizontal className="w-4 h-4" />
-                      </button>
-                      {openMenuRow === row.name && (
-                        <div className="absolute right-0 z-30 mt-1 w-44 bg-white border border-slate-200 rounded-md shadow-lg py-1">
-                          {/* Send options */}
-                          <div className="px-3 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wide border-b border-slate-100">
-                            Send Reminder
+                  {/* Actions column */}
+                  <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center justify-center gap-1">
+                      {/* Three-dot menu */}
+                      <div className="relative" ref={openMenuRow === row.name ? menuRef : undefined}>
+                        <button
+                          type="button"
+                          aria-label="Actions"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setOpenMenuRow(openMenuRow === row.name ? null : row.name)
+                          }}
+                          className="inline-flex items-center justify-center w-7 h-7 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                        >
+                          <MoreHorizontal className="w-4 h-4" />
+                        </button>
+                        {openMenuRow === row.name && (
+                          <div className="absolute right-0 z-30 mt-1 w-44 bg-white border border-slate-200 rounded-md shadow-lg py-1">
+                            <div className="px-3 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wide border-b border-slate-100">
+                              Send Reminder
+                            </div>
+                            <button
+                              type="button"
+                              onClick={(e) => handleSendReminder(e, row.name, row.patient_name || row.patient || row.name, 'email')}
+                              className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                            >
+                              <Mail className="w-3.5 h-3.5 text-blue-500" /> Send Email
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => handleSendReminder(e, row.name, row.patient_name || row.patient || row.name, 'whatsapp')}
+                              className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                            >
+                              <span className="text-green-500 text-base leading-none">💬</span> Send WhatsApp
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => handleSendReminder(e, row.name, row.patient_name || row.patient || row.name, 'sms')}
+                              className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                            >
+                              <span className="text-purple-500 text-base leading-none">📱</span> Send SMS
+                            </button>
+                            <div className="border-t border-slate-100 my-1" />
+                            <button
+                              type="button"
+                              onClick={(e) => openRemarksModal(e, row)}
+                              className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                            >
+                              <span className="text-slate-500 text-base leading-none">✏️</span> Add Remarks
+                            </button>
                           </div>
-                          <button
-                            type="button"
-                            onClick={(e) => handleSendReminder(e, row.name, row.patient_name || row.patient || row.name, 'email')}
-                            className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
-                          >
-                            <Mail className="w-3.5 h-3.5 text-blue-500" /> Send Email
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => handleSendReminder(e, row.name, row.patient_name || row.patient || row.name, 'whatsapp')}
-                            className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
-                          >
-                            <span className="text-green-500 text-base leading-none">💬</span> Send WhatsApp
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => handleSendReminder(e, row.name, row.patient_name || row.patient || row.name, 'sms')}
-                            className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
-                          >
-                            <span className="text-purple-500 text-base leading-none">📱</span> Send SMS
-                          </button>
-                          {/* Divider */}
-                          <div className="border-t border-slate-100 my-1" />
-                          <button
-                            type="button"
-                            onClick={(e) => openRemarksModal(e, row)}
-                            className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
-                          >
-                            <span className="text-slate-500 text-base leading-none">✏️</span> Add Remarks
-                          </button>
-                        </div>
-                      )}
+                        )}
+                      </div>
+
+                      {/* Print */}
+                      <PrintFormatDropdown
+                        doctype="Long Acting Medicine"
+                        docName={row.name}
+                        noLetterhead={0}
+                        triggerPrint={1}
+                        className="inline-flex items-center justify-center w-7 h-7 rounded-md text-slate-400 hover:text-primary hover:bg-slate-100 transition-colors"
+                      />
                     </div>
                   </td>
                 </tr>
