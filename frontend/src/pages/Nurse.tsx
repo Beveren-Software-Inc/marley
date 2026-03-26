@@ -72,6 +72,7 @@ export const NursePage = () => {
   const [showObservationModal, setShowObservationModal] = useState(false)
   const [showDischargeModal, setShowDischargeModal] = useState(false)
   const [showDiagnosisModal, setShowDiagnosisModal] = useState(false)
+    const [showNursingNoteModal, setShowNursingNoteModal] = useState(false)
   const [showServiceModal, setShowServiceModal] = useState(false)
   const [selectedAdmission, setSelectedAdmission] = useState<{ name: string; patient: string; patient_name?: string } | null>(null)
   const [warningRefreshKey, setWarningRefreshKey] = useState(0)
@@ -554,13 +555,35 @@ export const NursePage = () => {
         </header>
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4">Nursing Note</div>
+            <div className="font-semibold mb-4 flex items-center justify-between">
+              <span>Nursing Note</span>
+              <button
+                onClick={() => setShowNursingNoteModal(true)}
+                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
+                title="Add Nursing Note"
+              >
+                +
+              </button>
+            </div>
             <ClinicalNotesList 
               patient={selectedPatient} 
               medicalRole="Nurse"
+              key={clinicalNotesRefreshKey}
             />
           </section>
         </div>
+        {showNursingNoteModal && (
+          <CreateClinicalNoteModal
+            onClose={() => setShowNursingNoteModal(false)}
+            onSuccess={() => {
+              setClinicalNotesRefreshKey(prev => prev + 1)
+              setShowNursingNoteModal(false)
+            }}
+            initialPatient={selectedPatient}
+            defaultClinicalNoteType="Nursing Note"
+            title="Add Nursing Note"
+          />
+        )}
       </div>
     )
   }

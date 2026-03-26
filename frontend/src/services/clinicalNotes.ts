@@ -47,7 +47,7 @@ export async function fetchClinicalNotes(
     `/api/method/healthcare.api.clinical_note.get_clinical_notes?${params.toString()}`
   )
   const resData = await response.json()
-
+  console.log("Rada", resData)
   if (resData?.message && Array.isArray(resData.message)) {
     return resData.message as ClinicalNote[]
   } else {
