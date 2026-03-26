@@ -43,6 +43,7 @@ import { DiagnosisSymptomsScreen } from '../components/diagnosis/DiagnosisSympto
 import { AppointmentList } from '../components/appointments/AppointmentList'
 import { EnvironmentalChecklistList } from '../components/environmental/EnvironmentalChecklistList'
 import { MorseFallScaleList } from '../components/morse/MorseFallScaleList'
+import { CreateMorseFallScaleModal } from '../components/morse/CreateMorseFallScaleModal'
 import { SleepingPatternList } from '../components/sleeping/SleepingPatternList'
 import { CreateSleepingPatternModal } from '../components/sleeping/CreateSleepingPatternModal'
 import { PatientHistoryList } from '../components/patientHistory/PatientHistoryList'
@@ -107,6 +108,8 @@ export const NursePage = () => {
   const [mentalStateRefreshKey, setMentalStateRefreshKey] = useState(0)
   const [showSickLeaveModal, setShowSickLeaveModal] = useState(false)
   const [sickLeaveRefreshKey, setSickLeaveRefreshKey] = useState(0)
+  const [showMorseFallModal, setShowMorseFallModal] = useState(false)
+  const [morseFallRefreshKey, setMorseFallRefreshKey] = useState(0)
   // ECT dashboard state
   const [showCreateNurseTaskModal, setShowCreateNurseTaskModal] = useState(false)
   const [nurseTaskRefreshKey, setNurseTaskRefreshKey] = useState(0)
@@ -1249,16 +1252,24 @@ export const NursePage = () => {
             <div className="font-semibold mb-4 flex items-center justify-between">
               <span>Morse Fall Scale</span>
               <button
-                onClick={() => window.open('/app/morse-fall-scale/new', '_blank')}
+                onClick={() => setShowMorseFallModal(true)}
                 className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
                 title="Create Morse Fall Scale"
               >
                 +
               </button>
             </div>
-            <MorseFallScaleList patient={selectedPatient} />
+            <MorseFallScaleList patient={selectedPatient} refreshKey={morseFallRefreshKey} />
           </section>
         </div>
+        {showMorseFallModal && (
+          <CreateMorseFallScaleModal
+            patient={selectedPatient}
+            defaultAdmission={activeAdmission}
+            onClose={() => setShowMorseFallModal(false)}
+            onCreated={() => { setShowMorseFallModal(false); setMorseFallRefreshKey((k) => k + 1) }}
+          />
+        )}
       </div>
     )
   }

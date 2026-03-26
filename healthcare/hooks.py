@@ -129,6 +129,9 @@ fixtures = [
     {
 	"doctype":"Anesthesia Terms"	
 	},
+    {
+	"doctype":"Patient History Template"	
+	},
 ]
 
 
