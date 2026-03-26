@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { fetchClinicalNotes, type ClinicalNote } from '../../services/clinicalNotes'
 import { DetailSlideOver } from '../ui/DetailSlideOver'
 import { DocDetailView } from '../ui/DocDetailView'
+import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 
 // Helper function to strip HTML tags and decode HTML entities
 const stripHtml = (html: string): string => {
@@ -107,6 +108,9 @@ export const ClinicalNotesList = ({
             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
               Note
             </th>
+            <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600 uppercase">
+              Actions
+            </th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-200">
@@ -148,6 +152,17 @@ export const ClinicalNotesList = ({
                     return plainText.length > 100 ? `${plainText.substring(0, 100)}...` : plainText
                   })() : '-'}
                 </div>
+              </td>
+              <td className="px-4 py-3 text-sm text-slate-700 max-w-md">
+                 <div className="flex items-center gap-2">
+                                      <PrintFormatDropdown
+                                        doctype="Patient Assessment"
+                                        docName={note.name}
+                                        noLetterhead={0}
+                                        triggerPrint={1}
+                                        className="inline-flex items-center justify-center w-8 h-8 rounded border border-slate-300 bg-white text-primary hover:bg-slate-50"
+                                      />
+                                    </div>
               </td>
             </tr>
           ))}
