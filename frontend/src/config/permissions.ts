@@ -64,10 +64,21 @@ export function canAccessRoute(pathname: string, roles: string[]): boolean {
   return false
 }
 
+export interface ScreenItem {
+  id: string
+  title: string
+}
+
+export interface ScreenGroup {
+  groupTitle: string
+  screens: ScreenItem[]
+}
+
 export interface MainLinkItem {
   to: string
   label: string
-  screens?: { id: string; title: string }[]
+  screens?: ScreenItem[]
+  screenGroups?: ScreenGroup[]
   prefix?: string
 }
 

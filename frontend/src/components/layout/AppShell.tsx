@@ -4,21 +4,9 @@ import type { ReactNode } from 'react'
 import { useState, useMemo } from 'react'
 import { NavLink } from 'react-router-dom'
 import { ChevronDown, ChevronRight, Menu, X, Folder } from 'lucide-react'
-import { doctorScreens, doctorScreenGroups } from '../../config/doctorScreens'
+import { doctorScreenGroups } from '../../config/doctorScreens'
 import { useAuth } from '../../providers/AuthProvider'
-import { getVisibleMainLinks, type MainLinkItem } from '../../config/permissions'
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-interface ScreenItem {
-  id: string
-  title: string
-}
-
-interface ScreenGroup {
-  groupTitle: string
-  screens: ScreenItem[]
-}
+import { getVisibleMainLinks, type MainLinkItem, type ScreenGroup } from '../../config/permissions'
 
 // ─── Nurse screens — organised into groups ────────────────────────────────────
 
@@ -149,23 +137,6 @@ const receptionScreenGroups: ScreenGroup[] = [
   },
 ]
 
-// Keep the original flat array if needed for backward compatibility
-const receptionScreens = [
-  { id: 'r-new-op',              title: 'New Patient Registration' },
-  { id: 'r-appointment',         title: 'New Appointment' },
-  { id: 'r-ip-adm',              title: 'New IP Admission' },
-  { id: 'r-reg',                 title: 'Admission' },
-  { id: 'r-visit',               title: 'Patient Visit' },
-  { id: 'r-new-visit',           title: 'New Patient Visit' },
-  { id: 'r-followup',            title: 'Follow-up Dashboard' },
-  { id: 'r-iop',                 title: 'IOP Dashboard' },
-  { id: 'r-appointments-freeze', title: 'Appointments' },
-  { id: 'r-service-requests',    title: 'Service Requests / Booked Lab' },
-  { id: 'r-discharge',           title: 'Discharge' },
-  { id: 'r-long-acting-meds',    title: 'Long Acting Medicine' },
-  { id: 'r-insurance',           title: 'Insurance Patient Register' },
-  { id: 'r-referral',            title: 'Patient Referral' },
-].sort((a, b) => a.title.localeCompare(b.title))
 
 const insuranceScreens = [
   { id: 'i-register', title: 'Patient Register' },
