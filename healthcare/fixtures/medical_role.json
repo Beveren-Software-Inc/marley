@@ -2,41 +2,6 @@
  {
   "docstatus": 0,
   "doctype": "Medical Role",
-  "medical_role": "Psychologist",
-  "modified": "2026-03-09 17:12:13.416569",
-  "name": "Psychologist"
- },
- {
-  "docstatus": 0,
-  "doctype": "Medical Role",
-  "medical_role": "Therapist",
-  "modified": "2026-03-09 17:13:28.244496",
-  "name": "Therapist"
- },
- {
-  "docstatus": 0,
-  "doctype": "Medical Role",
-  "medical_role": "Doctor",
-  "modified": "2025-12-02 16:01:11.754103",
-  "name": "Doctor"
- },
- {
-  "docstatus": 0,
-  "doctype": "Medical Role",
-  "medical_role": "Nurse",
-  "modified": "2025-12-02 16:01:18.068771",
-  "name": "Nurse"
- },
- {
-  "docstatus": 0,
-  "doctype": "Medical Role",
-  "medical_role": "Consultant",
-  "modified": "2025-12-02 16:01:25.503017",
-  "name": "Consultant"
- },
- {
-  "docstatus": 0,
-  "doctype": "Medical Role",
   "medical_role": "Clinical Officer",
   "modified": "2025-12-02 16:02:21.873952",
   "name": "Clinical Officer"
@@ -110,5 +75,40 @@
   "medical_role": "Psychologists",
   "modified": "2025-12-14 14:56:29.694696",
   "name": "Psychologists"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Medical Role",
+  "medical_role": "Psychologist",
+  "modified": "2026-03-09 17:12:13.416569",
+  "name": "Psychologist"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Medical Role",
+  "medical_role": "Therapist",
+  "modified": "2026-03-09 17:13:28.244496",
+  "name": "Therapist"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Medical Role",
+  "medical_role": "Nurse",
+  "modified": "2025-12-02 16:01:18.068771",
+  "name": "Nurse"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Medical Role",
+  "medical_role": "Consultant",
+  "modified": "2025-12-02 16:01:25.503017",
+  "name": "Consultant"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Medical Role",
+  "medical_role": "Doctor",
+  "modified": "2025-12-02 16:01:11.754103",
+  "name": "Doctor"
  }
 ]

@@ -108,7 +108,7 @@
    "options": "Discharge Checklist Details"
   },
   {
-   "default": "Inpatient Discharge",
+   "default": "Default Discharge Template",
    "fieldname": "discharge_template",
    "fieldtype": "Link",
    "label": "Discharge Template",
@@ -358,7 +358,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-03-18 11:49:29.704554",
+ "modified": "2026-03-30 12:37:40.091075",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Discharge",
