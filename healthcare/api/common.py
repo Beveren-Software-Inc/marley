@@ -1971,7 +1971,8 @@ def create_patient_assessment(data):
 	try:
 		if isinstance(data, str):
 			data = frappe.parse_json(data)
-
+		print("mambo ni noma", str(data))
+		# frappe.throw(str(data))
 		doc = frappe.new_doc("Patient Assessment")
 		doc.naming_series = "HLC-PA-.YYYY.-"
 		for field in [
@@ -1994,6 +1995,7 @@ def create_patient_assessment(data):
 					"score": frappe.utils.flt(row.get("score") or 0),
 					"time": row.get("time") or None,
 					"comments": row.get("comments") or "",
+					"yes": row.get("yes") or 0,
 				})
 		elif template_name:
 			# Fall back: auto-populate from template with zero scores

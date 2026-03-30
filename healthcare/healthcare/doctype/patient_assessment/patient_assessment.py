@@ -14,8 +14,10 @@ class PatientAssessment(Document):
 
 	def set_total_score(self):
 		total_score = 0
+
 		for entry in self.assessment_sheet:
-			total_score += int(entry.score)
+			total_score += int(entry.score or 0)
+
 		self.total_score_obtained = total_score
 
 

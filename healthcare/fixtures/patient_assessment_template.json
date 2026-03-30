@@ -1,0 +1,82 @@
+[
+ {
+  "assessment_description": null,
+  "assessment_name": "Patient Evaluation Form",
+  "default": 0,
+  "docstatus": 0,
+  "doctype": "Patient Assessment Template",
+  "modified": "2026-03-30 13:00:35.415549",
+  "name": "Patient Evaluation Form",
+  "parameters": [
+   {
+    "assessment_parameter": "Abnormality"
+   },
+   {
+    "assessment_parameter": "Comfortable"
+   },
+   {
+    "assessment_parameter": "History DSCP"
+   },
+   {
+    "assessment_parameter": "Psychiatric"
+   }
+  ],
+  "scale_max": 0,
+  "scale_min": 0
+ },
+ {
+  "assessment_description": null,
+  "assessment_name": "Default Patient Evaluation",
+  "default": 1,
+  "docstatus": 0,
+  "doctype": "Patient Assessment Template",
+  "modified": "2026-03-30 13:09:04.828775",
+  "name": "Default Patient Evaluation",
+  "parameters": [
+   {
+    "assessment_parameter": "On Patient arrival welcome the patient with smiling face in a polite way Approach the patient and seek attention and accompany him to his r"
+   },
+   {
+    "assessment_parameter": "Make Patient to feel Comfortable and homely"
+   },
+   {
+    "assessment_parameter": "Introduce yourself. If patient is a co-operative and oriented then give orientation to patient"
+   },
+   {
+    "assessment_parameter": "Let patient rest"
+   },
+   {
+    "assessment_parameter": "Carry out stat order"
+   },
+   {
+    "assessment_parameter": "Ask patient type of diet"
+   },
+   {
+    "assessment_parameter": "Observe patient and assess him for general appearance"
+   },
+   {
+    "assessment_parameter": "Do physical assessment check the skin, hair, nail, extremities , any bruises, injuries"
+   },
+   {
+    "assessment_parameter": "Any handicap, deformities - Risk of Fall"
+   },
+   {
+    "assessment_parameter": "Medical problems or any surgical or any illness"
+   },
+   {
+    "assessment_parameter": "Family and social history"
+   },
+   {
+    "assessment_parameter": "History of Drug Sensitivity(ies)/Allergy(ies)"
+   },
+   {
+    "assessment_parameter": "Psychiatric history-chief complaint, present illness"
+   },
+   {
+    "assessment_parameter": "See patient is oriented to place, person and time."
+   }
+  ],
+  "scale_max": 0,
+  "scale_min": 0
+ }
+]

@@ -6,6 +6,7 @@
  "engine": "InnoDB",
  "field_order": [
   "parameter",
+  "yes",
   "score",
   "time",
   "column_break_4",
@@ -24,13 +25,14 @@
    "fieldname": "score",
    "fieldtype": "Percent",
    "in_list_view": 1,
-   "label": "Score",
-   "reqd": 1
+   "label": "Score"
   },
   {
    "default": "Now",
    "fieldname": "time",
    "fieldtype": "Time",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Time"
   },
   {
@@ -40,12 +42,22 @@
   {
    "fieldname": "comments",
    "fieldtype": "Small Text",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Comments"
+  },
+  {
+   "default": "0",
+   "fieldname": "yes",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Yes"
   }
  ],
  "istable": 1,
  "links": [],
- "modified": "2025-12-28 14:46:15.416050",
+ "modified": "2026-03-30 15:10:14.540503",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Assessment Sheet",
