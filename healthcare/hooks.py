@@ -132,6 +132,9 @@ fixtures = [
     {
 	"doctype":"Patient History Template"	
 	},
+    {
+	"doctype":"Patient Assessment Template"	
+	},
 ]
 
 

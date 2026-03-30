@@ -242,7 +242,7 @@ export const CreatePatientAssessmentModal = ({
       const data = await fetchTemplateParameters(tmpl.name)
       setScaleMin(data.scale_min)
       setScaleMax(data.scale_max)
-      const rows = data.parameters.map((p) => ({ parameter: p.parameter, score: 0, time: '', comments: '' }))
+      const rows = data.parameters.map((p) => ({ parameter: p.parameter, score: 0, time: '', comments: '',yes: false }))
       setSheetRows(rows)
       setParamQuery(Object.fromEntries(rows.map((r, i) => [i, r.parameter])))
       setExpandedRows(new Set(rows.map((_, i) => i)))
@@ -256,7 +256,7 @@ export const CreatePatientAssessmentModal = ({
   // ── Sheet row helpers ─────────────────────────────────────────────────────────
   const addSheetRow = () => {
     const idx = sheetRows.length
-    setSheetRows((prev) => [...prev, { parameter: '', score: 0, time: '', comments: '' }])
+    setSheetRows((prev) => [...prev, { parameter: '', score: 0, time: '', comments: '',yes: false }])
     setExpandedRows((prev) => new Set([...prev, idx]))
     setParamQuery((prev) => ({ ...prev, [idx]: '' }))
   }
@@ -266,7 +266,7 @@ export const CreatePatientAssessmentModal = ({
     setExpandedRows((prev) => { const n = new Set(prev); n.delete(idx); return n })
   }
 
-  const updateRow = (idx: number, field: keyof AssessmentSheetRow, value: string | number) =>
+  const updateRow = (idx: number, field: keyof AssessmentSheetRow, value: string | number | boolean) =>
     setSheetRows((prev) => prev.map((r, i) => (i === idx ? { ...r, [field]: value } : r)))
 
   const toggleExpanded = (idx: number) =>
@@ -615,26 +615,40 @@ export const CreatePatientAssessmentModal = ({
                                 </div>
 
                                 {/* Row 2: Score + Time */}
-                                <div className="grid grid-cols-2 gap-3">
-                                  <div>
-                                    <label className="block text-xs font-medium text-slate-600 mb-1">
-                                      Score <span className="text-slate-400">({scaleMin}–{scaleMax || '∞'})</span>
-                                    </label>
-                                    <input type="number"
-                                      min={scaleMin} max={scaleMax || undefined} step="0.1"
-                                      value={row.score}
-                                      onChange={(e) => updateRow(idx, 'score', parseFloat(e.target.value) || 0)}
-                                      className="w-full rounded-md border border-slate-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                                    />
-                                  </div>
-                                  <div>
-                                    <label className="block text-xs font-medium text-slate-600 mb-1">Time</label>
-                                    <input type="time" value={row.time || ''}
-                                      onChange={(e) => updateRow(idx, 'time', e.target.value)}
-                                      className="w-full rounded-md border border-slate-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                                    />
-                                  </div>
-                                </div>
+                                {/* Row 2: Score + Time + Yes */}
+<div className="grid grid-cols-3 gap-3">
+    <div>
+    <label className="block text-xs font-medium text-slate-600 mb-1"></label>
+    <div className="flex items-center h-[42px]">
+      <input
+        type="checkbox"
+        checked={!!(row as any).yes}
+        onChange={(e) => updateRow(idx, 'yes' as any, e.target.checked)}
+        className="w-5 h-5 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer accent-primary"
+      />
+      <span className="ml-2 text-sm text-slate-600">{(row as any).yes ? 'Yes' : 'No'}</span>
+    </div>
+  </div>
+  <div>
+    <label className="block text-xs font-medium text-slate-600 mb-1">
+      Score <span className="text-slate-400">({scaleMin}–{scaleMax || '∞'})</span>
+    </label>
+    <input type="number"
+      min={scaleMin} max={scaleMax || undefined} step="0.1"
+      value={row.score}
+      onChange={(e) => updateRow(idx, 'score', parseFloat(e.target.value) || 0)}
+      className="w-full rounded-md border border-slate-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+    />
+  </div>
+  <div>
+    <label className="block text-xs font-medium text-slate-600 mb-1">Time</label>
+    <input type="time" value={row.time || ''}
+      onChange={(e) => updateRow(idx, 'time', e.target.value)}
+      className="w-full rounded-md border border-slate-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+    />
+  </div>
+
+</div>
 
                                 {/* Row 3: Comments (tall textarea) */}
                                 <div>
