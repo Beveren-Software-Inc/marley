@@ -50,5 +50,51 @@
   "modified": "2025-12-01 12:19:40.536339",
   "name": "Inpatient Discharge",
   "template_name": "Inpatient Discharge"
+ },
+ {
+  "date": "2026-03-30",
+  "discharge_checklist": [
+   {
+    "action_required": "Request Of Discharged",
+    "department": "Reception - SPH"
+   },
+   {
+    "action_required": "Discharged Medication Entered",
+    "department": "Doctor - SPH"
+   },
+   {
+    "action_required": "Sessions Entered",
+    "department": "Doctor - SPH"
+   },
+   {
+    "action_required": "IP Services And Other Services",
+    "department": "Nursing - SPH"
+   },
+   {
+    "action_required": "Sales Of Medicines",
+    "department": "Rose Pharmacy - SPH"
+   },
+   {
+    "action_required": "Billing Finalization",
+    "department": "Reception - SPH"
+   },
+   {
+    "action_required": "Patient Exit From The Hospital",
+    "department": "Nursing - SPH"
+   },
+   {
+    "action_required": "Discharged Notes",
+    "department": "Doctor - SPH"
+   },
+   {
+    "action_required": "Final Financial Check",
+    "department": "Admin - SPH"
+   }
+  ],
+  "docstatus": 0,
+  "doctype": "Discharge Template",
+  "modified": "2026-03-30 12:35:32.269001",
+  "name": "Default Discharge Template",
+  "template_name": "Default Discharge Template"
  }
 ]
