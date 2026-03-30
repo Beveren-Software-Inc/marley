@@ -1,3 +1,5 @@
+// clinicalNotes.ts
+
 export interface ClinicalNote {
   name: string
   patient: string
@@ -12,8 +14,8 @@ export interface ClinicalNote {
   medical_role?: string
   medical_role_name?: string
   note?: string
-  reference_doc?: string
-  reference_name?: string
+  reference_doctype?: string
+  reference_document?: string
   branch?: string
 }
 
@@ -25,6 +27,8 @@ export interface CreateClinicalNoteData {
   medical_role?: string
   practitioner?: string
   posting_date?: string
+  admission_no?: string
+  patient_visit?: string
 }
 
 export async function fetchClinicalNotes(
@@ -33,7 +37,9 @@ export async function fetchClinicalNotes(
   patient?: string,
   medical_role?: string,
   clinical_note_type?: string,
-  note_type?: string
+  note_type?: string,
+  reference_doctype?: string,
+  reference_document?: string
 ): Promise<ClinicalNote[]> {
   const params = new URLSearchParams()
   params.append('limit', limit.toString())
@@ -42,22 +48,32 @@ export async function fetchClinicalNotes(
   if (medical_role) params.append('medical_role', medical_role)
   if (clinical_note_type) params.append('clinical_note_type', clinical_note_type)
   if (note_type) params.append('note_type', note_type)
-
-  const response = await fetch(
-    `/api/method/healthcare.api.clinical_note.get_clinical_notes?${params.toString()}`
-  )
-  const resData = await response.json()
-  console.log("Rada", resData)
-  if (resData?.message && Array.isArray(resData.message)) {
-    return resData.message as ClinicalNote[]
-  } else {
+  if (reference_doctype) params.append('ref_doctype', reference_doctype)
+  if (reference_document) params.append('ref_document', reference_document)
+  const url = `/api/method/healthcare.api.clinical_note.get_clinical_notes?${params.toString()}`
+  
+  try {
+    const response = await fetch(url)
+    const resData = await response.json()
+    
+    if (!response.ok) {
+      throw new Error(resData.message || 'Failed to fetch clinical notes')
+    }
+    
+    if (resData?.message && Array.isArray(resData.message)) {
+      return resData.message as ClinicalNote[]
+    }
     return []
+  } catch (error) {
+    console.error('Error fetching clinical notes:', error)
+    throw error
   }
 }
 
 export async function createClinicalNote(data: CreateClinicalNoteData) {
   const { ensureCSRF } = await import('./apiClient')
   const csrf = await ensureCSRF()
+  
   const response = await fetch('/api/method/healthcare.api.clinical_note.create_clinical_note', {
     method: 'POST',
     credentials: 'include',
@@ -68,7 +84,7 @@ export async function createClinicalNote(data: CreateClinicalNoteData) {
     },
     body: JSON.stringify({ data }),
   })
-
+  
   const resData = await response.json()
 
   if (!response.ok || resData.exc) {
@@ -82,5 +98,3 @@ export async function createClinicalNote(data: CreateClinicalNoteData) {
 
   return resData.message
 }
-
-

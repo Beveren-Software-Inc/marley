@@ -3,14 +3,13 @@ import { fetchClinicalNotes, type ClinicalNote } from '../../services/clinicalNo
 import { DetailSlideOver } from '../ui/DetailSlideOver'
 import { DocDetailView } from '../ui/DocDetailView'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
+import { useCareContext } from '../../providers/CareContextProvider'
 
 // Helper function to strip HTML tags and decode HTML entities
 const stripHtml = (html: string): string => {
   if (!html) return ''
-  // Create a temporary div element to parse HTML
   const tmp = document.createElement('div')
   tmp.innerHTML = html
-  // Get text content and clean up whitespace
   return tmp.textContent || tmp.innerText || ''
 }
 
@@ -29,6 +28,7 @@ export const ClinicalNotesList = ({
   noteType,
   hideTypes = false,
 }: ClinicalNotesListProps) => {
+  const { mode, activeVisit, activeAdmission } = useCareContext()
   const [clinicalNotes, setClinicalNotes] = useState<ClinicalNote[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
@@ -39,9 +39,37 @@ export const ClinicalNotesList = ({
       try {
         setLoading(true)
         setError(null)
-        const response = await fetchClinicalNotes(50, 0, patient, medicalRole, clinicalNoteType, noteType)
+        
+        let referenceDoctype: string | undefined
+        let referenceDocument: string | undefined
+        
+        // Add care context filters based on current mode and selected visit/admission
+        if (mode === 'OP' && activeVisit) {
+          referenceDoctype = 'Patient Visit'
+          referenceDocument = activeVisit
+          console.log('🔵 Filtering by OP Visit:', { referenceDoctype, referenceDocument })
+        } else if (mode === 'IP' && activeAdmission) {
+          referenceDoctype = 'Inpatient Admission'
+          referenceDocument = activeAdmission
+          console.log('🟢 Filtering by IP Admission:', { referenceDoctype, referenceDocument })
+        } else {
+          console.log('⚪ No care context filter - mode:', mode, 'activeVisit:', activeVisit, 'activeAdmission:', activeAdmission)
+        }
+        
+        const response = await fetchClinicalNotes(
+          50, // limit
+          0, // offset
+          patient,
+          medicalRole,
+          clinicalNoteType,
+          noteType,
+          referenceDoctype,
+          referenceDocument
+        )
+        
         setClinicalNotes(response)
       } catch (err) {
+        console.error('Error loading clinical notes:', err)
         setError(err instanceof Error ? err : new Error('Failed to fetch clinical notes'))
       } finally {
         setLoading(false)
@@ -49,7 +77,17 @@ export const ClinicalNotesList = ({
     }
 
     loadClinicalNotes()
-  }, [patient, medicalRole, clinicalNoteType, noteType])
+  }, [patient, medicalRole, clinicalNoteType, noteType, mode, activeVisit, activeAdmission])
+
+  const getContextLabel = () => {
+    if (mode === 'OP' && activeVisit) {
+      return `Showing notes for OP Visit: ${activeVisit}`
+    }
+    if (mode === 'IP' && activeAdmission) {
+      return `Showing notes for IP Admission: ${activeAdmission}`
+    }
+    return null
+  }
 
   if (loading) {
     return (
@@ -70,104 +108,129 @@ export const ClinicalNotesList = ({
     )
   }
 
+  const contextLabel = getContextLabel()
+  
   if (clinicalNotes.length === 0) {
     return (
-      <div className="flex items-center justify-center p-8">
-        <div className="text-slate-500">No clinical notes found</div>
+      <div className="flex flex-col items-center justify-center p-8">
+        <div className="text-slate-500 text-center">
+          {contextLabel && (
+            <p className="text-sm text-slate-600 mb-2">{contextLabel}</p>
+          )}
+          <p>No clinical notes found</p>
+        </div>
       </div>
     )
   }
 
   return (
     <div className="min-w-full">
-      <table className="w-full min-w-[800px]">
-        <thead className="bg-slate-50 border-b border-slate-200">
-          <tr>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-              Date
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-              Patient
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-              Practitioner
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-              Medical Role
-            </th>
-            {!hideTypes && (
-              <>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-                  Note Type
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-                  Clinical Note Type
-                </th>
-              </>
-            )}
-            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-              Note
-            </th>
-            <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600 uppercase">
-              Actions
-            </th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-slate-200">
-          {clinicalNotes.map((note) => (
-            <tr key={note.name} className="hover:bg-slate-50">
-              <td
-                className="px-4 py-3 text-sm text-slate-700 cursor-pointer"
-                onClick={() => setDetailName(note.name)}
-              >
-                <span className="text-primary hover:underline">
-                  {note.posting_date 
-                    ? new Date(note.posting_date).toLocaleString() 
-                    : '-'}
-                </span>
-              </td>
-              <td className="px-4 py-3 text-sm text-slate-700">
-                {note.patient_name || note.patient || '-'}
-              </td>
-              <td className="px-4 py-3 text-sm text-slate-700">
-                {note.practitioner_name || note.practitioner || '-'}
-              </td>
-              <td className="px-4 py-3 text-sm text-slate-700">
-                {note.medical_role_name || note.medical_role || '-'}
-              </td>
+      {contextLabel && (
+        <div className="mb-3 px-4 py-2 bg-blue-50 border border-blue-200 rounded-md text-sm text-blue-700">
+          {contextLabel}
+        </div>
+      )}
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[1000px]">
+          <thead className="bg-slate-50 border-b border-slate-200">
+            <tr>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+                Date
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+                Patient
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+                Practitioner
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+                Medical Role
+              </th>
               {!hideTypes && (
                 <>
-                  <td className="px-4 py-3 text-sm text-slate-700">
-                    {note.note_type || '-'}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-slate-700">
-                    {note.clinical_note_type_name || note.clinical_note_type || '-'}
-                  </td>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+                    Note Type
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+                    Clinical Note Type
+                  </th>
                 </>
               )}
-              <td className="px-4 py-3 text-sm text-slate-700 max-w-md">
-                <div className="truncate" title={note.note ? stripHtml(note.note) : ''}>
-                  {note.note ? (() => {
-                    const plainText = stripHtml(note.note)
-                    return plainText.length > 100 ? `${plainText.substring(0, 100)}...` : plainText
-                  })() : '-'}
-                </div>
-              </td>
-              <td className="px-4 py-3 text-sm text-slate-700 max-w-md">
-                 <div className="flex items-center gap-2">
-                                      <PrintFormatDropdown
-                                        doctype="Patient Assessment"
-                                        docName={note.name}
-                                        noLetterhead={0}
-                                        triggerPrint={1}
-                                        className="inline-flex items-center justify-center w-8 h-8 rounded border border-slate-300 bg-white text-primary hover:bg-slate-50"
-                                      />
-                                    </div>
-              </td>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+                Reference
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+                Note
+              </th>
+              <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600 uppercase">
+                Actions
+              </th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="divide-y divide-slate-200">
+            {clinicalNotes.map((note) => (
+              <tr key={note.name} className="hover:bg-slate-50">
+                <td
+                  className="px-4 py-3 text-sm text-slate-700 cursor-pointer"
+                  onClick={() => setDetailName(note.name)}
+                >
+                  <span className="text-primary hover:underline">
+                    {note.posting_date 
+                      ? new Date(note.posting_date).toLocaleString() 
+                      : '-'}
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-sm text-slate-700">
+                  {note.patient_name || note.patient || '-'}
+                </td>
+                <td className="px-4 py-3 text-sm text-slate-700">
+                  {note.practitioner_name || note.practitioner || '-'}
+                </td>
+                <td className="px-4 py-3 text-sm text-slate-700">
+                  {note.medical_role_name || note.medical_role || '-'}
+                </td>
+                {!hideTypes && (
+                  <>
+                    <td className="px-4 py-3 text-sm text-slate-700">
+                      {note.note_type || '-'}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-slate-700">
+                      {note.clinical_note_type_name || note.clinical_note_type || '-'}
+                    </td>
+                  </>
+                )}
+                <td className="px-4 py-3 text-sm text-slate-700">
+                  {note.reference_doctype && note.reference_document ? (
+                    <div className="text-xs">
+                      <div className="font-semibold text-slate-800">{note.reference_doctype}</div>
+                      <div className="text-slate-500 truncate max-w-[150px]">{note.reference_document}</div>
+                    </div>
+                  ) : (
+                    '-'
+                  )}
+                </td>
+                <td className="px-4 py-3 text-sm text-slate-700 max-w-md">
+                  <div className="truncate" title={note.note ? stripHtml(note.note) : ''}>
+                    {note.note ? (() => {
+                      const plainText = stripHtml(note.note)
+                      return plainText.length > 100 ? `${plainText.substring(0, 100)}...` : plainText
+                    })() : '-'}
+                  </div>
+                </td>
+                <td className="px-4 py-3 text-sm text-slate-700 text-center">
+                  <PrintFormatDropdown
+                    doctype="Clinical Note"
+                    docName={note.name}
+                    noLetterhead={0}
+                    triggerPrint={1}
+                    className="inline-flex items-center justify-center w-8 h-8 rounded border border-slate-300 bg-white text-primary hover:bg-slate-50"
+                  />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
       {detailName && (
         <DetailSlideOver
@@ -181,5 +244,3 @@ export const ClinicalNotesList = ({
     </div>
   )
 }
-
-
