@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { createClinicalNote } from '../../services/clinicalNotes'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
-import { fetchHealthcarePractitioners, type LinkFieldOption } from '../../services/common'
+import { fetchHealthcarePractitioners, fetchInpatientAdmissionOptions, fetchPatientVisits as fetchPatientVisitOptions, type LinkFieldOption } from '../../services/common'
 import { toast } from '../../hooks/useToast'
 import { CreatePractitionerModal } from '../practitioners/CreatePractitionerModal'
 
@@ -12,6 +12,8 @@ interface CreateClinicalNoteModalProps {
   defaultClinicalNoteType?: string
   defaultNoteType?: string
   title?: string
+  defaultAdmission?: string
+  defaultVisit?: string
 }
 
 export const CreateClinicalNoteModal = ({
@@ -21,12 +23,16 @@ export const CreateClinicalNoteModal = ({
   defaultClinicalNoteType,
   defaultNoteType,
   title = 'Create Clinical Note',
+  defaultAdmission,
+  defaultVisit,
 }: CreateClinicalNoteModalProps) => {
   const [formData, setFormData] = useState({
     patient: initialPatient || '',
     practitioner: '',
     posting_date: new Date().toISOString().slice(0, 16),
     note: '',
+    admission_no: defaultAdmission || '',
+    patient_visit: defaultVisit || '',
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -41,6 +47,29 @@ export const CreateClinicalNoteModal = ({
   const [practitionerOpen, setPractitionerOpen] = useState(false)
   const [practitionerQuery, setPractitionerQuery] = useState('')
 
+  // Admission and Visit options
+  const [admissionOptions, setAdmissionOptions] = useState<{ name: string; label: string }[]>([])
+  const [visitOptions, setVisitOptions] = useState<{ name: string; label: string }[]>([])
+  const [careContextType, setCareContextType] = useState<'admission' | 'visit'>('admission')
+
+  // Load admissions and visits when patient changes
+  useEffect(() => {
+    if (formData.patient) {
+      // Load inpatient admissions
+      fetchInpatientAdmissionOptions(undefined, formData.patient)
+        .then(setAdmissionOptions)
+        .catch(() => setAdmissionOptions([]))
+      
+      // Load patient visits
+      fetchPatientVisitOptions(formData.patient)
+        .then(setVisitOptions)
+        .catch(() => setVisitOptions([]))
+    } else {
+      setAdmissionOptions([])
+      setVisitOptions([])
+    }
+  }, [formData.patient])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
@@ -53,18 +82,37 @@ export const CreateClinicalNoteModal = ({
       return
     }
 
+    // Validate that either admission or visit is selected based on context
+    if (careContextType === 'admission' && !formData.admission_no) {
+      setError('Please select an inpatient admission')
+      return
+    }
+    if (careContextType === 'visit' && !formData.patient_visit) {
+      setError('Please select a patient visit')
+      return
+    }
+
     try {
       setLoading(true)
       setError(null)
 
-      await createClinicalNote({
+      const payload: any = {
         patient: formData.patient,
         note: formData.note,
         clinical_note_type: defaultClinicalNoteType,
         note_type: defaultNoteType,
         practitioner: formData.practitioner || undefined,
         posting_date: formData.posting_date || undefined,
-      })
+      }
+
+      // Add the appropriate care context
+      if (careContextType === 'admission' && formData.admission_no) {
+        payload.admission_no = formData.admission_no
+      } else if (careContextType === 'visit' && formData.patient_visit) {
+        payload.patient_visit = formData.patient_visit
+      }
+
+      await createClinicalNote(payload)
 
       toast.success('Clinical note created successfully')
       if (onSuccess) onSuccess()
@@ -141,6 +189,8 @@ export const CreateClinicalNoteModal = ({
     setFormData(prev => ({ ...prev, patient: patient.name }))
     setPatientQuery(patient.patient_name)
     setPatientOpen(false)
+    // Reset admission/visit selections when patient changes
+    setFormData(prev => ({ ...prev, admission_no: '', patient_visit: '' }))
   }
 
   const handlePractitionerSelect = (pract: LinkFieldOption) => {
@@ -152,7 +202,7 @@ export const CreateClinicalNoteModal = ({
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg shadow-xl max-w-xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-        <div className="p-6 border-b border-slate-200">
+        <div className="p-6 border-b border-slate-200 sticky top-0 bg-white z-10">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold text-slate-900">{title}</h2>
             <button
@@ -222,6 +272,79 @@ export const CreateClinicalNoteModal = ({
                 )}
               </div>
             </div>
+
+            {/* Care Context Selection */}
+            {formData.patient && (
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Care Context <span className="text-red-500">*</span>
+                </label>
+                <div className="flex gap-3 mb-3">
+                  <button
+                    type="button"
+                    onClick={() => setCareContextType('admission')}
+                    className={`px-3 py-1.5 text-sm rounded-md border transition-colors ${
+                      careContextType === 'admission'
+                        ? 'bg-primary text-white border-primary'
+                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                    }`}
+                  >
+                    Inpatient Admission
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCareContextType('visit')}
+                    className={`px-3 py-1.5 text-sm rounded-md border transition-colors ${
+                      careContextType === 'visit'
+                        ? 'bg-primary text-white border-primary'
+                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                    }`}
+                  >
+                    Patient Visit
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Admission Selection */}
+            {careContextType === 'admission' && formData.patient && (
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Inpatient Admission <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={formData.admission_no}
+                  onChange={(e) => handleChange('admission_no', e.target.value)}
+                  required
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  <option value="">— Select admission —</option>
+                  {admissionOptions.map((a) => (
+                    <option key={a.name} value={a.name}>{a.label}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Visit Selection */}
+            {careContextType === 'visit' && formData.patient && (
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Patient Visit <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={formData.patient_visit}
+                  onChange={(e) => handleChange('patient_visit', e.target.value)}
+                  required
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  <option value="">— Select visit —</option>
+                  {visitOptions.map((v) => (
+                    <option key={v.name} value={v.name}>{v.label}</option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -333,8 +456,3 @@ export const CreateClinicalNoteModal = ({
     </div>
   )
 }
-
-
-
-
-

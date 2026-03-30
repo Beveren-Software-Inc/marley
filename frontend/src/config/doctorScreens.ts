@@ -1,3 +1,6 @@
+// doctorScreens.ts
+
+// Original flat doctor screens (kept for backward compatibility)
 export const doctorScreens = [
   { id: 'mh', title: 'Medical History (Allergies)', desc: 'View allergies, past medical/surgical history.' },
   // { id: 'pi', title: 'Patient Information', desc: 'Demographics and contact details.' },
@@ -37,9 +40,80 @@ export const doctorScreens = [
   { id: 'patient-history', title: 'Patient History', desc: 'Structured patient history with template-driven detail items.' }
 ].sort((a, b) => a.title.localeCompare(b.title))
 
+// Screen group type definition (if not already defined elsewhere)
+export interface ScreenItem {
+  id: string
+  title: string
+}
 
+export interface ScreenGroup {
+  groupTitle: string
+  screens: ScreenItem[]
+}
 
-
-
-
-
+// Doctor screens organized into groups
+export const doctorScreenGroups: ScreenGroup[] = [
+  {
+    groupTitle: 'Patient Overview',
+    screens: [
+      { id: 'warn', title: 'Warning Messages' },
+      { id: 'mh', title: 'Medical History (Allergies)' },
+      { id: 'physical-exam', title: 'Physical Examination' },
+      { id: 'fall', title: 'Morse Fall Scale' }, // Risk Assessment
+    ],
+  },
+  {
+    groupTitle: 'Clinical Documentation',
+    screens: [
+      { id: 'dpn', title: 'Doctor Progress Note' },
+      { id: 'dos', title: 'Doctors Order' },
+      { id: 'dx', title: 'Diagnoses' },
+      { id: 'psy-n', title: 'Psychology Notes' },
+      { id: 'psy-o', title: 'Psychology Order' },
+      { id: 'nut', title: 'Nutritionist Notes' },
+      { id: 'ther', title: 'Therapist Notes' },
+      { id: 'nurse', title: 'Nursing Notes' },
+      { id: 'patient-history', title: 'History Form' },
+    ],
+  },
+  {
+    groupTitle: 'Medication & Pharmacy',
+    screens: [
+      { id: 'rx', title: 'Doctors Prescriptions' },
+      { id: 'dmc', title: 'Doctor Medication Chart' },
+      { id: 'gm', title: 'Given Medicines' },
+      { id: 'd-long-acting-meds', title: 'Long Acting Med Reminder' },
+    ],
+  },
+  {
+    groupTitle: 'Laboratory & Diagnostics',
+    screens: [
+      { id: 'lab', title: 'Laboratory' },
+      { id: 'tpr', title: 'TPR / Vital Signs' },
+      { id: 'ect', title: 'ECT Forms' },
+      { id: 'obs', title: 'Observation Level' },
+    ],
+  },
+  {
+    groupTitle: 'Admission & Discharge',
+    screens: [
+      { id: 'admission', title: 'Admission Form' },
+      { id: 'df', title: 'Discharge Form' },
+    ],
+  },
+  {
+    groupTitle: 'Daily Routine Care',
+    screens: [
+      { id: 'fall', title: 'Morse Fall Scale' },
+      { id: 'sleep', title: 'Sleeping Pattern' },
+      { id: 'env', title: 'Environmental Checklist' },
+    ],
+  },
+  {
+    groupTitle: 'Services & Scheduling',
+    screens: [
+      { id: 'op', title: 'OP Visit' },
+      { id: 'sl', title: 'Sick Leave' },
+    ],
+  },
+]
