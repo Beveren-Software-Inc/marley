@@ -259,6 +259,7 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey }: Recepti
                 <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Start</th>
                 <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Next Run</th>
                 <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Status</th>
+                <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Remarks</th>
                 <th className="px-3 py-2 text-center text-xs font-semibold text-slate-600 uppercase">Actions</th>
               </tr>
             </thead>
@@ -281,6 +282,9 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey }: Recepti
                   <td className="px-3 py-2 text-slate-700">{formatDate(row.next_run_date)}</td>
                   <td className="px-3 py-2 text-slate-700">
                     <span>{row.status || 'Draft'}</span>
+                  </td>
+                  <td className="px-3 py-2 text-slate-700">
+                    <span className='text-gray-500'>{row.remarks || 'No remarks'}</span>
                   </td>
                   {/* Actions column */}
                   <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>

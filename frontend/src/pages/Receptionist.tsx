@@ -343,6 +343,7 @@ export const ReceptionistPage = () => {
           </div>
         )}
 
+
         {currentView === 'referral' && (
           <div className="p-4">
             <div className="mb-4 flex items-center justify-between">
