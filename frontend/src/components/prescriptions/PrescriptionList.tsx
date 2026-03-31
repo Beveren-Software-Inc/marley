@@ -396,7 +396,7 @@ export const PrescriptionList = ({
   <PrescriptionSlideOver
   prescriptionName={detailName}
   onClose={() => setDetailName(null)}
-  // onUpdate={() => refetch()}
+  // onUpdate={() => refetch()} ok
 />
 )}
     </div>
