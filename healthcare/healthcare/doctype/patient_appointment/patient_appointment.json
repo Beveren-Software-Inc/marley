@@ -112,8 +112,7 @@
    "label": "Status",
    "no_copy": 1,
    "options": "\nScheduled\nOpen\nConfirmed\nChecked In\nChecked Out\nClosed\nCancelled\nNo Show",
-   "read_only": 1,
-   "search_index": 1
+   "read_only": 1
   },
   {
    "depends_on": "eval:doc.patient",
@@ -476,7 +475,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2026-03-25 01:20:35.609033",
+ "modified": "2026-03-31 17:53:15.496681",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Appointment",

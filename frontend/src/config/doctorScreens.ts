@@ -22,6 +22,7 @@ export const doctorScreens = [
   { id: 'ther', title: 'Therapist Notes', desc: 'Therapy notes.' },
   { id: 'nurse', title: 'Nursing Notes', desc: 'Nursing documentation.' },
   { id: 'lab', title: 'Laboratory', desc: 'Lab requests and results.' },
+  {id: 'patients', title: 'Patients List', desc: 'List of all patients.'},
   // { id: 'op', title: 'OP Visit', desc: 'Outpatient visits.' },
   { id: 'tpr', title: 'TPR/Vital Signs', desc: 'Vitals and charts.' },
   { id: 'fall', title: 'Morse Fall Scale', desc: 'Fall risk assessment.' },
@@ -59,6 +60,7 @@ export const doctorScreenGroups: ScreenGroup[] = [
       { id: 'warn', title: 'Warning Messages' },
       { id: 'mh', title: 'Medical History (Allergies)' },
       { id: 'physical-exam', title: 'Physical Examination' },
+      {id:'patients', title: 'Patients List'},
       { id: 'fall', title: 'Morse Fall Scale' }, // Risk Assessment
     ],
   },
