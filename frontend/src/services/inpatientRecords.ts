@@ -429,6 +429,9 @@ export async function admitPatient(
     relative_name?: string
     relative_id_num?: string
     any_remarks?: string
+    relative_phone_no?: string
+    relative_alternative_phone_no?: string
+    relative_alternative_phone_no_2?: string
   }[],
   allServiceUnits?: string[],
   inpatientPackage?: string,

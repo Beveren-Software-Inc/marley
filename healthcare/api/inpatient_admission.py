@@ -533,13 +533,15 @@ def create_and_submit_discharge(admission_name, discharge_data):
 
 		# Handle patient_relatives (Relatives tab)
 		relatives = frappe.parse_json(discharge_data.get("patient_relatives") or [])
+		# print("Relatives area data:", relatives)  # Debug log to check incoming data
+		# frappe.throw("here")
 		if isinstance(relatives, list) and relatives:
 			discharge_doc.set("patient_relatives", [])
 			for row in relatives:
 				if not isinstance(row, dict):
 					continue
 				child = discharge_doc.append("patient_relatives", {})
-				for key in ("relationship_with_patient", "relative_name", "cpr__id_no", "any_remarks"):
+				for key in ("relationship_with_patient", "relative_name", "cpr__id_no", "any_remarks", "relative_phone_no", "relative_alternative_phone_no", "relative_alternative_phone_no_2"):
 					if key in row:
 						value = (row.get(key) or "").strip()
 						if value:
@@ -566,25 +568,6 @@ def create_and_submit_discharge(admission_name, discharge_data):
 		# Frappe-friendly throw
 		frappe.throw(_("Failed to create discharge: {0}").format(clean_message))
 
-# @frappe.whitelist()
-# def admit_patient(name, service_unit, check_in, expected_discharge=None):
-# 	"""Admit a patient - wrapper for the DocType method"""
-# 	if not name:
-# 		frappe.throw(_("Inpatient Admission name is required"))
-# 	if not service_unit:
-# 		frappe.throw(_("Service Unit is required"))
-# 	if not check_in:
-# 		frappe.throw(_("Check In datetime is required"))
-
-# 	record = frappe.get_doc('Inpatient Admission', name)
-# 	record.admit(service_unit, check_in, expected_discharge)
-# 	frappe.db.commit()
-
-# 	return {
-# 		'success': True,
-# 		'message': _('Patient admitted successfully'),
-# 		'name': record.name
-# 	}
 @frappe.whitelist()
 def admit_patient(
 	name,
@@ -655,6 +638,10 @@ def admit_patient(
 			relation = (row.get("relationship_with_patient") or row.get("relative_relation") or "").strip()
 			name_val = (row.get("relative_name") or "").strip()
 			id_no = (row.get("cpr__id_no") or row.get("relative_id_num") or "").strip()
+			relative_phone_no = (row.get("relative_phone_no") or "").strip()
+	
+			relative_alternative_phone_no = (row.get("relative_alternative_phone_no") or "").strip()
+			relative_alternative_phone_no_2 = (row.get("relative_alternative_phone_no_2") or "").strip()
 			remarks = (row.get("any_remarks") or "").strip()
 			# Skip empty rows; child doctype requires relationship_with_patient
 			if not relation:
@@ -667,6 +654,12 @@ def admit_patient(
 				child.cpr__id_no = id_no
 			if remarks:
 				child.any_remarks = remarks
+			if relative_phone_no:
+				child.relative_phone_no = relative_phone_no
+			if relative_alternative_phone_no:
+				child.relative_alternative_phone_no = relative_alternative_phone_no
+			if relative_alternative_phone_no_2:
+				child.relative_alternative_phone_no_2 = relative_alternative_phone_no_2
 
 	# Save all selected service units into the Service Unit (Table MultiSelect) field
 	service_unit_list = frappe.parse_json(service_units or [])

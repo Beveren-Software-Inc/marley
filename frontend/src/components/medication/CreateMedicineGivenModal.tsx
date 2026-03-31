@@ -160,6 +160,7 @@ export const CreateMedicineGivenModal = ({
         time,
         dose_notes: notes || undefined,
         is_prn: isPrn || undefined,
+        // medication_type: medication_type
       })
 
       toast.success(overrideChecked ? 'Given medicine recorded with override' : 'Given medicine recorded')
@@ -314,12 +315,12 @@ export const CreateMedicineGivenModal = ({
               className="w-full rounded-md border border-slate-300 px-2 py-2 text-sm"
               disabled={loading || !orders.length}
             >
-              <option value="">
-                {isPrn && orders.filter((o) => o.is_prn === 1).length === 0
+             <option value="">
+                {isPrn && orders.filter((o) => o.is_prn === 1 || o.medication_type === 'PRN').length === 0
                   ? 'No PRN medicines on this prescription'
                   : 'Select medicine...'}
               </option>
-              {(isPrn ? orders.filter((o) => o.is_prn === 1) : orders).map((o) => (
+              {(isPrn ? orders.filter((o) => o.is_prn === 1 || o.medication_type === 'PRN') : orders).map((o) => (
                 <option key={o.name} value={o.name}>
                   {o.drug_name || o.drug} – {o.dosage}
                   {o.is_prn === 1 ? ' (PRN)' : ''}

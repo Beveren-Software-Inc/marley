@@ -389,7 +389,7 @@ export const AdmissionFormModal = ({
 
   // Relatives / guardians
   const [relatives, setRelatives] = useState<
-    { relative_relation: string; relative_name: string; relative_id_num: string; any_remarks: string }[]
+    { relative_relation: string; relative_name: string; relative_id_num: string; any_remarks: string; relative_phone_no: string; relative_alternative_phone_no: string; relative_alternative_phone_no_2: string }[]
   >([])
 
   const discountPercent = Math.min(100, Math.max(0, parseFloat(discountPercentInput || '0') || 0))
@@ -490,11 +490,15 @@ export const AdmissionFormModal = ({
           setRelatives(existingRelatives.map((r: any) => ({
             relative_relation: r.relative_relation || '',
             relative_name: r.relative_name || '',
+
             relative_id_num: r.relative_id_num || '',
+            relative_phone_no: r.relative_phone_no || '',
+            relative_alternative_phone_no: r.relative_alternative_phone_no || '',
+            relative_alternative_phone_no_2: r.relative_alternative_phone_no_2 || '',
             any_remarks: r.any_remarks || '',
           })))
         } else {
-          setRelatives([{ relative_relation: '', relative_name: '', relative_id_num: '', any_remarks: '' }])
+          setRelatives([{ relative_relation: '', relative_name: '', relative_id_num: '', relative_phone_no: '', relative_alternative_phone_no: '', relative_alternative_phone_no_2: '', any_remarks: '' }])
         }
 
         const rawExpected = (recordData as any)?.expected_length_of_stay
@@ -683,9 +687,12 @@ export const AdmissionFormModal = ({
           relative_relation: r.relative_relation?.trim() || '',
           relative_name: r.relative_name?.trim() || '',
           relative_id_num: r.relative_id_num?.trim() || '',
+          relative_phone_no: r.relative_phone_no?.trim() || '',
+          relative_alternative_phone_no: r.relative_alternative_phone_no?.trim() || '',
+          relative_alternative_phone_no_2: r.relative_alternative_phone_no_2?.trim() || '',
           any_remarks: r.any_remarks?.trim() || '',
         }))
-        .filter(r => r.relative_relation || r.relative_name || r.relative_id_num || r.any_remarks)
+        .filter(r => r.relative_relation || r.relative_name || r.relative_id_num || r.any_remarks || r.relative_phone_no || r.relative_alternative_phone_no || r.relative_alternative_phone_no_2)
 
       await admitPatient(
         admissionNo,
@@ -1067,7 +1074,7 @@ export const AdmissionFormModal = ({
                       onClick={() =>
                         setRelatives(prev => [
                           ...prev,
-                          { relative_relation: '', relative_name: '', relative_id_num: '', any_remarks: '' },
+                          { relative_relation: '', relative_name: '', relative_id_num: '', relative_phone_no: '', relative_alternative_phone_no: '', relative_alternative_phone_no_2: '', any_remarks: '' },
                         ])
                       }
                     >
@@ -1121,6 +1128,61 @@ export const AdmissionFormModal = ({
                             />
                           </div>
                         </div>
+
+                          <div className="grid grid-cols-3 gap-3">
+                         <div>
+                          <label className="block text-xs font-medium text-slate-700 mb-1">
+                            Phone No
+                          </label>
+                          <input
+                            type="text"
+                            value={row.relative_phone_no}
+                            onChange={(e) => {
+                              const value = e.target.value
+                              setRelatives(prev => prev.map((r, i) =>
+                                i === idx ? { ...r, relative_phone_no: value } : r
+                              ))
+                            }}
+                            className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary"
+                            placeholder="Phone NO"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-slate-700 mb-1">
+                            Alternative Phone No
+                          </label>
+                          <input
+                            type="text"
+                            value={row.relative_alternative_phone_no}
+                            onChange={(e) => {
+                              const value = e.target.value
+                              setRelatives(prev => prev.map((r, i) =>
+                                i === idx ? { ...r, relative_alternative_phone_no: value } : r
+                              ))
+                            }}
+                            className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary"
+                            placeholder="CPR / ID"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-slate-700 mb-1">
+                            Alternative Phone No 2
+                          </label>
+                          <input
+                            type="text"
+                            value={row.relative_alternative_phone_no_2}
+                            onChange={(e) => {
+                              const value = e.target.value
+                              setRelatives(prev => prev.map((r, i) =>
+                                i === idx ? { ...r, relative_alternative_phone_no_2: value } : r
+                              ))
+                            }}
+                            className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary"
+                            placeholder="CPR / ID"
+                          />
+                        </div>
+                      </div>
+
                         <div className="flex items-start gap-2">
                           <div className="flex-1">
                             <label className="block text-xs font-medium text-slate-700 mb-1">Remarks</label>

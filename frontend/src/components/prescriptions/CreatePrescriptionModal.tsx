@@ -44,6 +44,16 @@ function daysBetween(startStr: string, endStr: string): number {
   return Math.round(diff / (24 * 60 * 60 * 1000))
 }
 
+const MEDICATION_TYPES = [
+  'STAT',
+  'PRN',
+  'Regular - Psy (Active)',
+  'Regular - Med (Active)',
+  'Contraindicated',
+  'Future Plan',
+  'Long Acting Medicine'
+]
+
 const emptyMedicationRow = (startDate: string): MedicationOrderRow => ({
   drug: '',
   dosage: '',
@@ -60,6 +70,7 @@ const emptyMedicationRow = (startDate: string): MedicationOrderRow => ({
   long_acting_frequency: 'Weekly',
   reference_no: '',
   route_of_administration: '',
+  medication_type: '',
 })
 
 // COMBOBOX WITH FIXED POSITIONING - DROPDOWNS ESCAPE MODAL
@@ -395,6 +406,7 @@ export const CreatePrescriptionModal = ({
             dosage: med.dosage,
             route: med.route_of_administration || undefined,
             is_prn: med.is_prn ?? false,
+            medication_type: med.medication_type || undefined,
           }
           return [task]
         })
@@ -873,8 +885,27 @@ export const CreatePrescriptionModal = ({
                             </div>
                           </div>
 
-                          {/* Row D: Checkboxes (3 cols) */}
-                          <div className="grid grid-cols-3 gap-3">
+                          {/* Row D: Checkboxes (4 cols) */}
+                          <div className="grid grid-cols-4 gap-4">
+
+                            <div>
+                                <label className="block text-xs font-medium text-slate-600 mb-1">
+                                  Medication Type <span className="text-red-500">*</span>
+                                </label>
+                                <select
+                                  value={row.medication_type || ''}
+                                  onChange={(e) => updateMedicationRow(index, 'medication_type', e.target.value)}
+                                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+                                >
+                                  <option value="">Select...</option>
+                                  {MEDICATION_TYPES.map((type) => (
+                                    <option key={type} value={type}>
+                                      {type}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+
                             <div>
                               <label className="block text-xs font-medium text-slate-600 mb-2">Is Pink</label>
                               <div className="flex items-center">
@@ -924,7 +955,7 @@ export const CreatePrescriptionModal = ({
                           </div>
 
                           {/* Row E: Time Frequency (only when Long Acting is ticked) */}
-                          {row.is_long_acting && (
+                          {(row.is_long_acting || row.medication_type === 'Long Acting Medicine') && (
                             <div className="rounded-md bg-amber-50 border border-amber-200 p-3">
                               <label className="block text-xs font-medium text-slate-700 mb-1">
                                 Time Frequency (when will be next run)

@@ -283,8 +283,8 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
 
   // Relatives / guardians
   const [relatives, setRelatives] = useState<
-    { relationship_with_patient: string; relative_name: string; cpr__id_no: string; any_remarks: string }[]
-  >([{ relationship_with_patient: '', relative_name: '', cpr__id_no: '', any_remarks: '' }])
+    { relationship_with_patient: string; relative_name: string; cpr__id_no: string; any_remarks: string, relative_phone_no: string, relative_alternative_phone_no: string, relative_alternative_phone_no_2: string }[]
+  >([{ relationship_with_patient: '', relative_name: '', cpr__id_no: '', any_remarks: '', relative_phone_no: '', relative_alternative_phone_no: '', relative_alternative_phone_no_2: '' }])
 
   // Link field dropdowns
   const [dischargedByUsers, setDischargedByUsers] = useState<LinkFieldOption[]>([])
@@ -612,10 +612,14 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
         .map(r => ({
           relationship_with_patient: r.relationship_with_patient?.trim() || '',
           relative_name: r.relative_name?.trim() || '',
+          relative_phone_no: r.relative_phone_no?.trim() || '',
+          relative_alternative_phone_no: r.relative_alternative_phone_no?.trim() || '',
+          relative_alternative_phone_no_2: r.relative_alternative_phone_no_2?.trim() || '',
+
           cpr__id_no: r.cpr__id_no?.trim() || '',
           any_remarks: r.any_remarks?.trim() || '',
         }))
-        .filter(r => r.relationship_with_patient || r.relative_name || r.cpr__id_no || r.any_remarks)
+        .filter(r => r.relationship_with_patient || r.relative_name || r.cpr__id_no || r.any_remarks || r.relative_phone_no || r.relative_alternative_phone_no || r.relative_alternative_phone_no_2)
 
       await createDischarge(admission.name, {
         ...formData,
@@ -1394,7 +1398,7 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
                     onClick={() =>
                       setRelatives(prev => [
                         ...prev,
-                        { relationship_with_patient: '', relative_name: '', cpr__id_no: '', any_remarks: '' },
+                        { relationship_with_patient: '', relative_name: '', cpr__id_no: '', any_remarks: '', relative_phone_no: '', relative_alternative_phone_no: '', relative_alternative_phone_no_2: '' },
                       ])
                     }
                   >
@@ -1455,6 +1459,60 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
                               const value = e.target.value
                               setRelatives(prev => prev.map((r, i) =>
                                 i === idx ? { ...r, cpr__id_no: value } : r
+                              ))
+                            }}
+                            className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary"
+                            placeholder="CPR / ID"
+                          />
+                        </div>
+                      </div>
+
+                       <div className="grid grid-cols-3 gap-3">
+                         <div>
+                          <label className="block text-xs font-medium text-slate-700 mb-1">
+                            Phone No
+                          </label>
+                          <input
+                            type="text"
+                            value={row.relative_phone_no}
+                            onChange={(e) => {
+                              const value = e.target.value
+                              setRelatives(prev => prev.map((r, i) =>
+                                i === idx ? { ...r, relative_phone_no: value } : r
+                              ))
+                            }}
+                            className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary"
+                            placeholder="Phone NO"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-slate-700 mb-1">
+                            Alternative Phone No
+                          </label>
+                          <input
+                            type="text"
+                            value={row.relative_alternative_phone_no}
+                            onChange={(e) => {
+                              const value = e.target.value
+                              setRelatives(prev => prev.map((r, i) =>
+                                i === idx ? { ...r, relative_alternative_phone_no: value } : r
+                              ))
+                            }}
+                            className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary"
+                            placeholder="CPR / ID"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-slate-700 mb-1">
+                            Alternative Phone No 2
+                          </label>
+                          <input
+                            type="text"
+                            value={row.relative_alternative_phone_no_2}
+                            onChange={(e) => {
+                              const value = e.target.value
+                              setRelatives(prev => prev.map((r, i) =>
+                                i === idx ? { ...r, relative_alternative_phone_no_2: value } : r
                               ))
                             }}
                             className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary"

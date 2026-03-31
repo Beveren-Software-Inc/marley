@@ -12,7 +12,10 @@
   "any_remarks",
   "column_break_ctaw",
   "entered_by",
-  "entered_date"
+  "entered_date",
+  "relative_phone_no",
+  "relative_alternative_phone_no",
+  "relative_alternative_phone_no_2"
  ],
  "fields": [
   {
@@ -61,13 +64,34 @@
    "in_standard_filter": 1,
    "label": "RelativeName",
    "reqd": 1
+  },
+  {
+   "fieldname": "relative_phone_no",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Relative Phone No"
+  },
+  {
+   "fieldname": "relative_alternative_phone_no",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Relative Alternative Phone No"
+  },
+  {
+   "fieldname": "relative_alternative_phone_no_2",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Relative Alternative Phone No 2"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-03-11 18:11:44.987828",
+ "modified": "2026-03-31 13:21:57.016310",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "IP Patient Relative",
