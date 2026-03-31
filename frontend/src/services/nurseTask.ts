@@ -51,6 +51,7 @@ export interface CreateNurseTaskData {
   notes?: string
   reference_doctype?: string
   encounter?: string
+  medication_type?: string
 }
 
 export async function createNurseTask(data: CreateNurseTaskData): Promise<{ name: string }> {

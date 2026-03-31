@@ -140,6 +140,8 @@ def _set_medication_row(doc, row):
 	entry.route_of_administration = row.get('route_of_administration') or ''
 	entry.is_long_acting_medicine = 1 if row.get('is_long_acting_medicine') or row.get('is_long_acting') else 0
 	entry.long_acting_frequency = (row.get('long_acting_frequency') or '').strip() or None
+	entry.medication_type = row.get('medication_type') or ''
+	
 	# Fetched / computed
 	if entry.drug:
 		entry.drug_name = frappe.db.get_value('Item', entry.drug, 'item_name') or entry.drug
@@ -271,7 +273,9 @@ def _long_acting_frequency_interval_days(frequency):
 def _create_long_acting_medicine_for_entries(pmo_doc):
 	"""For each medication order entry with is_long_acting_medicine=1, create a Long Acting Medicine doc."""
 	for entry in (pmo_doc.medication_orders or []):
-		if not getattr(entry, 'is_long_acting_medicine', 0):
+		is_long_acting = getattr(entry, 'is_long_acting_medicine', 0) == 1
+		medication_type = getattr(entry, 'medication_type', '').strip()
+		if not (is_long_acting or medication_type == 'Long Acting Medicine'):
 			continue
 		frequency = getattr(entry, 'long_acting_frequency', None) or 'Weekly'
 		start_dt = getdate(entry.date) if entry.date else getdate(pmo_doc.start_date)
@@ -397,3 +401,27 @@ def create_sales_order_from_medication_order(name: str):
 	pmo.save(ignore_permissions=True)
 
 	return {"sales_order": so.name, "status": so.status}
+
+
+@frappe.whitelist()
+def get_medication_order_by_id(name):
+	"""Fetch a single Patient Medication Order with its medication rows"""
+
+	if not name:
+		frappe.throw("Medication Order ID is required")
+
+	# Check permissions
+	if not frappe.has_permission("Patient Medication Order", "read", name):
+		frappe.throw("Not permitted", frappe.PermissionError)
+
+	doc = frappe.get_doc("Patient Medication Order", name)
+
+	# Optional: enrich practitioner name (same as your list function)
+	if doc.practitioner:
+		doc.healthcare_practitioner_name = frappe.db.get_value(
+			"Healthcare Practitioner",
+			doc.practitioner,
+			"practitioner_name"
+		) or doc.practitioner
+
+	return doc

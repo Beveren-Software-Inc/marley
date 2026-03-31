@@ -438,6 +438,54 @@ export const NursePage = () => {
     )
   }
 
+  if (screen === 'rx') {
+    return (
+      <div className="flex flex-col">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+        <div className="p-4">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+            <div className="font-semibold mb-4 flex items-center justify-between">
+              <span>Doctors Prescriptions</span>
+              <button
+                onClick={() => setShowPrescriptionModal(true)}
+                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
+                title="Create Prescription"
+              >
+                +
+              </button>
+            </div>
+            <PrescriptionList
+              patient={selectedPatient}
+              refreshKey={prescriptionRefreshKey}
+            />
+          </section>
+        </div>
+        {showPrescriptionModal && (
+          <CreatePrescriptionModal
+            onClose={() => setShowPrescriptionModal(false)}
+            onSuccess={() => {
+              setPrescriptionRefreshKey(prev => prev + 1)
+              setShowPrescriptionModal(false)
+            }}
+            initialPatient={selectedPatient}
+          />
+        )}
+      </div>
+    )
+  }
+
   // Laboratory – same listing as doctor Laboratory
   if (screen === 'n-lab') {
     return (

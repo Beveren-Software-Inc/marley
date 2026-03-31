@@ -748,6 +748,43 @@ def create_dosage_form():
 		},
 	]
 	insert_record(records)
+ 
+def create_medication_type():
+	records = [
+		{
+			"doctype": "Inpatient Medication Order Entry",
+			"medication_type": "STAT",
+		},
+		{
+			"doctype": "Inpatient Medication Order Entry",
+			"medication_type": "PRN",
+		},
+		{
+			"doctype": "Inpatient Medication Order Entry",
+			"medication_type": "Regular - Psy(Active)",
+		},
+		{
+			"doctype": "Inpatient Medication Order Entry",
+			"medication_type": "Regular -Med(Active)",
+		},
+		{
+			"doctype": "Inpatient Medication Order Entry",
+			"medication_type": "Regular - Psy(Inactive)",
+		},
+  {
+			"doctype": "Inpatient Medication Order Entry",
+			"medication_type": "Regular - Med(Inactive)",
+		},
+  {
+			"doctype": "Inpatient Medication Order Entry",
+			"medication_type": "Contraindicated",
+		},
+  {
+			"doctype": "Inpatient Medication Order Entry",
+			"medication_type": "Future Plan",
+		},
+	]
+	insert_record(records)
 
 
 def create_healthcare_item_groups():

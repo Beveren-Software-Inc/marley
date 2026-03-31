@@ -3,10 +3,10 @@ import { fetchPrescriptions, type Prescription, type PrescriptionFilters, create
 import { toast } from '../../hooks/useToast'
 import { fetchHealthcarePractitioners, type LinkFieldOption } from '../../services/common'
 import { StatusPill } from '../ui/StatusPill'
-import { DetailSlideOver } from '../ui/DetailSlideOver'
-import { DocDetailView } from '../ui/DocDetailView'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
+import { PrescriptionSlideOver } from './PrescriptionSlideOver'
+
 
 const statusColors: Record<string, string> = {
   'Draft': 'default',
@@ -393,18 +393,12 @@ export const PrescriptionList = ({
       )}
 
       {detailName && (
-        <DetailSlideOver
-          title="Prescription"
-          subtitle={detailName}
-          onClose={() => setDetailName(null)}
-        >
-          <DocDetailView
-            doctype="Patient Medication Order"
-            name={detailName}
-            onUpdate={load}
-          />
-        </DetailSlideOver>
-      )}
+  <PrescriptionSlideOver
+  prescriptionName={detailName}
+  onClose={() => setDetailName(null)}
+  // onUpdate={() => refetch()} ok tsr
+/>
+)}
     </div>
   )
 }

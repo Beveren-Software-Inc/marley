@@ -16,6 +16,12 @@ export interface Prescription {
   company?: string
   reference_doctype?: string
   reference_document_name?: string
+  medication_orders?: MedicationOrderEntry[]
+  creation?: string
+  modified?: string
+  modified_by?: string
+  is_pink?: 0 | 1
+ 
 }
 
 export interface PrescriptionFilters {
@@ -56,6 +62,28 @@ export async function fetchPrescriptions(
     throw new Error(resData?.message || 'Failed to fetch prescriptions')
   }
   return []
+}
+
+export async function fetchPrescription(
+  name: string
+): Promise<Prescription | null> {
+  if (!name) throw new Error('Prescription ID is required')
+
+  const response = await fetch(
+    `/api/method/healthcare.api.patient_medication_order.get_medication_order_by_id?name=${encodeURIComponent(name)}`
+  )
+
+  const resData = await response.json()
+
+  if (resData?.message) {
+    return resData.message as Prescription
+  }
+
+  if (resData?.exc_type) {
+    throw new Error(resData?.message || 'Failed to fetch prescription')
+  }
+
+  return null
 }
 
 export async function createPrescriptionSalesOrder(
@@ -111,6 +139,7 @@ export interface MedicationOrderRow {
   /** When true, row is long-acting; show long_acting_frequency and create Long Acting Medicine on backend */
   is_long_acting?: boolean
   long_acting_frequency?: LongActingFrequency | string
+  medication_type?: string
 }
 
 export interface MedicationOrderEntry {
@@ -121,6 +150,7 @@ export interface MedicationOrderEntry {
   dosage_form: string
   /** 1 if this is a PRN (as-needed) medication */
   is_prn?: 0 | 1
+  medication_type?: string
 }
 
 export async function createPrescription(
@@ -153,6 +183,8 @@ export async function createPrescription(
       route_of_administration: row.route_of_administration,
       is_long_acting_medicine: row.is_long_acting ?? false,
       long_acting_frequency: row.is_long_acting ? (row.long_acting_frequency || 'Weekly') : undefined,
+    medication_type: row.medication_type,
+    
     }))
   }
   return apiRequest<{ name: string }>(

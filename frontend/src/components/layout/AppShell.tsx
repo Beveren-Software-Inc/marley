@@ -14,6 +14,8 @@ const nurseScreenGroups: ScreenGroup[] = [
   {
     groupTitle: 'Patient Care & Medication',
     screens: [
+
+      { id: 'rx',   title: 'Prescription' },
       { id: 'n-med',       title: 'Medication' },
       { id: 'n-given',     title: 'Given Medicines' },
       { id: 'n-daily-med', title: 'Daily Medication Chart' },
