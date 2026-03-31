@@ -3,9 +3,6 @@ import { fetchPrescriptions, type Prescription, type PrescriptionFilters, create
 import { toast } from '../../hooks/useToast'
 import { fetchHealthcarePractitioners, type LinkFieldOption } from '../../services/common'
 import { StatusPill } from '../ui/StatusPill'
-import { DetailSlideOver } from '../ui/DetailSlideOver'
-import { PrescriptionDetails } from './prescriptionDetails'
-import { DocDetailView } from '../ui/DocDetailView'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { PrescriptionSlideOver } from './PrescriptionSlideOver'
@@ -399,7 +396,7 @@ export const PrescriptionList = ({
   <PrescriptionSlideOver
   prescriptionName={detailName}
   onClose={() => setDetailName(null)}
-  onUpdate={() => refetch()}
+  // onUpdate={() => refetch()}
 />
 )}
     </div>

@@ -214,9 +214,9 @@ export const PrescriptionDetails = ({ prescriptionName, onUpdate }: Prescription
   const countFor = (key: string) => key === 'All' ? orders.length : orders.filter((o: any) => o.medication_type === key).length
   const filteredOrders = activeType === 'All' ? orders : orders.filter((o: any) => o.medication_type === activeType)
   const activeTypeDef = MED_TYPES.find(t => t.key === activeType)
-  const completionPct = prescription.total_orders > 0
-    ? Math.round((prescription.completed_orders / prescription.total_orders) * 100)
-    : 0
+  const completionPct = (prescription.total_orders ?? 0) > 0
+  ? Math.round(((prescription.completed_orders ?? 0) / (prescription.total_orders ?? 0)) * 100)
+  : 0
 
   return (
     <div className="space-y-5">
@@ -286,7 +286,7 @@ export const PrescriptionDetails = ({ prescriptionName, onUpdate }: Prescription
           <div className="space-y-1">
             <Field label="Total Orders" value={String(prescription.total_orders)} />
             <Field label="Completed"    value={String(prescription.completed_orders)} />
-            <Field label="Pending"      value={String(prescription.total_orders - prescription.completed_orders)} />
+            <Field label="Pending"      value={String((prescription.total_orders ?? 0) - (prescription.completed_orders ?? 0))} />
           </div>
         </div>
       </div>

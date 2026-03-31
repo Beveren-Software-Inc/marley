@@ -1520,6 +1520,8 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
                           />
                         </div>
                       </div>
+
+                      
                       <div className="flex items-start gap-2">
                         <div className="flex-1">
                           <label className="block text-xs font-medium text-slate-700 mb-1">

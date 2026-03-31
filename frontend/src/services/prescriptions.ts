@@ -16,6 +16,12 @@ export interface Prescription {
   company?: string
   reference_doctype?: string
   reference_document_name?: string
+  medication_orders?: MedicationOrderEntry[]
+  creation?: string
+  modified?: string
+  modified_by?: string
+  is_pink?: 0 | 1
+ 
 }
 
 export interface PrescriptionFilters {
@@ -133,6 +139,7 @@ export interface MedicationOrderRow {
   /** When true, row is long-acting; show long_acting_frequency and create Long Acting Medicine on backend */
   is_long_acting?: boolean
   long_acting_frequency?: LongActingFrequency | string
+  medication_type?: string
 }
 
 export interface MedicationOrderEntry {
@@ -143,6 +150,7 @@ export interface MedicationOrderEntry {
   dosage_form: string
   /** 1 if this is a PRN (as-needed) medication */
   is_prn?: 0 | 1
+  medication_type?: string
 }
 
 export async function createPrescription(
