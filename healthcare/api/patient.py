@@ -86,8 +86,51 @@ def get_patients(limit=50, offset=0, search=None):
 			limit_start=offset,
 			order_by='patient_name'
 		)
+		patient_names = [p.name for p in patients]
+
+		appointment_map = get_latest_appointment_status(patient_names)
+		inpatient_map = get_latest_inpatient_status(patient_names)
 		
-		return [{'name': p.name, 'patient_name': p.patient_name or p.name, 'file_number': p.file_no, 'mobile': p.mobile, 'email': p.email, 'sex': p.sex, 'id_number': p.id_number, 'category': p.category} for p in patients]
+		return [{'name': p.name, 'patient_name': p.patient_name or p.name, 'file_number': p.file_no, 'mobile': p.mobile, 'email': p.email, 'sex': p.sex, 'id_number': p.id_number, 'category': p.category,'appointment_status': appointment_map.get(p.name),
+		'inpatient_status': inpatient_map.get(p.name),} for p in patients]
+
+def get_latest_appointment_status(patient_names: list[str]) -> dict:
+	"""Return latest appointment status per patient"""
+	if not patient_names:
+		return {}
+
+	data = frappe.db.sql("""
+		SELECT pa.patient, pa.status
+		FROM `tabPatient Appointment` pa
+		INNER JOIN (
+			SELECT patient, MAX(creation) AS max_creation
+			FROM `tabPatient Appointment`
+			WHERE patient IN %(patients)s
+			GROUP BY patient
+		) latest
+		ON latest.patient = pa.patient AND latest.max_creation = pa.creation
+	""", {"patients": patient_names}, as_dict=True)
+
+	return {d.patient: d.status for d in data}
+
+def get_latest_inpatient_status(patient_names: list[str]) -> dict:
+	"""Return latest inpatient admission status per patient"""
+	if not patient_names:
+		return {}
+
+	data = frappe.db.sql("""
+		SELECT ip.patient, ip.status
+		FROM `tabInpatient Record` ip
+		INNER JOIN (
+			SELECT patient, MAX(creation) AS max_creation
+			FROM `tabInpatient Record`
+			WHERE patient IN %(patients)s
+			GROUP BY patient
+		) latest
+		ON latest.patient = ip.patient AND latest.max_creation = ip.creation
+	""", {"patients": patient_names}, as_dict=True)
+
+	return {d.patient: d.status for d in data}
 
 @frappe.whitelist()
 def create_patient(data):

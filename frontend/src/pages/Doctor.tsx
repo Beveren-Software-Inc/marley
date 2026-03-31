@@ -55,6 +55,8 @@ import { PhysicalExaminationList } from '../components/physicalExam/PhysicalExam
 import { PhysicalExaminationModal } from '../components/physicalExam/PhysicalExaminationModal'
 import { PatientHistoryList } from '../components/patientHistory/PatientHistoryList'
 import { PatientHistoryModal } from '../components/patientHistory/PatientHistoryModal'
+import { PatientList } from '../components/patients/PatientList'
+import { CreatePatientModal } from '../components/patients/CreatePatientModal'
 
 export const DoctorPage = () => {
   const { mode, activeVisit, activeAdmission, selectedPatient: globalPatient, setSelectedPatient: setGlobalPatient } = useCareContext()
@@ -64,6 +66,8 @@ export const DoctorPage = () => {
   const [showWarningModal, setShowWarningModal] = useState(false)
   const [showLabTestModal, setShowLabTestModal] = useState(false)
   const [showDischargeModal, setShowDischargeModal] = useState(false)
+  const [showCreatePatientModal , setShowCreatePatientModal] = useState(false)
+  const [{patientRefreshKey, setPatientRefreshKey}] = useState(0)
   const [dischargeHasDraft, setDischargeHasDraft] = useState(false)
   const [showObservationModal, setShowObservationModal] = useState(false)
   const [showDiagnosisModal, setShowDiagnosisModal] = useState(false)
@@ -1511,6 +1515,60 @@ export const DoctorPage = () => {
       </div>
     )
   }
+
+
+  if (screen === 'patients') {
+    return (
+      <div className="flex flex-col">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+ 
+        <div className="p-4">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+            <div className="font-semibold mb-4 flex items-center justify-between">
+              <span>Patients</span>
+              <button
+                onClick={() => setShowCreatePatientModal(true)}
+                className="inline-flex items-center gap-1 px-2 py-1 rounded text-white text-xs font-medium bg-primary hover:bg-primary/90 transition-colors"
+                title="Create new patient"
+              >
+                + New Patient
+              </button>
+            </div>
+ 
+            {/* <PatientList refreshKey={patientRefreshKey} /> */}
+                        <PatientList refreshKey={patientRefreshKey} />
+
+          </section>
+        </div>
+ 
+        {showCreatePatientModal && (
+          <CreatePatientModal
+            onClose={() => setShowCreatePatientModal(false)}
+            onSuccess={(patientName) => {
+              setShowCreatePatientModal(false)
+              setPatientRefreshKey((prev) => prev + 1)
+              toast.success(`Patient ${patientName} created successfully`)
+            }}
+          />
+        )}
+      </div>
+    )
+  }
+ 
+
+
 
   return (
     <div className="flex flex-col">
