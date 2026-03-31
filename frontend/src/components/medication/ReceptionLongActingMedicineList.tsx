@@ -113,6 +113,18 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey }: Recepti
     return new Date(d).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: 'numeric' })
   }
 
+  const getRowColorClass = (nextRunDate?: string) => {
+    if (!nextRunDate) return ''
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const next = new Date(nextRunDate)
+    next.setHours(0, 0, 0, 0)
+    const diffDays = Math.round((next.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+    if (diffDays < 0) return 'bg-red-100 hover:bg-red-200'    // past due
+    if (diffDays <= 2) return 'bg-green-100 hover:bg-green-200' // due today, tomorrow, or in 2 days
+    return 'hover:bg-slate-50'
+  }
+
   const handleRowClick = (name: string) => {
     setDetailName(name)
   }
@@ -267,7 +279,7 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey }: Recepti
               {formattedRows.map((row) => (
                 <tr
                   key={row.name}
-                  className="hover:bg-slate-50 cursor-pointer transition-colors"
+                  className={`cursor-pointer transition-colors ${getRowColorClass(row.next_run_date)}`}
                   onClick={() => handleRowClick(row.name)}
                 >
                   <td className="px-3 py-2 text-primary font-medium">{row.name}</td>
