@@ -1516,7 +1516,6 @@ export const DoctorPage = () => {
     )
   }
 
-
   if (screen === 'patients') {
     return (
       <div className="flex flex-col">

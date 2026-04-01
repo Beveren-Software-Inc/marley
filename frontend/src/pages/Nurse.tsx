@@ -52,6 +52,8 @@ import { IOPDayListWithHeader } from '../components/iop/IOPDayList'
 import { IOPEnrollmentListWithHeader } from '../components/iop/IOPEnrollmentList'
 import { PatientVisitList } from '../components/patientVisits/PatientVisitList'
 import { AdmissionList } from '../components/admissions/AdmissionList'
+import { CreatePatientModal } from '../components/patients/CreatePatientModal'
+
 import { PatientVisitPage } from './PatientVisit'
 import { GroomingChartList } from '../components/nursing/GroomingChartList'
 import { CreateGroomingChartModal } from '../components/nursing/CreateGroomingChartModal'
@@ -61,6 +63,7 @@ import { MentalStateList } from '../components/nursing/MentalStateList'
 import { CreateMentalStateModal } from '../components/nursing/CreateMentalStateModal'
 import { SickLeaveList } from '../components/nursing/SickLeaveList'
 import { CreateSickLeaveModal } from '../components/nursing/CreateSickLeaveModal'
+import { PatientList } from '../components/patients/PatientList'
 
 export const NursePage = () => {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -97,6 +100,7 @@ export const NursePage = () => {
   const [showSleepingPatternModal, setShowSleepingPatternModal] = useState(false)
   const [sleepingPatternRefreshKey, setSleepingPatternRefreshKey] = useState(0)
   const [showGivenMedicineModal, setShowGivenMedicineModal] = useState(false)
+    const [showCreatePatientModal , setShowCreatePatientModal] = useState(false)
   const [givenRefreshKey, setGivenRefreshKey] = useState(0)
   const [reconcileLoading, setReconcileLoading] = useState(false)
   const [showBulkScheduleModal, setShowBulkScheduleModal] = useState(false)
@@ -111,6 +115,8 @@ export const NursePage = () => {
   const [sickLeaveRefreshKey, setSickLeaveRefreshKey] = useState(0)
   const [showMorseFallModal, setShowMorseFallModal] = useState(false)
   const [morseFallRefreshKey, setMorseFallRefreshKey] = useState(0)
+    const [patientRefreshKey, setPatientRefreshKey] = useState(0)
+
   // ECT dashboard state
   const [showCreateNurseTaskModal, setShowCreateNurseTaskModal] = useState(false)
   const [nurseTaskRefreshKey, setNurseTaskRefreshKey] = useState(0)
@@ -485,6 +491,56 @@ export const NursePage = () => {
       </div>
     )
   }
+
+   if (screen === 'patients') {
+      return (
+        <div className="flex flex-col">
+          <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+            <div className="flex-1 min-w-0">
+              <PatientSearch
+                selectedPatient={selectedPatient || ''}
+                onPatientSelect={handlePatientSelect}
+                patients={[]}
+              />
+            </div>
+            <div className="flex items-center gap-3 flex-shrink-0">
+              <UserMenu />
+              <NotificationBell />
+            </div>
+          </header>
+   
+          <div className="p-4">
+            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+              <div className="font-semibold mb-4 flex items-center justify-between">
+                <span>Patients</span>
+                <button
+                  onClick={() => setShowCreatePatientModal(true)}
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded text-white text-xs font-medium bg-primary hover:bg-primary/90 transition-colors"
+                  title="Create new patient"
+                >
+                  + New Patient
+                </button>
+              </div>
+   
+              {/* <PatientList refreshKey={patientRefreshKey} /> */}
+                          <PatientList refreshKey={patientRefreshKey} />
+  
+            </section>
+          </div>
+   
+          {showCreatePatientModal && (
+            <CreatePatientModal
+              onClose={() => setShowCreatePatientModal(false)}
+              onSuccess={(patientName) => {
+                setShowCreatePatientModal(false)
+                setPatientRefreshKey((prev) => prev + 1)
+                toast.success(`Patient ${patientName} created successfully`)
+              }}
+            />
+          )}
+        </div>
+      )
+    }
 
   // Laboratory – same listing as doctor Laboratory
   if (screen === 'n-lab') {

@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react'
 import { usePatients } from '../../hooks/usePatients'
 import { EditPatientModal } from './EditPatientModal'
@@ -9,14 +8,43 @@ interface PatientListProps {
 }
 
 // ─── Status helpers ─────────────────────────────────────
-const getPatientStatus = (p: any): { color: StatusColor; label: string } => {
-  if (p.appointment_status === 'No Show') {
-    return { color: 'red', label: 'Missed Appointment' }
+interface PatientStatus {
+  color: StatusColor
+  label: string
+  hasMissedAppointment: boolean
+}
+
+const getPatientStatus = (p: any): PatientStatus => {
+  const isNoShow = p.appointment_status === 'No Show'
+  const isAdmitted = p.inpatient_status === 'Admitted'
+  
+  // If patient has medication ongoing (admitted)
+  if (isAdmitted) {
+    // Check if they also have missed appointments
+    const hasMissedAppointment = isNoShow
+    
+    return {
+      color: 'green',
+      label: 'Medication Ongoing',
+      hasMissedAppointment
+    }
   }
-  if (p.inpatient_status === 'Admitted') {
-    return { color: 'green', label: 'Medication Ongoing' }
+  
+  // If only no show (not admitted)
+  if (isNoShow) {
+    return {
+      color: 'red',
+      label: 'Missed Appointment',
+      hasMissedAppointment: true
+    }
   }
-  return { color: 'default', label: '' }
+  
+  // Default/active status
+  return {
+    color: 'default',
+    label: 'Active',
+    hasMissedAppointment: false
+  }
 }
 
 type StatusColor = "red" | "green" | "default";
@@ -26,8 +54,6 @@ const STATUS_STYLES: Record<StatusColor, string> = {
   green: "bg-green-100 text-green-600",
   default: "bg-gray-100 text-gray-600",
 };
-
-
 
 export const PatientList = ({ refreshKey }: PatientListProps = {}) => {
   const [searchQuery, setSearchQuery] = useState('')
@@ -125,13 +151,15 @@ export const PatientList = ({ refreshKey }: PatientListProps = {}) => {
                 return (
                   <tr
                     key={patient.name}
-                    className={`hover:bg-slate-50 ${
-                      status.color === 'red'
-                        ? 'bg-red-100/40'
-                        : status.color === 'green'
-                        ? 'bg-green-100/40'
-                        : ''
-                    }`}
+                    className={`
+                      ${
+                        status.color === 'red'
+                          ? 'bg-red-100/40 hover:bg-red-200/60'
+                          : status.color === 'green'
+                          ? 'bg-green-100/40 hover:bg-green-200/60'
+                          : 'hover:bg-slate-50'
+                      }
+                    `}
                   >
                     <td className="px-4 py-3 text-sm font-medium text-slate-900">
                       {patient.name}
@@ -157,17 +185,22 @@ export const PatientList = ({ refreshKey }: PatientListProps = {}) => {
                       {patient.category || '-'}
                     </td>
 
-                    {/* ✅ STATUS COLUMN */}
+                    {/* ✅ STATUS COLUMN with subtext for missed appointments */}
                     <td className="px-4 py-3">
-                      {status.label ? (
+                      <div className="flex flex-col gap-1">
                         <span
                           className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium border ${STATUS_STYLES[status.color]}`}
                         >
                           {status.label}
                         </span>
-                      ) : (
-                        <span className="text-xs text-slate-400">—</span>
-                      )}
+                        
+                        {/* Show "Missed last appointments" text for green status with missed appointments */}
+                        {status.color === 'green' && status.hasMissedAppointment && (
+                          <span className="text-xs text-red-600 font-medium">
+                            ⚠️ Missed last appointments
+                          </span>
+                        )}
+                      </div>
                     </td>
 
                     <td className="px-4 py-3">
@@ -201,3 +234,4 @@ export const PatientList = ({ refreshKey }: PatientListProps = {}) => {
     </div>
   )
 }
+
