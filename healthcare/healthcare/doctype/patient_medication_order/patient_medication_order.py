@@ -11,6 +11,7 @@ from frappe.utils import cstr
 from healthcare.healthcare.doctype.patient_visit.patient_visit import (
 	get_prescription_dates,
 )
+from healthcare.api.patient_visit import update_patient_visit_status
 
 
 class PatientMedicationOrder(Document):
@@ -23,6 +24,12 @@ class PatientMedicationOrder(Document):
 	def on_submit(self):
 		self.validate_inpatient()
 		self.set_status()
+		if self.care_context=="Patient Visit":
+			update_patient_visit_status(
+				visit_name=self.patient_encounter,
+				action="medication_ordered",
+				doc_name=self.name,
+			)
 
 	def on_cancel(self):
 		self.set_status()

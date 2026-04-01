@@ -7,6 +7,7 @@ import frappe
 import re
 from frappe import _
 from frappe.utils import cint,getdate, flt
+from healthcare.api.patient_visit import create_invoice
 from healthcare.controllers.discount_validation import apply_insurance_discounts
 
 try:
@@ -828,3 +829,17 @@ def check_admission_quotation(admission_name, package_name):
 		}
 	
 	return {'exists': False}
+
+
+@frappe.whitelist()
+def create_invoice_from_inpatient_admission(inpatient_admission_name: str):
+    """
+    Create an invoice for an Inpatient Admission by combining all associated Sales Orders.
+    
+    Args:
+        inpatient_admission_name: Name of the Inpatient Admission
+    
+    Returns:
+        dict: Dictionary containing invoice name and status
+    """
+    return create_invoice("Inpatient Admission", inpatient_admission_name)

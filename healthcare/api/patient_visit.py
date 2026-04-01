@@ -296,3 +296,229 @@ def cancel_patient_visit(visit_name: str, reason_for_cancel: str = None):
 	frappe.db.commit()
 
 	return "success"
+
+
+@frappe.whitelist()
+def update_patient_visit_status(visit_name, action, doc_name=None):
+    ACTION_STATUS_MAP = {
+        "medication_ordered": "Ordered",
+        "invoice_created":    "Completed",
+        "lab_test_created":   "Medication In Progress",
+        "referral_created":   "External Referral",
+        "cancel":             "Cancelled",
+        "reopen":             "Open",
+    }
+
+    if action not in ACTION_STATUS_MAP:
+        frappe.throw(
+            f"Unknown action '{action}'. Valid actions: {', '.join(ACTION_STATUS_MAP.keys())}"
+        )
+
+    new_status = ACTION_STATUS_MAP[action]
+
+    visit = frappe.get_doc("Patient Visit", visit_name)
+
+    if visit.status == "Cancelled" and action != "reopen":
+        frappe.msgprint(
+            f"Patient Visit {visit_name} is Cancelled — status not changed.",
+            indicator="orange",
+            alert=True,
+        )
+        return {"updated": False, "status": visit.status}
+
+    old_status = visit.status
+    visit.status = new_status
+
+    if action == "invoice_created":
+        visit.invoice_created = 1
+        visit.add_comment(
+            "Info",
+            f"Status changed from <b>{old_status}</b> to <b>{new_status}</b>"
+            + (f" triggered by <b>{doc_name}</b>" if doc_name else ""),
+        )
+        visit.save(ignore_permissions=True)
+
+        # Submit the Patient Visit if it's still in draft
+        if visit.docstatus == 0:
+            visit.submit()
+
+    else:
+        visit.add_comment(
+            "Info",
+            f"Status changed from <b>{old_status}</b> to <b>{new_status}</b>"
+            + (f" triggered by <b>{doc_name}</b>" if doc_name else ""),
+        )
+        visit.save(ignore_permissions=True)
+
+    return {"updated": True, "old_status": old_status, "new_status": new_status}
+
+
+@frappe.whitelist()
+def create_invoice(reference_doctype: str, reference_name: str):
+    """
+    Create a Sales Invoice combining all Sales Orders linked to a Patient Visit or Inpatient Admission.
+    
+    Args:
+        reference_doctype: Either "Patient Visit" or "Inpatient Admission"
+        reference_name: Name of the Patient Visit or Inpatient Admission document
+    
+    Returns:
+        dict: Dictionary containing invoice name and status
+    """
+    if not reference_doctype or not reference_name:
+        frappe.throw(_("Reference Doctype and Reference Name are required"))
+    
+    # Validate reference doctype
+    allowed_doctypes = ["Patient Visit", "Inpatient Admission"]
+    if reference_doctype not in allowed_doctypes:
+        frappe.throw(_("Reference Doctype must be either Patient Visit or Inpatient Admission"))
+    
+    # Check if reference document exists
+    if not frappe.db.exists(reference_doctype, reference_name):
+        frappe.throw(_("{0} {1} does not exist").format(reference_doctype, reference_name))
+    
+    reference_doc = frappe.get_doc(reference_doctype, reference_name)
+    # Find all Sales Orders with this reference
+    sales_orders = frappe.get_all(
+        "Sales Order",
+        filters={
+            "custom_reference_type": reference_doctype,
+            "custom_reference_name": reference_name,
+            # "docstatus": 0,  # Only draft Sales Orders
+            # "status": "Draft"
+        },
+        fields=["name", "company", "customer", "patient"]
+    )
+    
+    if not sales_orders:
+        frappe.throw(_("No draft Sales Orders found for this {0}").format(reference_doctype))
+    
+    # Check if invoice already exists
+    existing_invoice = frappe.db.exists(
+        "Sales Invoice",
+        {
+            "custom_reference_type": reference_doctype,
+            "custom_reference_name": reference_name,
+            "docstatus": 0  # Draft invoice
+        }
+    )
+    
+    if existing_invoice:
+        invoice = frappe.get_doc("Sales Invoice", existing_invoice)
+        return {
+            "sales_invoice": invoice.name,
+            "status": invoice.status,
+            "message": _("Invoice already exists for this {0}").format(reference_doctype)
+        }
+    
+    # Get company from first Sales Order
+    company = sales_orders[0].company
+    
+    # Create new Sales Invoice
+    invoice = frappe.new_doc("Sales Invoice")
+    invoice.company = company
+    invoice.customer = sales_orders[0].customer
+    invoice.patient = sales_orders[0].patient
+    
+    # Set transaction date
+    invoice.posting_date = nowdate()
+    
+    # Set healthcare reference
+    invoice.custom_base_reference = reference_doctype
+    invoice.custom_base_reference_name = reference_name
+    
+    # Set patient visit specific fields if applicable
+    if reference_doctype == "Patient Visit":
+        invoice.custom_patient_visit = reference_name
+        if hasattr(reference_doc, "patient"):
+            invoice.patient = reference_doc.patient
+        if hasattr(reference_doc, "patient_name"):
+            invoice.custom_patient_name = reference_doc.patient_name
+    
+    # Set inpatient admission specific fields if applicable
+    if reference_doctype == "Inpatient Admission":
+        invoice.custom_inpatient_admission = reference_name
+        if hasattr(reference_doc, "patient"):
+            invoice.patient = reference_doc.patient
+        if hasattr(reference_doc, "patient_name"):
+            invoice.custom_patient_name = reference_doc.patient_name
+    
+    # Combine items from all Sales Orders
+    for so in sales_orders:
+        sales_order_doc = frappe.get_doc("Sales Order", so.name)
+        
+        # Add items from this Sales Order
+        for item in sales_order_doc.items:
+            # Check if item already exists in invoice
+            existing_item = None
+            for inv_item in invoice.items:
+                if inv_item.item_code == item.item_code and inv_item.description == item.description:
+                    existing_item = inv_item
+                    break
+            
+            if existing_item:
+                # Combine quantities
+                existing_item.qty += item.qty
+            else:
+                # Add new item
+                invoice.append("items", {
+                    "item_code": item.item_code,
+                    "qty": item.qty,
+                    "rate": item.rate,
+                    "description": item.description,
+                    "sales_order": so.name  # Link back to Sales Order
+                })
+        
+        # Combine taxes from all Sales Orders
+        for tax in sales_order_doc.taxes:
+            existing_tax = None
+            for inv_tax in invoice.taxes:
+                if inv_tax.account_head == tax.account_head:
+                    existing_tax = inv_tax
+                    break
+            
+            if not existing_tax:
+                invoice.append("taxes", {
+                    "charge_type": tax.charge_type,
+                    "account_head": tax.account_head,
+                    "description": tax.description,
+                    "rate": tax.rate,
+                    "included_in_print_rate": tax.included_in_print_rate,
+                    "included_in_paid_amount": tax.included_in_paid_amount
+                })
+    
+    if not invoice.items:
+        frappe.throw(_("No items found to create invoice"))
+    
+    # Insert invoice (draft)
+    invoice.insert(ignore_permissions=True)
+    
+    # Link back to all Sales Orders
+    for so in sales_orders:
+        sales_order_doc = frappe.get_doc("Sales Order", so.name)
+        sales_order_doc.custom_invoice_reference = invoice.name
+        sales_order_doc.save(ignore_permissions=True)
+    
+    return {
+        "sales_invoice": invoice.name,
+        "status": invoice.status,
+        "message": _("Invoice created successfully with {0} items from {1} sales orders").format(
+            len(invoice.items), len(sales_orders)
+        )
+    }
+
+
+@frappe.whitelist()
+def create_invoice_from_visit(visit_name: str):
+    """
+    Create an invoice for a Patient Visit by combining all associated Sales Orders.
+    
+    Args:
+        visit_name: Name of the Patient Visit
+    
+    Returns:
+        dict: Dictionary containing invoice name and status
+    """
+    return create_invoice("Patient Visit", visit_name)
+
+

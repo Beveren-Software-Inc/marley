@@ -144,15 +144,35 @@ export async function cancelVisit(visitName: string, reason: string): Promise<vo
 
 
 // Create an invoice for a visit
-export async function createInvoice(visitName: string): Promise<string> {
-  const response = await fetch(`/api/method/healthcare.api.patient_visit.create_invoice`, {
+// export async function createInvoice(visitName: string): Promise<string> {
+//   const response = await fetch(`/api/method/healthcare.api.patient_visit.create_invoice`, {
+//     method: 'POST',
+//     headers: { 'Content-Type': 'application/json' },
+//     body: JSON.stringify({ visit_name: visitName })
+//   })
+//   const resData = await response.json()
+//   if (!resData?.message) {
+//     throw new Error('Failed to create invoice')
+//   }
+//   return resData.message as string // return invoice name/id
+// }
+
+export async function createInvoiceForVisit(visitName: string): Promise<{
+  sales_invoice: string;
+  status: string;
+  message: string;
+}> {
+  const response = await fetch(`/api/method/healthcare.api.patient_visit.create_invoice_from_visit`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ visit_name: visitName })
-  })
-  const resData = await response.json()
+  });
+  
+  const resData = await response.json();
+  
   if (!resData?.message) {
-    throw new Error('Failed to create invoice')
+    throw new Error(resData?.exception || 'Failed to create invoice');
   }
-  return resData.message as string // return invoice name/id
+  
+  return resData.message;
 }

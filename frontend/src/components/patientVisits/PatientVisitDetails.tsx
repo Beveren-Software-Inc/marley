@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { fetchPatientVisit, type PatientVisit, cancelVisit, createInvoice } from '../../services/patientVisits'
+import { fetchPatientVisit, type PatientVisit, cancelVisit, createInvoiceForVisit } from '../../services/patientVisits'
 import { CreateAdmissionModal } from '../admissions/CreateAdmissionModal'
 import { CancelVisitModal } from './CancelVisitModal'
 import { CreateVitalSignModal } from '../vitalSigns/CreateVitalSignModal'
@@ -63,7 +63,7 @@ const handleCancelVisitConfirm = async (reason: string) => {
     if (!visit) return
     setActionLoading('invoice')
     try {
-      const invoiceName = await createInvoice(visit.name)
+      const invoiceName = await createInvoiceForVisit(visit.name)
       toast.success('Invoice created: ' + invoiceName)
       loadVisit()
       onUpdate?.()

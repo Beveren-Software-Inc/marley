@@ -12,7 +12,7 @@ from healthcare.healthcare.doctype.nursing_task.nursing_task import NursingTask
 from healthcare.healthcare.doctype.service_request.service_request import (
 	update_service_request_status,
 )
-
+from healthcare.api.patient_visit import update_patient_visit_status
 
 class LabTest(Document):
 	def validate(self):
@@ -34,6 +34,8 @@ class LabTest(Document):
 			frappe.db.set_value(
 				"Service Request", self.service_request, "status", "completed-Request Status"
 			)
+   
+	
 
 	def on_cancel(self):
 		self.db_set("status", "Cancelled")
@@ -47,6 +49,13 @@ class LabTest(Document):
 			for i, item in enumerate(sensitivity):
 				item.idx = i + 1
 			self.sensitivity_test_items = sensitivity
+   
+		if self.patient_visit:
+			update_patient_visit_status(
+				visit_name=self.patient_visit,
+				action="lab_test_created",
+				doc_name=self.name,
+			)
 
 	def after_insert(self):
 		if self.service_request:

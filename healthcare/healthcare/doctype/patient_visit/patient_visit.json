@@ -225,10 +225,13 @@
   },
   {
    "allow_on_submit": 1,
+   "default": "Open",
    "fieldname": "status",
    "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Status",
-   "options": "\nOpen\nOrdered\nCompleted\nExternal Referral\nCancelled",
+   "options": "\nOpen\nMedication In Progress\nOrdered\nCompleted\nExternal Referral\nCancelled",
    "read_only": 1
   },
   {
@@ -597,7 +600,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2026-03-25 16:48:39.411326",
+ "modified": "2026-04-01 15:37:01.184840",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Visit",
@@ -632,12 +635,20 @@
    "title": "Ordered"
   },
   {
-   "color": "Blue",
+   "color": "Green",
    "title": "Completed"
   },
   {
    "color": "Red",
    "title": "Cancelled"
+  },
+  {
+   "color": "Orange",
+   "title": "Open"
+  },
+  {
+   "color": "Purple",
+   "title": "External Referral"
   }
  ],
  "title_field": "title",
