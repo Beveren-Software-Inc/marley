@@ -91,8 +91,10 @@ def get_patients(limit=50, offset=0, search=None):
 		appointment_map = get_latest_appointment_status(patient_names)
 		inpatient_map = get_latest_inpatient_status(patient_names)
 		
-		return [{'name': p.name, 'patient_name': p.patient_name or p.name, 'file_number': p.file_no, 'mobile': p.mobile, 'email': p.email, 'sex': p.sex, 'id_number': p.id_number, 'category': p.category,'appointment_status': appointment_map.get(p.name),
+		result = [{'name': p.name, 'patient_name': p.patient_name or p.name, 'file_number': p.file_no, 'mobile': p.mobile, 'email': p.email, 'sex': p.sex, 'id_number': p.id_number, 'category': p.category,'appointment_status': appointment_map.get(p.name),
 		'inpatient_status': inpatient_map.get(p.name),} for p in patients]
+		# print("Patient list with statuses:", result)
+		return result
 
 def get_latest_appointment_status(patient_names: list[str]) -> dict:
 	"""Return latest appointment status per patient"""
@@ -120,10 +122,10 @@ def get_latest_inpatient_status(patient_names: list[str]) -> dict:
 
 	data = frappe.db.sql("""
 		SELECT ip.patient, ip.status
-		FROM `tabInpatient Record` ip
+		FROM `tabInpatient Admission` ip
 		INNER JOIN (
 			SELECT patient, MAX(creation) AS max_creation
-			FROM `tabInpatient Record`
+			FROM `tabInpatient Admission`
 			WHERE patient IN %(patients)s
 			GROUP BY patient
 		) latest

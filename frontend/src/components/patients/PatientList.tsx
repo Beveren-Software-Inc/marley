@@ -127,9 +127,9 @@ export const PatientList = ({ refreshKey }: PatientListProps = {}) => {
                     key={patient.name}
                     className={`hover:bg-slate-50 ${
                       status.color === 'red'
-                        ? 'bg-red-50/40'
+                        ? 'bg-red-100/40'
                         : status.color === 'green'
-                        ? 'bg-green-50/40'
+                        ? 'bg-green-100/40'
                         : ''
                     }`}
                   >
