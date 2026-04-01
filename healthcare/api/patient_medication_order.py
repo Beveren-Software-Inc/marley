@@ -314,93 +314,93 @@ def _create_long_acting_medicine_for_entries(pmo_doc):
 		lam.submit()
 
 
-@frappe.whitelist()
-def create_sales_order_from_medication_order(name: str):
-	"""Create (or return existing) Sales Order for a Patient Medication Order.
+# @frappe.whitelist()
+# def create_sales_order_from_medication_order(name: str):
+# 	"""Create (or return existing) Sales Order for a Patient Medication Order.
 
-	The Sales Order will be left in Draft state and linked back to the PMO.
-	Also sets custom_base_reference/custom_base_reference_name on Sales Order
-	and saves reference_doctype/reference_document_name on the PMO.
-	"""
-	if not name:
-		frappe.throw(_("Patient Medication Order name is required"))
+# 	The Sales Order will be left in Draft state and linked back to the PMO.
+# 	Also sets custom_base_reference/custom_base_reference_name on Sales Order
+# 	and saves reference_doctype/reference_document_name on the PMO.
+# 	"""
+# 	if not name:
+# 		frappe.throw(_("Patient Medication Order name is required"))
 
-	pmo = frappe.get_doc("Patient Medication Order", name)
+# 	pmo = frappe.get_doc("Patient Medication Order", name)
 
-	if pmo.docstatus != 1:
-		frappe.throw(_("Only submitted Patient Medication Orders can create Sales Orders"))
+# 	if pmo.docstatus != 1:
+# 		frappe.throw(_("Only submitted Patient Medication Orders can create Sales Orders"))
 
-	# If a Sales Order is already linked, just return it
-	if getattr(pmo, "reference_doctype", None) == "Sales Order" and getattr(pmo, "reference_document_name", None):
-		if frappe.db.exists("Sales Order", pmo.reference_document_name):
-			so = frappe.get_doc("Sales Order", pmo.reference_document_name)
-			return {"sales_order": so.name, "status": so.status}
+# 	# If a Sales Order is already linked, just return it
+# 	if getattr(pmo, "reference_doctype", None) == "Sales Order" and getattr(pmo, "reference_document_name", None):
+# 		if frappe.db.exists("Sales Order", pmo.reference_document_name):
+# 			so = frappe.get_doc("Sales Order", pmo.reference_document_name)
+# 			return {"sales_order": so.name, "status": so.status}
 
-	if not pmo.company:
-		frappe.throw(_("Company is required on Patient Medication Order"))
+# 	if not pmo.company:
+# 		frappe.throw(_("Company is required on Patient Medication Order"))
 
-	if not pmo.patient:
-		frappe.throw(_("Patient is required on Patient Medication Order"))
+# 	if not pmo.patient:
+# 		frappe.throw(_("Patient is required on Patient Medication Order"))
 
-	# Determine healthcare reference (Patient Visit or Inpatient Admission)
-	ref_doctype = None
-	ref_name = None
-	if pmo.care_context == "Inpatient Admission" and pmo.inpatient_record:
-		ref_doctype = "Inpatient Admission"
-		ref_name = pmo.inpatient_record
-	elif pmo.care_context == "Patient Visit" and pmo.patient_encounter:
-		ref_doctype = "Patient Visit"
-		ref_name = pmo.patient_encounter
+# 	# Determine healthcare reference (Patient Visit or Inpatient Admission)
+# 	ref_doctype = None
+# 	ref_name = None
+# 	if pmo.care_context == "Inpatient Admission" and pmo.inpatient_record:
+# 		ref_doctype = "Inpatient Admission"
+# 		ref_name = pmo.inpatient_record
+# 	elif pmo.care_context == "Patient Visit" and pmo.patient_encounter:
+# 		ref_doctype = "Patient Visit"
+# 		ref_name = pmo.patient_encounter
 
-	# Create Sales Order (draft)
-	so = frappe.new_doc("Sales Order")
-	so.company = pmo.company
-	so.patient = pmo.patient
-	so.customer = pmo.patient
-	# Ensure transaction and delivery dates are set to pass validation
-	so.transaction_date = nowdate()
-	so.delivery_date = nowdate()#pmo.end_date or pmo.start_date or nowdate()
-	if getattr(pmo, "patient_name", None):
-		so.custom_patient_name = pmo.patient_name
-	so.custom_patient = pmo.patient
+# 	# Create Sales Order (draft)
+# 	so = frappe.new_doc("Sales Order")
+# 	so.company = pmo.company
+# 	so.patient = pmo.patient
+# 	so.customer = pmo.patient
+# 	# Ensure transaction and delivery dates are set to pass validation
+# 	so.transaction_date = nowdate()
+# 	so.delivery_date = nowdate()#pmo.end_date or pmo.start_date or nowdate()
+# 	if getattr(pmo, "patient_name", None):
+# 		so.custom_patient_name = pmo.patient_name
+# 	so.custom_patient = pmo.patient
 
-	# Healthcare reference to context (visit/admission)
-	if ref_doctype and ref_name:
-		so.custom_reference_type = ref_doctype
-		so.custom_reference_name = ref_name
-		so.custom_base_reference = "Patient Medication Order"
-		so.custom_base_reference_name = pmo.name
+# 	# Healthcare reference to context (visit/admission)
+# 	if ref_doctype and ref_name:
+# 		so.custom_reference_type = ref_doctype
+# 		so.custom_reference_name = ref_name
+# 		so.custom_base_reference = "Patient Medication Order"
+# 		so.custom_base_reference_name = pmo.name
 
-	# Base reference back to the PMO itself
-	so.custom_base_reference = "Patient Medication Order"
-	so.custom_base_reference_name = pmo.name
+# 	# Base reference back to the PMO itself
+# 	so.custom_base_reference = "Patient Medication Order"
+# 	so.custom_base_reference_name = pmo.name
 
-	# Add one Sales Order Item per medication order row
-	for row in pmo.get("medication_orders") or []:
-		if not getattr(row, "drug", None):
-			continue
-		qty = flt(getattr(row, "quantity", 0)) or 1
-		so.append(
-			"items",
-			{
-				"item_code": row.drug,
-				"qty": qty,
-				"description": getattr(row, "drug_name", None) or row.drug,
-			},
-		)
+# 	# Add one Sales Order Item per medication order row
+# 	for row in pmo.get("medication_orders") or []:
+# 		if not getattr(row, "drug", None):
+# 			continue
+# 		qty = flt(getattr(row, "quantity", 0)) or 1
+# 		so.append(
+# 			"items",
+# 			{
+# 				"item_code": row.drug,
+# 				"qty": qty,
+# 				"description": getattr(row, "drug_name", None) or row.drug,
+# 			},
+# 		)
 
-	if not so.items:
-		frappe.throw(_("No medication items found to create a Sales Order"))
+# 	if not so.items:
+# 		frappe.throw(_("No medication items found to create a Sales Order"))
 
-	so.insert(ignore_permissions=True)
-	# Keep as Draft – do NOT submit
+# 	so.insert(ignore_permissions=True)
+# 	# Keep as Draft – do NOT submit
 
-	# Link back to PMO for future lookups
-	pmo.reference_doctype = "Sales Order"
-	pmo.reference_document_name = so.name
-	pmo.save(ignore_permissions=True)
+# 	# Link back to PMO for future lookups
+# 	pmo.reference_doctype = "Sales Order"
+# 	pmo.reference_document_name = so.name
+# 	pmo.save(ignore_permissions=True)
 
-	return {"sales_order": so.name, "status": so.status}
+# 	return {"sales_order": so.name, "status": so.status}
 
 
 @frappe.whitelist()
@@ -425,3 +425,226 @@ def get_medication_order_by_id(name):
 		) or doc.practitioner
 
 	return doc
+@frappe.whitelist()
+def create_sales_order_from_medication_order(name: str):
+    """Create (or return existing) Sales Order for a Patient Medication Order.
+
+    The Sales Order will be left in Draft state and linked back to the PMO.
+    Also sets custom_base_reference/custom_base_reference_name on Sales Order
+    and saves reference_doctype/reference_document_name on the PMO.
+    """
+    if not name:
+        frappe.throw(_("Patient Medication Order name is required"))
+
+    pmo = frappe.get_doc("Patient Medication Order", name)
+
+    if pmo.docstatus != 1:
+        frappe.throw(_("Only submitted Patient Medication Orders can create Sales Orders"))
+
+    # If a Sales Order is already linked, just return it
+    if getattr(pmo, "reference_doctype", None) == "Sales Order" and getattr(pmo, "reference_document_name", None):
+        if frappe.db.exists("Sales Order", pmo.reference_document_name):
+            so = frappe.get_doc("Sales Order", pmo.reference_document_name)
+            return {"sales_order": so.name, "status": so.status}
+
+    if not pmo.company:
+        frappe.throw(_("Company is required on Patient Medication Order"))
+
+    if not pmo.patient:
+        frappe.throw(_("Patient is required on Patient Medication Order"))
+
+    # Determine healthcare reference (Patient Visit or Inpatient Admission)
+    ref_doctype = None
+    ref_name = None
+    if pmo.care_context == "Inpatient Admission" and pmo.inpatient_record:
+        ref_doctype = "Inpatient Admission"
+        ref_name = pmo.inpatient_record
+    elif pmo.care_context == "Patient Visit" and pmo.patient_encounter:
+        ref_doctype = "Patient Visit"
+        ref_name = pmo.patient_encounter
+
+    # Create Sales Order (draft)
+    so = frappe.new_doc("Sales Order")
+    so.company = pmo.company
+    so.patient = pmo.patient
+    so.customer = pmo.patient
+    # Ensure transaction and delivery dates are set to pass validation
+    so.transaction_date = nowdate()
+    so.delivery_date = nowdate()
+    if getattr(pmo, "patient_name", None):
+        so.custom_patient_name = pmo.patient_name
+    so.custom_patient = pmo.patient
+
+    # Healthcare reference to context (visit/admission)
+    if ref_doctype and ref_name:
+        so.custom_reference_type = ref_doctype
+        so.custom_reference_name = ref_name
+        so.custom_base_reference = "Patient Medication Order"
+        so.custom_base_reference_name = pmo.name
+
+    # Base reference back to the PMO itself
+    so.custom_base_reference = "Patient Medication Order"
+    so.custom_base_reference_name = pmo.name
+
+    # Track unique tax templates to avoid duplicates
+    tax_templates_added = set()
+    
+    # Add one Sales Order Item per medication order row
+    for row in pmo.get("medication_orders") or []:
+        if not getattr(row, "drug", None):
+            continue
+        qty = flt(getattr(row, "quantity", 0)) or 1
+        
+        so.append(
+            "items",
+            {
+                "item_code": row.drug,
+                "qty": qty,
+                "description": getattr(row, "drug_name", None) or row.drug,
+            },
+        )
+        
+        # Get tax information for this item
+        tax_info = get_item_tax(row.drug, pmo.company)
+        # frappe.throw(_("Tax info for item {0}: {1}").format(row.drug, tax_info))
+        # If tax template found and not already added, add to taxes table
+        if tax_info.get("tax_template") and tax_info["tax_template"] not in tax_templates_added:
+            # Get tax account and rate
+            tax_rate = tax_info.get("tax_rate", 0)
+            tax_account = get_tax_account(tax_info["tax_template"])
+            
+            if tax_account:
+                so.append("taxes", {
+                    "charge_type": "On Net Total",
+                    "account_head": tax_account,
+                    "description": f"Tax: {tax_info['tax_template']}",
+                    "rate": tax_rate,
+                    "included_in_print_rate": 0,
+                    "included_in_paid_amount": 0
+                })
+                tax_templates_added.add(tax_info["tax_template"])
+
+    if not so.items:
+        frappe.throw(_("No medication items found to create a Sales Order"))
+
+    so.insert(ignore_permissions=True)
+    # Keep as Draft – do NOT submit
+
+    # Link back to PMO for future lookups
+    pmo.reference_doctype = "Sales Order"
+    pmo.reference_document_name = so.name
+    pmo.save(ignore_permissions=True)
+
+    return {"sales_order": so.name, "status": so.status}
+
+
+def get_item_tax(item_code: str, company: str = None) -> dict:
+    """
+    Get tax information for an item based on its item tax template or item group.
+    
+    Args:
+        item_code: The item code to get tax information for
+        company: Optional company to check company-specific tax templates
+    
+    Returns:
+        dict: Dictionary containing tax_template, tax_rate, and tax_category information
+    """
+    if not item_code:
+        return {}
+    
+    item = frappe.get_cached_doc("Item", item_code)
+    tax_info = {
+        "tax_template": None,
+        "tax_rate": None,
+        "tax_category": None,
+        "source": None  # 'item' or 'item_group'
+    }
+    
+    # First check if item has a tax template directly
+    if item.get("taxes"):
+        # Get the first tax template from the item's taxes table
+        # frappe.throw(_("Item {0} has taxes: {1}").format(item_code, item.taxes))
+        for tax_row in item.taxes:
+            if tax_row.item_tax_template:
+                tax_info["tax_template"] = tax_row.item_tax_template
+                tax_info["source"] = "item"
+                break
+    
+    # If no tax template on item, check item group hierarchy
+    if not tax_info["tax_template"] and item.item_group:
+        tax_info = get_tax_from_item_group(item.item_group, tax_info)
+    
+    # If tax template found, get its rate and category
+    if tax_info["tax_template"]:
+        tax_template = frappe.get_cached_doc("Item Tax Template", tax_info["tax_template"])
+        
+        # Get the tax rate (assuming first tax in template)
+        if tax_template.taxes:
+            tax_info["tax_rate"] = tax_template.taxes[0].tax_rate
+            
+        # Get tax category if available
+        if tax_template.get("tax_category"):
+            tax_info["tax_category"] = tax_template.tax_category
+    
+    return tax_info
+
+
+def get_tax_from_item_group(item_group: str, tax_info: dict = None) -> dict:
+    """
+    Recursively search item group hierarchy for tax template.
+    
+    Args:
+        item_group: The item group name to check
+        tax_info: Existing tax_info dict to update
+    
+    Returns:
+        dict: Updated tax_info dictionary
+    """
+    if tax_info is None:
+        tax_info = {
+            "tax_template": None,
+            "tax_rate": None,
+            "tax_category": None,
+            "source": None
+        }
+    
+    # If we already found a tax template, return it
+    if tax_info.get("tax_template"):
+        return tax_info
+    
+    group = frappe.get_cached_doc("Item Group", item_group)
+    
+    # Check if current item group has tax template
+    if group.get("taxes"):
+        for tax_row in group.taxes:
+            if tax_row.item_tax_template:
+                tax_info["tax_template"] = tax_row.item_tax_template
+                tax_info["source"] = f"item_group:{item_group}"
+                break
+    
+    # If still no tax template and parent group exists, check parent
+    if not tax_info.get("tax_template") and group.parent_item_group:
+        return get_tax_from_item_group(group.parent_item_group, tax_info)
+    
+    return tax_info
+
+
+def get_tax_account(tax_template: str) -> str:
+    """
+    Get the tax account head from the item tax template.
+    
+    Args:
+        tax_template: The item tax template name
+    
+    Returns:
+        str: The account head for the tax
+    """
+    try:
+        tax_template_doc = frappe.get_cached_doc("Item Tax Template", tax_template)
+        if tax_template_doc.taxes:
+            # Return the account head from the first tax row
+            return tax_template_doc.taxes[0].account_head
+    except Exception as e:
+        frappe.log_error(f"Error getting tax account for {tax_template}: {str(e)}")
+    
+    return None

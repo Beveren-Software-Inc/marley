@@ -138,7 +138,7 @@ class PatientVisit(Document):
 		self.make_medication_request()
 		# to save service_request name in prescription
 		self.save("Update")
-		self.db_set("status", "Completed")
+		# self.db_set("status", "Completed")
 
 	def before_cancel(self):
 		orders = frappe.get_all("Service Request", {"order_group": self.name})

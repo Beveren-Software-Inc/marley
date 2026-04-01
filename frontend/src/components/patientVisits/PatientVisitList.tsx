@@ -3,7 +3,7 @@ import { StatusPill } from '../ui/StatusPill'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { PatientVisitDetails } from './PatientVisitDetails'
-import { cancelVisit, createInvoice, type PatientVisitListRow } from '../../services/patientVisits'
+import { cancelVisit, createInvoiceForVisit, type PatientVisitListRow } from '../../services/patientVisits'
 import { CreateAdmissionModal } from '../admissions/CreateAdmissionModal'
 import { CancelVisitModal } from './CancelVisitModal'
 import { CreatePaymentModal } from './CreatePaymentModal'
@@ -188,8 +188,8 @@ export const PatientVisitList = ({
   const handleCreateInvoice = async (visitName: string) => {
     setActionLoading(visitName + '_invoice')
     try {
-      const invoiceName = await createInvoice(visitName)
-      toast.success('Invoice created: ' + invoiceName)
+      const invoiceName = await createInvoiceForVisit(visitName)
+      toast.success('Invoice created: ' + invoiceName.sales_invoice)
       fetchVisits()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to create invoice')

@@ -13,6 +13,7 @@ from frappe.utils import cint, cstr, flt, get_link_to_form, rounded, time_diff_i
 from frappe.utils.formatters import format_value
 
 from erpnext.setup.utils import insert_record
+from healthcare.api.patient_visit import update_patient_visit_status
 
 from healthcare.healthcare.doctype.healthcare_settings.healthcare_settings import (
 	get_income_account,
@@ -598,6 +599,13 @@ def manage_invoice_submit_cancel(doc, method):
 			"Healthcare Settings", "create_observation_on_si_submit"
 		):
 			create_sample_collection_and_observation(doc)
+   
+		if doc.custom_base_reference=="Patient Visit":
+			update_patient_visit_status(
+				visit_name=doc.custom_base_reference_name,
+				action="invoice_created",
+				doc_name=doc.name,
+			)
 
 	if method == "on_submit":
 		if frappe.db.get_single_value("Healthcare Settings", "create_lab_test_on_si_submit"):

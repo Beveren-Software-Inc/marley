@@ -647,3 +647,24 @@ export async function getPatientActiveAdmission(patient: string): Promise<Inpati
   return null
 }
 
+
+// Create an invoice for an inpatient admission
+export async function createInvoiceForInpatientAdmission(inpatientAdmissionName: string): Promise<{
+  sales_invoice: string;
+  status: string;
+  message: string;
+}> {
+  const response = await fetch(`/api/method/healthcare.api.patient_visit.create_invoice_from_inpatient_admission`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ inpatient_admission_name: inpatientAdmissionName })
+  });
+  
+  const resData = await response.json();
+  
+  if (!resData?.message) {
+    throw new Error(resData?.exception || 'Failed to create invoice');
+  }
+  
+  return resData.message;
+}
