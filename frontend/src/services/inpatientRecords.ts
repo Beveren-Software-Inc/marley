@@ -654,7 +654,7 @@ export async function createInvoiceForInpatientAdmission(inpatientAdmissionName:
   status: string;
   message: string;
 }> {
-  const response = await fetch(`/api/method/healthcare.api.patient_visit.create_invoice_from_inpatient_admission`, {
+  const response = await fetch(`/api/method/healthcare.api.inpatient_admission.create_invoice_from_inpatient_admission`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ inpatient_admission_name: inpatientAdmissionName })
