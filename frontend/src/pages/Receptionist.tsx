@@ -4,6 +4,7 @@ import { useCareContext } from '../providers/CareContextProvider'
 import { dummyPatients } from '../config/patients'
 import { AdmissionList } from '../components/admissions/AdmissionList'
 import { PatientList } from '../components/patients/PatientList'
+import { toast } from '../hooks/useToast'
 import { PatientSearch } from '../components/patients/PatientSearch'
 import { NotificationBell } from '../components/notifications/NotificationBell'
 import { UserMenu } from '../components/user/UserMenu'
@@ -44,6 +45,7 @@ type View =
   | 'long-acting-medicine'
   | 'insurance'
   | 'referral'
+  | 'patients'
 
 export const ReceptionistPage = () => {
   const { selectedPatient: globalPatient, setSelectedPatient: setGlobalPatient } = useCareContext()
@@ -68,6 +70,8 @@ export const ReceptionistPage = () => {
   const [insuranceRegisterRefreshKey, setInsuranceRegisterRefreshKey] = useState(0)
   const [showCreateReferral, setShowCreateReferral] = useState(false)
   const [referralRefreshKey, setReferralRefreshKey] = useState(0)
+    const [showCreatePatientModal , setShowCreatePatientModal] = useState(false)
+
 
   const handlePatientSelect = (patient: string | undefined) => {
     setSelectedPatient(patient || '')
@@ -124,7 +128,11 @@ export const ReceptionistPage = () => {
       setCurrentView('insurance')
     } else if (screen === 'r-referral') {
       setCurrentView('referral')
-    } else {
+    }else if (screen === 'patients') {
+      setCurrentView('patients')
+      }
+    
+    else {
       // No screen param or unknown: show reception homepage (e.g. after "Back to Reception" or sidebar Home)
       setCurrentView('default')
     }
@@ -246,6 +254,43 @@ export const ReceptionistPage = () => {
             />
           </div>
         )}
+
+         {currentView === 'patients' && (
+             
+                <div className="flex flex-col">
+                 
+           
+                  <div className="p-4">
+                    <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+                      <div className="font-semibold mb-4 flex items-center justify-between">
+                        <span>Patients</span>
+                        <button
+                          onClick={() => setShowCreatePatientModal(true)}
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded text-white text-xs font-medium bg-primary hover:bg-primary/90 transition-colors"
+                          title="Create new patient"
+                        >
+                          + New Patient
+                        </button>
+                      </div>
+           
+                                  <PatientList refreshKey={patientRefreshKey} />
+          
+                    </section>
+                  </div>
+           
+                  {showCreatePatientModal && (
+                    <CreatePatientModal
+                      onClose={() => setShowCreatePatientModal(false)}
+                      onSuccess={(patientName) => {
+                        setShowCreatePatientModal(false)
+                        setPatientRefreshKey((prev) => prev + 1)
+                        toast.success(`Patient ${patientName} created successfully`)
+                      }}
+                    />
+                  )}
+                </div>
+              )
+            }
 
         {currentView === 'followup' && (
           <div className="p-4">

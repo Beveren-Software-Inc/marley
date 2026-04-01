@@ -101,6 +101,7 @@ const receptionScreenGroups: ScreenGroup[] = [
   {
     groupTitle: 'Patient Registration',
     screens: [
+      { id: 'patients', title: 'Patient List' },
       { id: 'r-new-op', title: 'New Patient Registration' },
       { id: 'r-insurance', title: 'Insurance Patient Register' },
     ],
@@ -182,9 +183,9 @@ const ALL_MAIN_LINKS: MainLinkItem[] = [
   { to: '/reception',        label: 'Reception',        screenGroups: receptionScreenGroups,   prefix: '/reception' },
   { to: '/insurance',        label: 'Insurance',        screens: insuranceScreens,            prefix: '/insurance' },
   { to: '/pharmacy',         label: 'Pharmacy',         screens: [],                          prefix: '/pharmacy' },
+   { to: '/patient',          label: 'Patients',          screens: [],                          prefix: '/patient' },
   { to: '/patient-history',  label: 'Patient History',  screens: [],                          prefix: '/patient-history' },
   { to: '/employee',         label: 'Employee',         screens: [],                          prefix: '/employee' },
-  { to: '/patient',          label: 'Patient',          screens: [],                          prefix: '/patient' },
   { to: '/qmps',             label: 'QMPS',             screens: [],                          prefix: '/qmps' },
 ]
 
