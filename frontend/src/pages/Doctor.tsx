@@ -67,7 +67,7 @@ export const DoctorPage = () => {
   const [showLabTestModal, setShowLabTestModal] = useState(false)
   const [showDischargeModal, setShowDischargeModal] = useState(false)
   const [showCreatePatientModal , setShowCreatePatientModal] = useState(false)
-  const [{patientRefreshKey, setPatientRefreshKey}] = useState(0)
+  const [patientRefreshKey, setPatientRefreshKey] = useState(0)
   const [dischargeHasDraft, setDischargeHasDraft] = useState(false)
   const [showObservationModal, setShowObservationModal] = useState(false)
   const [showDiagnosisModal, setShowDiagnosisModal] = useState(false)
