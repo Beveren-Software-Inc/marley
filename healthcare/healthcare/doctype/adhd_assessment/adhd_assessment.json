@@ -1,0 +1,126 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "ADHD-.#####",
+ "creation": "2026-04-02 12:31:49.469645",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "patient",
+  "assessment_date",
+  "column_break_xsbu",
+  "template",
+  "section_break_uowe",
+  "notes",
+  "section_break_toet",
+  "positive_count",
+  "column_break_kpgt",
+  "result",
+  "section_break_zijn",
+  "responses"
+ ],
+ "fields": [
+  {
+   "fieldname": "patient",
+   "fieldtype": "Link",
+   "label": "Patient",
+   "options": "Patient",
+   "reqd": 1
+  },
+  {
+   "default": "Today",
+   "fieldname": "assessment_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Assessment Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "template",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Template",
+   "options": "ADHD Assessment Template",
+   "reqd": 1
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Text Editor",
+   "label": "Notes"
+  },
+  {
+   "fieldname": "positive_count",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Part A Positive Count",
+   "read_only": 1
+  },
+  {
+   "fieldname": "result",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Screening Result",
+   "options": "Negative\nPositive",
+   "read_only": 1
+  },
+  {
+   "fieldname": "responses",
+   "fieldtype": "Table",
+   "label": "Assessment Responses",
+   "options": "ADHD Assessment Response",
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_break_toet",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_kpgt",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_zijn",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "section_break_uowe",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_xsbu",
+   "fieldtype": "Column Break"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-04-02 12:37:32.016041",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "ADHD Assessment",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}
