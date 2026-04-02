@@ -647,7 +647,6 @@ export async function getPatientActiveAdmission(patient: string): Promise<Inpati
   return null
 }
 
-
 // Create an invoice for an inpatient admission
 export async function createInvoiceForInpatientAdmission(inpatientAdmissionName: string): Promise<{
   sales_invoice: string;

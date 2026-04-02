@@ -1,0 +1,65 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-04-02 13:31:47.847231",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "section_break_rkdw"
+ ],
+"fields": [
+      {
+        "fieldname": "template_name",
+        "label": "Template Name",
+        "fieldtype": "Data",
+        "reqd": 1
+      },
+      {
+        "fieldname": "description",
+        "label": "Description",
+        "fieldtype": "Text"
+      },
+      {
+        "fieldname": "assessment_category",
+        "label": "Assessment Category",
+        "fieldtype": "Select",
+        "options": "Depression\nAnxiety\nOther",
+        "reqd": 1,
+        "default": "Depression"
+      },
+      {
+        "fieldname": "questions",
+        "label": "Questions",
+        "fieldtype": "Table",
+        "options": "Depression Assessment Template Question",
+        "reqd": 1
+      }
+    ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-04-02 13:31:47.847231",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Depression Assessment Template",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

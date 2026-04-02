@@ -1,0 +1,357 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-04-02 17:25:59.910774",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "section_basic",
+  "patient",
+  "assessment_date",
+  "column_break_dqqk",
+  "clinician",
+  "section_ideation",
+  "has_ideation",
+  "ideation_details",
+  "ideation_frequency",
+  "ideation_duration",
+  "column_break_usip",
+  "ideation_increasing",
+  "ideation_24h",
+  "section_plan",
+  "has_plan",
+  "plan_details",
+  "plan_method",
+  "plan_location",
+  "column_break_hotf",
+  "plan_immediacy",
+  "access_lethal_means",
+  "risk_behavior",
+  "section_history",
+  "has_history",
+  "history_details",
+  "attempt_count",
+  "last_attempt",
+  "column_break_gqso",
+  "psychiatric_history",
+  "section_stressors",
+  "has_stressors",
+  "stressors_details",
+  "stressors_description",
+  "section_support",
+  "has_support",
+  "support_details",
+  "support_people",
+  "section_coping",
+  "has_coping",
+  "coping_details",
+  "coping_strategies",
+  "reasons_to_live",
+  "column_break_kziy",
+  "personal_strengths",
+  "section_risk_result",
+  "risk_score",
+  "column_break_ymaz",
+  "risk_level",
+  "section_actions",
+  "actions_required"
+ ],
+ "fields": [
+  {
+   "fieldname": "section_basic",
+   "fieldtype": "Section Break",
+   "label": "Basic Information"
+  },
+  {
+   "fieldname": "patient",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Patient",
+   "options": "Patient",
+   "reqd": 1
+  },
+  {
+   "default": "Today",
+   "fieldname": "assessment_date",
+   "fieldtype": "Date",
+   "label": "Assessment Date"
+  },
+  {
+   "fieldname": "clinician",
+   "fieldtype": "Data",
+   "label": "Clinician"
+  },
+  {
+   "fieldname": "section_ideation",
+   "fieldtype": "Section Break",
+   "label": "1. Suicidal Ideation"
+  },
+  {
+   "default": "0",
+   "fieldname": "has_ideation",
+   "fieldtype": "Check",
+   "label": "Evidence of suicidal ideation"
+  },
+  {
+   "depends_on": "has_ideation",
+   "fieldname": "ideation_details",
+   "fieldtype": "Section Break",
+   "label": "Ideation Details"
+  },
+  {
+   "fieldname": "ideation_frequency",
+   "fieldtype": "Data",
+   "label": "How often do you have these thoughts?"
+  },
+  {
+   "fieldname": "ideation_duration",
+   "fieldtype": "Data",
+   "label": "How long have you had these thoughts?"
+  },
+  {
+   "fieldname": "ideation_increasing",
+   "fieldtype": "Select",
+   "label": "Are the thoughts getting stronger?",
+   "options": "Yes\nNo"
+  },
+  {
+   "default": "0",
+   "fieldname": "ideation_24h",
+   "fieldtype": "Check",
+   "label": "Thoughts in past 24 hours"
+  },
+  {
+   "fieldname": "section_plan",
+   "fieldtype": "Section Break",
+   "label": "2. Current Plan"
+  },
+  {
+   "default": "0",
+   "fieldname": "has_plan",
+   "fieldtype": "Check",
+   "label": "Current plan to take own life"
+  },
+  {
+   "depends_on": "has_plan",
+   "fieldname": "plan_details",
+   "fieldtype": "Section Break",
+   "label": "Plan Details"
+  },
+  {
+   "fieldname": "plan_method",
+   "fieldtype": "Data",
+   "label": "Planned method"
+  },
+  {
+   "fieldname": "plan_location",
+   "fieldtype": "Data",
+   "label": "Where would it occur?"
+  },
+  {
+   "fieldname": "plan_immediacy",
+   "fieldtype": "Select",
+   "label": "How immediate is the plan?",
+   "options": "Immediate\nNext 24 hours\nWeek\nNonspecific\nOther"
+  },
+  {
+   "default": "0",
+   "fieldname": "access_lethal_means",
+   "fieldtype": "Check",
+   "label": "Access to lethal means"
+  },
+  {
+   "default": "0",
+   "fieldname": "risk_behavior",
+   "fieldtype": "Check",
+   "label": "Taking more risks lately (substance use, reckless behavior)"
+  },
+  {
+   "fieldname": "section_history",
+   "fieldtype": "Section Break",
+   "label": "3. History / Previous Attempts"
+  },
+  {
+   "default": "0",
+   "fieldname": "has_history",
+   "fieldtype": "Check",
+   "label": "History of previous attempts"
+  },
+  {
+   "depends_on": "has_history",
+   "fieldname": "history_details",
+   "fieldtype": "Section Break",
+   "label": "History Details"
+  },
+  {
+   "fieldname": "attempt_count",
+   "fieldtype": "Int",
+   "label": "How many attempts?"
+  },
+  {
+   "fieldname": "last_attempt",
+   "fieldtype": "Data",
+   "label": "How long ago?"
+  },
+  {
+   "fieldname": "psychiatric_history",
+   "fieldtype": "Select",
+   "label": "Prior diagnosis or psychiatric episode",
+   "options": "Yes\nNo\nUnsure"
+  },
+  {
+   "fieldname": "section_stressors",
+   "fieldtype": "Section Break",
+   "label": "4. Current Stressors"
+  },
+  {
+   "default": "0",
+   "fieldname": "has_stressors",
+   "fieldtype": "Check",
+   "label": "Current stressors present"
+  },
+  {
+   "depends_on": "has_stressors",
+   "fieldname": "stressors_details",
+   "fieldtype": "Section Break",
+   "label": "Stressors Details"
+  },
+  {
+   "fieldname": "stressors_description",
+   "fieldtype": "Text Editor",
+   "label": "Describe stressors (relationship, job loss, grief, etc.)"
+  },
+  {
+   "fieldname": "section_support",
+   "fieldtype": "Section Break",
+   "label": "5. Protective Factors - People"
+  },
+  {
+   "default": "0",
+   "fieldname": "has_support",
+   "fieldtype": "Check",
+   "label": "Has support system"
+  },
+  {
+   "depends_on": "has_support",
+   "fieldname": "support_details",
+   "fieldtype": "Section Break",
+   "label": "Support Details"
+  },
+  {
+   "fieldname": "support_people",
+   "fieldtype": "Text Editor",
+   "label": "Support system (family, friends, GP, etc.)"
+  },
+  {
+   "fieldname": "section_coping",
+   "fieldtype": "Section Break",
+   "label": "6. Protective Factors - Coping"
+  },
+  {
+   "default": "0",
+   "fieldname": "has_coping",
+   "fieldtype": "Check",
+   "label": "Has coping strategies"
+  },
+  {
+   "depends_on": "has_coping",
+   "fieldname": "coping_details",
+   "fieldtype": "Section Break",
+   "label": "Coping Details"
+  },
+  {
+   "fieldname": "coping_strategies",
+   "fieldtype": "Text Editor",
+   "label": "What has helped before?"
+  },
+  {
+   "fieldname": "reasons_to_live",
+   "fieldtype": "Text Editor",
+   "label": "Reasons to live"
+  },
+  {
+   "fieldname": "personal_strengths",
+   "fieldtype": "Text Editor",
+   "label": "Personal strengths"
+  },
+  {
+   "fieldname": "section_risk_result",
+   "fieldtype": "Section Break",
+   "label": "Risk Outcome"
+  },
+  {
+   "fieldname": "risk_score",
+   "fieldtype": "Int",
+   "label": "Risk Score",
+   "read_only": 1
+  },
+  {
+   "fieldname": "risk_level",
+   "fieldtype": "Select",
+   "label": "Risk Level",
+   "options": "Low\nMedium\nHigh\nEmergency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_actions",
+   "fieldtype": "Section Break",
+   "label": "Recommended Actions"
+  },
+  {
+   "fieldname": "actions_required",
+   "fieldtype": "Text Editor",
+   "label": "Actions / Referral Notes"
+  },
+  {
+   "fieldname": "column_break_dqqk",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_usip",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_hotf",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_gqso",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_kziy",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_ymaz",
+   "fieldtype": "Column Break"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-04-02 17:38:45.903819",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Clinical Suicide Risk Assessment",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

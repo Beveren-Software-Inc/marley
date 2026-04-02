@@ -1,0 +1,85 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-04-02 13:46:15.228331",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "section_break_qh9e"
+ ],
+"fields": [
+      {
+        "fieldname": "patient",
+        "label": "Patient",
+        "fieldtype": "Link",
+        "options": "Patient",
+        "reqd": 1
+      },
+      {
+        "fieldname": "assessment_date",
+        "label": "Assessment Date",
+        "fieldtype": "Date",
+        "reqd": 1,
+        "default": "Today"
+      },
+      {
+        "fieldname": "template",
+        "label": "Template",
+        "fieldtype": "Link",
+        "options": "Mood Disorder Template",
+        "reqd": 1
+      },
+      {
+        "fieldname": "notes",
+        "label": "Notes",
+        "fieldtype": "Text"
+      },
+      {
+        "fieldname": "q1_yes_count",
+        "label": "Q1 Yes Count",
+        "fieldtype": "Int",
+        "read_only": 1
+      },
+      {
+        "fieldname": "further_assessment",
+        "label": "Further Assessment Warranted",
+        "fieldtype": "Select",
+        "options": "Not Warranted\nWarranted",
+        "read_only": 1
+      },
+      {
+        "fieldname": "responses",
+        "label": "Assessment Responses",
+        "fieldtype": "Table",
+        "options": "Mood Disorder Assessment Response",
+        "reqd": 1
+      }
+    ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-04-02 13:46:15.228331",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Mood Disorder Assessment",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}
