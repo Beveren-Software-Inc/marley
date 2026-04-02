@@ -1,25 +1,477 @@
 {
  "actions": [],
  "allow_rename": 1,
- "creation": "2026-04-02 15:52:31.854174",
+ "autoname": "format:HRA-.YYYY.-.#####",
+ "creation": "2026-04-02 16:53:11.896360",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "section_break_ttbm"
+  "section_basic_info",
+  "patient",
+  "assessment_date",
+  "column_break_adqz",
+  "clinician",
+  "section_reason",
+  "reason_clinician",
+  "reason_referral",
+  "reason_social",
+  "reason_intake",
+  "reason_crisis",
+  "reason_current",
+  "reason_recent_event",
+  "reason_other_check",
+  "column_break_xhjx",
+  "other_reason",
+  "section_current_episode",
+  "intent_subjective",
+  "intent_objective",
+  "plan_when",
+  "plan_where",
+  "plan_how",
+  "intended_victim",
+  "column_break_zqdj",
+  "access_to_means",
+  "preparation",
+  "rehearsal",
+  "reason_for",
+  "section_ideation",
+  "frequency",
+  "intensity",
+  "column_break_hwxo",
+  "duration",
+  "section_history",
+  "history_self_harm",
+  "history_violence",
+  "section_break_jldu",
+  "recent_discharge",
+  "section_symptoms",
+  "depression",
+  "anxiety",
+  "anger",
+  "agitation",
+  "column_break_ykmw",
+  "insomnia",
+  "hopelessness",
+  "burdensomeness",
+  "impulsivity",
+  "section_summary",
+  "subjective_report",
+  "objective_signs",
+  "chronic_risk",
+  "chronic_summary",
+  "section_alliance",
+  "therapeutic_alliance",
+  "column_break_bswk",
+  "risk_level",
+  "section_safety_plan",
+  "past_safety_strategies",
+  "coping_strategies",
+  "treatment_preferences",
+  "staff_responsibilities",
+  "section_contacts",
+  "contacts",
+  "section_signatures",
+  "client_signature",
+  "staff_signature",
+  "column_break_exwf",
+  "guardian_signature",
+  "witness_signature",
+  "section_followup",
+  "followup_date",
+  "column_break_mcun",
+  "followup_time"
  ],
  "fields": [
   {
-   "fieldname": "section_break_ttbm",
+   "fieldname": "section_basic_info",
+   "fieldtype": "Section Break",
+   "label": "Basic Information"
+  },
+  {
+   "fieldname": "patient",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Patient",
+   "options": "Patient",
+   "reqd": 1
+  },
+  {
+   "default": "Today",
+   "fieldname": "assessment_date",
+   "fieldtype": "Date",
+   "label": "Assessment Date"
+  },
+  {
+   "fieldname": "clinician",
+   "fieldtype": "Data",
+   "label": "Clinician"
+  },
+  {
+   "fieldname": "section_reason",
+   "fieldtype": "Section Break",
+   "label": "Reason for Assessment"
+  },
+  {
+   "default": "0",
+   "fieldname": "reason_clinician",
+   "fieldtype": "Check",
+   "label": "Clinician judgment (disclosure)"
+  },
+  {
+   "default": "0",
+   "fieldname": "reason_referral",
+   "fieldtype": "Check",
+   "label": "Referral source identified risk"
+  },
+  {
+   "default": "0",
+   "fieldname": "reason_social",
+   "fieldtype": "Check",
+   "label": "Social support identified risk"
+  },
+  {
+   "default": "0",
+   "fieldname": "reason_intake",
+   "fieldtype": "Check",
+   "label": "Reported on intake paperwork"
+  },
+  {
+   "default": "0",
+   "fieldname": "reason_crisis",
+   "fieldtype": "Check",
+   "label": "Reported to crisis line"
+  },
+  {
+   "default": "0",
+   "fieldname": "reason_current",
+   "fieldtype": "Check",
+   "label": "Current ideation during interview"
+  },
+  {
+   "default": "0",
+   "fieldname": "reason_recent_event",
+   "fieldtype": "Check",
+   "label": "Recent event occurred"
+  },
+  {
+   "default": "0",
+   "fieldname": "reason_other_check",
+   "fieldtype": "Check",
+   "label": "Other"
+  },
+  {
+   "depends_on": "reason_other_check",
+   "fieldname": "other_reason",
+   "fieldtype": "Text Editor",
+   "label": "Other Reason (Specify)"
+  },
+  {
+   "fieldname": "section_current_episode",
+   "fieldtype": "Section Break",
+   "label": "Current Episode"
+  },
+  {
+   "fieldname": "intent_subjective",
+   "fieldtype": "Text Editor",
+   "label": "Current Intent (Subjective)"
+  },
+  {
+   "fieldname": "intent_objective",
+   "fieldtype": "Text Editor",
+   "label": "Current Intent (Objective)"
+  },
+  {
+   "fieldname": "plan_when",
+   "fieldtype": "Data",
+   "label": "Plan - When"
+  },
+  {
+   "fieldname": "plan_where",
+   "fieldtype": "Data",
+   "label": "Plan - Where"
+  },
+  {
+   "fieldname": "plan_how",
+   "fieldtype": "Data",
+   "label": "Plan - How"
+  },
+  {
+   "fieldname": "intended_victim",
+   "fieldtype": "Data",
+   "label": "Intended Victim (if homicide)"
+  },
+  {
+   "fieldname": "access_to_means",
+   "fieldtype": "Text",
+   "label": "Access to Means"
+  },
+  {
+   "fieldname": "preparation",
+   "fieldtype": "Text",
+   "label": "Preparation"
+  },
+  {
+   "fieldname": "rehearsal",
+   "fieldtype": "Text",
+   "label": "Rehearsal"
+  },
+  {
+   "fieldname": "section_ideation",
+   "fieldtype": "Section Break",
+   "label": "Ideation Characteristics"
+  },
+  {
+   "fieldname": "frequency",
+   "fieldtype": "Select",
+   "label": "Frequency",
+   "options": "Never\nRarely\nSometimes\nFrequently\nAlways"
+  },
+  {
+   "fieldname": "intensity",
+   "fieldtype": "Select",
+   "label": "Intensity",
+   "options": "Brief and fleeting\nFocused deliberation\nIntense rumination\nOther"
+  },
+  {
+   "fieldname": "duration",
+   "fieldtype": "Select",
+   "label": "Duration",
+   "options": "Seconds\nMinutes\nHours"
+  },
+  {
+   "fieldname": "section_history",
+   "fieldtype": "Section Break",
+   "label": "History"
+  },
+  {
+   "fieldname": "history_self_harm",
+   "fieldtype": "Text Editor",
+   "label": "History of Self Harm"
+  },
+  {
+   "fieldname": "history_violence",
+   "fieldtype": "Text Editor",
+   "label": "History of Violence"
+  },
+  {
+   "fieldname": "recent_discharge",
+   "fieldtype": "Date",
+   "label": "Recent Hospital Discharge Date"
+  },
+  {
+   "fieldname": "section_symptoms",
+   "fieldtype": "Section Break",
+   "label": "Symptom Severity (1-10)"
+  },
+  {
+   "fieldname": "depression",
+   "fieldtype": "Int",
+   "label": "Depression"
+  },
+  {
+   "fieldname": "anxiety",
+   "fieldtype": "Int",
+   "label": "Anxiety"
+  },
+  {
+   "fieldname": "anger",
+   "fieldtype": "Int",
+   "label": "Anger"
+  },
+  {
+   "fieldname": "agitation",
+   "fieldtype": "Int",
+   "label": "Agitation"
+  },
+  {
+   "fieldname": "insomnia",
+   "fieldtype": "Int",
+   "label": "Insomnia"
+  },
+  {
+   "fieldname": "hopelessness",
+   "fieldtype": "Int",
+   "label": "Hopelessness"
+  },
+  {
+   "fieldname": "burdensomeness",
+   "fieldtype": "Int",
+   "label": "Perceived Burdensomeness"
+  },
+  {
+   "fieldname": "impulsivity",
+   "fieldtype": "Int",
+   "label": "Impulsivity"
+  },
+  {
+   "fieldname": "section_summary",
+   "fieldtype": "Section Break",
+   "label": "Clinical Summary"
+  },
+  {
+   "fieldname": "subjective_report",
+   "fieldtype": "Text Editor",
+   "label": "Subjective Report"
+  },
+  {
+   "fieldname": "objective_signs",
+   "fieldtype": "Text Editor",
+   "label": "Objective Signs"
+  },
+  {
+   "fieldname": "chronic_risk",
+   "fieldtype": "Select",
+   "label": "Chronic Risk Present",
+   "options": "Yes\nNo"
+  },
+  {
+   "fieldname": "chronic_summary",
+   "fieldtype": "Text",
+   "label": "Chronic Risk Summary"
+  },
+  {
+   "fieldname": "section_alliance",
+   "fieldtype": "Section Break",
+   "label": "Therapeutic Alliance"
+  },
+  {
+   "fieldname": "therapeutic_alliance",
+   "fieldtype": "Select",
+   "label": "Therapeutic Alliance",
+   "options": "Good\nNeutral\nBad"
+  },
+  {
+   "fieldname": "risk_level",
+   "fieldtype": "Select",
+   "label": "Current Risk Level",
+   "options": "Low\nMedium\nHigh"
+  },
+  {
+   "fieldname": "section_safety_plan",
+   "fieldtype": "Section Break",
+   "label": "Crisis Safety Plan"
+  },
+  {
+   "fieldname": "past_safety_strategies",
+   "fieldtype": "Text Editor",
+   "label": "What has worked in the past (1,2,3)"
+  },
+  {
+   "fieldname": "coping_strategies",
+   "fieldtype": "Text Editor",
+   "label": "What I can do now"
+  },
+  {
+   "fieldname": "treatment_preferences",
+   "fieldtype": "Text Editor",
+   "label": "Treatment Preferences"
+  },
+  {
+   "fieldname": "staff_responsibilities",
+   "fieldtype": "Text Editor",
+   "label": "Staff Responsibilities"
+  },
+  {
+   "fieldname": "section_contacts",
+   "fieldtype": "Section Break",
+   "label": "Emergency Contacts"
+  },
+  {
+   "fieldname": "contacts",
+   "fieldtype": "Table",
+   "label": "Contacts",
+   "options": "IP Patient Relative"
+  },
+  {
+   "fieldname": "section_signatures",
+   "fieldtype": "Section Break",
+   "label": "Signatures"
+  },
+  {
+   "fieldname": "client_signature",
+   "fieldtype": "Signature",
+   "label": "Client Signature"
+  },
+  {
+   "fieldname": "staff_signature",
+   "fieldtype": "Signature",
+   "label": "Staff Signature"
+  },
+  {
+   "fieldname": "guardian_signature",
+   "fieldtype": "Signature",
+   "label": "Guardian Signature"
+  },
+  {
+   "fieldname": "witness_signature",
+   "fieldtype": "Signature",
+   "label": "Witness Signature"
+  },
+  {
+   "fieldname": "section_followup",
+   "fieldtype": "Section Break",
+   "label": "Follow Up"
+  },
+  {
+   "fieldname": "followup_date",
+   "fieldtype": "Date",
+   "label": "Follow Up Date"
+  },
+  {
+   "fieldname": "followup_time",
+   "fieldtype": "Time",
+   "label": "Follow Up Time"
+  },
+  {
+   "fieldname": "section_break_jldu",
    "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_adqz",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_xhjx",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_zqdj",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "reason_for",
+   "fieldtype": "Small Text",
+   "label": "Reason for"
+  },
+  {
+   "fieldname": "column_break_hwxo",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_ykmw",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_bswk",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_exwf",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_mcun",
+   "fieldtype": "Column Break"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-04-02 15:52:31.854174",
+ "modified": "2026-04-02 17:22:43.513500",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Homicide Risk Assessment",
+ "naming_rule": "Expression (old style)",
  "owner": "Administrator",
  "permissions": [
   {
