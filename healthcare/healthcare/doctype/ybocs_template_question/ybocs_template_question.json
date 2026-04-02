@@ -1,18 +1,25 @@
 {
  "actions": [],
  "allow_rename": 1,
- "creation": "2026-04-02 14:03:53.232624",
+ "creation": "2026-04-02 14:18:33.325554",
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
-  "section_break_anrr"
+  "section_break_d1st"
  ],
- "fields": [
+"fields": [
       {
         "fieldname": "question_no",
         "label": "Question No",
         "fieldtype": "Int",
+        "reqd": 1
+      },
+      {
+        "fieldname": "section",
+        "label": "Section",
+        "fieldtype": "Select",
+        "options": "Obsessions\nCompulsions",
         "reqd": 1
       },
       {
@@ -22,26 +29,27 @@
         "reqd": 1
       },
       {
-        "fieldname": "response",
-        "label": "Response",
+        "fieldname": "response_type",
+        "label": "Response Type",
         "fieldtype": "Select",
-        "options": "0\n1\n2\n3"
+        "options": "Numeric",
+        "reqd": 1
       },
       {
-        "fieldname": "score",
-        "label": "Score",
-        "fieldtype": "Int",
-        "read_only": 1
+        "fieldname": "response_options",
+        "label": "Response Options",
+        "fieldtype": "Select",
+        "options": "0\n1\n2\n3\n4"
       }
     ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-04-02 14:03:53.232624",
+ "modified": "2026-04-02 14:18:33.325554",
  "modified_by": "Administrator",
  "module": "Healthcare",
- "name": "PHQ9 Assessment Response",
+ "name": "YBOCS Template Question",
  "owner": "Administrator",
  "permissions": [],
  "row_format": "Dynamic",

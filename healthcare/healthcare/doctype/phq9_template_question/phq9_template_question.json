@@ -8,12 +8,33 @@
  "field_order": [
   "section_break_rk2a"
  ],
- "fields": [
-  {
-   "fieldname": "section_break_rk2a",
-   "fieldtype": "Section Break"
-  }
- ],
+"fields": [
+      {
+        "fieldname": "question_no",
+        "label": "Question No",
+        "fieldtype": "Int",
+        "reqd": 1
+      },
+      {
+        "fieldname": "question",
+        "label": "Question",
+        "fieldtype": "Small Text",
+        "reqd": 1
+      },
+      {
+        "fieldname": "response_type",
+        "label": "Response Type",
+        "fieldtype": "Select",
+        "options": "Numeric",
+        "reqd": 1
+      },
+      {
+        "fieldname": "response_options",
+        "label": "Response Options",
+        "fieldtype": "Select",
+        "options": "0\n1\n2\n3"
+      }
+    ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "istable": 1,

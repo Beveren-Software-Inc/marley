@@ -1,11 +1,11 @@
 {
  "actions": [],
  "allow_rename": 1,
- "creation": "2026-04-02 14:03:33.711294",
+ "creation": "2026-04-02 14:19:08.689312",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "section_break_rbdd"
+  "section_break_qqki"
  ],
  "fields": [
       {
@@ -26,7 +26,7 @@
         "fieldname": "template",
         "label": "Template",
         "fieldtype": "Link",
-        "options": "PHQ9 Template",
+        "options": "YBOCS Template",
         "reqd": 1
       },
       {
@@ -35,33 +35,38 @@
         "fieldtype": "Text"
       },
       {
+        "fieldname": "total_obsessions",
+        "label": "Total Obsessions",
+        "fieldtype": "Int",
+        "read_only": 1
+      },
+      {
+        "fieldname": "total_compulsions",
+        "label": "Total Compulsions",
+        "fieldtype": "Int",
+        "read_only": 1
+      },
+      {
         "fieldname": "total_score",
         "label": "Total Score",
         "fieldtype": "Int",
         "read_only": 1
       },
       {
-        "fieldname": "severity",
-        "label": "Severity",
-        "fieldtype": "Select",
-        "options": "Minimal\nMild\nModerate\nModerately Severe\nSevere",
-        "read_only": 1
-      },
-      {
         "fieldname": "responses",
         "label": "Assessment Responses",
         "fieldtype": "Table",
-        "options": "PHQ9 Assessment Response",
+        "options": "YBOCS Assessment Response",
         "reqd": 1
       }
     ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-04-02 14:03:33.711294",
+ "modified": "2026-04-02 14:19:08.689312",
  "modified_by": "Administrator",
  "module": "Healthcare",
- "name": "PHQ9 Assessment",
+ "name": "YBOCS Assessment",
  "owner": "Administrator",
  "permissions": [
   {

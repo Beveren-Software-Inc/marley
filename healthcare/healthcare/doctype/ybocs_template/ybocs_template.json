@@ -1,11 +1,11 @@
 {
  "actions": [],
  "allow_rename": 1,
- "creation": "2026-04-02 14:02:50.787544",
+ "creation": "2026-04-02 14:18:13.288381",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "section_break_xbnn"
+  "section_break_js05"
  ],
  "fields": [
       {
@@ -23,17 +23,17 @@
         "fieldname": "questions",
         "label": "Questions",
         "fieldtype": "Table",
-        "options": "PHQ9 Template Question",
+        "options": "YBOCS Template Question",
         "reqd": 1
       }
     ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-04-02 14:02:50.787544",
+ "modified": "2026-04-02 14:18:13.288381",
  "modified_by": "Administrator",
  "module": "Healthcare",
- "name": "PHQ9 Template",
+ "name": "YBOCS Template",
  "owner": "Administrator",
  "permissions": [
   {
