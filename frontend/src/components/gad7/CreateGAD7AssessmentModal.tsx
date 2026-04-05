@@ -1,6 +1,6 @@
 // components/gad7/CreateGAD7AssessmentModal.tsx
 import { useEffect, useState } from 'react'
-import { ChevronDown, ChevronUp, Activity, Info, FileText } from 'lucide-react'
+import { Activity, Info, FileText } from 'lucide-react'
 import {
   fetchGAD7Templates,
   fetchGAD7TemplateQuestions,
@@ -97,7 +97,6 @@ export const CreateGAD7AssessmentModal = ({
 
   // Core fields
   const [patientId, setPatientId] = useState(patient || '')
-  const [patientName, setPatientName] = useState('')
   const [assessmentDate, setAssessmentDate] = useState(nowDate())
   const [notes, setNotes] = useState('')
 
@@ -137,7 +136,6 @@ export const CreateGAD7AssessmentModal = ({
     fetchPatients(1, 0, patient).then((res) => {
       if (res.length > 0) {
         setPatientQuery(res[0].patient_name)
-        setPatientName(res[0].patient_name)
       }
     }).catch(() => {})
   }, [patient])
@@ -289,7 +287,7 @@ export const CreateGAD7AssessmentModal = ({
                     onChange={(e) => {
                       setPatientQuery(e.target.value)
                       setPatientOpen(true)
-                      if (!e.target.value) { setPatientId(''); setPatientName('') }
+                      if (!e.target.value) { setPatientId(''); setPatientQuery('') }
                     }}
                     onFocus={() => setPatientOpen(true)}
                     placeholder="Search patient…"
@@ -308,7 +306,6 @@ export const CreateGAD7AssessmentModal = ({
                           onClick={() => {
                             setPatientId(p.name)
                             setPatientQuery(p.patient_name)
-                            setPatientName(p.patient_name)
                             setPatientOpen(false)
                           }}
                           className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100"
