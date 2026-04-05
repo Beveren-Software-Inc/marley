@@ -6,40 +6,49 @@
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
-  "section_break_ob5z"
+  "question",
+  "response_type",
+  "response_options",
+  "category"
  ],
-"fields": [
-      {
-        "fieldname": "question_no",
-        "label": "Question No",
-        "fieldtype": "Int",
-        "reqd": 1
-      },
-      {
-        "fieldname": "question",
-        "label": "Question",
-        "fieldtype": "Small Text",
-        "reqd": 1
-      },
-      {
-        "fieldname": "response_type",
-        "label": "Response Type",
-        "fieldtype": "Select",
-        "options": "Yes/No\nFunctional",
-        "reqd": 1
-      },
-      {
-        "fieldname": "response_options",
-        "label": "Response Options",
-        "fieldtype": "Select",
-        "options": "Yes\nNo\nNo problem\nMinor problem\nModerate problem\nSerious problem"
-      }
-    ],
+ "fields": [
+  {
+   "fieldname": "question",
+   "fieldtype": "Small Text",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Question",
+   "reqd": 1
+  },
+  {
+   "fieldname": "response_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Response Type",
+   "options": "Yes/No\nFunctional",
+   "reqd": 1
+  },
+  {
+   "fieldname": "response_options",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Response Options",
+   "options": "Yes\nNo\nNo problem\nMinor problem\nModerate problem\nSerious problem"
+  },
+  {
+   "fieldname": "category",
+   "fieldtype": "Select",
+   "label": "Category",
+   "options": "\n1\n2\n3\n4\n5"
+  }
+ ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-04-02 13:45:50.182009",
+ "modified": "2026-04-05 16:34:10.248952",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Mood Disorder Template Question",

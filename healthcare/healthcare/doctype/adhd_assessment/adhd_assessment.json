@@ -7,6 +7,7 @@
  "engine": "InnoDB",
  "field_order": [
   "patient",
+  "patient_name",
   "assessment_date",
   "column_break_xsbu",
   "template",
@@ -61,8 +62,6 @@
   {
    "fieldname": "result",
    "fieldtype": "Select",
-   "in_list_view": 1,
-   "in_standard_filter": 1,
    "label": "Screening Result",
    "options": "Negative\nPositive",
    "read_only": 1
@@ -93,12 +92,17 @@
   {
    "fieldname": "column_break_xsbu",
    "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "patient_name",
+   "fieldtype": "Data",
+   "label": "Patient Name"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-04-02 12:37:32.016041",
+ "modified": "2026-04-05 12:58:15.235736",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "ADHD Assessment",

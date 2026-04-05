@@ -6,7 +6,6 @@
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
-  "question_no",
   "question",
   "column_break_ygrc",
   "part",
@@ -15,14 +14,6 @@
   "is_positive"
  ],
  "fields": [
-  {
-   "fieldname": "question_no",
-   "fieldtype": "Int",
-   "in_list_view": 1,
-   "in_standard_filter": 1,
-   "label": "Question No",
-   "reqd": 1
-  },
   {
    "fieldname": "question",
    "fieldtype": "Small Text",
@@ -72,7 +63,7 @@
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-04-02 12:35:50.380826",
+ "modified": "2026-04-05 12:32:46.235402",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "ADHD Assessment Response",

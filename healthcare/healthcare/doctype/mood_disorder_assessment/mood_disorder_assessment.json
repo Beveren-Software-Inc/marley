@@ -5,60 +5,90 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "section_break_qh9e"
+  "patient",
+  "assessment_date",
+  "template",
+  "column_break_zian",
+  "q1_yes_count",
+  "further_assessment",
+  "patient_name",
+  "section_break_mdxo",
+  "description",
+  "section_break_xybs",
+  "responses"
  ],
-"fields": [
-      {
-        "fieldname": "patient",
-        "label": "Patient",
-        "fieldtype": "Link",
-        "options": "Patient",
-        "reqd": 1
-      },
-      {
-        "fieldname": "assessment_date",
-        "label": "Assessment Date",
-        "fieldtype": "Date",
-        "reqd": 1,
-        "default": "Today"
-      },
-      {
-        "fieldname": "template",
-        "label": "Template",
-        "fieldtype": "Link",
-        "options": "Mood Disorder Template",
-        "reqd": 1
-      },
-      {
-        "fieldname": "notes",
-        "label": "Notes",
-        "fieldtype": "Text"
-      },
-      {
-        "fieldname": "q1_yes_count",
-        "label": "Q1 Yes Count",
-        "fieldtype": "Int",
-        "read_only": 1
-      },
-      {
-        "fieldname": "further_assessment",
-        "label": "Further Assessment Warranted",
-        "fieldtype": "Select",
-        "options": "Not Warranted\nWarranted",
-        "read_only": 1
-      },
-      {
-        "fieldname": "responses",
-        "label": "Assessment Responses",
-        "fieldtype": "Table",
-        "options": "Mood Disorder Assessment Response",
-        "reqd": 1
-      }
-    ],
+ "fields": [
+  {
+   "fieldname": "patient",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Patient",
+   "options": "Patient",
+   "reqd": 1
+  },
+  {
+   "default": "Today",
+   "fieldname": "assessment_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Assessment Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "template",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Template",
+   "options": "Mood Disorder Template",
+   "reqd": 1
+  },
+  {
+   "fieldname": "q1_yes_count",
+   "fieldtype": "Int",
+   "label": "Q1 Yes Count",
+   "read_only": 1
+  },
+  {
+   "fieldname": "further_assessment",
+   "fieldtype": "Select",
+   "label": "Further Assessment Warranted",
+   "options": "Not Warranted\nWarranted",
+   "read_only": 1
+  },
+  {
+   "fieldname": "responses",
+   "fieldtype": "Table",
+   "label": "Assessment Responses",
+   "options": "Mood Disorder Assessment Response",
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_break_xybs",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_zian",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "patient_name",
+   "fieldtype": "Data",
+   "label": "Patient Name"
+  },
+  {
+   "fieldname": "section_break_mdxo",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Text",
+   "label": "Descriptions"
+  }
+ ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-04-02 13:46:15.228331",
+ "modified": "2026-04-05 16:45:33.599156",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Mood Disorder Assessment",

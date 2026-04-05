@@ -1,47 +1,72 @@
 {
  "actions": [],
  "allow_rename": 1,
+ "autoname": "field:template_name",
  "creation": "2026-04-02 13:31:47.847231",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "section_break_rkdw"
+  "template_name",
+  "description",
+  "column_break_iodd",
+  "assessment_category",
+  "default",
+  "section_break_fpix",
+  "questions"
  ],
-"fields": [
-      {
-        "fieldname": "template_name",
-        "label": "Template Name",
-        "fieldtype": "Data",
-        "reqd": 1
-      },
-      {
-        "fieldname": "description",
-        "label": "Description",
-        "fieldtype": "Text"
-      },
-      {
-        "fieldname": "assessment_category",
-        "label": "Assessment Category",
-        "fieldtype": "Select",
-        "options": "Depression\nAnxiety\nOther",
-        "reqd": 1,
-        "default": "Depression"
-      },
-      {
-        "fieldname": "questions",
-        "label": "Questions",
-        "fieldtype": "Table",
-        "options": "Depression Assessment Template Question",
-        "reqd": 1
-      }
-    ],
+ "fields": [
+  {
+   "fieldname": "template_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Template Name",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Text",
+   "label": "Description"
+  },
+  {
+   "default": "Depression",
+   "fieldname": "assessment_category",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Assessment Category",
+   "options": "Depression\nAnxiety\nOther",
+   "reqd": 1
+  },
+  {
+   "fieldname": "questions",
+   "fieldtype": "Table",
+   "label": "Questions",
+   "options": "Depression Assessment Template Question",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_iodd",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "default",
+   "fieldtype": "Check",
+   "label": "Default"
+  },
+  {
+   "fieldname": "section_break_fpix",
+   "fieldtype": "Section Break"
+  }
+ ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-04-02 13:31:47.847231",
+ "modified": "2026-04-05 13:47:12.312582",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Depression Assessment Template",
+ "naming_rule": "By fieldname",
  "owner": "Administrator",
  "permissions": [
   {

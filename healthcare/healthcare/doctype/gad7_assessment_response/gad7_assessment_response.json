@@ -9,31 +9,37 @@
   "section_break_ykrd"
  ],
 "fields": [
-      {
-        "fieldname": "question_no",
-        "label": "Question No",
-        "fieldtype": "Int",
-        "reqd": 1
-      },
-      {
-        "fieldname": "question",
-        "label": "Question",
-        "fieldtype": "Small Text",
-        "reqd": 1
-      },
-      {
-        "fieldname": "response",
-        "label": "Response",
-        "fieldtype": "Select",
-        "options": "0\n1\n2\n3"
-      },
-      {
-        "fieldname": "score",
-        "label": "Score",
-        "fieldtype": "Int",
-        "read_only": 1
-      }
-    ],
+  {
+   "fieldname": "question_no",
+   "fieldtype": "Int",
+   "label": "Question No",
+   "reqd": 1
+  },
+  {
+   "fieldname": "question",
+   "fieldtype": "Small Text",
+   "label": "Question",
+   "reqd": 1
+  },
+  {
+   "fieldname": "question_type",
+   "fieldtype": "Data",
+   "label": "Question Type",
+   "read_only": 1
+  },
+  {
+   "fieldname": "response",
+   "fieldtype": "Select",
+   "label": "Response",
+   "options": "0 - Not at all\n1 - Several days\n2 - More than half the days\n3 - Nearly every day"
+  },
+  {
+   "fieldname": "score",
+   "fieldtype": "Int",
+   "label": "Score",
+   "read_only": 1
+  }
+ ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "istable": 1,

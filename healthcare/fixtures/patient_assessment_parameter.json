@@ -1,5 +1,19 @@
 [
  {
+  "assessment_parameter": "Patient Came By",
+  "docstatus": 0,
+  "doctype": "Patient Assessment Parameter",
+  "modified": "2026-03-30 15:31:54.203125",
+  "name": "Patient Came By"
+ },
+ {
+  "assessment_parameter": "Let patient rest, Check vital Sign",
+  "docstatus": 0,
+  "doctype": "Patient Assessment Parameter",
+  "modified": "2026-03-30 15:33:43.942451",
+  "name": "Let patient rest, Check vital Sign"
+ },
+ {
   "assessment_parameter": "Headache",
   "docstatus": 0,
   "doctype": "Patient Assessment Parameter",

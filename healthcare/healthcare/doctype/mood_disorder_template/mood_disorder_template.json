@@ -1,47 +1,78 @@
 {
  "actions": [],
  "allow_rename": 1,
+ "autoname": "field:template_name",
  "creation": "2026-04-02 13:45:28.032163",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "section_break_icr4"
+  "template_name",
+  "assessment_category",
+  "column_break_hsya",
+  "default",
+  "section_break_psbk",
+  "description",
+  "section_break_yrqd",
+  "questions"
  ],
-"fields": [
-      {
-        "fieldname": "template_name",
-        "label": "Template Name",
-        "fieldtype": "Data",
-        "reqd": 1
-      },
-      {
-        "fieldname": "description",
-        "label": "Description",
-        "fieldtype": "Text"
-      },
-      {
-        "fieldname": "assessment_category",
-        "label": "Assessment Category",
-        "fieldtype": "Select",
-        "options": "Mood/Bipolar\nDepression\nAnxiety\nOther",
-        "reqd": 1,
-        "default": "Mood/Bipolar"
-      },
-      {
-        "fieldname": "questions",
-        "label": "Questions",
-        "fieldtype": "Table",
-        "options": "Mood Disorder Template Question",
-        "reqd": 1
-      }
-    ],
+ "fields": [
+  {
+   "fieldname": "template_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Template Name",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Text Editor",
+   "label": "Description"
+  },
+  {
+   "default": "Mood/Bipolar",
+   "fieldname": "assessment_category",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Assessment Category",
+   "options": "Mood/Bipolar\nDepression\nAnxiety\nOther",
+   "reqd": 1
+  },
+  {
+   "fieldname": "questions",
+   "fieldtype": "Table",
+   "label": "Questions",
+   "options": "Mood Disorder Template Question",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_hsya",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_yrqd",
+   "fieldtype": "Section Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "default",
+   "fieldtype": "Check",
+   "label": "Default"
+  },
+  {
+   "fieldname": "section_break_psbk",
+   "fieldtype": "Section Break"
+  }
+ ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-04-02 13:45:28.032163",
+ "modified": "2026-04-05 16:29:38.809478",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Mood Disorder Template",
+ "naming_rule": "By fieldname",
  "owner": "Administrator",
  "permissions": [
   {

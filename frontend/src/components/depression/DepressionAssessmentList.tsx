@@ -1,0 +1,346 @@
+// components/depressionAssessment/DepressionAssessmentList.tsx
+import { useEffect, useRef, useState } from 'react'
+import { Activity } from 'lucide-react'
+import {
+  fetchDepressionAssessments,
+  type DepressionAssessmentRow,
+} from '../../services/depression'
+import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
+
+interface DepressionAssessmentListProps {
+  patient?: string
+  refreshKey?: number
+  onCreateNew?: () => void
+}
+
+const statusBadge = (docstatus: number) => {
+  if (docstatus === 1)
+    return (
+      <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium bg-emerald-100 text-emerald-700">
+        Submitted
+      </span>
+    )
+  if (docstatus === 2)
+    return (
+      <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium bg-red-100 text-red-700">
+        Cancelled
+      </span>
+    )
+  return (
+    <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium bg-amber-100 text-amber-700">
+      Draft
+    </span>
+  )
+}
+
+const levelBadge = (level?: string) => {
+  if (!level) return <span className="text-slate-400">—</span>
+  
+  const levelColors: Record<string, string> = {
+    'Normal': 'bg-green-100 text-green-700 border-green-200',
+    'Mild mood disturbance': 'bg-blue-100 text-blue-700 border-blue-200',
+    'Borderline clinical depression': 'bg-yellow-100 text-yellow-700 border-yellow-200',
+    'Moderate depression': 'bg-orange-100 text-orange-700 border-orange-200',
+    'Severe depression': 'bg-red-100 text-red-700 border-red-200',
+    'Extreme depression': 'bg-purple-100 text-purple-700 border-purple-200',
+  }
+  
+  const colorClass = levelColors[level] || 'bg-slate-100 text-slate-700 border-slate-200'
+  
+  return (
+    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold border ${colorClass}`}>
+      {level}
+    </span>
+  )
+}
+
+export const DepressionAssessmentList = ({
+  patient,
+  refreshKey,
+  onCreateNew,
+}: DepressionAssessmentListProps) => {
+  const [records, setRecords] = useState<DepressionAssessmentRow[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [search, setSearch] = useState('')
+  const [selected, setSelected] = useState<DepressionAssessmentRow | null>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const load = async (q?: string) => {
+    setLoading(true)
+    setError(null)
+    try {
+      const data = await fetchDepressionAssessments(patient, q)
+      setRecords(data)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load depression assessments')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [patient, refreshKey])
+
+  const handleSearchChange = (q: string) => {
+    setSearch(q)
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => load(q), 350)
+  }
+
+  // Close slide-over on outside click
+  useEffect(() => {
+    if (!selected) return
+    const onDown = (e: MouseEvent) => {
+      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
+        setSelected(null)
+      }
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [selected])
+
+  const fmt = (val: string | null | undefined) => {
+    if (!val) return '—'
+    try {
+      return new Date(val).toLocaleDateString()
+    } catch {
+      return val
+    }
+  }
+
+  const getLevelColor = (level: string) => {
+    switch (level) {
+      case 'Normal': return 'text-green-600'
+      case 'Mild mood disturbance': return 'text-blue-600'
+      case 'Borderline clinical depression': return 'text-yellow-600'
+      case 'Moderate depression': return 'text-orange-600'
+      case 'Severe depression': return 'text-red-600'
+      case 'Extreme depression': return 'text-purple-600'
+      default: return 'text-slate-600'
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* Toolbar */}
+      <div className="flex items-center gap-3 flex-wrap justify-between">
+        <div>
+          <label className="block text-xs font-medium text-slate-600 mb-1">
+            Search Patient
+          </label>
+          <input
+            type="search"
+            placeholder="Search by patient name…"
+            value={search}
+            onChange={(e) => handleSearchChange(e.target.value)}
+            className="rounded-md border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary"
+          />
+        </div>
+        {onCreateNew && (
+          <div className="flex items-end">
+            <button
+              onClick={onCreateNew}
+              className="px-3 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 transition-colors flex items-center gap-2"
+              title="New Depression Assessment"
+            >
+              <Activity className="w-4 h-4" />
+              New Depression Assessment
+            </button>
+          </div>
+        )}
+      </div>
+
+      {loading && (
+        <div className="text-sm text-slate-500 py-4 text-center">Loading…</div>
+      )}
+      {error && (
+        <div className="p-3 bg-red-50 border border-red-200 rounded-md text-xs text-red-700">
+          {error}
+        </div>
+      )}
+
+      {!loading && !error && records.length === 0 && (
+        <div className="p-4 text-sm text-slate-600 border border-dashed border-slate-300 rounded-md text-center">
+          No depression assessments found.
+        </div>
+      )}
+
+      {!loading && records.length > 0 && (
+        <div className="overflow-x-auto border border-slate-200 rounded-lg">
+          <table className="min-w-full text-xs">
+            <thead className="bg-slate-50 border-b border-slate-200">
+              <tr>
+                <th className="px-3 py-2 text-left font-semibold text-slate-600">Date</th>
+                <th className="px-3 py-2 text-left font-semibold text-slate-600">Patient</th>
+                <th className="px-3 py-2 text-left font-semibold text-slate-600">Template</th>
+                <th className="px-3 py-2 text-left font-semibold text-slate-600">Total Score</th>
+                <th className="px-3 py-2 text-left font-semibold text-slate-600">Level</th>
+                <th className="px-3 py-2 text-left font-semibold text-slate-600">Status</th>
+                <th className="px-3 py-2 text-left font-semibold text-slate-600">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {records.map((r) => (
+                <tr
+                  key={r.name}
+                  className="hover:bg-slate-50 cursor-pointer"
+                  onClick={() => setSelected(r)}
+                >
+                  <td className="px-3 py-2 text-slate-900 font-medium whitespace-nowrap">
+                    {fmt(r.assessment_date)}
+                  </td>
+                  <td className="px-3 py-2 text-slate-800">
+                    {r.patient_name || r.patient}
+                  </td>
+                  <td className="px-3 py-2 text-slate-700">{r.template || '—'}</td>
+                  <td className="px-3 py-2 text-slate-700">
+                    <span className={`font-semibold ${getLevelColor(r.level_of_depression)}`}>
+                      {r.total_score}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2">{levelBadge(r.level_of_depression)}</td>
+                  <td className="px-3 py-2">{statusBadge(r.docstatus)}</td>
+                  <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center gap-2">
+                      <PrintFormatDropdown
+                        doctype="Depression Assessment"
+                        docName={r.name}
+                        noLetterhead={0}
+                        triggerPrint={1}
+                        className="inline-flex items-center justify-center w-8 h-8 rounded border border-slate-300 bg-white text-primary hover:bg-slate-50"
+                      />
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Right-side detail slide-over */}
+      {selected && (
+        <div className="fixed inset-0 z-50 flex justify-end" aria-modal="true">
+          <div
+            className="absolute inset-0 bg-black/30"
+            onClick={() => setSelected(null)}
+          />
+          <div
+            ref={panelRef}
+            className="relative z-10 flex flex-col bg-white shadow-2xl w-full max-w-md h-full overflow-y-auto"
+            style={{ scrollbarWidth: 'thin' }}
+          >
+            {/* Panel Header */}
+            <div className="sticky top-0 z-10 flex items-center justify-between px-5 py-4 border-b border-slate-200 bg-white">
+              <div className="flex items-center gap-2.5">
+                <Activity className="w-4 h-4 text-primary" />
+                <div>
+                  <div className="text-base font-semibold text-slate-900">Depression Assessment</div>
+                  <div className="text-xs text-slate-500 mt-0.5">{selected.name}</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <a
+                  href={`/app/depression-assessment/${encodeURIComponent(selected.name)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-primary hover:underline"
+                >
+                  Open in Frappe ↗
+                </a>
+                <button
+                  onClick={() => setSelected(null)}
+                  className="text-slate-400 hover:text-slate-700 text-xl leading-none"
+                  aria-label="Close"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+
+            <div className="p-5 flex flex-col gap-5">
+              {/* Status */}
+              <div className="flex items-center gap-2">
+                {statusBadge(selected.docstatus)}
+                {levelBadge(selected.level_of_depression)}
+              </div>
+
+              {/* Summary cards */}
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  { label: 'Patient', value: selected.patient_name || selected.patient },
+                  { label: 'Assessment Date', value: fmt(selected.assessment_date) },
+                  { label: 'Template', value: selected.template || '—' },
+                  { label: 'Total Score', value: selected.total_score != null ? String(selected.total_score) : '—' },
+                ].map(({ label, value }) => (
+                  <div key={label} className="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                    <div className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold">
+                      {label}
+                    </div>
+                    <div
+                      className="text-sm font-semibold text-slate-800 mt-1 truncate"
+                      title={value}
+                    >
+                      {value}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Depression level highlight */}
+              {selected.level_of_depression && (
+                <div className={`rounded-lg p-4 border ${
+                  selected.level_of_depression === 'Normal' || selected.level_of_depression === 'Mild mood disturbance'
+                    ? 'bg-emerald-50 border-emerald-200'
+                    : selected.level_of_depression === 'Borderline clinical depression' || selected.level_of_depression === 'Moderate depression'
+                    ? 'bg-amber-50 border-amber-200'
+                    : 'bg-red-50 border-red-200'
+                }`}>
+                  <div className="text-sm font-semibold text-slate-800 mb-1">Level of Depression</div>
+                  <div className={`text-2xl font-bold ${
+                    selected.level_of_depression === 'Normal' || selected.level_of_depression === 'Mild mood disturbance'
+                      ? 'text-emerald-600'
+                      : selected.level_of_depression === 'Borderline clinical depression' || selected.level_of_depression === 'Moderate depression'
+                      ? 'text-amber-600'
+                      : 'text-red-600'
+                  }`}>
+                    {selected.level_of_depression}
+                  </div>
+                  <div className="text-xs text-slate-600 mt-1">
+                    Total Score: {selected.total_score} out of possible 81 (27 questions × 3 max score)
+                  </div>
+                </div>
+              )}
+
+              {/* Notes */}
+              {selected.notes && (
+                <div className="bg-white border border-slate-200 rounded-lg p-4">
+                  <div className="text-sm font-semibold text-slate-800 mb-2">Notes</div>
+                  <p
+                    className="text-xs text-slate-700 whitespace-pre-wrap"
+                    dangerouslySetInnerHTML={{ __html: selected.notes }}
+                  />
+                </div>
+              )}
+
+              <div className="pt-2">
+                <a
+                  href={`/app/depression-assessment/${encodeURIComponent(selected.name)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 transition-colors"
+                >
+                  Open Full Record ↗
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}

@@ -1,6 +1,7 @@
 [
  {
   "date": "2025-12-01",
+  "default": 0,
   "discharge_checklist": [
    {
     "action_required": "Discharge Medication Entered ",
@@ -15,6 +16,7 @@
  },
  {
   "date": "2025-12-01",
+  "default": 0,
   "discharge_checklist": [
    {
     "action_required": "Discharge Medication Entered ",
@@ -53,6 +55,7 @@
  },
  {
   "date": "2026-03-30",
+  "default": 0,
   "discharge_checklist": [
    {
     "action_required": "Request Of Discharged",

@@ -1,0 +1,51 @@
+[
+ {
+  "docstatus": 0,
+  "doctype": "Homicide Reason for Assessment",
+  "modified": "2026-04-02 16:43:13.993841",
+  "name": "Clinician judgment (disclosure)",
+  "reason": "Clinician judgment (disclosure)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Homicide Reason for Assessment",
+  "modified": "2026-04-02 16:43:26.772949",
+  "name": "Referral source identified risk",
+  "reason": "Referral source identified risk"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Homicide Reason for Assessment",
+  "modified": "2026-04-02 16:43:46.329991",
+  "name": "Social support identified risk",
+  "reason": "Social support identified risk"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Homicide Reason for Assessment",
+  "modified": "2026-04-02 16:44:00.688699",
+  "name": "Reported on intake paperwork",
+  "reason": "Reported on intake paperwork"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Homicide Reason for Assessment",
+  "modified": "2026-04-02 16:44:17.343044",
+  "name": "Other",
+  "reason": "Other"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Homicide Reason for Assessment",
+  "modified": "2026-04-02 16:44:28.426351",
+  "name": "Recent event occurred",
+  "reason": "Recent event occurred"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Homicide Reason for Assessment",
+  "modified": "2026-04-02 16:44:40.056946",
+  "name": "Current ideation during interview",
+  "reason": "Current ideation during interview"
+ }
+]

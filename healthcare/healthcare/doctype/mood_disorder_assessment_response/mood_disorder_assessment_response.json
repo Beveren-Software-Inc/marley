@@ -6,39 +6,54 @@
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
-  "section_break_p71w"
+  "question",
+  "response",
+  "column_break_meuu",
+  "score",
+  "category"
  ],
-"fields": [
-      {
-        "fieldname": "question_no",
-        "label": "Question No",
-        "fieldtype": "Int",
-        "reqd": 1
-      },
-      {
-        "fieldname": "question",
-        "label": "Question",
-        "fieldtype": "Small Text",
-        "reqd": 1
-      },
-      {
-        "fieldname": "response",
-        "label": "Response",
-        "fieldtype": "Select",
-        "options": "Yes\nNo\nNo problem\nMinor problem\nModerate problem\nSerious problem"
-      },
-      {
-        "fieldname": "score",
-        "label": "Score",
-        "fieldtype": "Int",
-        "read_only": 1
-      }
-    ],
+ "fields": [
+  {
+   "fieldname": "question",
+   "fieldtype": "Small Text",
+   "in_list_view": 1,
+   "label": "Question",
+   "reqd": 1
+  },
+  {
+   "fieldname": "response",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Response",
+   "options": "Yes\nNo\nNo problem\nMinor problem\nModerate problem\nSerious problem"
+  },
+  {
+   "fieldname": "score",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Score",
+   "read_only": 1
+  },
+  {
+   "fieldname": "category",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Category",
+   "options": "\n1\n2\n3\n4\n5"
+  },
+  {
+   "fieldname": "column_break_meuu",
+   "fieldtype": "Column Break"
+  }
+ ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-04-02 13:46:44.208332",
+ "modified": "2026-04-05 16:48:01.601081",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Mood Disorder Assessment Response",

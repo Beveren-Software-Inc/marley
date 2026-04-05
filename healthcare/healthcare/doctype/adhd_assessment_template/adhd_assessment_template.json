@@ -8,16 +8,21 @@
  "field_order": [
   "template_name",
   "assessment_category",
+  "column_break_oauy",
+  "default",
   "section_break_kovs",
   "description",
   "section_break_ytsn",
-  "questions"
+  "questions",
+  "footer_section",
+  "footer_description"
  ],
  "fields": [
   {
    "fieldname": "template_name",
    "fieldtype": "Data",
    "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Template Name",
    "reqd": 1,
    "unique": 1
@@ -32,6 +37,7 @@
    "fieldname": "assessment_category",
    "fieldtype": "Select",
    "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Assessment Category",
    "options": "ADHD\nAnxiety\nDepression\nOther",
    "reqd": 1
@@ -50,12 +56,32 @@
   {
    "fieldname": "section_break_kovs",
    "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_oauy",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "default",
+   "fieldtype": "Check",
+   "label": "Default"
+  },
+  {
+   "fieldname": "footer_section",
+   "fieldtype": "Section Break",
+   "label": "Footer"
+  },
+  {
+   "fieldname": "footer_description",
+   "fieldtype": "Text Editor",
+   "label": "Footer Description"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-04-02 12:30:22.418361",
+ "modified": "2026-04-05 11:42:43.987724",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "ADHD Assessment Template",
