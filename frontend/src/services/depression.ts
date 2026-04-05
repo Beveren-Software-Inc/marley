@@ -36,6 +36,7 @@ export interface DepressionAssessmentRow {
   total_score: number
   level_of_depression: string
   docstatus: number
+  notes?: string
 }
 
 // ── Fetch templates list ──────────────────────────────────────────────────────

@@ -21,6 +21,7 @@ const RESPONSE_SCORE: Record<ResponseOption, number> = {
 // We never rely on question_no (removed from schema) or array index for identity.
 interface ResponseRowInternal {
   _id: string          // e.g. "A-0", "A-1", "B-0" — assigned once, never changes
+  question_no: number
   question: string
   part: 'Part A' | 'Part B'
   response?: ResponseOption
@@ -144,7 +145,6 @@ export const CreateADHDAssessmentModal = ({
 
   // Core fields
   const [patientId, setPatientId] = useState(patient || '')
-  const [patientName, setPatientName] = useState('')
   const [assessmentDate, setAssessmentDate] = useState(nowDate())
   const [notes, setNotes] = useState('')
 
@@ -171,7 +171,6 @@ export const CreateADHDAssessmentModal = ({
     fetchPatients(1, 0, patient).then((res) => {
       if (res.length > 0) {
         setPatientQuery(res[0].patient_name)
-        setPatientName(res[0].patient_name)
       }
     }).catch(() => {})
   }, [patient])
@@ -228,6 +227,7 @@ export const CreateADHDAssessmentModal = ({
         partCounters[letter] = idx + 1
         return {
           _id: `${letter}-${idx}`,
+          question_no: q.question_no,
           question: q.question,
           part: q.part,
           response: undefined,
@@ -285,7 +285,7 @@ export const CreateADHDAssessmentModal = ({
         assessment_date: assessmentDate,
         template: selectedTemplate.name,
         notes: notes || undefined,
-        // Strip _id before sending — backend doesn't need it
+        // Strip _id before sending — backend needs question_no + rest
         responses: responses.map(({ _id, ...rest }) => rest),
       })
       if (result.success) {
@@ -346,7 +346,7 @@ export const CreateADHDAssessmentModal = ({
                     onChange={(e) => {
                       setPatientQuery(e.target.value)
                       setPatientOpen(true)
-                      if (!e.target.value) { setPatientId(''); setPatientName('') }
+                      if (!e.target.value) { setPatientId(''); setPatientQuery('') }
                     }}
                     onFocus={() => setPatientOpen(true)}
                     placeholder="Search patient…"
@@ -365,7 +365,6 @@ export const CreateADHDAssessmentModal = ({
                           onClick={() => {
                             setPatientId(p.name)
                             setPatientQuery(p.patient_name)
-                            setPatientName(p.patient_name)
                             setPatientOpen(false)
                           }}
                           className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100"

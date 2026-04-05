@@ -1,6 +1,6 @@
 // components/depressionAssessment/CreateDepressionAssessmentModal.tsx
 import { useEffect, useState } from 'react'
-import { ChevronDown, ChevronUp, Activity, Info, FileText } from 'lucide-react'
+import { Activity, Info, FileText } from 'lucide-react'
 import {
   fetchDepressionTemplates,
   fetchDepressionTemplateQuestions,
@@ -43,7 +43,7 @@ interface ResponseGroupProps {
 const ResponseGroup = ({ rows, onSelect }: ResponseGroupProps) => {
   return (
     <div className="space-y-4">
-      {rows.map((row, i) => (
+      {rows.map((row) => (
         <div key={row._id} className="border border-slate-200 rounded-lg p-4">
           <div className="flex items-start gap-3">
             <span className="flex-shrink-0 w-6 h-6 rounded-full bg-slate-100 text-slate-500 text-[11px] font-bold flex items-center justify-center mt-0.5">
@@ -125,7 +125,6 @@ export const CreateDepressionAssessmentModal = ({
 
   // Core fields
   const [patientId, setPatientId] = useState(patient || '')
-  const [patientName, setPatientName] = useState('')
   const [assessmentDate, setAssessmentDate] = useState(nowDate())
   const [notes, setNotes] = useState('')
 
@@ -167,7 +166,6 @@ export const CreateDepressionAssessmentModal = ({
     fetchPatients(1, 0, patient).then((res) => {
       if (res.length > 0) {
         setPatientQuery(res[0].patient_name)
-        setPatientName(res[0].patient_name)
       }
     }).catch(() => {})
   }, [patient])
@@ -322,7 +320,7 @@ export const CreateDepressionAssessmentModal = ({
                     onChange={(e) => {
                       setPatientQuery(e.target.value)
                       setPatientOpen(true)
-                      if (!e.target.value) { setPatientId(''); setPatientName('') }
+                      if (!e.target.value) { setPatientId(''); setPatientQuery('') }
                     }}
                     onFocus={() => setPatientOpen(true)}
                     placeholder="Search patient…"
@@ -341,7 +339,6 @@ export const CreateDepressionAssessmentModal = ({
                           onClick={() => {
                             setPatientId(p.name)
                             setPatientQuery(p.patient_name)
-                            setPatientName(p.patient_name)
                             setPatientOpen(false)
                           }}
                           className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100"
