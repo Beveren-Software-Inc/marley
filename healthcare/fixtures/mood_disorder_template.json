@@ -1,0 +1,236 @@
+[
+ {
+  "assessment_category": "Mood/Bipolar",
+  "default": 0,
+  "description": "<div class=\"ql-editor read-mode\"><h3>How to Use</h3><p>The questionnaire takes less than 5 minutes</p><p>to complete. Patients simply check the yes or no</p><p>boxes in response to the questions. The last</p><p>question pertains to the patient’s level of</p><p>functional impairment. The physician, nurse,</p><p>or medical staff assistant then scores the</p><p>completed questionnaire.</p><p><br></p><p><br></p><h3>How to Score</h3><p>Further medical assessment for bipolar</p><p>disorder is clearly warranted if the patient:</p><p>• Answers Yes to 7 or more of the events</p><p>in question #1</p><p>AND</p><p>• Answers Yes to question #2</p><p>AND</p><p><br></p><p>• Answers Moderate problem or Serious</p><p>problem to question #3</p></div>",
+  "docstatus": 0,
+  "doctype": "Mood Disorder Template",
+  "modified": "2026-04-05 16:30:50.727386",
+  "name": "onhlvu0nai",
+  "questions": [
+   {
+    "category": null,
+    "question": "sas",
+    "response_options": "Yes",
+    "response_type": "Yes/No"
+   }
+  ],
+  "template_name": "onhlvu0nai"
+ },
+ {
+  "assessment_category": "Mood/Bipolar",
+  "default": 0,
+  "description": "<div class=\"ql-editor read-mode\"><h3>How to Use</h3><p>The questionnaire takes less than 5 minutes</p><p>to complete. Patients simply check the yes or no</p><p>boxes in response to the questions. The last</p><p>question pertains to the patient’s level of</p><p>functional impairment. The physician, nurse,</p><p>or medical staff assistant then scores the</p><p>completed questionnaire.</p><p><br></p><p><br></p><h3>How to Score</h3><p>Further medical assessment for bipolar</p><p>disorder is clearly warranted if the patient:</p><p>• Answers Yes to 7 or more of the events</p><p>in question #1</p><p>AND</p><p>• Answers Yes to question #2</p><p>AND</p><p><br></p><p>• Answers Moderate problem or Serious</p><p>problem to question #3</p></div>",
+  "docstatus": 0,
+  "doctype": "Mood Disorder Template",
+  "modified": "2026-04-05 16:42:45.475471",
+  "name": "Default MDQ",
+  "questions": [
+   {
+    "category": "1",
+    "question": "Has there ever been a period of time when you were not your usual self and... you were much more social or outgoing than usual (e.g. calling people at night)?",
+    "response_options": "Yes",
+    "response_type": "Yes/No"
+   },
+   {
+    "category": "1",
+    "question": "Has there ever been a period of time when you were not your usual self and... you were much more active or did many more things than usual?",
+    "response_options": "Yes",
+    "response_type": "Yes/No"
+   },
+   {
+    "category": "1",
+    "question": "Has there ever been a period of time when you were not your usual self and... you felt so good or so hyper that other people thought you were not your normal self or you were so hyper that you got into trouble?",
+    "response_options": "Yes",
+    "response_type": "Yes/No"
+   },
+   {
+    "category": "1",
+    "question": "Has there ever been a period of time when you were not your usual self and... you were so irritable that you shouted at people or started fights or arguments?",
+    "response_options": "Yes",
+    "response_type": "Yes/No"
+   },
+   {
+    "category": "1",
+    "question": "Has there ever been a period of time when you were not your usual self and... you felt much more self-confident than usual?",
+    "response_options": "Yes",
+    "response_type": "Yes/No"
+   },
+   {
+    "category": "1",
+    "question": "Has there ever been a period of time when you were not your usual self and... you had much more energy than usual?",
+    "response_options": "Yes",
+    "response_type": "Yes/No"
+   },
+   {
+    "category": "1",
+    "question": "Has there ever been a period of time when you were not your usual self and... you got much less sleep than usual and found you didn’t really miss it?",
+    "response_options": "Yes",
+    "response_type": "Yes/No"
+   },
+   {
+    "category": "1",
+    "question": "Has there ever been a period of time when you were not your usual self and... you did things that were unusual for you or risky/excessive?",
+    "response_options": "Yes",
+    "response_type": "Yes/No"
+   },
+   {
+    "category": "2",
+    "question": "If you checked YES to more than one of the above, did several happen during the same period?",
+    "response_options": "Yes",
+    "response_type": "Yes/No"
+   },
+   {
+    "category": "1",
+    "question": "Has there ever been a period of time when you were not your usual self and... you were much more interested in sex than usual?",
+    "response_options": "Yes",
+    "response_type": "Yes/No"
+   },
+   {
+    "category": "1",
+    "question": "Has there ever been a period of time when you were not your usual self and... you were much more talkative or spoke faster than usual?",
+    "response_options": "Yes",
+    "response_type": "Yes/No"
+   },
+   {
+    "category": "1",
+    "question": "Has there ever been a period of time when you were not your usual self and... you were so easily distracted by things around you that you had trouble concentrating or staying on track?",
+    "response_options": "Yes",
+    "response_type": "Yes/No"
+   },
+   {
+    "category": "1",
+    "question": "Has there ever been a period of time when you were not your usual self and... thoughts raced through your head or you couldn’t slow your mind down?",
+    "response_options": "Yes",
+    "response_type": "Yes/No"
+   },
+   {
+    "category": "1",
+    "question": "Has there ever been a period of time when you were not your usual self and... spending money got you or your family in trouble?",
+    "response_options": "Yes",
+    "response_type": "Yes/No"
+   },
+   {
+    "category": "4",
+    "question": "Do any blood relatives have bipolar disorder?",
+    "response_options": "Yes",
+    "response_type": "Yes/No"
+   },
+   {
+    "category": "3",
+    "question": "How much of a problem did any of these cause you?",
+    "response_options": "No problem",
+    "response_type": "Functional"
+   },
+   {
+    "category": "5",
+    "question": "Has a health professional ever told you that you have bipolar disorder?",
+    "response_options": "Yes",
+    "response_type": "Yes/No"
+   },
+   {
+    "category": "1",
+    "question": "Has there ever been a period of time when you were not your usual self and... you felt so good or so hyper that other people thought you were not your normal self or you were so hyper that you got into trouble?",
+    "response_options": "Yes",
+    "response_type": "Yes/No"
+   },
+   {
+    "category": "5",
+    "question": "Has a health professional ever told you that you have bipolar disorder?",
+    "response_options": "Yes",
+    "response_type": "Yes/No"
+   },
+   {
+    "category": "1",
+    "question": "Has there ever been a period of time when you were not your usual self and... you were much more talkative or spoke faster than usual?",
+    "response_options": "Yes",
+    "response_type": "Yes/No"
+   },
+   {
+    "category": "1",
+    "question": "Has there ever been a period of time when you were not your usual self and... you were much more social or outgoing than usual (e.g. calling people at night)?",
+    "response_options": "Yes",
+    "response_type": "Yes/No"
+   },
+   {
+    "category": "3",
+    "question": "How much of a problem did any of these cause you?",
+    "response_options": "No problem",
+    "response_type": "Functional"
+   },
+   {
+    "category": "4",
+    "question": "Do any blood relatives have bipolar disorder?",
+    "response_options": "Yes",
+    "response_type": "Yes/No"
+   },
+   {
+    "category": "1",
+    "question": "Has there ever been a period of time when you were not your usual self and... you were so easily distracted by things around you that you had trouble concentrating or staying on track?",
+    "response_options": "Yes",
+    "response_type": "Yes/No"
+   },
+   {
+    "category": "1",
+    "question": "Has there ever been a period of time when you were not your usual self and... you felt much more self-confident than usual?",
+    "response_options": "Yes",
+    "response_type": "Yes/No"
+   },
+   {
+    "category": "1",
+    "question": "Has there ever been a period of time when you were not your usual self and... you were so irritable that you shouted at people or started fights or arguments?",
+    "response_options": "Yes",
+    "response_type": "Yes/No"
+   },
+   {
+    "category": "1",
+    "question": "Has there ever been a period of time when you were not your usual self and... you were much more active or did many more things than usual?",
+    "response_options": "Yes",
+    "response_type": "Yes/No"
+   },
+   {
+    "category": "1",
+    "question": "Has there ever been a period of time when you were not your usual self and... you were much more interested in sex than usual?",
+    "response_options": "Yes",
+    "response_type": "Yes/No"
+   },
+   {
+    "category": "1",
+    "question": "Has there ever been a period of time when you were not your usual self and... you did things that were unusual for you or risky/excessive?",
+    "response_options": "Yes",
+    "response_type": "Yes/No"
+   },
+   {
+    "category": "1",
+    "question": "Has there ever been a period of time when you were not your usual self and... you got much less sleep than usual and found you didn’t really miss it?",
+    "response_options": "Yes",
+    "response_type": "Yes/No"
+   },
+   {
+    "category": "2",
+    "question": "If you checked YES to more than one of the above, did several happen during the same period?",
+    "response_options": "Yes",
+    "response_type": "Yes/No"
+   },
+   {
+    "category": "1",
+    "question": "Has there ever been a period of time when you were not your usual self and... you had much more energy than usual?",
+    "response_options": "Yes",
+    "response_type": "Yes/No"
+   },
+   {
+    "category": "1",
+    "question": "Has there ever been a period of time when you were not your usual self and... spending money got you or your family in trouble?",
+    "response_options": "Yes",
+    "response_type": "Yes/No"
+   },
+   {
+    "category": "1",
+    "question": "Has there ever been a period of time when you were not your usual self and... thoughts raced through your head or you couldn’t slow your mind down?",
+    "response_options": "Yes",
+    "response_type": "Yes/No"
+   }
+  ],
+  "template_name": "Default MDQ"
+ }
+]

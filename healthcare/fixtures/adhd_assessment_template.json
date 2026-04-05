@@ -1,0 +1,123 @@
+[
+ {
+  "assessment_category": "ADHD",
+  "default": 0,
+  "description": "<div class=\"ql-editor read-mode\"><h2>Adult ADHD Self-Report Scale (ASRS-v1.1) Symptom Checklist</h2><p><br></p><p>Instructions</p><p><br></p><p>The questions on the back page are designed to stimulate dialogue between you and your patients and to help</p><p>Confirm if they may be suffering from the symptoms of attention-deficit/hyperactivity disorder (ADHD).</p><p>Description: The Symptom Checklist is an instrument consisting of the eighteen DSM-IV-TR criteria.</p><p>Six of the eighteen questions were found to be the most predictive of symptoms consistent with</p><p>ADHD. These six questions are the basis for the ASRS v1.1 Screener and are also Part A of the</p><p>Symptom Checklist. Part B of the Symptom Checklist contains the remaining twelve questions.</p><p>Instructions:</p><p>Symptoms</p><p>1. Ask the patient to complete both Part A and Part B of the Symptom Checklist by marking an X</p><p>in the box that most closely represents the frequency of occurrence of each of the symptoms.</p><p><br></p><p>2. Score Part A. If four or more marks appear in the darkly shaded boxes within Part A then the</p><p>patient has symptoms highly consistent with ADHD in adults and further investigation is</p><p>warranted.</p><p><br></p><p>3. The frequency scores on Part B provide additional cues and can serve as further probes into the</p><p>patient’s symptoms. Pay particular attention to marks appearing in the dark shaded boxes. The</p><p>frequency-based response is more sensitive with certain questions. No total score or diagnostic</p><p>likelihood is utilized for the twelve questions. It has been found that the six questions in Part A</p><p>are the most predictive of the disorder and are best for use as a screening instrument.</p><p>Impairments</p><p>1. Review the entire Symptom Checklist with your patients and evaluate the level of impairment</p><p>associated with the symptom.</p><p><br></p><p>2. Consider work/school, social and family settings.</p><p><br></p><p>3. Symptom frequency is often associated with symptom severity, the Symptom</p><p>Checklist may also aid in the assessment of impairments. If your patients have frequent</p><p>symptoms, you may want to ask them to describe how these problems have affected their ability</p><p>to work, take care of things at home, or get along with other people, such as their</p><p>spouse/significant other.</p><p>History</p><p>1. Assess the presence of these symptoms or similar symptoms in childhood. Adults who have</p><p>ADHD need not have been formally diagnosed in childhood. In evaluating a patient’s history,</p><p>look for evidence of early-appearing and long-standing problems with attention or self-control.</p><p>Some significant symptoms should have been present in childhood, but full symptomology is not</p><p>necessary.</p><p><br></p></div>",
+  "docstatus": 0,
+  "doctype": "ADHD Assessment Template",
+  "footer_description": "<div class=\"ql-editor read-mode\"><h2>The Value of Screening for Adults With ADHD</h2><p><br></p><p>Research suggests that the symptoms of ADHD can persist into adulthood, having a significant</p><p>impact on the relationships, careers, and even the personal safety of your patients who may</p><p>suffer from it.1-4 Because this disorder is often misunderstood, many people who have it do not</p><p>receive appropriate treatment and, as a result, may never reach their full potential. Part of the</p><p>problem is that it can be difficult to diagnose, particularly in adults.</p><p>The Adult ADHD Self-Report Scale (ASRS-v1.1) Symptom Checklist was developed</p><p>in conjunction with the World Health Organization (WHO), and the Workgroup on Adult</p><p>ADHD that included the following team of psychiatrists and researchers:</p><p><br></p><p>• Lenard Adler, MD</p><p>Associate Professor of Psychiatry and Neurology</p><p>New York University Medical School</p><p><br></p><p>• Ronald C. Kessler, PhD</p><p>Professor, Department of Health Care Policy</p><p>Harvard Medical School</p><p><br></p><p>• Thomas Spencer, MD</p><p>Associate Professor of Psychiatry</p><p>Harvard Medical School</p><p><br></p><p>As a healthcare professional, you can use the ASRS v1.1 as a tool to help screen for ADHD in</p><p>adult patients. Insights gained through this screening may suggest the need for a more in-depth</p><p>clinician interview. The questions in the ASRS v1.1 are consistent with DSM-IV criteria and</p><p>address the manifestations of ADHD symptoms in adults. Content of the questionnaire also</p><p>reflects the importance that DSM-IV places on symptoms, impairments, and history for a correct</p><p>diagnosis.4</p><p><br></p><p>The checklist takes about 5 minutes to complete and can provide information that is critical</p><p>to supplement the diagnostic process.</p></div>",
+  "modified": "2026-04-05 11:43:58.381418",
+  "name": "Default Adult ADHD Scale",
+  "questions": [
+   {
+    "is_screening_question": 0,
+    "part": "Part A",
+    "question": "How often do you have trouble wrapping up the final details of a project,\nOnce the challenging parts have been done?",
+    "threshold_type": "Sometimes+"
+   },
+   {
+    "is_screening_question": 0,
+    "part": "Part A",
+    "question": "How often do you have difficulty getting things in order when you have to do\na task that requires organization?",
+    "threshold_type": "Sometimes+"
+   },
+   {
+    "is_screening_question": 0,
+    "part": "Part A",
+    "question": "How often do you have problems remembering appointments or obligations?",
+    "threshold_type": "Sometimes+"
+   },
+   {
+    "is_screening_question": 0,
+    "part": "Part A",
+    "question": "When you have a task that requires a lot of thought, how often do you avoid\nor delay getting started?",
+    "threshold_type": "Sometimes+"
+   },
+   {
+    "is_screening_question": 0,
+    "part": "Part A",
+    "question": "How often do you fidget or squirm with your hands or feet when you have\nto sit down for a long time?",
+    "threshold_type": "Sometimes+"
+   },
+   {
+    "is_screening_question": 0,
+    "part": "Part A",
+    "question": "How often do you feel overly active and compelled to do things, like you\nwere driven by a motor?",
+    "threshold_type": "Sometimes+"
+   },
+   {
+    "is_screening_question": 0,
+    "part": "Part A",
+    "question": "How often do you make careless mistakes when you have to work on a boring or\ndifficult project?",
+    "threshold_type": "Sometimes+"
+   },
+   {
+    "is_screening_question": 0,
+    "part": "Part A",
+    "question": "How often do you have difficulty keeping your attention when you are doing boring\nor repetitive work?",
+    "threshold_type": "Sometimes+"
+   },
+   {
+    "is_screening_question": 0,
+    "part": "Part A",
+    "question": "How often do you have difficulty concentrating on what people say to you,\neven when they are speaking to you directly?",
+    "threshold_type": "Sometimes+"
+   },
+   {
+    "is_screening_question": 0,
+    "part": "Part A",
+    "question": "How often do you misplace or have difficulty finding things at home or at work?",
+    "threshold_type": "Sometimes+"
+   },
+   {
+    "is_screening_question": 0,
+    "part": "Part A",
+    "question": "How often are you distracted by activity or noise around you?",
+    "threshold_type": "Sometimes+"
+   },
+   {
+    "is_screening_question": 0,
+    "part": "Part A",
+    "question": "How often do you leave your seat in meetings or other situations in which\nyou are expected to remain seated?",
+    "threshold_type": "Sometimes+"
+   },
+   {
+    "is_screening_question": 0,
+    "part": "Part A",
+    "question": "How often do you feel restless or fidgety?",
+    "threshold_type": "Sometimes+"
+   },
+   {
+    "is_screening_question": 0,
+    "part": "Part A",
+    "question": "How often do you have difficulty unwinding and relaxing when you have time\nto yourself?",
+    "threshold_type": "Sometimes+"
+   },
+   {
+    "is_screening_question": 0,
+    "part": "Part A",
+    "question": "How often do you find yourself talking too much when you are in social situations?",
+    "threshold_type": "Sometimes+"
+   },
+   {
+    "is_screening_question": 0,
+    "part": "Part A",
+    "question": "When you’re in a conversation, how often do you find yourself finishing\nthe sentences of the people you are talking to, before they can finish\nthem themselves?",
+    "threshold_type": "Sometimes+"
+   },
+   {
+    "is_screening_question": 0,
+    "part": "Part A",
+    "question": "How often do you have difficulty waiting your turn in situations when\nturn taking is required?",
+    "threshold_type": "Sometimes+"
+   },
+   {
+    "is_screening_question": 0,
+    "part": "Part A",
+    "question": "How often do you interrupt others when they are busy?",
+    "threshold_type": "Sometimes+"
+   }
+  ],
+  "template_name": "Default Adult ADHD Scale"
+ }
+]

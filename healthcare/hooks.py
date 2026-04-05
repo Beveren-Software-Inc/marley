@@ -140,6 +140,15 @@ fixtures = [
 	},
     {
 		"doctype":"Depression Assessment Template"
+	},
+    {
+		"doctype":"GAD7 Template"
+	},
+    {
+		"doctype":"Mood Disorder Template"
+	},
+    {
+		"doctype":"ADHD Assessment Template"
 	}
 ]
 
