@@ -8,32 +8,57 @@
  "field_order": [
   "section_break_zlg7"
  ],
-"fields": [
-      {
-        "fieldname": "question_no",
-        "label": "Question No",
-        "fieldtype": "Int",
-        "reqd": 1
-      },
-      {
-        "fieldname": "question",
-        "label": "Question",
-        "fieldtype": "Small Text",
-        "reqd": 1
-      },
-      {
-        "fieldname": "response",
-        "label": "Response",
-        "fieldtype": "Select",
-        "options": "0\n1\n2\n3"
-      },
-      {
-        "fieldname": "score",
-        "label": "Score",
-        "fieldtype": "Int",
-        "read_only": 1
-      }
-    ],
+ "fields": [
+  {
+    "fieldname": "question_no",
+    "label": "Question No",
+    "fieldtype": "Int",
+    "reqd": 1
+  },
+  {
+    "fieldname": "question",
+    "label": "Question",
+    "fieldtype": "Small Text",
+    "reqd": 1
+  },
+  {
+    "fieldname": "option_0",
+    "label": "Option 0",
+    "fieldtype": "Small Text",
+    "reqd": 1
+  },
+  {
+    "fieldname": "option_1",
+    "label": "Option 1",
+    "fieldtype": "Small Text",
+    "reqd": 1
+  },
+  {
+    "fieldname": "option_2",
+    "label": "Option 2",
+    "fieldtype": "Small Text",
+    "reqd": 1
+  },
+  {
+    "fieldname": "option_3",
+    "label": "Option 3",
+    "fieldtype": "Small Text",
+    "reqd": 1
+  },
+  {
+    "fieldname": "response",
+    "label": "Selected Response",
+    "fieldtype": "Select",
+    "options": "0\n1\n2\n3",
+    "reqd": 1
+  },
+  {
+    "fieldname": "score",
+    "label": "Score",
+    "fieldtype": "Int",
+    "read_only": 1
+  }
+ ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "istable": 1,

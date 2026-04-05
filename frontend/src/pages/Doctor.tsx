@@ -57,6 +57,14 @@ import { PatientHistoryList } from '../components/patientHistory/PatientHistoryL
 import { PatientHistoryModal } from '../components/patientHistory/PatientHistoryModal'
 import { PatientList } from '../components/patients/PatientList'
 import { CreatePatientModal } from '../components/patients/CreatePatientModal'
+import { ADHDAssessmentList } from '../components/adhd/AdhdAssessmentList'
+import { CreateADHDAssessmentModal } from '../components/adhd/CreateADHDAssessmentModal'
+import { DepressionAssessmentList } from '../components/depression/DepressionAssessmentList'
+import { CreateDepressionAssessmentModal } from '../components/depression/CreateDepressionAssessmentModal'
+import { MoodDisorderAssessmentList } from '../components/mood_disorder/MoodDisorderAssessmentList'
+import { CreateMoodDisorderAssessmentModal } from '../components/mood_disorder/CreateMoodDisorderAssessmentModal'
+import { GAD7AssessmentList } from '../components/gad7/GAD7AssessmentList'
+import { CreateGAD7AssessmentModal } from '../components/gad7/CreateGAD7AssessmentModal'
 
 export const DoctorPage = () => {
   const { mode, activeVisit, activeAdmission, selectedPatient: globalPatient, setSelectedPatient: setGlobalPatient } = useCareContext()
@@ -109,6 +117,14 @@ export const DoctorPage = () => {
   const [showPatientHistoryModal, setShowPatientHistoryModal] = useState(false)
   const [patientHistoryRefreshKey, setPatientHistoryRefreshKey] = useState(0)
   const screen = searchParams.get('screen')
+  const [showCreateADHDModal, setShowCreateADHDModal] = useState(false)
+const [adhdRefreshKey, setAdhdRefreshKey] = useState(0)
+const [showCreateDepressionModal, setShowCreateDepressionModal] = useState(false)
+const [depressionRefreshKey, setDepressionRefreshKey] = useState(0)
+const [showCreateMoodModal, setShowCreateMoodModal] = useState(false)
+const [moodRefreshKey, setMoodRefreshKey] = useState(0)
+const [showCreateGAD7Modal, setShowCreateGAD7Modal] = useState(false)
+const [gad7RefreshKey, setGad7RefreshKey] = useState(0)
 
   // Sync selectedPatient with URL on mount and when URL changes
   useEffect(() => {
@@ -1565,8 +1581,151 @@ export const DoctorPage = () => {
       </div>
     )
   }
- 
 
+  if (screen === 'adhd') {
+    return (
+      <div className="flex flex-col">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-sm font-semibold truncate">ADHD Assessments</h1>
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+
+        <div className="p-4">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+            <ADHDAssessmentList
+              refreshKey={adhdRefreshKey}
+              onCreateNew={() => setShowCreateADHDModal(true)}
+            />
+          </section>
+        </div>
+
+        {showCreateADHDModal && (
+          <CreateADHDAssessmentModal
+            onClose={() => setShowCreateADHDModal(false)}
+            onSuccess={() => {
+              setShowCreateADHDModal(false)
+              setAdhdRefreshKey((prev) => prev + 1)
+              toast.success('ADHD Assessment created successfully')
+            }}
+          />
+        )}
+      </div>
+    )
+  }
+ 
+if (screen === 'depression') {
+  return (
+    <div className="flex flex-col">
+      <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+        <div className="flex-1 min-w-0">
+          <h1 className="text-sm font-semibold truncate">Depression Assessments</h1>
+        </div>
+        <div className="flex items-center gap-3 flex-shrink-0">
+          <UserMenu />
+          <NotificationBell />
+        </div>
+      </header>
+
+      <div className="p-4">
+        <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+          <DepressionAssessmentList
+            refreshKey={depressionRefreshKey}
+            onCreateNew={() => setShowCreateDepressionModal(true)}
+          />
+        </section>
+      </div>
+
+      {showCreateDepressionModal && (
+        <CreateDepressionAssessmentModal
+          onClose={() => setShowCreateDepressionModal(false)}
+          onSuccess={() => {
+            setShowCreateDepressionModal(false)
+            setDepressionRefreshKey((prev) => prev + 1)
+            toast.success('Depression Assessment created successfully')
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+
+if (screen === 'mood') {
+  return (
+    <div className="flex flex-col">
+      <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+        <div className="flex-1 min-w-0">
+          <h1 className="text-sm font-semibold truncate">Mood Disorder Assessments (MDQ)</h1>
+        </div>
+        <div className="flex items-center gap-3 flex-shrink-0">
+          <UserMenu />
+          <NotificationBell />
+        </div>
+      </header>
+
+      <div className="p-4">
+        <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+          <MoodDisorderAssessmentList
+            refreshKey={moodRefreshKey}
+            onCreateNew={() => setShowCreateMoodModal(true)}
+          />
+        </section>
+      </div>
+
+      {showCreateMoodModal && (
+        <CreateMoodDisorderAssessmentModal
+          onClose={() => setShowCreateMoodModal(false)}
+          onSuccess={() => {
+            setShowCreateMoodModal(false)
+            setMoodRefreshKey((prev) => prev + 1)
+            toast.success('Mood Disorder Assessment created successfully')
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+if (screen === 'gad7') {
+  return (
+    <div className="flex flex-col">
+      <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+        <div className="flex-1 min-w-0">
+          <h1 className="text-sm font-semibold truncate">GAD7 Assessments (Anxiety)</h1>
+        </div>
+        <div className="flex items-center gap-3 flex-shrink-0">
+          <UserMenu />
+          <NotificationBell />
+        </div>
+      </header>
+
+      <div className="p-4">
+        <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+          <GAD7AssessmentList
+            refreshKey={gad7RefreshKey}
+            onCreateNew={() => setShowCreateGAD7Modal(true)}
+          />
+        </section>
+      </div>
+
+      {showCreateGAD7Modal && (
+        <CreateGAD7AssessmentModal
+          onClose={() => setShowCreateGAD7Modal(false)}
+          onSuccess={() => {
+            setShowCreateGAD7Modal(false)
+            setGad7RefreshKey((prev) => prev + 1)
+            toast.success('GAD7 Assessment created successfully')
+          }}
+        />
+      )}
+    </div>
+  )
+}
 
 
   return (

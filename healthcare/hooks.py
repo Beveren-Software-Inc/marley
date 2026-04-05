@@ -138,6 +138,9 @@ fixtures = [
     {
 	"doctype":"Homicide Reason for Assessment"	
 	},
+    {
+		"doctype":"Depression Assessment Template"
+	}
 ]
 
 

@@ -1,0 +1,190 @@
+[
+ {
+  "assessment_category": "Depression",
+  "default": 0,
+  "description": null,
+  "docstatus": 0,
+  "doctype": "Depression Assessment Template",
+  "modified": "2026-04-05 13:47:55.074085",
+  "name": "Default Beckys Depression",
+  "questions": [
+   {
+    "max_score": 3,
+    "option_0": "My appetite is no worse than usual.",
+    "option_1": "My appetite is not as good as it used to be.",
+    "option_2": "My appetite is much worse now.",
+    "option_3": "I have no appetite at all anymore.",
+    "question": "My appetite"
+   },
+   {
+    "max_score": 3,
+    "option_0": "I am not particularly discouraged about the future.",
+    "option_1": "I feel discouraged about the future.",
+    "option_2": "I feel I have nothing to look forward to.",
+    "option_3": "I feel the future is hopeless and that things cannot improve.",
+    "question": "I feel discouraged about the future"
+   },
+   {
+    "max_score": 3,
+    "option_0": "I do not feel sad.",
+    "option_1": "I feel sad",
+    "option_2": "I am sad all the time and I can't snap out of it.",
+    "option_3": "I am so sad and unhappy that I can't stand it.",
+    "question": "I feel sad"
+   },
+   {
+    "max_score": 3,
+    "option_0": "I am no more irritated by things than I ever was.",
+    "option_1": "I am slightly more irritated now than usual.",
+    "option_2": "I am quite annoyed or irritated a good deal of the time.",
+    "option_3": "I feel irritated all the time.",
+    "question": "I feel irritated"
+   },
+   {
+    "max_score": 3,
+    "option_0": "I can sleep as well as usual.",
+    "option_1": "I don't sleep as well as I used to.",
+    "option_2": "I wake up 1-2 hours earlier than usual and find it hard to get back to sleep.",
+    "option_3": "I wake up several hours earlier than I used to and cannot get back to sleep.",
+    "question": "I sleep"
+   },
+   {
+    "max_score": 3,
+    "option_0": "I am no more worried about my health than usual.",
+    "option_1": "I am worried about physical problems like aches, pains, upset stomach, or constipation.",
+    "option_2": "I am very worried about physical problems and it's hard to think of much else.",
+    "option_3": "I am so worried about my physical problems that I cannot think of anything else.",
+    "question": "I worry about my health"
+   },
+   {
+    "max_score": 3,
+    "option_0": "I don't feel disappointed in myself.",
+    "option_1": "I am disappointed in myself.",
+    "option_2": "I am disgusted with myself.",
+    "option_3": "I hate myself.",
+    "question": "I am disappointed in myself"
+   },
+   {
+    "max_score": 3,
+    "option_0": "I don't feel particularly guilty",
+    "option_1": "I feel guilty a good part of the time.",
+    "option_2": "I feel quite guilty most of the time.",
+    "option_3": "I feel guilty all of the time.",
+    "question": "I feel guilty"
+   },
+   {
+    "max_score": 3,
+    "option_0": "I get as much satisfaction out of things as I used to.",
+    "option_1": "I don't enjoy things the way I used to.",
+    "option_2": "I don't get real satisfaction out of anything anymore.",
+    "option_3": "I am dissatisfied or bored with everything.",
+    "question": "I get satisfaction out of things"
+   },
+   {
+    "max_score": 3,
+    "option_0": "I do not feel like a failure.",
+    "option_1": "I feel I have failed more than the average person.",
+    "option_2": "As I look back on my life, all I can see is a lot of failures.",
+    "option_3": "I feel I am a complete failure as a person.",
+    "question": "I feel like a failure"
+   },
+   {
+    "max_score": 3,
+    "option_0": "I make decisions about as well as I ever could.",
+    "option_1": "I put off making decisions more than I used to.",
+    "option_2": "I have greater difficulty in making decisions more than I used to.",
+    "option_3": "I can't make decisions at all anymore.",
+    "question": "I make decisions"
+   },
+   {
+    "max_score": 3,
+    "option_0": "I don't feel I am any worse than anybody else.",
+    "option_1": "I am critical of myself for my weaknesses or mistakes.",
+    "option_2": "I blame myself all the time for my faults.",
+    "option_3": "I blame myself for everything bad that happens.",
+    "question": "I blame myself"
+   },
+   {
+    "max_score": 3,
+    "option_0": "I can work about as well as before.",
+    "option_1": "It takes an extra effort to get started at doing something.",
+    "option_2": "I have to push myself very hard to do anything.",
+    "option_3": "I can't do any work at all.",
+    "question": "I can work"
+   },
+   {
+    "max_score": 3,
+    "option_0": "I don't have any thoughts of killing myself.",
+    "option_1": "I have thoughts of killing myself, but I would not carry them out.",
+    "option_2": "I would like to kill myself.",
+    "option_3": "I would kill myself if I had the chance.",
+    "question": "I have thoughts of killing myself"
+   },
+   {
+    "max_score": 3,
+    "option_0": "I have not lost interest in other people.",
+    "option_1": "I am less interested in other people than I used to be.",
+    "option_2": "I have lost most of my interest in other people.",
+    "option_3": "I have lost all of my interest in other people.",
+    "question": "I have lost interest in other people"
+   },
+   {
+    "max_score": 3,
+    "option_0": "I have not noticed any recent change in my interest in sex.",
+    "option_1": "I am less interested in sex than I used to be.",
+    "option_2": "I have almost no interest in sex.",
+    "option_3": "I have lost interest in sex completely.",
+    "question": "My interest in sex"
+   },
+   {
+    "max_score": 3,
+    "option_0": "I don't get more tired than usual.",
+    "option_1": "I get tired more easily than I used to.",
+    "option_2": "I get tired from doing almost anything.",
+    "option_3": "I am too tired to do anything.",
+    "question": "I get tired"
+   },
+   {
+    "max_score": 3,
+    "option_0": "I don't feel I am being punished.",
+    "option_1": "I feel I may be punished.",
+    "option_2": "I expect to be punished.",
+    "option_3": "I feel I am being punished.",
+    "question": "I feel punished"
+   },
+   {
+    "max_score": 3,
+    "option_0": "I don't feel that I look any worse than I used to.",
+    "option_1": "I am worried that I am looking old or unattractive.",
+    "option_2": "I feel there are permanent changes in my appearance that make me look unattractive",
+    "option_3": "I believe that I look ugly.",
+    "question": "I feel unattractive"
+   },
+   {
+    "max_score": 3,
+    "option_0": "I haven't lost much weight, if any, lately.",
+    "option_1": "I have lost more than five pounds.",
+    "option_2": "I have lost more than ten pounds.",
+    "option_3": "I have lost more than fifteen pounds.",
+    "question": "My weight"
+   },
+   {
+    "max_score": 3,
+    "option_0": "I don't cry any more than usual.",
+    "option_1": "I cry more now than I used to.",
+    "option_2": "I cry all the time now.",
+    "option_3": "I used to be able to cry, but now I can't cry even though I want to.",
+    "question": "I cry"
+   },
+   {
+    "max_score": 3,
+    "option_0": "2",
+    "option_1": "2",
+    "option_2": "2",
+    "option_3": "2",
+    "question": "1"
+   }
+  ],
+  "template_name": "Default Beckys Depression"
+ }
+]

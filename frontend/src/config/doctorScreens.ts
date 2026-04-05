@@ -118,4 +118,15 @@ export const doctorScreenGroups: ScreenGroup[] = [
       { id: 'sl', title: 'Sick Leave' },
     ],
   },
+  {
+    groupTitle: 'Scales & Assessments',
+    screens: [
+      { id: 'morse-fall', title: 'Morse Fall Scale' },
+      { id: 'adhd', title: 'ADHD Assessment' },
+      { id: 'depression', title: 'Depression Assessment' },
+      { id: 'mood', title: 'Mood Disorder Assessment' },
+      { id: 'gad7', title: 'GAD7 Assessment' },
+      { id: 'pain', title: 'Pain Assessment' },
+    ],
+  }
 ]
