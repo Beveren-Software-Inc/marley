@@ -1,0 +1,54 @@
+[
+ {
+  "description": "<div class=\"ql-editor read-mode\"><p>sasa</p></div>",
+  "docstatus": 0,
+  "doctype": "GAD7 Template",
+  "modified": "2026-04-05 17:45:44.177672",
+  "name": "Default GAD7",
+  "questions": [
+   {
+    "question": "Being so restless that it is hard to sit still",
+    "question_type": "Score",
+    "response_options": "0 - Not at all",
+    "response_type": "Numeric"
+   },
+   {
+    "question": "Feeling nervous, anxious or on edge",
+    "question_type": "Score",
+    "response_options": "0 - Not at all",
+    "response_type": "Numeric"
+   },
+   {
+    "question": "Feeling afraid as if something awful might happen",
+    "question_type": "Score",
+    "response_options": "0 - Not at all",
+    "response_type": "Numeric"
+   },
+   {
+    "question": "Trouble relaxing",
+    "question_type": "Score",
+    "response_options": "0 - Not at all",
+    "response_type": "Numeric"
+   },
+   {
+    "question": "Worrying too much about different things",
+    "question_type": "Score",
+    "response_options": "0 - Not at all",
+    "response_type": "Numeric"
+   },
+   {
+    "question": "Becoming easily annoyed or irritable",
+    "question_type": "Score",
+    "response_options": "0 - Not at all",
+    "response_type": "Numeric"
+   },
+   {
+    "question": "Not being able to stop or control worrying",
+    "question_type": "Score",
+    "response_options": "0 - Not at all",
+    "response_type": "Numeric"
+   }
+  ],
+  "template_name": "Default GAD7"
+ }
+]
