@@ -126,6 +126,8 @@ export const doctorScreenGroups: ScreenGroup[] = [
       { id: 'depression', title: 'Depression Assessment' },
       { id: 'mood', title: 'Mood Disorder Assessment' },
       { id: 'gad7', title: 'GAD7 Assessment' },
+      { id: 'phq9', title: 'PHQ9 Assessment' },
+      { id: 'clinical-suicide-risk', title: 'Suicide Risk Assessment' },
       { id: 'pain', title: 'Pain Assessment' },
     ],
   }

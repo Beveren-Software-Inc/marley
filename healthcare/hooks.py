@@ -149,6 +149,9 @@ fixtures = [
 	},
     {
 		"doctype":"ADHD Assessment Template"
+	},
+    {
+		"doctype":"PHQ9 Template"
 	}
 ]
 

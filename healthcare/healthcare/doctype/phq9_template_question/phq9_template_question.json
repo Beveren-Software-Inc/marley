@@ -6,40 +6,52 @@
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
-  "section_break_rk2a"
+  "question",
+  "question_type",
+  "response_type",
+  "response_options"
  ],
-"fields": [
-      {
-        "fieldname": "question_no",
-        "label": "Question No",
-        "fieldtype": "Int",
-        "reqd": 1
-      },
-      {
-        "fieldname": "question",
-        "label": "Question",
-        "fieldtype": "Small Text",
-        "reqd": 1
-      },
-      {
-        "fieldname": "response_type",
-        "label": "Response Type",
-        "fieldtype": "Select",
-        "options": "Numeric",
-        "reqd": 1
-      },
-      {
-        "fieldname": "response_options",
-        "label": "Response Options",
-        "fieldtype": "Select",
-        "options": "0\n1\n2\n3"
-      }
-    ],
+ "fields": [
+  {
+   "fieldname": "question",
+   "fieldtype": "Small Text",
+   "in_list_view": 1,
+   "label": "Question",
+   "reqd": 1
+  },
+  {
+   "fieldname": "question_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Question Type",
+   "options": "Score\nFunctional",
+   "reqd": 1
+  },
+  {
+   "default": "Numeric",
+   "fieldname": "response_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Response Type",
+   "options": "Numeric"
+  },
+  {
+   "default": "0 - Not at all",
+   "fieldname": "response_options",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Response Options",
+   "options": "0 - Not at all\n1 - Several days\n2 - More than half the days\n3 - Nearly every day"
+  }
+ ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-04-02 14:03:13.503334",
+ "modified": "2026-04-06 10:32:04.714613",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "PHQ9 Template Question",

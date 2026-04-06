@@ -65,6 +65,11 @@ import { MoodDisorderAssessmentList } from '../components/mood_disorder/MoodDiso
 import { CreateMoodDisorderAssessmentModal } from '../components/mood_disorder/CreateMoodDisorderAssessmentModal'
 import { GAD7AssessmentList } from '../components/gad7/GAD7AssessmentList'
 import { CreateGAD7AssessmentModal } from '../components/gad7/CreateGAD7AssessmentModal'
+import { PHQ9AssessmentList } from '../components/phq9/PHQ9AssessmentList'
+import { CreatePHQ9AssessmentModal } from '../components/phq9/CreatePHQ9AssessmentModal'
+import { SuicideRiskAssessmentList } from '../components/clinicalSuicide/ClinicalSuicideRiskAssessmentList'
+import { CreateSuicideRiskAssessmentModal } from '../components/clinicalSuicide/CreateClinicalSuicideRiskAssessmentModal'
+
 
 export const DoctorPage = () => {
   const { mode, activeVisit, activeAdmission, selectedPatient: globalPatient, setSelectedPatient: setGlobalPatient } = useCareContext()
@@ -125,6 +130,10 @@ const [showCreateMoodModal, setShowCreateMoodModal] = useState(false)
 const [moodRefreshKey, setMoodRefreshKey] = useState(0)
 const [showCreateGAD7Modal, setShowCreateGAD7Modal] = useState(false)
 const [gad7RefreshKey, setGad7RefreshKey] = useState(0)
+const [showCreatePHQ9Modal, setShowCreatePHQ9Modal] = useState(false)
+const [phq9RefreshKey, setPhq9RefreshKey] = useState(0)
+const [showCreateSuicideRiskModal, setShowCreateSuicideRiskModal] = useState(false)
+const [suicideRiskRefreshKey, setSuicideRiskRefreshKey] = useState(0)
 
   // Sync selectedPatient with URL on mount and when URL changes
   useEffect(() => {
@@ -1727,6 +1736,78 @@ if (screen === 'gad7') {
   )
 }
 
+
+if (screen === 'phq9') {
+  return (
+    <div className="flex flex-col">
+      <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+        <div className="flex-1 min-w-0">
+          <h1 className="text-sm font-semibold truncate">PHQ9 Assessments (Depression)</h1>
+        </div>
+        <div className="flex items-center gap-3 flex-shrink-0">
+          <UserMenu />
+          <NotificationBell />
+        </div>
+      </header>
+
+      <div className="p-4">
+        <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+          <PHQ9AssessmentList
+            refreshKey={phq9RefreshKey}
+            onCreateNew={() => setShowCreatePHQ9Modal(true)}
+          />
+        </section>
+      </div>
+
+      {showCreatePHQ9Modal && (
+        <CreatePHQ9AssessmentModal
+          onClose={() => setShowCreatePHQ9Modal(false)}
+          onSuccess={() => {
+            setShowCreatePHQ9Modal(false)
+            setPhq9RefreshKey((prev) => prev + 1)
+            toast.success('PHQ9 Assessment created successfully')
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+if (screen === 'clinical-suicide-risk') {
+  return (
+    <div className="flex flex-col">
+      <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+        <div className="flex-1 min-w-0">
+          <h1 className="text-sm font-semibold truncate">Clinical Suicide Risk Assessment</h1>
+        </div>
+        <div className="flex items-center gap-3 flex-shrink-0">
+          <UserMenu />
+          <NotificationBell />
+        </div>
+      </header>
+
+      <div className="p-4">
+        <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+          <SuicideRiskAssessmentList
+            refreshKey={suicideRiskRefreshKey}
+            onCreateNew={() => setShowCreateSuicideRiskModal(true)}
+          />
+        </section>
+      </div>
+
+      {showCreateSuicideRiskModal && (
+        <CreateSuicideRiskAssessmentModal
+          onClose={() => setShowCreateSuicideRiskModal(false)}
+          onSuccess={() => {
+            setShowCreateSuicideRiskModal(false)
+            setSuicideRiskRefreshKey((prev) => prev + 1)
+            toast.success('Suicide Risk Assessment created successfully')
+          }}
+        />
+      )}
+    </div>
+  )
+}
 
   return (
     <div className="flex flex-col">
