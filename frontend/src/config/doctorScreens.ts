@@ -61,7 +61,7 @@ export const doctorScreenGroups: ScreenGroup[] = [
       { id: 'mh', title: 'Medical History (Allergies)' },
       { id: 'physical-exam', title: 'Physical Examination' },
       {id:'patients', title: 'Patients List'},
-      { id: 'fall', title: 'Morse Fall Scale' }, // Risk Assessment
+      // { id: 'fall', title: 'Morse Fall Scale' }, // Risk Assessment
     ],
   },
   {
