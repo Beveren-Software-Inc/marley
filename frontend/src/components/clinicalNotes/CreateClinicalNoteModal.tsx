@@ -518,8 +518,6 @@ export const CreateClinicalNoteModal = ({
   const [admissionOptions, setAdmissionOptions] = useState<{ name: string; label: string }[]>([])
   const [visitOptions, setVisitOptions] = useState<{ name: string; label: string }[]>([])
   
-  // Care context type - now determined by global mode
-  const careContextType = isIPMode ? 'admission' : isOPMode ? 'visit' : 'admission'
 
   // Load admissions and visits when patient changes
   useEffect(() => {

@@ -562,7 +562,6 @@ export const PhysicalExaminationModal = ({
   const [patientNameField, setPatientNameField] = useState(patientName || '')
   
   // Lock fields based on context
-  const isInpatientLocked = Boolean(activeAdmissionFromContext) || Boolean(admissionNo)
   const isPatientLocked = Boolean(patient) || Boolean(contextPatient)
 
   // Findings

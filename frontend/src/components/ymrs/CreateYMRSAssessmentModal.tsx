@@ -6,7 +6,6 @@ import {
   fetchYMRSTemplateQuestions,
   createYMRSAssessment,
   type YMRSQuestionOption,
-  type YMRSTemplateQuestion,
 } from '../../services/ymrs'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
 
@@ -91,7 +90,7 @@ export const CreateYMRSAssessmentModal = ({
 
   // Core fields
   const [patientId, setPatientId] = useState(patient || '')
-  const [patientName, setPatientName] = useState('')
+  const [, setPatientName] = useState('')
   const [assessmentDate, setAssessmentDate] = useState(nowDate())
   const [notes, setNotes] = useState('')
 

@@ -1,6 +1,6 @@
 // components/panss/CreatePANSSAssessmentModal.tsx
 import { useEffect, useState } from 'react'
-import { Brain, Info, FileText, Activity, TrendingUp, BookOpen } from 'lucide-react'
+import { Brain, Info, FileText, TrendingUp, BookOpen } from 'lucide-react'
 import {
   createPANSSAssessment,
   PANSS_QUESTIONS,
@@ -131,7 +131,7 @@ export const CreatePANSSAssessmentModal = ({
 
   // Core fields
   const [patientId, setPatientId] = useState(patient || '')
-  const [patientName, setPatientName] = useState('')
+  const [, setPatientName] = useState('')
   const [assessmentDate, setAssessmentDate] = useState(nowDate())
   const [clinician, setClinician] = useState('')
   const [notes, setNotes] = useState('')

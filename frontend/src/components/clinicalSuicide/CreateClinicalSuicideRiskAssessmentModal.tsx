@@ -26,7 +26,7 @@ export const CreateSuicideRiskAssessmentModal = ({
 
   // Basic Info
   const [patientId, setPatientId] = useState(patient || '')
-  const [patientName, setPatientName] = useState('')
+  const [, setPatientName] = useState('')
   const [assessmentDate, setAssessmentDate] = useState(nowDate())
   const [clinician, setClinician] = useState('')
 
@@ -72,7 +72,7 @@ export const CreateSuicideRiskAssessmentModal = ({
   const [patientQuery, setPatientQuery] = useState('')
   const [patientOpen, setPatientOpen] = useState(false)
   const [patientOptions, setPatientOptions] = useState<PatientListItem[]>([])
-  const [patientLoading, setPatientLoading] = useState(false)
+  const [, setPatientLoading] = useState(false)
 
   // ── Patient label on mount ────────────────────────────────────────────────
   useEffect(() => {
@@ -160,10 +160,6 @@ export const CreateSuicideRiskAssessmentModal = ({
     } finally {
       setSaving(false)
     }
-  }
-
-  const closeAllDropdowns = () => {
-    setPatientOpen(false)
   }
 
   return (

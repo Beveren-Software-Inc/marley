@@ -359,7 +359,7 @@ export const CreatePatientMedicalHistoryModal = ({
   onCreated,
 }: CreatePatientMedicalHistoryModalProps) => {
   // Get context from CareContextProvider
-  const { mode, activeVisit, activeAdmission, selectedPatient: contextPatient } = useCareContext()
+  const { mode, activeVisit, activeAdmission } = useCareContext()
   
   // Determine if we're in IP or OP mode based on context
   const isIPMode = mode === 'IP'

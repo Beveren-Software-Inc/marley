@@ -1,14 +1,12 @@
 // components/ybocs/CreateYBOCSAssessmentModal.tsx
 import { useEffect, useState } from 'react'
-import { Brain, Info, FileText, Target, TrendingUp } from 'lucide-react'
+import { Brain, Info, FileText } from 'lucide-react'
 import {
   fetchYBOCSTemplates,
   fetchYBOCSTemplateQuestions,
   createYBOCSAssessment,
-  RESPONSE_OPTIONS,
   RESPONSE_SCORE,
   type ResponseOption,
-  type YBOCSTemplateQuestion,
 } from '../../services/ybocs'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
 
@@ -157,7 +155,7 @@ export const CreateYBOCSAssessmentModal = ({
 
   // Core fields
   const [patientId, setPatientId] = useState(patient || '')
-  const [patientName, setPatientName] = useState('')
+  const [, setPatientName] = useState('')
   const [assessmentDate, setAssessmentDate] = useState(nowDate())
   const [notes, setNotes] = useState('')
 

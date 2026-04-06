@@ -163,13 +163,13 @@ export const PANSSAssessmentList = ({
                   <td className="px-3 py-2 text-slate-800">
                     {r.patient_name || r.patient}
                   </td>
-                  <td className="px-3 py-2 text-slate-700">{r.clinician || '—'}</td>
-                  <td className="px-3 py-2 text-slate-700 font-medium">{r.positive_scale_total}</td>
-                  <td className="px-3 py-2 text-slate-700 font-medium">{r.negative_scale_total}</td>
-                  <td className="px-3 py-2 text-slate-700 font-medium">{r.general_psychopathology_total}</td>
+                  <td className="px-3 py-2 text-slate-700">{r.rater || '—'}</td>
+                  <td className="px-3 py-2 text-slate-700 font-medium">{r.positive_total}</td>
+                  <td className="px-3 py-2 text-slate-700 font-medium">{r.negative_total}</td>
+                  <td className="px-3 py-2 text-slate-700 font-medium">{r.general_total}</td>
                   <td className="px-3 py-2">
-                    <span className={`font-semibold ${r.composite_scale >= 0 ? 'text-primary' : 'text-amber-600'}`}>
-                      {r.composite_scale >= 0 ? `+${r.composite_scale}` : r.composite_scale}
+                    <span className={`font-semibold ${r.composite_index >= 0 ? 'text-primary' : 'text-amber-600'}`}>
+                      {r.composite_index >= 0 ? `+${r.composite_index}` : r.composite_index}
                     </span>
                   </td>
                   <td className="px-3 py-2">{statusBadge(r.docstatus)}</td>
@@ -226,7 +226,7 @@ export const PANSSAssessmentList = ({
                 {[
                   { label: 'Patient', value: selected.patient_name || selected.patient },
                   { label: 'Assessment Date', value: fmt(selected.assessment_date) },
-                  { label: 'Clinician', value: selected.clinician || '—' },
+                  { label: 'Clinician', value: selected.rater || '—' },
                 ].map(({ label, value }) => (
                   <div key={label} className="bg-slate-50 border border-slate-200 rounded-lg p-3">
                     <div className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold">{label}</div>
@@ -244,36 +244,36 @@ export const PANSSAssessmentList = ({
                 <div className="space-y-2">
                   <div className="flex justify-between">
                     <span className="text-xs text-slate-600">Positive Scale:</span>
-                    <span className="text-sm font-semibold text-primary">{selected.positive_scale_total} / 49</span>
+                    <span className="text-sm font-semibold text-primary">{selected.positive_total} / 49</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-xs text-slate-600">Negative Scale:</span>
-                    <span className="text-sm font-semibold text-primary">{selected.negative_scale_total} / 49</span>
+                    <span className="text-sm font-semibold text-primary">{selected.negative_total} / 49</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-xs text-slate-600">General Psychopathology:</span>
-                    <span className="text-sm font-semibold text-primary">{selected.general_psychopathology_total} / 112</span>
+                    <span className="text-sm font-semibold text-primary">{selected.general_total} / 112</span>
                   </div>
                   <div className="flex justify-between pt-2 border-t border-slate-200">
                     <span className="text-xs font-semibold text-slate-700">Total Score:</span>
-                    <span className="text-base font-bold text-primary">{selected.total_score} / 210</span>
+                    <span className="text-base font-bold text-primary">{selected.panss_total} / 210</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-xs font-semibold text-slate-700">Composite Score:</span>
-                    <span className={`text-base font-bold ${selected.composite_scale >= 0 ? 'text-primary' : 'text-amber-600'}`}>
-                      {selected.composite_scale >= 0 ? `+${selected.composite_scale}` : selected.composite_scale}
+                    <span className={`text-base font-bold ${selected.composite_index >= 0 ? 'text-primary' : 'text-amber-600'}`}>
+                      {selected.composite_index >= 0 ? `+${selected.composite_index}` : selected.composite_index}
                     </span>
                   </div>
                 </div>
               </div>
 
               {/* Notes */}
-              {selected.notes && (
+              {selected.clinical_notes && (
                 <div className="bg-white border border-slate-200 rounded-lg p-4">
                   <div className="text-sm font-semibold text-slate-800 mb-2">Notes</div>
                   <p
                     className="text-xs text-slate-700 whitespace-pre-wrap"
-                    dangerouslySetInnerHTML={{ __html: selected.notes }}
+                    dangerouslySetInnerHTML={{ __html: selected.clinical_notes }}
                   />
                 </div>
               )}

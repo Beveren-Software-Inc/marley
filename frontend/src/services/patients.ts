@@ -21,6 +21,7 @@ export interface PatientMedicalHistory {
   patient_name?: string
   template?: string | null
   inpatient_admission?: string | null
+  patient_visit?: string | null
   patient_history_details?: PatientMedicalHistoryRow[]
   creation?: string
 }

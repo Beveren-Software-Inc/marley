@@ -678,7 +678,6 @@ export const PatientHistoryModal = ({
   const [patientNameField, setPatientNameField] = useState(patientName || '')
   
   // Lock fields based on context
-  const isInpatientLocked = Boolean(activeAdmissionFromContext) || Boolean(admissionNo)
   const isPatientLocked = Boolean(patient) || Boolean(contextPatient)
 
   const DEFAULT_TEMPLATE = 'Default History Form'

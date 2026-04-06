@@ -109,7 +109,7 @@ export const CreateHomicideRiskAssessmentModal = ({
   const [patientQuery, setPatientQuery] = useState('')
   const [patientOpen, setPatientOpen] = useState(false)
   const [patientOptions, setPatientOptions] = useState<PatientListItem[]>([])
-  const [patientLoading, setPatientLoading] = useState(false)
+  const [, setPatientLoading] = useState(false)
 
   // ── Patient label on mount ────────────────────────────────────────────────
   useEffect(() => {
@@ -254,9 +254,6 @@ export const CreateHomicideRiskAssessmentModal = ({
     }
   }
 
-  const closeAllDropdowns = () => {
-    setPatientOpen(false)
-  }
 
   // Tab configuration
   const tabs = [

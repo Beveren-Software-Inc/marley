@@ -91,7 +91,7 @@ export const PANSS_QUESTIONS: PANSSQuestion[] = [
 ]
 
 // ── Fetch PANSS terms ─────────────────────────────────────────────────────────
-export async function fetchPANSSPrinciples(): Promise<{ header_description?: string; footer_description?: string }> {
+export async function fetchPANSSPrinciples(): Promise<{ header_description?: string; footer_description?: string; general_instructions?: string; scoring_instructions?: string }> {
   try {
     const res = await fetch('/api/method/healthcare.api.panss_assessment.get_panss_terms')
     const data = await res.json()
@@ -129,11 +129,22 @@ export function calculateScores(ratings: PANSSRatings) {
 }
 
 // ── Create assessment ─────────────────────────────────────────────────────────
-export interface CreatePANSSAssessmentInput extends PANSSRatings {
+export interface CreatePANSSAssessmentInput {
   patient: string
   assessment_date: string
   rater?: string
   clinical_notes?: string
+  /** Alias field names used by the modal form */
+  clinician?: string
+  notes?: string
+  /** Array of response rows sent instead of individual p1-g16 fields */
+  responses?: Array<{ item_code: string; item_name: string; category: string; score: number }>
+  /** Individual rating fields (optional when using responses array) */
+  p1?: number; p2?: number; p3?: number; p4?: number; p5?: number; p6?: number; p7?: number
+  n1?: number; n2?: number; n3?: number; n4?: number; n5?: number; n6?: number; n7?: number
+  g1?: number; g2?: number; g3?: number; g4?: number; g5?: number; g6?: number
+  g7?: number; g8?: number; g9?: number; g10?: number; g11?: number; g12?: number
+  g13?: number; g14?: number; g15?: number; g16?: number
 }
 
 export async function createPANSSAssessment(
