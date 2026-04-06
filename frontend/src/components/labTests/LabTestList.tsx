@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useLabTests } from '../../hooks/useLabTests'
+import { useCareContext } from '../../providers/CareContextProvider'
 import { StatusPill } from '../ui/StatusPill'
 import {
   getLabTestConsumables,
@@ -283,11 +284,25 @@ export const LabTestList = ({
   isOutsourced?: boolean
   defaultStatus?: string
 }) => {
-  // Single source of truth for all filters (patient comes from global search via prop only)
+  const { mode, selectedPatient: contextPatient } = useCareContext()
+
+  // Use context patient when no patient prop is passed.
+  const effectivePatient = patient ?? (contextPatient || undefined)
+
+  // Initialize opIp from context mode so the list pre-filters to the right care type.
   const [filters, setFilters] = useState<Filters>(() => ({
     ...makeEmptyFilters(),
     status: defaultStatus ?? '',
+    opIp: mode === 'IP' ? 'IP' : mode === 'OP' ? 'OP' : '',
   }))
+
+  // Sync opIp when global mode changes (e.g. user switches IP ↔ OP in the header).
+  useEffect(() => {
+    setFilters(prev => ({
+      ...prev,
+      opIp: mode === 'IP' ? 'IP' : mode === 'OP' ? 'OP' : '',
+    }))
+  }, [mode])
 
   const handleClear = () => {
     setFilters(makeEmptyFilters())
@@ -303,7 +318,7 @@ export const LabTestList = ({
   ].filter(Boolean).length
 
   const { labTests, loading, error, refetch } = useLabTests(
-    patient,
+    effectivePatient,
     filters.status || undefined,
     filters.status === 'Pending Review',
     isOutsourced !== undefined ? isOutsourced : (filters.isOutsourced ? filters.isOutsourced === 'yes' : undefined),

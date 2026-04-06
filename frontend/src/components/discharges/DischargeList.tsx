@@ -5,6 +5,7 @@ import { StatusPill } from '../ui/StatusPill'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { DetailSlideOver } from '../ui/DetailSlideOver'
 import { DocDetailView } from '../ui/DocDetailView'
+import { useCareContext } from '../../providers/CareContextProvider'
 
 const statusColors: Record<string, string> = {
   'Draft': 'warning',
@@ -18,6 +19,13 @@ interface DischargeListProps {
 }
 
 export const DischargeList = ({ patient, admission }: DischargeListProps) => {
+  const { mode, activeAdmission, selectedPatient: contextPatient } = useCareContext()
+
+  // When IP mode has a specific admission, scope discharges to that admission.
+  // Otherwise fall through to the prop, then context patient.
+  const effectiveAdmission = (mode === 'IP' && activeAdmission) ? activeAdmission : admission
+  const effectivePatient = patient ?? (contextPatient || undefined)
+
   const [discharges, setDischarges] = useState<Discharge[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
@@ -44,9 +52,9 @@ export const DischargeList = ({ patient, admission }: DischargeListProps) => {
       try {
         setLoading(true)
         setError(null)
-        const effectiveAdmission = dischargeIdFilter ? undefined : (admissionFilter || admission)
+        const resolvedAdmission = dischargeIdFilter ? undefined : (admissionFilter || effectiveAdmission)
         const search = dischargeIdFilter || undefined
-        const response = await fetchDischarges(50, 0, patient, effectiveAdmission, search)
+        const response = await fetchDischarges(50, 0, effectivePatient, resolvedAdmission, search)
         setDischarges(response)
       } catch (err) {
         setError(err instanceof Error ? err : new Error('Failed to fetch discharges'))
@@ -56,14 +64,14 @@ export const DischargeList = ({ patient, admission }: DischargeListProps) => {
     }
 
     loadDischarges()
-  }, [patient, admission, admissionFilter, dischargeIdFilter])
+  }, [effectivePatient, effectiveAdmission, admissionFilter, dischargeIdFilter])
 
   // Load discharge ID options when dropdown is open (searchable list of discharges)
   useEffect(() => {
     if (!dischargeIdOpen) return
     const t = setTimeout(async () => {
       try {
-        const results = await fetchDischarges(30, 0, patient, undefined, dischargeIdQuery || undefined)
+        const results = await fetchDischarges(30, 0, effectivePatient, undefined, dischargeIdQuery || undefined)
         setDischargeIdOptions(
           results.map((d) => ({
             value: d.name,
@@ -75,7 +83,7 @@ export const DischargeList = ({ patient, admission }: DischargeListProps) => {
       }
     }, dischargeIdQuery.trim() === '' ? 0 : 300)
     return () => clearTimeout(t)
-  }, [dischargeIdQuery, dischargeIdOpen, patient])
+  }, [dischargeIdQuery, dischargeIdOpen, effectivePatient])
 
   // Load admission options when dropdown is open (searchable list of inpatient admissions)
   useEffect(() => {
@@ -85,7 +93,7 @@ export const DischargeList = ({ patient, admission }: DischargeListProps) => {
         const results = await fetchInpatientRecords(
           undefined,
           admissionNoQuery || undefined,
-          patient,
+          effectivePatient,
           undefined,
           undefined,
           undefined
@@ -101,7 +109,7 @@ export const DischargeList = ({ patient, admission }: DischargeListProps) => {
       }
     }, admissionNoQuery.trim() === '' ? 0 : 300)
     return () => clearTimeout(t)
-  }, [admissionNoQuery, admissionOpen, patient])
+  }, [admissionNoQuery, admissionOpen, effectivePatient])
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -190,6 +198,16 @@ export const DischargeList = ({ patient, admission }: DischargeListProps) => {
 
   return (
     <div className="bg-white border border-slate-200 rounded-lg">
+      {/* Global-context active admission banner */}
+      {effectiveAdmission && mode === 'IP' && activeAdmission && (
+        <div className="flex items-center gap-2 px-4 py-2 rounded-t-lg bg-blue-50 border-b border-blue-200 text-blue-800 text-xs">
+          <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
+          </svg>
+          Filtered by active admission: <span className="font-semibold ml-1">{effectiveAdmission}</span>
+        </div>
+      )}
+
       {/* Filters — same layout and styling as Admission page */}
       <div className="flex flex-wrap gap-3 mb-4 items-end px-4 pt-3 pb-2 border-b border-slate-200">
         {/* Discharge ID — searchable dropdown (link to Discharge) */}

@@ -8,13 +8,32 @@
  "field_order": [
   "section_break_lusc"
  ],
- "fields": [
-    {"fieldname": "question_number", "label": "Question Number", "fieldtype": "Int"},
-    {"fieldname": "question_text", "label": "Question", "fieldtype": "Data"},
-    {"fieldname": "score", "label": "Score", "fieldtype": "Select", "options": "0\n1\n2\n3\n4\n5\n6\n7\n8"},
-    {"fieldname": "weight", "label": "Weight", "fieldtype": "Float", "default": 1},
-    {"fieldname": "notes", "label": "Notes", "fieldtype": "Small Text"}
-  ],
+"fields": [
+  {
+   "fieldname": "question_no",
+   "fieldtype": "Int",
+   "label": "Question No",
+   "reqd": 1
+  },
+  {
+   "fieldname": "question",
+   "fieldtype": "Small Text",
+   "label": "Question",
+   "reqd": 1
+  },
+  {
+   "fieldname": "response",
+   "fieldtype": "Small Text",
+   "label": "Response",
+   "reqd": 1
+  },
+  {
+   "fieldname": "score",
+   "fieldtype": "Int",
+   "label": "Score",
+   "read_only": 1
+  }
+ ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "istable": 1,

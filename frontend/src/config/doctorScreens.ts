@@ -61,7 +61,7 @@ export const doctorScreenGroups: ScreenGroup[] = [
       { id: 'mh', title: 'Medical History (Allergies)' },
       { id: 'physical-exam', title: 'Physical Examination' },
       {id:'patients', title: 'Patients List'},
-      { id: 'fall', title: 'Morse Fall Scale' }, // Risk Assessment
+      // { id: 'fall', title: 'Morse Fall Scale' }, // Risk Assessment
     ],
   },
   {
@@ -121,12 +121,17 @@ export const doctorScreenGroups: ScreenGroup[] = [
   {
     groupTitle: 'Scales & Assessments',
     screens: [
-      { id: 'morse-fall', title: 'Morse Fall Scale' },
+      { id: 'fall', title: 'Morse Fall Scale' },
       { id: 'adhd', title: 'ADHD Assessment' },
       { id: 'depression', title: 'Depression Assessment' },
       { id: 'mood', title: 'Mood Disorder Assessment' },
       { id: 'gad7', title: 'GAD7 Assessment' },
-      { id: 'pain', title: 'Pain Assessment' },
+      { id: 'phq9', title: 'PHQ9 Assessment' },
+      { id: 'clinical-suicide-risk', title: 'Suicide Risk Assessment' },
+      { id: 'homicide-risk', title: 'Homicide Risk Assessment' },
+      { id: 'ybocs', title: 'YBOCS Assessment' },
+      { id: 'ymrs', title: 'YMRS Assessment' },
+      { id: 'panss', title: 'PANSS Assessment' }
     ],
   }
 ]

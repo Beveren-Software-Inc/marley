@@ -2017,20 +2017,22 @@ export const NursePage = () => {
             </section>
           </div>
 
-          {/* Card: Discharges */}
-          <div className="px-4 pb-4">
-            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-              <div className="font-semibold mb-4 flex-shrink-0">
-                <span>Discharges</span>
-              </div>
-              <div
-                className="overflow-x-auto overflow-y-auto flex-1 min-h-0"
-                style={{ scrollbarWidth: 'thin' }}
-              >
-                <DischargeList patient={selectedPatient} key={dischargeRefreshKey} />
-              </div>
-            </section>
-          </div>
+          {/* Card: Discharges — IP mode only */}
+          {mode === 'IP' && (
+            <div className="px-4 pb-4">
+              <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
+                <div className="font-semibold mb-4 flex-shrink-0">
+                  <span>Discharges</span>
+                </div>
+                <div
+                  className="overflow-x-auto overflow-y-auto flex-1 min-h-0"
+                  style={{ scrollbarWidth: 'thin' }}
+                >
+                  <DischargeList patient={selectedPatient} key={dischargeRefreshKey} />
+                </div>
+              </section>
+            </div>
+          )}
 
           <div className="px-4 pb-4">
             <DoctorServiceDetailsTable 

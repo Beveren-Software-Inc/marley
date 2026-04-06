@@ -2,16 +2,19 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 
 export type CareMode = 'OP' | 'IP'
 
-// Re-use the same localStorage key that PatientSearch already writes so they
+// Re-use the same localStorage keys that PatientSearch already writes so they
 // stay in sync without double-writing.
 const PATIENT_STORAGE_KEY = 'patientSearch_selectedPatient'
+const VISIT_STORAGE_KEY = 'patientSearch_activeVisit'
+const ADMISSION_STORAGE_KEY = 'patientSearch_activeAdmission'
 
 interface CareContextValue {
   mode: CareMode
   setMode: (mode: CareMode) => void
-  /** Currently focused patient visit (OP) or admission (IP), if any. */
+  /** Currently focused patient visit (OP), if any. */
   activeVisit?: string
   setActiveVisit: (visitName: string | undefined) => void
+  /** Currently focused inpatient admission (IP), if any. */
   activeAdmission?: string
   setActiveAdmission: (admissionName: string | undefined) => void
   /**
@@ -43,10 +46,14 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
     const stored = window.localStorage.getItem('care_mode')
     return stored === 'IP' ? 'IP' : 'OP'
   })
-  const [activeVisit, setActiveVisitState] = useState<string | undefined>(undefined)
-  const [activeAdmission, setActiveAdmissionState] = useState<string | undefined>(undefined)
 
-  // Initialise synchronously from localStorage so pages get the patient immediately.
+  // Initialise synchronously from localStorage so all pages get correct values immediately.
+  const [activeVisit, setActiveVisitState] = useState<string | undefined>(
+    () => readStorage(VISIT_STORAGE_KEY)
+  )
+  const [activeAdmission, setActiveAdmissionState] = useState<string | undefined>(
+    () => readStorage(ADMISSION_STORAGE_KEY)
+  )
   const [selectedPatient, setSelectedPatientState] = useState<string | undefined>(
     () => readStorage(PATIENT_STORAGE_KEY)
   )
@@ -56,8 +63,17 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
     try { window.localStorage.setItem('care_mode', mode) } catch { /* ignore */ }
   }, [mode])
 
-  const setActiveVisit = (v: string | undefined) => setActiveVisitState(v || undefined)
-  const setActiveAdmission = (a: string | undefined) => setActiveAdmissionState(a || undefined)
+  const setActiveVisit = (v: string | undefined) => {
+    const val = v || undefined
+    setActiveVisitState(val)
+    writeStorage(VISIT_STORAGE_KEY, val)
+  }
+
+  const setActiveAdmission = (a: string | undefined) => {
+    const val = a || undefined
+    setActiveAdmissionState(val)
+    writeStorage(ADMISSION_STORAGE_KEY, val)
+  }
 
   const setSelectedPatient = (patient: string | undefined) => {
     setSelectedPatientState(patient)

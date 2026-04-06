@@ -14,6 +14,7 @@ import { CreatePatientReferralModal } from '../referrals/CreatePatientReferralMo
 import { CreateVitalSignModal } from '../vitalSigns/CreateVitalSignModal'
 import { CreateObservationModal } from '../observations/CreateObservationModal'
 import { PatientDiagnosisModal } from '../diagnosis/PatientDiagnosisModal'
+import { useCareContext } from '../../providers/CareContextProvider'
 
 const statusColors: Record<string, string> = {
   'Open': 'warning',
@@ -37,6 +38,13 @@ export const PatientVisitList = ({
   patient,
   refreshKey
 }: PatientVisitListProps = {}) => {
+  const { mode, activeVisit, selectedPatient: contextPatient } = useCareContext()
+
+  // When OP mode has a specific visit selected globally, lock the list to that visit.
+  // Fall back to the patient prop, then context patient, for broader filtering.
+  const effectiveVisitFilter = (mode === 'OP' && activeVisit) ? activeVisit : undefined
+  const effectivePatient = patient ?? (contextPatient || undefined)
+
   const [selectedStatus, setSelectedStatus] = useState<string>('')
   const [detailVisit, setDetailVisit] = useState<string | null>(null)
   const [openActionRow, setOpenActionRow] = useState<string | null>(null)
@@ -76,14 +84,14 @@ export const PatientVisitList = ({
     if (!visitOpen) return
     const t = setTimeout(async () => {
       try {
-        const results = await fetchPatientVisitsFull(patient, visitQuery || undefined)
+        const results = await fetchPatientVisitsFull(effectivePatient, visitQuery || undefined)
         setVisitOptions(results.map(r => ({ value: r.value, label: r.label })))
       } catch (err) {
         console.error('Failed to load visit options', err)
       }
     }, visitQuery.trim() === '' ? 0 : 300)
     return () => clearTimeout(t)
-  }, [visitQuery, visitOpen, patient])
+  }, [visitQuery, visitOpen, effectivePatient])
 
   // --- Practitioner: debounced search when dropdown is open ---
   useEffect(() => {
@@ -109,12 +117,12 @@ export const PatientVisitList = ({
     setError(null)
     try {
       const results = await fetchPatientVisitsFull(
-        patient,
-        visitIdFilter || externalSearchQuery || undefined,
-        practitionerFilter || undefined,
-        dateFrom || undefined,
-        dateTo || undefined,
-        selectedStatus || undefined
+        effectiveVisitFilter ? undefined : effectivePatient,
+        effectiveVisitFilter ?? (visitIdFilter || externalSearchQuery || undefined),
+        effectiveVisitFilter ? undefined : (practitionerFilter || undefined),
+        effectiveVisitFilter ? undefined : (dateFrom || undefined),
+        effectiveVisitFilter ? undefined : (dateTo || undefined),
+        effectiveVisitFilter ? undefined : (selectedStatus || undefined)
       )
       setVisits(results)
     } catch (err) {
@@ -126,7 +134,7 @@ export const PatientVisitList = ({
 
   useEffect(() => {
     fetchVisits()
-  }, [selectedStatus, practitionerFilter, visitIdFilter, dateFrom, dateTo, patient, externalSearchQuery, refreshKey])
+  }, [selectedStatus, practitionerFilter, visitIdFilter, dateFrom, dateTo, effectivePatient, externalSearchQuery, refreshKey, effectiveVisitFilter])
 
   // Close action row dropdown on outside click (ignore portaled menu and trigger button)
   useEffect(() => {
@@ -227,7 +235,18 @@ export const PatientVisitList = ({
 
   return (
     <>
-      {/* --- Filters --- */}
+      {/* Global-context active visit banner */}
+      {effectiveVisitFilter && (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-blue-50 border border-blue-200 text-blue-800 text-xs mb-2">
+          <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
+          </svg>
+          Filtered by active visit: <span className="font-semibold ml-1">{effectiveVisitFilter}</span>
+        </div>
+      )}
+
+      {/* --- Filters (hidden when a specific visit is globally active) --- */}
+      {!effectiveVisitFilter && (
       <div className="flex flex-wrap gap-3 mb-4 items-end">
 
         {/* Visit No — custom searchable dropdown (matches Title style) */}
@@ -345,6 +364,7 @@ export const PatientVisitList = ({
           </div>
         )}
       </div>
+      )}
 
       {/* --- Visits Table --- */}
       <div className="overflow-x-auto">

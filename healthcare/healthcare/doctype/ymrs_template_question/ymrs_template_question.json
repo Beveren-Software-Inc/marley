@@ -6,16 +6,90 @@
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
-  "section_break_ndhg"
+  "section_break_ndhg",
+   "question_no",
+  "question",
+  "max_score",
+  "option_0",
+  "option_1",
+  "option_2",
+  "option_3",
+  "option_4",
+  "option_5",
+  "option_6",
+  "option_7",
+  "option_8"
  ],
  "fields": [
-    {"fieldname": "parent_template", "label": "Parent Template", "fieldtype": "Link", "options": "YMRS Template"},
-    {"fieldname": "question_number", "label": "Question Number", "fieldtype": "Int"},
-    {"fieldname": "question_text", "label": "Question", "fieldtype": "Data"},
-    {"fieldname": "score_min", "label": "Minimum Score", "fieldtype": "Int", "default": 0},
-    {"fieldname": "score_max", "label": "Maximum Score", "fieldtype": "Int", "default": 4},
-    {"fieldname": "weight", "label": "Weight", "fieldtype": "Float", "default": 1}
-  ],
+  {
+   "fieldname": "question_no",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Question No",
+   "reqd": 1
+  },
+  {
+   "fieldname": "question",
+   "fieldtype": "Small Text",
+   "in_list_view": 1,
+   "label": "Question",
+   "reqd": 1
+  },
+  {
+   "fieldname": "max_score",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Maximum Score",
+   "reqd": 1,
+   "default": 8
+  },
+  {
+   "fieldname": "option_0",
+   "fieldtype": "Small Text",
+   "label": "Score 0 Description",
+   "reqd": 1
+  },
+  {
+   "fieldname": "option_1",
+   "fieldtype": "Small Text",
+   "label": "Score 1 Description"
+  },
+  {
+   "fieldname": "option_2",
+   "fieldtype": "Small Text",
+   "label": "Score 2 Description"
+  },
+  {
+   "fieldname": "option_3",
+   "fieldtype": "Small Text",
+   "label": "Score 3 Description"
+  },
+  {
+   "fieldname": "option_4",
+   "fieldtype": "Small Text",
+   "label": "Score 4 Description"
+  },
+  {
+   "fieldname": "option_5",
+   "fieldtype": "Small Text",
+   "label": "Score 5 Description"
+  },
+  {
+   "fieldname": "option_6",
+   "fieldtype": "Small Text",
+   "label": "Score 6 Description"
+  },
+  {
+   "fieldname": "option_7",
+   "fieldtype": "Small Text",
+   "label": "Score 7 Description"
+  },
+  {
+   "fieldname": "option_8",
+   "fieldtype": "Small Text",
+   "label": "Score 8 Description"
+  }
+ ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "istable": 1,

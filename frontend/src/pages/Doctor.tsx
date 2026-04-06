@@ -65,6 +65,19 @@ import { MoodDisorderAssessmentList } from '../components/mood_disorder/MoodDiso
 import { CreateMoodDisorderAssessmentModal } from '../components/mood_disorder/CreateMoodDisorderAssessmentModal'
 import { GAD7AssessmentList } from '../components/gad7/GAD7AssessmentList'
 import { CreateGAD7AssessmentModal } from '../components/gad7/CreateGAD7AssessmentModal'
+import { PHQ9AssessmentList } from '../components/phq9/PHQ9AssessmentList'
+import { CreatePHQ9AssessmentModal } from '../components/phq9/CreatePHQ9AssessmentModal'
+import { SuicideRiskAssessmentList } from '../components/clinicalSuicide/ClinicalSuicideRiskAssessmentList'
+import { CreateSuicideRiskAssessmentModal } from '../components/clinicalSuicide/CreateClinicalSuicideRiskAssessmentModal'
+import { HomicideRiskAssessmentList } from '../components/homicide/HomicideRiskAssessmentList'
+import { CreateHomicideRiskAssessmentModal } from '../components/homicide/CreateHomicideRiskAssessmentModal'
+import { YBOCSAssessmentList } from '../components/ybocs/YBOCSAssessmentList'
+import { CreateYBOCSAssessmentModal } from '../components/ybocs/CreateYBOCSAssessmentModal'
+import { YMRSAssessmentList } from '../components/ymrs/YMRSAssessmentList'
+import { CreateYMRSAssessmentModal } from '../components/ymrs/CreateYMRSAssessmentModal'
+import { PANSSAssessmentList } from '../components/panss/PANSSAssessmentList'
+import { CreatePANSSAssessmentModal } from '../components/panss/CreatePANSSAssessmentModal'
+
 
 export const DoctorPage = () => {
   const { mode, activeVisit, activeAdmission, selectedPatient: globalPatient, setSelectedPatient: setGlobalPatient } = useCareContext()
@@ -125,6 +138,18 @@ const [showCreateMoodModal, setShowCreateMoodModal] = useState(false)
 const [moodRefreshKey, setMoodRefreshKey] = useState(0)
 const [showCreateGAD7Modal, setShowCreateGAD7Modal] = useState(false)
 const [gad7RefreshKey, setGad7RefreshKey] = useState(0)
+const [showCreatePHQ9Modal, setShowCreatePHQ9Modal] = useState(false)
+const [phq9RefreshKey, setPhq9RefreshKey] = useState(0)
+const [showCreateSuicideRiskModal, setShowCreateSuicideRiskModal] = useState(false)
+const [suicideRiskRefreshKey, setSuicideRiskRefreshKey] = useState(0)
+const [showCreateHomicideRiskModal, setShowCreateHomicideRiskModal] = useState(false)
+const [homicideRiskRefreshKey, setHomicideRiskRefreshKey] = useState(0)
+const [showCreateYBOCSModal, setShowCreateYBOCSModal] = useState(false)
+const [ybocsRefreshKey, setYbocsRefreshKey] = useState(0)
+const [showCreateYMRSModal, setShowCreateYMRSModal] = useState(false)
+const [ymrsRefreshKey, setYmrsRefreshKey] = useState(0)
+const [showCreatePANSSModal, setShowCreatePANSSModal] = useState(false)
+const [panssRefreshKey, setPanssRefreshKey] = useState(0)
 
   // Sync selectedPatient with URL on mount and when URL changes
   useEffect(() => {
@@ -1658,15 +1683,19 @@ if (screen === 'depression') {
 if (screen === 'mood') {
   return (
     <div className="flex flex-col">
-      <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-        <div className="flex-1 min-w-0">
-          <h1 className="text-sm font-semibold truncate">Mood Disorder Assessments (MDQ)</h1>
-        </div>
-        <div className="flex items-center gap-3 flex-shrink-0">
-          <UserMenu />
-          <NotificationBell />
-        </div>
-      </header>
+       <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
 
       <div className="p-4">
         <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
@@ -1695,14 +1724,18 @@ if (screen === 'gad7') {
   return (
     <div className="flex flex-col">
       <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-        <div className="flex-1 min-w-0">
-          <h1 className="text-sm font-semibold truncate">GAD7 Assessments (Anxiety)</h1>
-        </div>
-        <div className="flex items-center gap-3 flex-shrink-0">
-          <UserMenu />
-          <NotificationBell />
-        </div>
-      </header>
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
 
       <div className="p-4">
         <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
@@ -1727,6 +1760,246 @@ if (screen === 'gad7') {
   )
 }
 
+
+if (screen === 'phq9') {
+  return (
+    <div className="flex flex-col">
+       <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+
+      <div className="p-4">
+        <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+          <PHQ9AssessmentList
+            refreshKey={phq9RefreshKey}
+            onCreateNew={() => setShowCreatePHQ9Modal(true)}
+          />
+        </section>
+      </div>
+
+      {showCreatePHQ9Modal && (
+        <CreatePHQ9AssessmentModal
+          onClose={() => setShowCreatePHQ9Modal(false)}
+          onSuccess={() => {
+            setShowCreatePHQ9Modal(false)
+            setPhq9RefreshKey((prev) => prev + 1)
+            toast.success('PHQ9 Assessment created successfully')
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+if (screen === 'clinical-suicide-risk') {
+  return (
+    <div className="flex flex-col">
+      <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+
+      <div className="p-4">
+        <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+          <SuicideRiskAssessmentList
+            refreshKey={suicideRiskRefreshKey}
+            onCreateNew={() => setShowCreateSuicideRiskModal(true)}
+          />
+        </section>
+      </div>
+
+      {showCreateSuicideRiskModal && (
+        <CreateSuicideRiskAssessmentModal
+          onClose={() => setShowCreateSuicideRiskModal(false)}
+          onSuccess={() => {
+            setShowCreateSuicideRiskModal(false)
+            setSuicideRiskRefreshKey((prev) => prev + 1)
+            toast.success('Suicide Risk Assessment created successfully')
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+if (screen === 'homicide-risk') {
+  return (
+    <div className="flex flex-col">
+     <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+
+      <div className="p-4">
+        <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+          <HomicideRiskAssessmentList
+            refreshKey={homicideRiskRefreshKey}
+            onCreateNew={() => setShowCreateHomicideRiskModal(true)}
+          />
+        </section>
+      </div>
+
+      {showCreateHomicideRiskModal && (
+        <CreateHomicideRiskAssessmentModal
+          onClose={() => setShowCreateHomicideRiskModal(false)}
+          onSuccess={() => {
+            setShowCreateHomicideRiskModal(false)
+            setHomicideRiskRefreshKey((prev) => prev + 1)
+            toast.success('Homicide Risk Assessment created successfully')
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+if (screen === 'ybocs') {
+  return (
+    <div className="flex flex-col">
+       <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+
+      <div className="p-4">
+        <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+          <YBOCSAssessmentList
+            refreshKey={ybocsRefreshKey}
+            onCreateNew={() => setShowCreateYBOCSModal(true)}
+          />
+        </section>
+      </div>
+
+      {showCreateYBOCSModal && (
+        <CreateYBOCSAssessmentModal
+          onClose={() => setShowCreateYBOCSModal(false)}
+          onSuccess={() => {
+            setShowCreateYBOCSModal(false)
+            setYbocsRefreshKey((prev) => prev + 1)
+            toast.success('YBOCS Assessment created successfully')
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+if (screen === 'ymrs') {
+  return (
+    <div className="flex flex-col">
+      <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+
+      <div className="p-4">
+        <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+          <YMRSAssessmentList
+            refreshKey={ymrsRefreshKey}
+            onCreateNew={() => setShowCreateYMRSModal(true)}
+          />
+        </section>
+      </div>
+
+      {showCreateYMRSModal && (
+        <CreateYMRSAssessmentModal
+          onClose={() => setShowCreateYMRSModal(false)}
+          onSuccess={() => {
+            setShowCreateYMRSModal(false)
+            setYmrsRefreshKey((prev) => prev + 1)
+            toast.success('YMRS Assessment created successfully')
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+if (screen === 'panss') {
+  return (
+    <div className="flex flex-col">
+      <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+
+      <div className="p-4">
+        <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+          <PANSSAssessmentList
+            refreshKey={panssRefreshKey}
+            onCreateNew={() => setShowCreatePANSSModal(true)}
+          />
+        </section>
+      </div>
+
+      {showCreatePANSSModal && (
+        <CreatePANSSAssessmentModal
+          onClose={() => setShowCreatePANSSModal(false)}
+          onSuccess={() => {
+            setShowCreatePANSSModal(false)
+            setPanssRefreshKey((prev) => prev + 1)
+            toast.success('PANSS Assessment created successfully')
+          }}
+        />
+      )}
+    </div>
+  )
+}
 
   return (
     <div className="flex flex-col">
@@ -1931,42 +2204,49 @@ if (screen === 'gad7') {
             </section>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2 px-4 pb-4">
-            {/* Card: Patient Visits */}
-            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-              <div className="font-semibold mb-4 flex-shrink-0">
-                <span>Patient Visits</span>
-              </div>
-              <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                <PatientVisitList patient={selectedPatient} />
-              </div>
-            </section>
+          {/* Card: Patient Visits — OP mode only */}
+          {mode === 'OP' && (
+            <div className="px-4 pb-4">
+              <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
+                <div className="font-semibold mb-4 flex-shrink-0">
+                  <span>Patient Visits (OP)</span>
+                </div>
+                <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
+                  <PatientVisitList patient={selectedPatient} />
+                </div>
+              </section>
+            </div>
+          )}
 
-            {/* Card: Admissions */}
-            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-              <div className="font-semibold mb-4 flex-shrink-0">
-                <span>Admissions</span>
+          {/* Card: Admissions + Discharges — IP mode only */}
+          {mode === 'IP' && (
+            <>
+              <div className="px-4 pb-4">
+                <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
+                  <div className="font-semibold mb-4 flex-shrink-0">
+                    <span>Admissions (IP)</span>
+                  </div>
+                  <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
+                    <AdmissionList patient={selectedPatient} />
+                  </div>
+                </section>
               </div>
-              <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                <AdmissionList patient={selectedPatient} />
-              </div>
-            </section>
-          </div>
 
-          {/* Card: Discharges */}
-          <div className="px-4 pb-4">
-            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-              <div className="font-semibold mb-4 flex-shrink-0">
-                <span>Discharges</span>
+              <div className="px-4 pb-4">
+                <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
+                  <div className="font-semibold mb-4 flex-shrink-0">
+                    <span>Discharges</span>
+                  </div>
+                  <div
+                    className="overflow-x-auto overflow-y-auto flex-1 min-h-0"
+                    style={{ scrollbarWidth: 'thin' }}
+                  >
+                    <DischargeList patient={selectedPatient} key={dischargeRefreshKey} />
+                  </div>
+                </section>
               </div>
-              <div
-                className="overflow-x-auto overflow-y-auto flex-1 min-h-0"
-                style={{ scrollbarWidth: 'thin' }}
-              >
-                <DischargeList patient={selectedPatient} key={dischargeRefreshKey} />
-              </div>
-            </section>
-          </div>
+            </>
+          )}
 
           <div className="px-4 pb-4">
             <DoctorServiceDetailsTable 

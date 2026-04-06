@@ -1,39 +1,58 @@
 {
  "actions": [],
  "allow_rename": 1,
+ "autoname": "field:template_name",
  "creation": "2026-04-02 14:02:50.787544",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "section_break_xbnn"
+  "template_name",
+  "section_break_jstm",
+  "description",
+  "section_break_nvlo",
+  "questions"
  ],
  "fields": [
-      {
-        "fieldname": "template_name",
-        "label": "Template Name",
-        "fieldtype": "Data",
-        "reqd": 1
-      },
-      {
-        "fieldname": "description",
-        "label": "Description",
-        "fieldtype": "Text"
-      },
-      {
-        "fieldname": "questions",
-        "label": "Questions",
-        "fieldtype": "Table",
-        "options": "PHQ9 Template Question",
-        "reqd": 1
-      }
-    ],
+  {
+   "fieldname": "template_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Template Name",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Text Editor",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Description"
+  },
+  {
+   "fieldname": "questions",
+   "fieldtype": "Table",
+   "label": "Questions",
+   "options": "PHQ9 Template Question",
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_break_jstm",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "section_break_nvlo",
+   "fieldtype": "Section Break"
+  }
+ ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-04-02 14:02:50.787544",
+ "modified": "2026-04-06 10:33:23.192956",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "PHQ9 Template",
+ "naming_rule": "By fieldname",
  "owner": "Administrator",
  "permissions": [
   {
