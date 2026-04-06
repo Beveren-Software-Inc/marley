@@ -8,39 +8,39 @@
  "field_order": [
   "section_break_duvm"
  ],
-"fields": [
-      {
-        "fieldname": "question_no",
-        "label": "Question No",
-        "fieldtype": "Int",
-        "reqd": 1
-      },
-      {
-        "fieldname": "section",
-        "label": "Section",
-        "fieldtype": "Select",
-        "options": "Obsessions\nCompulsions",
-        "reqd": 1
-      },
-      {
-        "fieldname": "question",
-        "label": "Question",
-        "fieldtype": "Small Text",
-        "reqd": 1
-      },
-      {
-        "fieldname": "response",
-        "label": "Response",
-        "fieldtype": "Select",
-        "options": "0\n1\n2\n3\n4"
-      },
-      {
-        "fieldname": "score",
-        "label": "Score",
-        "fieldtype": "Int",
-        "read_only": 1
-      }
-    ],
+ "fields": [
+  {
+   "fieldname": "question_no",
+   "label": "Question No",
+   "fieldtype": "Int",
+   "reqd": 1
+  },
+  {
+   "fieldname": "section",
+   "label": "Section",
+   "fieldtype": "Select",
+   "options": "Obsessions\nCompulsions",
+   "reqd": 1
+  },
+  {
+   "fieldname": "question",
+   "label": "Question",
+   "fieldtype": "Small Text",
+   "reqd": 1
+  },
+  {
+   "fieldname": "response",
+   "label": "Response",
+   "fieldtype": "Select",
+   "options": "0\n1\n2\n3\n4"
+  },
+  {
+   "fieldname": "score",
+   "label": "Score",
+   "fieldtype": "Int",
+   "read_only": 1
+  }
+ ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "istable": 1,

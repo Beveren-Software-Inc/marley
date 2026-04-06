@@ -69,6 +69,12 @@ import { PHQ9AssessmentList } from '../components/phq9/PHQ9AssessmentList'
 import { CreatePHQ9AssessmentModal } from '../components/phq9/CreatePHQ9AssessmentModal'
 import { SuicideRiskAssessmentList } from '../components/clinicalSuicide/ClinicalSuicideRiskAssessmentList'
 import { CreateSuicideRiskAssessmentModal } from '../components/clinicalSuicide/CreateClinicalSuicideRiskAssessmentModal'
+import { HomicideRiskAssessmentList } from '../components/homicide/HomicideRiskAssessmentList'
+import { CreateHomicideRiskAssessmentModal } from '../components/homicide/CreateHomicideRiskAssessmentModal'
+import { YBOCSAssessmentList } from '../components/ybocs/YBOCSAssessmentList'
+import { CreateYBOCSAssessmentModal } from '../components/ybocs/CreateYBOCSAssessmentModal'
+import { YMRSAssessmentList } from '../components/ymrs/YMRSAssessmentList'
+import { CreateYMRSAssessmentModal } from '../components/ymrs/CreateYMRSAssessmentModal'
 
 
 export const DoctorPage = () => {
@@ -134,6 +140,12 @@ const [showCreatePHQ9Modal, setShowCreatePHQ9Modal] = useState(false)
 const [phq9RefreshKey, setPhq9RefreshKey] = useState(0)
 const [showCreateSuicideRiskModal, setShowCreateSuicideRiskModal] = useState(false)
 const [suicideRiskRefreshKey, setSuicideRiskRefreshKey] = useState(0)
+const [showCreateHomicideRiskModal, setShowCreateHomicideRiskModal] = useState(false)
+const [homicideRiskRefreshKey, setHomicideRiskRefreshKey] = useState(0)
+const [showCreateYBOCSModal, setShowCreateYBOCSModal] = useState(false)
+const [ybocsRefreshKey, setYbocsRefreshKey] = useState(0)
+const [showCreateYMRSModal, setShowCreateYMRSModal] = useState(false)
+const [ymrsRefreshKey, setYmrsRefreshKey] = useState(0)
 
   // Sync selectedPatient with URL on mount and when URL changes
   useEffect(() => {
@@ -1802,6 +1814,114 @@ if (screen === 'clinical-suicide-risk') {
             setShowCreateSuicideRiskModal(false)
             setSuicideRiskRefreshKey((prev) => prev + 1)
             toast.success('Suicide Risk Assessment created successfully')
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+if (screen === 'homicide-risk') {
+  return (
+    <div className="flex flex-col">
+      <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+        <div className="flex-1 min-w-0">
+          <h1 className="text-sm font-semibold truncate">Homicide Risk Assessment</h1>
+        </div>
+        <div className="flex items-center gap-3 flex-shrink-0">
+          <UserMenu />
+          <NotificationBell />
+        </div>
+      </header>
+
+      <div className="p-4">
+        <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+          <HomicideRiskAssessmentList
+            refreshKey={homicideRiskRefreshKey}
+            onCreateNew={() => setShowCreateHomicideRiskModal(true)}
+          />
+        </section>
+      </div>
+
+      {showCreateHomicideRiskModal && (
+        <CreateHomicideRiskAssessmentModal
+          onClose={() => setShowCreateHomicideRiskModal(false)}
+          onSuccess={() => {
+            setShowCreateHomicideRiskModal(false)
+            setHomicideRiskRefreshKey((prev) => prev + 1)
+            toast.success('Homicide Risk Assessment created successfully')
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+if (screen === 'ybocs') {
+  return (
+    <div className="flex flex-col">
+      <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+        <div className="flex-1 min-w-0">
+          <h1 className="text-sm font-semibold truncate">YBOCS Assessments (OCD)</h1>
+        </div>
+        <div className="flex items-center gap-3 flex-shrink-0">
+          <UserMenu />
+          <NotificationBell />
+        </div>
+      </header>
+
+      <div className="p-4">
+        <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+          <YBOCSAssessmentList
+            refreshKey={ybocsRefreshKey}
+            onCreateNew={() => setShowCreateYBOCSModal(true)}
+          />
+        </section>
+      </div>
+
+      {showCreateYBOCSModal && (
+        <CreateYBOCSAssessmentModal
+          onClose={() => setShowCreateYBOCSModal(false)}
+          onSuccess={() => {
+            setShowCreateYBOCSModal(false)
+            setYbocsRefreshKey((prev) => prev + 1)
+            toast.success('YBOCS Assessment created successfully')
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+if (screen === 'ymrs') {
+  return (
+    <div className="flex flex-col">
+      <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+        <div className="flex-1 min-w-0">
+          <h1 className="text-sm font-semibold truncate">YMRS Assessments (Mania)</h1>
+        </div>
+        <div className="flex items-center gap-3 flex-shrink-0">
+          <UserMenu />
+          <NotificationBell />
+        </div>
+      </header>
+
+      <div className="p-4">
+        <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+          <YMRSAssessmentList
+            refreshKey={ymrsRefreshKey}
+            onCreateNew={() => setShowCreateYMRSModal(true)}
+          />
+        </section>
+      </div>
+
+      {showCreateYMRSModal && (
+        <CreateYMRSAssessmentModal
+          onClose={() => setShowCreateYMRSModal(false)}
+          onSuccess={() => {
+            setShowCreateYMRSModal(false)
+            setYmrsRefreshKey((prev) => prev + 1)
+            toast.success('YMRS Assessment created successfully')
           }}
         />
       )}

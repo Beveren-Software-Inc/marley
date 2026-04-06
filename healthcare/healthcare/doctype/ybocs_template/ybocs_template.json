@@ -1,39 +1,55 @@
 {
  "actions": [],
  "allow_rename": 1,
+ "autoname": "field:template_name",
  "creation": "2026-04-02 14:18:13.288381",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "section_break_js05"
+  "template_name",
+  "section_break_xxej",
+  "description",
+  "section_break_rhmg",
+  "questions"
  ],
  "fields": [
-      {
-        "fieldname": "template_name",
-        "label": "Template Name",
-        "fieldtype": "Data",
-        "reqd": 1
-      },
-      {
-        "fieldname": "description",
-        "label": "Description",
-        "fieldtype": "Text"
-      },
-      {
-        "fieldname": "questions",
-        "label": "Questions",
-        "fieldtype": "Table",
-        "options": "YBOCS Template Question",
-        "reqd": 1
-      }
-    ],
+  {
+   "fieldname": "template_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Template Name",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Text Editor",
+   "label": "Description"
+  },
+  {
+   "fieldname": "questions",
+   "fieldtype": "Table",
+   "label": "Questions",
+   "options": "YBOCS Template Question",
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_break_xxej",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "section_break_rhmg",
+   "fieldtype": "Section Break"
+  }
+ ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-04-02 14:18:13.288381",
+ "modified": "2026-04-06 12:27:42.174129",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "YBOCS Template",
+ "naming_rule": "By fieldname",
  "owner": "Administrator",
  "permissions": [
   {

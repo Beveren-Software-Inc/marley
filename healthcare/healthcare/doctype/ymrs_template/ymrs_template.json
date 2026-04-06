@@ -1,29 +1,52 @@
 {
  "actions": [],
  "allow_rename": 1,
+ "autoname": "field:template_name",
  "creation": "2026-04-02 14:51:24.521059",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "section_break_zvwe"
+  "template_name",
+  "section_break_cylu",
+  "description",
+  "section_break_fpqo",
+  "questions"
  ],
-"fields": [
-    {"fieldname": "template_name", "label": "Template Name", "fieldtype": "Data"},
-    {"fieldname": "description", "label": "Description", "fieldtype": "Text"},
-    {
-      "fieldname": "questions",
-      "label": "Questions",
-      "fieldtype": "Table",
-      "options": "YMRS Template Question"
-    }
-  ],
+ "fields": [
+  {
+   "fieldname": "template_name",
+   "fieldtype": "Data",
+   "label": "Template Name",
+   "unique": 1
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Text Editor",
+   "label": "Description"
+  },
+  {
+   "fieldname": "questions",
+   "fieldtype": "Table",
+   "label": "Questions",
+   "options": "YMRS Template Question"
+  },
+  {
+   "fieldname": "section_break_cylu",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "section_break_fpqo",
+   "fieldtype": "Section Break"
+  }
+ ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-04-02 14:51:24.521059",
+ "modified": "2026-04-06 12:55:31.336266",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "YMRS Template",
+ "naming_rule": "By fieldname",
  "owner": "Administrator",
  "permissions": [
   {
