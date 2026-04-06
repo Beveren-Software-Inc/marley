@@ -18,14 +18,17 @@ def get_medication_orders(
 	from_date=None,
 	to_date=None,
 	care_context=None,
+	patient_encounter=None,
+	inpatient_record=None,
 ):
 	"""Get list of Patient Medication Orders for Prescription listing.
-	Supports filters: patient, status, search (name/patient name), practitioner, from_date, to_date.
+	Supports filters: patient, status, search (name/patient name), practitioner,
+	from_date, to_date, care_context, patient_encounter, inpatient_record.
 	"""
 	from healthcare.api.common import get_permitted_cost_centers
 	limit = int(limit) if limit else 50
 	offset = int(offset) if offset else 0
-	use_sql = bool(search or practitioner or from_date or to_date)
+	use_sql = bool(search or practitioner or from_date or to_date or patient_encounter or inpatient_record)
 
 	# Resolve cost-centre restriction once for both paths
 	permitted_cc = get_permitted_cost_centers()
@@ -61,6 +64,12 @@ def get_medication_orders(
 		if care_context in ('Patient Visit', 'Inpatient Admission'):
 			conditions.append('care_context = %(care_context)s')
 			params['care_context'] = care_context
+		if patient_encounter:
+			conditions.append('patient_encounter = %(patient_encounter)s')
+			params['patient_encounter'] = patient_encounter
+		if inpatient_record:
+			conditions.append('inpatient_record = %(inpatient_record)s')
+			params['inpatient_record'] = inpatient_record
 		if from_date:
 			conditions.append('posting_date >= %(from_date)s')
 			params['from_date'] = from_date
@@ -97,6 +106,10 @@ def get_medication_orders(
 			filters.append(['status', '!=', 'Cancelled'])
 		if care_context in ('Patient Visit', 'Inpatient Admission'):
 			filters.append(['care_context', '=', care_context])
+		if patient_encounter:
+			filters.append(['patient_encounter', '=', patient_encounter])
+		if inpatient_record:
+			filters.append(['inpatient_record', '=', inpatient_record])
 
 		# ── Cost-centre User Permission enforcement ───────────────────────
 		if permitted_cc is not None:

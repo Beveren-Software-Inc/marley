@@ -6,6 +6,7 @@ import { StatusPill } from '../ui/StatusPill'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { PrescriptionSlideOver } from './PrescriptionSlideOver'
+import { useCareContext } from '../../providers/CareContextProvider'
 
 
 const statusColors: Record<string, string> = {
@@ -36,8 +37,20 @@ export const PrescriptionList = ({
   patient,
   refreshKey,
   onPrescriptionSelect,
-  careContext,
+  careContext: careContextProp,
 }: PrescriptionListProps) => {
+  const { mode, activeVisit, activeAdmission, selectedPatient: contextPatient } = useCareContext()
+
+  // Derive care context from global mode when no explicit prop provided.
+  const careContext = careContextProp ?? (mode === 'IP' ? 'Inpatient Admission' : 'Patient Visit')
+  // Use context patient when no patient prop is passed.
+  const effectivePatient = patient ?? (contextPatient || undefined)
+  // Precise filter: the specific chosen visit or admission.
+  const effectiveVisitFilter = (mode === 'OP' && activeVisit) ? activeVisit : undefined
+  const effectiveAdmissionFilter = (mode === 'IP' && activeAdmission) ? activeAdmission : undefined
+  // When a specific context is active, hide local filters (same UX as AdmissionList / PatientVisitList).
+  const hasContextLock = !!(effectiveVisitFilter || effectiveAdmissionFilter)
+
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
@@ -56,13 +69,15 @@ export const PrescriptionList = ({
   const [searchQuery, setSearchQuery] = useState('')
 
   const filters: PrescriptionFilters = {
-    patient,
-    status: statusFilter || undefined,
-    practitioner: practitionerFilter || undefined,
-    fromDate: dateFrom || undefined,
-    toDate: dateTo || undefined,
-    search: searchQuery.trim() || undefined,
+    patient: effectivePatient,
+    status: hasContextLock ? undefined : (statusFilter || undefined),
+    practitioner: hasContextLock ? undefined : (practitionerFilter || undefined),
+    fromDate: hasContextLock ? undefined : (dateFrom || undefined),
+    toDate: hasContextLock ? undefined : (dateTo || undefined),
+    search: hasContextLock ? undefined : (searchQuery.trim() || undefined),
     careContext,
+    patientEncounter: effectiveVisitFilter,
+    inpatientRecord: effectiveAdmissionFilter,
   }
 
   const hasActiveFilters = !!(statusFilter || practitionerFilter || dateFrom || dateTo || searchQuery.trim())
@@ -79,7 +94,7 @@ export const PrescriptionList = ({
 
   useEffect(() => {
     load()
-  }, [patient, refreshKey, statusFilter, practitionerFilter, dateFrom, dateTo, searchQuery])
+  }, [effectivePatient, refreshKey, statusFilter, practitionerFilter, dateFrom, dateTo, searchQuery, careContext, effectiveVisitFilter, effectiveAdmissionFilter])
 
   useEffect(() => {
     if (!practitionerOpen) return
@@ -166,7 +181,21 @@ export const PrescriptionList = ({
 
   return (
     <div className="min-w-full">
-      {/* Filter bar */}
+      {/* Active-context banner — shown when filtering by a specific visit or admission */}
+      {hasContextLock && (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-blue-50 border border-blue-200 text-blue-800 text-xs mb-2">
+          <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
+          </svg>
+          {effectiveVisitFilter
+            ? <>Filtered by active visit: <span className="font-semibold ml-1">{effectiveVisitFilter}</span></>
+            : <>Filtered by active admission: <span className="font-semibold ml-1">{effectiveAdmissionFilter}</span></>
+          }
+        </div>
+      )}
+
+      {/* Filter bar — hidden when a specific context lock is active */}
+      {!hasContextLock && (
       <div className="flex flex-wrap items-end gap-3 px-4 py-3 bg-white border-b border-slate-200">
         <div className="flex flex-col gap-1 min-w-[120px]">
           <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Status</label>
@@ -253,6 +282,7 @@ export const PrescriptionList = ({
           </button>
         )}
       </div>
+      )}
 
       {prescriptions.length === 0 ? (
         <div className="flex items-center justify-center p-8">

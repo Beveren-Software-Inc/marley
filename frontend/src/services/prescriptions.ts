@@ -32,6 +32,10 @@ export interface PrescriptionFilters {
   fromDate?: string
   toDate?: string
   careContext?: 'Patient Visit' | 'Inpatient Admission'
+  /** Filter by specific Patient Visit (patient_encounter field) */
+  patientEncounter?: string
+  /** Filter by specific Inpatient Admission (inpatient_record field) */
+  inpatientRecord?: string
 }
 
 export async function fetchPrescriptions(
@@ -49,6 +53,8 @@ export async function fetchPrescriptions(
   if (filters.fromDate) params.append('from_date', filters.fromDate)
   if (filters.toDate) params.append('to_date', filters.toDate)
   if (filters.careContext) params.append('care_context', filters.careContext)
+  if (filters.patientEncounter) params.append('patient_encounter', filters.patientEncounter)
+  if (filters.inpatientRecord) params.append('inpatient_record', filters.inpatientRecord)
 
   const response = await fetch(
     `/api/method/healthcare.api.patient_medication_order.get_medication_orders?${params.toString()}`

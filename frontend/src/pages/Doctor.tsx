@@ -75,6 +75,8 @@ import { YBOCSAssessmentList } from '../components/ybocs/YBOCSAssessmentList'
 import { CreateYBOCSAssessmentModal } from '../components/ybocs/CreateYBOCSAssessmentModal'
 import { YMRSAssessmentList } from '../components/ymrs/YMRSAssessmentList'
 import { CreateYMRSAssessmentModal } from '../components/ymrs/CreateYMRSAssessmentModal'
+import { PANSSAssessmentList } from '../components/panss/PANSSAssessmentList'
+import { CreatePANSSAssessmentModal } from '../components/panss/CreatePANSSAssessmentModal'
 
 
 export const DoctorPage = () => {
@@ -146,6 +148,8 @@ const [showCreateYBOCSModal, setShowCreateYBOCSModal] = useState(false)
 const [ybocsRefreshKey, setYbocsRefreshKey] = useState(0)
 const [showCreateYMRSModal, setShowCreateYMRSModal] = useState(false)
 const [ymrsRefreshKey, setYmrsRefreshKey] = useState(0)
+const [showCreatePANSSModal, setShowCreatePANSSModal] = useState(false)
+const [panssRefreshKey, setPanssRefreshKey] = useState(0)
 
   // Sync selectedPatient with URL on mount and when URL changes
   useEffect(() => {
@@ -1679,15 +1683,19 @@ if (screen === 'depression') {
 if (screen === 'mood') {
   return (
     <div className="flex flex-col">
-      <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-        <div className="flex-1 min-w-0">
-          <h1 className="text-sm font-semibold truncate">Mood Disorder Assessments (MDQ)</h1>
-        </div>
-        <div className="flex items-center gap-3 flex-shrink-0">
-          <UserMenu />
-          <NotificationBell />
-        </div>
-      </header>
+       <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
 
       <div className="p-4">
         <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
@@ -1716,14 +1724,18 @@ if (screen === 'gad7') {
   return (
     <div className="flex flex-col">
       <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-        <div className="flex-1 min-w-0">
-          <h1 className="text-sm font-semibold truncate">GAD7 Assessments (Anxiety)</h1>
-        </div>
-        <div className="flex items-center gap-3 flex-shrink-0">
-          <UserMenu />
-          <NotificationBell />
-        </div>
-      </header>
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
 
       <div className="p-4">
         <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
@@ -1752,15 +1764,19 @@ if (screen === 'gad7') {
 if (screen === 'phq9') {
   return (
     <div className="flex flex-col">
-      <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-        <div className="flex-1 min-w-0">
-          <h1 className="text-sm font-semibold truncate">PHQ9 Assessments (Depression)</h1>
-        </div>
-        <div className="flex items-center gap-3 flex-shrink-0">
-          <UserMenu />
-          <NotificationBell />
-        </div>
-      </header>
+       <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
 
       <div className="p-4">
         <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
@@ -1789,14 +1805,18 @@ if (screen === 'clinical-suicide-risk') {
   return (
     <div className="flex flex-col">
       <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-        <div className="flex-1 min-w-0">
-          <h1 className="text-sm font-semibold truncate">Clinical Suicide Risk Assessment</h1>
-        </div>
-        <div className="flex items-center gap-3 flex-shrink-0">
-          <UserMenu />
-          <NotificationBell />
-        </div>
-      </header>
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
 
       <div className="p-4">
         <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
@@ -1824,15 +1844,19 @@ if (screen === 'clinical-suicide-risk') {
 if (screen === 'homicide-risk') {
   return (
     <div className="flex flex-col">
-      <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-        <div className="flex-1 min-w-0">
-          <h1 className="text-sm font-semibold truncate">Homicide Risk Assessment</h1>
-        </div>
-        <div className="flex items-center gap-3 flex-shrink-0">
-          <UserMenu />
-          <NotificationBell />
-        </div>
-      </header>
+     <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
 
       <div className="p-4">
         <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
@@ -1860,15 +1884,19 @@ if (screen === 'homicide-risk') {
 if (screen === 'ybocs') {
   return (
     <div className="flex flex-col">
-      <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-        <div className="flex-1 min-w-0">
-          <h1 className="text-sm font-semibold truncate">YBOCS Assessments (OCD)</h1>
-        </div>
-        <div className="flex items-center gap-3 flex-shrink-0">
-          <UserMenu />
-          <NotificationBell />
-        </div>
-      </header>
+       <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
 
       <div className="p-4">
         <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
@@ -1897,14 +1925,18 @@ if (screen === 'ymrs') {
   return (
     <div className="flex flex-col">
       <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-        <div className="flex-1 min-w-0">
-          <h1 className="text-sm font-semibold truncate">YMRS Assessments (Mania)</h1>
-        </div>
-        <div className="flex items-center gap-3 flex-shrink-0">
-          <UserMenu />
-          <NotificationBell />
-        </div>
-      </header>
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
 
       <div className="p-4">
         <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
@@ -1922,6 +1954,46 @@ if (screen === 'ymrs') {
             setShowCreateYMRSModal(false)
             setYmrsRefreshKey((prev) => prev + 1)
             toast.success('YMRS Assessment created successfully')
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+if (screen === 'panss') {
+  return (
+    <div className="flex flex-col">
+      <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+
+      <div className="p-4">
+        <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+          <PANSSAssessmentList
+            refreshKey={panssRefreshKey}
+            onCreateNew={() => setShowCreatePANSSModal(true)}
+          />
+        </section>
+      </div>
+
+      {showCreatePANSSModal && (
+        <CreatePANSSAssessmentModal
+          onClose={() => setShowCreatePANSSModal(false)}
+          onSuccess={() => {
+            setShowCreatePANSSModal(false)
+            setPanssRefreshKey((prev) => prev + 1)
+            toast.success('PANSS Assessment created successfully')
           }}
         />
       )}
@@ -2132,42 +2204,49 @@ if (screen === 'ymrs') {
             </section>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2 px-4 pb-4">
-            {/* Card: Patient Visits */}
-            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-              <div className="font-semibold mb-4 flex-shrink-0">
-                <span>Patient Visits</span>
-              </div>
-              <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                <PatientVisitList patient={selectedPatient} />
-              </div>
-            </section>
+          {/* Card: Patient Visits — OP mode only */}
+          {mode === 'OP' && (
+            <div className="px-4 pb-4">
+              <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
+                <div className="font-semibold mb-4 flex-shrink-0">
+                  <span>Patient Visits (OP)</span>
+                </div>
+                <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
+                  <PatientVisitList patient={selectedPatient} />
+                </div>
+              </section>
+            </div>
+          )}
 
-            {/* Card: Admissions */}
-            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-              <div className="font-semibold mb-4 flex-shrink-0">
-                <span>Admissions</span>
+          {/* Card: Admissions + Discharges — IP mode only */}
+          {mode === 'IP' && (
+            <>
+              <div className="px-4 pb-4">
+                <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
+                  <div className="font-semibold mb-4 flex-shrink-0">
+                    <span>Admissions (IP)</span>
+                  </div>
+                  <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
+                    <AdmissionList patient={selectedPatient} />
+                  </div>
+                </section>
               </div>
-              <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                <AdmissionList patient={selectedPatient} />
-              </div>
-            </section>
-          </div>
 
-          {/* Card: Discharges */}
-          <div className="px-4 pb-4">
-            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-              <div className="font-semibold mb-4 flex-shrink-0">
-                <span>Discharges</span>
+              <div className="px-4 pb-4">
+                <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
+                  <div className="font-semibold mb-4 flex-shrink-0">
+                    <span>Discharges</span>
+                  </div>
+                  <div
+                    className="overflow-x-auto overflow-y-auto flex-1 min-h-0"
+                    style={{ scrollbarWidth: 'thin' }}
+                  >
+                    <DischargeList patient={selectedPatient} key={dischargeRefreshKey} />
+                  </div>
+                </section>
               </div>
-              <div
-                className="overflow-x-auto overflow-y-auto flex-1 min-h-0"
-                style={{ scrollbarWidth: 'thin' }}
-              >
-                <DischargeList patient={selectedPatient} key={dischargeRefreshKey} />
-              </div>
-            </section>
-          </div>
+            </>
+          )}
 
           <div className="px-4 pb-4">
             <DoctorServiceDetailsTable 

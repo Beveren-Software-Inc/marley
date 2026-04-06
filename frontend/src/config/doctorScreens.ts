@@ -130,7 +130,8 @@ export const doctorScreenGroups: ScreenGroup[] = [
       { id: 'clinical-suicide-risk', title: 'Suicide Risk Assessment' },
       { id: 'homicide-risk', title: 'Homicide Risk Assessment' },
       { id: 'ybocs', title: 'YBOCS Assessment' },
-      { id: 'ymrs', title: 'YMRS Assessment' }
+      { id: 'ymrs', title: 'YMRS Assessment' },
+      { id: 'panss', title: 'PANSS Assessment' }
     ],
   }
 ]

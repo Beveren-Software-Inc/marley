@@ -936,6 +936,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useInpatientRecords } from '../../hooks/useInpatientRecords'
 import { fetchInpatientRecords } from '../../services/inpatientRecords'
 import { fetchHealthcarePractitioners, type LinkFieldOption } from '../../services/common'
+import { useCareContext } from '../../providers/CareContextProvider'
 import { StatusPill } from '../ui/StatusPill'
 import { PackageSelectionModal } from './PackageSelectionModal'
 import { AdmissionFormModal } from './AdmissionFormModal'
@@ -979,6 +980,13 @@ interface AdmissionListProps {
 }
 
 export const AdmissionList = ({ onAdmissionSelect, onPatientFromAdmission, searchQuery: externalSearchQuery = '', patient, refreshKey }: AdmissionListProps = {}) => {
+  const { mode, activeAdmission, selectedPatient: contextPatient } = useCareContext()
+
+  // When IP mode has a specific admission selected globally, lock the list to that admission.
+  // Fall back to the patient prop, then context patient, for broader filtering.
+  const effectiveNameFilter = (mode === 'IP' && activeAdmission) ? activeAdmission : undefined
+  const effectivePatient = patient ?? (contextPatient || undefined)
+
   const [selectedStatus, setSelectedStatus] = useState<string>('')
   const [selectedRecord, setSelectedRecord] = useState<string | null>(null)
   const [showPackages, setShowPackages] = useState(false)
@@ -1041,12 +1049,12 @@ export const AdmissionList = ({ onAdmissionSelect, onPatientFromAdmission, searc
   const [detailAdmission, setDetailAdmission] = useState<string | null>(null)
 
   const { records, loading, error, refetch } = useInpatientRecords(
-    selectedStatus || undefined,
-    admissionNoFilter || externalSearchQuery || undefined,
-    patient,
-    practitionerFilter || undefined,
-    dateFrom || undefined,
-    dateTo || undefined,
+    effectiveNameFilter ? undefined : (selectedStatus || undefined),
+    effectiveNameFilter ?? (admissionNoFilter || externalSearchQuery || undefined),
+    effectiveNameFilter ? undefined : effectivePatient,
+    effectiveNameFilter ? undefined : (practitionerFilter || undefined),
+    effectiveNameFilter ? undefined : (dateFrom || undefined),
+    effectiveNameFilter ? undefined : (dateTo || undefined),
     refreshKey
   )
 
@@ -1055,7 +1063,7 @@ export const AdmissionList = ({ onAdmissionSelect, onPatientFromAdmission, searc
     if (!admissionOpen) return
     const t = setTimeout(async () => {
       try {
-        const results = await fetchInpatientRecords(undefined, admissionNoQuery || undefined, patient, undefined, undefined, undefined)
+        const results = await fetchInpatientRecords(undefined, admissionNoQuery || undefined, effectivePatient, undefined, undefined, undefined)
         setAdmissionOptions(results.slice(0, 30).map(r => ({ value: r.name, label: `${r.name} - ${r.patient_name || r.patient || ''}` })))
       } catch (err) {
         console.error('Failed to load admission options', err)
@@ -1063,7 +1071,7 @@ export const AdmissionList = ({ onAdmissionSelect, onPatientFromAdmission, searc
       }
     }, admissionNoQuery.trim() === '' ? 0 : 300)
     return () => clearTimeout(t)
-  }, [admissionNoQuery, admissionOpen, patient])
+  }, [admissionNoQuery, admissionOpen, effectivePatient])
 
   // --- Practitioner: debounced search when dropdown is open ---
   useEffect(() => {
@@ -1231,7 +1239,18 @@ export const AdmissionList = ({ onAdmissionSelect, onPatientFromAdmission, searc
   return (
     <>
       <div className="space-y-4">
+        {/* Global-context active admission banner */}
+        {effectiveNameFilter && (
+          <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-blue-50 border border-blue-200 text-blue-800 text-xs mb-2">
+            <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
+            </svg>
+            Filtered by active admission: <span className="font-semibold ml-1">{effectiveNameFilter}</span>
+          </div>
+        )}
+
         {/* Filters — same layout as Patient Visit List */}
+        {!effectiveNameFilter && (
         <div className="flex flex-wrap gap-3 mb-4 items-end">
           {/* Admission No — searchable dropdown */}
           <div data-filter-dropdown className="relative">
@@ -1347,6 +1366,7 @@ export const AdmissionList = ({ onAdmissionSelect, onPatientFromAdmission, searc
             </div>
           )}
         </div>
+        )}
 
         {/* Records Table */}
         <div className="min-w-full">
