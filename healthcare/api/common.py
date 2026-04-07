@@ -1752,7 +1752,7 @@ def create_grooming_chart(data):
 			"brush_teeth_morning", "change_clothes_morning", "brush_teeth_noon",
 			"change_clothes_noon", "shower", "bowel", "bed_wetting",
 			"breakfast", "snack_1", "lunch", "snack_2", "dinner", "snack_3",
-			"weight", "lmp",
+			"weight", "lmp","fluid_intake", "fluid_output",
 		]
 		for field in allowed_fields:
 			if field in data:
