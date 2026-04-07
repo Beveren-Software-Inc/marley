@@ -95,8 +95,8 @@ def get_clinical_notes(**kwargs):
     if clinical_note_type:
         filters['clinical_note_type'] = clinical_note_type
     
-    if note_type:
-        filters['note_type'] = note_type
+    # if note_type:
+    #     filters['note_type'] = note_type
     
     if reference_doctype:
         filters['reference_doctype'] = reference_doctype

@@ -22,7 +22,7 @@ const nurseScreenGroups: ScreenGroup[] = [
       { id: 'n-med-sheet', title: 'Medication Sheet' },
       { id: 'n-reminder',  title: 'Long Acting Med Reminder' },
       { id: 'n-prn',       title: 'PRN' },
-      { id: 'n-ipm',       title: 'IP Medication' },
+      // { id: 'n-ipm',       title: 'IP Medication' },
     ],
   },
   {
@@ -40,7 +40,7 @@ const nurseScreenGroups: ScreenGroup[] = [
       { id: 'n-tpr',       title: 'TPR / Vital Signs' },
       { id: 'n-ect',       title: 'ECT Form' },
       { id: 'n-obs',       title: 'Observation Level' },
-      { id: 'n-op',        title: 'OP Visit Note' },
+      // { id: 'n-op',        title: 'OP Visit Note' },
     ],
   },
   {
