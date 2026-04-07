@@ -1,4 +1,4 @@
-import { PrescriptionDetails } from './PrescriptionDetails'
+import { PrescriptionDetails } from './prescriptionDetails'
 
 interface PrescriptionSlideOverProps {
   prescriptionName: string | null
