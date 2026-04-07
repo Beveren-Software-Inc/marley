@@ -184,7 +184,7 @@ export function DiagnosisSymptomsScreen({
 
   return (
     <div className="flex flex-col">
-      <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+      {/* <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
         <div className="flex-1 min-w-0">
           <PatientSearch
             selectedPatient={selectedPatient || ''}
@@ -196,7 +196,7 @@ export function DiagnosisSymptomsScreen({
           <UserMenu />
           <NotificationBell />
         </div>
-      </header>
+      </header> */}
 
       <div className="p-4 space-y-4">
         {!selectedPatient && (

@@ -6,41 +6,39 @@ import { NavLink } from 'react-router-dom'
 import { ChevronDown, ChevronRight, Menu, X, Folder } from 'lucide-react'
 import { doctorScreenGroups } from '../../config/doctorScreens'
 import { useAuth } from '../../providers/AuthProvider'
+import { useCareContext } from '../../providers/CareContextProvider'
 import { getVisibleMainLinks, type MainLinkItem, type ScreenGroup } from '../../config/permissions'
 
-// ─── Nurse screens — organised into groups ────────────────────────────────────
+// ─── Nurse screens ────────────────────────────────────────────────────────────
 
 const nurseScreenGroups: ScreenGroup[] = [
   {
     groupTitle: 'Patient Care & Medication',
     screens: [
-
-      { id: 'rx',   title: 'Prescription' },
+      { id: 'rx',          title: 'Prescription' },
       { id: 'n-med',       title: 'Medication' },
       { id: 'n-given',     title: 'Given Medicines' },
       { id: 'n-daily-med', title: 'Daily Medication Chart' },
       { id: 'n-med-sheet', title: 'Medication Sheet' },
       { id: 'n-reminder',  title: 'Long Acting Med Reminder' },
       { id: 'n-prn',       title: 'PRN' },
-      // { id: 'n-ipm',       title: 'IP Medication' },
     ],
   },
   {
     groupTitle: 'Clinical Documentation',
     screens: [
-      { id: 'n-dx',        title: 'Diagnoses' },
-      { id: 'n-first',     title: 'IP Warnings / Meds / Allergy' },
-      { id: 'n-psy-order', title: 'Psychologist Order' },
-      { id: 'n-psy-notes', title: 'Psychologist Notes' },
-      { id: 'n-nut',       title: 'Nutritionist Notes' },
-      { id: 'n-ther',      title: 'Therapist Notes' },
+      { id: 'n-dx',          title: 'Diagnoses' },
+      { id: 'n-first',       title: 'IP Warnings / Meds / Allergy' },
+      { id: 'n-psy-order',   title: 'Psychologist Order' },
+      { id: 'n-psy-notes',   title: 'Psychologist Notes' },
+      { id: 'n-nut',         title: 'Nutritionist Notes' },
+      { id: 'n-ther',        title: 'Therapist Notes' },
       { id: 'n-nurse-notes', title: 'Nursing Notes' },
-      { id: 'n-labs',      title: 'Lab Reports Status' },
-      { id: 'n-lab',       title: 'Laboratory' },
-      { id: 'n-tpr',       title: 'TPR / Vital Signs' },
-      { id: 'n-ect',       title: 'ECT Form' },
-      { id: 'n-obs',       title: 'Observation Level' },
-      // { id: 'n-op',        title: 'OP Visit Note' },
+      { id: 'n-labs',        title: 'Lab Reports Status' },
+      { id: 'n-lab',         title: 'Laboratory' },
+      { id: 'n-tpr',         title: 'TPR / Vital Signs' },
+      { id: 'n-ect',         title: 'ECT Form' },
+      { id: 'n-obs',         title: 'Observation Level' },
     ],
   },
   {
@@ -83,7 +81,7 @@ const nurseScreenGroups: ScreenGroup[] = [
   },
 ]
 
-// ─── Other role screens (flat — unchanged) ────────────────────────────────────
+// ─── Other role screens ───────────────────────────────────────────────────────
 
 const labScreens = [
   { id: 'l-pending', title: 'Pending Samples / Tests' },
@@ -101,32 +99,32 @@ const receptionScreenGroups: ScreenGroup[] = [
   {
     groupTitle: 'Patient Registration',
     screens: [
-      { id: 'patients', title: 'Patient List' },
-      { id: 'r-new-op', title: 'New Patient Registration' },
+      { id: 'patients',    title: 'Patient List' },
+      { id: 'r-new-op',    title: 'New Patient Registration' },
       { id: 'r-insurance', title: 'Insurance Patient Register' },
     ],
   },
   {
     groupTitle: 'Appointments & Scheduling',
     screens: [
-      { id: 'r-appointment', title: 'New Appointment' },
+      { id: 'r-appointment',        title: 'New Appointment' },
       { id: 'r-appointments-freeze', title: 'Appointments' },
-      { id: 'r-followup', title: 'Follow-up Dashboard' },
-      { id: 'r-iop', title: 'IOP Dashboard' },
+      { id: 'r-followup',           title: 'Follow-up Dashboard' },
+      { id: 'r-iop',                title: 'IOP Dashboard' },
     ],
   },
   {
     groupTitle: 'Admission & Discharge',
     screens: [
-      { id: 'r-ip-adm', title: 'New IP Admission' },
-      { id: 'r-reg', title: 'Admission' },
+      { id: 'r-ip-adm',   title: 'New IP Admission' },
+      { id: 'r-reg',      title: 'Admission' },
       { id: 'r-discharge', title: 'Discharge' },
     ],
   },
   {
     groupTitle: 'Patient Visits',
     screens: [
-      { id: 'r-visit', title: 'Patient Visit' },
+      { id: 'r-visit',     title: 'Patient Visit' },
       { id: 'r-new-visit', title: 'New Patient Visit' },
     ],
   },
@@ -134,12 +132,11 @@ const receptionScreenGroups: ScreenGroup[] = [
     groupTitle: 'Services & Referrals',
     screens: [
       { id: 'r-service-requests', title: 'Service Requests / Booked Lab' },
-      { id: 'r-referral', title: 'Patient Referral' },
+      { id: 'r-referral',         title: 'Patient Referral' },
       { id: 'r-long-acting-meds', title: 'Long Acting Medicine' },
     ],
   },
 ]
-
 
 const insuranceScreens = [
   { id: 'i-register', title: 'Patient Register' },
@@ -175,38 +172,32 @@ const psychologistScreens = [
 // ─── Main links ───────────────────────────────────────────────────────────────
 
 const ALL_MAIN_LINKS: MainLinkItem[] = [
-  { to: '/doctor',           label: 'Doctor',           screenGroups: doctorScreenGroups,     prefix: '/doctor' },
-  { to: '/nurse',            label: 'Nurse',            screenGroups: nurseScreenGroups,       prefix: '/nurse' },
-  { to: '/lab',              label: 'Lab',              screens: labScreens,                  prefix: '/lab' },
-  { to: '/psychologist',     label: 'Psychologist',     screens: psychologistScreens,         prefix: '/psychologist' },
-  { to: '/anesthesiologist', label: 'Anesthesiologist', screens: anesthesiologistScreens,     prefix: '/anesthesiologist' },
-  { to: '/reception',        label: 'Reception',        screenGroups: receptionScreenGroups,   prefix: '/reception' },
-  { to: '/insurance',        label: 'Insurance',        screens: insuranceScreens,            prefix: '/insurance' },
-  { to: '/pharmacy',         label: 'Pharmacy',         screens: [],                          prefix: '/pharmacy' },
-   { to: '/patient',          label: 'Patients',          screens: [],                          prefix: '/patient' },
-  { to: '/patient-history',  label: 'Patient History',  screens: [],                          prefix: '/patient-history' },
-  { to: '/employee',         label: 'Employee',         screens: [],                          prefix: '/employee' },
-  { to: '/qmps',             label: 'QMPS',             screens: [],                          prefix: '/qmps' },
+  { to: '/doctor',           label: 'Doctor',           screenGroups: doctorScreenGroups,      prefix: '/doctor' },
+  { to: '/nurse',            label: 'Nurse',            screenGroups: nurseScreenGroups,        prefix: '/nurse' },
+  { to: '/lab',              label: 'Lab',              screens: labScreens,                   prefix: '/lab' },
+  { to: '/psychologist',     label: 'Psychologist',     screens: psychologistScreens,          prefix: '/psychologist' },
+  { to: '/anesthesiologist', label: 'Anesthesiologist', screens: anesthesiologistScreens,      prefix: '/anesthesiologist' },
+  { to: '/reception',        label: 'Reception',        screenGroups: receptionScreenGroups,    prefix: '/reception' },
+  { to: '/insurance',        label: 'Insurance',        screens: insuranceScreens,             prefix: '/insurance' },
+  { to: '/pharmacy',         label: 'Pharmacy',         screens: [],                           prefix: '/pharmacy' },
+  { to: '/patient',          label: 'Patients',         screens: [],                           prefix: '/patient' },
+  { to: '/patient-history',  label: 'Patient History',  screens: [],                           prefix: '/patient-history' },
+  { to: '/employee',         label: 'Employee',         screens: [],                           prefix: '/employee' },
+  { to: '/qmps',             label: 'QMPS',             screens: [],                           prefix: '/qmps' },
 ]
 
 // ─── AppShell ─────────────────────────────────────────────────────────────────
 
 export const AppShell = ({ children }: { children: ReactNode }) => {
   const { user } = useAuth()
+  const { selectedPatient } = useCareContext()
+
   const roles = user?.roles?.length
     ? user.roles
     : [user?.role, user?.role_profile_name].filter(Boolean) as string[]
 
-  const mainLinks = useMemo(
-    () => getVisibleMainLinks(ALL_MAIN_LINKS, roles),
-    [user?.name, (user?.roles || []).join(','), (user?.role || '') + (user?.role_profile_name || '')]
-  )
-
-  // Which top-level nav items are expanded
   const [expandedTopics, setExpandedTopics] = useState<Set<string>>(new Set())
-  // Which screen-groups are expanded, keyed as `${linkTo}||${groupTitle}`
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
-  // Mobile sidebar visibility
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   const toggleTopic = (linkTo: string) => {
@@ -228,6 +219,29 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
 
   const toggleSidebar = () => setSidebarOpen((v) => !v)
   const closeSidebar  = () => setSidebarOpen(false)
+
+  const mainLinks = useMemo(() => {
+    const links = ALL_MAIN_LINKS.map((link) => {
+      if (link.to !== '/doctor') return link
+      return {
+        ...link,
+        screenGroups: selectedPatient
+          ? doctorScreenGroups
+              .map((g) => ({
+                ...g,
+                screens: g.screens.filter((s) => s.id !== 'patients'),
+              }))
+              .filter((g) => g.screens.length > 0)
+          : doctorScreenGroups,
+      }
+    })
+    return getVisibleMainLinks(links, roles)
+  }, [
+    user?.name,
+    (user?.roles || []).join(','),
+    (user?.role || '') + (user?.role_profile_name || ''),
+    selectedPatient,
+  ])
 
   return (
     <div className="h-screen overflow-hidden flex bg-muted">
@@ -251,7 +265,7 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
           sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
         } w-[240px]`}
       >
-        {/* Logo / brand */}
+        {/* Logo */}
         <div className="bg-primary text-white px-4 py-3 border-b border-white/10 flex items-center h-[60px] flex-shrink-0">
           <div className="font-semibold text-lg">Healthcare</div>
         </div>
@@ -259,10 +273,10 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto p-4 flex flex-col gap-1 text-sm">
           {mainLinks.map((link) => {
-            const isExpanded   = expandedTopics.has(link.to)
-            const hasGroups    = (link.screenGroups?.length ?? 0) > 0
-            const hasScreens   = (link.screens?.length ?? 0) > 0
-            const hasChildren  = hasGroups || hasScreens
+            const isExpanded  = expandedTopics.has(link.to)
+            const hasGroups   = (link.screenGroups?.length ?? 0) > 0
+            const hasScreens  = (link.screens?.length ?? 0) > 0
+            const hasChildren = hasGroups || hasScreens
 
             return (
               <div key={link.to} className="flex flex-col gap-0.5">
@@ -292,7 +306,7 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
                   </NavLink>
                 </div>
 
-                {/* ── Grouped screens (e.g. Nurse) ── */}
+                {/* ── Grouped screens ── */}
                 {isExpanded && hasGroups && link.screenGroups && (
                   <div className="flex flex-col gap-0.5 ml-5 mt-0.5">
                     {link.screenGroups.map((group) => {
@@ -301,7 +315,6 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
 
                       return (
                         <div key={group.groupTitle} className="flex flex-col gap-0.5">
-                          {/* Group header row */}
                           <button
                             onClick={() => toggleGroup(link.to, group.groupTitle)}
                             className="flex items-center gap-1.5 w-full px-2 py-1.5 rounded-md text-xs font-semibold tracking-wide text-white/80 hover:bg-white/20 transition-colors text-left"
@@ -313,7 +326,6 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
                               : <ChevronRight className="w-3 h-3 flex-shrink-0 opacity-60" />}
                           </button>
 
-                          {/* Screens inside the group */}
                           {groupExpanded && (
                             <nav className="flex flex-col gap-0.5 ml-4">
                               {group.screens.map((s) => (
@@ -338,7 +350,7 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
                   </div>
                 )}
 
-                {/* ── Flat screens (all other roles) ── */}
+                {/* ── Flat screens ── */}
                 {isExpanded && hasScreens && link.screens && (
                   <nav className="flex flex-col gap-0.5 mt-0.5 ml-6 text-xs">
                     {link.screens.map((s) => (
@@ -365,7 +377,6 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
 
       {/* ── Main content ── */}
       <main className="p-0 h-screen flex flex-col flex-1 md:ml-0">
-        {/* Portal target for patient-alerts banner */}
         <div
           id="patient-alerts-portal"
           className="fixed top-14 left-0 right-0 z-30 md:left-[240px]"
@@ -379,5 +390,3 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
     </div>
   )
 }
-
-
