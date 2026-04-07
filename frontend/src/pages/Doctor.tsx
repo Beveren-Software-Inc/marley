@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { hasDischargeDraft, draftSavedAt } from '../services/dischargeDraft'
 import { useSearchParams } from 'react-router-dom'
-import { CareContextProvider, useCareContext } from '../providers/CareContextProvider'
+import { useCareContext } from '../providers/CareContextProvider'
 import { PatientSearch } from '../components/patients/PatientSearch'
 import { WarningMessagesList } from '../components/warnings/WarningMessagesList'
 import { LabTestList } from '../components/labTests/LabTestList'
@@ -78,6 +78,9 @@ import { CreateYMRSAssessmentModal } from '../components/ymrs/CreateYMRSAssessme
 import { PANSSAssessmentList } from '../components/panss/PANSSAssessmentList'
 import { CreatePANSSAssessmentModal } from '../components/panss/CreatePANSSAssessmentModal'
 import { RxPage } from '../components/prescriptions/SinglePrescription'
+import { SuicidalPatientAssessmentModal } from '../components/admissions/SuicidalPatientAssessmentModal'
+import { SuicidalAssessmentList } from '../components/suicidal/SuicidalAssessmentList'
+
 
 
 export const DoctorPage = () => {
@@ -151,8 +154,10 @@ const [showCreateYMRSModal, setShowCreateYMRSModal] = useState(false)
 const [ymrsRefreshKey, setYmrsRefreshKey] = useState(0)
 const [showCreatePANSSModal, setShowCreatePANSSModal] = useState(false)
 const [panssRefreshKey, setPanssRefreshKey] = useState(0)
-const [rxRefreshKey, setRxRefreshKey] = useState(0)
+const [showSuicidalModal, setShowSuicidalModal] = useState(false)
+const [selectedAssessment, setSelectedAssessment] = useState<SuicidalAssessment | null>(null)
 
+const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
   // Sync selectedPatient with URL on mount and when URL changes
   useEffect(() => {
     const patientParam = searchParams.get('patient')
@@ -228,6 +233,57 @@ const [rxRefreshKey, setRxRefreshKey] = useState(0)
   if (screen === 'op') {
     return <PatientVisitPage initialPatient={selectedPatient} />
   }
+
+
+   if (screen === 'suicide') {
+  return (
+    <div className="flex flex-col">
+      <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+        <div className="flex-1 min-w-0">
+          <PatientSearch
+            selectedPatient={selectedPatient || ''}
+            onPatientSelect={handlePatientSelect}
+            patients={[]}
+          />
+        </div>
+        <div className="flex items-center gap-3 flex-shrink-0">
+          <UserMenu />
+          <NotificationBell />
+        </div>
+      </header>
+
+      <div className="p-4">
+        <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+          <SuicidalAssessmentList
+            patient={selectedPatient}
+            admission={activeAdmission}
+            onAddNew={() => setShowSuicidalModal(true)}
+            onViewDetails={(assessment) => setSelectedAssessment(assessment)}
+            key={suicidalRefreshKey}
+          />
+        </section>
+      </div>
+
+      {/* Create New Assessment Modal */}
+      {showSuicidalModal && (
+        <SuicidalPatientAssessmentModal
+          admissionNo={activeAdmission || ''}
+          patient={selectedPatient || ''}
+          patientName=''
+          onClose={() => setShowSuicidalModal(false)}
+          onSuccess={() => {
+            setSuicidalRefreshKey(prev => prev + 1)
+            setShowSuicidalModal(false)
+          }}
+        />
+      )}
+
+      {/* View Details SlideOver */}
+     
+    </div>
+  )
+}
+
 
   // Show Sleeping Pattern
   if (screen === 'sleep') {

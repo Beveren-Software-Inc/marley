@@ -16,7 +16,8 @@ const nurseScreenGroups: ScreenGroup[] = [
     groupTitle: 'Patient Care & Medication',
     screens: [
       { id: 'rx',          title: 'Prescription' },
-      { id: 'n-med',       title: 'Medication' },
+      { id: 'single-prescription',    title: 'Single Prescription' },
+      // { id: 'n-med',       title: 'Medication' },
       { id: 'n-given',     title: 'Given Medicines' },
       { id: 'n-daily-med', title: 'Daily Medication Chart' },
       { id: 'n-med-sheet', title: 'Medication Sheet' },
@@ -34,11 +35,10 @@ const nurseScreenGroups: ScreenGroup[] = [
       { id: 'n-nut',         title: 'Nutritionist Notes' },
       { id: 'n-ther',        title: 'Therapist Notes' },
       { id: 'n-nurse-notes', title: 'Nursing Notes' },
-      { id: 'n-labs',        title: 'Lab Reports Status' },
-      { id: 'n-lab',         title: 'Laboratory' },
+     
       { id: 'n-tpr',         title: 'TPR / Vital Signs' },
-      { id: 'n-ect',         title: 'ECT Form' },
-      { id: 'n-obs',         title: 'Observation Level' },
+      // { id: 'n-ect',         title: 'ECT Form' },
+      // { id: 'n-obs',         title: 'Observation Level' },
     ],
   },
   {
@@ -52,14 +52,38 @@ const nurseScreenGroups: ScreenGroup[] = [
       { id: 'n-fall',   title: 'Morse Fall Scale' },
     ],
   },
+
+    {
+    groupTitle: 'Observation & Monitoring',
+    screens: [
+      { id: 'n-ob', title: 'Observation' },
+      
+    ],
+  },
+
   {
     groupTitle: 'Admission & Discharge',
     screens: [
       { id: 'n-reg',             title: 'Admission' },
-      { id: 'n-ip-adm',          title: 'IP Admission & Detail' },
+      // { id: 'n-ip-adm',          title: 'IP Admission & Detail' },
       { id: 'n-discharge',       title: 'Discharge Form / Procedure' },
       { id: 'n-package',         title: 'Package Detail' },
       { id: 'n-patient-history', title: 'Patient History' },
+    ],
+  },
+    {
+    groupTitle: 'ECT Forms & Procedures',
+    screens: [
+      { id: 'n-ect', title: 'ECT Forms' },
+      
+    ],
+  },
+   {
+    groupTitle: 'Laboratory',
+    screens: [
+       { id: 'n-labs',        title: 'Lab Reports Status' },
+      { id: 'n-lab',         title: 'Laboratory' },
+      
     ],
   },
   {
@@ -140,7 +164,7 @@ const receptionScreenGroups: ScreenGroup[] = [
 
 const insuranceScreens = [
   { id: 'i-register', title: 'Patient Register' },
-  { id: 'i-claims',   title: 'Claims' },
+  // { id: 'i-claims',   title: 'Claims' },
 ]
 
 const anesthesiologistScreens = [

@@ -64,6 +64,8 @@ import { CreateMentalStateModal } from '../components/nursing/CreateMentalStateM
 import { SickLeaveList } from '../components/nursing/SickLeaveList'
 import { CreateSickLeaveModal } from '../components/nursing/CreateSickLeaveModal'
 import { PatientList } from '../components/patients/PatientList'
+import { RxPage } from '../components/prescriptions/SinglePrescription'
+
 
 export const NursePage = () => {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -178,6 +180,37 @@ export const NursePage = () => {
   if (screen === 'n-reg' || screen === 'admission') {
     return <AdmissionPage />
   }
+
+
+  if (screen === 'single-prescription') {
+    return (
+      <div className="flex flex-col">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+  
+        <div className="p-4">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+            <RxPage 
+              // inpatientRecordId={activeInpatientRecordId}  // For IP admissions
+              // patientEncounterId={activePatientEncounterId} // For OP visits
+            />
+          </section>
+        </div>
+      </div>
+    )
+  }
+
 
   // IP Warnings / Meds / Allergy – mirror Doctor warnings card
   if (screen === 'n-first') {

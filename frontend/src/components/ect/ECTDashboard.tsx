@@ -239,12 +239,12 @@ export function ECTDashboard({ selectedPatient }: ECTDashboardProps) {
           onSuccess={() => { setPreEctRefreshKey(p => p + 1); setShowPreEctModal(false) }}
         />
       )}
-      {showSuicidalModal && (
+      {/* {showSuicidalModal && (
         <SuicidalPatientAssessmentModal admissionNo="" patient={selectedPatient || ''} patientName=""
           onClose={() => setShowSuicidalModal(false)}
           onSuccess={() => { setSuicidalRefreshKey(p => p + 1); setShowSuicidalModal(false) }}
         />
-      )}
+      )} */}
       {showPhysicalExamModal && (
         <PhysicalExaminationModal admissionNo="" patient={selectedPatient || ''} patientName=""
           onClose={() => setShowPhysicalExamModal(false)}
