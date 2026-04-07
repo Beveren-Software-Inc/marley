@@ -661,3 +661,43 @@ def get_tax_account(tax_template: str) -> str:
         frappe.log_error(f"Error getting tax account for {tax_template}: {str(e)}")
     
     return None
+
+
+@frappe.whitelist()
+def get_medication_order_by_inpatient_or_encounter(inpatient_record=None, patient_encounter=None):
+    """
+    Fetch medication order for a specific inpatient record or patient encounter
+    """
+    if not inpatient_record and not patient_encounter:
+        frappe.throw("Either Inpatient Record ID or Patient Encounter ID is required")
+
+    filters = {}
+    if inpatient_record:
+        filters["inpatient_record"] = inpatient_record
+    if patient_encounter:
+        filters["patient_encounter"] = patient_encounter
+
+    # Get the medication order linked to this inpatient record or encounter
+    medication_orders = frappe.get_all(
+        "Patient Medication Order",
+        filters=filters,
+        fields=["name"],
+        order_by="creation desc",
+        limit=1
+    )
+
+    if not medication_orders:
+        frappe.msgprint("No medication order found")
+        return None
+
+    doc = frappe.get_doc("Patient Medication Order", medication_orders[0].name)
+
+    # Enrich with practitioner name
+    if doc.practitioner:
+        doc.healthcare_practitioner_name = frappe.db.get_value(
+            "Healthcare Practitioner",
+            doc.practitioner,
+            "practitioner_name"
+        ) or doc.practitioner
+
+    return doc

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { hasDischargeDraft, draftSavedAt } from '../services/dischargeDraft'
 import { useSearchParams } from 'react-router-dom'
-import { useCareContext } from '../providers/CareContextProvider'
+import { CareContextProvider, useCareContext } from '../providers/CareContextProvider'
 import { PatientSearch } from '../components/patients/PatientSearch'
 import { WarningMessagesList } from '../components/warnings/WarningMessagesList'
 import { LabTestList } from '../components/labTests/LabTestList'
@@ -77,6 +77,7 @@ import { YMRSAssessmentList } from '../components/ymrs/YMRSAssessmentList'
 import { CreateYMRSAssessmentModal } from '../components/ymrs/CreateYMRSAssessmentModal'
 import { PANSSAssessmentList } from '../components/panss/PANSSAssessmentList'
 import { CreatePANSSAssessmentModal } from '../components/panss/CreatePANSSAssessmentModal'
+import { RxPage } from '../components/prescriptions/SinglePrescription'
 
 
 export const DoctorPage = () => {
@@ -150,6 +151,7 @@ const [showCreateYMRSModal, setShowCreateYMRSModal] = useState(false)
 const [ymrsRefreshKey, setYmrsRefreshKey] = useState(0)
 const [showCreatePANSSModal, setShowCreatePANSSModal] = useState(false)
 const [panssRefreshKey, setPanssRefreshKey] = useState(0)
+const [rxRefreshKey, setRxRefreshKey] = useState(0)
 
   // Sync selectedPatient with URL on mount and when URL changes
   useEffect(() => {
@@ -1997,6 +1999,36 @@ if (screen === 'panss') {
           }}
         />
       )}
+    </div>
+  )
+}
+
+
+if (screen === 'single-prescription') {
+  return (
+    <div className="flex flex-col">
+      <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+        <div className="flex-1 min-w-0">
+          <PatientSearch
+            selectedPatient={selectedPatient || ''}
+            onPatientSelect={handlePatientSelect}
+            patients={[]}
+          />
+        </div>
+        <div className="flex items-center gap-3 flex-shrink-0">
+          <UserMenu />
+          <NotificationBell />
+        </div>
+      </header>
+
+      <div className="p-4">
+        <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+          <RxPage 
+            // inpatientRecordId={activeInpatientRecordId}  // For IP admissions
+            // patientEncounterId={activePatientEncounterId} // For OP visits
+          />
+        </section>
+      </div>
     </div>
   )
 }
