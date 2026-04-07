@@ -2455,3 +2455,19 @@ def save_patient_diagnosis(parent_doctype, parent_name, rows):
 	doc.save(ignore_permissions=True)
 	frappe.db.commit()
 	return {"ok": True}
+
+
+@frappe.whitelist()
+def fetch_nursing_discharge_templates(template_name=None):
+    """Fetch nursing discharge templates"""
+    filters = {}
+    if template_name:
+        filters["template_name"] = ["like", f"%{template_name}%"]
+    
+    templates = frappe.get_all(
+        "Discharge Nursing Template",
+        filters=filters,
+        fields=["name", "template_name as label", "default"]
+    )
+    
+    return templates

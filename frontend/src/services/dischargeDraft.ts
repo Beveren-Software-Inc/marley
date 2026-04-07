@@ -10,16 +10,19 @@ export interface DischargeSelectedOptions {
   finalDischarge?: { name: string; label: string } | null
   receivingDoctor?: { name: string; label: string } | null
   dischargeTemplate?: { name: string; label: string } | null
+  nurseTemplate?: { name: string; label: string } | null  // Add this
   dischargedByQuery?: string
   finalDischargeQuery?: string
   receivingDoctorsQuery?: string
   dischargeTemplateQuery?: string
+  nurseTemplateQuery?: string  // Add this
 }
 
 export interface DischargeDraftData {
   formData: Record<string, string>
   selectedOptions: DischargeSelectedOptions
   checklistItems: unknown[]
+  nurseChecklistItems?: unknown[]  // Add this (optional for backward compatibility)
   documents: unknown[]
   relatives: unknown[]
   savedAt: string

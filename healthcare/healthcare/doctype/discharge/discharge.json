@@ -30,6 +30,9 @@
   "section_break_nurw",
   "discharge_template",
   "discharge_checklist",
+  "section_break_xjwy",
+  "nurse_discharge_template",
+  "nursing_checklist",
   "section_break_mwkk",
   "medicine_given",
   "appointment_section",
@@ -352,13 +355,29 @@
    "fieldtype": "Select",
    "label": "AMA Type",
    "options": "\nRefuse Admission\nRefuse Treatment / Procedure\nDischarge Against Medical Advice(DAMA)"
+  },
+  {
+   "fieldname": "section_break_xjwy",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "nurse_discharge_template",
+   "fieldtype": "Link",
+   "label": "Nurse Discharge Template",
+   "options": "Discharge Nursing Template"
+  },
+  {
+   "fieldname": "nursing_checklist",
+   "fieldtype": "Table",
+   "label": "Nursing checklist",
+   "options": "Discharge Nursing Detail"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-03-30 12:37:40.091075",
+ "modified": "2026-04-08 01:40:23.045553",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Discharge",

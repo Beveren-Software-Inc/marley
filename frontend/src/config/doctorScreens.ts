@@ -95,8 +95,6 @@ export const doctorScreenGroups: ScreenGroup[] = [
     groupTitle: 'Laboratory & Diagnostics',
     screens: [
       { id: 'lab', title: 'Laboratory' },
-      { id: 'tpr', title: 'TPR / Vital Signs' },
-      { id: 'obs', title: 'Observation Level' },
     ],
   },
   {

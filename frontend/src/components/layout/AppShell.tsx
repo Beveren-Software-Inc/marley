@@ -22,7 +22,8 @@ const nurseScreenGroups: ScreenGroup[] = [
       { id: 'n-daily-med', title: 'Daily Medication Chart' },
       { id: 'n-med-sheet', title: 'Medication Sheet' },
       { id: 'n-reminder',  title: 'Long Acting Med Reminder' },
-      { id: 'n-prn',       title: 'PRN' },
+      { id: 'n-tpr',          title: 'TPR / Vital Signs' },
+      // { id: 'n-prn',       title: 'PRN' },
     ],
   },
   {
