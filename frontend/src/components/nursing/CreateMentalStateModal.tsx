@@ -113,6 +113,10 @@ export const CreateMentalStateModal = ({ onClose, onSuccess, patient }: CreateMe
   const [alert, setAlert] = useState<0|1>(0)
   const [disturbedCon, setDisturbedCon] = useState<0|1>(0)
 
+  // Psychotic Symptoms
+  const [delusion, setDelusion] = useState<0|1>(0)
+  const [perception, setPerception] = useState<0|1>(0)
+
   // Patient dropdown
   const [patientOptions, setPatientOptions] = useState<PatientListItem[]>([])
   const [patientOpen, setPatientOpen] = useState(false)
@@ -207,6 +211,7 @@ export const CreateMentalStateModal = ({ onClose, onSuccess, patient }: CreateMe
         sleep_duration: sleepDuration ? parseInt(sleepDuration) : undefined,
         normal_sleep: normalSleep, disturbed, intermittent, excessive, a_little: aLittle,
         conscious, alert, disturbed_con: disturbedCon,
+        delusion, perception,
       })
       if (result.success) {
         onSuccess()
@@ -504,6 +509,13 @@ export const CreateMentalStateModal = ({ onClose, onSuccess, patient }: CreateMe
                     <CF label="Conscious" checked={!!conscious} onChange={setConscious} />
                     <CF label="Alert" checked={!!alert} onChange={setAlert} />
                     <CF label="Disturbed Con" checked={!!disturbedCon} onChange={setDisturbedCon} />
+                  </div>
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-700 mb-3 mt-2">Psychotic Symptom</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    <CF label="Delusion" checked={!!delusion} onChange={setDelusion} />
+                    <CF label="Perception" checked={!!perception} onChange={setPerception} />
                   </div>
                 </div>
               </>
