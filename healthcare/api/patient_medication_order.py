@@ -701,3 +701,57 @@ def get_medication_order_by_inpatient_or_encounter(inpatient_record=None, patien
         ) or doc.practitioner
 
     return doc
+
+
+# In your patient_medication_order.py
+@frappe.whitelist()
+def update_medication_order():
+    """Update an existing Patient Medication Order"""
+    data = frappe.local.form_dict
+    
+    if not data.get('name'):
+        frappe.throw("Medication Order ID is required")
+    
+    # Check permissions
+    if not frappe.has_permission("Patient Medication Order", "write", data.get('name')):
+        frappe.throw("Not permitted", frappe.PermissionError)
+    
+    # Get existing document
+    doc = frappe.get_doc("Patient Medication Order", data.get('name'))
+    
+    # Update fields
+    doc.company = data.get('company', doc.company)
+    doc.start_date = data.get('start_date', doc.start_date)
+    doc.practitioner = data.get('practitioner', doc.practitioner)
+    doc.care_context = data.get('care_context', doc.care_context)
+    
+    if data.get('care_context') == 'Patient Visit':
+        doc.patient_encounter = data.get('patient_encounter')
+    else:
+        doc.inpatient_record = data.get('inpatient_record')
+    
+    # Clear and update medication orders
+    doc.set('medication_orders', [])
+    for med in data.get('medication_orders', []):
+        doc.append('medication_orders', {
+            'drug': med.get('drug'),
+            'dosage': med.get('dosage'),
+            'dosage_form': med.get('dosage_form'),
+            'date': med.get('date'),
+            'end_date': med.get('end_date'),
+            'no_of_days': med.get('no_of_days'),
+            'instructions': med.get('instructions'),
+            'patient_frequency': med.get('patient_frequency'),
+            'route_of_administration': med.get('route_of_administration'),
+            'reference_no': med.get('reference_no'),
+            'is_pink': med.get('is_pink', 0),
+            'is_prn': med.get('is_prn', 0),
+            'is_long_acting': med.get('is_long_acting', 0),
+            'long_acting_frequency': med.get('long_acting_frequency'),
+            'medication_type': med.get('medication_type'),
+        })
+    
+    doc.save(ignore_permissions=False)
+    frappe.db.commit()
+    
+    return doc

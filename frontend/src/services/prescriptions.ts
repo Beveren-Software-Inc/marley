@@ -247,3 +247,26 @@ export async function fetchPrescriptionByInpatientOrEncounter(
 
   return null
 }
+
+// Add this to your prescriptions service file
+export async function updatePrescription(data: any): Promise<any> {
+  const response = await fetch('/api/method/healthcare.api.patient_medication_order.update_medication_order', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(data),
+  })
+
+  const resData = await response.json()
+
+  if (resData?.message) {
+    return resData.message
+  }
+
+  if (resData?.exc_type) {
+    throw new Error(resData?.message || 'Failed to update prescription')
+  }
+
+  throw new Error('Failed to update prescription')
+}

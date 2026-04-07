@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
-import { fetchPrescription, fetchPrescriptionByInpatientOrEncounter, type Prescription } from '../../services/prescriptions'
+import { fetchPrescriptionByInpatientOrEncounter, type Prescription } from '../../services/prescriptions'
 import { RefreshCw } from 'lucide-react'
 import { useCareContext } from '../../providers/CareContextProvider'
+import { CreatePrescriptionModal } from './CreatePrescriptionModal'
+
 
 // ─── Medication type definitions ──────────────────────────────────────────────
 const MED_TYPES = [
@@ -90,6 +92,7 @@ const MedicationRow = ({ order }: { order: any }) => {
   const color = getTypeColor(order.medication_type)
   const rowStyle = isHex(color) ? hexRowStyle(color) : {}
 
+
   return (
     <tr
       className={order.is_pink ? 'bg-pink-50/60' : ''}
@@ -149,6 +152,12 @@ export const RxPage = () => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [activeType, setActiveType] = useState('All')
+
+  const [showEditModal, setShowEditModal] = useState(false)
+const handleEdit = () => {
+  setShowEditModal(true)
+}
+
 
   const load = async () => {
     const inpatientRecordId = mode === 'IP' ? activeAdmission : null
@@ -254,19 +263,26 @@ const data = await fetchPrescriptionByInpatientOrEncounter(inpatientRecordId, pa
       <div className="sticky top-0 z-10 bg-white border-b border-slate-200 px-4 pt-4 pb-3 space-y-3">
         {/* Title row */}
         <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div className="flex items-center gap-3">
-            <div>
-              <p className="text-xs text-slate-400 uppercase tracking-wide leading-none mb-0.5">
-                Prescription - {mode === 'OP' ? 'Outpatient' : 'Inpatient'}
-              </p>
-              <h1 className="text-base font-bold text-slate-900 leading-none">
-                {prescription.name}
-                {prescription.is_pink && (
-                  <span className="ml-2 text-xs font-medium text-pink-500">🩷 Pink</span>
-                )}
-              </h1>
-            </div>
-          </div>
+                <div className="flex items-center gap-3">
+                    <div>
+                    <p className="text-xs text-slate-400 uppercase tracking-wide leading-none mb-0.5">
+                        Prescription - {mode === 'OP' ? 'Outpatient' : 'Inpatient'}
+                    </p>
+                    <h1 className="text-base font-bold text-slate-900 leading-none">
+                        {prescription.name}
+                        {prescription.is_pink && (
+                        <span className="ml-2 text-xs font-medium text-pink-500">🩷 Pink</span>
+                        )}
+                    </h1>
+                    </div>
+                    {/* Add Edit Button */}
+                    <button
+                    onClick={handleEdit}
+                    className="ml-2 px-3 py-1 text-xs font-medium rounded-md border border-primary text-primary hover:bg-primary hover:text-white transition-colors"
+                    >
+                    Edit Prescription
+                    </button>
+                </div>
 
           {/* Progress + refresh */}
           <div className="flex items-center gap-3">
@@ -290,6 +306,18 @@ const data = await fetchPrescriptionByInpatientOrEncounter(inpatientRecordId, pa
             </button>
           </div>
         </div>
+
+        {showEditModal && (
+  <CreatePrescriptionModal
+    onClose={() => setShowEditModal(false)}
+    onSuccess={() => {
+      setShowEditModal(false)
+      load() // Reload the prescription after edit
+    }}
+    editMode={true}
+    prescriptionData={prescription}
+  />
+)}
 
         {/* Type filter cards */}
         <div className="flex flex-wrap gap-2">
