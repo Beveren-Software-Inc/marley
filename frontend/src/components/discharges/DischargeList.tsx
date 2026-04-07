@@ -150,6 +150,12 @@ export const DischargeList = ({ patient, admission }: DischargeListProps) => {
     setAdmissionOpen(false)
   }
 
+  // Helper function to format date
+  const formatDate = (dateStr?: string) => {
+    if (!dateStr) return '-'
+    return new Date(dateStr).toLocaleString()
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -335,6 +341,9 @@ export const DischargeList = ({ patient, admission }: DischargeListProps) => {
               Admission No
             </th>
             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+              Admission Date
+            </th>
+            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
               Discharge Date
             </th>
             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
@@ -367,9 +376,10 @@ export const DischargeList = ({ patient, admission }: DischargeListProps) => {
                 {discharge.admission || '-'}
               </td>
               <td className="px-4 py-3 text-sm text-slate-700">
-                {discharge.discharge_date 
-                  ? new Date(discharge.discharge_date).toLocaleString() 
-                  : '-'}
+                {formatDate(discharge.admission_date)}
+              </td>
+              <td className="px-4 py-3 text-sm text-slate-700">
+                {formatDate(discharge.discharge_date)}
               </td>
               <td className="px-4 py-3 text-sm text-slate-700">
                 {discharge.discharge_type || '-'}
@@ -409,8 +419,3 @@ export const DischargeList = ({ patient, admission }: DischargeListProps) => {
     </div>
   )
 }
-
-
-
-
-

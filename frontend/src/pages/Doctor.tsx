@@ -2253,7 +2253,7 @@ if (screen === 'single-prescription') {
           {/* Card: Admissions + Discharges — IP mode only */}
           {mode === 'IP' && (
             <>
-              <div className="px-4 pb-4">
+              {/* <div className="px-4 pb-4">
                 <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
                   <div className="font-semibold mb-4 flex-shrink-0">
                     <span>Admissions (IP)</span>
@@ -2262,12 +2262,12 @@ if (screen === 'single-prescription') {
                     <AdmissionList patient={selectedPatient} />
                   </div>
                 </section>
-              </div>
+              </div> */}
 
               <div className="px-4 pb-4">
                 <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
                   <div className="font-semibold mb-4 flex-shrink-0">
-                    <span>Discharges</span>
+                    <span>Admission & Discharges</span>
                   </div>
                   <div
                     className="overflow-x-auto overflow-y-auto flex-1 min-h-0"

@@ -261,7 +261,7 @@ def create_patient_medication_order(
 				doc.end_date = max(last_dates)
 
 	doc.insert(ignore_permissions=True)
-	doc.submit()
+	# doc.submit()
 
 	# Create Long Acting Medicine for each medication row marked as long-acting
 	_create_long_acting_medicine_for_entries(doc)
