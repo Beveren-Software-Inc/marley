@@ -1992,7 +1992,7 @@ def create_patient_assessment(data):
 			for row in sheet_rows:
 				doc.append("assessment_sheet", {
 					"parameter": row.get("parameter"),
-					"score": frappe.utils.flt(row.get("score") or 0),
+					"score": 0,
 					"time": row.get("time") or None,
 					"comments": row.get("comments") or "",
 					"yes": row.get("yes") or 0,

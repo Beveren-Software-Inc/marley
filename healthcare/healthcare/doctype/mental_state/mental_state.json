@@ -1,6 +1,7 @@
 {
  "actions": [],
  "allow_rename": 1,
+ "autoname": "MS-.{admission_no}-.#####",
  "creation": "2025-12-17 13:30:00",
  "doctype": "DocType",
  "engine": "InnoDB",
@@ -69,6 +70,10 @@
   "conscious",
   "alert",
   "disturbed_con",
+  "psychotic_symptoms_section",
+  "perception",
+  "column_break_fhwz",
+  "delusion",
   "section_break_old",
   "admission_num_old"
  ],
@@ -456,15 +461,37 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Patient Name"
+  },
+  {
+   "fieldname": "psychotic_symptoms_section",
+   "fieldtype": "Section Break",
+   "label": "Psychotic Symptoms"
+  },
+  {
+   "default": "0",
+   "fieldname": "perception",
+   "fieldtype": "Check",
+   "label": "Perception"
+  },
+  {
+   "fieldname": "column_break_fhwz",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "delusion",
+   "fieldtype": "Check",
+   "label": "Delusion"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-03-23 03:00:43.990073",
+ "modified": "2026-04-08 00:40:38.481386",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Mental State",
+ "naming_rule": "Expression",
  "owner": "Administrator",
  "permissions": [
   {

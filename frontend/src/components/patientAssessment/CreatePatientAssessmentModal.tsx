@@ -1,3 +1,4 @@
+
 // import { useEffect, useRef, useState } from 'react'
 // import { ChevronDown, ChevronUp, Trash2, ClipboardList } from 'lucide-react'
 // import {
@@ -16,6 +17,7 @@
 //   type LinkFieldOption,
 // } from '../../services/common'
 // import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
+// import { useCareContext } from '../../providers/CareContextProvider'
 
 // interface CreatePatientAssessmentModalProps {
 //   onClose: () => void
@@ -97,15 +99,27 @@
 //   onSuccess,
 //   patient,
 // }: CreatePatientAssessmentModalProps) => {
+//   // Get context from CareContextProvider
+//   const { mode, activeVisit, activeAdmission, selectedPatient: contextPatient } = useCareContext()
+  
+//   // Determine if we're in IP or OP mode based on context
+//   const isIPMode = mode === 'IP'
+//   const isOPMode = mode === 'OP'
+  
 //   const [activeTab, setActiveTab] = useState<TabId>('details')
 //   const [saving, setSaving] = useState(false)
 //   const [error, setError] = useState<string | null>(null)
 
 //   // ── Core fields ──────────────────────────────────────────────────────────────
-//   const [patientId, setPatientId] = useState(patient || '')
+//   const [patientId, setPatientId] = useState(patient || contextPatient || '')
 //   const [patientName, setPatientName] = useState('')
-//   const [referenceType, setReferenceType] = useState<'' | 'Patient Visit' | 'Inpatient Admission'>('')
-//   const [encounterId, setEncounterId] = useState('')
+//   // Reference type is now determined by global mode
+//   const referenceType = isIPMode ? 'Inpatient Admission' : isOPMode ? 'Patient Visit' : ''
+//   const [encounterId, setEncounterId] = useState(() => {
+//     if (isIPMode && activeAdmission) return activeAdmission
+//     if (isOPMode && activeVisit) return activeVisit
+//     return ''
+//   })
 //   const [assessmentDatetime, setAssessmentDatetime] = useState(nowLocal())
 //   const [assessmentDescription, setAssessmentDescription] = useState('')
 //   const [familyHistory, setFamilyHistory] = useState('')
@@ -162,11 +176,45 @@
 
 //   // ── Patient label on mount ────────────────────────────────────────────────────
 //   useEffect(() => {
-//     if (!patient) return
-//     fetchPatients(1, 0, patient).then((res) => {
+//     const patientToLoad = patient || contextPatient
+//     if (!patientToLoad) return
+//     fetchPatients(1, 0, patientToLoad).then((res) => {
 //       if (res.length > 0) { setPatientQuery(res[0].patient_name); setPatientName(res[0].patient_name) }
 //     }).catch(() => {})
-//   }, [patient])
+//   }, [patient, contextPatient])
+
+//   // ── Auto-load encounter label if context exists ──────────────────────────────
+//   useEffect(() => {
+//     if (isIPMode && activeAdmission && patientId) {
+//       const loadAdmissionLabel = async () => {
+//         try {
+//           const admissions = await fetchInpatientAdmissions(patientId, activeAdmission)
+//           const matched = admissions.find(a => a.name === activeAdmission)
+//           if (matched) {
+//             setSelectedEncounter(matched)
+//             setEncounterQuery(matched.label)
+//           }
+//         } catch (err) {
+//           console.error('Failed to load admission label:', err)
+//         }
+//       }
+//       loadAdmissionLabel()
+//     } else if (isOPMode && activeVisit && patientId) {
+//       const loadVisitLabel = async () => {
+//         try {
+//           const visits = await fetchPatientVisits(patientId, activeVisit)
+//           const matched = visits.find(v => v.name === activeVisit)
+//           if (matched) {
+//             setSelectedEncounter(matched)
+//             setEncounterQuery(matched.label)
+//           }
+//         } catch (err) {
+//           console.error('Failed to load visit label:', err)
+//         }
+//       }
+//       loadVisitLabel()
+//     }
+//   }, [isIPMode, isOPMode, activeAdmission, activeVisit, patientId])
 
 //   // ── Patient options ───────────────────────────────────────────────────────────
 //   useEffect(() => {
@@ -195,7 +243,7 @@
 //     return () => { c = true; clearTimeout(t) }
 //   }, [templateQuery, templateOpen])
 
-//   // ── Encounter options ─────────────────────────────────────────────────────────
+//   // ── Encounter options (based on mode) ─────────────────────────────────────────
 //   useEffect(() => {
 //     if (!encounterOpen || !referenceType) return
 //     let c = false
@@ -242,7 +290,7 @@
 //       const data = await fetchTemplateParameters(tmpl.name)
 //       setScaleMin(data.scale_min)
 //       setScaleMax(data.scale_max)
-//       const rows = data.parameters.map((p) => ({ parameter: p.parameter, score: 0, time: '', comments: '',yes: false }))
+//       const rows = data.parameters.map((p) => ({ parameter: p.parameter, score: 0, time: '', comments: '', yes: false }))
 //       setSheetRows(rows)
 //       setParamQuery(Object.fromEntries(rows.map((r, i) => [i, r.parameter])))
 //       setExpandedRows(new Set(rows.map((_, i) => i)))
@@ -256,7 +304,7 @@
 //   // ── Sheet row helpers ─────────────────────────────────────────────────────────
 //   const addSheetRow = () => {
 //     const idx = sheetRows.length
-//     setSheetRows((prev) => [...prev, { parameter: '', score: 0, time: '', comments: '',yes: false }])
+//     setSheetRows((prev) => [...prev, { parameter: '', score: 0, time: '', comments: '', yes: false }])
 //     setExpandedRows((prev) => new Set([...prev, idx]))
 //     setParamQuery((prev) => ({ ...prev, [idx]: '' }))
 //   }
@@ -285,11 +333,27 @@
 
 //   const totalObtained = sheetRows.reduce((s, r) => s + (Number(r.score) || 0), 0)
 
+//   // Get mode-specific help text
+//   const getModeHelpText = () => {
+//     if (isIPMode) {
+//       return `Creating assessment for IP admission: ${encounterId || 'not selected yet'}`
+//     }
+//     if (isOPMode) {
+//       return `Creating assessment for OP visit: ${encounterId || 'not selected yet'}`
+//     }
+//     return 'Select either IP or OP mode from the context switcher above'
+//   }
+
 //   // ── Submit ────────────────────────────────────────────────────────────────────
 //   const handleSubmit = async (e: React.FormEvent) => {
 //     e.preventDefault()
 //     if (!patientId) { setError('Patient is required'); return }
 //     if (!assessmentDatetime) { setError('Assessment date / time is required'); return }
+//     if (!referenceType) { setError('Please select either IP or OP mode from the navbar'); return }
+//     if (!encounterId) { 
+//       setError(isIPMode ? 'Please select an inpatient admission' : 'Please select a patient visit')
+//       return 
+//     }
 //     setSaving(true); setError(null)
 //     try {
 //       const result = await createPatientAssessment({
@@ -330,7 +394,14 @@
 
 //         {/* ── Header ───────────────────────────────────────────────────────── */}
 //         <div className="px-5 py-4 border-b border-slate-200 flex-shrink-0 flex items-center justify-between">
-//           <h2 className="text-lg font-semibold text-slate-900">New Patient Assessment</h2>
+//           <div>
+//             <h2 className="text-lg font-semibold text-slate-900">New Patient Assessment</h2>
+//             <p className="text-xs text-slate-500 mt-0.5">
+//               {isIPMode && <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-[10px] font-medium mr-2">IP Mode Active</span>}
+//               {isOPMode && <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-green-100 text-green-700 rounded text-[10px] font-medium mr-2">OP Mode Active</span>}
+//               {getModeHelpText()}
+//             </p>
+//           </div>
 //           <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600">
 //             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 //               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -361,45 +432,69 @@
 //         >
 //           <div className="flex-1 overflow-y-auto p-5 space-y-4 min-h-0">
 
+//             {/* Mode indicator box */}
+//             <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
+//               <p className="text-xs font-semibold text-primary mb-1">
+//                 {isIPMode ? '🏥 Creating Assessment for Inpatient' : isOPMode ? '👤 Creating Assessment for Outpatient' : '📋 Select Context'}
+//               </p>
+//               <p className="text-xs text-slate-600">
+//                 {isIPMode 
+//                   ? `The assessment will be linked to the selected inpatient admission. Make sure you have an admission selected below.`
+//                   : isOPMode
+//                   ? `The assessment will be linked to the selected outpatient visit. Make sure you have a visit selected below.`
+//                   : 'Please select either IP or OP mode from the top navbar before creating an assessment.'
+//                 }
+//               </p>
+//             </div>
+
 //             {/* ═══ DETAILS TAB ════════════════════════════════════════════════ */}
 //             {activeTab === 'details' && (
 //               <>
-//                 {/* Reference Type + Encounter — first */}
+//                 {/* Reference Type + Encounter - Now determined by mode */}
 //                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 //                   <div>
 //                     <label className="block text-sm font-medium text-slate-700 mb-1">Reference Type</label>
-//                     <select value={referenceType} onChange={(e) => {
-//                       setReferenceType(e.target.value as typeof referenceType)
-//                       setEncounterId(''); setEncounterQuery(''); setSelectedEncounter(null)
-//                     }} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white">
-//                       <option value="">— None —</option>
-//                       <option value="Patient Visit">Patient Visit</option>
-//                       <option value="Inpatient Admission">Inpatient Admission</option>
-//                     </select>
+//                     <div className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm bg-slate-50">
+//                       {referenceType || '— Select IP/OP mode from navbar —'}
+//                     </div>
 //                   </div>
 //                   <div className="relative">
 //                     <label className="block text-sm font-medium text-slate-700 mb-1">
-//                       Encounter {referenceType ? `(${referenceType})` : ''}
+//                       Encounter <span className="text-red-500">*</span>
 //                     </label>
-//                     <input type="text" disabled={!referenceType}
-//                       value={encounterOpen ? encounterQuery : (selectedEncounter?.label ?? encounterQuery)}
-//                       onChange={(e) => {
-//                         setEncounterQuery(e.target.value); setEncounterOpen(true)
-//                         if (!e.target.value) { setEncounterId(''); setSelectedEncounter(null) }
-//                       }}
-//                       onFocus={() => referenceType && setEncounterOpen(true)}
-//                       placeholder={referenceType ? `Search ${referenceType}…` : 'Select reference type first'}
-//                       className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-slate-50 disabled:text-slate-400"
-//                     />
-//                     {encounterOpen && encounterOptions.length > 0 && (
-//                       <div className="absolute z-20 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-48 overflow-y-auto top-full">
-//                         {encounterOptions.map((enc) => (
-//                           <button key={enc.name} type="button"
-//                             onClick={() => { setEncounterId(enc.name); setSelectedEncounter(enc); setEncounterQuery(enc.label); setEncounterOpen(false) }}
-//                             className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100"
-//                           >{enc.label}</button>
-//                         ))}
+//                     {(isIPMode && activeAdmission) || (isOPMode && activeVisit) ? (
+//                       <div>
+//                         <input
+//                           type="text"
+//                           value={selectedEncounter?.label || encounterId}
+//                           readOnly
+//                           className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm bg-slate-100 cursor-not-allowed"
+//                         />
+//                         <p className="text-xs text-slate-400 mt-1">Auto-selected from {isIPMode ? 'IP' : 'OP'} context</p>
 //                       </div>
+//                     ) : (
+//                       <>
+//                         <input type="text" disabled={!referenceType}
+//                           value={encounterOpen ? encounterQuery : (selectedEncounter?.label ?? encounterQuery)}
+//                           onChange={(e) => {
+//                             setEncounterQuery(e.target.value); setEncounterOpen(true)
+//                             if (!e.target.value) { setEncounterId(''); setSelectedEncounter(null) }
+//                           }}
+//                           onFocus={() => referenceType && setEncounterOpen(true)}
+//                           placeholder={referenceType ? `Search ${referenceType}…` : 'Select IP/OP mode first'}
+//                           className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-slate-50 disabled:text-slate-400"
+//                         />
+//                         {encounterOpen && encounterOptions.length > 0 && (
+//                           <div className="absolute z-20 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-48 overflow-y-auto top-full">
+//                             {encounterOptions.map((enc) => (
+//                               <button key={enc.name} type="button"
+//                                 onClick={() => { setEncounterId(enc.name); setSelectedEncounter(enc); setEncounterQuery(enc.label); setEncounterOpen(false) }}
+//                                 className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100"
+//                               >{enc.label}</button>
+//                             ))}
+//                           </div>
+//                         )}
+//                       </>
 //                     )}
 //                   </div>
 //                 </div>
@@ -414,9 +509,11 @@
 //                     onFocus={() => setPatientOpen(true)}
 //                     placeholder="Search patient…"
 //                     className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+//                     disabled={Boolean(contextPatient)}
 //                   />
+//                   {contextPatient && <p className="text-xs text-slate-400 mt-1">Patient auto-selected from context</p>}
 //                   {patientLoading && <span className="absolute right-3 top-9 text-xs text-slate-400">Loading…</span>}
-//                   {patientOpen && patientOptions.length > 0 && (
+//                   {patientOpen && !contextPatient && patientOptions.length > 0 && (
 //                     <div className="absolute z-20 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-48 overflow-y-auto top-full">
 //                       {patientOptions.map((p) => (
 //                         <button key={p.name} type="button"
@@ -614,41 +711,39 @@
 //                                   </div>
 //                                 </div>
 
-//                                 {/* Row 2: Score + Time */}
 //                                 {/* Row 2: Score + Time + Yes */}
-// <div className="grid grid-cols-3 gap-3">
-//     <div>
-//     <label className="block text-xs font-medium text-slate-600 mb-1"></label>
-//     <div className="flex items-center h-[42px]">
-//       <input
-//         type="checkbox"
-//         checked={!!(row as any).yes}
-//         onChange={(e) => updateRow(idx, 'yes' as any, e.target.checked)}
-//         className="w-5 h-5 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer accent-primary"
-//       />
-//       <span className="ml-2 text-sm text-slate-600">{(row as any).yes ? 'Yes' : 'No'}</span>
-//     </div>
-//   </div>
-//   <div>
-//     <label className="block text-xs font-medium text-slate-600 mb-1">
-//       Score <span className="text-slate-400">({scaleMin}–{scaleMax || '∞'})</span>
-//     </label>
-//     <input type="number"
-//       min={scaleMin} max={scaleMax || undefined} step="0.1"
-//       value={row.score}
-//       onChange={(e) => updateRow(idx, 'score', parseFloat(e.target.value) || 0)}
-//       className="w-full rounded-md border border-slate-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-//     />
-//   </div>
-//   <div>
-//     <label className="block text-xs font-medium text-slate-600 mb-1">Time</label>
-//     <input type="time" value={row.time || ''}
-//       onChange={(e) => updateRow(idx, 'time', e.target.value)}
-//       className="w-full rounded-md border border-slate-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-//     />
-//   </div>
-
-// </div>
+//                                 <div className="grid grid-cols-3 gap-3">
+//                                   <div>
+//                                     <label className="block text-xs font-medium text-slate-600 mb-1"></label>
+//                                     <div className="flex items-center h-[42px]">
+//                                       <input
+//                                         type="checkbox"
+//                                         checked={!!(row as any).yes}
+//                                         onChange={(e) => updateRow(idx, 'yes' as any, e.target.checked)}
+//                                         className="w-5 h-5 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer accent-primary"
+//                                       />
+//                                       <span className="ml-2 text-sm text-slate-600">{(row as any).yes ? 'Yes' : 'No'}</span>
+//                                     </div>
+//                                   </div>
+//                                   <div>
+//                                     <label className="block text-xs font-medium text-slate-600 mb-1">
+//                                       Score <span className="text-slate-400">({scaleMin}–{scaleMax || '∞'})</span>
+//                                     </label>
+//                                     <input type="number"
+//                                       min={scaleMin} max={scaleMax || undefined} step="0.1"
+//                                       value={row.score}
+//                                       onChange={(e) => updateRow(idx, 'score', parseFloat(e.target.value) || 0)}
+//                                       className="w-full rounded-md border border-slate-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+//                                     />
+//                                   </div>
+//                                   <div>
+//                                     <label className="block text-xs font-medium text-slate-600 mb-1">Time</label>
+//                                     <input type="time" value={row.time || ''}
+//                                       onChange={(e) => updateRow(idx, 'time', e.target.value)}
+//                                       className="w-full rounded-md border border-slate-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+//                                     />
+//                                   </div>
+//                                 </div>
 
 //                                 {/* Row 3: Comments (tall textarea) */}
 //                                 <div>
@@ -710,7 +805,7 @@
 //                 className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50">
 //                 Cancel
 //               </button>
-//               <button type="submit" disabled={saving}
+//               <button type="submit" disabled={saving || (!isIPMode && !isOPMode) || (isIPMode && !encounterId) || (isOPMode && !encounterId)}
 //                 className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-50">
 //                 {saving ? 'Creating…' : 'Create Assessment'}
 //               </button>
@@ -1014,7 +1109,7 @@ export const CreatePatientAssessmentModal = ({
       const data = await fetchTemplateParameters(tmpl.name)
       setScaleMin(data.scale_min)
       setScaleMax(data.scale_max)
-      const rows = data.parameters.map((p) => ({ parameter: p.parameter, score: 0, time: '', comments: '', yes: false }))
+      const rows = data.parameters.map((p) => ({ parameter: p.parameter, time: '', comments: '', yes: false }))
       setSheetRows(rows)
       setParamQuery(Object.fromEntries(rows.map((r, i) => [i, r.parameter])))
       setExpandedRows(new Set(rows.map((_, i) => i)))
@@ -1028,7 +1123,7 @@ export const CreatePatientAssessmentModal = ({
   // ── Sheet row helpers ─────────────────────────────────────────────────────────
   const addSheetRow = () => {
     const idx = sheetRows.length
-    setSheetRows((prev) => [...prev, { parameter: '', score: 0, time: '', comments: '', yes: false }])
+    setSheetRows((prev) => [...prev, { parameter: '', time: '', comments: '', yes: false }])
     setExpandedRows((prev) => new Set([...prev, idx]))
     setParamQuery((prev) => ({ ...prev, [idx]: '' }))
   }
@@ -1038,7 +1133,7 @@ export const CreatePatientAssessmentModal = ({
     setExpandedRows((prev) => { const n = new Set(prev); n.delete(idx); return n })
   }
 
-  const updateRow = (idx: number, field: keyof AssessmentSheetRow, value: string | number | boolean) =>
+  const updateRow = (idx: number, field: keyof AssessmentSheetRow, value: string | boolean) =>
     setSheetRows((prev) => prev.map((r, i) => (i === idx ? { ...r, [field]: value } : r)))
 
   const toggleExpanded = (idx: number) =>
@@ -1054,8 +1149,6 @@ export const CreatePatientAssessmentModal = ({
     if (!q) return allParameters
     return allParameters.filter((p) => p.label.toLowerCase().includes(q))
   }
-
-  const totalObtained = sheetRows.reduce((s, r) => s + (Number(r.score) || 0), 0)
 
   // Get mode-specific help text
   const getModeHelpText = () => {
@@ -1284,7 +1377,7 @@ export const CreatePatientAssessmentModal = ({
                   </div>
                   {selectedTemplate && (
                     <p className="text-xs text-slate-500 mt-1">
-                      {loadingTemplate ? 'Loading parameters…' : `${sheetRows.length} parameter${sheetRows.length !== 1 ? 's' : ''} loaded — go to Assessment Sheet tab to enter scores.`}
+                      {loadingTemplate ? 'Loading parameters…' : `${sheetRows.length} parameter${sheetRows.length !== 1 ? 's' : ''} loaded — go to Assessment Sheet tab to enter details.`}
                     </p>
                   )}
                 </div>
@@ -1339,15 +1432,6 @@ export const CreatePatientAssessmentModal = ({
             {/* ═══ ASSESSMENT SHEET TAB ═══════════════════════════════════════ */}
             {activeTab === 'sheet' && (
               <div className="space-y-3">
-                {/* Scale + score summary */}
-                {sheetRows.length > 0 && (
-                  <div className="flex items-center gap-4 text-xs text-slate-600 bg-blue-50 border border-blue-200 rounded-md px-3 py-2.5">
-                    <span>Scale: <strong>{scaleMin}</strong> – <strong>{scaleMax}</strong></span>
-                    <span className="text-slate-300">|</span>
-                    <span>Total so far: <strong className="text-primary text-sm">{totalObtained}</strong></span>
-                  </div>
-                )}
-
                 {sheetRows.length === 0 ? (
                   <div className="text-center py-12 border border-dashed border-slate-300 rounded-lg">
                     <ClipboardList className="w-10 h-10 text-slate-300 mx-auto mb-3" />
@@ -1376,11 +1460,6 @@ export const CreatePatientAssessmentModal = ({
                                 <span>Parameter {idx + 1}</span>
                                 {row.parameter && (
                                   <span className="text-slate-400 font-normal">— {row.parameter}</span>
-                                )}
-                                {row.score > 0 && (
-                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-primary/10 text-primary border border-primary/20">
-                                    Score: {row.score}
-                                  </span>
                                 )}
                               </div>
                               <div className="flex items-center gap-2">
@@ -1435,10 +1514,12 @@ export const CreatePatientAssessmentModal = ({
                                   </div>
                                 </div>
 
-                                {/* Row 2: Score + Time + Yes */}
-                                <div className="grid grid-cols-3 gap-3">
+                                {/* Row 2: Time + Yes */}
+                                <div className="grid grid-cols-2 gap-3">
                                   <div>
-                                    <label className="block text-xs font-medium text-slate-600 mb-1"></label>
+                                    <label className="block text-xs font-medium text-slate-600 mb-1">
+                                      Yes/No
+                                    </label>
                                     <div className="flex items-center h-[42px]">
                                       <input
                                         type="checkbox"
@@ -1448,17 +1529,6 @@ export const CreatePatientAssessmentModal = ({
                                       />
                                       <span className="ml-2 text-sm text-slate-600">{(row as any).yes ? 'Yes' : 'No'}</span>
                                     </div>
-                                  </div>
-                                  <div>
-                                    <label className="block text-xs font-medium text-slate-600 mb-1">
-                                      Score <span className="text-slate-400">({scaleMin}–{scaleMax || '∞'})</span>
-                                    </label>
-                                    <input type="number"
-                                      min={scaleMin} max={scaleMax || undefined} step="0.1"
-                                      value={row.score}
-                                      onChange={(e) => updateRow(idx, 'score', parseFloat(e.target.value) || 0)}
-                                      className="w-full rounded-md border border-slate-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                                    />
                                   </div>
                                   <div>
                                     <label className="block text-xs font-medium text-slate-600 mb-1">Time</label>
@@ -1485,7 +1555,7 @@ export const CreatePatientAssessmentModal = ({
                       })}
                     </div>
 
-                    {/* Add Row + total */}
+                    {/* Add Row button */}
                     <div className="flex items-center justify-between pt-1">
                       <button type="button" onClick={addSheetRow}
                         className="flex items-center gap-1.5 text-sm text-primary hover:underline font-medium">
@@ -1494,9 +1564,6 @@ export const CreatePatientAssessmentModal = ({
                         </svg>
                         Add Parameter Row
                       </button>
-                      <span className="text-xs text-slate-500">
-                        Total score: <strong className="text-primary">{totalObtained}</strong>
-                      </span>
                     </div>
                   </>
                 )}
