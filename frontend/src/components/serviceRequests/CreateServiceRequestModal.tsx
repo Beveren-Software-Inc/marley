@@ -1,5 +1,3 @@
-
-
 import { useState, useEffect } from 'react'
 import {
   searchPatients,
@@ -156,25 +154,60 @@ export const CreateServiceRequestModal = ({
   }, [isIPMode, isOPMode, activeAdmission, activeVisit, effectivePatient, selectedPatient])
 
   /* ────────────── INITIAL LOAD ────────────── */
-  useEffect(() => {
-    fetchServiceRequestTemplateTypes().then(setTemplateTypes)
-    fetchHealthcarePractitioners().then(setPractitioners)
-    // If pre-filled with a template, eagerly load the template list
+// In CreateServiceRequestModal.tsx, update the INITIAL LOAD useEffect:
+
+/* ────────────── INITIAL LOAD ────────────── */
+useEffect(() => {
+  const loadInitialData = async () => {
+    // Load template types
+    const types = await fetchServiceRequestTemplateTypes()
+    console.log('Template Types loaded:', types) // Debug: Check what types are returned
+    setTemplateTypes(types)
+    
+    // Load practitioners
+    const practitionersList = await fetchHealthcarePractitioners()
+    setPractitioners(practitionersList)
+    
+    // If initialTemplate is provided, automatically set the template_dt and load templates
     if (initialTemplate) {
-      fetchServiceRequestTemplates('Lab Test Template').then(setTemplates)
+      // Find the Lab Test Template type
+      const labTestType = types.find(t => t.name === 'Lab Test Template' || t.label === 'Lab Test Template')
+      
+      if (labTestType) {
+        console.log('Found Lab Test Template type:', labTestType)
+        setFormData(prev => ({ ...prev, template_dt: labTestType.name }))
+        const templateList = await fetchServiceRequestTemplates(labTestType.name)
+        console.log('Templates loaded:', templateList)
+        setTemplates(templateList)
+      } else {
+        console.warn('Available template types:', types.map(t => t.name))
+        // Fallback: try to set template_dt directly
+        setFormData(prev => ({ ...prev, template_dt: 'Lab Test Template' }))
+        const templateList = await fetchServiceRequestTemplates('Lab Test Template')
+        setTemplates(templateList)
+      }
     }
-  }, [])
+  }
+  
+  loadInitialData()
+}, [])
 
   /* ────────────── TEMPLATE TYPE CHANGE ────────────── */
   useEffect(() => {
+    // Skip if we already have templates loaded from initialTemplate
+    if (initialTemplate && templates.length > 0) return
+    
     if (!formData.template_dt) {
       setTemplates([])
       return
     }
 
-    fetchServiceRequestTemplates(formData.template_dt)
-      .then(setTemplates)
-      .catch(() => setTemplates([]))
+    const loadTemplates = async () => {
+      const templateList = await fetchServiceRequestTemplates(formData.template_dt)
+      setTemplates(templateList)
+    }
+    
+    loadTemplates()
   }, [formData.template_dt])
 
   /* ────────────── LOAD TEMPLATE SERVICE PRICING ────────────── */
@@ -402,7 +435,8 @@ export const CreateServiceRequestModal = ({
     }
   }
 
-  // const isContextLocked = Boolean(isIPMode || isOPMode)
+  // Check if template type is locked (when initialTemplate is provided)
+  const isTemplateTypeLocked = !!initialTemplate
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -412,7 +446,7 @@ export const CreateServiceRequestModal = ({
         <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
           <div>
             <h2 className="text-xl font-semibold text-slate-900">
-              Create Service Request
+              {initialTemplate === 'Lab Test Template' ? 'Create Lab Request' : 'Create Service Request'}
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
               {isIPMode && <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-[10px] font-medium mr-2">IP Mode Active</span>}
@@ -631,12 +665,16 @@ export const CreateServiceRequestModal = ({
                 value={formData.template_dt}
                 onChange={(e) => setFormData({ ...formData, template_dt: e.target.value, template_dn: '' })}
                 className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-transparent bg-white"
+                disabled={isTemplateTypeLocked}
               >
                 <option value="">Select type</option>
                 {templateTypes.map((t) => (
                   <option key={t.name} value={t.name}>{t.label || t.name}</option>
                 ))}
               </select>
+              {isTemplateTypeLocked && (
+                <p className="text-xs text-slate-400 mt-1">Template type is pre-selected for Lab Request</p>
+              )}
             </div>
 
             <div>

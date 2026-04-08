@@ -334,15 +334,16 @@ export const LabPage = () => {
           </section>
         </div>
         {showServiceRequestModal && (
-          <CreateServiceRequestModal
-            onClose={() => setShowServiceRequestModal(false)}
-            onSuccess={() => {
-              setShowServiceRequestModal(false)
-              handleServiceRequestCreated()
-            }}
-            initialPatient={selectedPatient}
-          />
-        )}
+  <CreateServiceRequestModal
+    onClose={() => setShowServiceRequestModal(false)}
+    onSuccess={() => { 
+      setShowServiceRequestModal(false); 
+      handleServiceRequestCreated() 
+    }}
+    initialPatient={selectedPatient}
+    initialTemplate="Lab Test Template"  // Add this line
+  />
+)}
       </div>
     )
   }
@@ -570,13 +571,17 @@ export const LabPage = () => {
           initialPatient={selectedPatient}
         />
       )}
-      {showServiceRequestModal && (
-        <CreateServiceRequestModal
-          onClose={() => setShowServiceRequestModal(false)}
-          onSuccess={() => { setShowServiceRequestModal(false); handleServiceRequestCreated() }}
-          initialPatient={selectedPatient}
-        />
-      )}
+     {showServiceRequestModal && (
+  <CreateServiceRequestModal
+    onClose={() => setShowServiceRequestModal(false)}
+    onSuccess={() => { 
+      setShowServiceRequestModal(false); 
+      handleServiceRequestCreated() 
+    }}
+    initialPatient={selectedPatient}
+    initialTemplate="Lab Test Template"  // Add this line
+  />
+)}
     </div>
   )
 }

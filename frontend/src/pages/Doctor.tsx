@@ -25,7 +25,7 @@ import { CreateHomicideRiskAssessmentModal } from '../components/homicide/Create
 import { HomicideRiskAssessmentList } from '../components/homicide/HomicideRiskAssessmentList'
 import { IOPDayListWithHeader } from '../components/iop/IOPDayList'
 import { IOPEnrollmentListWithHeader } from '../components/iop/IOPEnrollmentList'
-import { CreateLabTestModal } from '../components/labTests/CreateLabTestModal'
+// import { CreateLabTestModal } from '../components/labTests/CreateLabTestModal'
 import { LabTestList } from '../components/labTests/LabTestList'
 import { MedicalHistoryView } from '../components/medicalHistory/MedicalHistoryView'
 import { CreateMedicineGivenModal } from '../components/medication/CreateMedicineGivenModal'
@@ -82,6 +82,24 @@ import { AdmissionPage } from './Admission'
 import { PatientVisitPage } from './PatientVisit'
 
 
+const CreateLabRequestModal = ({ 
+  onClose, 
+  onSuccess, 
+  initialPatient 
+}: { 
+  onClose: () => void; 
+  onSuccess: () => void; 
+  initialPatient?: string 
+}) => {
+  return (
+    <CreateServiceRequestModal
+      onClose={onClose}
+      onSuccess={onSuccess}
+      initialPatient={initialPatient}
+      initialTemplate="Lab Test Template"
+    />
+  )
+}
 
 export const DoctorPage = () => {
   const { mode, activeVisit, activeAdmission, selectedPatient: globalPatient, setSelectedPatient: setGlobalPatient } = useCareContext()
@@ -2437,16 +2455,17 @@ if (screen === 'single-prescription') {
         />
       )}
 
-      {showLabTestModal && (
-        <CreateLabTestModal
-          onClose={() => setShowLabTestModal(false)}
-          onSuccess={() => {
-            setLabTestRefreshKey(prev => prev + 1)
-            setShowLabTestModal(false)
-          }}
-          initialPatient={selectedPatient}
-        />
-      )}
+    {showLabTestModal && (
+  <CreateLabRequestModal
+    onClose={() => setShowLabTestModal(false)}
+    onSuccess={() => {
+      setLabTestRefreshKey(prev => prev + 1)
+      setShowLabTestModal(false)
+      toast.success('Lab request created successfully')
+    }}
+    initialPatient={selectedPatient}
+  />
+)}
 
       {showDischargeModal && selectedAdmission && (
         <DischargeModal
