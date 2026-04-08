@@ -1,0 +1,62 @@
+[
+ {
+  "alderete_score": [
+   {
+    "attribute": "Oxygen Saturation",
+    "option_0": "Oxygen saturation <90% even with oxygen",
+    "option_1": "Needs oxygen to maintain >90%",
+    "option_2": "Maintains >90% on room air",
+    "score": 0,
+    "selected_score": "0"
+   },
+   {
+    "attribute": "Color",
+    "option_0": "Cyanotic",
+    "option_1": "Pale, jaundiced, blotchy",
+    "option_2": "Normal",
+    "score": 0,
+    "selected_score": "0"
+   },
+   {
+    "attribute": "Mobility",
+    "option_0": "Unable to move extremities",
+    "option_1": "Able to move two extremities on command",
+    "option_2": "Able to move four extremities on command",
+    "score": 0,
+    "selected_score": "0"
+   },
+   {
+    "attribute": "Circulation",
+    "option_0": "Blood pressure ≥50% different from baseline",
+    "option_1": "Blood pressure 20–49% different from baseline",
+    "option_2": "Blood pressure within 20% of pre-anesthetic level",
+    "score": 0,
+    "selected_score": "0"
+   },
+   {
+    "attribute": "Breathing",
+    "option_0": "Apnea",
+    "option_1": "Dyspnea or limited breathing",
+    "option_2": "Able to breathe deeply",
+    "score": 0,
+    "selected_score": "0"
+   },
+   {
+    "attribute": "Consciousness",
+    "option_0": "Not responding",
+    "option_1": "Arousable",
+    "option_2": "Fully awake",
+    "score": 0,
+    "selected_score": "0"
+   }
+  ],
+  "default": 1,
+  "description": "<div class=\"ql-editor read-mode\"><p>The Modified Aldrete Score is used to assess a patient’s recovery following anesthesia and determine readiness for discharge from the Post-Anesthesia Care Unit (PACU).</p><p><br></p><p>It evaluates six clinical parameters: consciousness, mobility, respiration, circulation, oxygen saturation, and color.</p><p><br></p><p>Each parameter is scored from 0 to 2, with a maximum total score of 12. A higher score indicates better recovery and greater readiness for discharge.</p><p><br></p><p>Please assess the patient based on the criteria provided for each parameter and select the most appropriate score.</p><p><br></p><p>Each parameter should be scored independently based on the patient’s current clinical condition.</p></div>",
+  "docstatus": 0,
+  "doctype": "Modified Alderete Score Template",
+  "footer_description": "<div class=\"ql-editor read-mode\"><p>The total Modified Aldrete Score ranges from 0 to 12.</p><p><br></p><p>A score of 9 or greater is generally considered the minimum threshold for safe discharge from the recovery area, provided the patient meets other clinical criteria.</p><p><br></p><p>Clinical judgment should always be used in conjunction with this score when making discharge decisions.</p><p><br></p><p>This scoring tool is intended to support clinical assessment and should not be used as a substitute for professional medical judgment or decision-making.</p></div>",
+  "modified": "2026-04-08 16:25:29.893867",
+  "name": "Default Alderete Score",
+  "template_name": "Default Alderete Score"
+ }
+]

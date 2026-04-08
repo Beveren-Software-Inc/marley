@@ -1,0 +1,66 @@
+[
+ {
+  "description": "<div class=\"ql-editor read-mode\"><p>Over the last 2 weeks, how often have you been bothered</p><p>by any of the following problems?</p><p>(Use “✔” to indicate your answer)</p></div>",
+  "docstatus": 0,
+  "doctype": "PHQ9 Template",
+  "modified": "2026-04-06 10:47:22.881727",
+  "name": "Default PHQ9",
+  "questions": [
+   {
+    "question": "Little interest or pleasure in doing things",
+    "question_type": "Score",
+    "response_options": "0 - Not at all",
+    "response_type": "Numeric"
+   },
+   {
+    "question": "Thoughts that you would be better off dead or of hurting yourself in some way",
+    "question_type": "Score",
+    "response_options": "0 - Not at all",
+    "response_type": "Numeric"
+   },
+   {
+    "question": "Feeling down, depressed, or hopeless",
+    "question_type": "Score",
+    "response_options": "0 - Not at all",
+    "response_type": "Numeric"
+   },
+   {
+    "question": "Feeling tired or having little energy",
+    "question_type": "Score",
+    "response_options": "0 - Not at all",
+    "response_type": "Numeric"
+   },
+   {
+    "question": "Poor appetite or overeating",
+    "question_type": "Score",
+    "response_options": "0 - Not at all",
+    "response_type": "Numeric"
+   },
+   {
+    "question": "Trouble concentrating on things, such as reading the newspaper or watching television",
+    "question_type": "Score",
+    "response_options": "0 - Not at all",
+    "response_type": "Numeric"
+   },
+   {
+    "question": "Feeling bad about yourself — or that you are a failure or have let yourself or your family down",
+    "question_type": "Score",
+    "response_options": "0 - Not at all",
+    "response_type": "Numeric"
+   },
+   {
+    "question": "Trouble falling or staying asleep, or sleeping too much",
+    "question_type": "Score",
+    "response_options": "0 - Not at all",
+    "response_type": "Numeric"
+   },
+   {
+    "question": "Moving or speaking so slowly that other people could have noticed? Or the opposite — being so fidgety or restless that you have been moving around a lot more than usual",
+    "question_type": "Score",
+    "response_options": "0 - Not at all",
+    "response_type": "Numeric"
+   }
+  ],
+  "template_name": "Default PHQ9"
+ }
+]
