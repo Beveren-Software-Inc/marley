@@ -117,6 +117,17 @@ export interface ServiceUnit {
   cost_center?: string
 }
 
+export interface ChecklistItem {
+  action_required: string
+  department?: string
+  user?: string
+  name1?: string
+  date_time?: string
+  click?: number
+  description?: string
+}
+
+
 export async function fetchInpatientRecords(
   status?: string,
   search?: string,
@@ -667,3 +678,4 @@ export async function createInvoiceForInpatientAdmission(inpatientAdmissionName:
   
   return resData.message;
 }
+

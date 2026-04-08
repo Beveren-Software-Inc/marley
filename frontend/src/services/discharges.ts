@@ -3,11 +3,12 @@ import { apiRequest } from './apiClient'
 export interface Discharge {
   name: string
   admission: string
-  file_no?: string
-  patient_name?: string
-  discharge_date?: string
-  discharge_type?: string
-  discharged_by_user?: string
+  admission_date?: string  // Add this field
+  file_no: string
+  patient_name: string
+  discharge_date: string
+  discharge_type: string
+  discharged_by_user: string
   discharged_by_user_name?: string
   final_discharge_user_id?: string
   final_discharge_user_name?: string
@@ -15,7 +16,8 @@ export interface Discharge {
   receiving_doctor_name?: string
   discharge_template?: string
   template_name?: string
-  docstatus?: number
+  docstatus: number
+  cost_center?: string
 }
 
 export async function fetchDischarges(

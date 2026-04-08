@@ -1752,7 +1752,7 @@ def create_grooming_chart(data):
 			"brush_teeth_morning", "change_clothes_morning", "brush_teeth_noon",
 			"change_clothes_noon", "shower", "bowel", "bed_wetting",
 			"breakfast", "snack_1", "lunch", "snack_2", "dinner", "snack_3",
-			"weight", "lmp",
+			"weight", "lmp","fluid_intake", "fluid_output",
 		]
 		for field in allowed_fields:
 			if field in data:
@@ -1838,7 +1838,7 @@ def create_mental_state(data):
 			"increased", "poor_ap", "reported", "non_reported", "normal_b", "reported_type",
 			"sleep_duration", "normal_sleep", "disturbed", "intermittent",
 			"excessive", "a_little",
-			"conscious", "alert", "disturbed_con",
+			"conscious", "alert", "disturbed_con", "delusion","perception"
 		]
 		for field in allowed_fields:
 			if field in data:
@@ -1992,7 +1992,7 @@ def create_patient_assessment(data):
 			for row in sheet_rows:
 				doc.append("assessment_sheet", {
 					"parameter": row.get("parameter"),
-					"score": frappe.utils.flt(row.get("score") or 0),
+					"score": 0,
 					"time": row.get("time") or None,
 					"comments": row.get("comments") or "",
 					"yes": row.get("yes") or 0,
@@ -2455,3 +2455,19 @@ def save_patient_diagnosis(parent_doctype, parent_name, rows):
 	doc.save(ignore_permissions=True)
 	frappe.db.commit()
 	return {"ok": True}
+
+
+@frappe.whitelist()
+def fetch_nursing_discharge_templates(template_name=None):
+    """Fetch nursing discharge templates"""
+    filters = {}
+    if template_name:
+        filters["template_name"] = ["like", f"%{template_name}%"]
+    
+    templates = frappe.get_all(
+        "Discharge Nursing Template",
+        filters=filters,
+        fields=["name", "template_name as label", "default"]
+    )
+    
+    return templates

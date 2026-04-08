@@ -6,6 +6,8 @@ import frappe
 from frappe import _
 
 
+
+
 @frappe.whitelist()
 def get_discharges(limit=50, offset=0, patient=None, admission=None, search=None):
 	"""Get list of Discharge documents"""
@@ -79,10 +81,11 @@ def get_discharges(limit=50, offset=0, patient=None, admission=None, search=None
 			template_name = frappe.db.get_value('Discharge Template', discharge.discharge_template, 'template_name')
 			if template_name:
 				discharge['template_name'] = template_name
+		
+		# Get admission date from the linked Inpatient Record
+		if discharge.admission:
+			admission_date = frappe.db.get_value('Inpatient Admission', discharge.admission, 'admitted_datetime')
+			if admission_date:
+				discharge['admission_date'] = admission_date
 	
 	return discharges
-
-
-
-
-

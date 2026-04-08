@@ -22,6 +22,7 @@ import {
 
 import { toast } from '../../hooks/useToast'
 import { X } from 'lucide-react'
+import { useCareContext } from '../../providers/CareContextProvider'
 
 interface CreateServiceRequestModalProps {
   onClose: () => void
@@ -48,9 +49,15 @@ export const CreateServiceRequestModal = ({
   initialPatient,
   initialTemplate,
 }: CreateServiceRequestModalProps) => {
+  // Get context from CareContextProvider
+  const { mode, activeVisit, activeAdmission, selectedPatient: contextPatient } = useCareContext()
+  
+  // Determine if we're in IP or OP mode based on context
+  const isIPMode = mode === 'IP'
+  const isOPMode = mode === 'OP'
 
   /* ────────────── PATIENT ────────────── */
-  const [patientQuery, setPatientQuery] = useState(initialPatient || '')
+  const [patientQuery, setPatientQuery] = useState(initialPatient || contextPatient || '')
   const [selectedPatient, setSelectedPatient] = useState<PatientListItem | null>(null)
   const [patientCategory, setPatientCategory] = useState('')
   const [patients, setPatients] = useState<PatientListItem[]>([])
@@ -87,8 +94,8 @@ export const CreateServiceRequestModal = ({
     template_dt: initialTemplate ? 'Lab Test Template' : '',
     template_dn: initialTemplate || '',
     practitioner: '',
-    patient_visit: '',
-    inpatient_record: '',
+    patient_visit: (isOPMode && activeVisit) ? activeVisit : '',
+    inpatient_record: (isIPMode && activeAdmission) ? activeAdmission : '',
     order_date: new Date().toISOString().split('T')[0],
     order_time: new Date().toTimeString().slice(0, 5),
     department: '',
@@ -98,28 +105,109 @@ export const CreateServiceRequestModal = ({
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  /* ────────────── INITIAL LOAD ────────────── */
+  // Get effective patient
+  const effectivePatient = selectedPatient?.name || initialPatient || contextPatient || ''
+
+  // Auto-load patient label if context exists
   useEffect(() => {
-    fetchServiceRequestTemplateTypes().then(setTemplateTypes)
-    fetchHealthcarePractitioners().then(setPractitioners)
-    // If pre-filled with a template, eagerly load the template list
-    if (initialTemplate) {
-      fetchServiceRequestTemplates('Lab Test Template').then(setTemplates)
+    const patientToLoad = initialPatient || contextPatient
+    if (patientToLoad && !selectedPatient) {
+      fetchPatients(1, 0, patientToLoad).then((res) => {
+        if (res.length > 0) {
+          setSelectedPatient(res[0])
+          setPatientQuery(res[0].patient_name || res[0].name)
+          setPatientCategory((res[0] as any).category || '')
+        }
+      }).catch(() => {})
     }
-  }, [])
+  }, [initialPatient, contextPatient, selectedPatient])
+
+  // Auto-load visit/admission label if context exists
+  useEffect(() => {
+    if (isIPMode && activeAdmission && effectivePatient) {
+      const loadAdmissionLabel = async () => {
+        try {
+          const admissionsList = await fetchInpatientAdmissions(effectivePatient, activeAdmission)
+          const matched = admissionsList.find(a => a.name === activeAdmission)
+          if (matched && !selectedPatient) {
+            // Admission label loaded
+          }
+        } catch (err) {
+          console.error('Failed to load admission label:', err)
+        }
+      }
+      loadAdmissionLabel()
+    } else if (isOPMode && activeVisit && effectivePatient) {
+      const loadVisitLabel = async () => {
+        try {
+          const visits = await fetchPatientVisits(effectivePatient, activeVisit)
+          const matched = visits.find(v => v.name === activeVisit)
+          if (matched && !selectedPatient) {
+            // Visit label loaded
+          }
+        } catch (err) {
+          console.error('Failed to load visit label:', err)
+        }
+      }
+      loadVisitLabel()
+    }
+  }, [isIPMode, isOPMode, activeAdmission, activeVisit, effectivePatient, selectedPatient])
+
+  /* ────────────── INITIAL LOAD ────────────── */
+// In CreateServiceRequestModal.tsx, update the INITIAL LOAD useEffect:
+
+/* ────────────── INITIAL LOAD ────────────── */
+useEffect(() => {
+  const loadInitialData = async () => {
+    // Load template types
+    const types = await fetchServiceRequestTemplateTypes()
+    console.log('Template Types loaded:', types) // Debug: Check what types are returned
+    setTemplateTypes(types)
+    
+    // Load practitioners
+    const practitionersList = await fetchHealthcarePractitioners()
+    setPractitioners(practitionersList)
+    
+    // If initialTemplate is provided, automatically set the template_dt and load templates
+    if (initialTemplate) {
+      // Find the Lab Test Template type
+      const labTestType = types.find(t => t.name === 'Lab Test Template' || t.label === 'Lab Test Template')
+      
+      if (labTestType) {
+        console.log('Found Lab Test Template type:', labTestType)
+        setFormData(prev => ({ ...prev, template_dt: labTestType.name }))
+        const templateList = await fetchServiceRequestTemplates(labTestType.name)
+        console.log('Templates loaded:', templateList)
+        setTemplates(templateList)
+      } else {
+        console.warn('Available template types:', types.map(t => t.name))
+        // Fallback: try to set template_dt directly
+        setFormData(prev => ({ ...prev, template_dt: 'Lab Test Template' }))
+        const templateList = await fetchServiceRequestTemplates('Lab Test Template')
+        setTemplates(templateList)
+      }
+    }
+  }
+  
+  loadInitialData()
+}, [])
 
   /* ────────────── TEMPLATE TYPE CHANGE ────────────── */
-  // Only loads the options list for the selected type.
-  // Clearing template_dn when the type changes is handled by the onChange on the <select> below.
   useEffect(() => {
+    // Skip if we already have templates loaded from initialTemplate
+    if (initialTemplate && templates.length > 0) return
+    
     if (!formData.template_dt) {
       setTemplates([])
       return
     }
 
-    fetchServiceRequestTemplates(formData.template_dt)
-      .then(setTemplates)
-      .catch(() => setTemplates([]))
+    const loadTemplates = async () => {
+      const templateList = await fetchServiceRequestTemplates(formData.template_dt)
+      setTemplates(templateList)
+    }
+    
+    loadTemplates()
   }, [formData.template_dt])
 
   /* ────────────── LOAD TEMPLATE SERVICE PRICING ────────────── */
@@ -139,7 +227,6 @@ export const CreateServiceRequestModal = ({
         )
         const resData = await res.json()
         const info = resData?.message
-        console.log("Here is", info)
         if (!info) {
           setPricing([])
           setSelectedPrice(null)
@@ -153,7 +240,6 @@ export const CreateServiceRequestModal = ({
           setGroupTemplates(info.group_templates || [])
           setPricing([])
 
-          // Sum prices for the patient's category across all child templates
           const total = (info.group_templates as GroupTemplateItem[]).reduce((sum, gt) => {
             const match = patientCategory
               ? gt.pricing.find((p) => p.patient_category === patientCategory)
@@ -263,6 +349,17 @@ export const CreateServiceRequestModal = ({
     return () => clearTimeout(t)
   }, [costCenterOpen, costCenterSearch])
 
+  // Get mode-specific help text
+  const getModeHelpText = () => {
+    if (isIPMode) {
+      return `Creating service request for IP admission: ${formData.inpatient_record || 'not selected yet'}`
+    }
+    if (isOPMode) {
+      return `Creating service request for OP visit: ${formData.patient_visit || 'not selected yet'}`
+    }
+    return 'Select either IP or OP mode from the context switcher above'
+  }
+
   /* ────────────── SUBMIT ────────────── */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -283,7 +380,16 @@ export const CreateServiceRequestModal = ({
       return
     }
 
-    if (!formData.patient_visit && !formData.inpatient_record) {
+    // Validate based on mode
+    if (isIPMode && !formData.inpatient_record) {
+      setError('Please select an inpatient admission (IP mode active)')
+      return
+    }
+    if (isOPMode && !formData.patient_visit) {
+      setError('Please select a patient visit (OP mode active)')
+      return
+    }
+    if (!isIPMode && !isOPMode && !formData.patient_visit && !formData.inpatient_record) {
       setError('Please select either Patient Visit or Inpatient Admission')
       return
     }
@@ -308,14 +414,12 @@ export const CreateServiceRequestModal = ({
         department: formData.department || undefined,
         cost_center: formData.cost_center || undefined,
         cost: selectedPrice,
-        // discount_value (Select) stores the margin type; discount (Percent) stores the % value
         discount_value: discountType === 'percentage' ? 'Percentage' : 'Fixed Amount',
         discount: discountType === 'percentage' ? discountValue : 0,
         discount_amount: discountAmount,
         grand_total: grandTotal,
       }
 
-      console.log('Submitting payload:', payload)
       await createServiceRequest(payload)
 
       toast.success('Service request created')
@@ -331,15 +435,25 @@ export const CreateServiceRequestModal = ({
     }
   }
 
+  // Check if template type is locked (when initialTemplate is provided)
+  const isTemplateTypeLocked = !!initialTemplate
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
 
         {/* HEADER */}
         <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
-          <h2 className="text-xl font-semibold text-slate-900">
-            Create Service Request
-          </h2>
+          <div>
+            <h2 className="text-xl font-semibold text-slate-900">
+              {initialTemplate === 'Lab Test Template' ? 'Create Lab Request' : 'Create Service Request'}
+            </h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              {isIPMode && <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-[10px] font-medium mr-2">IP Mode Active</span>}
+              {isOPMode && <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-green-100 text-green-700 rounded text-[10px] font-medium mr-2">OP Mode Active</span>}
+              {getModeHelpText()}
+            </p>
+          </div>
           <button
             type="button"
             onClick={onClose}
@@ -350,6 +464,21 @@ export const CreateServiceRequestModal = ({
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
+
+          {/* Mode indicator box */}
+          <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
+            <p className="text-xs font-semibold text-primary mb-1">
+              {isIPMode ? '🏥 Creating Service Request for Inpatient' : isOPMode ? '👤 Creating Service Request for Outpatient' : '📋 Select Context'}
+            </p>
+            <p className="text-xs text-slate-600">
+              {isIPMode 
+                ? `The service request will be linked to the selected inpatient admission. Make sure you have an admission selected below.`
+                : isOPMode
+                ? `The service request will be linked to the selected outpatient visit. Make sure you have a visit selected below.`
+                : 'Please select either IP or OP mode from the top navbar before creating a service request.'
+              }
+            </p>
+          </div>
 
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-md p-4 text-sm text-red-800">
@@ -379,10 +508,14 @@ export const CreateServiceRequestModal = ({
                 }}
                 onFocus={() => setPatientOpen(true)}
                 placeholder="Search patient..."
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                disabled={Boolean(contextPatient)}
+                className={`w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent ${contextPatient ? 'bg-slate-100 cursor-not-allowed' : ''}`}
               />
+              {contextPatient && (
+                <p className="text-xs text-slate-400 mt-1">Patient auto-selected from context</p>
+              )}
 
-              {patientOpen && (
+              {patientOpen && !contextPatient && (
                 <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-auto">
                   {loadingPatients ? (
                     <div className="px-3 py-2 text-xs text-slate-500">Loading...</div>
@@ -395,9 +528,7 @@ export const CreateServiceRequestModal = ({
                         onClick={() => {
                           setSelectedPatient(p)
                           setPatientQuery(p.patient_name || p.name)
-                          // IMPORTANT: Use 'category' field from Patient
                           setPatientCategory((p as any).category || '')
-                          console.log('Selected patient category:', (p as any).category)
                           setPatientOpen(false)
                         }}
                       >
@@ -461,38 +592,66 @@ export const CreateServiceRequestModal = ({
             </div>
           </div>
 
-          {/* ═══════════ VISIT + ADMISSION ═══════════ */}
+          {/* ═══════════ VISIT + ADMISSION (Mode-aware) ═══════════ */}
           <div className="grid grid-cols-2 gap-4">
+            {/* Patient Visit - only editable in OP mode or no mode */}
             <div>
               <label className="block text-sm font-semibold text-slate-900 mb-2">
-                Patient Visit <span className="text-red-500">*</span>
+                Patient Visit {isOPMode && <span className="text-red-500">*</span>}
               </label>
-              <select
-                value={formData.patient_visit}
-                onChange={(e) => setFormData({ ...formData, patient_visit: e.target.value })}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-transparent bg-white"
-              >
-                <option value="">Select visit</option>
-                {patientVisits.map((v) => (
-                  <option key={v.name} value={v.name}>{v.label || v.name}</option>
-                ))}
-              </select>
+              {activeVisit ? (
+                <div>
+                  <input
+                    type="text"
+                    value={formData.patient_visit}
+                    readOnly
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm bg-slate-100 cursor-not-allowed"
+                  />
+                  <p className="text-xs text-slate-400 mt-1">Auto-selected from OP context</p>
+                </div>
+              ) : (
+                <select
+                  value={formData.patient_visit}
+                  onChange={(e) => setFormData({ ...formData, patient_visit: e.target.value })}
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-transparent bg-white"
+                  disabled={isIPMode}
+                >
+                  <option value="">Select visit</option>
+                  {patientVisits.map((v) => (
+                    <option key={v.name} value={v.name}>{v.label || v.name}</option>
+                  ))}
+                </select>
+              )}
             </div>
 
+            {/* Inpatient Admission - only editable in IP mode or no mode */}
             <div>
               <label className="block text-sm font-semibold text-slate-900 mb-2">
-                Inpatient Admission <span className="text-red-500">*</span>
+                Inpatient Admission {isIPMode && <span className="text-red-500">*</span>}
               </label>
-              <select
-                value={formData.inpatient_record}
-                onChange={(e) => setFormData({ ...formData, inpatient_record: e.target.value })}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-transparent bg-white"
-              >
-                <option value="">Select admission</option>
-                {admissions.map((a) => (
-                  <option key={a.name} value={a.name}>{a.label || a.name}</option>
-                ))}
-              </select>
+              {activeAdmission ? (
+                <div>
+                  <input
+                    type="text"
+                    value={formData.inpatient_record}
+                    readOnly
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm bg-slate-100 cursor-not-allowed"
+                  />
+                  <p className="text-xs text-slate-400 mt-1">Auto-selected from IP context</p>
+                </div>
+              ) : (
+                <select
+                  value={formData.inpatient_record}
+                  onChange={(e) => setFormData({ ...formData, inpatient_record: e.target.value })}
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-transparent bg-white"
+                  disabled={isOPMode}
+                >
+                  <option value="">Select admission</option>
+                  {admissions.map((a) => (
+                    <option key={a.name} value={a.name}>{a.label || a.name}</option>
+                  ))}
+                </select>
+              )}
             </div>
           </div>
 
@@ -506,12 +665,16 @@ export const CreateServiceRequestModal = ({
                 value={formData.template_dt}
                 onChange={(e) => setFormData({ ...formData, template_dt: e.target.value, template_dn: '' })}
                 className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-transparent bg-white"
+                disabled={isTemplateTypeLocked}
               >
                 <option value="">Select type</option>
                 {templateTypes.map((t) => (
                   <option key={t.name} value={t.name}>{t.label || t.name}</option>
                 ))}
               </select>
+              {isTemplateTypeLocked && (
+                <p className="text-xs text-slate-400 mt-1">Template type is pre-selected for Lab Request</p>
+              )}
             </div>
 
             <div>
@@ -752,7 +915,7 @@ export const CreateServiceRequestModal = ({
 
             <button
               type="submit"
-              disabled={submitting}
+              disabled={submitting || (!isIPMode && !isOPMode) || (isIPMode && !formData.inpatient_record) || (isOPMode && !formData.patient_visit)}
               className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition"
             >
               {submitting ? 'Creating…' : 'Create Service Request'}

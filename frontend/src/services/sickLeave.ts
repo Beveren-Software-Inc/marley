@@ -22,6 +22,7 @@ export interface CreateSickLeaveInput {
   diagnosis?: string
   doctor?: string
   source?: string
+  patient_visit?: string
 }
 
 export async function fetchSickLeaves(

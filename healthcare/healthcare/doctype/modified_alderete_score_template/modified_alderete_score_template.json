@@ -7,8 +7,13 @@
  "engine": "InnoDB",
  "field_order": [
   "template_name",
+  "default",
+  "section_break_dnak",
+  "description",
   "alderete_score_section",
-  "alderete_score"
+  "alderete_score",
+  "section_break_bwat",
+  "footer_description"
  ],
  "fields": [
   {
@@ -27,12 +32,36 @@
    "fieldtype": "Table",
    "label": "Alderete Score",
    "options": "Modified Alderete Score Detail"
+  },
+  {
+   "fieldname": "section_break_dnak",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Text Editor",
+   "label": "Description"
+  },
+  {
+   "default": "0",
+   "fieldname": "default",
+   "fieldtype": "Check",
+   "label": "Default"
+  },
+  {
+   "fieldname": "section_break_bwat",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "footer_description",
+   "fieldtype": "Text Editor",
+   "label": "Footer Description"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-03-17 18:28:20.968397",
+ "modified": "2026-04-08 16:00:38.367849",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Modified Alderete Score Template",

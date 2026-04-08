@@ -6,8 +6,11 @@
  "engine": "InnoDB",
  "field_order": [
   "attribute",
-  "score",
-  "pass"
+  "option_0",
+  "option_1",
+  "option_2",
+  "selected_score",
+  "score"
  ],
  "fields": [
   {
@@ -15,29 +18,55 @@
    "fieldtype": "Small Text",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "Attribute"
+   "label": "Attribute",
+   "reqd": 1
   },
   {
-   "default": "0",
-   "fieldname": "pass",
-   "fieldtype": "Check",
+   "fieldname": "option_0",
+   "fieldtype": "Small Text",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "Pass"
+   "label": "Score 0",
+   "reqd": 1
+  },
+  {
+   "fieldname": "option_1",
+   "fieldtype": "Small Text",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Score 1",
+   "reqd": 1
+  },
+  {
+   "fieldname": "option_2",
+   "fieldtype": "Small Text",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Score 2",
+   "reqd": 1
+  },
+  {
+   "fieldname": "selected_score",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Selected Score",
+   "options": "0\n1\n2"
   },
   {
    "fieldname": "score",
-   "fieldtype": "Float",
+   "fieldtype": "Int",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "Score"
+   "label": "Score",
+   "read_only": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-03-17 18:36:31.759960",
+ "modified": "2026-04-08 15:48:59.660836",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Modified Alderete Score Detail",

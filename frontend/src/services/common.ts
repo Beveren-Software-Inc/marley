@@ -1,3 +1,5 @@
+import { apiRequest } from './apiClient'
+
 export interface LinkFieldOption {
   name: string
   label: string
@@ -799,6 +801,29 @@ export const fetchDischargeChecklist = async (templateName: string): Promise<Che
   }))
 }
 
+export const fetchNursingDischargeChecklist = async (templateName: string): Promise<ChecklistItem[]> => {
+  const response = await fetch(
+    `/api/resource/Discharge Nursing Template/${encodeURIComponent(templateName)}`,
+    { headers: { 'Content-Type': 'application/json' } }
+  )
+  if (!response.ok) throw new Error('Failed to fetch nursing discharge template')
+  const data = await response.json()
+
+  // The child table field name on your Discharge Nursing Template doctype is `discharge_checklist`
+  const rows = data?.data?.discharge_checklist ?? []
+
+  return rows.map((row: any) => ({
+    name: row.name,
+    action_required: row.action_required,
+    department: '', // No department field in nursing template
+    department_label: 'Nursing', // Default department label
+    user: '',
+    name1: '',
+    date_time: '',
+    click: false,
+    description: '',
+  }))
+}
 
 export async function fetchPatientVisits(
   patient?: string,
@@ -1207,3 +1232,19 @@ export async function fetchSampleCollections(
   } catch { return [] }
 }
 
+
+// Fetch nursing discharge templates
+export async function fetchNursingDischargeTemplates(query?: string): Promise<LinkFieldOption[]> {
+  try {
+    const result = await apiRequest('/api/method/healthcare.api.common.fetch_nursing_discharge_templates', {
+      method: 'POST',
+      body: JSON.stringify({ template_name: query || '' })
+    })
+
+    console.log('Fetched nursing discharge templates:', result)
+    return result || []
+  } catch (err) {
+    console.error('Failed to fetch nursing discharge templates:', err)
+    return []
+  }
+}

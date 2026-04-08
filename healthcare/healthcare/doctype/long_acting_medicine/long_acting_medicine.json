@@ -22,7 +22,9 @@
   "medications",
   "amended_from",
   "more_infor_section",
-  "remarks"
+  "remarks",
+  "column_break_mcjj",
+  "doctors_remark"
  ],
  "fields": [
   {
@@ -137,12 +139,21 @@
    "fieldname": "remarks",
    "fieldtype": "Small Text",
    "label": "Remarks"
+  },
+  {
+   "fieldname": "column_break_mcjj",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "doctors_remark",
+   "fieldtype": "Small Text",
+   "label": "Doctors Remark"
   }
  ],
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-03-19 01:49:12.910835",
+ "modified": "2026-04-07 17:23:18.578895",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Long Acting Medicine",

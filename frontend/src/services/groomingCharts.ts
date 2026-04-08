@@ -47,6 +47,9 @@ export interface CreateGroomingChartInput {
   snack_3?: 0 | 1
   weight?: number | null
   lmp?: string
+  patient_visit?: string
+  fluid_intake?: number | null
+  fluid_output?: number | null
 }
 
 export async function fetchGroomingCharts(

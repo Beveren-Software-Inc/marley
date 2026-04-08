@@ -152,6 +152,9 @@ fixtures = [
 	},
     {
 		"doctype":"PHQ9 Template"
+	},
+    {
+		"doctype":"Modified Alderete Score Template"
 	}
 ]
 

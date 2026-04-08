@@ -1,9 +1,13 @@
-import { useState, useRef, useCallback, useEffect } from 'react'
-import { apiRequest } from '../../services/apiClient'
-import { uploadPatientFile } from '../../services/patients'
-import { fetchHealthcarePractitioners, fetchPatientVisits, fetchPatientOptions, fetchInpatientAdmissionOptions, type LinkFieldOption } from '../../services/common'
+
+
+
+import { Check, ChevronDown, PenLine, Trash2, X } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from '../../hooks/useToast'
-import { X, PenLine, Trash2, Check, ChevronDown } from 'lucide-react'
+import { useCareContext } from '../../providers/CareContextProvider'
+import { apiRequest } from '../../services/apiClient'
+import { fetchHealthcarePractitioners, fetchInpatientAdmissionOptions, fetchPatientOptions, fetchPatientVisits, type LinkFieldOption } from '../../services/common'
+import { uploadPatientFile } from '../../services/patients'
 
 // ─── Signature Pad (mirrors DischargeModal implementation) ───────────────────
 
@@ -202,9 +206,10 @@ interface LinkComboboxProps {
   onClear: () => void
   fetchOptions: (search: string) => Promise<LinkFieldOption[]>
   placeholder?: string
+  disabled?: boolean
 }
 
-const LinkCombobox = ({ label, value, onSelect, onClear, fetchOptions, placeholder }: LinkComboboxProps) => {
+const LinkCombobox = ({ label, value, onSelect, onClear, fetchOptions, placeholder, disabled = false }: LinkComboboxProps) => {
   const [query, setQuery] = useState(value)
   const [options, setOptions] = useState<LinkFieldOption[]>([])
   const [open, setOpen] = useState(false)
@@ -216,7 +221,7 @@ const LinkCombobox = ({ label, value, onSelect, onClear, fetchOptions, placehold
 
   // Debounced fetch
   useEffect(() => {
-    if (!open) return
+    if (!open || disabled) return
     const t = setTimeout(async () => {
       setLoading(true)
       try {
@@ -229,7 +234,7 @@ const LinkCombobox = ({ label, value, onSelect, onClear, fetchOptions, placehold
       }
     }, query.trim() === '' ? 0 : 300)
     return () => clearTimeout(t)
-  }, [query, open, fetchOptions])
+  }, [query, open, fetchOptions, disabled])
 
   // Close on outside click
   useEffect(() => {
@@ -253,13 +258,16 @@ const LinkCombobox = ({ label, value, onSelect, onClear, fetchOptions, placehold
           type="text"
           value={query}
           onChange={e => {
-            setQuery(e.target.value)
-            onClear()
-            setOpen(true)
+            if (!disabled) {
+              setQuery(e.target.value)
+              onClear()
+              setOpen(true)
+            }
           }}
-          onFocus={() => setOpen(true)}
+          onFocus={() => !disabled && setOpen(true)}
           placeholder={placeholder ?? 'Search...'}
-          className={inputClass2}
+          className={`${inputClass2} ${disabled ? 'bg-slate-100 cursor-not-allowed' : ''}`}
+          disabled={disabled}
           autoComplete="off"
         />
         <span className="absolute inset-y-0 right-2 flex items-center pointer-events-none text-slate-400">
@@ -268,7 +276,7 @@ const LinkCombobox = ({ label, value, onSelect, onClear, fetchOptions, placehold
             : <ChevronDown className="w-3.5 h-3.5" />}
         </span>
       </div>
-      {open && (
+      {open && !disabled && (
         <div className="absolute z-30 mt-1 w-full bg-white border border-slate-200 rounded-md shadow-lg max-h-52 overflow-y-auto">
           {options.length === 0 ? (
             <div className="px-3 py-2 text-xs text-slate-400">{loading ? 'Searching…' : 'No results found'}</div>
@@ -393,23 +401,39 @@ interface FormState {
   sign_time: string
 }
 
-function GeneralTab({ form, setField, admissionNo, patient, patientName, isLockedContext, fetchAdmissionOpts, fetchPatientOpts, setCurrentAdmission, setCurrentPatient, setCurrentPatientName }: {
+function GeneralTab({ form, setField, admissionNo, patient, patientName, fetchAdmissionOpts, setCurrentAdmission }: {
   form: FormState
   setField: <K extends keyof FormState>(k: K, v: FormState[K]) => void
   admissionNo: string
   patient: string
   patientName?: string
-  isLockedContext: boolean
   fetchAdmissionOpts: (s: string) => Promise<LinkFieldOption[]>
   fetchPatientOpts: (s: string) => Promise<LinkFieldOption[]>
   setCurrentAdmission: (v: string) => void
   setCurrentPatient: (v: string) => void
   setCurrentPatientName: (v: string) => void
 }) {
+  // Get context for mode detection
+  const { mode, activeVisit } = useCareContext()
+  const isIPMode = mode === 'IP'
+  const isOPMode = mode === 'OP'
+  
   // Display labels for link fields
   const [anesthetistLabel, setAnesthetistLabel] = useState('')
   const [psychiatristLabel, setPsychiatristLabel] = useState('')
   const [patientVisitLabel, setPatientVisitLabel] = useState('')
+
+  // Auto-set patient visit from context if in OP mode
+  useEffect(() => {
+    if (isOPMode && activeVisit && !form.patient_visit) {
+      setField('patient_visit', activeVisit)
+      // Optionally load the label
+      fetchPatientVisits(patient, activeVisit).then(visits => {
+        const matched = visits.find(v => v.name === activeVisit)
+        if (matched) setPatientVisitLabel(matched.label)
+      }).catch(() => {})
+    }
+  }, [isOPMode, activeVisit, form.patient_visit, patient, setField])
 
   const fetchPractitioners = useCallback(
     (search: string) => fetchHealthcarePractitioners(search || undefined),
@@ -422,14 +446,35 @@ function GeneralTab({ form, setField, admissionNo, patient, patientName, isLocke
 
   return (
     <div className="space-y-6">
+      {/* Mode indicator */}
+      <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
+        <p className="text-xs font-semibold text-primary mb-1">
+          {isIPMode ? '🏥 Creating Record for Inpatient' : isOPMode ? '👤 Creating Record for Outpatient' : '📋 Select Context'}
+        </p>
+        <p className="text-xs text-slate-600">
+          {isIPMode 
+            ? `The anesthesia record will be linked to the selected inpatient admission.`
+            : isOPMode
+            ? `The anesthesia record will be linked to the selected outpatient visit.`
+            : 'Please select either IP or OP mode from the top navbar.'
+          }
+        </p>
+      </div>
+
       {/* Basic Information */}
       <div>
-        <h3 className={sectionTitleClass}>Basic Information</h3>
+        <h3 className={sectionTitleClass}>
+          Basic Information
+          {isIPMode && <span className="ml-2 text-xs font-normal text-blue-600">(IP Mode Active)</span>}
+          {isOPMode && <span className="ml-2 text-xs font-normal text-green-600">(OP Mode Active)</span>}
+        </h3>
         <div className="grid grid-cols-2 gap-4">
-          {isLockedContext ? (
+          {/* Inpatient Admission - disabled in OP mode, auto-filled in IP mode */}
+          {isIPMode ? (
             <div>
-              <label className={labelClass}>Inpatient Admission</label>
+              <label className={labelClass}>Inpatient Admission *</label>
               <input type="text" value={admissionNo} readOnly className={`${inputClass} bg-slate-100 cursor-not-allowed`} />
+              <p className="text-xs text-slate-400 mt-1">Auto-selected from IP context</p>
             </div>
           ) : (
             <LinkCombobox
@@ -439,40 +484,40 @@ function GeneralTab({ form, setField, admissionNo, patient, patientName, isLocke
               onClear={() => setCurrentAdmission('')}
               fetchOptions={fetchAdmissionOpts}
               placeholder="Search admissions..."
+              disabled={isOPMode}
             />
           )}
 
-          {/* Patient Visit — searchable link */}
-          <LinkCombobox
-            label="Patient Visit"
-            value={patientVisitLabel}
-            onSelect={opt => {
-              setField('patient_visit', opt.name)
-              setPatientVisitLabel(opt.label)
-            }}
-            onClear={() => {
-              setField('patient_visit', '')
-              setPatientVisitLabel('')
-            }}
-            fetchOptions={fetchVisits}
-            placeholder="Search patient visits..."
-          />
-
-          {isLockedContext ? (
+          {/* Patient Visit - disabled in IP mode, auto-filled in OP mode */}
+          {isOPMode ? (
             <div>
-              <label className={labelClass}>Patient</label>
-              <input type="text" value={patient} readOnly className={`${inputClass} bg-slate-100 cursor-not-allowed`} />
+              <label className={labelClass}>Patient Visit *</label>
+              <input type="text" value={patientVisitLabel || form.patient_visit} readOnly className={`${inputClass} bg-slate-100 cursor-not-allowed`} />
+              <p className="text-xs text-slate-400 mt-1">Auto-selected from OP context</p>
             </div>
           ) : (
             <LinkCombobox
-              label="Patient"
-              value={patientName || patient}
-              onSelect={opt => { setCurrentPatient(opt.name); setCurrentPatientName(opt.label) }}
-              onClear={() => { setCurrentPatient(''); setCurrentPatientName('') }}
-              fetchOptions={fetchPatientOpts}
-              placeholder="Search patients..."
+              label="Patient Visit"
+              value={patientVisitLabel}
+              onSelect={opt => {
+                setField('patient_visit', opt.name)
+                setPatientVisitLabel(opt.label)
+              }}
+              onClear={() => {
+                setField('patient_visit', '')
+                setPatientVisitLabel('')
+              }}
+              fetchOptions={fetchVisits}
+              placeholder="Search patient visits..."
+              disabled={isIPMode}
             />
           )}
+
+          {/* Patient field - locked if from context */}
+          <div>
+            <label className={labelClass}>Patient *</label>
+            <input type="text" value={patientName || patient} readOnly className={`${inputClass} bg-slate-100 cursor-not-allowed`} />
+          </div>
           <div>
             <label className={labelClass}>Patient Name</label>
             <input type="text" value={patientName ?? ''} readOnly className={`${inputClass} bg-slate-100 cursor-not-allowed`} />
@@ -752,9 +797,16 @@ function SigningTab({ form, setField, signatureUrl, setSignatureUrl }: {
 // ─── Main Modal ───────────────────────────────────────────────────────────────
 
 export const AnesthesiaRecordModal = ({ admissionNo, patient, patientName, onClose, onSuccess }: AnesthesiaRecordModalProps) => {
+  // Get context from CareContextProvider
+  const { mode, activeVisit, activeAdmission, selectedPatient: contextPatient } = useCareContext()
+  
+  // Determine if we're in IP or OP mode based on context
+  const isIPMode = mode === 'IP'
+  const isOPMode = mode === 'OP'
+  
   const [activeTab, setActiveTab] = useState<TabId>('general')
   const [form, setFormState] = useState<FormState>({
-    patient_visit: '',
+    patient_visit: (isOPMode && activeVisit) ? activeVisit : '',
     date: nowDate(),
     time: nowTime(),
     bp: '',
@@ -781,10 +833,13 @@ export const AnesthesiaRecordModal = ({ admissionNo, patient, patientName, onClo
   const [signatureUrl, setSignatureUrl] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
-  const [currentAdmission, setCurrentAdmission] = useState(admissionNo)
-  const [currentPatient, setCurrentPatient] = useState(patient)
+  // Use context values if available, otherwise use props
+  const [currentAdmission, setCurrentAdmission] = useState(() => {
+    if (isIPMode && activeAdmission) return activeAdmission
+    return admissionNo || ''
+  })
+  const [currentPatient, setCurrentPatient] = useState(patient || contextPatient || '')
   const [currentPatientName, setCurrentPatientName] = useState(patientName || '')
-  const isLockedContext = Boolean(admissionNo)
 
   const fetchPatientOpts = useCallback((s: string) => fetchPatientOptions(s || undefined), [])
   const fetchAdmissionOpts = useCallback(
@@ -799,10 +854,21 @@ export const AnesthesiaRecordModal = ({ admissionNo, patient, patientName, onClo
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     e.stopPropagation()
+    
+    // Validate based on mode
+    if (isIPMode && !currentAdmission) {
+      toast.error('Please select an inpatient admission (IP mode active)')
+      return
+    }
+    if (isOPMode && !form.patient_visit) {
+      toast.error('Please select a patient visit (OP mode active)')
+      return
+    }
+    
     setSubmitting(true)
     try {
       const payload = {
-        inpatient_admission: currentAdmission,
+        inpatient_admission: currentAdmission || undefined,
         patient: currentPatient,
         patient_name: currentPatientName,
         patient_visit: form.patient_visit || undefined,
@@ -864,7 +930,18 @@ export const AnesthesiaRecordModal = ({ admissionNo, patient, patientName, onClo
           <div>
             <h2 className="text-lg font-bold text-slate-900">Anesthesia Record</h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              {patientName ? `${patientName} · ` : ''}{admissionNo}
+              {currentPatientName ? `${currentPatientName} · ` : ''}
+              {isIPMode && currentAdmission && (
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-[10px] font-medium">
+                  IP: {currentAdmission}
+                </span>
+              )}
+              {isOPMode && form.patient_visit && (
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-green-100 text-green-700 rounded text-[10px] font-medium">
+                  OP Visit
+                </span>
+              )}
+              {!currentAdmission && !form.patient_visit && 'New Record'}
             </p>
           </div>
           <button
@@ -910,7 +987,6 @@ export const AnesthesiaRecordModal = ({ admissionNo, patient, patientName, onClo
                 admissionNo={currentAdmission}
                 patient={currentPatient}
                 patientName={currentPatientName}
-                isLockedContext={isLockedContext}
                 fetchAdmissionOpts={fetchAdmissionOpts}
                 fetchPatientOpts={fetchPatientOpts}
                 setCurrentAdmission={setCurrentAdmission}
@@ -967,7 +1043,7 @@ export const AnesthesiaRecordModal = ({ admissionNo, patient, patientName, onClo
               </button>
               <button
                 type="submit"
-                disabled={submitting}
+                disabled={submitting || (!isIPMode && !isOPMode) || (isIPMode && !currentAdmission) || (isOPMode && !form.patient_visit)}
                 className="px-5 py-2 text-sm font-semibold text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {submitting ? 'Saving...' : 'Save Record'}

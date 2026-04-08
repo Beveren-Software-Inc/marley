@@ -10,7 +10,6 @@ import { ECTAnesthesiaConsentModal } from './ECTAnesthesiaConsentModal'
 import { PreAnesthesiaAssessmentList } from './PreAnesthesiaAssessmentList'
 import { PreAnesthesiaAssessmentModal } from './PreAnesthesiaAssessmentModal'
 import { AdmissionAssessmentList } from '../admissions/AdmissionAssessmentList'
-import { SuicidalPatientAssessmentModal } from '../admissions/SuicidalPatientAssessmentModal'
 import { RecoveryRoomRecordModal } from '../admissions/RecoveryRoomRecordModal'
 import { AnesthesiaRecordModal } from '../admissions/AnesthesiaRecordModal'
 import { TimeOutProcedureModal } from '../admissions/TimeOutProcedureModal'
@@ -61,8 +60,8 @@ export function ECTDashboard({ selectedPatient }: ECTDashboardProps) {
   const [timeOutRefreshKey, setTimeOutRefreshKey] = useState(0)
   const [showPreEctModal, setShowPreEctModal] = useState(false)
   const [preEctRefreshKey, setPreEctRefreshKey] = useState(0)
-  const [showSuicidalModal, setShowSuicidalModal] = useState(false)
-  const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
+  // const [showSuicidalModal, setShowSuicidalModal] = useState(false)
+  // const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
   const [showPhysicalExamModal, setShowPhysicalExamModal] = useState(false)
   const [physicalExamRefreshKey, setPhysicalExamRefreshKey] = useState(0)
   const [showPatientHistoryModal, setShowPatientHistoryModal] = useState(false)
@@ -77,7 +76,7 @@ export function ECTDashboard({ selectedPatient }: ECTDashboardProps) {
     { id: 'alderete',           title: 'Alderete Score',      desc: 'Recovery discharge readiness',   color: 'bg-green-50 text-green-700 border-green-200',       dot: 'bg-green-500',    onAdd: () => setShowAldereteModal(true) },
     { id: 'timeout',            title: 'Time Out',            desc: 'Pre-procedure checklist',        color: 'bg-amber-50 text-amber-700 border-amber-200',       dot: 'bg-amber-500',    onAdd: () => setShowTimeOutModal(true) },
     { id: 'pre-ect',            title: 'Pre-ECT Checklist',   desc: 'Requirements before ECT',        color: 'bg-orange-50 text-orange-700 border-orange-200',    dot: 'bg-orange-500',   onAdd: () => setShowPreEctModal(true) },
-    { id: 'suicidal',           title: 'Suicidal Assessment', desc: 'Risk factors & ideation',        color: 'bg-rose-50 text-rose-700 border-rose-200',          dot: 'bg-rose-500',     onAdd: () => setShowSuicidalModal(true) },
+    // { id: 'suicidal',           title: 'Suicidal Assessment', desc: 'Risk factors & ideation',        color: 'bg-rose-50 text-rose-700 border-rose-200',          dot: 'bg-rose-500',     onAdd: () => setShowSuicidalModal(true) },
     { id: 'ect-admission',      title: 'ECT Admission',       desc: 'Admission for ECT patients',     color: 'bg-cyan-50 text-cyan-700 border-cyan-200',          dot: 'bg-cyan-500',     onAdd: () => setShowECTAdmissionModal(true) },
     { id: 'ect-procedure',      title: 'ECT Procedure',       desc: 'Session details & vitals',       color: 'bg-sky-50 text-sky-700 border-sky-200',             dot: 'bg-sky-500',      onAdd: () => setShowECTProcedureModal(true) },
     { id: 'ect-details',        title: 'ECT Details',         desc: 'ECT detail records',             color: 'bg-blue-50 text-blue-700 border-blue-200',          dot: 'bg-blue-500',     onAdd: () => setShowECTModal(true) },
@@ -96,7 +95,7 @@ export function ECTDashboard({ selectedPatient }: ECTDashboardProps) {
       case 'alderete':           return <AdmissionAssessmentList doctype="Modified Alderete Score" doctypeLabel="Modified Alderete Score" patient={selectedPatient} refreshKey={aldereteRefreshKey} />
       case 'timeout':            return <AdmissionAssessmentList doctype="Time Out Procedure" doctypeLabel="Time Out Procedure" patient={selectedPatient} refreshKey={timeOutRefreshKey} />
       case 'pre-ect':            return <AdmissionAssessmentList doctype="Pre-ECT Checklist" doctypeLabel="Pre-ECT Checklist" patient={selectedPatient} refreshKey={preEctRefreshKey} />
-      case 'suicidal':           return <AdmissionAssessmentList doctype="Suicidal Patient Assessment" doctypeLabel="Suicidal Patient Assessment" patient={selectedPatient} refreshKey={suicidalRefreshKey} />
+      case 'suicidal':           return <AdmissionAssessmentList doctype="Suicidal Patient Assessment" doctypeLabel="Suicidal Patient Assessment" patient={selectedPatient} refreshKey={0} />
       case 'ect-admission':      return <ECTAdmissionList patient={selectedPatient} />
       case 'ect-procedure':      return <ECTProcedureList patient={selectedPatient} />
       case 'ect-details':        return <ECTDetailsList patient={selectedPatient} refreshKey={ectRefreshKey} />
@@ -239,12 +238,12 @@ export function ECTDashboard({ selectedPatient }: ECTDashboardProps) {
           onSuccess={() => { setPreEctRefreshKey(p => p + 1); setShowPreEctModal(false) }}
         />
       )}
-      {showSuicidalModal && (
+      {/* {showSuicidalModal && (
         <SuicidalPatientAssessmentModal admissionNo="" patient={selectedPatient || ''} patientName=""
           onClose={() => setShowSuicidalModal(false)}
           onSuccess={() => { setSuicidalRefreshKey(p => p + 1); setShowSuicidalModal(false) }}
         />
-      )}
+      )} */}
       {showPhysicalExamModal && (
         <PhysicalExaminationModal admissionNo="" patient={selectedPatient || ''} patientName=""
           onClose={() => setShowPhysicalExamModal(false)}

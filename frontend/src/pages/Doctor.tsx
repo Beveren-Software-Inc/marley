@@ -1,83 +1,105 @@
-import { useState, useEffect, useCallback } from 'react'
-import { hasDischargeDraft, draftSavedAt } from '../services/dischargeDraft'
+import { useCallback, useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { useCareContext } from '../providers/CareContextProvider'
-import { PatientSearch } from '../components/patients/PatientSearch'
-import { WarningMessagesList } from '../components/warnings/WarningMessagesList'
-import { LabTestList } from '../components/labTests/LabTestList'
-import { ECTDashboard } from '../components/ect/ECTDashboard'
-import { ClinicalNotesList } from '../components/clinicalNotes/ClinicalNotesList'
-import { PatientDiagnosisList } from '../components/diagnosis/PatientDiagnosisList'
-import { PatientDiagnosisModal } from '../components/diagnosis/PatientDiagnosisModal'
-import { ObservationList } from '../components/observations/ObservationList'
-import { VitalSignsList } from '../components/vitalSigns/VitalSignsList'
-import { CreateObservationModal } from '../components/observations/CreateObservationModal'
-import { MedicalHistoryView } from '../components/medicalHistory/MedicalHistoryView'
-import { PackageDetailView } from '../components/packageDetails/PackageDetailView'
-import { NurseTaskList } from '../components/nurseTask/NurseTaskList'
-import { CreateNurseTaskModal } from '../components/nurseTask/CreateNurseTaskModal'
-import { DischargeList } from '../components/discharges/DischargeList'
-import { PatientSummaryCard } from '../components/patients/PatientSummaryCard'
-import { DoctorServiceDetailsTable } from '../components/services/DoctorServiceDetailsTable'
-import { CreateClinicalNoteModal } from '../components/clinicalNotes/CreateClinicalNoteModal'
-import { CreateWarningMessageModal } from '../components/warnings/CreateWarningMessageModal'
-import { CreateLabTestModal } from '../components/labTests/CreateLabTestModal'
-import { DischargeModal } from '../components/admissions/DischargeModal'
-import { CreateDoctorServiceModal } from '../components/services/CreateDoctorServiceModal'
-import { AdmissionPage } from './Admission'
-import { PatientVisitPage } from './PatientVisit'
-import { NotificationBell } from '../components/notifications/NotificationBell'
-import { UserMenu } from '../components/user/UserMenu'
-import { getPatientActiveAdmission } from '../services/inpatientRecords'
-import { toast } from '../hooks/useToast'
-import { ServiceRequestList } from '../components/serviceRequests/ServiceRequestList'
-import { CreateServiceRequestModal } from '../components/serviceRequests/CreateServiceRequestModal'
-import { AppointmentList } from '../components/appointments/AppointmentList'
-import { CreateAppointmentModal } from '../components/appointments/CreateAppointmentModal'
-import { PrescriptionList } from '../components/prescriptions/PrescriptionList'
-import { CreatePrescriptionModal } from '../components/prescriptions/CreatePrescriptionModal'
-import { PatientVisitList } from '../components/patientVisits/PatientVisitList'
-import { AdmissionList } from '../components/admissions/AdmissionList'
-import { DiagnosisSymptomsScreen } from '../components/diagnosis/DiagnosisSymptomsScreen'
-import { EnvironmentalChecklistList } from '../components/environmental/EnvironmentalChecklistList'
-import { MorseFallScaleList } from '../components/morse/MorseFallScaleList'
-import { CreateMorseFallScaleModal } from '../components/morse/CreateMorseFallScaleModal'
-import { IOPDayListWithHeader } from '../components/iop/IOPDayList'
-import { IOPEnrollmentListWithHeader } from '../components/iop/IOPEnrollmentList'
-import { ReceptionLongActingMedicineList } from '../components/medication/ReceptionLongActingMedicineList'
-import { CreateMedicineGivenModal } from '../components/medication/CreateMedicineGivenModal'
-import { MedicineGivenList } from '../components/medication/MedicineGivenList'
-import { LongActingMedicineList } from '../components/medication/LongActingMedicineList'
-import { CreateVitalSignModal } from '../components/vitalSigns/CreateVitalSignModal'
-import { SleepingPatternList } from '../components/sleeping/SleepingPatternList'
-import { CreateSleepingPatternModal } from '../components/sleeping/CreateSleepingPatternModal'
-import { PhysicalExaminationList } from '../components/physicalExam/PhysicalExaminationList'
-import { PhysicalExaminationModal } from '../components/physicalExam/PhysicalExaminationModal'
-import { PatientHistoryList } from '../components/patientHistory/PatientHistoryList'
-import { PatientHistoryModal } from '../components/patientHistory/PatientHistoryModal'
-import { PatientList } from '../components/patients/PatientList'
-import { CreatePatientModal } from '../components/patients/CreatePatientModal'
 import { ADHDAssessmentList } from '../components/adhd/AdhdAssessmentList'
 import { CreateADHDAssessmentModal } from '../components/adhd/CreateADHDAssessmentModal'
-import { DepressionAssessmentList } from '../components/depression/DepressionAssessmentList'
-import { CreateDepressionAssessmentModal } from '../components/depression/CreateDepressionAssessmentModal'
-import { MoodDisorderAssessmentList } from '../components/mood_disorder/MoodDisorderAssessmentList'
-import { CreateMoodDisorderAssessmentModal } from '../components/mood_disorder/CreateMoodDisorderAssessmentModal'
-import { GAD7AssessmentList } from '../components/gad7/GAD7AssessmentList'
-import { CreateGAD7AssessmentModal } from '../components/gad7/CreateGAD7AssessmentModal'
-import { PHQ9AssessmentList } from '../components/phq9/PHQ9AssessmentList'
-import { CreatePHQ9AssessmentModal } from '../components/phq9/CreatePHQ9AssessmentModal'
+import { AdmissionList } from '../components/admissions/AdmissionList'
+import { DischargeModal } from '../components/admissions/DischargeModal'
+import { SuicidalPatientAssessmentModal } from '../components/admissions/SuicidalPatientAssessmentModal'
+import { AppointmentList } from '../components/appointments/AppointmentList'
+import { CreateAppointmentModal } from '../components/appointments/CreateAppointmentModal'
+import { ClinicalNotesList } from '../components/clinicalNotes/ClinicalNotesList'
+import { CreateClinicalNoteModal } from '../components/clinicalNotes/CreateClinicalNoteModal'
 import { SuicideRiskAssessmentList } from '../components/clinicalSuicide/ClinicalSuicideRiskAssessmentList'
 import { CreateSuicideRiskAssessmentModal } from '../components/clinicalSuicide/CreateClinicalSuicideRiskAssessmentModal'
-import { HomicideRiskAssessmentList } from '../components/homicide/HomicideRiskAssessmentList'
+import { CreateDepressionAssessmentModal } from '../components/depression/CreateDepressionAssessmentModal'
+import { DepressionAssessmentList } from '../components/depression/DepressionAssessmentList'
+import { DiagnosisSymptomsScreen } from '../components/diagnosis/DiagnosisSymptomsScreen'
+import { PatientDiagnosisList } from '../components/diagnosis/PatientDiagnosisList'
+import { PatientDiagnosisModal } from '../components/diagnosis/PatientDiagnosisModal'
+import { DischargeList } from '../components/discharges/DischargeList'
+import { ECTDashboard } from '../components/ect/ECTDashboard'
+import { EnvironmentalChecklistList } from '../components/environmental/EnvironmentalChecklistList'
+import { CreateGAD7AssessmentModal } from '../components/gad7/CreateGAD7AssessmentModal'
+import { GAD7AssessmentList } from '../components/gad7/GAD7AssessmentList'
 import { CreateHomicideRiskAssessmentModal } from '../components/homicide/CreateHomicideRiskAssessmentModal'
-import { YBOCSAssessmentList } from '../components/ybocs/YBOCSAssessmentList'
-import { CreateYBOCSAssessmentModal } from '../components/ybocs/CreateYBOCSAssessmentModal'
-import { YMRSAssessmentList } from '../components/ymrs/YMRSAssessmentList'
-import { CreateYMRSAssessmentModal } from '../components/ymrs/CreateYMRSAssessmentModal'
-import { PANSSAssessmentList } from '../components/panss/PANSSAssessmentList'
+import { HomicideRiskAssessmentList } from '../components/homicide/HomicideRiskAssessmentList'
+import { IOPDayListWithHeader } from '../components/iop/IOPDayList'
+import { IOPEnrollmentListWithHeader } from '../components/iop/IOPEnrollmentList'
+// import { CreateLabTestModal } from '../components/labTests/CreateLabTestModal'
+import { LabTestList } from '../components/labTests/LabTestList'
+import { MedicalHistoryView } from '../components/medicalHistory/MedicalHistoryView'
+import { CreateMedicineGivenModal } from '../components/medication/CreateMedicineGivenModal'
+import { LongActingMedicineList } from '../components/medication/LongActingMedicineList'
+import { MedicineGivenList } from '../components/medication/MedicineGivenList'
+import { ReceptionLongActingMedicineList } from '../components/medication/ReceptionLongActingMedicineList'
+import { CreateMoodDisorderAssessmentModal } from '../components/mood_disorder/CreateMoodDisorderAssessmentModal'
+import { MoodDisorderAssessmentList } from '../components/mood_disorder/MoodDisorderAssessmentList'
+import { CreateMorseFallScaleModal } from '../components/morse/CreateMorseFallScaleModal'
+import { MorseFallScaleList } from '../components/morse/MorseFallScaleList'
+import { NotificationBell } from '../components/notifications/NotificationBell'
+import { CreateNurseTaskModal } from '../components/nurseTask/CreateNurseTaskModal'
+import { NurseTaskList } from '../components/nurseTask/NurseTaskList'
+import { CreateObservationModal } from '../components/observations/CreateObservationModal'
+import { ObservationList } from '../components/observations/ObservationList'
+import { PackageDetailView } from '../components/packageDetails/PackageDetailView'
 import { CreatePANSSAssessmentModal } from '../components/panss/CreatePANSSAssessmentModal'
+import { PANSSAssessmentList } from '../components/panss/PANSSAssessmentList'
+import { PatientHistoryList } from '../components/patientHistory/PatientHistoryList'
+import { PatientHistoryModal } from '../components/patientHistory/PatientHistoryModal'
+import { CreatePatientModal } from '../components/patients/CreatePatientModal'
+import { PatientList } from '../components/patients/PatientList'
+import { PatientSearch } from '../components/patients/PatientSearch'
+import { PatientSummaryCard } from '../components/patients/PatientSummaryCard'
+import { PatientVisitList } from '../components/patientVisits/PatientVisitList'
+import { CreatePHQ9AssessmentModal } from '../components/phq9/CreatePHQ9AssessmentModal'
+import { PHQ9AssessmentList } from '../components/phq9/PHQ9AssessmentList'
+import { PhysicalExaminationList } from '../components/physicalExam/PhysicalExaminationList'
+import { PhysicalExaminationModal } from '../components/physicalExam/PhysicalExaminationModal'
+import { CreatePrescriptionModal } from '../components/prescriptions/CreatePrescriptionModal'
+import { PrescriptionList } from '../components/prescriptions/PrescriptionList'
+import { RxPage } from '../components/prescriptions/SinglePrescription'
+import { CreateServiceRequestModal } from '../components/serviceRequests/CreateServiceRequestModal'
+import { ServiceRequestList } from '../components/serviceRequests/ServiceRequestList'
+import { CreateDoctorServiceModal } from '../components/services/CreateDoctorServiceModal'
+import { DoctorServiceDetailsTable } from '../components/services/DoctorServiceDetailsTable'
+import { CreateSleepingPatternModal } from '../components/sleeping/CreateSleepingPatternModal'
+import { SleepingPatternList } from '../components/sleeping/SleepingPatternList'
+import { SuicidalAssessmentList } from '../components/suicidal/SuicidalAssessmentList'
+import { UserMenu } from '../components/user/UserMenu'
+import { CreateVitalSignModal } from '../components/vitalSigns/CreateVitalSignModal'
+import { VitalSignsList } from '../components/vitalSigns/VitalSignsList'
+import { CreateWarningMessageModal } from '../components/warnings/CreateWarningMessageModal'
+import { WarningMessagesList } from '../components/warnings/WarningMessagesList'
+import { CreateYBOCSAssessmentModal } from '../components/ybocs/CreateYBOCSAssessmentModal'
+import { YBOCSAssessmentList } from '../components/ybocs/YBOCSAssessmentList'
+import { CreateYMRSAssessmentModal } from '../components/ymrs/CreateYMRSAssessmentModal'
+import { YMRSAssessmentList } from '../components/ymrs/YMRSAssessmentList'
+import { toast } from '../hooks/useToast'
+import { useCareContext } from '../providers/CareContextProvider'
+import { draftSavedAt, hasDischargeDraft } from '../services/dischargeDraft'
+import { getPatientActiveAdmission } from '../services/inpatientRecords'
+import { AdmissionPage } from './Admission'
+import { PatientVisitPage } from './PatientVisit'
 
+
+const CreateLabRequestModal = ({ 
+  onClose, 
+  onSuccess, 
+  initialPatient 
+}: { 
+  onClose: () => void; 
+  onSuccess: () => void; 
+  initialPatient?: string 
+}) => {
+  return (
+    <CreateServiceRequestModal
+      onClose={onClose}
+      onSuccess={onSuccess}
+      initialPatient={initialPatient}
+      initialTemplate="Lab Test Template"
+    />
+  )
+}
 
 export const DoctorPage = () => {
   const { mode, activeVisit, activeAdmission, selectedPatient: globalPatient, setSelectedPatient: setGlobalPatient } = useCareContext()
@@ -150,7 +172,10 @@ const [showCreateYMRSModal, setShowCreateYMRSModal] = useState(false)
 const [ymrsRefreshKey, setYmrsRefreshKey] = useState(0)
 const [showCreatePANSSModal, setShowCreatePANSSModal] = useState(false)
 const [panssRefreshKey, setPanssRefreshKey] = useState(0)
+const [showSuicidalModal, setShowSuicidalModal] = useState(false)
+// const [selectedAssessment, setSelectedAssessment] = useState<SuicidalAssessment | null>(null)
 
+const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
   // Sync selectedPatient with URL on mount and when URL changes
   useEffect(() => {
     const patientParam = searchParams.get('patient')
@@ -226,6 +251,57 @@ const [panssRefreshKey, setPanssRefreshKey] = useState(0)
   if (screen === 'op') {
     return <PatientVisitPage initialPatient={selectedPatient} />
   }
+
+
+   if (screen === 'suicide') {
+  return (
+    <div className="flex flex-col">
+      <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+        <div className="flex-1 min-w-0">
+          <PatientSearch
+            selectedPatient={selectedPatient || ''}
+            onPatientSelect={handlePatientSelect}
+            patients={[]}
+          />
+        </div>
+        <div className="flex items-center gap-3 flex-shrink-0">
+          <UserMenu />
+          <NotificationBell />
+        </div>
+      </header>
+
+      <div className="p-4">
+        <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+          <SuicidalAssessmentList
+            patient={selectedPatient}
+            admission={activeAdmission}
+            onAddNew={() => setShowSuicidalModal(true)}
+            // onViewDetails={(assessment) => setSelectedAssessment(assessment)}
+            key={suicidalRefreshKey}
+          />
+        </section>
+      </div>
+
+      {/* Create New Assessment Modal */}
+      {showSuicidalModal && (
+        <SuicidalPatientAssessmentModal
+          admissionNo={activeAdmission || ''}
+          patient={selectedPatient || ''}
+          patientName=''
+          onClose={() => setShowSuicidalModal(false)}
+          onSuccess={() => {
+            setSuicidalRefreshKey(prev => prev + 1)
+            setShowSuicidalModal(false)
+          }}
+        />
+      )}
+
+      {/* View Details SlideOver */}
+     
+    </div>
+  )
+}
+
 
   // Show Sleeping Pattern
   if (screen === 'sleep') {
@@ -2001,6 +2077,36 @@ if (screen === 'panss') {
   )
 }
 
+
+if (screen === 'single-prescription') {
+  return (
+    <div className="flex flex-col">
+      <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+        <div className="flex-1 min-w-0">
+          <PatientSearch
+            selectedPatient={selectedPatient || ''}
+            onPatientSelect={handlePatientSelect}
+            patients={[]}
+          />
+        </div>
+        <div className="flex items-center gap-3 flex-shrink-0">
+          <UserMenu />
+          <NotificationBell />
+        </div>
+      </header>
+
+      <div className="p-4">
+        <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+          <RxPage 
+            // inpatientRecordId={activeInpatientRecordId}  // For IP admissions
+            // patientEncounterId={activePatientEncounterId} // For OP visits
+          />
+        </section>
+      </div>
+    </div>
+  )
+}
+
   return (
     <div className="flex flex-col">
       <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
@@ -2221,7 +2327,7 @@ if (screen === 'panss') {
           {/* Card: Admissions + Discharges — IP mode only */}
           {mode === 'IP' && (
             <>
-              <div className="px-4 pb-4">
+              {/* <div className="px-4 pb-4">
                 <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
                   <div className="font-semibold mb-4 flex-shrink-0">
                     <span>Admissions (IP)</span>
@@ -2230,12 +2336,12 @@ if (screen === 'panss') {
                     <AdmissionList patient={selectedPatient} />
                   </div>
                 </section>
-              </div>
+              </div> */}
 
               <div className="px-4 pb-4">
                 <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
                   <div className="font-semibold mb-4 flex-shrink-0">
-                    <span>Discharges</span>
+                    <span>Admission & Discharges</span>
                   </div>
                   <div
                     className="overflow-x-auto overflow-y-auto flex-1 min-h-0"
@@ -2349,16 +2455,17 @@ if (screen === 'panss') {
         />
       )}
 
-      {showLabTestModal && (
-        <CreateLabTestModal
-          onClose={() => setShowLabTestModal(false)}
-          onSuccess={() => {
-            setLabTestRefreshKey(prev => prev + 1)
-            setShowLabTestModal(false)
-          }}
-          initialPatient={selectedPatient}
-        />
-      )}
+    {showLabTestModal && (
+  <CreateLabRequestModal
+    onClose={() => setShowLabTestModal(false)}
+    onSuccess={() => {
+      setLabTestRefreshKey(prev => prev + 1)
+      setShowLabTestModal(false)
+      toast.success('Lab request created successfully')
+    }}
+    initialPatient={selectedPatient}
+  />
+)}
 
       {showDischargeModal && selectedAdmission && (
         <DischargeModal
