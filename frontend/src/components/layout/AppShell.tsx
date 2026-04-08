@@ -161,6 +161,12 @@ const receptionScreenGroups: ScreenGroup[] = [
       { id: 'r-long-acting-meds', title: 'Long Acting Medicine' },
     ],
   },
+  {
+    groupTitle: 'Billing',
+    screens: [
+      { id: 'billing', title: 'Billing Dashboard' },
+    ],
+  },
 ]
 
 const insuranceScreens = [

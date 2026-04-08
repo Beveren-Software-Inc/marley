@@ -27,6 +27,7 @@ import { InsurancePatientRegisterList } from '../components/insurance/InsuranceP
 import { CreateInsurancePatientRegisterModal } from '../components/insurance/CreateInsurancePatientRegisterModal'
 import { PatientReferralList } from '../components/referrals/PatientReferralList'
 import { CreatePatientReferralModal } from '../components/referrals/CreatePatientReferralModal'
+import { BillingDashboard } from '../components/billing/BillingDashboard'
 
 type View =
   | 'default'
@@ -46,9 +47,18 @@ type View =
   | 'insurance'
   | 'referral'
   | 'patients'
+  | 'billing'
 
 export const ReceptionistPage = () => {
-  const { selectedPatient: globalPatient, setSelectedPatient: setGlobalPatient } = useCareContext()
+
+  const { 
+    selectedPatient: globalPatient, 
+    setSelectedPatient: setGlobalPatient,         // Add this
+    activeAdmission, // Add this
+    activeVisit     // Add this
+  } = useCareContext()
+
+  // const { selectedPatient: globalPatient, setSelectedPatient: setGlobalPatient } = useCareContext()
   const [searchParams, setSearchParams] = useSearchParams()
   const screen = searchParams.get('screen')
   const [selectedPatient, setSelectedPatient] = useState<string>(() => searchParams.get('patient') || globalPatient || '')
@@ -128,6 +138,8 @@ export const ReceptionistPage = () => {
       setCurrentView('insurance')
     } else if (screen === 'r-referral') {
       setCurrentView('referral')
+      } else if (screen === 'billing') {
+      setCurrentView('billing')
     }else if (screen === 'patients') {
       setCurrentView('patients')
       }
@@ -363,6 +375,22 @@ export const ReceptionistPage = () => {
             )}
           </div>
         )}
+
+{currentView === 'billing' && (
+    <div className="flex flex-col">
+
+      <div className="p-4">
+        <div className="bg-white border border-slate-200 rounded-lg p-6">
+          <BillingDashboard
+            patient={selectedPatient}
+            admission={activeAdmission}
+            visit={activeVisit}
+          />
+        </div>
+      </div>
+    </div>
+  )
+}
 
         {currentView === 'insurance' && (
           <div className="p-4">
