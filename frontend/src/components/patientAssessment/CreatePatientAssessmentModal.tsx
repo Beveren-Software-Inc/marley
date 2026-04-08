@@ -947,8 +947,6 @@ export const CreatePatientAssessmentModal = ({
 
   // ── Assessment sheet ─────────────────────────────────────────────────────────
   const [sheetRows, setSheetRows] = useState<AssessmentSheetRow[]>([])
-  const [scaleMin, setScaleMin] = useState(0)
-  const [scaleMax, setScaleMax] = useState(100)
   const [loadingTemplate, setLoadingTemplate] = useState(false)
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set())
 
@@ -1107,9 +1105,7 @@ export const CreatePatientAssessmentModal = ({
     setLoadingTemplate(true)
     try {
       const data = await fetchTemplateParameters(tmpl.name)
-      setScaleMin(data.scale_min)
-      setScaleMax(data.scale_max)
-      const rows = data.parameters.map((p) => ({ parameter: p.parameter, time: '', comments: '', yes: false }))
+      const rows = data.parameters.map((p) => ({ parameter: p.parameter, score: 0, time: '', comments: '' }))
       setSheetRows(rows)
       setParamQuery(Object.fromEntries(rows.map((r, i) => [i, r.parameter])))
       setExpandedRows(new Set(rows.map((_, i) => i)))
@@ -1123,7 +1119,7 @@ export const CreatePatientAssessmentModal = ({
   // ── Sheet row helpers ─────────────────────────────────────────────────────────
   const addSheetRow = () => {
     const idx = sheetRows.length
-    setSheetRows((prev) => [...prev, { parameter: '', time: '', comments: '', yes: false }])
+    setSheetRows((prev) => [...prev, { parameter: '', score: 0, time: '', comments: '' }])
     setExpandedRows((prev) => new Set([...prev, idx]))
     setParamQuery((prev) => ({ ...prev, [idx]: '' }))
   }

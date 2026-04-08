@@ -627,7 +627,7 @@
 
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { apiRequest } from '../../services/apiClient'
-import { fetchPatientVisits, fetchPatientOptions, fetchInpatientAdmissionOptions, type LinkFieldOption } from '../../services/common'
+import { fetchPatientVisits, fetchInpatientAdmissionOptions, type LinkFieldOption } from '../../services/common'
 import { toast } from '../../hooks/useToast'
 import { X, ChevronDown, Plus, Trash2, AlertCircle, FileText, ClipboardList } from 'lucide-react'
 import { useCareContext } from '../../providers/CareContextProvider'
@@ -780,10 +780,9 @@ export const ModifiedAldereteScoreModal = ({ admissionNo, patient, patientName, 
     if (isIPMode && activeAdmission) return activeAdmission
     return admissionNo || ''
   })
-  const [currentPatient, setCurrentPatient] = useState(patient || contextPatient || '')
-  const [currentPatientName, setCurrentPatientName] = useState(patientName || '')
+  const [currentPatient] = useState(patient || contextPatient || '')
+  const [currentPatientName] = useState(patientName || '')
 
-  const fetchPatientOpts = useCallback((s: string) => fetchPatientOptions(s || undefined), [])
   const fetchAdmissionOpts = useCallback(
     (s: string) => fetchInpatientAdmissionOptions(s || undefined, currentPatient || undefined),
     [currentPatient]
@@ -880,17 +879,6 @@ export const ModifiedAldereteScoreModal = ({ admissionNo, patient, patientName, 
     const scoreValue = scoreMap[selectedValue] || 0
     updateRow(key, 'selected_score', selectedValue as '' | '0' | '1' | '2')
     updateRow(key, 'score', scoreValue)
-  }
-
-  // Get mode-specific help text
-  const getModeHelpText = () => {
-    if (isIPMode) {
-      return `Creating Alderete score for IP admission: ${currentAdmission || 'not selected yet'}`
-    }
-    if (isOPMode) {
-      return `Creating Alderete score for OP visit: ${patientVisit || 'not selected yet'}`
-    }
-    return 'Select either IP or OP mode from the context switcher above'
   }
 
   const handleSubmit = async (e: React.FormEvent) => {

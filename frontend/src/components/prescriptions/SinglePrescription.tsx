@@ -136,10 +136,10 @@ const MedicationRow = ({ order }: { order: any }) => {
 }
 
 // ─── Main page ────────────────────────────────────────────────────────────────
-interface RxPageProps {
-  inpatientRecordId?: string | null
-  patientEncounterId?: string | null
-}
+// interface RxPageProps {
+//   inpatientRecordId?: string | null
+//   patientEncounterId?: string | null
+// }
 
 export const RxPage = () => {
     const { 

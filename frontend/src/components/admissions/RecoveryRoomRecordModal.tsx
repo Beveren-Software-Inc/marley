@@ -695,7 +695,7 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { apiRequest } from '../../services/apiClient'
-import { fetchPatientOptions, fetchInpatientAdmissionOptions, fetchPatientVisits, type LinkFieldOption } from '../../services/common'
+import { fetchInpatientAdmissionOptions, fetchPatientVisits, type LinkFieldOption } from '../../services/common'
 import { toast } from '../../hooks/useToast'
 import { X, Plus, Trash2, ChevronDown } from 'lucide-react'
 import { useCareContext } from '../../providers/CareContextProvider'
@@ -873,22 +873,19 @@ const LinkCombobox = ({ label, value, onSelect, onClear, fetchOptions, placehold
 function GeneralTab({
   form, setField,
   currentAdmission, currentPatient, currentPatientName,
-  fetchPatientOpts, fetchAdmissionOpts,
-  setCurrentAdmission, setCurrentPatient, setCurrentPatientName,
+  fetchAdmissionOpts,
+  setCurrentAdmission,
 }: {
   form: FormState
   setField: (k: keyof FormState, v: string) => void
   currentAdmission: string
   currentPatient: string
   currentPatientName: string
-  fetchPatientOpts: (s: string) => Promise<LinkFieldOption[]>
   fetchAdmissionOpts: (s: string) => Promise<LinkFieldOption[]>
   setCurrentAdmission: (v: string) => void
-  setCurrentPatient: (v: string) => void
-  setCurrentPatientName: (v: string) => void
 }) {
   // Get context for mode detection
-  const { mode, activeVisit, activeAdmission } = useCareContext()
+  const { mode, activeVisit } = useCareContext()
   const isIPMode = mode === 'IP'
   const isOPMode = mode === 'OP'
   
@@ -1249,7 +1246,7 @@ export const RecoveryRoomRecordModal = ({
   admissionNo, patient, patientName, onClose, onSuccess
 }: RecoveryRoomRecordModalProps) => {
   // Get context from CareContextProvider
-  const { mode, activeVisit, activeAdmission, selectedPatient: contextPatient } = useCareContext()
+  const { mode, activeAdmission, selectedPatient: contextPatient } = useCareContext()
   
   // Determine if we're in IP or OP mode based on context
   const isIPMode = mode === 'IP'
@@ -1267,25 +1264,13 @@ export const RecoveryRoomRecordModal = ({
     if (isIPMode && activeAdmission) return activeAdmission
     return admissionNo || ''
   })
-  const [currentPatient, setCurrentPatient] = useState(patient || contextPatient || '')
-  const [currentPatientName, setCurrentPatientName] = useState(patientName || '')
+  const [currentPatient] = useState(patient || contextPatient || '')
+  const [currentPatientName] = useState(patientName || '')
 
-  const fetchPatientOpts = useCallback((s: string) => fetchPatientOptions(s || undefined), [])
   const fetchAdmissionOpts = useCallback(
     (s: string) => fetchInpatientAdmissionOptions(s || undefined, currentPatient || undefined),
     [currentPatient]
   )
-
-  // Get mode-specific help text
-  const getModeHelpText = () => {
-    if (isIPMode) {
-      return `Creating recovery room record for IP admission: ${currentAdmission || 'not selected yet'}`
-    }
-    if (isOPMode) {
-      return `Creating recovery room record for OP visit: ${'selected from context'}`
-    }
-    return 'Select either IP or OP mode from the context switcher above'
-  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -1406,11 +1391,8 @@ export const RecoveryRoomRecordModal = ({
                 currentAdmission={currentAdmission}
                 currentPatient={currentPatient}
                 currentPatientName={currentPatientName}
-                fetchPatientOpts={fetchPatientOpts}
                 fetchAdmissionOpts={fetchAdmissionOpts}
                 setCurrentAdmission={setCurrentAdmission}
-                setCurrentPatient={setCurrentPatient}
-                setCurrentPatientName={setCurrentPatientName}
               />
             )}
             {activeTab === 'events' && (

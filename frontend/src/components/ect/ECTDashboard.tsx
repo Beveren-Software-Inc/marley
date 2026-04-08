@@ -10,7 +10,6 @@ import { ECTAnesthesiaConsentModal } from './ECTAnesthesiaConsentModal'
 import { PreAnesthesiaAssessmentList } from './PreAnesthesiaAssessmentList'
 import { PreAnesthesiaAssessmentModal } from './PreAnesthesiaAssessmentModal'
 import { AdmissionAssessmentList } from '../admissions/AdmissionAssessmentList'
-import { SuicidalPatientAssessmentModal } from '../admissions/SuicidalPatientAssessmentModal'
 import { RecoveryRoomRecordModal } from '../admissions/RecoveryRoomRecordModal'
 import { AnesthesiaRecordModal } from '../admissions/AnesthesiaRecordModal'
 import { TimeOutProcedureModal } from '../admissions/TimeOutProcedureModal'
@@ -96,7 +95,7 @@ export function ECTDashboard({ selectedPatient }: ECTDashboardProps) {
       case 'alderete':           return <AdmissionAssessmentList doctype="Modified Alderete Score" doctypeLabel="Modified Alderete Score" patient={selectedPatient} refreshKey={aldereteRefreshKey} />
       case 'timeout':            return <AdmissionAssessmentList doctype="Time Out Procedure" doctypeLabel="Time Out Procedure" patient={selectedPatient} refreshKey={timeOutRefreshKey} />
       case 'pre-ect':            return <AdmissionAssessmentList doctype="Pre-ECT Checklist" doctypeLabel="Pre-ECT Checklist" patient={selectedPatient} refreshKey={preEctRefreshKey} />
-      case 'suicidal':           return <AdmissionAssessmentList doctype="Suicidal Patient Assessment" doctypeLabel="Suicidal Patient Assessment" patient={selectedPatient} refreshKey={suicidalRefreshKey} />
+      case 'suicidal':           return <AdmissionAssessmentList doctype="Suicidal Patient Assessment" doctypeLabel="Suicidal Patient Assessment" patient={selectedPatient} refreshKey={0} />
       case 'ect-admission':      return <ECTAdmissionList patient={selectedPatient} />
       case 'ect-procedure':      return <ECTProcedureList patient={selectedPatient} />
       case 'ect-details':        return <ECTDetailsList patient={selectedPatient} refreshKey={ectRefreshKey} />

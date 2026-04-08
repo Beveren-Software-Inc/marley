@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react'
-import { PatientSearch } from '../patients/PatientSearch'
 import {
   fetchPatientVisits,
   fetchInpatientAdmissions,
@@ -13,9 +12,6 @@ import {
 } from '../../services/common'
 import { toast } from '../../hooks/useToast'
 import { Plus, X } from 'lucide-react'
-import { UserMenu } from '../user/UserMenu'
-import { NotificationBell } from '../notifications/NotificationBell'
-
 interface DiagnosisSymptomsScreenProps {
   selectedPatient: string
   onPatientSelect: (patient: string | undefined) => void
@@ -25,7 +21,7 @@ type ContextType = 'Patient Visit' | 'Inpatient Admission'
 
 export function DiagnosisSymptomsScreen({
   selectedPatient,
-  onPatientSelect,
+  onPatientSelect: _onPatientSelect,
 }: DiagnosisSymptomsScreenProps) {
   const [contextType, setContextType] = useState<ContextType>('Patient Visit')
   const [contextName, setContextName] = useState('')

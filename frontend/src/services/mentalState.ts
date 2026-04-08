@@ -64,6 +64,9 @@ export interface MentalStateRow {
   conscious: 0 | 1
   alert: 0 | 1
   disturbed_con: 0 | 1
+  // Thought content
+  delusion: 0 | 1
+  perception: 0 | 1
   creation: string
 }
 

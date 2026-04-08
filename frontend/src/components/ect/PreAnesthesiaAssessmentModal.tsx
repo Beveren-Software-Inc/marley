@@ -1218,7 +1218,6 @@ export const PreAnesthesiaAssessmentModal = ({
   const [patientVisitLabel, setPatientVisitLabel] = useState('')
   const [patientField, setPatientField] = useState(patient || contextPatient || '')
   const [patientNameField, setPatientNameField] = useState(patientName || '')
-  const isAdmissionLocked = Boolean(activeAdmission) || Boolean(admissionNo)
   const isPatientLocked = Boolean(patient) || Boolean(contextPatient)
   
   const [assessmentDate, setAssessmentDate] = useState(nowDatetime())
@@ -1355,17 +1354,6 @@ export const PreAnesthesiaAssessmentModal = ({
     } finally {
       setSignUploading(false)
     }
-  }
-
-  // Get mode-specific help text
-  const getModeHelpText = () => {
-    if (isIPMode) {
-      return `Creating pre-anesthesia assessment for IP admission: ${admissionField || 'not selected yet'}`
-    }
-    if (isOPMode) {
-      return `Creating pre-anesthesia assessment for OP visit: ${patientVisit || 'not selected yet'}`
-    }
-    return 'Select either IP or OP mode from the context switcher above'
   }
 
   const handleSubmit = async (e: React.FormEvent) => {

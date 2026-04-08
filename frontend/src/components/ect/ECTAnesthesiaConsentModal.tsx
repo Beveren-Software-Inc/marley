@@ -1183,8 +1183,6 @@ export const ECTAnesthesiaConsentModal = ({
   const [patientField, setPatientField] = useState(patient || contextPatient || '')
   const [patientNameField, setPatientNameField] = useState(patientName || '')
   
-  const isAdmissionLocked = Boolean(activeAdmission) || Boolean(admissionNo)
-  const isVisitLocked = Boolean(activeVisit)
   const isPatientLocked = Boolean(patient) || Boolean(contextPatient)
 
   // ── Consent Terms
@@ -1276,17 +1274,6 @@ export const ECTAnesthesiaConsentModal = ({
       const content = await fetchTermsContent(opt.name)
       setTermsArabicContent(content)
     } finally { setTermsArabicLoading(false) }
-  }
-
-  // Get mode-specific help text
-  const getModeHelpText = () => {
-    if (isIPMode) {
-      return `Creating consent for IP admission: ${admissionField || 'not selected yet'}`
-    }
-    if (isOPMode) {
-      return `Creating consent for OP visit: ${patientVisit || 'not selected yet'}`
-    }
-    return 'Select either IP or OP mode from the context switcher above'
   }
 
   const handleSubmit = async (e: React.FormEvent) => {

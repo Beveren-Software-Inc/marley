@@ -12,6 +12,7 @@ export interface SuicidalAssessment {
   previous_attempts?: string
   created_at?: string
   modified?: string
+  assessed_by_name?: string
 }
 
 export async function fetchSuicidalAssessments(

@@ -1,5 +1,3 @@
-
-
 import { useState, useEffect, useRef } from 'react'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
 import {
@@ -18,6 +16,7 @@ import {
   updatePrescription,
   type CreatePrescriptionData,
   type MedicationOrderRow,
+  type Prescription,
   LONG_ACTING_FREQUENCY_OPTIONS,
 } from '../../services/prescriptions'
 import { bulkCreateNurseTasks, type CreateNurseTaskData } from '../../services/nurseTask'
@@ -25,13 +24,12 @@ import { toast } from '../../hooks/useToast'
 import { X, Plus, Trash2, Pill, ChevronDown, ChevronUp } from 'lucide-react'
 import { useCareContext } from '../../providers/CareContextProvider'
 
-
 interface CreatePrescriptionModalProps {
   onClose: () => void
   onSuccess: () => void
   initialPatient?: string
-   editMode?: boolean
-  prescriptionData?: Prescription | null  // The prescription to edit
+  editMode?: boolean
+  prescriptionData?: Prescription | null
 }
 
 type TabId = 'details' | 'medications'
@@ -62,6 +60,7 @@ const MEDICATION_TYPES = [
 
 const emptyMedicationRow = (startDate: string): MedicationOrderRow => ({
   drug: '',
+  drug_name: '',
   dosage: '',
   no_of_days: 1,
   dosage_form: '',
@@ -93,7 +92,7 @@ interface ComboboxProps {
   label?: string
   required?: boolean
   renderOption?: (opt: LinkFieldOption) => React.ReactNode
-  allowCustom?: boolean  // NEW: Allow custom text input
+  allowCustom?: boolean
 }
 
 const Combobox = ({
@@ -107,7 +106,7 @@ const Combobox = ({
   required,
   renderOption,
   onClear,
-  allowCustom = false,  // NEW: Default false
+  allowCustom = false,
 }: ComboboxProps) => {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -170,7 +169,6 @@ const Combobox = ({
         </div>
       </div>
       
-      {/* DROPDOWN - INLINE (z-50 to escape modal) */}
       {open && (
         <div className="absolute z-50 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-xl max-h-52 overflow-auto text-slate-900">
           {loading ? (
@@ -225,8 +223,8 @@ export const CreatePrescriptionModal = ({
   onClose,
   onSuccess,
   initialPatient,
-   editMode = false,
-   prescriptionData = null,
+  editMode = false,
+  prescriptionData = null,
 }: CreatePrescriptionModalProps) => {
   const { mode, activeVisit, activeAdmission } = useCareContext()
   const [activeTab, setActiveTab] = useState<TabId>('details')
@@ -260,75 +258,75 @@ export const CreatePrescriptionModal = ({
   const [drugOptions, setDrugOptions] = useState<Record<number, LinkFieldOption[]>>({})
   const [drugLoading, setDrugLoading] = useState<Record<number, boolean>>({})
 
-  // NEW: For frequency and route custom inputs
   const [frequencyQueries, setFrequencyQueries] = useState<Record<number, string>>({})
   const [routeQueries, setRouteQueries] = useState<Record<number, string>>({})
 
   const [dosageForms, setDosageForms] = useState<LinkFieldOption[]>([])
-  const [frequencies, setFrequencies] = useState<LinkFieldOption[]>([])
-  const [routeOfAdminOptions, setRouteOfAdminOptions] = useState<LinkFieldOption[]>([])
+  const [frequencyOptions, setFrequencyOptions] = useState<LinkFieldOption[]>([])
+  const [routeOptions, setRouteOptions] = useState<LinkFieldOption[]>([])
+  const [loadingFrequency, setLoadingFrequency] = useState(false)
+  const [loadingRoute, setLoadingRoute] = useState(false)
 
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Nurse Task creation per medication
   const [createNurseTasks, setCreateNurseTasks] = useState(false)
   const [nurseTaskRows, setNurseTaskRows] = useState<Record<number, boolean>>({})
 
+  const isEditing = editMode
 
-  const [frequencyOptions, setFrequencyOptions] = useState<LinkFieldOption[]>([])
-const [routeOptions, setRouteOptions] = useState<LinkFieldOption[]>([])
-const [loadingFrequency, setLoadingFrequency] = useState(false)
-const [loadingRoute, setLoadingRoute] = useState(false)
-const [isEditing, setIsEditing] = useState(editMode)
-
-const searchFrequencies = async (query: string) => {
-  setLoadingFrequency(true)
-  try {
-    const allFrequencies = await fetchPrescriptionFrequencies()
-    if (!query.trim()) {
-      setFrequencyOptions(allFrequencies)
-    } else {
-      const filtered = allFrequencies.filter(f => 
-        f.label?.toLowerCase().includes(query.toLowerCase()) || 
-        f.name?.toLowerCase().includes(query.toLowerCase())
-      )
-      setFrequencyOptions(filtered)
+  const searchFrequencies = async (query: string) => {
+    setLoadingFrequency(true)
+    try {
+      const allFrequencies = await fetchPrescriptionFrequencies()
+      if (!query.trim()) {
+        setFrequencyOptions(allFrequencies)
+      } else {
+        const filtered = allFrequencies.filter(f => 
+          f.label?.toLowerCase().includes(query.toLowerCase()) || 
+          f.name?.toLowerCase().includes(query.toLowerCase())
+        )
+        setFrequencyOptions(filtered)
+      }
+    } catch (error) {
+      console.error('Failed to search frequencies:', error)
+      setFrequencyOptions([])
+    } finally {
+      setLoadingFrequency(false)
     }
-  } catch (error) {
-    console.error('Failed to search frequencies:', error)
-    setFrequencyOptions([])
-  } finally {
-    setLoadingFrequency(false)
   }
-}
 
-const searchRoutes = async (query: string) => {
-  setLoadingRoute(true)
-  try {
-    const allRoutes = await fetchRouteOfAdministrationList()
-    if (!query.trim()) {
-      setRouteOptions(allRoutes)
-    } else {
-      const filtered = allRoutes.filter(r => 
-        r.label?.toLowerCase().includes(query.toLowerCase()) || 
-        r.name?.toLowerCase().includes(query.toLowerCase())
-      )
-      setRouteOptions(filtered)
+  const searchRoutes = async (query: string) => {
+    setLoadingRoute(true)
+    try {
+      const allRoutes = await fetchRouteOfAdministrationList()
+      if (!query.trim()) {
+        setRouteOptions(allRoutes)
+      } else {
+        const filtered = allRoutes.filter(r => 
+          r.label?.toLowerCase().includes(query.toLowerCase()) || 
+          r.name?.toLowerCase().includes(query.toLowerCase())
+        )
+        setRouteOptions(filtered)
+      }
+    } catch (error) {
+      console.error('Failed to search routes:', error)
+      setRouteOptions([])
+    } finally {
+      setLoadingRoute(false)
     }
-  } catch (error) {
-    console.error('Failed to search routes:', error)
-    setRouteOptions([])
-  } finally {
-    setLoadingRoute(false)
   }
-}
 
-useEffect(() => {
+  // Load initial data
+  useEffect(() => {
+    fetchPrescriptionFrequencies().then(setFrequencyOptions).catch(() => setFrequencyOptions([]))
+    fetchRouteOfAdministrationList().then(setRouteOptions).catch(() => setRouteOptions([]))
+  }, [])
+
+  useEffect(() => {
     if (editMode && prescriptionData) {
-      // Populate form data from prescription
       setFormData({
-        care_context: prescriptionData.care_context || (mode === 'IP' ? 'Inpatient Admission' : 'Patient Visit'),
+        care_context: (prescriptionData.care_context === 'Inpatient Admission' ? 'Inpatient Admission' : 'Patient Visit'),
         patient_encounter: prescriptionData.patient_encounter || '',
         inpatient_record: prescriptionData.inpatient_record || '',
         company: prescriptionData.company || '',
@@ -336,19 +334,18 @@ useEffect(() => {
         practitioner: prescriptionData.practitioner || '',
       })
       
-      // Set selected patient
       if (prescriptionData.patient) {
         setSelectedPatient({ 
           name: prescriptionData.patient, 
           patient_name: prescriptionData.patient_name || prescriptionData.patient 
-        })
+        } as PatientListItem)
         setPatientQuery(prescriptionData.patient_name || prescriptionData.patient)
       }
       
-      // Populate medications
       if (prescriptionData.medication_orders && prescriptionData.medication_orders.length > 0) {
-        const loadedMedications = prescriptionData.medication_orders.map((med: any) => ({
+        const loadedMedications: MedicationOrderRow[] = prescriptionData.medication_orders.map((med: any) => ({
           drug: med.drug || '',
+          drug_name: med.drug_name || med.drug || '',
           dosage: med.dosage || '',
           no_of_days: med.no_of_days || 1,
           dosage_form: med.dosage_form || '',
@@ -367,7 +364,6 @@ useEffect(() => {
         }))
         setMedications(loadedMedications)
         
-        // Set drug queries for display
         const queries: Record<number, string> = {}
         loadedMedications.forEach((med, idx) => {
           if (med.drug) queries[idx] = med.drug_name || med.drug
@@ -375,13 +371,7 @@ useEffect(() => {
         setDrugQueries(queries)
       }
     }
-  }, [editMode, prescriptionData])
-
-useEffect(() => {
-  fetchPrescriptionFrequencies().then(setFrequencyOptions).catch(() => setFrequencyOptions([]))
-  fetchRouteOfAdministrationList().then(setRouteOptions).catch(() => setRouteOptions([]))
-}, [])
-
+  }, [editMode, prescriptionData, formData.start_date])
 
   useEffect(() => {
     setFormData((prev) => {
@@ -399,8 +389,6 @@ useEffect(() => {
     fetchCompanies().then(setCompanies).catch(() => setCompanies([]))
     fetchHealthcarePractitioners().then(setPractitioners).catch(() => setPractitioners([]))
     fetchDosageForms().then(setDosageForms).catch(() => setDosageForms([]))
-    fetchPrescriptionFrequencies().then(setFrequencies).catch(() => setFrequencies([]))
-    fetchRouteOfAdministrationList().then(setRouteOfAdminOptions).catch(() => setRouteOfAdminOptions([]))
   }, [])
 
   useEffect(() => {
@@ -409,9 +397,9 @@ useEffect(() => {
       fetchPatients(20, 0, initialPatient)
         .then((list) => {
           const match = list.find((p) => p.name === initialPatient)
-          setSelectedPatient(match || { name: initialPatient, patient_name: initialPatient })
+          setSelectedPatient(match || { name: initialPatient, patient_name: initialPatient } as PatientListItem)
         })
-        .catch(() => setSelectedPatient({ name: initialPatient, patient_name: initialPatient }))
+        .catch(() => setSelectedPatient({ name: initialPatient, patient_name: initialPatient } as PatientListItem))
     }
   }, [initialPatient])
 
@@ -498,7 +486,6 @@ useEffect(() => {
       if (!next[index]) return next
       const row = { ...next[index], [field]: value }
       
-      // Only calculate days for OP visits
       const isIP = mode === 'IP'
       if (!isIP && (field === 'date' || field === 'end_date' || field === 'no_of_days')) {
         const start = row.date || ''
@@ -522,7 +509,6 @@ useEffect(() => {
 
   const validMedications = medications.filter((m) => m.drug && m.dosage && m.dosage_form && m.date)
 
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
@@ -538,9 +524,8 @@ useEffect(() => {
       setSubmitting(true)
       
       if (isEditing && prescriptionData) {
-        // UPDATE existing prescription
         const payload: any = {
-          name: prescriptionData.name, // The prescription document name
+          name: prescriptionData.name,
           patient: selectedPatient.name,
           care_context: formData.care_context,
           company: formData.company,
@@ -555,10 +540,9 @@ useEffect(() => {
           payload.inpatient_record = formData.inpatient_record
         }
 
-        await updatePrescription(payload) // You need to create this service
+        await updatePrescription(payload)
         toast.success('Prescription updated successfully')
       } else {
-        // CREATE new prescription (existing code)
         const payload: CreatePrescriptionData = {
           patient: selectedPatient.name,
           care_context: formData.care_context,
@@ -576,42 +560,41 @@ useEffect(() => {
 
         await createPrescription(payload)
 
-        // Create Nurse Tasks only for new prescriptions
         if (createNurseTasks) {
-        const tasksToCreate: CreateNurseTaskData[] = validMedications.flatMap((med, idx) => {
-          const shouldCreate = nurseTaskRows[idx] !== false
-          if (!shouldCreate) return []
-          const scheduledDatetime = med.date
-            ? `${med.date} ${med.time ?? '08:00:00'}`
-            : `${formData.start_date} 08:00:00`
-          const task: CreateNurseTaskData = {
-            patient: selectedPatient.name,
-            task_type: 'Medication Administration',
-            scheduled_time: scheduledDatetime,
-            description: `${med.drug_name || med.drug} — ${med.dosage}${med.instructions ? `\n${med.instructions}` : ''}`,
-            medication: med.drug,
-            dosage: med.dosage,
-            route: med.route_of_administration || undefined,
-            is_prn: med.is_prn ?? false,
-            medication_type: med.medication_type || undefined,
-          }
-          return [task]
-        })
+          const tasksToCreate: CreateNurseTaskData[] = validMedications.flatMap((med, idx) => {
+            const shouldCreate = nurseTaskRows[idx] !== false
+            if (!shouldCreate) return []
+            const scheduledDatetime = med.date
+              ? `${med.date} ${med.time ?? '08:00:00'}`
+              : `${formData.start_date} 08:00:00`
+            const task: CreateNurseTaskData = {
+              patient: selectedPatient.name,
+              task_type: 'Medication Administration',
+              scheduled_time: scheduledDatetime,
+              description: `${med.drug_name || med.drug} — ${med.dosage}${med.instructions ? `\n${med.instructions}` : ''}`,
+              medication: med.drug,
+              dosage: med.dosage,
+              route: med.route_of_administration || undefined,
+              is_prn: med.is_prn ?? false,
+              medication_type: med.medication_type || undefined,
+            }
+            return [task]
+          })
 
-        if (tasksToCreate.length > 0) {
-          try {
-            const result = await bulkCreateNurseTasks(tasksToCreate)
-            toast.success(`Prescription created · ${result.count} nurse task${result.count !== 1 ? 's' : ''} created`)
-          } catch {
+          if (tasksToCreate.length > 0) {
+            try {
+              const result = await bulkCreateNurseTasks(tasksToCreate)
+              toast.success(`Prescription created · ${result.count} nurse task${result.count !== 1 ? 's' : ''} created`)
+            } catch {
+              toast.success('Prescription created')
+              toast.error('Prescription saved but some nurse tasks could not be created.')
+            }
+          } else {
             toast.success('Prescription created')
-            toast.error('Prescription saved but some nurse tasks could not be created.')
           }
         } else {
           toast.success('Prescription created')
         }
-      } else {
-        toast.success('Prescription created')
-      }
       }
 
       onSuccess()
@@ -624,7 +607,6 @@ useEffect(() => {
       setSubmitting(false)
     }
   }
-
 
   const practitionerDisplay = formData.practitioner
     ? (practitioners.find((x) => x.name === formData.practitioner)?.label || formData.practitioner)
@@ -646,7 +628,6 @@ useEffect(() => {
           </button>
         </div>
 
-        {/* Tabs */}
         <div className="flex border-b border-slate-200 shrink-0 bg-slate-50">
           {(['details', 'medications'] as TabId[]).map((tab) => (
             <button
@@ -675,7 +656,6 @@ useEffect(() => {
             {/* ── DETAILS TAB ── */}
             {activeTab === 'details' && (
               <div className="space-y-5">
-                {/* Row 1: Patient (full width) */}
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">
                     Patient <span className="text-red-500">*</span>
@@ -724,7 +704,6 @@ useEffect(() => {
                   />
                 </div>
 
-                {/* Row 2: Care Context + Visit/Admission side by side */}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -778,7 +757,6 @@ useEffect(() => {
                   )}
                 </div>
 
-                {/* Row 3: Company + Start Date side by side */}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -807,7 +785,6 @@ useEffect(() => {
                   </div>
                 </div>
 
-                {/* Row 4: Practitioner (full width or half) */}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Practitioner</label>
@@ -851,7 +828,6 @@ useEffect(() => {
                   </button>
                 </div>
 
-                {/* Nurse Task master toggle */}
                 {formData.care_context === 'Inpatient Admission' && (
                   <div className="rounded-md border border-teal-200 bg-teal-50 px-3 py-2 flex items-center gap-2">
                     <input
@@ -873,7 +849,6 @@ useEffect(() => {
                       key={index}
                       className="border border-slate-200 rounded-lg bg-white shadow-sm overflow-hidden transition-all"
                     >
-                      {/* Card header - clickable to expand/collapse */}
                       <button
                         type="button"
                         onClick={() => toggleMedicationExpanded(index)}
@@ -918,7 +893,6 @@ useEffect(() => {
                         </div>
                       </button>
 
-                      {/* Per-row Nurse Task opt-out (visible when master toggle is on) */}
                       {createNurseTasks && formData.care_context === 'Inpatient Admission' && (
                         <div className="px-4 py-1.5 bg-teal-50 border-b border-teal-100 flex items-center gap-2">
                           <input
@@ -939,10 +913,8 @@ useEffect(() => {
                         </div>
                       )}
 
-                      {/* Collapsible content */}
                       {(isExpanded(index) || !shouldShowCollapse) && (
                         <div className="p-4 space-y-3 animate-in fade-in duration-200">
-                          {/* Row A: Drug, Dosage, Dosage Form */}
                           <div className="grid grid-cols-3 gap-3">
                             <div>
                               <label className="block text-xs font-medium text-slate-600 mb-1">
@@ -961,6 +933,7 @@ useEffect(() => {
                                 onOpen={() => loadDrugOptions(index, drugQueries[index] || row.drug || '')}
                                 onSelect={(opt) => {
                                   updateMedicationRow(index, 'drug', opt.name)
+                                  updateMedicationRow(index, 'drug_name', opt.label || opt.name)
                                   setDrugQueries((prev) => ({ ...prev, [index]: opt.label || opt.name }))
                                   setDrugOptions((prev) => ({ ...prev, [index]: [] }))
                                 }}
@@ -993,7 +966,6 @@ useEffect(() => {
                             </div>
                           </div>
 
-                          {/* Row B: Start Date, End Date, Days (hide Days for IP) */}
                           <div className={`grid ${isIP ? 'grid-cols-2' : 'grid-cols-3'} gap-3`}>
                             <div>
                               <label className="block text-xs font-medium text-slate-600 mb-1">
@@ -1033,76 +1005,75 @@ useEffect(() => {
                             <p className="text-[11px] text-slate-500">Start + End Date → Days; or Start Date + Days → End Date</p>
                           )}
 
-                         {/* Row C: Frequency (writable with search), Route of Administration (writable with search), Ref No */}
-<div className="grid grid-cols-3 gap-3">
-  <div>
-    <label className="block text-xs font-medium text-slate-600 mb-1">Frequency</label>
-    <Combobox
-      value={row.patient_frequency ?? ''}
-      displayValue={frequencyQueries[index] ?? (row.patient_frequency ? (frequencyOptions.find((f) => f.name === row.patient_frequency)?.label || row.patient_frequency) : '')}
-      placeholder="Type or select frequency..."
-      options={frequencyOptions}
-      loading={loadingFrequency}
-      allowCustom={true}
-      onQueryChange={(q) => {
-        setFrequencyQueries((prev) => ({ ...prev, [index]: q }))
-        searchFrequencies(q) // Add search when typing
-      }}
-      onOpen={() => {
-        if (frequencyOptions.length === 0) {
-          searchFrequencies('')
-        }
-      }}
-      onSelect={(opt) => {
-        updateMedicationRow(index, 'patient_frequency', opt.name)
-        setFrequencyQueries((prev) => ({ ...prev, [index]: opt.label || opt.name }))
-      }}
-      onClear={() => {
-        updateMedicationRow(index, 'patient_frequency', '')
-        setFrequencyQueries((prev) => ({ ...prev, [index]: '' }))
-      }}
-    />
-  </div>
-  <div>
-    <label className="block text-xs font-medium text-slate-600 mb-1">Route of Administration</label>
-    <Combobox
-      value={row.route_of_administration ?? ''}
-      displayValue={routeQueries[index] ?? (row.route_of_administration ? (routeOptions.find((r) => r.name === row.route_of_administration)?.label || row.route_of_administration) : '')}
-      placeholder="Type or select route..."
-      options={routeOptions}
-      loading={loadingRoute}
-      allowCustom={true}
-      onQueryChange={(q) => {
-        setRouteQueries((prev) => ({ ...prev, [index]: q }))
-        searchRoutes(q) // Add search when typing
-      }}
-      onOpen={() => {
-        if (routeOptions.length === 0) {
-          searchRoutes('')
-        }
-      }}
-      onSelect={(opt) => {
-        updateMedicationRow(index, 'route_of_administration', opt.name)
-        setRouteQueries((prev) => ({ ...prev, [index]: opt.label || opt.name }))
-      }}
-      onClear={() => {
-        updateMedicationRow(index, 'route_of_administration', '')
-        setRouteQueries((prev) => ({ ...prev, [index]: '' }))
-      }}
-    />
-  </div>
-  <div>
-    <label className="block text-xs font-medium text-slate-600 mb-1">Ref No</label>
-    <input
-      type="text"
-      value={row.reference_no ?? ''}
-      onChange={(e) => updateMedicationRow(index, 'reference_no', e.target.value)}
-      placeholder="Ref"
-      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
-    />
-  </div>
-</div>
-                          {/* Row D: Checkboxes (4 cols) */}
+                          <div className="grid grid-cols-3 gap-3">
+                            <div>
+                              <label className="block text-xs font-medium text-slate-600 mb-1">Frequency</label>
+                              <Combobox
+                                value={row.patient_frequency ?? ''}
+                                displayValue={frequencyQueries[index] ?? (row.patient_frequency ? (frequencyOptions.find((f) => f.name === row.patient_frequency)?.label || row.patient_frequency) : '')}
+                                placeholder="Type or select frequency..."
+                                options={frequencyOptions}
+                                loading={loadingFrequency}
+                                allowCustom={true}
+                                onQueryChange={(q) => {
+                                  setFrequencyQueries((prev) => ({ ...prev, [index]: q }))
+                                  searchFrequencies(q)
+                                }}
+                                onOpen={() => {
+                                  if (frequencyOptions.length === 0) {
+                                    searchFrequencies('')
+                                  }
+                                }}
+                                onSelect={(opt) => {
+                                  updateMedicationRow(index, 'patient_frequency', opt.name)
+                                  setFrequencyQueries((prev) => ({ ...prev, [index]: opt.label || opt.name }))
+                                }}
+                                onClear={() => {
+                                  updateMedicationRow(index, 'patient_frequency', '')
+                                  setFrequencyQueries((prev) => ({ ...prev, [index]: '' }))
+                                }}
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-slate-600 mb-1">Route of Administration</label>
+                              <Combobox
+                                value={row.route_of_administration ?? ''}
+                                displayValue={routeQueries[index] ?? (row.route_of_administration ? (routeOptions.find((r) => r.name === row.route_of_administration)?.label || row.route_of_administration) : '')}
+                                placeholder="Type or select route..."
+                                options={routeOptions}
+                                loading={loadingRoute}
+                                allowCustom={true}
+                                onQueryChange={(q) => {
+                                  setRouteQueries((prev) => ({ ...prev, [index]: q }))
+                                  searchRoutes(q)
+                                }}
+                                onOpen={() => {
+                                  if (routeOptions.length === 0) {
+                                    searchRoutes('')
+                                  }
+                                }}
+                                onSelect={(opt) => {
+                                  updateMedicationRow(index, 'route_of_administration', opt.name)
+                                  setRouteQueries((prev) => ({ ...prev, [index]: opt.label || opt.name }))
+                                }}
+                                onClear={() => {
+                                  updateMedicationRow(index, 'route_of_administration', '')
+                                  setRouteQueries((prev) => ({ ...prev, [index]: '' }))
+                                }}
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-slate-600 mb-1">Ref No</label>
+                              <input
+                                type="text"
+                                value={row.reference_no ?? ''}
+                                onChange={(e) => updateMedicationRow(index, 'reference_no', e.target.value)}
+                                placeholder="Ref"
+                                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+                              />
+                            </div>
+                          </div>
+
                           <div className="grid grid-cols-4 gap-4">
                             <div>
                               <label className="block text-xs font-medium text-slate-600 mb-1">
@@ -1170,7 +1141,6 @@ useEffect(() => {
                             </div>
                           </div>
 
-                          {/* Row E: Time Frequency (only when Long Acting is ticked) */}
                           {(row.is_long_acting || row.medication_type === 'Long Acting Medicine') && (
                             <div className="rounded-md bg-amber-50 border border-amber-200 p-3">
                               <label className="block text-xs font-medium text-slate-700 mb-1">
@@ -1191,7 +1161,6 @@ useEffect(() => {
                             </div>
                           )}
 
-                          {/* Row F: Instructions (full width - last row) */}
                           <div>
                             <label className="block text-xs font-medium text-slate-600 mb-1">Instructions</label>
                             <textarea
@@ -1225,7 +1194,6 @@ useEffect(() => {
             )}
           </div>
 
-          {/* Footer */}
           <div className="flex gap-3 px-6 py-4 border-t border-slate-200 shrink-0">
             <button
               type="button"
