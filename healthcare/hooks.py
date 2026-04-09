@@ -155,6 +155,12 @@ fixtures = [
 	},
     {
 		"doctype":"Modified Alderete Score Template"
+	},
+    {
+		"doctype":"Healthcare Activity"
+	},
+    {
+		"doctype":"Nursing Checklist Template"
 	}
 ]
 
