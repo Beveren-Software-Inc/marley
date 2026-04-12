@@ -4,6 +4,7 @@ import { fetchServiceRequests } from '../../services/serviceRequests'
 import { fetchCostCenters, fetchItems, type LinkFieldOption } from '../../services/common'
 import { createIPService, type CreateIPServiceInput, type IPServiceLineInput } from '../../services/ipServices'
 import { toast } from '../../hooks/useToast'
+import { useCareContext } from '../../providers/CareContextProvider'
 
 interface CreateIPServiceModalProps {
   onClose: () => void
@@ -39,6 +40,12 @@ export const CreateIPServiceModal = ({
   initialServiceRequest,
   openInNewTab = true,
 }: CreateIPServiceModalProps) => {
+  // Get context from CareContextProvider
+  const { mode, activeAdmission, selectedPatient: contextPatient } = useCareContext()
+  
+  // Determine if we're in IP mode
+  const isIPMode = mode === 'IP'
+  
   const [tab, setTab] = useState<TabId>('details')
   const [admissionNo, setAdmissionNo] = useState('')
   const [admissionSearch, setAdmissionSearch] = useState('')
@@ -58,37 +65,61 @@ export const CreateIPServiceModal = ({
   const admissionDropdownRef = useRef<HTMLDivElement>(null)
   const costCenterDropdownRef = useRef<HTMLDivElement>(null)
 
-  const selectedAdmission = admissions.find((a) => a.name === admissionNo)
+  // Get effective patient and admission
+  const effectivePatient = initialPatient || contextPatient || ''
+  const effectiveAdmission = activeAdmission || ''
 
-  // Load cost centers (optionally by company when admission is selected)
+  // Auto-load admission from context
   useEffect(() => {
-    const company = selectedAdmission?.company
-    fetchCostCenters(company, costCenterSearch || undefined)
-      .then(setCostCenters)
-      .catch(() => setCostCenters([]))
-  }, [selectedAdmission?.company, costCenterSearch])
+    if (isIPMode && effectiveAdmission && !admissionNo) {
+      // Fetch and set the admission from context
+      fetchInpatientRecords(undefined, effectiveAdmission, effectivePatient, undefined, undefined, undefined)
+        .then((list) => {
+          const matched = list.find(a => a.name === effectiveAdmission)
+          if (matched) {
+            setAdmissionNo(matched.name)
+          } else if (list.length > 0) {
+            setAdmissionNo(list[0].name)
+          }
+        })
+        .catch(() => {})
+    }
+  }, [isIPMode, effectiveAdmission, effectivePatient, admissionNo])
 
-  useEffect(() => {
-    if (!admissionOpen) return
-    const t = setTimeout(() => {
-      fetchInpatientRecords(undefined, admissionSearch || undefined, initialPatient, undefined, undefined, undefined)
-        .then((list) => setAdmissions(list.slice(0, 30)))
-        .catch(() => setAdmissions([]))
-    }, admissionSearch.trim() === '' ? 0 : 300)
-    return () => clearTimeout(t)
-  }, [admissionOpen, admissionSearch, initialPatient])
-
-  // Sync service request when opened with initialServiceRequest (e.g. from list row)
+  // Auto-load service request if provided
   useEffect(() => {
     if (initialServiceRequest) setServiceRequest(initialServiceRequest)
   }, [initialServiceRequest])
 
+  // Load service requests for the patient
   useEffect(() => {
-    if (!initialPatient) return
-    fetchServiceRequests(50, 0, initialPatient, 'IP Service Type')
+    if (!effectivePatient) return
+    fetchServiceRequests(50, 0, effectivePatient, 'IP Service Type')
       .then(setServiceRequests)
       .catch(() => setServiceRequests([]))
-  }, [initialPatient])
+  }, [effectivePatient])
+
+  // Load admissions with search
+  useEffect(() => {
+    if (!admissionOpen) return
+    const t = setTimeout(() => {
+      fetchInpatientRecords(undefined, admissionSearch || undefined, effectivePatient, undefined, undefined, undefined)
+        .then((list) => setAdmissions(list.slice(0, 30)))
+        .catch(() => setAdmissions([]))
+    }, admissionSearch.trim() === '' ? 0 : 300)
+    return () => clearTimeout(t)
+  }, [admissionOpen, admissionSearch, effectivePatient])
+
+  // Load cost centers (optionally by company when admission is selected)
+  useEffect(() => {
+    const selectedAdmission = admissions.find((a) => a.name === admissionNo)
+    const company = selectedAdmission?.company
+    fetchCostCenters(company, costCenterSearch || undefined)
+      .then(setCostCenters)
+      .catch(() => setCostCenters([]))
+  }, [admissionNo, admissions, costCenterSearch])
+
+  const selectedAdmission = admissions.find((a) => a.name === admissionNo)
 
   const addItemRow = () => {
     setItems((prev) => [...prev, { id: nextId(), service_code: '', item_label: '', amount: '', note: '' }])
@@ -157,11 +188,25 @@ export const CreateIPServiceModal = ({
     }
   }
 
+  // Get mode-specific help text
+  const getModeHelpText = () => {
+    if (isIPMode) {
+      return `Creating IP service for admission: ${admissionNo || 'auto-selected from context'}`
+    }
+    return 'Select IP mode from the context switcher above'
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full min-h-[32rem] max-h-[90vh] flex flex-col">
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 flex-shrink-0">
-          <h2 className="text-sm font-semibold text-slate-900">Create IP Service</h2>
+          <div>
+            <h2 className="text-sm font-semibold text-slate-900">Create IP Service</h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              {isIPMode && <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-[10px] font-medium mr-2">IP Mode Active</span>}
+              {getModeHelpText()}
+            </p>
+          </div>
           <button
             type="button"
             onClick={onClose}
@@ -174,8 +219,21 @@ export const CreateIPServiceModal = ({
           </button>
         </div>
 
+        {/* Mode indicator box */}
+        <div className="mx-4 mt-3 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
+          <p className="text-xs font-semibold text-primary mb-1">
+            {isIPMode ? '🏥 Creating IP Service for Inpatient' : '📋 Select IP Context'}
+          </p>
+          <p className="text-xs text-slate-600">
+            {isIPMode 
+              ? `The IP service will be linked to the selected inpatient admission.`
+              : 'Please select IP mode from the top navbar before creating an IP service.'
+            }
+          </p>
+        </div>
+
         {/* Tabs */}
-        <div className="flex border-b border-slate-200 flex-shrink-0">
+        <div className="flex border-b border-slate-200 flex-shrink-0 mt-3">
           <button
             type="button"
             onClick={() => setTab('details')}
@@ -217,45 +275,59 @@ export const CreateIPServiceModal = ({
                   <label className="block text-xs font-medium text-slate-600 mb-1">
                     Inpatient Admission <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="text"
-                    value={
-                      admissionOpen
-                        ? admissionSearch
-                        : selectedAdmission
-                          ? `${selectedAdmission.name}${selectedAdmission.patient_name ? ` – ${selectedAdmission.patient_name}` : ''}`
-                          : admissionNo
-                    }
-                    onChange={(e) => {
-                      setAdmissionSearch(e.target.value)
-                      if (!admissionOpen) setAdmissionOpen(true)
-                    }}
-                    onFocus={() => setAdmissionOpen(true)}
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                    placeholder="Search admission..."
-                  />
-                  {admissionOpen && (
-                    <div className="absolute z-10 mt-1 w-full max-w-md rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-y-auto">
-                      {admissions.length === 0 ? (
-                        <div className="px-3 py-2 text-sm text-slate-500">No admissions found.</div>
-                      ) : (
-                        admissions.map((a) => (
-                          <button
-                            key={a.name}
-                            type="button"
-                            className="block w-full text-left px-3 py-2 text-sm hover:bg-slate-50 border-b border-slate-100 last:border-0"
-                            onClick={() => {
-                              setAdmissionNo(a.name)
-                              setAdmissionSearch('')
-                              setAdmissionOpen(false)
-                            }}
-                          >
-                            {a.name}
-                            {a.patient_name ? ` – ${a.patient_name}` : ''}
-                          </button>
-                        ))
-                      )}
+                  {activeAdmission ? (
+                    <div>
+                      <input
+                        type="text"
+                        value={selectedAdmission ? `${selectedAdmission.name}${selectedAdmission.patient_name ? ` – ${selectedAdmission.patient_name}` : ''}` : admissionNo}
+                        readOnly
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm bg-slate-100 cursor-not-allowed"
+                      />
+                      <p className="text-xs text-slate-400 mt-1">Auto-selected from IP context</p>
                     </div>
+                  ) : (
+                    <>
+                      <input
+                        type="text"
+                        value={
+                          admissionOpen
+                            ? admissionSearch
+                            : selectedAdmission
+                              ? `${selectedAdmission.name}${selectedAdmission.patient_name ? ` – ${selectedAdmission.patient_name}` : ''}`
+                              : admissionNo
+                        }
+                        onChange={(e) => {
+                          setAdmissionSearch(e.target.value)
+                          if (!admissionOpen) setAdmissionOpen(true)
+                        }}
+                        onFocus={() => setAdmissionOpen(true)}
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                        placeholder="Search admission..."
+                      />
+                      {admissionOpen && (
+                        <div className="absolute z-10 mt-1 w-full max-w-md rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-y-auto">
+                          {admissions.length === 0 ? (
+                            <div className="px-3 py-2 text-sm text-slate-500">No admissions found.</div>
+                          ) : (
+                            admissions.map((a) => (
+                              <button
+                                key={a.name}
+                                type="button"
+                                className="block w-full text-left px-3 py-2 text-sm hover:bg-slate-50 border-b border-slate-100 last:border-0"
+                                onClick={() => {
+                                  setAdmissionNo(a.name)
+                                  setAdmissionSearch('')
+                                  setAdmissionOpen(false)
+                                }}
+                              >
+                                {a.name}
+                                {a.patient_name ? ` – ${a.patient_name}` : ''}
+                              </button>
+                            ))
+                          )}
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
 
@@ -403,7 +475,8 @@ export const CreateIPServiceModal = ({
                 submitting ||
                 !admissionNo.trim() ||
                 !costCenter.trim() ||
-                (!serviceRequest && items.filter((r) => r.service_code.trim() && r.amount.trim()).length === 0)
+                (!serviceRequest && items.filter((r) => r.service_code.trim() && r.amount.trim()).length === 0) ||
+                !isIPMode
               }
               className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-50"
             >

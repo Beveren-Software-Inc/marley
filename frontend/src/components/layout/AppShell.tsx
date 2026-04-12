@@ -97,6 +97,13 @@ const nurseScreenGroups: ScreenGroup[] = [
       { id: 'n-sick',        title: 'Sick Leave' },
     ],
   },
+   {
+    groupTitle: 'Inventory',
+    screens: [
+      { id: 'inventory',    title: 'My Nursing Tasks' },
+      { id: 'n-nurse-tasks', title: 'Nurse Tasks' },
+    ],
+  },
   {
     groupTitle: 'Shift',
     screens: [
