@@ -92,6 +92,8 @@ export const ECTDetailDetails = ({ ectName }: ECTDetailDetailsProps) => {
             <Field label="Repeated" value={ect.repeated} />
             <Field label="Vitals" value={ect.vitals} />
             <Field label="ECG" value={ect.ecg} />
+            <Field label="Propofol Detail" value={ect.propofol_detail} />
+            <Field label="Succinylcholine Detail" value={ect.succinycholine_detail} />
             <Field label="Reference Doctype" value={ect.reference_doctype} />
             <Field label="Reference Name" value={ect.reference_name} />
           </div>
@@ -128,6 +130,10 @@ export const ECTDetailDetails = ({ ectName }: ECTDetailDetailsProps) => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Field label="BP 1" value={ect.bp_1} />
             <Field label="BP 2" value={ect.bp_2} />
+            <Field label="Max BP 1" value={ect.max_bp_1} />
+            <Field label="Max BP 2" value={ect.max_bp2} />
+            <Field label="Propofol Detail" value={ect.propofol_detail} />
+            <Field label="Succinylcholine Detail" value={ect.succinycholine_detail} />
             <Field label="Psychology Doctor" value={ect.psychology_doctor} />
             <Field label="Anaesthetic Doctor" value={ect.anaesthetic_doctor} />
           </div>

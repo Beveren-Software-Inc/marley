@@ -279,10 +279,12 @@ export const LabTestList = ({
   patient,
   isOutsourced,
   defaultStatus,
+  byNurse,
 }: {
   patient?: string
   isOutsourced?: boolean
   defaultStatus?: string
+  byNurse?: boolean
 }) => {
   const { mode, selectedPatient: contextPatient } = useCareContext()
 
@@ -325,7 +327,8 @@ export const LabTestList = ({
     filters.fromDate || undefined,
     filters.toDate || undefined,
     filters.template || undefined,
-    filters.opIp || undefined
+    filters.opIp || undefined,
+    byNurse
   )
 
   // ── Consumables dialog ───────────────────────────────────────────────────

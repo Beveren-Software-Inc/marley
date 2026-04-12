@@ -50,6 +50,7 @@ def get_lab_tests(
 	to_date=None,
 	template=None,
 	patient_type=None,
+	by_nurse=None,
 ):
 	"""Get list of Lab Tests with optional filters (patient, status, date range, OP/IP, template, outsourcing)."""
 	from healthcare.api.common import get_permitted_cost_centers
@@ -71,6 +72,19 @@ def get_lab_tests(
 
 	if template:
 		filters["template"] = template
+
+	# Filter by nurse-specific lab tests based on template's by_nurse field
+	if by_nurse is not None:
+		if isinstance(by_nurse, str):
+			by_nurse = by_nurse.lower() in ('1', 'true', 'yes')
+		# Get templates that have by_nurse set to the desired value
+		template_filters = {"by_nurse": 1 if by_nurse else 0}
+		nurse_templates = frappe.get_all("Lab Test Template", filters=template_filters, pluck="name")
+		if nurse_templates:
+			filters["template"] = ["in", nurse_templates]
+		else:
+			# If no templates match the criteria, return empty result
+			return []
 
 	# OP / IP filter based on inpatient_record link
 	if patient_type == "IP":

@@ -39,6 +39,7 @@ export interface ECTProcedure extends ECTProcedureResult {
   date_of_session?: string
   no_of_session?: number
   bp?: string
+  bp_after?: string
   hr?: string
   resp_rate?: string
   spo2?: string

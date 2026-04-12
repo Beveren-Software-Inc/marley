@@ -28,8 +28,10 @@ interface CreateServiceRequestModalProps {
   onClose: () => void
   onSuccess: () => void
   initialPatient?: string
-  /** Pre-fill with a specific Lab Test Template (name/docname) */
+  /** Pre-fill with either a template type or a specific template name/docname */
   initialTemplate?: string
+  /** Default template type for nursing context */
+  defaultTemplateType?: string
 }
 
 interface PricingRow {
@@ -48,6 +50,7 @@ export const CreateServiceRequestModal = ({
   onSuccess,
   initialPatient,
   initialTemplate,
+  defaultTemplateType,
 }: CreateServiceRequestModalProps) => {
   // Get context from CareContextProvider
   const { mode, activeVisit, activeAdmission, selectedPatient: contextPatient } = useCareContext()
@@ -91,8 +94,8 @@ export const CreateServiceRequestModal = ({
 
   /* ────────────── FORM ────────────── */
   const [formData, setFormData] = useState({
-    template_dt: initialTemplate ? 'Lab Test Template' : '',
-    template_dn: initialTemplate || '',
+    template_dt: defaultTemplateType || '',
+    template_dn: '',
     practitioner: '',
     patient_visit: (isOPMode && activeVisit) ? activeVisit : '',
     inpatient_record: (isIPMode && activeAdmission) ? activeAdmission : '',
@@ -154,43 +157,37 @@ export const CreateServiceRequestModal = ({
   }, [isIPMode, isOPMode, activeAdmission, activeVisit, effectivePatient, selectedPatient])
 
   /* ────────────── INITIAL LOAD ────────────── */
-// In CreateServiceRequestModal.tsx, update the INITIAL LOAD useEffect:
+  useEffect(() => {
+    const loadInitialData = async () => {
+      try {
+        const types = await fetchServiceRequestTemplateTypes()
+        setTemplateTypes(types)
 
-/* ────────────── INITIAL LOAD ────────────── */
-useEffect(() => {
-  const loadInitialData = async () => {
-    // Load template types
-    const types = await fetchServiceRequestTemplateTypes()
-    console.log('Template Types loaded:', types) // Debug: Check what types are returned
-    setTemplateTypes(types)
-    
-    // Load practitioners
-    const practitionersList = await fetchHealthcarePractitioners()
-    setPractitioners(practitionersList)
-    
-    // If initialTemplate is provided, automatically set the template_dt and load templates
-    if (initialTemplate) {
-      // Find the Lab Test Template type
-      const labTestType = types.find(t => t.name === 'Lab Test Template' || t.label === 'Lab Test Template')
-      
-      if (labTestType) {
-        console.log('Found Lab Test Template type:', labTestType)
-        setFormData(prev => ({ ...prev, template_dt: labTestType.name }))
-        const templateList = await fetchServiceRequestTemplates(labTestType.name)
-        console.log('Templates loaded:', templateList)
-        setTemplates(templateList)
-      } else {
-        console.warn('Available template types:', types.map(t => t.name))
-        // Fallback: try to set template_dt directly
-        setFormData(prev => ({ ...prev, template_dt: 'Lab Test Template' }))
-        const templateList = await fetchServiceRequestTemplates('Lab Test Template')
-        setTemplates(templateList)
+        const practitionersList = await fetchHealthcarePractitioners()
+        setPractitioners(practitionersList)
+
+        const initialTemplateIsType = !!initialTemplate && types.some(
+          (t) => t.name === initialTemplate || t.label === initialTemplate
+        )
+
+        const templateType = initialTemplateIsType
+          ? initialTemplate
+          : defaultTemplateType || (initialTemplate ? 'Lab Test Template' : '')
+
+        const templateDn = !initialTemplateIsType && initialTemplate ? initialTemplate : ''
+
+        if (templateType) {
+          setFormData((prev) => ({ ...prev, template_dt: templateType, template_dn: templateDn }))
+          const templateList = await fetchServiceRequestTemplates(templateType)
+          setTemplates(templateList)
+        }
+      } catch (err) {
+        console.error('Failed to load service request initial data:', err)
       }
     }
-  }
-  
-  loadInitialData()
-}, [])
+
+    loadInitialData()
+  }, [initialTemplate, defaultTemplateType])
 
   /* ────────────── TEMPLATE TYPE CHANGE ────────────── */
   useEffect(() => {
@@ -435,8 +432,8 @@ useEffect(() => {
     }
   }
 
-  // Check if template type is locked (when initialTemplate is provided)
-  const isTemplateTypeLocked = !!initialTemplate
+  // Check if template type is locked (when initialTemplate or default template type is provided)
+  const isTemplateTypeLocked = !!initialTemplate || !!defaultTemplateType
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -446,7 +443,7 @@ useEffect(() => {
         <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
           <div>
             <h2 className="text-xl font-semibold text-slate-900">
-              {initialTemplate === 'Lab Test Template' ? 'Create Lab Request' : 'Create Service Request'}
+              {formData.template_dt === 'Lab Test Template' ? 'Create Lab Request' : 'Create Service Request'}
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
               {isIPMode && <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-[10px] font-medium mr-2">IP Mode Active</span>}
@@ -673,7 +670,7 @@ useEffect(() => {
                 ))}
               </select>
               {isTemplateTypeLocked && (
-                <p className="text-xs text-slate-400 mt-1">Template type is pre-selected for Lab Request</p>
+                <p className="text-xs text-slate-400 mt-1">Template type is pre-selected for this request</p>
               )}
             </div>
 

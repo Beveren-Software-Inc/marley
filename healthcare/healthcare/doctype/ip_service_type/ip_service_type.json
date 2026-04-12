@@ -1,7 +1,7 @@
 {
  "actions": [],
  "autoname": "field:service_name",
- "creation": "2026-01-01 00:00:00.000000",
+ "creation": "2026-01-01 00:00:00",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -11,7 +11,8 @@
   "column_break_1",
   "item_code",
   "rate",
-  "disabled"
+  "disabled",
+  "pricing"
  ],
  "fields": [
   {
@@ -28,22 +29,22 @@
    "label": "Description"
   },
   {
+   "description": "e.g. Transport, External, Other",
    "fieldname": "category",
    "fieldtype": "Data",
    "in_list_view": 1,
-   "label": "Category",
-   "description": "e.g. Transport, External, Other"
+   "label": "Category"
   },
   {
    "fieldname": "column_break_1",
    "fieldtype": "Column Break"
   },
   {
+   "description": "For billing when service is invoiced",
    "fieldname": "item_code",
    "fieldtype": "Link",
    "label": "Item",
-   "options": "Item",
-   "description": "For billing when service is invoiced"
+   "options": "Item"
   },
   {
    "fieldname": "rate",
@@ -56,11 +57,16 @@
    "fieldtype": "Check",
    "in_list_view": 1,
    "label": "Disabled"
+  },
+  {
+   "fieldname": "pricing",
+   "fieldtype": "Table",
+   "label": "Pricing",
+   "options": "Service Pricing"
   }
  ],
- "index_web_pages_for_search": 0,
  "links": [],
- "modified": "2026-01-01 00:00:00.000000",
+ "modified": "2026-04-12 14:06:34.621431",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "IP Service Type",
@@ -110,6 +116,7 @@
    "share": 1
   }
  ],
+ "row_format": "Dynamic",
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": [],

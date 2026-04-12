@@ -65,6 +65,7 @@ import { SickLeaveList } from '../components/nursing/SickLeaveList'
 import { CreateSickLeaveModal } from '../components/nursing/CreateSickLeaveModal'
 import { PatientList } from '../components/patients/PatientList'
 import { RxPage } from '../components/prescriptions/SinglePrescription'
+import { NursingInventoryDashboard } from '../components/nursingInventory/NursingInventoryDashboard'
 
 
 export const NursePage = () => {
@@ -126,6 +127,7 @@ export const NursePage = () => {
   const [patientHistoryRefreshKey, setPatientHistoryRefreshKey] = useState(0)
   const screen = searchParams.get('screen')
 
+
   // Sync selectedPatient with URL on mount and when URL changes
   useEffect(() => {
     const patientParam = searchParams.get('patient')
@@ -181,6 +183,32 @@ export const NursePage = () => {
     return <AdmissionPage />
   }
 
+
+    if (screen === 'n-inventory') {
+    return (
+      <div className="flex flex-col">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+        <div className="p-4">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+            <div className="font-semibold mb-4">Inventory Dashboard</div>
+            <NursingInventoryDashboard />
+          </section>
+        </div>
+      </div>
+    )
+  }
 
   if (screen === 'single-prescription') {
     return (
@@ -469,6 +497,7 @@ export const NursePage = () => {
             <LabTestList
               patient={selectedPatient}
               defaultStatus="Requested"
+              byNurse={true}
               key={labTestRefreshKey}
             />
           </section>
@@ -1296,6 +1325,7 @@ export const NursePage = () => {
               setShowServiceRequestModal(false)
             }}
             initialPatient={selectedPatient}
+            initialTemplate='IP Service Type'
           />
         )}
         {showCreateIPServiceModal && (
@@ -1357,6 +1387,7 @@ export const NursePage = () => {
               setShowServiceRequestModal(false)
             }}
             initialPatient={selectedPatient}
+             initialTemplate="IP Service Type" 
           />
         )}
       </div>
@@ -2191,6 +2222,7 @@ export const NursePage = () => {
             toast.success('Service request created successfully')
           }}
           initialPatient={selectedPatient}
+          initialTemplate='IP Service Type'
         />
       )}
     </div>

@@ -9,7 +9,8 @@ export function useLabTests(
   fromDate?: string,
   toDate?: string,
   template?: string,
-  patientType?: string
+  patientType?: string,
+  byNurse?: boolean
 ) {
   const [labTests, setLabTests] = useState<LabTest[]>([])
   const [loading, setLoading] = useState(true)
@@ -30,7 +31,8 @@ export function useLabTests(
           fromDate,
           toDate,
           template,
-          patientType
+          patientType,
+          byNurse
         )
         setLabTests(response)
       } catch (err) {
@@ -41,7 +43,7 @@ export function useLabTests(
     }
 
     loadLabTests()
-  }, [patient, status, pendingReview, isOutsourced, fromDate, toDate, template, patientType])
+  }, [patient, status, pendingReview, isOutsourced, fromDate, toDate, template, patientType, byNurse])
 
   return {
     labTests,
