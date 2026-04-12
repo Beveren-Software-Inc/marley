@@ -133,3 +133,31 @@ export async function fetchUserCostCenters(): Promise<{ name: string; label: str
   const data = await response.json()
   return data.message || []
 }
+
+// Add to services/nursingInventory.ts
+
+export async function getWarehousesForCostCenter(costCenter: string): Promise<{ name: string; label: string }[]> {
+  const response = await fetch(`/api/method/healthcare.api.nursing_inventory.get_warehouses_for_cost_center?cost_center=${encodeURIComponent(costCenter)}`)
+  const data = await response.json()
+  return data.message || []
+}
+
+// export async function createStockReconciliation(data: any): Promise<{ name: string }> {
+//   const response = await fetch('/api/method/healthcare.api.nursing_inventory.create_stock_reconciliation', {
+//     method: 'POST',
+//     headers: { 'Content-Type': 'application/json' },
+//     body: JSON.stringify(data)
+//   })
+//   const result = await response.json()
+//   if (!response.ok) throw new Error(result.message || 'Failed to create stock reconciliation')
+//   return result.message
+// }
+
+
+// Add to services/nursingInventory.ts
+
+export async function getAllCostCenters(): Promise<{ name: string; label: string }[]> {
+  const response = await fetch('/api/method/healthcare.api.nursing_inventory.get_all_cost_centers')
+  const data = await response.json()
+  return data.message || []
+}

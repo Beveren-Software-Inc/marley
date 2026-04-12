@@ -100,8 +100,7 @@ const nurseScreenGroups: ScreenGroup[] = [
    {
     groupTitle: 'Inventory',
     screens: [
-      { id: 'inventory',    title: 'My Nursing Tasks' },
-      { id: 'n-nurse-tasks', title: 'Nurse Tasks' },
+      { id: 'n-inventory',    title: 'Dashboard Inventory' },
     ],
   },
   {

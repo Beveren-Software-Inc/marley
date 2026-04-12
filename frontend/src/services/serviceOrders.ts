@@ -19,6 +19,19 @@ export interface ServiceOrder {
   invoice_amount?: number
 }
 
+export interface OutpatientBalance {
+  visit_id: string
+  patient_name: string
+  patient_id: string
+  visit_date: string
+  practitioner?: string
+  total_amount: number
+  total_paid: number
+  outstanding_amount: number
+  days_overdue: number
+  last_invoice_date?: string
+}
+
 export interface ServiceInvoice {
   name: string
   customer: string
@@ -155,3 +168,66 @@ export async function createServiceOrder(data: any): Promise<string> {
   return result.message
 }
 
+
+// Add to services/serviceOrders.ts
+
+export interface InpatientBalance {
+  admission_id: string
+  patient_name: string
+  patient_id: string
+  admission_date: string
+  discharge_date?: string
+  cost_center?: string
+  total_amount: number
+  total_paid: number
+  outstanding_amount: number
+  days_overdue: number
+  last_invoice_date?: string
+}
+
+export async function fetchInpatientBalances(patientId?: string): Promise<InpatientBalance[]> {
+  let url = '/api/method/healthcare.api.billing.get_inpatient_balances'
+  if (patientId) {
+    url += `?patient=${encodeURIComponent(patientId)}`
+  }
+  const response = await fetch(url)
+  const data = await response.json()
+
+  console.log("Inpatient balances response data:", data) // Add this line to log the response data
+  if (!response.ok) throw new Error(data.message || 'Failed to fetch inpatient balances')
+  return data.message || []
+}
+
+
+// Add to services/serviceOrders.ts
+
+
+
+export async function fetchOutpatientBalances(patientId?: string): Promise<OutpatientBalance[]> {
+  let url = '/api/method/healthcare.api.billing.get_outpatient_balances'
+  if (patientId) {
+    url += `?patient=${encodeURIComponent(patientId)}`
+  }
+  const response = await fetch(url)
+  const data = await response.json()
+  if (!response.ok) throw new Error(data.message || 'Failed to fetch outpatient balances')
+  return data.message || []
+}
+
+
+// Add to services/serviceOrders.ts
+
+export async function fetchInvoicesByReference(
+  referenceType: 'Inpatient Admission' | 'Patient Visit',
+  referenceName: string,
+  patient?: string
+): Promise<ServiceInvoice[]> {
+  let url = `/api/method/healthcare.api.service_orders.get_invoices_by_reference?reference_type=${encodeURIComponent(referenceType)}&reference_name=${encodeURIComponent(referenceName)}`
+  if (patient) {
+    url += `&patient=${encodeURIComponent(patient)}`
+  }
+  const response = await fetch(url)
+  const data = await response.json()
+  if (!response.ok) throw new Error(data.message || 'Failed to fetch invoices')
+  return data.message || []
+}

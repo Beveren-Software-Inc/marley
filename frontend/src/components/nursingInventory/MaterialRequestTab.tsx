@@ -1,8 +1,8 @@
 // tabs/MaterialRequestTab.tsx
 import { useState, useEffect } from 'react'
-import { useCareContext } from '../../../providers/CareContextProvider'
-import { createMaterialRequest, fetchMaterialRequests, fetchInventoryItems, type MaterialRequest, type MaterialRequestItem } from '../../../services/nursingInventory'
-import { toast } from '../../../hooks/useToast'
+import { useCareContext } from '../../providers/CareContextProvider'
+import { createMaterialRequest, fetchMaterialRequests, fetchInventoryItems, type MaterialRequest, type MaterialRequestItem } from '../../services/nursingInventory'
+import { toast } from '../../hooks/useToast'
 import { Plus, Trash2, Send, Eye, CheckCircle, XCircle, Package } from 'lucide-react'
 
 interface MaterialRequestTabProps {
