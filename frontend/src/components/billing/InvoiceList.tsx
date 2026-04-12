@@ -1,8 +1,7 @@
 // components/billing/InvoiceList.tsx
 import { useState, useEffect } from 'react'
 import { fetchInvoicesByReference, type ServiceInvoice } from '../../services/serviceOrders'
-import { useCareContext } from '../../providers/CareContextProvider'
-import { RefreshCw, FileText, Eye, Printer } from 'lucide-react'
+import { RefreshCw, FileText, Eye } from 'lucide-react'
 import { toast } from '../../hooks/useToast'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 

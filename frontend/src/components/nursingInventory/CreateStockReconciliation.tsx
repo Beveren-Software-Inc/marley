@@ -22,7 +22,7 @@ interface ReconciliationItem {
 
 type TabId = 'details' | 'items'
 
-export const CreateStockReconciliationModal = ({ onClose, onSuccess, costCenter, isFullAccess }: CreateStockReconciliationModalProps) => {
+export const CreateStockReconciliationModal = ({ onClose, onSuccess, costCenter }: CreateStockReconciliationModalProps) => {
   const { userCostCenter, user } = useCareContext()
   const effectiveCostCenter = costCenter || userCostCenter
   
@@ -65,6 +65,11 @@ export const CreateStockReconciliationModal = ({ onClose, onSuccess, costCenter,
   const loadCurrentStock = async () => {
     if (!warehouse) {
       toast.error('Please select a warehouse')
+      return
+    }
+    
+    if (!effectiveCostCenter) {
+      toast.error('Cost center is required')
       return
     }
     
@@ -157,6 +162,11 @@ export const CreateStockReconciliationModal = ({ onClose, onSuccess, costCenter,
     }
 
     const itemsWithDiscrepancy = items.filter(item => item.difference !== 0)
+    if (!effectiveCostCenter) {
+      toast.error('Cost center is required')
+      return
+    }
+
     if (itemsWithDiscrepancy.length === 0) {
       toast.error('No discrepancies found. Nothing to reconcile.')
       return
@@ -170,10 +180,13 @@ export const CreateStockReconciliationModal = ({ onClose, onSuccess, costCenter,
         reconciliation_date: new Date().toISOString().split('T')[0],
         items: itemsWithDiscrepancy.map(item => ({
           item_code: item.item_code,
-          qty: item.new_qty,
-          current_qty: item.current_qty
+          item_name: item.item_name,
+          system_quantity: item.current_qty,
+          physical_quantity: item.new_qty,
+          difference: item.difference
         })),
-        reconciled_by: user?.name || ''
+        reconciled_by: user?.name || '',
+        status: 'Draft'
       })
       toast.success(`Stock reconciliation completed. ${itemsWithDiscrepancy.length} items adjusted.`)
       onSuccess()

@@ -30,9 +30,7 @@ import {
   FileText as FileIcon,
   Users,
   User,
-  Filter,
-  X,
-  Calendar
+  Filter
 } from 'lucide-react'
 import { toast } from '../../hooks/useToast'
 
@@ -246,7 +244,7 @@ export const BillingDashboard = ({ patient, admission, visit }: BillingDashboard
     }
   }
 
-  const getBalanceStatusColor = (balance: InpatientBalance | OutpatientBalance, isOutpatient: boolean = false) => {
+  const getBalanceStatusColor = (balance: InpatientBalance | OutpatientBalance) => {
     if (balance.outstanding_amount === 0 && balance.total_paid > 0) {
       return { bg: 'bg-green-50', border: 'border-green-200', text: 'text-green-700', badge: 'bg-green-100 text-green-800', label: 'Paid in Full' }
     }
@@ -607,7 +605,7 @@ export const BillingDashboard = ({ patient, admission, visit }: BillingDashboard
         ) : (
           <div className="space-y-3">
             {filteredOutpatient.map((balance) => {
-              const status = getBalanceStatusColor(balance, true)
+              const status = getBalanceStatusColor(balance)
               const percentagePaid = balance.total_amount > 0 ? (balance.total_paid / balance.total_amount) * 100 : 0
               
               return (

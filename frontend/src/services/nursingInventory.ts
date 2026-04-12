@@ -22,6 +22,7 @@ export interface MaterialRequestItem {
 export interface MaterialRequest {
   name: string
   cost_center: string
+  warehouse?: string
   request_date: string
   status: 'Draft' | 'Submitted' | 'Approved' | 'Rejected' | 'Issued'
   items: MaterialRequestItem[]
@@ -33,6 +34,7 @@ export interface MaterialRequest {
 export interface StockReconciliation {
   name: string
   cost_center: string
+  warehouse?: string
   reconciliation_date: string
   items: {
     item_code: string
@@ -49,6 +51,7 @@ export interface StockReconciliation {
 export interface MaterialReceipt {
   name: string
   cost_center: string
+  warehouse?: string
   receipt_date: string
   supplier?: string
   invoice_number?: string

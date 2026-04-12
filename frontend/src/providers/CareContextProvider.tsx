@@ -24,6 +24,12 @@ interface CareContextValue {
    */
   selectedPatient: string | undefined
   setSelectedPatient: (patient: string | undefined) => void
+  /** Current user's cost center */
+  userCostCenter?: string
+  /** Current user's roles */
+  userRole?: string[]
+  /** Current user object */
+  user?: any
 }
 
 const CareContext = createContext<CareContextValue | undefined>(undefined)
@@ -86,6 +92,9 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
       activeVisit, setActiveVisit,
       activeAdmission, setActiveAdmission,
       selectedPatient, setSelectedPatient,
+      userCostCenter: undefined,
+      userRole: undefined,
+      user: undefined,
     }}>
       {children}
     </CareContext.Provider>

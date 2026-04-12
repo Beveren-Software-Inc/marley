@@ -7,9 +7,12 @@ import { Plus, Trash2, Send, Eye, CheckCircle, XCircle, Package } from 'lucide-r
 
 interface MaterialRequestTabProps {
   onSuccess: () => void
+  refreshKey?: number
+  costCenter?: string
+  isFullAccess?: boolean
 }
 
-export const MaterialRequestTab = ({ onSuccess }: MaterialRequestTabProps) => {
+export const MaterialRequestTab = ({ onSuccess, refreshKey: _refreshKey, costCenter: _costCenter, isFullAccess: _isFullAccess }: MaterialRequestTabProps) => {
   const { userCostCenter, user } = useCareContext()
   const [requests, setRequests] = useState<MaterialRequest[]>([])
   const [showForm, setShowForm] = useState(false)

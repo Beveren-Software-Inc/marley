@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { createMaterialReceipt, fetchInventoryItems, getWarehousesForCostCenter } from '../../services/nursingInventory'
 import { toast } from '../../hooks/useToast'
-import { X, Plus, Trash2, Save, Package, Warehouse } from 'lucide-react'
+import { X, Plus, Trash2, Save, Package } from 'lucide-react'
 
 interface CreateMaterialReceiptModalProps {
   onClose: () => void
@@ -24,7 +24,7 @@ interface ReceiptItem {
 
 type TabId = 'details' | 'items'
 
-export const CreateMaterialReceiptModal = ({ onClose, onSuccess, costCenter, isFullAccess }: CreateMaterialReceiptModalProps) => {
+export const CreateMaterialReceiptModal = ({ onClose, onSuccess, costCenter }: CreateMaterialReceiptModalProps) => {
   const { userCostCenter, user } = useCareContext()
   const effectiveCostCenter = costCenter || userCostCenter
   

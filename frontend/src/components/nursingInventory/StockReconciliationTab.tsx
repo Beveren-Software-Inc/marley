@@ -1,12 +1,15 @@
 // tabs/StockReconciliationTab.tsx
 import { useState, useEffect } from 'react'
 import { useCareContext } from '../../providers/CareContextProvider'
-import { fetchStockLedger, type StockLedgerItem } from '../../services/nursingInventory'
+import { fetchStockLedger } from '../../services/nursingInventory'
 import { toast } from '../../hooks/useToast'
-import { Plus, Save, Eye, CheckCircle, AlertTriangle, RefreshCw, Search } from 'lucide-react'
+import { Save, Eye, CheckCircle, RefreshCw, Search } from 'lucide-react'
 
 interface StockReconciliationTabProps {
   onSuccess: () => void
+  refreshKey?: number
+  costCenter?: string
+  isFullAccess?: boolean
 }
 
 interface ReconciliationItem {
@@ -18,7 +21,7 @@ interface ReconciliationItem {
   warehouse: string
 }
 
-export const StockReconciliationTab = ({ onSuccess }: StockReconciliationTabProps) => {
+export const StockReconciliationTab = ({ onSuccess, refreshKey: _refreshKey, costCenter: _costCenter, isFullAccess: _isFullAccess }: StockReconciliationTabProps) => {
   const { userCostCenter, user } = useCareContext()
   const [reconciliations, setReconciliations] = useState<any[]>([])
   const [showForm, setShowForm] = useState(false)
@@ -44,7 +47,7 @@ export const StockReconciliationTab = ({ onSuccess }: StockReconciliationTabProp
 
   const loadWarehouses = async () => {
     try {
-      const response = await fetch(`/api/method/healthcare.api.nursing_inventory.get_warehouses_for_cost_center?cost_center=${encodeURIComponent(userCostCenter)}`)
+      const response = await fetch(`/api/method/healthcare.api.nursing_inventory.get_warehouses_for_cost_center?cost_center=${encodeURIComponent(userCostCenter!)}`)
       const data = await response.json()
       setWarehouses(data.message || [])
       if (data.message && data.message.length > 0) {
@@ -72,6 +75,10 @@ export const StockReconciliationTab = ({ onSuccess }: StockReconciliationTabProp
   const loadCurrentStock = async () => {
     if (!warehouse) {
       toast.error('Please select a warehouse first')
+      return
+    }
+    if (!userCostCenter) {
+      toast.error('Cost center not available')
       return
     }
     
@@ -337,7 +344,7 @@ export const StockReconciliationTab = ({ onSuccess }: StockReconciliationTabProp
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200">
-                  {filteredItems.map((item, idx) => {
+                  {filteredItems.map((item) => {
                     const originalIndex = items.findIndex(i => i.item_code === item.item_code)
                     const hasDiscrepancy = item.difference !== 0
                     return (

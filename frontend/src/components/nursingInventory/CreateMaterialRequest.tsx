@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { createMaterialRequest, fetchInventoryItems, getWarehousesForCostCenter } from '../../services/nursingInventory'
 import { toast } from '../../hooks/useToast'
-import { X, Plus, Trash2, Send, Package, Warehouse } from 'lucide-react'
+import { X, Plus, Trash2, Send, Package } from 'lucide-react'
 
 interface CreateMaterialRequestModalProps {
   onClose: () => void
@@ -22,7 +22,7 @@ interface RequestItem {
 
 type TabId = 'details' | 'items'
 
-export const CreateMaterialRequestModal = ({ onClose, onSuccess, costCenter, isFullAccess }: CreateMaterialRequestModalProps) => {
+export const CreateMaterialRequestModal = ({ onClose, onSuccess, costCenter }: CreateMaterialRequestModalProps) => {
   const { userCostCenter, user } = useCareContext()
   const effectiveCostCenter = costCenter || userCostCenter
   

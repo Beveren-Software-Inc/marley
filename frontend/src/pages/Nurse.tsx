@@ -65,7 +65,7 @@ import { SickLeaveList } from '../components/nursing/SickLeaveList'
 import { CreateSickLeaveModal } from '../components/nursing/CreateSickLeaveModal'
 import { PatientList } from '../components/patients/PatientList'
 import { RxPage } from '../components/prescriptions/SinglePrescription'
-import { NursingInventoryDashboard } from '../components/nursingInventory/nursingINventoryDashboard'
+import { NursingInventoryDashboard } from '../components/nursingInventory/NursingInventoryDashboard'
 
 
 export const NursePage = () => {

@@ -27,7 +27,7 @@ interface CardDef {
 }
 
 export function NursingInventoryDashboard() {
-  const { userCostCenter, userRole, user } = useCareContext()
+  const { userCostCenter, userRole } = useCareContext()
   const [activeTab, setActiveTab] = useState<InventoryTab>('stock-ledger')
   const [availableCostCenters, setAvailableCostCenters] = useState<{ name: string; label: string }[]>([])
   const [selectedCostCenter, setSelectedCostCenter] = useState('')
@@ -119,11 +119,11 @@ export function NursingInventoryDashboard() {
       case 'stock-ledger':
         return <StockLedgerTab costCenter={effectiveCostCenter} isFullAccess={isFullAccess} />
       case 'material-request':
-        return <MaterialRequestTab refreshKey={materialRequestRefreshKey} costCenter={effectiveCostCenter} isFullAccess={isFullAccess} />
+        return <MaterialRequestTab onSuccess={() => setMaterialRequestRefreshKey(prev => prev + 1)} refreshKey={materialRequestRefreshKey} costCenter={effectiveCostCenter} isFullAccess={isFullAccess} />
       case 'stock-reconciliation':
-        return <StockReconciliationTab refreshKey={stockReconciliationRefreshKey} costCenter={effectiveCostCenter} isFullAccess={isFullAccess} />
+        return <StockReconciliationTab onSuccess={() => setStockReconciliationRefreshKey(prev => prev + 1)} refreshKey={stockReconciliationRefreshKey} costCenter={effectiveCostCenter} isFullAccess={isFullAccess} />
       case 'material-receipt':
-        return <MaterialReceiptTab refreshKey={materialReceiptRefreshKey} costCenter={effectiveCostCenter} isFullAccess={isFullAccess} />
+        return <MaterialReceiptTab onSuccess={() => setMaterialReceiptRefreshKey(prev => prev + 1)} refreshKey={materialReceiptRefreshKey} costCenter={effectiveCostCenter} isFullAccess={isFullAccess} />
       default:
         return null
     }

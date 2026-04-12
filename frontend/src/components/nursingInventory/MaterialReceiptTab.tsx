@@ -3,10 +3,13 @@ import { useState, useEffect } from 'react'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { createMaterialReceipt, fetchInventoryItems, type MaterialReceipt } from '../../services/nursingInventory'
 import { toast } from '../../hooks/useToast'
-import { Plus, Trash2, Save, Eye, Upload, Package, DollarSign, Calendar } from 'lucide-react'
+import { Plus, Trash2, Save, Eye, Upload, Package, CheckCircle } from 'lucide-react'
 
 interface MaterialReceiptTabProps {
   onSuccess: () => void
+  refreshKey?: number
+  costCenter?: string
+  isFullAccess?: boolean
 }
 
 interface ReceiptItem {
@@ -19,7 +22,7 @@ interface ReceiptItem {
   expiry_date?: string
 }
 
-export const MaterialReceiptTab = ({ onSuccess }: MaterialReceiptTabProps) => {
+export const MaterialReceiptTab = ({ onSuccess, refreshKey: _refreshKey, costCenter: _costCenter, isFullAccess: _isFullAccess }: MaterialReceiptTabProps) => {
   const { userCostCenter, user } = useCareContext()
   const [receipts, setReceipts] = useState<MaterialReceipt[]>([])
   const [showForm, setShowForm] = useState(false)
