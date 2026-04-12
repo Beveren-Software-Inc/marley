@@ -23,7 +23,11 @@ export interface ECTDetail {
   ect_nurse_notes?: string
   n_date_and_time?: string
   bp_1?: string
+  max_bp_1?: string
   bp_2?: string
+  max_bp2?: string
+  propofol_detail?: string
+  succinycholine_detail?: string
   psychology_doctor?: string
   anaesthetic_doctor?: string
   reference_doctype?: string
@@ -91,7 +95,11 @@ export interface CreateECTDetailData {
   ect_nurse_notes?: string
   n_date_and_time?: string
   bp_1?: string
+  max_bp_1?: string
   bp_2?: string
+  max_bp2?: string
+  propofol_detail?: string
+  succinycholine_detail?: string
   psychology_doctor?: string
   anaesthetic_doctor?: string
 }

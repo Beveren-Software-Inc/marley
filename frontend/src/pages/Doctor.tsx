@@ -18,6 +18,7 @@ import { PatientDiagnosisList } from '../components/diagnosis/PatientDiagnosisLi
 import { PatientDiagnosisModal } from '../components/diagnosis/PatientDiagnosisModal'
 import { DischargeList } from '../components/discharges/DischargeList'
 import { ECTDashboard } from '../components/ect/ECTDashboard'
+import { ECTChart } from '../components/ect/ECTChart'
 import { EnvironmentalChecklistList } from '../components/environmental/EnvironmentalChecklistList'
 import { CreateGAD7AssessmentModal } from '../components/gad7/CreateGAD7AssessmentModal'
 import { GAD7AssessmentList } from '../components/gad7/GAD7AssessmentList'
@@ -2215,6 +2216,17 @@ if (screen === 'single-prescription') {
                 />
               </div>
             </section>
+
+            {mode === 'IP' && activeAdmission && (
+              <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
+                <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
+                  <span>ECT Chart</span>
+                </div>
+                <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
+                  <ECTChart patient={selectedPatient} />
+                </div>
+              </section>
+            )}
 
             {/* Card 3: Lab Test Reports */}
             <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">

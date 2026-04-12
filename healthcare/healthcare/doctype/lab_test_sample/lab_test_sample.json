@@ -12,6 +12,7 @@
   "sample_type",
   "sample",
   "container_closure_color",
+  "by_nurses",
   "column_break_0sbu",
   "sample_uom",
   "collection_details",
@@ -60,10 +61,16 @@
    "fieldname": "results",
    "fieldtype": "Float",
    "label": "Results"
+  },
+  {
+   "default": "0",
+   "fieldname": "by_nurses",
+   "fieldtype": "Check",
+   "label": "By Nurses"
   }
  ],
  "links": [],
- "modified": "2026-03-18 15:51:01.935730",
+ "modified": "2026-04-12 12:57:38.172018",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Lab Test Sample",

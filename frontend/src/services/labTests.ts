@@ -75,7 +75,8 @@ export async function fetchLabTests(
   from_date?: string,
   to_date?: string,
   template?: string,
-  patient_type?: string
+  patient_type?: string,
+  by_nurse?: boolean
 ): Promise<LabTest[]> {
   const params = new URLSearchParams()
   params.append('limit', limit.toString())
@@ -88,6 +89,7 @@ export async function fetchLabTests(
   if (to_date) params.append('to_date', to_date)
   if (template) params.append('template', template)
   if (patient_type) params.append('patient_type', patient_type)
+  if (by_nurse !== undefined) params.append('by_nurse', by_nurse ? '1' : '0')
 
   const response = await fetch(
     `/api/method/healthcare.api.lab_test.get_lab_tests?${params.toString()}`

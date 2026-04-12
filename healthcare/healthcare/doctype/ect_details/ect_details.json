@@ -25,6 +25,8 @@
   "assist_doctor",
   "psychiatrist",
   "nurse",
+  "propofol_detail",
+  "succinycholine_detail",
   "section_break_wpqr",
   "doctors_name",
   "ect_doctors_notes",
@@ -35,10 +37,13 @@
   "n_date_and_time",
   "other_information_section",
   "bp_1",
-  "bp_2",
+  "max_bp_1",
   "column_break_mply",
   "psychology_doctor",
-  "anaesthetic_doctor"
+  "anaesthetic_doctor",
+  "after_section",
+  "bp_2",
+  "max_bp2"
  ],
  "fields": [
   {
@@ -57,9 +62,10 @@
   },
   {
    "fieldname": "source",
-   "fieldtype": "Data",
+   "fieldtype": "Link",
    "in_list_view": 1,
-   "label": "Source"
+   "label": "Source",
+   "options": "Patient Source"
   },
   {
    "fieldname": "duration",
@@ -199,12 +205,12 @@
   {
    "fieldname": "bp_1",
    "fieldtype": "Data",
-   "label": "BP 1"
+   "label": "Min BP 1"
   },
   {
    "fieldname": "bp_2",
    "fieldtype": "Data",
-   "label": "BP 2"
+   "label": "Min BP 2"
   },
   {
    "fieldname": "column_break_mply",
@@ -221,12 +227,37 @@
    "fieldtype": "Link",
    "label": "Anaesthetic Doctor",
    "options": "Healthcare Practitioner"
+  },
+  {
+   "fieldname": "propofol_detail",
+   "fieldtype": "Data",
+   "label": "Propofol Detail"
+  },
+  {
+   "fieldname": "succinycholine_detail",
+   "fieldtype": "Data",
+   "label": "Succinycholine Detail"
+  },
+  {
+   "fieldname": "max_bp_1",
+   "fieldtype": "Data",
+   "label": "Max BP 1"
+  },
+  {
+   "fieldname": "after_section",
+   "fieldtype": "Section Break",
+   "label": "After"
+  },
+  {
+   "fieldname": "max_bp2",
+   "fieldtype": "Data",
+   "label": "Max Bp2"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-03-10 01:27:25.531135",
+ "modified": "2026-04-12 12:46:23.191545",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "ECT Details",

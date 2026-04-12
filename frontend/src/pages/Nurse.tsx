@@ -469,6 +469,7 @@ export const NursePage = () => {
             <LabTestList
               patient={selectedPatient}
               defaultStatus="Requested"
+              byNurse={true}
               key={labTestRefreshKey}
             />
           </section>
@@ -1296,6 +1297,7 @@ export const NursePage = () => {
               setShowServiceRequestModal(false)
             }}
             initialPatient={selectedPatient}
+            initialTemplate='IP Service Type'
           />
         )}
         {showCreateIPServiceModal && (
@@ -1357,6 +1359,7 @@ export const NursePage = () => {
               setShowServiceRequestModal(false)
             }}
             initialPatient={selectedPatient}
+             initialTemplate="IP Service Type" 
           />
         )}
       </div>
@@ -2191,6 +2194,7 @@ export const NursePage = () => {
             toast.success('Service request created successfully')
           }}
           initialPatient={selectedPatient}
+          initialTemplate='IP Service Type'
         />
       )}
     </div>

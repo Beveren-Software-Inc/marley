@@ -1,0 +1,1 @@
+{"compilerOptions": {"noEmit": true, "jsx": "react-jsx", "skipLibCheck": true, "moduleResolution": "node", "lib": ["es2020", "dom"]}, "files": ["src/components/ect/ECTChart.tsx", "src/components/ect/CreateECTDetailModal.tsx", "src/components/ect/ECTDetailDetails.tsx", "src/services/ectDetails.ts"]}

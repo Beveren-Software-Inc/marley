@@ -38,6 +38,8 @@ export const CreateECTDetailModal = ({
     source: '',
     duration: '',
     energy: '',
+    propofol_detail: '',
+    succinycholine_detail: '',
     _age: '',
     success: '',
     reference_doctype: '',
@@ -57,6 +59,8 @@ export const CreateECTDetailModal = ({
     n_date_and_time: '',
     bp_1: '',
     bp_2: '',
+    max_bp_1: '',
+    max_bp2: '',
     psychology_doctor: '',
     anaesthetic_doctor: '',
   })
@@ -137,6 +141,10 @@ export const CreateECTDetailModal = ({
         n_date_and_time: toFrappeDateTime(formData.n_date_and_time) || undefined,
         bp_1: formData.bp_1 || undefined,
         bp_2: formData.bp_2 || undefined,
+        max_bp_1: formData.max_bp_1 || undefined,
+        max_bp2: formData.max_bp2 || undefined,
+        propofol_detail: formData.propofol_detail || undefined,
+        succinycholine_detail: formData.succinycholine_detail || undefined,
         psychology_doctor: formData.psychology_doctor || undefined,
         anaesthetic_doctor: formData.anaesthetic_doctor || undefined,
       })
@@ -423,6 +431,29 @@ export const CreateECTDetailModal = ({
                       onChange={(e) => handleChange('energy', e.target.value)}
                       className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
                       placeholder="e.g. 50%"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Propofol Detail</label>
+                    <input
+                      type="text"
+                      value={formData.propofol_detail}
+                      onChange={(e) => handleChange('propofol_detail', e.target.value)}
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                      placeholder="Propofol details"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Succinylcholine Detail</label>
+                    <input
+                      type="text"
+                      value={formData.succinycholine_detail}
+                      onChange={(e) => handleChange('succinycholine_detail', e.target.value)}
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                      placeholder="Succinylcholine details"
                     />
                   </div>
                 </div>
@@ -789,6 +820,29 @@ export const CreateECTDetailModal = ({
                       onChange={(e) => handleChange('bp_2', e.target.value)}
                       className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
                       placeholder="e.g. diastolic"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Max BP 1</label>
+                    <input
+                      type="text"
+                      value={formData.max_bp_1}
+                      onChange={(e) => handleChange('max_bp_1', e.target.value)}
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                      placeholder="Max systolic before"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Max BP 2</label>
+                    <input
+                      type="text"
+                      value={formData.max_bp2}
+                      onChange={(e) => handleChange('max_bp_2', e.target.value)}
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                      placeholder="Max diastolic after"
                     />
                   </div>
                 </div>

@@ -30,6 +30,8 @@ interface CreateServiceRequestModalProps {
   initialPatient?: string
   /** Pre-fill with a specific Lab Test Template (name/docname) */
   initialTemplate?: string
+  /** Default template type for nursing context */
+  defaultTemplateType?: string
 }
 
 interface PricingRow {
@@ -48,6 +50,7 @@ export const CreateServiceRequestModal = ({
   onSuccess,
   initialPatient,
   initialTemplate,
+  defaultTemplateType,
 }: CreateServiceRequestModalProps) => {
   // Get context from CareContextProvider
   const { mode, activeVisit, activeAdmission, selectedPatient: contextPatient } = useCareContext()
@@ -91,7 +94,7 @@ export const CreateServiceRequestModal = ({
 
   /* ────────────── FORM ────────────── */
   const [formData, setFormData] = useState({
-    template_dt: initialTemplate ? 'Lab Test Template' : '',
+    template_dt: defaultTemplateType || (initialTemplate ? 'Lab Test Template' : ''),
     template_dn: initialTemplate || '',
     practitioner: '',
     patient_visit: (isOPMode && activeVisit) ? activeVisit : '',
