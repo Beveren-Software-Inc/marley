@@ -27,7 +27,9 @@ interface CardDef {
 }
 
 export function NursingInventoryDashboard() {
+  console.log('NursingInventoryDashboard: Component rendered')
   const { userCostCenter, userRole } = useCareContext()
+  console.log('NursingInventoryDashboard: userCostCenter:', userCostCenter, 'userRole:', userRole)
   const [activeTab, setActiveTab] = useState<InventoryTab>('stock-ledger')
   const [availableCostCenters, setAvailableCostCenters] = useState<{ name: string; label: string }[]>([])
   const [selectedCostCenter, setSelectedCostCenter] = useState('')
@@ -114,6 +116,7 @@ export function NursingInventoryDashboard() {
   const activeCard = CARDS.find(c => c.id === activeTab)!
 
   const sectionContent = (id: InventoryTab) => {
+    console.log('NursingInventoryDashboard: Rendering section for tab:', id)
     // Pass the effective cost center to each tab
     switch (id) {
       case 'stock-ledger':
@@ -123,6 +126,7 @@ export function NursingInventoryDashboard() {
       case 'stock-reconciliation':
         return <StockReconciliationTab onSuccess={() => setStockReconciliationRefreshKey(prev => prev + 1)} refreshKey={stockReconciliationRefreshKey} costCenter={effectiveCostCenter} isFullAccess={isFullAccess} />
       case 'material-receipt':
+        console.log('NursingInventoryDashboard: Rendering MaterialReceiptTab with costCenter:', effectiveCostCenter)
         return <MaterialReceiptTab onSuccess={() => setMaterialReceiptRefreshKey(prev => prev + 1)} refreshKey={materialReceiptRefreshKey} costCenter={effectiveCostCenter} isFullAccess={isFullAccess} />
       default:
         return null
@@ -195,7 +199,10 @@ export function NursingInventoryDashboard() {
             <div key={card.id} className="relative">
               <button
                 type="button"
-                onClick={() => setActiveTab(card.id)}
+                onClick={() => {
+                  console.log('NursingInventoryDashboard: Tab clicked:', card.id)
+                  setActiveTab(card.id)
+                }}
                 className={`w-full flex flex-col items-start gap-1.5 rounded-xl border-2 px-4 py-3 text-left transition-all hover:shadow-md ${
                   isActive 
                     ? `${card.color} shadow-sm` 

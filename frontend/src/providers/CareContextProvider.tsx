@@ -64,10 +64,61 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
     () => readStorage(PATIENT_STORAGE_KEY)
   )
 
+  // User context state
+  const [userCostCenter, setUserCostCenter] = useState<string | undefined>(undefined)
+  const [userRole, setUserRole] = useState<string[] | undefined>(undefined)
+  const [user, setUser] = useState<any>(undefined)
+
   useEffect(() => {
     if (typeof window === 'undefined') return
     try { window.localStorage.setItem('care_mode', mode) } catch { /* ignore */ }
   }, [mode])
+
+  // Load user cost center and roles when component mounts
+  useEffect(() => {
+    console.log('CareContextProvider: Loading user context')
+    const loadUserContext = async () => {
+      try {
+        // Load cost center
+        console.log('CareContextProvider: Fetching cost center')
+        const response = await fetch('/api/method/healthcare.api.nursing_inventory.get_default_warehouse_and_cost_center')
+        console.log('CareContextProvider: Cost center response status:', response.status)
+        if (response.ok) {
+          const data = await response.json()
+          console.log('CareContextProvider: Cost center data:', data)
+          setUserCostCenter(data.message.cost_center || undefined)
+        }
+
+        // Load user info including roles
+        console.log('CareContextProvider: Fetching user info')
+        const userResponse = await fetch('/api/method/frappe.auth.get_logged_user')
+        console.log('CareContextProvider: User response status:', userResponse.status)
+        if (userResponse.ok) {
+          const userData = await userResponse.json()
+          console.log('CareContextProvider: User data:', userData)
+          if (userData.message) {
+            setUser({ name: userData.message })
+            // Get user roles
+            const rolesResponse = await fetch('/api/method/frappe.core.doctype.user.user.get_roles', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ uid: userData.message })
+            })
+            console.log('CareContextProvider: Roles response status:', rolesResponse.status)
+            if (rolesResponse.ok) {
+              const rolesData = await rolesResponse.json()
+              console.log('CareContextProvider: Roles data:', rolesData)
+              setUserRole(rolesData.message || [])
+            }
+          }
+        }
+      } catch (error) {
+        console.warn('Failed to load user context:', error)
+      }
+    }
+
+    loadUserContext()
+  }, [])
 
   const setActiveVisit = (v: string | undefined) => {
     const val = v || undefined
@@ -92,9 +143,9 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
       activeVisit, setActiveVisit,
       activeAdmission, setActiveAdmission,
       selectedPatient, setSelectedPatient,
-      userCostCenter: undefined,
-      userRole: undefined,
-      user: undefined,
+      userCostCenter,
+      userRole,
+      user,
     }}>
       {children}
     </CareContext.Provider>
