@@ -74,7 +74,10 @@
   "follow_up_reminder_after_discharge",
   "stock_tab",
   "default_expiry_warehouse",
+  "column_break_jjhu",
   "default_return_medicine",
+  "section_break_whbc",
+  "nurse_mini_warehouse",
   "more_info_tab",
   "default_patient"
  ],
@@ -518,11 +521,25 @@
    "fieldtype": "Link",
    "label": "Default Patient",
    "options": "Patient"
+  },
+  {
+   "fieldname": "column_break_jjhu",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_whbc",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "nurse_mini_warehouse",
+   "fieldtype": "Table",
+   "label": "Nurse Mini Warehouse",
+   "options": "Nurses Warehouse"
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-03-25 01:41:59.081889",
+ "modified": "2026-04-13 12:41:11.721630",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Settings",

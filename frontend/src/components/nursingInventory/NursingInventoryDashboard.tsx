@@ -192,32 +192,36 @@ export function NursingInventoryDashboard() {
         {CARDS.map(card => {
           const isActive = activeTab === card.id
           return (
-            <button
-              key={card.id}
-              type="button"
-              onClick={() => setActiveTab(card.id)}
-              className={`flex flex-col items-start gap-1.5 rounded-xl border-2 px-4 py-3 text-left transition-all hover:shadow-md ${
-                isActive 
-                  ? `${card.color} shadow-sm` 
-                  : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
-              }`}
-            >
-              <div className="flex items-center justify-between w-full">
-                <span className={`w-2.5 h-2.5 rounded-full ${isActive ? card.dot : 'bg-slate-300'}`} />
-                {card.onAdd && isActive && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      card.onAdd?.()
-                    }}
-                    className="w-6 h-6 rounded-full bg-white/70 hover:bg-white text-slate-700 flex items-center justify-center text-sm font-bold transition-colors"
-                    title={`Add ${card.title}`}
-                  >+</button>
-                )}
-              </div>
-              <span className="text-sm font-semibold leading-tight">{card.title}</span>
-              <span className="text-xs text-slate-500 leading-tight">{card.desc}</span>
-            </button>
+            <div key={card.id} className="relative">
+              <button
+                type="button"
+                onClick={() => setActiveTab(card.id)}
+                className={`w-full flex flex-col items-start gap-1.5 rounded-xl border-2 px-4 py-3 text-left transition-all hover:shadow-md ${
+                  isActive 
+                    ? `${card.color} shadow-sm` 
+                    : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+                }`}
+              >
+                <div className="flex items-center justify-between w-full">
+                  <span className={`w-2.5 h-2.5 rounded-full ${isActive ? card.dot : 'bg-slate-300'}`} />
+                  {card.onAdd && isActive && (
+                    <div className="w-6 h-6" />
+                  )}
+                </div>
+                <span className="text-sm font-semibold leading-tight">{card.title}</span>
+                <span className="text-xs text-slate-500 leading-tight">{card.desc}</span>
+              </button>
+              {card.onAdd && isActive && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    card.onAdd?.()
+                  }}
+                  className="absolute top-3 right-3 w-6 h-6 rounded-full bg-white/70 hover:bg-white text-slate-700 flex items-center justify-center text-sm font-bold transition-colors"
+                  title={`Add ${card.title}`}
+                >+</button>
+              )}
+            </div>
           )
         })}
       </div>

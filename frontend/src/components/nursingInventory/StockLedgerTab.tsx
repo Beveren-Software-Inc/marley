@@ -1,7 +1,7 @@
 // tabs/StockLedgerTab.tsx
 import { useState, useEffect } from 'react'
 import { useCareContext } from '../../providers/CareContextProvider'
-import { fetchStockLedger, type StockLedgerItem } from '../../services/nursingInventory'
+import { fetchStockLedger, fetchItemGroups, type StockLedgerItem } from '../../services/nursingInventory'
 import { Search, Filter, Package, AlertTriangle, TrendingUp, TrendingDown, ChevronDown, ChevronUp } from 'lucide-react'
 
 interface StockLedgerTabProps {
@@ -19,14 +19,15 @@ export const StockLedgerTab = ({ refreshTrigger = 0, costCenter, isFullAccess = 
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [filterCategory, setFilterCategory] = useState('')
-  const [categories, setCategories] = useState<string[]>([])
+  const [itemGroups, setItemGroups] = useState<{ name: string; label: string }[]>([])
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set())
   const [summary, setSummary] = useState({
     totalItems: 0,
     lowStockItems: 0,
     outOfStockItems: 0,
     totalValue: 0
-  })
+      });
+      const [debugItem, setDebugItem] = useState<any>(null)
 
   useEffect(() => {
     if (effectiveCostCenter) {
@@ -41,7 +42,7 @@ export const StockLedgerTab = ({ refreshTrigger = 0, costCenter, isFullAccess = 
       const filtered = stockItems.filter(item => {
         const matchesSearch = item.item_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                              item.item_code.toLowerCase().includes(searchTerm.toLowerCase())
-        const matchesCategory = !filterCategory || item.category === filterCategory
+        const matchesCategory = !filterCategory || item.item_group === filterCategory
         return matchesSearch && matchesCategory
       })
       setFilteredItems(filtered)
@@ -53,20 +54,24 @@ export const StockLedgerTab = ({ refreshTrigger = 0, costCenter, isFullAccess = 
     
     setLoading(true)
     try {
-      const data = await fetchStockLedger(effectiveCostCenter)
-      setStockItems(data)
-      setFilteredItems(data)
+      const [stockData, itemGroupsData] = await Promise.all([
+        fetchStockLedger(effectiveCostCenter),
+        fetchItemGroups()
+      ])
       
-      // Extract unique categories
-      const uniqueCategories = [...new Set(data.map(item => item.category).filter(Boolean))]
-      setCategories(uniqueCategories as string[])
+      setStockItems(stockData)
+      setItemGroups(itemGroupsData)
+      setFilteredItems(stockData)
+      if (stockData.length > 0) {
+        setDebugItem(stockData[0])
+      }
       
       // Calculate summary
       setSummary({
-        totalItems: data.length,
-        lowStockItems: data.filter(item => item.current_stock <= item.reorder_level && item.current_stock > 0).length,
-        outOfStockItems: data.filter(item => item.current_stock === 0).length,
-        totalValue: data.reduce((sum, item) => sum + ((item.current_stock || 0) * (item.unit_price || 0)), 0)
+        totalItems: stockData.length,
+        lowStockItems: stockData.filter(item => item.current_stock <= item.reorder_level && item.current_stock > 0).length,
+        outOfStockItems: stockData.filter(item => item.current_stock === 0).length,
+        totalValue: stockData.reduce((sum, item) => sum + ((item.current_stock || 0) * (item.unit_price || 0)), 0)
       })
     } catch (error) {
       console.error('Failed to load stock ledger:', error)
@@ -168,7 +173,7 @@ export const StockLedgerTab = ({ refreshTrigger = 0, costCenter, isFullAccess = 
           />
         </div>
         
-        {categories.length > 0 && (
+        {itemGroups.length > 0 && (
           <div className="sm:w-64 relative">
             <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
             <select
@@ -176,9 +181,9 @@ export const StockLedgerTab = ({ refreshTrigger = 0, costCenter, isFullAccess = 
               onChange={(e) => setFilterCategory(e.target.value)}
               className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
             >
-              <option value="">All Categories</option>
-              {categories.map(cat => (
-                <option key={cat} value={cat}>{cat}</option>
+              <option value="">All Item Groups</option>
+              {itemGroups.map(group => (
+                <option key={group.name} value={group.name}>{group.label}</option>
               ))}
             </select>
           </div>
@@ -225,8 +230,8 @@ export const StockLedgerTab = ({ refreshTrigger = 0, costCenter, isFullAccess = 
                   
                   <div className="flex items-center gap-4">
                     <div className="text-right">
-                      <p className="text-sm font-semibold text-slate-900">{item.current_stock}</p>
-                      <p className="text-xs text-slate-500">{item.uom || 'Unit'}</p>
+                      <p className="text-sm font-semibold text-slate-900">{item.current_stock} {item.uom || 'Unit'}</p>
+                      <p className="text-xs text-slate-500">Qty in Stock</p>
                     </div>
                     <div className={`px-2 py-1 rounded-full text-xs font-medium ${status.color}`}>
                       <div className="flex items-center gap-1">
@@ -247,8 +252,8 @@ export const StockLedgerTab = ({ refreshTrigger = 0, costCenter, isFullAccess = 
                   <div className="px-4 py-3 bg-slate-50 border-t border-slate-200">
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                       <div>
-                        <label className="text-xs text-slate-500">Category</label>
-                        <p className="text-slate-900 font-medium">{item.category || '-'}</p>
+                        <label className="text-xs text-slate-500">Item Group</label>
+                        <p className="text-slate-900 font-medium">{item.item_group || item.category || '-'}</p>
                       </div>
                       <div>
                         <label className="text-xs text-slate-500">Reorder Level</label>

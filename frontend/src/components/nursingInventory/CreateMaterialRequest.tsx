@@ -288,7 +288,7 @@ export const CreateMaterialRequestModal = ({ onClose, onSuccess, costCenter }: C
                           <input
                             type="text"
                             placeholder="Search for an item..."
-                            value={itemSearch[idx] !== undefined ? itemSearch[idx] : item.item_name}
+                            value={item.item_code ? item.item_name : (itemSearch[idx] || '')}
                             onChange={(e) => {
                               setItemSearch(prev => ({ ...prev, [idx]: e.target.value }))
                               setOpenDropdown(idx)

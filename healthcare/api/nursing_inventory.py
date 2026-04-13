@@ -1,12 +1,15 @@
-# # healthcare/api/nursing_inventory.py
+# healthcare/api/nursing_inventory.py
 
-# import frappe
-# from frappe import _
-# from frappe.utils import today, nowdate, getdate
-# from frappe.model.document import Document
-
-# @frappe.whitelist()
-# def get_stock_ledger(cost_center):
+import frappe
+from frappe import _
+from frappe.utils import today, nowdate, getdate, flt
+import json
+from healthcare.api.common import (
+    get_warehouse_for_cost_center,
+    get_warehouses_for_cost_center as get_cc_warehouses,
+    validate_warehouse_change_permission,
+    _user_is_exempt
+)
 #     """
 #     Get stock ledger for a specific cost center
 #     Returns list of items with current stock quantities
@@ -365,17 +368,26 @@ import frappe
 from frappe import _
 from frappe.utils import today, nowdate, getdate
 import json
+from healthcare.api.common import (
+    get_warehouse_for_cost_center,
+    get_warehouses_for_cost_center as get_cc_warehouses,
+    validate_warehouse_change_permission,
+    _user_is_exempt
+)
 
 @frappe.whitelist()
 def get_stock_ledger(cost_center):
     """
-    Get stock ledger for a specific cost center
+    Get stock ledger for a specific cost center using warehouse from Healthcare Settings.
+    
+    The warehouse is automatically determined from the Healthcare Settings Nurse Mini Warehouse table
+    based on the cost_center provided.
     """
     if not cost_center:
         frappe.throw(_("Cost Center is required"))
     
-    # Get warehouse for this cost center
-    warehouse = frappe.db.get_value("Warehouse", {"cost_center": cost_center}, "name")
+    # Get warehouse from Healthcare Settings based on cost center
+    warehouse = get_warehouse_for_cost_center(cost_center)
     
     if not warehouse:
         return []
@@ -387,7 +399,6 @@ def get_stock_ledger(cost_center):
             i.item_name,
             i.item_group as category,
             SUM(sle.actual_qty) as current_stock,
-            COALESCE(i.reorder_level, 0) as reorder_level,
             i.stock_uom as uom,
             i.valuation_rate as unit_price,
             MAX(sle.posting_date) as last_updated
@@ -399,28 +410,44 @@ def get_stock_ledger(cost_center):
         ORDER BY i.item_name
     """, (warehouse,), as_dict=1)
     
+    # Get reorder levels from Item Reorder table
+    reorder_map = {}
+    if frappe.db.exists("DocType", "Item Reorder"):
+        reorders = frappe.get_all(
+            "Item Reorder",
+            filters={"parenttype": "Item"},
+            fields=["parent as item_code", "warehouse", "warehouse_reorder_level"],
+            as_list=False,
+        )
+        for r in reorders:
+            key = (r.get("item_code"), warehouse)  # Specific to this warehouse
+            level = flt(r.get("warehouse_reorder_level")) or 0
+            if level > 0:
+                reorder_map[r.get("item_code")] = level
+    
+    # Add reorder levels to stock items
+    for item in stock_items:
+        item["reorder_level"] = reorder_map.get(item["item_code"], 10)  # Default to 10 if not set
+    
     return stock_items
 
 @frappe.whitelist()
 def get_warehouses_for_cost_center(cost_center):
     """
-    Get warehouses linked to a cost center
+    Get warehouses linked to a cost center from Healthcare Settings Nurse Mini Warehouse table.
+    
+    Returns list of warehouses defined in Healthcare Settings for the given cost center.
+    This ensures only approved warehouses for the cost center can be used.
     """
     if not cost_center:
         frappe.throw(_("Cost Center is required"))
     
-    warehouses = frappe.get_all("Warehouse",
-        filters={"cost_center": cost_center, "is_group": 0},
-        fields=["name", "warehouse_name as label"]
-    )
+    # Get warehouses from Healthcare Settings
+    warehouses = get_cc_warehouses(cost_center)
     
     if not warehouses:
-        # Fallback: get all warehouses user has access to
-        warehouses = frappe.get_all("Warehouse",
-            filters={"is_group": 0},
-            fields=["name", "warehouse_name as label"],
-            limit=10
-        )
+        frappe.msgprint(_("No warehouses configured for cost center {0} in Healthcare Settings").format(cost_center))
+        return []
     
     return warehouses
 
@@ -450,12 +477,93 @@ def get_inventory_items(search=None):
     return items
 
 @frappe.whitelist()
+def get_item_groups(search=None):
+    """
+    Get item groups for dropdown selection.
+    Returns only leaf item groups (not parent groups).
+    
+    Args:
+        search: Optional search term to filter item groups
+        
+    Returns:
+        List of item groups with name and label
+    """
+    filters = {"is_group": 0}  # Only leaf groups, not parent groups
+    
+    if search:
+        filters["name"] = ["like", f"%{search}%"]
+    
+    item_groups = frappe.get_all("Item Group",
+        filters=filters,
+        fields=["name", "item_group_name as label"],
+        order_by="item_group_name",
+        limit=100
+    )
+    
+    return item_groups
+
+@frappe.whitelist()
+def get_default_warehouse_and_cost_center():
+    """
+    Get the default warehouse and cost center for the current user from Healthcare Settings.
+    
+    Returns:
+        dict: {
+            "warehouse": warehouse_name,
+            "cost_center": cost_center_name,
+            "can_change_warehouse": bool (True only for admin/system manager)
+        }
+    """
+    user = frappe.session.user
+    
+    try:
+        # Get user's permitted cost centers
+        from healthcare.api.common import get_permitted_cost_centers
+        permitted_cc = get_permitted_cost_centers()
+        
+        # Get the first permitted cost center if any
+        cost_center = None
+        if permitted_cc is None:
+            # User is exempt (admin/system manager) - no restriction
+            # Try to get from their employee record or return empty
+            employee = frappe.db.get_value("Employee", {"user_id": user}, "name")
+            if employee:
+                cost_center = frappe.db.get_value("Employee", employee, "cost_center")
+        elif permitted_cc:
+            cost_center = permitted_cc[0]
+        
+        warehouse = None
+        if cost_center:
+            warehouse = get_warehouse_for_cost_center(cost_center)
+        
+        can_change = _user_is_exempt(user)
+        
+        return {
+            "warehouse": warehouse or "",
+            "cost_center": cost_center or "",
+            "can_change_warehouse": can_change
+        }
+    except Exception as e:
+        frappe.log_error(f"Error getting default warehouse and cost center: {str(e)}")
+        return {
+            "warehouse": "",
+            "cost_center": "",
+            "can_change_warehouse": False
+        }
+
+
+@frappe.whitelist()
 def create_material_request():
     """
-    Create a Material Request document
+    Create a Material Request document.
+    
+    Warehouse is automatically set from Healthcare Settings based on cost_center.
+    Only Administrators and System Managers can override the warehouse.
+    
     Expects POST data with the following structure:
     {
         "cost_center": "Cost Center Name",
+        "warehouse": "Warehouse Name (optional - only for admin/system manager)",
         "request_date": "2024-01-01",
         "items": [
             {
@@ -475,11 +583,22 @@ def create_material_request():
         if not data:
             data = json.loads(frappe.request.data)
         
-        # Get warehouse for cost center
-        warehouse = frappe.db.get_value("Warehouse", {"cost_center": data.get("cost_center")}, "name")
+        cost_center = data.get("cost_center")
+        user_provided_warehouse = data.get("warehouse")
+        
+        if not cost_center:
+            frappe.throw(_("Cost Center is required"))
+        
+        # Get warehouse from Healthcare Settings
+        warehouse = get_warehouse_for_cost_center(cost_center)
+        
+        # If user is trying to override warehouse, validate permission
+        if user_provided_warehouse and user_provided_warehouse != warehouse:
+            validate_warehouse_change_permission()
+            warehouse = user_provided_warehouse
         
         if not warehouse:
-            frappe.throw(_("No warehouse found for cost center {0}").format(data.get("cost_center")))
+            frappe.throw(_("No warehouse found for cost center {0} in Healthcare Settings").format(cost_center))
         
         # Create Material Request
         mr = frappe.get_doc({
@@ -487,7 +606,7 @@ def create_material_request():
             "material_request_type": "Material Transfer",
             "transaction_date": data.get("request_date", today()),
             "schedule_date": data.get("request_date", today()),
-            "cost_center": data.get("cost_center"),
+            "cost_center": cost_center,
             "set_warehouse": warehouse,
             "custom_notes": data.get("notes", ""),
             "items": []
@@ -514,12 +633,10 @@ def create_material_request():
         frappe.db.set_value("Material Request", mr.name, "status", "Submitted")
         frappe.db.commit()
         
-        frappe.response["message"] = {"name": mr.name}
-        frappe.response["http_status_code"] = 200
+        return {"name": mr.name}
         
     except Exception as e:
-        frappe.response["message"] = str(e)
-        frappe.response["http_status_code"] = 400
+        frappe.throw(str(e))
         frappe.log_error(f"Error creating material request: {str(e)}")
 
 @frappe.whitelist()
@@ -527,6 +644,7 @@ def get_material_requests(cost_center, status=None):
     """
     Get material requests for a cost center
     """
+    print(f"Fetching material requests for cost center: {cost_center} with status: {status}")
     if not cost_center:
         frappe.throw(_("Cost Center is required"))
     
@@ -549,16 +667,20 @@ def get_material_requests(cost_center, status=None):
         )
         req["requested_by"] = frappe.db.get_value("Material Request", req["name"], "owner")
     
-    frappe.response["message"] = requests
+    return requests
 
 @frappe.whitelist()
 def create_stock_reconciliation():
     """
-    Create standard ERPNext Stock Reconciliation document
+    Create standard ERPNext Stock Reconciliation document.
+    
+    Warehouse is automatically set from Healthcare Settings based on cost_center.
+    Only Administrators and System Managers can override the warehouse.
+    
     Expects POST data:
     {
         "cost_center": "Cost Center Name",
-        "warehouse": "Warehouse Name",
+        "warehouse": "Warehouse Name (optional - only for admin/system manager)",
         "reconciliation_date": "2024-01-01",
         "items": [
             {
@@ -575,13 +697,25 @@ def create_stock_reconciliation():
         if not data:
             data = json.loads(frappe.request.data)
         
-        # Get warehouse
-        warehouse = data.get("warehouse")
-        if not warehouse:
-            warehouse = frappe.db.get_value("Warehouse", {"cost_center": data.get("cost_center")}, "name")
+        # Debug log
+        frappe.logger().info(f"Stock Reconciliation Request Data: {json.dumps(data)}")
+        
+        cost_center = data.get("cost_center")
+        user_provided_warehouse = data.get("warehouse")
+        
+        if not cost_center:
+            frappe.throw(_("Cost Center is required"))
+        
+        # Get warehouse from Healthcare Settings
+        warehouse = get_warehouse_for_cost_center(cost_center)
+        
+        # If user is trying to override warehouse, validate permission
+        if user_provided_warehouse and user_provided_warehouse != warehouse:
+            validate_warehouse_change_permission()
+            warehouse = user_provided_warehouse
         
         if not warehouse:
-            frappe.throw(_("No warehouse found for cost center {0}").format(data.get("cost_center")))
+            frappe.throw(_("No warehouse found for cost center {0} in Healthcare Settings").format(cost_center))
         
         # Get expense account for the company
         company = frappe.db.get_value("Warehouse", warehouse, "company")
@@ -595,22 +729,61 @@ def create_stock_reconciliation():
             "doctype": "Stock Reconciliation",
             "purpose": "Stock Reconciliation",
             "posting_date": data.get("reconciliation_date", today()),
-            "cost_center": data.get("cost_center"),
+            "cost_center": cost_center,
             "expense_account": expense_account,
             "items": []
         })
         
         # Add items with adjustments
-        for item in data.get("items", []):
-            if item.get("item_code") and item.get("qty") != item.get("current_qty"):
-                sr.append("items", {
-                    "item_code": item.get("item_code"),
+        frappe.logger().info(f"Processing {len(data.get('items', []))} items for reconciliation")
+        
+        for idx, item in enumerate(data.get("items", [])):
+            item_code = item.get("item_code")
+            
+            # Get quantity values - handle field name variations from frontend
+            # Frontend sends: physical_quantity, physical_qty, qty, new_qty
+            physical_qty = (
+                item.get("physical_quantity") or 
+                item.get("physical_qty") or 
+                item.get("qty") or 
+                item.get("new_qty") or
+                None
+            )
+            
+            # Get system quantity - handle field name variations from frontend  
+            # Frontend sends: system_quantity, system_qty, current_qty, old_qty
+            system_qty = (
+                item.get("system_quantity") or
+                item.get("system_qty") or
+                item.get("current_qty") or
+                item.get("old_qty") or
+                0
+            )
+            
+            frappe.logger().info(
+                f"Item {idx}: code={item_code}, physical_qty={physical_qty}, "
+                f"system_qty={system_qty}, difference={physical_qty - system_qty if physical_qty is not None else 'N/A'}"
+            )
+            
+            # Only add if there's a difference and item_code is provided
+            if item_code and physical_qty is not None and physical_qty != system_qty:
+                frappe.logger().info(f"Adding item {item_code} with difference: {physical_qty - system_qty}")
+                item_data = {
+                    "item_code": item_code,
                     "warehouse": warehouse,
-                    "qty": item.get("qty"),
-                    "current_qty": item.get("current_qty", 0),
-                })
+                    "qty": physical_qty,
+                    "current_qty": system_qty,
+                }
+                if item.get("serial_no"):
+                    item_data["serial_no"] = item.get("serial_no")
+                if item.get("batch_no"):
+                    item_data["batch_no"] = item.get("batch_no")
+                sr.append("items", item_data)
+        
+        frappe.logger().info(f"Stock Reconciliation has {len(sr.items)} items with differences")
         
         if not sr.items:
+            frappe.logger().warn("No items with differences found")
             frappe.throw(_("No items with quantity differences found"))
         
         sr.insert()
@@ -651,10 +824,15 @@ def get_stock_reconciliations(cost_center):
 @frappe.whitelist()
 def create_material_receipt():
     """
-    Create Purchase Receipt for materials
+    Create Purchase Receipt for materials.
+    
+    Warehouse is automatically set from Healthcare Settings based on cost_center.
+    Only Administrators and System Managers can override the warehouse.
+    
     Expects POST data:
     {
         "cost_center": "Cost Center Name",
+        "warehouse": "Warehouse Name (optional - only for admin/system manager)",
         "receipt_date": "2024-01-01",
         "supplier": "Supplier Name",
         "invoice_number": "INV-001",
@@ -678,11 +856,22 @@ def create_material_receipt():
         if not data:
             data = json.loads(frappe.request.data)
         
-        # Get warehouse for cost center
-        warehouse = frappe.db.get_value("Warehouse", {"cost_center": data.get("cost_center")}, "name")
+        cost_center = data.get("cost_center")
+        user_provided_warehouse = data.get("warehouse")
+        
+        if not cost_center:
+            frappe.throw(_("Cost Center is required"))
+        
+        # Get warehouse from Healthcare Settings
+        warehouse = get_warehouse_for_cost_center(cost_center)
+        
+        # If user is trying to override warehouse, validate permission
+        if user_provided_warehouse and user_provided_warehouse != warehouse:
+            validate_warehouse_change_permission()
+            warehouse = user_provided_warehouse
         
         if not warehouse:
-            frappe.throw(_("No warehouse found for cost center {0}").format(data.get("cost_center")))
+            frappe.throw(_("No warehouse found for cost center {0} in Healthcare Settings").format(cost_center))
         
         # Get default supplier if not provided
         supplier = data.get("supplier")
@@ -708,6 +897,7 @@ def create_material_receipt():
             "bill_no": data.get("invoice_number"),
             "set_warehouse": warehouse,
             "company": company,
+            "cost_center": cost_center,
             "items": []
         })
         
@@ -746,13 +936,15 @@ def create_material_receipt():
 @frappe.whitelist()
 def get_material_receipts(cost_center):
     """
-    Get material receipts for a cost center
+    Get material receipts for a cost center.
+    
+    Uses warehouse from Healthcare Settings based on cost_center.
     """
     if not cost_center:
         frappe.throw(_("Cost Center is required"))
     
-    # Get warehouse for cost center
-    warehouse = frappe.db.get_value("Warehouse", {"cost_center": cost_center}, "name")
+    # Get warehouse from Healthcare Settings
+    warehouse = get_warehouse_for_cost_center(cost_center)
     
     if not warehouse:
         frappe.response["message"] = []

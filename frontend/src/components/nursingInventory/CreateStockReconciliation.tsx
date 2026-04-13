@@ -18,6 +18,8 @@ interface ReconciliationItem {
   current_qty: number
   new_qty: number
   difference: number
+  serial_no?: string
+  batch_no?: string
 }
 
 type TabId = 'details' | 'items'
@@ -81,7 +83,9 @@ export const CreateStockReconciliationModal = ({ onClose, onSuccess, costCenter 
         item_name: item.item_name,
         current_qty: item.current_stock,
         new_qty: item.current_stock,
-        difference: 0
+        difference: 0,
+        serial_no: '',
+        batch_no: ''
       }))
       setItems(reconciliationItems)
       setFilteredItems(reconciliationItems)
@@ -121,6 +125,28 @@ export const CreateStockReconciliationModal = ({ onClose, onSuccess, costCenter 
     const updatedFiltered = [...filteredItems]
     updatedFiltered[index].new_qty = newQty
     updatedFiltered[index].difference = newQty - updatedFiltered[index].current_qty
+    setFilteredItems(updatedFiltered)
+  }
+
+  const updateSerialNo = (index: number, value: string) => {
+    const originalIndex = items.findIndex(i => i.item_code === filteredItems[index].item_code)
+    const updatedItems = [...items]
+    updatedItems[originalIndex].serial_no = value
+    setItems(updatedItems)
+    
+    const updatedFiltered = [...filteredItems]
+    updatedFiltered[index].serial_no = value
+    setFilteredItems(updatedFiltered)
+  }
+
+  const updateBatchNo = (index: number, value: string) => {
+    const originalIndex = items.findIndex(i => i.item_code === filteredItems[index].item_code)
+    const updatedItems = [...items]
+    updatedItems[originalIndex].batch_no = value
+    setItems(updatedItems)
+    
+    const updatedFiltered = [...filteredItems]
+    updatedFiltered[index].batch_no = value
     setFilteredItems(updatedFiltered)
   }
 
@@ -183,7 +209,9 @@ export const CreateStockReconciliationModal = ({ onClose, onSuccess, costCenter 
           item_name: item.item_name,
           system_quantity: item.current_qty,
           physical_quantity: item.new_qty,
-          difference: item.difference
+          difference: item.difference,
+          serial_no: item.serial_no || '',
+          batch_no: item.batch_no || ''
         })),
         reconciled_by: user?.name || '',
         status: 'Draft'
@@ -379,6 +407,8 @@ export const CreateStockReconciliationModal = ({ onClose, onSuccess, costCenter 
                             <th className="px-3 py-2 text-left">Item Name</th>
                             <th className="px-3 py-2 text-right">System Qty</th>
                             <th className="px-3 py-2 text-right">Physical Qty</th>
+                            <th className="px-3 py-2 text-center">Serial No</th>
+                            <th className="px-3 py-2 text-center">Batch No</th>
                             <th className="px-3 py-2 text-right">Difference</th>
                           </tr>
                         </thead>
@@ -395,6 +425,24 @@ export const CreateStockReconciliationModal = ({ onClose, onSuccess, costCenter 
                                   value={item.new_qty}
                                   onChange={(e) => updateQuantity(idx, parseInt(e.target.value) || 0)}
                                   className="w-24 text-right px-2 py-1 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                                />
+                              </td>
+                              <td className="px-3 py-2">
+                                <input
+                                  type="text"
+                                  value={item.serial_no || ''}
+                                  onChange={(e) => updateSerialNo(idx, e.target.value)}
+                                  placeholder="Serial No"
+                                  className="w-32 px-2 py-1 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                                />
+                              </td>
+                              <td className="px-3 py-2">
+                                <input
+                                  type="text"
+                                  value={item.batch_no || ''}
+                                  onChange={(e) => updateBatchNo(idx, e.target.value)}
+                                  placeholder="Batch No"
+                                  className="w-32 px-2 py-1 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary text-sm"
                                 />
                               </td>
                               <td className={`px-3 py-2 text-right font-medium ${item.difference > 0 ? 'text-green-600' : item.difference < 0 ? 'text-red-600' : 'text-slate-400'}`}>

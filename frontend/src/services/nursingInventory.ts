@@ -4,10 +4,13 @@ export interface StockLedgerItem {
   item_code: string
   item_name: string
   category?: string
+  item_group?: string
   current_stock: number
+  actual_qty?: number
   reorder_level: number
   uom?: string
   unit_price: number
+  valuation_rate?: number
   last_updated: string
 }
 
@@ -72,6 +75,15 @@ export interface MaterialReceipt {
 // Fetch stock ledger for a cost center
 export async function fetchStockLedger(costCenter: string): Promise<StockLedgerItem[]> {
   const response = await fetch(`/api/method/healthcare.api.nursing_inventory.get_stock_ledger?cost_center=${encodeURIComponent(costCenter)}`)
+  const data = await response.json()
+  return data.message || []
+}
+
+// Fetch item groups for filtering
+export async function fetchItemGroups(search?: string): Promise<{ name: string; label: string }[]> {
+  let url = '/api/method/healthcare.api.nursing_inventory.get_item_groups'
+  if (search) url += `?search=${encodeURIComponent(search)}`
+  const response = await fetch(url)
   const data = await response.json()
   return data.message || []
 }
