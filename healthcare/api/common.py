@@ -2471,3 +2471,107 @@ def fetch_nursing_discharge_templates(template_name=None):
     )
     
     return templates
+
+
+@frappe.whitelist()
+def get_warehouse_for_cost_center(cost_center):
+	"""
+	Get the default warehouse for a given cost center from Healthcare Settings.
+	
+	Args:
+		cost_center: The cost center name/ID
+		
+	Returns:
+		str: The warehouse name, or None if not found
+	"""
+	if not cost_center:
+		return None
+	
+	try:
+		# Get Healthcare Settings
+		settings = frappe.get_doc("Healthcare Settings")
+		
+		# Find the warehouse for this cost center in the nurse_mini_warehouse table
+		if settings.nurse_mini_warehouse:
+			for warehouse_row in settings.nurse_mini_warehouse:
+				if warehouse_row.cost_center == cost_center:
+					return warehouse_row.warehouse
+	except Exception:
+		pass
+	
+	return None
+
+
+@frappe.whitelist()
+def get_warehouses_for_cost_centers(cost_centers=None):
+	"""
+	Get warehouses for one or more cost centers from Healthcare Settings.
+	
+	Args:
+		cost_centers: List of cost center names, or None for current user's cost centers
+		
+	Returns:
+		dict: Mapping of cost_center -> warehouse
+	"""
+	if cost_centers is None:
+		permitted_cc = get_permitted_cost_centers()
+		cost_centers = permitted_cc if permitted_cc else []
+	
+	warehouse_map = {}
+	
+	if not cost_centers:
+		return warehouse_map
+	
+	try:
+		settings = frappe.get_doc("Healthcare Settings")
+		if settings.nurse_mini_warehouse:
+			for warehouse_row in settings.nurse_mini_warehouse:
+				if warehouse_row.cost_center in cost_centers:
+					warehouse_map[warehouse_row.cost_center] = warehouse_row.warehouse
+	except Exception:
+		pass
+	
+	return warehouse_map
+
+
+@frappe.whitelist()
+def get_warehouses_for_cost_center(cost_center):
+	"""
+	Get all warehouses for a cost center (may have multiple warehouse entries).
+	Returns list of {name, label} for dropdown selection.
+	"""
+	if not cost_center:
+		return []
+	
+	warehouses = []
+	try:
+		settings = frappe.get_doc("Healthcare Settings")
+		if settings.nurse_mini_warehouse:
+			for warehouse_row in settings.nurse_mini_warehouse:
+				if warehouse_row.cost_center == cost_center:
+					warehouses.append({
+						"name": warehouse_row.warehouse,
+						"label": warehouse_row.warehouse
+					})
+	except Exception:
+		pass
+	
+	return warehouses
+
+
+def validate_warehouse_change_permission():
+	"""
+	Check if current user has permission to change warehouse/cost_center.
+	Only Administrator and System Manager can change these values.
+	
+	Raises:
+		frappe.PermissionError if user doesn't have permission
+	"""
+	user = frappe.session.user
+	if _user_is_exempt(user):
+		return True
+	
+	frappe.throw(
+		_("Only Administrators and System Managers can change warehouse and cost center assignments"),
+		frappe.PermissionError
+	)

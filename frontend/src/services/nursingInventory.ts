@@ -4,10 +4,13 @@ export interface StockLedgerItem {
   item_code: string
   item_name: string
   category?: string
+  item_group?: string
   current_stock: number
+  actual_qty?: number
   reorder_level: number
   uom?: string
   unit_price: number
+  valuation_rate?: number
   last_updated: string
 }
 
@@ -76,6 +79,15 @@ export async function fetchStockLedger(costCenter: string): Promise<StockLedgerI
   return data.message || []
 }
 
+// Fetch item groups for filtering
+export async function fetchItemGroups(search?: string): Promise<{ name: string; label: string }[]> {
+  let url = '/api/method/healthcare.api.nursing_inventory.get_item_groups'
+  if (search) url += `?search=${encodeURIComponent(search)}`
+  const response = await fetch(url)
+  const data = await response.json()
+  return data.message || []
+}
+
 // Create material request
 export async function createMaterialRequest(data: Omit<MaterialRequest, 'name'>): Promise<{ name: string }> {
   const response = await fetch('/api/method/healthcare.api.nursing_inventory.create_material_request', {
@@ -107,6 +119,13 @@ export async function createStockReconciliation(data: Omit<StockReconciliation, 
   const result = await response.json()
   if (!response.ok) throw new Error(result.message || 'Failed to create stock reconciliation')
   return result.message
+}
+
+// Fetch stock reconciliations
+export async function getStockReconciliations(costCenter: string): Promise<StockReconciliation[]> {
+  const response = await fetch(`/api/method/healthcare.api.nursing_inventory.get_stock_reconciliations?cost_center=${encodeURIComponent(costCenter)}`)
+  const data = await response.json()
+  return data.message || []
 }
 
 // Create material receipt
@@ -145,22 +164,43 @@ export async function getWarehousesForCostCenter(costCenter: string): Promise<{ 
   return data.message || []
 }
 
-// export async function createStockReconciliation(data: any): Promise<{ name: string }> {
-//   const response = await fetch('/api/method/healthcare.api.nursing_inventory.create_stock_reconciliation', {
-//     method: 'POST',
-//     headers: { 'Content-Type': 'application/json' },
-//     body: JSON.stringify(data)
-//   })
-//   const result = await response.json()
-//   if (!response.ok) throw new Error(result.message || 'Failed to create stock reconciliation')
-//   return result.message
-// }
-
-
-// Add to services/nursingInventory.ts
 
 export async function getAllCostCenters(): Promise<{ name: string; label: string }[]> {
   const response = await fetch('/api/method/healthcare.api.nursing_inventory.get_all_cost_centers')
   const data = await response.json()
   return data.message || []
+}
+
+export async function getItemBatches(itemCode: string, warehouse: string) {
+  const response = await fetch('/api/method/healthcare.api.nursing_inventory.get_item_batches', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ item_code: itemCode, warehouse })
+  })
+  const result = await response.json()
+  console.log("Uko wapi")
+  if (!response.ok) throw new Error(result.message || 'Failed to fetch batches')
+  return result.message
+}
+
+export async function getItemSerials(itemCode: string, warehouse: string) {
+  const response = await fetch('/api/method/healthcare.api.nursing_inventory.get_item_serials', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ item_code: itemCode, warehouse })
+  })
+  const result = await response.json()
+  if (!response.ok) throw new Error(result.message || 'Failed to fetch serials')
+  return result.message
+}
+
+export async function getBatchSerials(batchNo: string, warehouse: string) {
+  const response = await fetch('/api/method/healthcare.api.nursing_inventory.get_batch_details_with_serials', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ batch_no: batchNo, warehouse })
+  })
+  const result = await response.json()
+  if (!response.ok) throw new Error(result.message || 'Failed to fetch batch serials')
+  return result.message || []
 }

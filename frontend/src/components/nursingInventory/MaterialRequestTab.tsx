@@ -14,6 +14,7 @@ interface MaterialRequestTabProps {
 
 export const MaterialRequestTab = ({ onSuccess, refreshKey: _refreshKey, costCenter: _costCenter, isFullAccess: _isFullAccess }: MaterialRequestTabProps) => {
   const { userCostCenter, user } = useCareContext()
+  const effectiveCostCenter = _costCenter || userCostCenter
   const [requests, setRequests] = useState<MaterialRequest[]>([])
   const [showForm, setShowForm] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -27,16 +28,16 @@ export const MaterialRequestTab = ({ onSuccess, refreshKey: _refreshKey, costCen
   const [itemOptions, setItemOptions] = useState<{ [key: number]: any[] }>({})
 
   useEffect(() => {
-    if (userCostCenter) {
+    if (effectiveCostCenter) {
       loadRequests()
     }
-  }, [userCostCenter])
+  }, [effectiveCostCenter, _refreshKey])
 
   const loadRequests = async () => {
-    if (!userCostCenter) return
+    if (!effectiveCostCenter) return
     setLoading(true)
     try {
-      const data = await fetchMaterialRequests(userCostCenter)
+      const data = await fetchMaterialRequests(effectiveCostCenter)
       setRequests(data)
     } catch (error) {
       console.error('Failed to load requests:', error)
@@ -89,7 +90,7 @@ export const MaterialRequestTab = ({ onSuccess, refreshKey: _refreshKey, costCen
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (!userCostCenter) {
+    if (!effectiveCostCenter) {
       toast.error('No cost center assigned')
       return
     }
@@ -103,7 +104,7 @@ export const MaterialRequestTab = ({ onSuccess, refreshKey: _refreshKey, costCen
     setSubmitting(true)
     try {
       await createMaterialRequest({
-        cost_center: userCostCenter,
+        cost_center: effectiveCostCenter,
         request_date: new Date().toISOString().split('T')[0],
         status: 'Submitted',
         items: validItems,

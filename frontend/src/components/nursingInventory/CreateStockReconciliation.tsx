@@ -1,9 +1,9 @@
 // CreateStockReconciliationModal.tsx
 import { useState, useEffect } from 'react'
 import { useCareContext } from '../../providers/CareContextProvider'
-import { fetchStockLedger, getWarehousesForCostCenter, createStockReconciliation } from '../../services/nursingInventory'
+import { fetchStockLedger, getWarehousesForCostCenter, createStockReconciliation, getItemBatches, getItemSerials, getBatchSerials } from '../../services/nursingInventory'
 import { toast } from '../../hooks/useToast'
-import { X, Save, Search, AlertTriangle, Scan } from 'lucide-react'
+import { X, Save, Search, AlertTriangle, Plus, Minus } from 'lucide-react'
 
 interface CreateStockReconciliationModalProps {
   onClose: () => void
@@ -18,15 +18,26 @@ interface ReconciliationItem {
   current_qty: number
   new_qty: number
   difference: number
+  serial_nos: string[]
+  batch_no: string
+  has_serial_no: boolean
+  has_batch_no: boolean
+  available_batches?: Array<{ 
+    batch_id: string
+    batch_name: string
+    qty: number
+    expiry_date: string
+    manufacturing_date?: string
+  }>
+  available_serials?: string[]
+  isLoadingBatches?: boolean
 }
-
-type TabId = 'details' | 'items'
 
 export const CreateStockReconciliationModal = ({ onClose, onSuccess, costCenter }: CreateStockReconciliationModalProps) => {
   const { userCostCenter, user } = useCareContext()
   const effectiveCostCenter = costCenter || userCostCenter
   
-  const [activeTab, setActiveTab] = useState<TabId>('details')
+  const [activeTab, setActiveTab] = useState<'details' | 'items'>('details')
   const [warehouse, setWarehouse] = useState('')
   const [warehouses, setWarehouses] = useState<{ name: string; label: string }[]>([])
   const [loadingWarehouses, setLoadingWarehouses] = useState(false)
@@ -38,6 +49,8 @@ export const CreateStockReconciliationModal = ({ onClose, onSuccess, costCenter 
   const [submitting, setSubmitting] = useState(false)
   const [scanMode, setScanMode] = useState(false)
   const [scanInput, setScanInput] = useState('')
+  const [selectedItemForSerial, setSelectedItemForSerial] = useState<ReconciliationItem | null>(null)
+  const [serialInput, setSerialInput] = useState('')
 
   // Load warehouses
   useEffect(() => {
@@ -76,19 +89,137 @@ export const CreateStockReconciliationModal = ({ onClose, onSuccess, costCenter 
     setLoading(true)
     try {
       const stock = await fetchStockLedger(effectiveCostCenter)
-      const reconciliationItems = stock.map(item => ({
-        item_code: item.item_code,
-        item_name: item.item_name,
-        current_qty: item.current_stock,
-        new_qty: item.current_stock,
-        difference: 0
+      
+      // Fetch item details to know which items are serialized/batched
+      const reconciliationItems = await Promise.all(stock.map(async (item) => {
+        const itemData: ReconciliationItem = {
+          item_code: item.item_code,
+          item_name: item.item_name,
+          current_qty: item.current_stock,
+          new_qty: item.current_stock,
+          difference: 0,
+          serial_nos: [],
+          batch_no: '',
+          has_serial_no: false,
+          has_batch_no: false,
+          available_batches: [],
+          isLoadingBatches: false
+        }
+        
+        // Fetch item type details
+        try {
+          const response = await fetch(`/api/method/frappe.client.get_value`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              doctype: 'Item',
+              filters: { item_code: item.item_code },
+              fieldname: ['has_serial_no', 'has_batch_no']
+            })
+          })
+          const result = await response.json()
+          if (result.message) {
+            itemData.has_serial_no = result.message.has_serial_no === 1
+            itemData.has_batch_no = result.message.has_batch_no === 1
+            
+            // If item has batch, load batches immediately
+            if (itemData.has_batch_no) {
+              await loadBatchesForItem(item.item_code, itemData)
+            }
+          }
+        } catch (e) {
+          console.error(`Failed to fetch item details for ${item.item_code}`, e)
+        }
+        
+        return itemData
       }))
+      
       setItems(reconciliationItems)
       setFilteredItems(reconciliationItems)
     } catch (error) {
       toast.error('Failed to load current stock data')
     } finally {
       setLoading(false)
+    }
+  }
+
+  // Load batches for an item and update the item in state
+  const loadBatchesForItem = async (itemCode: string, itemToUpdate?: ReconciliationItem) => {
+    try {
+      // Find the item in state if not provided
+      let item: ReconciliationItem | undefined = itemToUpdate
+      if (!item) {
+        item = items.find(i => i.item_code === itemCode)
+      }
+      
+      if (!item) return
+      
+      // Set loading state
+      const originalIndex = items.findIndex(i => i.item_code === itemCode)
+      if (originalIndex !== -1) {
+        const updatedItems = [...items]
+        updatedItems[originalIndex].isLoadingBatches = true
+        setItems(updatedItems)
+        
+        const updatedFiltered = [...filteredItems]
+        const filteredIndex = filteredItems.findIndex(i => i.item_code === itemCode)
+        if (filteredIndex !== -1) {
+          updatedFiltered[filteredIndex].isLoadingBatches = true
+          setFilteredItems(updatedFiltered)
+        }
+      }
+      
+      console.log(`Loading batches for ${itemCode} in warehouse ${warehouse}`)
+      const batches = await getItemBatches(itemCode, warehouse)
+      console.log(`Batches loaded for ${itemCode}:`, batches)
+      
+      // Update item with batches
+      if (originalIndex !== -1) {
+        const updatedItems = [...items]
+        updatedItems[originalIndex].available_batches = batches || []
+        updatedItems[originalIndex].isLoadingBatches = false
+        setItems(updatedItems)
+        
+        const updatedFiltered = [...filteredItems]
+        const filteredIndex = filteredItems.findIndex(i => i.item_code === itemCode)
+        if (filteredIndex !== -1) {
+          updatedFiltered[filteredIndex].available_batches = batches || []
+          updatedFiltered[filteredIndex].isLoadingBatches = false
+          setFilteredItems(updatedFiltered)
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load batches', error)
+      toast.error(`Failed to load batches for ${itemCode}`)
+      
+      // Reset loading state
+      const originalIndex = items.findIndex(i => i.item_code === itemCode)
+      if (originalIndex !== -1) {
+        const updatedItems = [...items]
+        updatedItems[originalIndex].isLoadingBatches = false
+        setItems(updatedItems)
+        
+        const updatedFiltered = [...filteredItems]
+        const filteredIndex = filteredItems.findIndex(i => i.item_code === itemCode)
+        if (filteredIndex !== -1) {
+          updatedFiltered[filteredIndex].isLoadingBatches = false
+          setFilteredItems(updatedFiltered)
+        }
+      }
+    }
+  }
+
+  // Load serials for an item
+  const loadSerialsForItem = async (itemCode: string) => {
+    try {
+      console.log(`Loading serials for ${itemCode} in warehouse ${warehouse}`)
+      const serials = await getItemSerials(itemCode, warehouse)
+      console.log(`Serials loaded for ${itemCode}:`, serials)
+      return serials || []
+    } catch (error) {
+      console.error('Failed to load serials', error)
+      toast.error(`Failed to load serials for ${itemCode}`)
+      return []
     }
   }
 
@@ -110,12 +241,23 @@ export const CreateStockReconciliationModal = ({ onClose, onSuccess, costCenter 
     }
   }, [searchTerm, items])
 
-  const updateQuantity = (index: number, value: number) => {
+  const updateQuantity = async (index: number, value: number) => {
     const originalIndex = items.findIndex(i => i.item_code === filteredItems[index].item_code)
     const updatedItems = [...items]
     const newQty = value || 0
-    updatedItems[originalIndex].new_qty = newQty
-    updatedItems[originalIndex].difference = newQty - updatedItems[originalIndex].current_qty
+    const item = updatedItems[originalIndex]
+    
+    // For serialized items, validate serial count
+    if (item.has_serial_no && newQty > item.current_qty) {
+      // Need to add serial numbers
+      if (item.serial_nos.length < (newQty - item.current_qty)) {
+        toast.error(`Please add ${newQty - item.current_qty} serial numbers for ${item.item_name}`)
+        return
+      }
+    }
+    
+    item.new_qty = newQty
+    item.difference = newQty - item.current_qty
     setItems(updatedItems)
     
     const updatedFiltered = [...filteredItems]
@@ -124,7 +266,113 @@ export const CreateStockReconciliationModal = ({ onClose, onSuccess, costCenter 
     setFilteredItems(updatedFiltered)
   }
 
-  const handleScan = () => {
+  const openSerialManager = async (item: ReconciliationItem) => {
+    // Load serials for the selected batch if available, otherwise load all serials
+    let serials: any[] = []
+    
+    if (item.batch_no) {
+      try {
+        serials = await getBatchSerials(item.batch_no, warehouse)
+      } catch (e) {
+        console.error(`Failed to fetch serials for batch ${item.batch_no}`, e)
+        serials = []
+      }
+    } else {
+      try {
+        serials = await loadSerialsForItem(item.item_code)
+      } catch (e) {
+        console.error(`Failed to load serials for item ${item.item_code}`, e)
+        serials = []
+      }
+    }
+    
+    console.log("Loaded serials for modal:", serials)
+    
+    setSelectedItemForSerial({ 
+      ...item, 
+      available_serials: serials || []
+    })
+    setSerialInput('')
+  }
+
+  const addSerialNumber = () => {
+    if (!selectedItemForSerial) return
+    
+    const serialToAdd = serialInput.trim()
+    if (!serialToAdd) return
+    
+    // Check if serial already added
+    if (selectedItemForSerial.serial_nos.includes(serialToAdd)) {
+      toast.error('Serial number already added')
+      return
+    }
+    
+    // Allow new serials - no warehouse validation
+    
+    const updatedItem = { ...selectedItemForSerial }
+    updatedItem.serial_nos = [...updatedItem.serial_nos, serialToAdd]
+    updatedItem.new_qty = updatedItem.current_qty + updatedItem.serial_nos.length
+    updatedItem.difference = updatedItem.new_qty - updatedItem.current_qty
+    
+    setSelectedItemForSerial(updatedItem)
+    setSerialInput('')
+    
+    // Update main items array
+    const originalIndex = items.findIndex(i => i.item_code === updatedItem.item_code)
+    if (originalIndex !== -1) {
+      const updatedItems = [...items]
+      updatedItems[originalIndex] = updatedItem
+      setItems(updatedItems)
+      
+      // Update filtered items
+      const filteredIndex = filteredItems.findIndex(i => i.item_code === updatedItem.item_code)
+      if (filteredIndex !== -1) {
+        const updatedFiltered = [...filteredItems]
+        updatedFiltered[filteredIndex] = updatedItem
+        setFilteredItems(updatedFiltered)
+      }
+    }
+  }
+
+  const removeSerialNumber = (serialToRemove: string) => {
+    if (!selectedItemForSerial) return
+    
+    const updatedItem = { ...selectedItemForSerial }
+    updatedItem.serial_nos = updatedItem.serial_nos.filter(s => s !== serialToRemove)
+    updatedItem.new_qty = updatedItem.current_qty + updatedItem.serial_nos.length
+    updatedItem.difference = updatedItem.new_qty - updatedItem.current_qty
+    
+    setSelectedItemForSerial(updatedItem)
+    
+    // Update main items array
+    const originalIndex = items.findIndex(i => i.item_code === updatedItem.item_code)
+    if (originalIndex !== -1) {
+      const updatedItems = [...items]
+      updatedItems[originalIndex] = updatedItem
+      setItems(updatedItems)
+      
+      // Update filtered items
+      const filteredIndex = filteredItems.findIndex(i => i.item_code === updatedItem.item_code)
+      if (filteredIndex !== -1) {
+        const updatedFiltered = [...filteredItems]
+        updatedFiltered[filteredIndex] = updatedItem
+        setFilteredItems(updatedFiltered)
+      }
+    }
+  }
+
+  const updateBatch = async (index: number, batchNo: string) => {
+    const originalIndex = items.findIndex(i => i.item_code === filteredItems[index].item_code)
+    const updatedItems = [...items]
+    updatedItems[originalIndex].batch_no = batchNo
+    setItems(updatedItems)
+    
+    const updatedFiltered = [...filteredItems]
+    updatedFiltered[index].batch_no = batchNo
+    setFilteredItems(updatedFiltered)
+  }
+
+  const handleScan = async () => {
     if (!scanInput.trim()) return
     
     const foundIndex = filteredItems.findIndex(
@@ -133,23 +381,32 @@ export const CreateStockReconciliationModal = ({ onClose, onSuccess, costCenter 
     )
     
     if (foundIndex !== -1) {
-      const originalIndex = items.findIndex(i => i.item_code === filteredItems[foundIndex].item_code)
-      const updatedItems = [...items]
-      updatedItems[originalIndex].new_qty += 1
-      updatedItems[originalIndex].difference = updatedItems[originalIndex].new_qty - updatedItems[originalIndex].current_qty
-      setItems(updatedItems)
+      const item = filteredItems[foundIndex]
       
-      const updatedFiltered = [...filteredItems]
-      updatedFiltered[foundIndex].new_qty += 1
-      updatedFiltered[foundIndex].difference = updatedFiltered[foundIndex].new_qty - updatedFiltered[foundIndex].current_qty
-      setFilteredItems(updatedFiltered)
-      
-      toast.success(`Added 1 to ${filteredItems[foundIndex].item_name}`)
+      if (item.has_serial_no) {
+        // For serialized items, open serial manager
+        await openSerialManager(item)
+        setScanInput('')
+      } else {
+        // For non-serialized items, just increment quantity
+        const originalIndex = items.findIndex(i => i.item_code === item.item_code)
+        const updatedItems = [...items]
+        updatedItems[originalIndex].new_qty += 1
+        updatedItems[originalIndex].difference = updatedItems[originalIndex].new_qty - updatedItems[originalIndex].current_qty
+        setItems(updatedItems)
+        
+        const updatedFiltered = [...filteredItems]
+        updatedFiltered[foundIndex].new_qty += 1
+        updatedFiltered[foundIndex].difference = updatedFiltered[foundIndex].new_qty - updatedFiltered[foundIndex].current_qty
+        setFilteredItems(updatedFiltered)
+        
+        toast.success(`Added 1 to ${item.item_name}`)
+        setScanInput('')
+      }
     } else {
       toast.error(`Item not found: ${scanInput}`)
+      setScanInput('')
     }
-    
-    setScanInput('')
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -165,6 +422,19 @@ export const CreateStockReconciliationModal = ({ onClose, onSuccess, costCenter 
     if (!effectiveCostCenter) {
       toast.error('Cost center is required')
       return
+    }
+
+    // Validate serialized items have proper serial numbers
+    for (const item of itemsWithDiscrepancy) {
+      if (item.has_serial_no && item.new_qty > 0 && item.serial_nos.length !== item.new_qty) {
+        toast.error(`Item ${item.item_name}: Please provide ${item.new_qty} serial numbers (${item.serial_nos.length} provided)`)
+        return
+      }
+      
+      if (item.has_batch_no && item.new_qty > 0 && !item.batch_no) {
+        toast.error(`Item ${item.item_name}: Please select a batch number`)
+        return
+      }
     }
 
     if (itemsWithDiscrepancy.length === 0) {
@@ -183,7 +453,9 @@ export const CreateStockReconciliationModal = ({ onClose, onSuccess, costCenter 
           item_name: item.item_name,
           system_quantity: item.current_qty,
           physical_quantity: item.new_qty,
-          difference: item.difference
+          difference: item.difference,
+          serial_nos: item.has_serial_no ? item.serial_nos.join(', ') : undefined,
+          batch_no: item.batch_no || undefined
         })),
         reconciled_by: user?.name || '',
         status: 'Draft'
@@ -202,7 +474,7 @@ export const CreateStockReconciliationModal = ({ onClose, onSuccess, costCenter 
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-2xl max-w-5xl w-full max-h-[90vh] flex flex-col">
+      <div className="bg-white rounded-xl shadow-2xl max-w-6xl w-full max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between shrink-0 rounded-t-xl">
           <div>
@@ -297,18 +569,6 @@ export const CreateStockReconciliationModal = ({ onClose, onSuccess, costCenter 
                     className="w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600"
                   />
                 </div>
-
-                <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                  <div className="flex items-start gap-3">
-                    <Scan className="w-5 h-5 text-blue-600 mt-0.5" />
-                    <div>
-                      <p className="text-sm font-medium text-blue-800">Scan/Barcode Mode</p>
-                      <p className="text-xs text-blue-600 mt-1">
-                        After loading items, enable scan mode in the Items tab to quickly count stock by scanning barcodes.
-                      </p>
-                    </div>
-                  </div>
-                </div>
               </div>
             )}
 
@@ -379,6 +639,8 @@ export const CreateStockReconciliationModal = ({ onClose, onSuccess, costCenter 
                             <th className="px-3 py-2 text-left">Item Name</th>
                             <th className="px-3 py-2 text-right">System Qty</th>
                             <th className="px-3 py-2 text-right">Physical Qty</th>
+                            <th className="px-3 py-2 text-center">Batch No</th>
+                            <th className="px-3 py-2 text-center">Serials</th>
                             <th className="px-3 py-2 text-right">Difference</th>
                           </tr>
                         </thead>
@@ -396,6 +658,57 @@ export const CreateStockReconciliationModal = ({ onClose, onSuccess, costCenter 
                                   onChange={(e) => updateQuantity(idx, parseInt(e.target.value) || 0)}
                                   className="w-24 text-right px-2 py-1 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
                                 />
+                              </td>
+                              <td className="px-3 py-2">
+                                {item.has_batch_no && (
+                                  <div className="min-w-[150px]">
+                                    {item.isLoadingBatches ? (
+                                      <div className="flex items-center gap-1 text-xs text-slate-500">
+                                        <div className="inline-block animate-spin rounded-full h-3 w-3 border-b-2 border-primary"></div>
+                                        <span>Loading...</span>
+                                      </div>
+                                    ) : (
+                                      <select
+                                        value={item.batch_no}
+                                        onChange={(e) => updateBatch(idx, e.target.value)}
+                                        className="w-full px-2 py-1 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                                      >
+                                        <option value="">Select Batch</option>
+                                        {item.available_batches && item.available_batches.length > 0 ? (
+                                          item.available_batches.map((batch, i) => (
+                                            <option key={i} value={batch.batch_id || batch.batch_name}>
+                                              {batch.batch_id || batch.batch_name} 
+                                              (Qty: {batch.qty})
+                                              {batch.expiry_date && ` | Exp: ${batch.expiry_date}`}
+                                            </option>
+                                          ))
+                                        ) : (
+                                          <option value="" disabled>No batches available</option>
+                                        )}
+                                      </select>
+                                    )}
+                                    {!item.isLoadingBatches && (!item.available_batches || item.available_batches.length === 0) && (
+                                      <button
+                                        type="button"
+                                        onClick={() => loadBatchesForItem(item.item_code)}
+                                        className="text-xs text-blue-600 mt-1 hover:underline"
+                                      >
+                                        Retry loading batches
+                                      </button>
+                                    )}
+                                  </div>
+                                )}
+                              </td>
+                              <td className="px-3 py-2 text-center">
+                                {item.has_serial_no && (
+                                  <button
+                                    type="button"
+                                    onClick={() => openSerialManager(item)}
+                                    className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded hover:bg-blue-200"
+                                  >
+                                    {item.serial_nos.length} serials
+                                  </button>
+                                )}
                               </td>
                               <td className={`px-3 py-2 text-right font-medium ${item.difference > 0 ? 'text-green-600' : item.difference < 0 ? 'text-red-600' : 'text-slate-400'}`}>
                                 {item.difference > 0 ? `+${item.difference}` : item.difference}
@@ -451,6 +764,124 @@ export const CreateStockReconciliationModal = ({ onClose, onSuccess, costCenter 
           )}
         </form>
       </div>
+
+      {/* Serial Number Manager Modal */}
+      {selectedItemForSerial && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full max-h-[80vh] flex flex-col">
+            <div className="p-4 border-b border-slate-200 flex justify-between items-center shrink-0">
+              <h3 className="text-lg font-semibold">Manage Serial Numbers</h3>
+              <button onClick={() => setSelectedItemForSerial(null)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              <div>
+                <p className="text-sm text-slate-600">Item: <span className="font-medium">{selectedItemForSerial.item_name}</span></p>
+                <p className="text-sm text-slate-600">Current System Quantity: <span className="font-medium">{selectedItemForSerial.current_qty}</span></p>
+                <p className="text-sm text-slate-600">New Quantity: <span className="font-medium">{selectedItemForSerial.new_qty}</span></p>
+                <p className="text-sm text-slate-600">Serials Added: <span className="font-bold text-blue-600">{selectedItemForSerial.serial_nos.length}</span></p>
+              </div>
+              
+              {/* Show available serials from warehouse */}
+              {selectedItemForSerial.available_serials && selectedItemForSerial.available_serials.length > 0 && (
+                <div className="bg-blue-50 p-3 rounded-lg">
+                  <p className="text-xs font-medium text-blue-800 mb-2">Available Serials in Warehouse:</p>
+                  <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto">
+                    {selectedItemForSerial.available_serials.map((serial, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => {
+                          setSerialInput(serial)
+                          addSerialNumber()
+                        }}
+                        className="text-xs bg-white text-blue-700 px-2 py-1 rounded border border-blue-200 hover:bg-blue-100"
+                      >
+                        {serial}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={serialInput}
+                  onChange={(e) => setSerialInput(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && addSerialNumber()}
+                  placeholder="Enter new or existing serial number"
+                  className="flex-1 px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+                <button
+                  type="button"
+                  onClick={addSerialNumber}
+                  className="px-3 py-2 bg-primary text-white rounded-md text-sm hover:bg-primary/90"
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
+              </div>
+              
+              <div className="border rounded-lg max-h-48 overflow-y-auto">
+                {selectedItemForSerial.serial_nos.length === 0 ? (
+                  <p className="text-center text-slate-500 py-4">No serial numbers added</p>
+                ) : (
+                  <ul className="divide-y">
+                    {selectedItemForSerial.serial_nos.map((serial, idx) => (
+                      <li key={idx} className="flex justify-between items-center p-2">
+                        <span className="font-mono text-sm">{serial}</span>
+                        <button
+                          type="button"
+                          onClick={() => removeSerialNumber(serial)}
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          <Minus className="w-4 h-4" />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+              
+              <div className="text-xs text-slate-500 bg-yellow-50 p-2 rounded">
+                <p>💡 Tip: You can add new serial numbers not yet in the warehouse. They will be created during reconciliation.</p>
+              </div>
+            </div>
+            <div className="p-4 border-t border-slate-200 flex justify-end gap-2 shrink-0">
+              <button
+                onClick={() => setSelectedItemForSerial(null)}
+                className="px-4 py-2 border border-slate-300 rounded-md text-slate-700 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  // Update the main items with the serial numbers
+                  const originalIndex = items.findIndex(i => i.item_code === selectedItemForSerial.item_code)
+                  if (originalIndex !== -1) {
+                    const updatedItems = [...items]
+                    updatedItems[originalIndex] = selectedItemForSerial
+                    setItems(updatedItems)
+                    
+                    const filteredIndex = filteredItems.findIndex(i => i.item_code === selectedItemForSerial.item_code)
+                    if (filteredIndex !== -1) {
+                      const updatedFiltered = [...filteredItems]
+                      updatedFiltered[filteredIndex] = selectedItemForSerial
+                      setFilteredItems(updatedFiltered)
+                    }
+                  }
+                  setSelectedItemForSerial(null)
+                  toast.success(`Updated serials for ${selectedItemForSerial.item_name}`)
+                }}
+                className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
