@@ -31,11 +31,7 @@ def get_environmental_checklist(admission_name: str) -> dict:
 
 @frappe.whitelist()
 def apply_environmental_checklist_template(admission_name: str, template_name: str | None = None) -> dict:
-    """Apply (or re-apply) an Environmental Checklist Template to an Inpatient Admission.
-
-    - If template_name is provided, set it on the admission.
-    - Existing environmental_checklist_detail rows are replaced with rows from the template.
-    """
+    """Apply (or re-apply) an Environmental Checklist Template to an Inpatient Admission."""
     if not admission_name:
         frappe.throw(_("Inpatient Admission is required"))
 
@@ -50,8 +46,19 @@ def apply_environmental_checklist_template(admission_name: str, template_name: s
     adm.environmental_checklist_template = tpl.name
     adm.set("environmental_checklist_detail", [])
 
-    for row in tpl.get("details", []):
-        adm.append("environmental_checklist_detail", {"item_name": row.item_name, "checked": 0})
+    # Use 'checklist_items' - the correct child table field name
+    checklist_items = tpl.get("checklist_items", [])
+    
+    # Safety check: ensure we have items and they're iterable
+    if checklist_items and isinstance(checklist_items, (list, tuple)):
+        for row in checklist_items:
+            if row and row.get("item_name"):
+                adm.append("environmental_checklist_detail", {
+                    "item_name": row.item_name,
+                    "checked": 0
+                })
+    else:
+        frappe.msgprint(_("Template '{0}' has no checklist items").format(template), alert=True)
 
     adm.save(ignore_permissions=True)
     frappe.db.commit()
@@ -61,10 +68,7 @@ def apply_environmental_checklist_template(admission_name: str, template_name: s
 
 @frappe.whitelist()
 def update_environmental_checklist(admission_name: str, details) -> dict:
-    """Update Environmental Checklist Detail rows (checked flags) on an Inpatient Admission.
-
-    `details` is a list of dicts: { name, checked }.
-    """
+    """Update Environmental Checklist Detail rows (checked flags) on an Inpatient Admission."""
     if not admission_name:
         frappe.throw(_("Inpatient Admission is required"))
 
@@ -92,3 +96,28 @@ def update_environmental_checklist(admission_name: str, details) -> dict:
 
     return get_environmental_checklist(admission_name)
 
+
+@frappe.whitelist()
+def get_environmental_checklist_templates() -> list:
+    """Return all available Environmental Checklist Templates."""
+    templates = frappe.get_all(
+        "Environmental Checklist Template",
+        fields=["name"]
+    )
+    
+    result = []
+    for template in templates:
+        doc = frappe.get_doc("Environmental Checklist Template", template.name)
+        # Use 'checklist_items' - the correct child table field name
+        checklist_items = doc.get("checklist_items", []) or []
+        
+        result.append({
+            "name": doc.name,
+            "details": [
+                {"item_name": item.item_name}
+                for item in checklist_items
+                if item and item.item_name
+            ]
+        })
+    
+    return result

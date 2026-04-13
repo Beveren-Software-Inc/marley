@@ -1241,7 +1241,6 @@ export async function fetchNursingDischargeTemplates(query?: string): Promise<Li
       body: JSON.stringify({ template_name: query || '' })
     })
 
-    console.log('Fetched nursing discharge templates:', result)
     return result || []
   } catch (err) {
     console.error('Failed to fetch nursing discharge templates:', err)

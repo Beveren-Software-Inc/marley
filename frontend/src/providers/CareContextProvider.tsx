@@ -76,26 +76,19 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
 
   // Load user cost center and roles when component mounts
   useEffect(() => {
-    console.log('CareContextProvider: Loading user context')
     const loadUserContext = async () => {
       try {
         // Load cost center
-        console.log('CareContextProvider: Fetching cost center')
         const response = await fetch('/api/method/healthcare.api.nursing_inventory.get_default_warehouse_and_cost_center')
-        console.log('CareContextProvider: Cost center response status:', response.status)
         if (response.ok) {
           const data = await response.json()
-          console.log('CareContextProvider: Cost center data:', data)
           setUserCostCenter(data.message.cost_center || undefined)
         }
 
         // Load user info including roles
-        console.log('CareContextProvider: Fetching user info')
         const userResponse = await fetch('/api/method/frappe.auth.get_logged_user')
-        console.log('CareContextProvider: User response status:', userResponse.status)
         if (userResponse.ok) {
           const userData = await userResponse.json()
-          console.log('CareContextProvider: User data:', userData)
           if (userData.message) {
             setUser({ name: userData.message })
             // Get user roles
@@ -104,10 +97,8 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ uid: userData.message })
             })
-            console.log('CareContextProvider: Roles response status:', rolesResponse.status)
             if (rolesResponse.ok) {
               const rolesData = await rolesResponse.json()
-              console.log('CareContextProvider: Roles data:', rolesData)
               setUserRole(rolesData.message || [])
             }
           }
