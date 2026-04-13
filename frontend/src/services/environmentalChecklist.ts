@@ -86,6 +86,7 @@ export interface EnvironmentalChecklistResponse {
 export interface EnvironmentalChecklistTemplate {
   name: string
   details: { item_name: string }[]
+  checklist_items: EnvironmentalChecklistDetail[]
 }
 
 // Fetch all available templates
