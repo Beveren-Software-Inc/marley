@@ -740,5 +740,64 @@ def transfer_medications_on_discharge(admission: str, order_entry_names: str | l
 		"patient_medication_order": pmo_name,
 	}
 
+@frappe.whitelist()
+def create_visit_and_prescription_on_discharge(
+	admission: str,
+	medication_orders=None,
+	patient_encounter: str | None = None,
+	after_discharge: bool | str | None = None,
+) -> dict:
+	"""Create a Patient Visit and a Patient Medication Order from discharge transfer medicines."""
+	if not admission:
+		frappe.throw(_("Admission is required"))
+
+	admission_doc = frappe.get_doc("Inpatient Admission", admission)
+	patient = admission_doc.patient
+	patient_name = admission_doc.patient_name
+	practitioner = getattr(admission_doc, "primary_practitioner", None) or getattr(admission_doc, "secondary_practitioner", None)
+	company = admission_doc.company or frappe.defaults.get_user_default("Company")
+	if not company:
+		frappe.throw(_("Company is required"))
+
+	if isinstance(medication_orders, str):
+		medication_orders = json.loads(medication_orders or "[]")
+	if not medication_orders:
+		frappe.throw(_("At least one medication order is required"))
+
+	if patient_encounter:
+		pv = frappe.get_doc("Patient Visit", patient_encounter)
+		if pv.patient != patient:
+			frappe.throw(_("Selected Patient Visit does not belong to this patient"))
+	else:
+		visit_type = "Follow-up for the Psychiatrist"
+		pv = frappe.new_doc("Patient Visit")
+		pv.patient = patient
+		pv.patient_name = patient_name
+		pv.visit_type = visit_type
+		pv.status = "Open"
+		pv.encounter_date = getdate(nowdate())
+		pv.inpatient_record = admission
+		if practitioner:
+			pv.practitioner = practitioner
+		pv.company = company
+		pv.insert(ignore_permissions=True)
+		frappe.db.commit()
+
+	from healthcare.api.patient_medication_order import create_patient_medication_order
+
+	result = create_patient_medication_order(
+		patient=patient,
+		care_context="Patient Visit",
+		company=company,
+		start_date=nowdate(),
+		patient_encounter=pv.name,
+		practitioner=practitioner,
+		medication_orders=medication_orders,
+		after_discharge=bool(str(after_discharge).lower() in ['1', 'true', 'yes']),
+	)
+	return {
+		"patient_visit": pv.name,
+		"patient_medication_order": result.get("name"),
+	}
 
 

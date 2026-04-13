@@ -92,6 +92,29 @@ export async function fetchPrescription(
   return null
 }
 
+export async function fetchDischargeTransferPrescriptions(
+  patient: string
+): Promise<Prescription[]> {
+  const params = new URLSearchParams()
+  params.append('limit', '10')
+  params.append('offset', '0')
+  params.append('patient', patient)
+  params.append('after_discharge', '1')  // Filter for after_discharge = true
+
+  const response = await fetch(
+    `/api/method/healthcare.api.patient_medication_order.get_medication_orders?${params.toString()}`
+  )
+  const resData = await response.json()
+
+  if (resData?.message && Array.isArray(resData.message)) {
+    return resData.message as Prescription[]
+  }
+  if (resData?.exc_type) {
+    throw new Error(resData?.message || 'Failed to fetch discharge transfer prescriptions')
+  }
+  return []
+}
+
 export async function createPrescriptionSalesOrder(
   name: string
 ): Promise<{ sales_order: string; status: string }> {
@@ -114,6 +137,7 @@ export interface CreatePrescriptionData {
   inpatient_record?: string
   practitioner?: string
   medication_orders?: MedicationOrderRow[]
+  after_discharge?: boolean
 }
 
 export type LongActingFrequency = 'Weekly' | 'Biweekly' | 'Monthly' | 'Every 2 Months' | 'Every 3 Months'
@@ -172,6 +196,9 @@ export async function createPrescription(
     inpatient_record: data.inpatient_record || undefined,
     practitioner: data.practitioner || undefined,
   }
+  if (data.after_discharge) {
+    body.after_discharge = true
+  }
   if (data.medication_orders && data.medication_orders.length > 0) {
     body.medication_orders = data.medication_orders.map((row) => ({
       drug: row.drug,
@@ -189,8 +216,7 @@ export async function createPrescription(
       route_of_administration: row.route_of_administration,
       is_long_acting_medicine: row.is_long_acting ?? false,
       long_acting_frequency: row.is_long_acting ? (row.long_acting_frequency || 'Weekly') : undefined,
-    medication_type: row.medication_type,
-    
+      medication_type: row.medication_type,
     }))
   }
   return apiRequest<{ name: string }>(

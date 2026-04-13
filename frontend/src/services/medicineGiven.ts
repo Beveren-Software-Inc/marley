@@ -1,4 +1,5 @@
 import { apiRequest } from './apiClient'
+import type { MedicationOrderRow } from './prescriptions'
 
 export interface CreateMedicineGivenData {
   admission: string
@@ -252,6 +253,23 @@ export async function transferMedicationsOnDischarge(
     body: JSON.stringify({
       admission,
       order_entry_names: orderEntryNames,
+    }),
+  })
+}
+
+export async function createVisitAndPrescriptionOnDischarge(
+  admission: string,
+  medicationOrders: MedicationOrderRow[],
+  patientEncounter?: string,
+  afterDischarge?: boolean,
+): Promise<{ patient_visit: string; patient_medication_order: string }> {
+  return apiRequest('/api/method/healthcare.api.medicine_given.create_visit_and_prescription_on_discharge', {
+    method: 'POST',
+    body: JSON.stringify({
+      admission,
+      medication_orders: medicationOrders,
+      patient_encounter: patientEncounter,
+      after_discharge: afterDischarge ?? false,
     }),
   })
 }

@@ -38,6 +38,11 @@ export const MaterialRequestTab = ({ onSuccess, refreshKey: _refreshKey, costCen
     setLoading(true)
     try {
       const data = await fetchMaterialRequests(effectiveCostCenter)
+      const names = new Set<string>()
+      const duplicates = data.filter((request) => names.has(request.name) || names.add(request.name))
+      if (duplicates.length > 0) {
+        console.warn('Duplicate material request names detected:', duplicates.map((request) => request.name))
+      }
       setRequests(data)
     } catch (error) {
       console.error('Failed to load requests:', error)
@@ -306,8 +311,8 @@ export const MaterialRequestTab = ({ onSuccess, refreshKey: _refreshKey, costCen
             </div>
           ) : (
             <div className="divide-y divide-slate-200">
-              {requests.map((request) => (
-                <div key={request.name} className="p-4 hover:bg-slate-50 transition">
+              {requests.map((request, idx) => (
+                <div key={`${request.name}-${idx}`} className="p-4 hover:bg-slate-50 transition">
                   <div className="flex justify-between items-start mb-2">
                     <div>
                       <div className="flex items-center gap-2">

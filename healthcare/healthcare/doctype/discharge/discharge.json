@@ -20,6 +20,7 @@
   "column_break_stpu",
   "final_discharge_user_id",
   "final_discharger_username",
+  "prescription",
   "section_break_tleb",
   "discharge_date",
   "discharge_time",
@@ -371,13 +372,19 @@
    "fieldtype": "Table",
    "label": "Nursing checklist",
    "options": "Discharge Nursing Detail"
+  },
+  {
+   "fieldname": "prescription",
+   "fieldtype": "Link",
+   "label": "Prescription",
+   "options": "Patient Medication Order"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-04-08 01:40:23.045553",
+ "modified": "2026-04-14 01:19:12.859772",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Discharge",

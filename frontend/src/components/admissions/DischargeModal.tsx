@@ -1612,9 +1612,14 @@ import { createDischarge, UnbilledServicesError } from '../../services/inpatient
 import { uploadPatientFile, type PatientDocumentRow } from '../../services/patients'
 import { MedicineGivenList } from '../medication/MedicineGivenList'
 import { MedicineReconciliationList } from '../medication/MedicineReconciliationList'
+import { getDischargeReconciliationRows, type DischargeReconciliationRow } from '../../services/medicineGiven'
+import type { MedicationOrderRow } from '../../services/prescriptions'
 import { fetchHealthcarePractitioners, fetchUsers, fetchDischargeTemplates, fetchDischargeChecklist, fetchDepartments, fetchDocumentTypes, fetchNursingDischargeTemplates, type LinkFieldOption, fetchNursingDischargeChecklist } from '../../services/common'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
+import { CreatePrescriptionModal } from '../prescriptions/CreatePrescriptionModal'
+import { fetchDischargeTransferPrescriptions } from '../../services/prescriptions'
 import { toast } from '../../hooks/useToast'
+import { useCareContext } from '../../providers/CareContextProvider'
 import { saveDischargeDraft, loadDischargeDraft, clearDischargeDraft, draftSavedAt } from '../../services/dischargeDraft'
 import { X, CheckCircle2, Circle, ChevronDown, ChevronUp, AlertCircle, Receipt, PenLine, Trash2, Check, Save, Clock } from 'lucide-react'
 
@@ -1861,13 +1866,102 @@ const RELATION_OPTIONS = [
   'Daughter',
 ] as const
 
+const TRANSFER_ALLOWED_ROLES = ['Doctor', 'System Manager', 'Healthcare Administrator', 'Administrator'] as const
+
+function addDaysToIsoDate(dateStr: string, days: number): string {
+  const d = new Date(dateStr)
+  d.setDate(d.getDate() + days)
+  return d.toISOString().split('T')[0]
+}
+
+interface TransferPrescriptionModalProps {
+  rows: DischargeReconciliationRow[]
+  selectedNames: string[]
+  onClose: () => void
+  onConfirm: () => Promise<void>
+  isSubmitting: boolean
+}
+
+const TransferPrescriptionModal = ({ rows, selectedNames, onClose, onConfirm, isSubmitting }: TransferPrescriptionModalProps) => (
+  <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4">
+    <div className="bg-white rounded-xl shadow-2xl max-w-3xl w-full max-h-[85vh] overflow-hidden flex flex-col">
+      <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-900">Confirm prescription transfer</h2>
+          <p className="text-sm text-slate-600">Review the remaining discharge medicines before creating the follow-up prescription and patient visit.</p>
+        </div>
+        <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1 rounded-md hover:bg-slate-100 transition-colors">
+          <X className="w-5 h-5" />
+        </button>
+      </div>
+      <div className="flex-1 overflow-y-auto p-6">
+        {selectedNames.length === 0 ? (
+          <div className="text-sm text-slate-500">No medicines selected for transfer.</div>
+        ) : (
+          <div className="space-y-4">
+            <div className="text-sm text-slate-600">The following remaining medicines will be transferred to a new Patient Visit prescription:</div>
+            <div className="bg-white border border-slate-200 rounded-lg overflow-auto max-h-[340px]">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 border-b border-slate-200">
+                  <tr>
+                    <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-600">Drug</th>
+                    <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-600">Remaining</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200">
+                  {rows
+                    .filter((row) => selectedNames.includes(row.name))
+                    .map((row) => (
+                      <tr key={row.name} className="hover:bg-slate-50">
+                        <td className="px-3 py-2 text-slate-800">{row.drug_name || row.drug}</td>
+                        <td className="px-3 py-2 text-slate-700">{row.remaining}</td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
+      <div className="px-6 py-4 border-t border-slate-200 flex items-center justify-end gap-3 bg-slate-50">
+        <button
+          type="button"
+          onClick={onClose}
+          className="px-4 py-2 rounded border border-slate-300 text-slate-700 hover:bg-slate-100"
+          disabled={isSubmitting}
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={onConfirm}
+          disabled={isSubmitting || selectedNames.length === 0}
+          className="px-4 py-2 rounded bg-primary text-white hover:bg-primary-dark disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isSubmitting ? 'Creating prescription…' : 'Create prescription & visit'}
+        </button>
+      </div>
+    </div>
+  </div>
+)
+
 // ─── Main Modal ─────────────────────────────────────────────────────────────
 
 export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModalProps) => {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [unbilledServices, setUnbilledServices] = useState<{ type: string; ids: string[] }[] | null>(null)
-  const [activeTab, setActiveTab] = useState<'details' | 'checklist' | 'nursing' | 'reconcile' | 'documents' | 'relatives'>('details')
+  const [activeTab, setActiveTab] = useState<'details' | 'checklist' | 'nursing' | 'transfer' | 'reconcile' | 'documents' | 'relatives'>('details')
+
+  const { userRole } = useCareContext()
+  const canViewMedicineTransfer = (userRole || []).some((role) => TRANSFER_ALLOWED_ROLES.includes(role as typeof TRANSFER_ALLOWED_ROLES[number]))
+
+  const [transferRows, setTransferRows] = useState<DischargeReconciliationRow[]>([])
+  const [transferLoading, setTransferLoading] = useState(false)
+  const [transferError, setTransferError] = useState<string | null>(null)
+  const [transferModalOpen, setTransferModalOpen] = useState(false)
+  const [transferSelected, setTransferSelected] = useState<Set<string>>(new Set())
+  const [transferPrescription, setTransferPrescription] = useState<{ name: string; patient_visit?: string } | null>(null)
 
   // Checklist state
   const [checklistItems, setChecklistItems] = useState<ChecklistItem[]>([])
@@ -2022,6 +2116,9 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
           if (Array.isArray(draft.relatives) && draft.relatives.length > 0) {
             setRelatives(draft.relatives as typeof relatives)
           }
+          if (draft.transferPrescription) {
+            setTransferPrescription(draft.transferPrescription)
+          }
           toast.info('Resumed from saved draft', 3000)
           return
         }
@@ -2032,6 +2129,21 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
           setSelectedDischargeTemplate(defaultTemplate)
           setFormData(prev => ({ ...prev, discharge_template: defaultTemplate.name }))
           setDischargeTemplateQuery(defaultTemplate.label)
+        }
+
+        // Check for existing discharge transfer prescriptions
+        try {
+          const existingTransfers = await fetchDischargeTransferPrescriptions(admission.patient)
+          if (existingTransfers.length > 0) {
+            // Use the most recent one
+            const latestTransfer = existingTransfers[0]
+            setTransferPrescription({
+              name: latestTransfer.name,
+              patient_visit: latestTransfer.patient_encounter, // Assuming patient_encounter is the visit
+            })
+          }
+        } catch (error) {
+          console.error('Failed to check for existing transfer prescriptions:', error)
         }
       } catch (err) {
         console.error('Failed to load data:', err)
@@ -2209,9 +2321,63 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
     }
   }, [activeTab])
 
+  useEffect(() => {
+    const loadTransferRows = async () => {
+      if (activeTab !== 'transfer' || !admission?.name) {
+        return
+      }
+      setTransferLoading(true)
+      setTransferError(null)
+      try {
+        const rows = await getDischargeReconciliationRows(admission.name)
+        setTransferRows(rows)
+        setTransferSelected(new Set(rows.map((row) => row.name)))
+      } catch (err) {
+        setTransferError(err instanceof Error ? err.message : 'Failed to load remaining medicines')
+        setTransferRows([])
+        setTransferSelected(new Set())
+      } finally {
+        setTransferLoading(false)
+      }
+    }
+    loadTransferRows()
+  }, [activeTab, admission?.name])
+
   // Checklist helpers
   const toggleDept = (dept: string) => setExpandedDepts(prev => ({ ...prev, [dept]: !prev[dept] }))
   const toggleItem = (itemName: string) => setExpandedItems(prev => ({ ...prev, [itemName]: !prev[itemName] }))
+
+  const toggleTransferSelection = (rowName: string) => {
+    setTransferSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(rowName)) next.delete(rowName)
+      else next.add(rowName)
+      return next
+    })
+  }
+
+  const refreshTransferRows = async () => {
+    try {
+      const rows = await getDischargeReconciliationRows(admission.name)
+      setTransferRows(rows)
+      setTransferSelected(new Set(rows.map((row) => row.name)))
+    } catch {
+      // ignore refresh failures
+    }
+  }
+
+  const handleTransferCreated = async (result?: { patient_visit: string; patient_medication_order: string }) => {
+    setTransferModalOpen(false)
+    setTransferSelected(new Set())
+    if (result?.patient_medication_order) {
+      setTransferPrescription({
+        name: result.patient_medication_order,
+        patient_visit: result.patient_visit,
+      })
+    }
+    await refreshTransferRows()
+    onSuccess()
+  }
 
   const toggleCheck = (itemName: string) => {
     setChecklistItems(prev =>
@@ -2359,6 +2525,7 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
       nurseChecklistItems,
       documents,
       relatives,
+      transferPrescription,
     })
     toast.success('Discharge progress saved. You can continue later.', 4000)
     onClose()
@@ -2391,7 +2558,15 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
 
         {/* Tabs */}
         <div className="flex border-b border-slate-200 bg-slate-50 overflow-x-auto">
-          {(['details', 'checklist', 'nursing', 'reconcile', 'documents', 'relatives'] as const).map((tab) => (
+          {([
+            'details',
+            'checklist',
+            'nursing',
+            ...(canViewMedicineTransfer ? ['transfer'] as const : []),
+            'reconcile',
+            'documents',
+            'relatives',
+          ] as const).map((tab) => (
             <button
               key={tab}
               type="button"
@@ -2406,6 +2581,8 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
                 ? 'Discharge Checklist'
                 : tab === 'nursing'
                 ? 'Nursing Checklist'
+                : tab === 'transfer'
+                ? 'Medicine Transfer'
                 : tab === 'reconcile'
                 ? 'Medicine Reconciliation'
                 : tab.charAt(0).toUpperCase() + tab.slice(1)}
@@ -3133,6 +3310,78 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
             </div>
           )}
 
+          {activeTab === 'transfer' && (
+            <div className="p-6 space-y-6">
+              <h3 className="text-sm font-semibold text-slate-700 mb-1">Medicine Transfer</h3>
+              <p className="text-xs text-slate-600 mb-2">
+                Transfer remaining discharge medicines into a follow-up prescription. This creates a Patient Visit and a new prescription for the patient to continue at home.
+              </p>
+
+              {transferError && (
+                <div className="bg-red-50 border border-red-200 rounded-md px-3 py-2 text-sm text-red-700">
+                  {transferError}
+                </div>
+              )}
+
+              {transferLoading ? (
+                <div className="text-sm text-slate-600">Loading remaining discharge medicines…</div>
+              ) : transferRows.length === 0 ? (
+                <div className="text-sm text-slate-500">No remaining discharge medicines are available for transfer.</div>
+              ) : (
+                <div className="space-y-4">
+                  {transferPrescription && (
+                    <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+                      Transfer prescription created: <strong>{transferPrescription.name}</strong>
+                      {transferPrescription.patient_visit ? ` for visit ${transferPrescription.patient_visit}` : ''}.
+                    </div>
+                  )}
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div className="text-sm text-slate-600">
+                      Select which remaining medicines to transfer into the follow-up prescription.
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setTransferModalOpen(true)}
+                      disabled={!!transferPrescription || transferSelected.size === 0}
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded bg-primary text-white hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {transferPrescription ? 'Transfer completed' : `Transfer medicine (${transferSelected.size})`}
+                    </button>
+                  </div>
+
+                  <div className="bg-white border border-slate-200 rounded-lg overflow-auto max-h-[340px]">
+                    <table className="w-full text-sm">
+                      <thead className="bg-slate-50 border-b border-slate-200">
+                        <tr>
+                          <th className="px-3 py-2 text-left w-10"></th>
+                          <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-600">Drug</th>
+                          <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-600">Remaining</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200">
+                        {transferRows.map((row) => (
+                          <tr key={row.name} className="hover:bg-slate-50">
+                            <td className="px-3 py-2">
+                              <button
+                                type="button"
+                                onClick={() => toggleTransferSelection(row.name)}
+                                className="text-slate-500 hover:text-slate-700"
+                              >
+                                {transferSelected.has(row.name) ? '✓' : '○'}
+                              </button>
+                            </td>
+                            <td className="px-3 py-2 text-slate-800">{row.drug_name || row.drug}</td>
+                            <td className="px-3 py-2 text-slate-700">{row.remaining}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* ── TAB: DOCUMENTS ── */}
           {activeTab === 'documents' && (
             <div className="p-6">
@@ -3464,6 +3713,36 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
             </div>
           </div>
         </form>
+        {transferModalOpen && (
+          <CreatePrescriptionModal
+            onClose={() => setTransferModalOpen(false)}
+            onSuccess={handleTransferCreated}
+            initialPatient={admission.patient}
+            initialCareContext="Patient Visit"
+            initialMedications={transferRows
+              .filter((row) => transferSelected.has(row.name))
+              .map((row) => ({
+                drug: row.drug,
+                drug_name: row.drug_name,
+                dosage: '',
+                no_of_days: 1,
+                dosage_form: '',
+                instructions: '',
+                date: new Date().toISOString().split('T')[0],
+                end_date: addDaysToIsoDate(new Date().toISOString().split('T')[0], 1),
+                time: '08:00:00',
+                patient_frequency: '',
+                is_pink: false,
+                is_prn: false,
+                reference_no: '',
+                route_of_administration: '',
+                is_long_acting: false,
+                long_acting_frequency: 'Weekly',
+                medication_type: '',
+              }))}
+            transferAdmission={admission.name}
+          />
+        )}
       </div>
     </div>
   )
