@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { fetchStockLedger, getWarehousesForCostCenter, createStockReconciliation, getItemBatches, getItemSerials, getBatchSerials } from '../../services/nursingInventory'
 import { toast } from '../../hooks/useToast'
-import { X, Save, Search, AlertTriangle, Scan, Plus, Minus } from 'lucide-react'
+import { X, Save, Search, AlertTriangle, Plus, Minus } from 'lucide-react'
 
 interface CreateStockReconciliationModalProps {
   onClose: () => void

@@ -27,7 +27,7 @@ export const StockLedgerTab = ({ refreshTrigger = 0, costCenter, isFullAccess = 
     outOfStockItems: 0,
     totalValue: 0
       });
-      const [debugItem, setDebugItem] = useState<any>(null)
+      const [_debugItem, setDebugItem] = useState<any>(null)
 
   useEffect(() => {
     if (effectiveCostCenter) {
