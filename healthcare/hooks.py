@@ -298,6 +298,7 @@ scheduler_events = {
 		"healthcare.healthcare.doctype.patient_appointment.patient_appointment.update_appointment_status",
 		"healthcare.healthcare.doctype.fee_validity.fee_validity.update_validity_status",
 		"healthcare.healthcare.doctype.insurance_patient_register.insurance_patient_register.expire_unused_registers",
+		"healthcare.api.nursing_inventory.create_daily_medicine_sales_orders",
 	],
 	"monthly": [
 		"healthcare.healthcare.doctype.patient_follow_up.follow_up_crm_messages.send_follow_up_mid_end_year_messages",

@@ -3,6 +3,7 @@ import { getPatientActiveAdmission, type InpatientRecord } from '../../services/
 import { fetchMedicineGiven, deleteMedicineGiven, type MedicineGivenRow } from '../../services/medicineGiven'
 import { toast } from '../../hooks/useToast'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
+import { useCareContext } from '../../providers/CareContextProvider'
 
 interface MedicineGivenListProps {
   patient?: string
@@ -10,10 +11,12 @@ interface MedicineGivenListProps {
 }
 
 export const MedicineGivenList = ({ patient, refreshKey }: MedicineGivenListProps) => {
+  const { userCostCenter } = useCareContext()
   const [admission, setAdmission] = useState<InpatientRecord | null>(null)
   const [rows, setRows] = useState<MedicineGivenRow[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [creatingSalesOrder, setCreatingSalesOrder] = useState(false)
 
   useEffect(() => {
     const load = async () => {
@@ -60,6 +63,45 @@ export const MedicineGivenList = ({ patient, refreshKey }: MedicineGivenListProp
     }
   }
 
+  const handleCreateSalesOrder = async () => {
+    if (!userCostCenter) {
+      toast.error('No cost center found for current user')
+      return
+    }
+
+    if (!window.confirm('Create sales order for today\'s medicine consumption? This will reduce stock from your warehouse.')) {
+      return
+    }
+
+    setCreatingSalesOrder(true)
+    try {
+      const response = await fetch('/api/method/healthcare.api.nursing_inventory.create_daily_medicine_sales_order', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          cost_center: userCostCenter,
+        }),
+      })
+
+      const result = await response.json()
+
+      if (result.message?.sales_order) {
+        toast.success(`Sales Order ${result.message.sales_order} created successfully`)
+      } else if (result.exc) {
+        throw new Error(result.exc)
+      } else {
+        throw new Error('Failed to create sales order')
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed to create sales order'
+      toast.error(msg)
+    } finally {
+      setCreatingSalesOrder(false)
+    }
+  }
+
   if (!patient) {
     return (
       <div className="text-sm text-slate-600">
@@ -103,13 +145,23 @@ export const MedicineGivenList = ({ patient, refreshKey }: MedicineGivenListProp
         <div className="text-xs text-slate-500">
           Admission: <span className="font-medium text-slate-700">{admission.name}</span>
         </div>
-        <PrintFormatDropdown
-          doctype="Admission Detail"
-          docName={admission.name}
-          noLetterhead={0}
-          triggerPrint={1}
-          className="inline-flex items-center justify-center w-8 h-8 rounded border border-slate-300 bg-white text-primary hover:bg-slate-50"
-        />
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleCreateSalesOrder}
+            disabled={creatingSalesOrder}
+            className="px-3 py-1 rounded-md bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Create sales order for today's medicine consumption"
+          >
+            {creatingSalesOrder ? 'Creating...' : 'Create Sales Order'}
+          </button>
+          <PrintFormatDropdown
+            doctype="Admission Detail"
+            docName={admission.name}
+            noLetterhead={0}
+            triggerPrint={1}
+            className="inline-flex items-center justify-center w-8 h-8 rounded border border-slate-300 bg-white text-primary hover:bg-slate-50"
+          />
+        </div>
       </div>
 
       <div className="bg-white border border-slate-200 rounded-lg overflow-auto max-h-[320px]">

@@ -121,6 +121,13 @@ export async function createStockReconciliation(data: Omit<StockReconciliation, 
   return result.message
 }
 
+// Fetch stock reconciliations
+export async function getStockReconciliations(costCenter: string): Promise<StockReconciliation[]> {
+  const response = await fetch(`/api/method/healthcare.api.nursing_inventory.get_stock_reconciliations?cost_center=${encodeURIComponent(costCenter)}`)
+  const data = await response.json()
+  return data.message || []
+}
+
 // Create material receipt
 export async function createMaterialReceipt(data: Omit<MaterialReceipt, 'name'>): Promise<{ name: string }> {
   const response = await fetch('/api/method/healthcare.api.nursing_inventory.create_material_receipt', {
@@ -157,22 +164,43 @@ export async function getWarehousesForCostCenter(costCenter: string): Promise<{ 
   return data.message || []
 }
 
-// export async function createStockReconciliation(data: any): Promise<{ name: string }> {
-//   const response = await fetch('/api/method/healthcare.api.nursing_inventory.create_stock_reconciliation', {
-//     method: 'POST',
-//     headers: { 'Content-Type': 'application/json' },
-//     body: JSON.stringify(data)
-//   })
-//   const result = await response.json()
-//   if (!response.ok) throw new Error(result.message || 'Failed to create stock reconciliation')
-//   return result.message
-// }
-
-
-// Add to services/nursingInventory.ts
 
 export async function getAllCostCenters(): Promise<{ name: string; label: string }[]> {
   const response = await fetch('/api/method/healthcare.api.nursing_inventory.get_all_cost_centers')
   const data = await response.json()
   return data.message || []
+}
+
+export async function getItemBatches(itemCode: string, warehouse: string) {
+  const response = await fetch('/api/method/healthcare.api.nursing_inventory.get_item_batches', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ item_code: itemCode, warehouse })
+  })
+  const result = await response.json()
+  console.log("Uko wapi")
+  if (!response.ok) throw new Error(result.message || 'Failed to fetch batches')
+  return result.message
+}
+
+export async function getItemSerials(itemCode: string, warehouse: string) {
+  const response = await fetch('/api/method/healthcare.api.nursing_inventory.get_item_serials', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ item_code: itemCode, warehouse })
+  })
+  const result = await response.json()
+  if (!response.ok) throw new Error(result.message || 'Failed to fetch serials')
+  return result.message
+}
+
+export async function getBatchSerials(batchNo: string, warehouse: string) {
+  const response = await fetch('/api/method/healthcare.api.nursing_inventory.get_batch_details_with_serials', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ batch_no: batchNo, warehouse })
+  })
+  const result = await response.json()
+  if (!response.ok) throw new Error(result.message || 'Failed to fetch batch serials')
+  return result.message || []
 }

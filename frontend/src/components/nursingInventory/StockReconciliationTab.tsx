@@ -1,7 +1,7 @@
 // tabs/StockReconciliationTab.tsx
 import { useState, useEffect } from 'react'
 import { useCareContext } from '../../providers/CareContextProvider'
-import { fetchStockLedger } from '../../services/nursingInventory'
+import { fetchStockLedger, getStockReconciliations } from '../../services/nursingInventory'
 import { toast } from '../../hooks/useToast'
 import { Save, Eye, CheckCircle, RefreshCw, Search } from 'lucide-react'
 
@@ -40,11 +40,11 @@ export const StockReconciliationTab = ({ onSuccess, refreshKey: _refreshKey, cos
   const [scanInput, setScanInput] = useState('')
 
   useEffect(() => {
-    if (userCostCenter) {
+    if (effectiveCostCenter) {
       loadReconciliations()
       loadWarehouses()
     }
-  }, [userCostCenter])
+  }, [effectiveCostCenter])
 
   const loadWarehouses = async () => {
     try {
@@ -60,14 +60,19 @@ export const StockReconciliationTab = ({ onSuccess, refreshKey: _refreshKey, cos
   }
 
   const loadReconciliations = async () => {
-    if (!effectiveCostCenter) return
+    console.log('Loading stock reconciliations for cost center:', effectiveCostCenter)
+    if (!effectiveCostCenter) {
+      console.log('No effective cost center, skipping load')
+      return
+    }
     setLoading(true)
     try {
-      const response = await fetch(`/api/method/healthcare.api.nursing_inventory.get_stock_reconciliations?cost_center=${encodeURIComponent(effectiveCostCenter)}`)
-      const data = await response.json()
-      setReconciliations(data.message || [])
+      const data = await getStockReconciliations(effectiveCostCenter)
+      console.log('Loaded stock reconciliations:', data)
+      setReconciliations(data || [])
     } catch (error) {
       console.error('Failed to load reconciliations:', error)
+      toast.error('Failed to load stock reconciliations')
     } finally {
       setLoading(false)
     }
