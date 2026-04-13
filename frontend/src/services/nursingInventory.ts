@@ -106,6 +106,8 @@ export async function fetchMaterialRequests(costCenter: string, status?: string)
   if (status) url += `&status=${status}`
   const response = await fetch(url)
   const data = await response.json()
+
+  console.log("Fetched material requests:", data.message)
   return data.message || []
 }
 
@@ -168,6 +170,7 @@ export async function getWarehousesForCostCenter(costCenter: string): Promise<{ 
 export async function getAllCostCenters(): Promise<{ name: string; label: string }[]> {
   const response = await fetch('/api/method/healthcare.api.nursing_inventory.get_all_cost_centers')
   const data = await response.json()
+  console.log("Cost centers:", data.message)
   return data.message || []
 }
 

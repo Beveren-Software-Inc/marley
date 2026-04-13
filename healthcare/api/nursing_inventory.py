@@ -907,36 +907,56 @@ def create_material_receipt():
 @frappe.whitelist()
 def get_material_receipts(cost_center):
     """
-    Get material receipts for a cost center.
+    Get material transfers (Stock Entries) for a cost center.
     
+    Shows stock entries of material transfer that have been transferred to the nurse's warehouse.
     Uses warehouse from Healthcare Settings based on cost_center.
     """
     if not cost_center:
         frappe.throw(_("Cost Center is required"))
     
-    # Get warehouse from Healthcare Settings
+    # Get warehouse from Healthcare Settings (nurse's warehouse)
     warehouse = get_warehouse_for_cost_center(cost_center)
     
     if not warehouse:
         frappe.response["message"] = []
         return
-    
-    receipts = frappe.get_all("Purchase Receipt",
-        filters={"set_warehouse": warehouse, "docstatus": 1},
-        fields=["name", "posting_date as receipt_date", "supplier", "bill_no as invoice_number", 
-                "grand_total as total_amount", "owner as received_by", "status"],
+    # Get Stock Entries with purpose "Material Transfer" to the nurse's warehouse
+    transfers = frappe.get_all("Stock Entry",
+        filters={
+            "purpose": "Material Transfer",
+            "to_warehouse": warehouse,
+            # "cost_center": cost_center,
+            "docstatus": 1
+        },
+        fields=[
+            "name", 
+            "posting_date as transfer_date", 
+            "from_warehouse", 
+            "to_warehouse", 
+            "total_outgoing_value as total_amount", 
+            "owner as transferred_by", 
+            "stock_entry_type"
+        ],
         order_by="creation desc",
         limit=50
     )
-    
-    for receipt in receipts:
-        receipt["items"] = frappe.get_all("Purchase Receipt Item",
-            filters={"parent": receipt["name"]},
-            fields=["item_code", "item_name", "qty as quantity", "rate as unit_price", 
-                    "amount as total_price", "batch_no as batch_number", "expiry_date"]
+    # frappe.throw("Uko wapi", str(transfers))
+    for transfer in transfers:
+        transfer["items"] = frappe.get_all("Stock Entry Detail",
+            filters={"parent": transfer["name"]},
+            fields=[
+                "item_code", 
+                "item_name", 
+                "qty as quantity", 
+                "basic_rate as unit_price", 
+                "amount as total_price", 
+                "batch_no as batch_number", 
+                # "expiry_date"
+            ]
         )
     
-    frappe.response["message"] = receipts
+    frappe.response["message"] = transfers
 
 @frappe.whitelist()
 def get_user_cost_centers():
@@ -1038,3 +1058,14 @@ def create_daily_medicine_sales_orders():
         "created": created_orders,
         "failed": failed_orders
     }
+    
+@frappe.whitelist()
+def get_all_cost_centers():
+    """
+    Get all cost centers for dropdowns
+    """
+    cost_centers = frappe.get_all("Cost Center", 
+        filters={"is_group": 0},
+        fields=["name", "cost_center_name as label"], 
+        order_by="cost_center_name asc")
+    return cost_centers

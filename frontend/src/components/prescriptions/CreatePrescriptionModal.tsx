@@ -19,6 +19,7 @@ import {
   type Prescription,
   LONG_ACTING_FREQUENCY_OPTIONS,
 } from '../../services/prescriptions'
+import { createVisitAndPrescriptionOnDischarge } from '../../services/medicineGiven'
 import { bulkCreateNurseTasks, type CreateNurseTaskData } from '../../services/nurseTask'
 import { toast } from '../../hooks/useToast'
 import { X, Plus, Trash2, Pill, ChevronDown, ChevronUp } from 'lucide-react'
@@ -26,8 +27,13 @@ import { useCareContext } from '../../providers/CareContextProvider'
 
 interface CreatePrescriptionModalProps {
   onClose: () => void
-  onSuccess: () => void
+  onSuccess: (result?: { patient_visit: string; patient_medication_order: string }) => void
   initialPatient?: string
+  initialMedications?: MedicationOrderRow[]
+  initialCareContext?: 'Patient Visit' | 'Inpatient Admission'
+  initialPatientEncounter?: string
+  initialStartDate?: string
+  transferAdmission?: string
   editMode?: boolean
   prescriptionData?: Prescription | null
 }
@@ -223,6 +229,11 @@ export const CreatePrescriptionModal = ({
   onClose,
   onSuccess,
   initialPatient,
+  initialMedications,
+  initialCareContext,
+  initialPatientEncounter,
+  initialStartDate,
+  transferAdmission,
   editMode = false,
   prescriptionData = null,
 }: CreatePrescriptionModalProps) => {
@@ -374,6 +385,7 @@ export const CreatePrescriptionModal = ({
   }, [editMode, prescriptionData, formData.start_date])
 
   useEffect(() => {
+    if (initialCareContext) return
     setFormData((prev) => {
       const next = { ...prev }
       if (mode === 'IP') {
@@ -383,7 +395,7 @@ export const CreatePrescriptionModal = ({
       }
       return next
     })
-  }, [mode])
+  }, [mode, initialCareContext])
 
   useEffect(() => {
     fetchCompanies().then(setCompanies).catch(() => setCompanies([]))
@@ -402,6 +414,29 @@ export const CreatePrescriptionModal = ({
         .catch(() => setSelectedPatient({ name: initialPatient, patient_name: initialPatient } as PatientListItem))
     }
   }, [initialPatient])
+
+  useEffect(() => {
+    if (initialMedications && initialMedications.length > 0) {
+      setMedications(initialMedications)
+      const queries: Record<number, string> = {}
+      initialMedications.forEach((med, idx) => {
+        queries[idx] = med.drug_name || med.drug
+      })
+      setDrugQueries(queries)
+    }
+  }, [initialMedications])
+
+  useEffect(() => {
+    if (initialCareContext) {
+      setFormData((prev) => ({
+        ...prev,
+        care_context: initialCareContext,
+        patient_encounter: initialPatientEncounter || '',
+        inpatient_record: initialCareContext === 'Patient Visit' ? '' : prev.inpatient_record,
+        start_date: initialStartDate || prev.start_date,
+      }))
+    }
+  }, [initialCareContext, initialPatientEncounter, initialStartDate])
 
   useEffect(() => {
     if (!selectedPatient) {
@@ -522,8 +557,18 @@ export const CreatePrescriptionModal = ({
 
     try {
       setSubmitting(true)
+      let successResult: { patient_visit: string; patient_medication_order: string } | undefined
       
-      if (isEditing && prescriptionData) {
+      if (initialCareContext === 'Patient Visit' && transferAdmission) {
+        const result = await createVisitAndPrescriptionOnDischarge(
+          transferAdmission,
+          validMedications,
+          formData.patient_encounter || undefined,
+          true,
+        )
+        toast.success(`Created visit ${result.patient_visit} and prescription ${result.patient_medication_order}`)
+        successResult = result
+      } else if (isEditing && prescriptionData) {
         const payload: any = {
           name: prescriptionData.name,
           patient: selectedPatient.name,
@@ -597,7 +642,7 @@ export const CreatePrescriptionModal = ({
         }
       }
 
-      onSuccess()
+      onSuccess(successResult)
       onClose()
     } catch (err) {
       const msg = err instanceof Error ? err.message : `Failed to ${isEditing ? 'update' : 'create'} prescription`
@@ -719,10 +764,11 @@ export const CreatePrescriptionModal = ({
                           inpatient_record: '',
                         }))
                       }
-                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+                      disabled={Boolean(transferAdmission)}
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white disabled:bg-slate-100 disabled:text-slate-500"
                     >
                       <option value="Patient Visit">Patient Visit</option>
-                      <option value="Inpatient Admission">Inpatient Admission</option>
+                      {!transferAdmission && <option value="Inpatient Admission">Inpatient Admission</option>}
                     </select>
                   </div>
 

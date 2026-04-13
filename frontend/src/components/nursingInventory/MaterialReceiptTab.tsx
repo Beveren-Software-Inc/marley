@@ -23,7 +23,11 @@ interface ReceiptItem {
 }
 
 export const MaterialReceiptTab = ({ onSuccess, refreshKey: _refreshKey, costCenter: _costCenter, isFullAccess: _isFullAccess }: MaterialReceiptTabProps) => {
+  console.log('MaterialReceiptTab: Component rendered with props:', { onSuccess, refreshKey: _refreshKey, costCenter: _costCenter, isFullAccess: _isFullAccess })
   const { userCostCenter, user } = useCareContext()
+  console.log('MaterialReceiptTab: Context values - userCostCenter:', userCostCenter, 'user:', user)
+  const effectiveCostCenter = _costCenter || userCostCenter
+  console.log('MaterialReceiptTab: effectiveCostCenter:', effectiveCostCenter)
   const [receipts, setReceipts] = useState<MaterialReceipt[]>([])
   const [showForm, setShowForm] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -40,17 +44,26 @@ export const MaterialReceiptTab = ({ onSuccess, refreshKey: _refreshKey, costCen
   const [itemOptions, setItemOptions] = useState<{ [key: number]: any[] }>({})
 
   useEffect(() => {
-    if (userCostCenter) {
+    console.log('MaterialReceiptTab: useEffect triggered, effectiveCostCenter:', effectiveCostCenter)
+    if (effectiveCostCenter) {
       loadReceipts()
+    } else {
+      console.log('MaterialReceiptTab: effectiveCostCenter is falsy, not loading receipts')
     }
-  }, [userCostCenter])
+  }, [effectiveCostCenter])
 
   const loadReceipts = async () => {
-    if (!userCostCenter) return
+    console.log('MaterialReceiptTab: loadReceipts called')
+    if (!effectiveCostCenter) return
     setLoading(true)
     try {
-      const response = await fetch(`/api/method/healthcare.api.nursing_inventory.get_material_receipts?cost_center=${encodeURIComponent(userCostCenter)}`)
+      const url = `/api/method/healthcare.api.nursing_inventory.get_material_receipts?cost_center=${encodeURIComponent(effectiveCostCenter)}`
+      console.log('MaterialReceiptTab: fetching from URL:', url)
+      const response = await fetch(url)
+      console.log('MaterialReceiptTab: response status:', response.status)
       const data = await response.json()
+
+      console.log("Fetched material receipts:", data.message)
       setReceipts(data.message || [])
     } catch (error) {
       console.error('Failed to load receipts:', error)
@@ -116,7 +129,7 @@ export const MaterialReceiptTab = ({ onSuccess, refreshKey: _refreshKey, costCen
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (!userCostCenter) {
+    if (!effectiveCostCenter) {
       toast.error('No cost center assigned')
       return
     }
@@ -130,7 +143,7 @@ export const MaterialReceiptTab = ({ onSuccess, refreshKey: _refreshKey, costCen
     setSubmitting(true)
     try {
       await createMaterialReceipt({
-        cost_center: userCostCenter,
+        cost_center: effectiveCostCenter,
         receipt_date: new Date().toISOString().split('T')[0],
         supplier: supplier || undefined,
         invoice_number: invoiceNumber || undefined,

@@ -20,6 +20,7 @@ def get_medication_orders(
 	care_context=None,
 	patient_encounter=None,
 	inpatient_record=None,
+	after_discharge=None,
 ):
 	"""Get list of Patient Medication Orders for Prescription listing.
 	Supports filters: patient, status, search (name/patient name), practitioner,
@@ -76,6 +77,9 @@ def get_medication_orders(
 		if to_date:
 			conditions.append('posting_date <= %(to_date)s')
 			params['to_date'] = to_date
+		if after_discharge is not None:
+			conditions.append('after_discharge = %(after_discharge)s')
+			params['after_discharge'] = 1 if str(after_discharge).lower() in ['1', 'true', 'yes'] else 0
 
 		# ── Cost-centre User Permission enforcement ───────────────────────
 		if permitted_cc is not None:
@@ -110,6 +114,9 @@ def get_medication_orders(
 			filters.append(['patient_encounter', '=', patient_encounter])
 		if inpatient_record:
 			filters.append(['inpatient_record', '=', inpatient_record])
+
+		if after_discharge is not None:
+			filters.append(['after_discharge', '=', 1 if str(after_discharge).lower() in ['1', 'true', 'yes'] else 0])
 
 		# ── Cost-centre User Permission enforcement ───────────────────────
 		if permitted_cc is not None:
@@ -183,6 +190,7 @@ def create_patient_medication_order(
 	inpatient_record=None,
 	practitioner=None,
 	medication_orders=None,
+	after_discharge=None,
 ):
 	"""Create a new Patient Medication Order (prescription) with optional medication rows.
 	medication_orders: list of dicts with keys: drug, dosage, no_of_days, dosage_form, instructions, date, time, patient_frequency, is_pink, reference_no.
@@ -240,6 +248,8 @@ def create_patient_medication_order(
 
 	if practitioner:
 		doc.practitioner = practitioner
+	if after_discharge:
+		doc.after_discharge = 1
 	# Append medication rows
 	if medication_orders:
 		if isinstance(medication_orders, str):

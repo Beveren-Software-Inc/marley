@@ -25,6 +25,10 @@ export interface DischargeDraftData {
   nurseChecklistItems?: unknown[]  // Add this (optional for backward compatibility)
   documents: unknown[]
   relatives: unknown[]
+  transferPrescription?: {
+    name: string
+    patient_visit?: string
+  }
   savedAt: string
 }
 
