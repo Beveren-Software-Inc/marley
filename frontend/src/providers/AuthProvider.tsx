@@ -50,7 +50,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         if (currentUser && typeof currentUser === 'string' && currentUser.trim()) {
           // User is already logged into Frappe, fetch their profile and authenticate automatically
-          console.log('Existing Frappe session detected for user:', currentUser)
           
           try {
             const userProfile = await healthcareAuth.getCurrentUserProfile()
