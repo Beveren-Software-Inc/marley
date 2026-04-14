@@ -63,6 +63,8 @@ import { MentalStateList } from '../components/nursing/MentalStateList'
 import { CreateMentalStateModal } from '../components/nursing/CreateMentalStateModal'
 import { SickLeaveList } from '../components/nursing/SickLeaveList'
 import { CreateSickLeaveModal } from '../components/nursing/CreateSickLeaveModal'
+import { SessionScheduleList } from '../components/sessionSchedule/SessionScheduleList'
+import { CreateSessionScheduleModal } from '../components/sessionSchedule/CreateSessionScheduleModal'
 import { PatientList } from '../components/patients/PatientList'
 import { RxPage } from '../components/prescriptions/SinglePrescription'
 import { NursingInventoryDashboard } from '../components/nursingInventory/NursingInventoryDashboard'
@@ -118,6 +120,8 @@ export const NursePage = () => {
   const [sickLeaveRefreshKey, setSickLeaveRefreshKey] = useState(0)
   const [showMorseFallModal, setShowMorseFallModal] = useState(false)
   const [morseFallRefreshKey, setMorseFallRefreshKey] = useState(0)
+  const [showSessionScheduleModal, setShowSessionScheduleModal] = useState(false)
+  const [sessionScheduleRefreshKey, setSessionScheduleRefreshKey] = useState(0)
     const [patientRefreshKey, setPatientRefreshKey] = useState(0)
 
   // ECT dashboard state
@@ -890,7 +894,7 @@ export const NursePage = () => {
   }
 
   // Show Observation
-  if (screen === 'n-obs') {
+  if (screen === 'n-ob') {
     return (
       <div className="flex flex-col">
         <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
@@ -1394,7 +1398,7 @@ export const NursePage = () => {
     )
   }
 
-  // Sessions / Scheduler - Appointments
+  // Sessions / Scheduler - Appointments & Session Schedules
   if (screen === 'n-session') {
     return (
       <div className="flex flex-col">
@@ -1411,12 +1415,44 @@ export const NursePage = () => {
             <NotificationBell />
           </div>
         </header>
-        <div className="p-4">
+        <div className="p-4 space-y-4">
+          {/* Appointments Section */}
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4">Sessions / Scheduler (Appointments)</div>
+            <div className="font-semibold mb-4">Appointments</div>
             <AppointmentList patient={selectedPatient} />
           </section>
+
+          {/* Session Schedules Section */}
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+            <div className="font-semibold mb-4 flex items-center justify-between">
+              <span>Session Schedules</span>
+              <button
+                onClick={() => setShowSessionScheduleModal(true)}
+                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
+                title="Add Session Schedule"
+              >
+                +
+              </button>
+            </div>
+            <SessionScheduleList 
+              patient={selectedPatient}
+              admissionNumber={activeAdmission}
+              refreshKey={sessionScheduleRefreshKey}
+            />
+          </section>
         </div>
+
+        {showSessionScheduleModal && (
+          <CreateSessionScheduleModal
+            onClose={() => setShowSessionScheduleModal(false)}
+            onSuccess={() => {
+              setSessionScheduleRefreshKey(prev => prev + 1)
+              setShowSessionScheduleModal(false)
+            }}
+            initialPatient={selectedPatient}
+            initialAdmission={activeAdmission}
+          />
+        )}
       </div>
     )
   }

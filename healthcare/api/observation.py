@@ -39,7 +39,9 @@ def get_observations(limit=50, offset=0, patient=None):
 			'result_datetime',
 			'result_time',
 			'medical_department',
-			'admission_no'
+			'admission_no',
+			'note',
+			'amount'
 		],
 		limit=limit,
 		limit_start=offset,
@@ -77,8 +79,7 @@ def create_observation(data):
 	if not data.get('patient'):
 		frappe.throw(_("Patient is required"))
 	
-	if not data.get('observation_template'):
-		frappe.throw(_("Observation Template is required"))
+	# Note: observation_template is now optional as per user request
 	
 	# Get naming series
 	naming_series = frappe.db.get_value('Observation', {'naming_series': 'HLC-OBS-.YYYY.-'}, 'naming_series')
@@ -89,13 +90,16 @@ def create_observation(data):
 	observation = frappe.get_doc({
 		'doctype': 'Observation',
 		'patient': data.get('patient'),
-		'observation_template': data.get('observation_template'),
+		'observation_template': data.get('observation_template') or '',
 		'posting_date': data.get('posting_date') or frappe.utils.now_datetime(),
 		'start_date': data.get('start_date') or frappe.utils.today(),
 		'status': data.get('status') or 'Registered',
 		'healthcare_practitioner': data.get('practitioner'),
 		'medical_department': data.get('department'),
 		'admission_no': data.get('admission_no'),
+		'obs_level': data.get('obs_level') or '',
+		'note': data.get('note') or '',
+		'amount': data.get('amount') or 0,
 		'naming_series': naming_series
 	})
 	

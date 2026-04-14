@@ -97,7 +97,7 @@ def get_healthcare_practitioners(search=None, department=None):
 		filters['practitioner_name'] = ['like', f'%{search}%']
 	# if department:
 	# 	filters['department'] = department
-	
+	print("Flters ganiya:", filters)
 	practitioners = frappe.get_all(
 		'Healthcare Practitioner',
 		filters=filters,

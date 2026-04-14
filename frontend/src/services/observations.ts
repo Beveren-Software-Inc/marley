@@ -22,17 +22,22 @@ export interface Observation {
   result_time?: string
   medical_department?: string
   admission_no?: string
+  note?: string
+  amount?: number
 }
 
 export interface CreateObservationData {
   patient: string
-  observation_template: string
+  observation_template?: string
   posting_date?: string
   start_date?: string
   status?: string
   practitioner?: string
   department?: string
   admission_no?: string
+  obs_level?: string
+  note?: string
+  amount?: number
 }
 
 export async function fetchObservations(

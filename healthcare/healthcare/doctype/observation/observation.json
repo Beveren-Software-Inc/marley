@@ -15,12 +15,14 @@
   "observation_category",
   "start_date",
   "dc_date",
+  "observation_level",
   "column_break_7xu5",
   "company",
   "posting_date",
   "status",
   "medical_department",
   "amended_from",
+  "amount",
   "section_break_i70a",
   "admission_no",
   "patient",
@@ -28,6 +30,7 @@
   "column_break_qxq5",
   "age",
   "gender",
+  "duration",
   "section_break_zz5k",
   "healthcare_practitioner",
   "column_break_snbj",
@@ -615,12 +618,28 @@
    "fieldname": "serv_amount",
    "fieldtype": "Currency",
    "label": "Serv Amount"
+  },
+  {
+   "fieldname": "observation_level",
+   "fieldtype": "Link",
+   "label": "Observation Level",
+   "options": "Observation Level"
+  },
+  {
+   "fieldname": "amount",
+   "fieldtype": "Currency",
+   "label": "Amount"
+  },
+  {
+   "fieldname": "duration",
+   "fieldtype": "Data",
+   "label": "Duration"
   }
  ],
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2025-12-24 12:18:46.962352",
+ "modified": "2026-04-14 11:16:25.081722",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Observation",

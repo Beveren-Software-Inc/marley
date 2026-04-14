@@ -569,6 +569,9 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
     department: '',
     admission_no: (isIPMode && activeAdmission) ? activeAdmission : '',
     patient_visit: (isOPMode && activeVisit) ? activeVisit : '',
+    obs_level: '',
+    note: '',
+    amount: 0,
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -596,6 +599,12 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
   const [departmentOpen, setDepartmentOpen] = useState(false)
   const [departmentQuery, setDepartmentQuery] = useState('')
   const [selectedDepartment, setSelectedDepartment] = useState<LinkFieldOption | null>(null)
+
+  // Observation Level dropdown state
+  const [obsLevelOptions, setObsLevelOptions] = useState<LinkFieldOption[]>([])
+  const [obsLevelOpen, setObsLevelOpen] = useState(false)
+  const [obsLevelQuery, setObsLevelQuery] = useState('')
+  const [selectedObsLevel, setSelectedObsLevel] = useState<LinkFieldOption | null>(null)
 
   // Admission dropdown state (IP mode) - filtered by selected patient
   const [admissionOptions, setAdmissionOptions] = useState<{ value: string; label: string }[]>([])
@@ -639,12 +648,15 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
 
       const payload: any = {
         patient: formData.patient,
-        observation_template: formData.observation_template,
+        observation_template: formData.observation_template || undefined,
         posting_date: formData.posting_date || undefined,
         start_date: formData.start_date || undefined,
         status: formData.status || undefined,
         practitioner: formData.practitioner || undefined,
         department: formData.department || undefined,
+        obs_level: formData.obs_level || undefined,
+        note: formData.note || undefined,
+        amount: formData.amount || undefined,
       }
 
       // Add the appropriate care context based on global mode
@@ -765,6 +777,22 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
     return () => clearTimeout(timeoutId)
   }, [departmentQuery, departmentOpen])
 
+  // Search observation levels
+  useEffect(() => {
+    if (!obsLevelOpen) return
+
+    const timeoutId = setTimeout(async () => {
+      try {
+        const results = await fetchLinkFieldOptions('Observation Level', obsLevelQuery.trim() || undefined)
+        setObsLevelOptions(results)
+      } catch (err) {
+        console.error('Failed to search observation levels:', err)
+      }
+    }, obsLevelQuery.trim() === '' ? 0 : 300)
+
+    return () => clearTimeout(timeoutId)
+  }, [obsLevelQuery, obsLevelOpen])
+
   // Load admissions for selected patient (IP mode)
   useEffect(() => {
     if (!isIPMode) return
@@ -867,6 +895,13 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
     setFormData(prev => ({ ...prev, department: dept.name }))
     setDepartmentQuery(dept.label)
     setDepartmentOpen(false)
+  }
+
+  const handleObsLevelSelect = (obsLevel: LinkFieldOption) => {
+    setSelectedObsLevel(obsLevel)
+    setFormData(prev => ({ ...prev, obs_level: obsLevel.name }))
+    setObsLevelQuery(obsLevel.label)
+    setObsLevelOpen(false)
   }
 
   const handleAdmissionSelect = (value: string, label: string) => {
@@ -986,7 +1021,7 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
 
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-slate-700 mb-1">
-                Observation Template <span className="text-red-500">*</span>
+                Observation Template
               </label>
               <div className="relative">
                 <input
@@ -1009,6 +1044,38 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
                         className="px-3 py-2 text-sm hover:bg-slate-100 cursor-pointer"
                       >
                         {template.label}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Observation Level
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={selectedObsLevel ? selectedObsLevel.label : obsLevelQuery}
+                  onChange={(e) => {
+                    setObsLevelQuery(e.target.value)
+                    setObsLevelOpen(true)
+                  }}
+                  onFocus={() => setObsLevelOpen(true)}
+                  placeholder="Search observation level..."
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+                {obsLevelOpen && obsLevelOptions.length > 0 && (
+                  <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                    {obsLevelOptions.map((obsLevel) => (
+                      <div
+                        key={obsLevel.name}
+                        onClick={() => handleObsLevelSelect(obsLevel)}
+                        className="px-3 py-2 text-sm hover:bg-slate-100 cursor-pointer"
+                      >
+                        {obsLevel.label}
                       </div>
                     ))}
                   </div>

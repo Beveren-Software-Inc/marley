@@ -94,7 +94,7 @@ export async function fetchHealthcarePractitioners(search?: string, department?:
   
   const response = await fetch(url)
   const resData = await response.json()
-
+console.log('fetchHealthcarePractitioners response:', resData)
   if (resData?.message && Array.isArray(resData.message)) {
     return resData.message as LinkFieldOption[]
   } else {

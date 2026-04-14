@@ -2366,12 +2366,12 @@ if (screen === 'single-prescription') {
             </>
           )}
 
-          <div className="px-4 pb-4">
+          {/* <div className="px-4 pb-4">
             <DoctorServiceDetailsTable 
               patient={selectedPatient} 
               onAddService={() => setShowServiceModal(true)}
             />
-          </div>
+          </div> */}
         </>
       ) : (
         <>
@@ -2518,7 +2518,7 @@ if (screen === 'single-prescription') {
         />
       )}
 
-      {showServiceModal && (
+      {/* {showServiceModal && (
         <CreateDoctorServiceModal
           onClose={() => setShowServiceModal(false)}
           onSuccess={() => {
@@ -2527,7 +2527,7 @@ if (screen === 'single-prescription') {
           }}
           patient={selectedPatient}
         />
-      )}
+      )} */}
 
       {showServiceRequestModal && (
         <CreateServiceRequestModal
