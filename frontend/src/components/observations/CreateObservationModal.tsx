@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { createObservation } from '../../services/observations'
-import { fetchHealthcarePractitioners, fetchObservationTemplates, fetchMedicalDepartments, type LinkFieldOption, fetchPatientVisits, fetchObservationLevels } from '../../services/common'
+import { fetchHealthcarePractitioners, getCurrentUserPractitioner, fetchObservationTemplates, fetchMedicalDepartments, type LinkFieldOption, fetchPatientVisits, fetchObservationLevels } from '../../services/common'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
 import { toast } from '../../hooks/useToast'
 import { fetchInpatientRecords, type InpatientRecord } from '../../services/inpatientRecords'
@@ -333,6 +333,25 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
       loadVisitLabel()
     }
   }, [isOPMode, activeVisit, formData.patient])
+
+  // Auto-populate practitioner field if current user is a healthcare practitioner
+  useEffect(() => {
+    const autoPopulatePractitioner = async () => {
+      try {
+        const practitioner = await getCurrentUserPractitioner()
+        if (practitioner) {
+          setFormData(prev => ({ ...prev, practitioner }))
+          setSelectedPractitioner({ name: practitioner, label: practitioner })
+          setPractitionerQuery(practitioner)
+        }
+      } catch (err) {
+        console.error('Failed to auto-populate practitioner:', err)
+        // If this fails, leave field blank - user can select manually
+      }
+    }
+    
+    autoPopulatePractitioner()
+  }, [])
 
   const handlePatientSelect = (patient: PatientListItem) => {
     setFormData(prev => ({ ...prev, patient: patient.name, admission_no: '', patient_visit: '' }))

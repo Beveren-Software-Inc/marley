@@ -17,6 +17,29 @@ def get_current_user_roles():
 
 
 @frappe.whitelist()
+def get_current_user_healthcare_practitioner():
+	"""
+	Get the Healthcare Practitioner linked to the current logged-in user.
+	
+	Returns the practitioner name if found, None otherwise.
+	Used by frontend forms to auto-populate practitioner/doctor/nurse fields.
+	"""
+	user = frappe.session.user
+	
+	if user == "Guest":
+		return None
+	
+	# Find Healthcare Practitioner linked to this user via user_id field
+	practitioner = frappe.db.get_value(
+		"Healthcare Practitioner",
+		{"user_id": user, "status": "Active"},
+		"name"
+	)
+	
+	return practitioner if practitioner else None
+
+
+@frappe.whitelist()
 def get_print_formats(doctype):
 	"""Return list of print format names for the given doctype (for print dropdown)."""
 	if not doctype:

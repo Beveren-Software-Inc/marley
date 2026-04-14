@@ -460,7 +460,7 @@
 import { useState, useEffect } from 'react'
 import { createClinicalNote } from '../../services/clinicalNotes'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
-import { fetchHealthcarePractitioners, fetchInpatientAdmissionOptions, fetchPatientVisits as fetchPatientVisitOptions, type LinkFieldOption } from '../../services/common'
+import { fetchHealthcarePractitioners, fetchInpatientAdmissionOptions, fetchPatientVisits as fetchPatientVisitOptions, getCurrentUserPractitioner, type LinkFieldOption } from '../../services/common'
 import { toast } from '../../hooks/useToast'
 import { CreatePractitionerModal } from '../practitioners/CreatePractitionerModal'
 import { useCareContext } from '../../providers/CareContextProvider'
@@ -644,6 +644,26 @@ export const CreateClinicalNoteModal = ({
     }
     loadPractitioners()
   }, [])
+
+  // Auto-populate current user's practitioner
+  useEffect(() => {
+    const autoPopulatePractitioner = async () => {
+      try {
+        const practitioner = await getCurrentUserPractitioner()
+        if (practitioner) {
+          setFormData(prev => ({ ...prev, practitioner }))
+          // Also set the query for display
+          const practitionerOption = practitionerOptions.find(p => p.name === practitioner)
+          if (practitionerOption) {
+            setPractitionerQuery(practitionerOption.label)
+          }
+        }
+      } catch (err) {
+        console.error('Failed to auto-populate practitioner:', err)
+      }
+    }
+    autoPopulatePractitioner()
+  }, [practitionerOptions])
 
   // Search patients
   useEffect(() => {

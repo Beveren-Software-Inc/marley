@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { createIOPEnrollment, fetchIOPDays, fetchIOPSessionTypes, type IOPDay, type IOPSessionType, type IOPEnrollmentSessionRow } from '../../services/iop'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
-import { fetchHealthcarePractitioners, type LinkFieldOption } from '../../services/common'
+import { fetchHealthcarePractitioners, getCurrentUserPractitioner, type LinkFieldOption } from '../../services/common'
 import { toast } from '../../hooks/useToast'
 import { X } from 'lucide-react'
 
@@ -69,6 +69,26 @@ export const CreateIOPEnrollmentModal = ({ onClose, onSuccess, initialPatient }:
     const t = setTimeout(search, 300)
     return () => clearTimeout(t)
   }, [practitionerOpen, practitionerQuery])
+
+  // Auto-populate current user's practitioner
+  useEffect(() => {
+    const autoPopulatePractitioner = async () => {
+      try {
+        const currentPractitioner = await getCurrentUserPractitioner()
+        if (currentPractitioner) {
+          setPractitioner(currentPractitioner)
+          // Also set the query for display
+          const practitionerOption = practitioners.find(p => p.name === currentPractitioner)
+          if (practitionerOption) {
+            setPractitionerQuery(practitionerOption.label)
+          }
+        }
+      } catch (err) {
+        console.error('Failed to auto-populate practitioner:', err)
+      }
+    }
+    autoPopulatePractitioner()
+  }, [practitioners])
 
   const handleSelectPatient = (p: PatientListItem) => {
     setPatient(p.name)

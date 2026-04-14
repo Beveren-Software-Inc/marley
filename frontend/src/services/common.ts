@@ -102,6 +102,29 @@ console.log('fetchHealthcarePractitioners response:', resData)
   }
 }
 
+/**
+ * Fetch the current logged-in user's linked Healthcare Practitioner.
+ * Returns the practitioner name (string) if found, null otherwise.
+ * 
+ * Use this to auto-populate practitioner/doctor/nurse fields on form modals.
+ * If the user doesn't have a healthcare practitioner linked, the field will remain empty
+ * and the user can select manually.
+ */
+export async function getCurrentUserPractitioner(): Promise<string | null> {
+  try {
+    const response = await fetch('/api/method/healthcare.api.common.get_current_user_healthcare_practitioner')
+    const resData = await response.json()
+    
+    if (resData?.message && typeof resData.message === 'string') {
+      return resData.message as string
+    }
+    return null
+  } catch (err) {
+    console.error('Failed to fetch current user practitioner:', err)
+    return null
+  }
+}
+
 export async function fetchServiceUnitTypes(search?: string): Promise<LinkFieldOption[]> {
   const params = new URLSearchParams()
   if (search) params.append('search', search)
