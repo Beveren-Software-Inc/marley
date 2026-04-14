@@ -161,6 +161,9 @@ fixtures = [
 	},
     {
 		"doctype":"Nursing Checklist Template"
+	},
+    {
+		"doctype":"Observation Level"
 	}
 ]
 

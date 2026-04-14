@@ -12,7 +12,7 @@ export interface Observation {
   healthcare_practitioner?: string
   practitioner_name?: string
   obs_code?: string
-  obs_level?: string
+  observation_level?: string
   result_data?: string
   result_text?: string
   result_float?: number
@@ -22,17 +22,24 @@ export interface Observation {
   result_time?: string
   medical_department?: string
   admission_no?: string
+  note?: string
+  amount?: number
+  duration?: string
 }
 
 export interface CreateObservationData {
   patient: string
-  observation_template: string
+  observation_template?: string
   posting_date?: string
   start_date?: string
   status?: string
   practitioner?: string
   department?: string
   admission_no?: string
+  observation_level?: string
+  note?: string
+  amount?: number
+  duration?: string
 }
 
 export async function fetchObservations(
@@ -84,7 +91,6 @@ export async function createObservation(data: CreateObservationData): Promise<Ob
     throw new Error('Invalid response format')
   }
 }
-
 
 
 

@@ -94,7 +94,7 @@ export async function fetchHealthcarePractitioners(search?: string, department?:
   
   const response = await fetch(url)
   const resData = await response.json()
-
+console.log('fetchHealthcarePractitioners response:', resData)
   if (resData?.message && Array.isArray(resData.message)) {
     return resData.message as LinkFieldOption[]
   } else {
@@ -1244,6 +1244,24 @@ export async function fetchNursingDischargeTemplates(query?: string): Promise<Li
     return result || []
   } catch (err) {
     console.error('Failed to fetch nursing discharge templates:', err)
+    return []
+  }
+}
+
+// Add this function to your common.ts service file
+
+export async function fetchObservationLevels(query?: string): Promise<LinkFieldOption[]> {
+  const params = new URLSearchParams()
+  if (query) params.append('query', query)
+  
+  const response = await fetch(
+    `/api/method/healthcare.api.common.get_observation_levels?${params.toString()}`
+  )
+  const resData = await response.json()
+
+  if (resData?.message && Array.isArray(resData.message)) {
+    return resData.message as LinkFieldOption[]
+  } else {
     return []
   }
 }

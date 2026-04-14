@@ -5,10 +5,8 @@ import { ItemSearch } from '../components/pharmacy/ItemSearch'
 import {
   getBatchesExpiringInDays,
   getLowStockItems,
-  searchItemOrBatch,
   type BatchRow,
-  type LowStockRow,
-  type ItemBatchSearchRow
+  type LowStockRow
 } from '../services/pharmacy'
 import { ChevronRight, Plus } from 'lucide-react'
 import { CreateMaterialRequestModal } from '../components/pharmacy/CreateMaterialRequestModal'
@@ -31,7 +29,6 @@ export const PharmacyPage = () => {
   const [lowStockThreshold, setLowStockThreshold] = useState(DEFAULT_LOW_STOCK_THRESHOLD)
 
   const [searchQuery, setSearchQuery] = useState('')
-  const [searchResults, setSearchResults] = useState<ItemBatchSearchRow[] | null>(null)
 
   const [fullScreenView, setFullScreenView] = useState<FullScreenView>(null)
   const [showMaterialRequestModal, setShowMaterialRequestModal] = useState(false)
@@ -59,19 +56,22 @@ export const PharmacyPage = () => {
     return () => { cancelled = true }
   }, [expiryDays, lowStockThreshold])
 
-  const handleItemSearch = async (query: string) => {
-    setSearchResults(null)
+  const handleItemSearch = (query: string) => {
     setSearchQuery(query)
-    try {
-      const data = await searchItemOrBatch(query, 200)
-      setSearchResults(data)
-    } catch (e) {
-      setSearchResults([])
-    }
   }
 
-  const showCards = searchResults === null && fullScreenView === null
-  const showSearchResults = searchResults !== null
+  const filteredExpiryRows = searchQuery ? expiryRows.filter(row => 
+    row.item?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    row.item_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    row.name?.toLowerCase().includes(searchQuery.toLowerCase())
+  ) : expiryRows
+
+  const filteredLowStock = searchQuery ? lowStock.filter(row => 
+    row.item_code?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    row.item_name?.toLowerCase().includes(searchQuery.toLowerCase())
+  ) : lowStock
+
+  const showCards = fullScreenView === null
   const showFullScreen = fullScreenView !== null
 
   return (
@@ -101,68 +101,11 @@ export const PharmacyPage = () => {
           </div>
         )}
 
-        {showSearchResults && (
-          <>
-            <div className="flex items-center justify-between gap-2 mb-4">
-              <h2 className="font-semibold text-slate-800">
-                Search results{searchQuery ? ` for "${searchQuery}"` : ''}
-              </h2>
-              <button
-                type="button"
-                onClick={() => setSearchResults(null)}
-                className="text-sm text-primary hover:underline"
-              >
-                Back to cards
-              </button>
-            </div>
-            <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm border-collapse table-fixed">
-                  <thead>
-                    <tr className="text-left text-slate-600 border-b border-slate-200 bg-slate-50">
-                      <th className="py-2 pr-2 font-medium w-[30%]">Item name</th>
-                      <th className="py-2 pr-2 font-medium w-[20%]">Batch</th>
-                      <th className="py-2 pr-6 font-medium text-right w-[20%]">Stock quantity</th>
-                      <th className="py-2 pl-4 font-medium w-[30%]">Expiry date</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {searchResults.length === 0 ? (
-                      <tr>
-                        <td colSpan={4} className="py-6 text-center text-slate-500">
-                          No items or batches found.
-                        </td>
-                      </tr>
-                    ) : (
-                      searchResults.map((row, i) => (
-                        <tr key={`${row.item_code}-${row.batch || ''}-${i}`} className="border-b border-slate-100">
-                          <td className="py-1.5 pr-2 truncate" title={row.item_name}>
-                            {row.item_name || '—'}
-                          </td>
-                          <td className="py-1.5 pr-2 truncate" title={row.batch || ''}>
-                            {row.batch || '—'}
-                          </td>
-                          <td className="py-1.5 pr-6 text-right whitespace-nowrap">
-                            {row.stock_quantity != null
-                              ? `${row.stock_quantity} ${row.stock_uom || ''}`.trim() || row.stock_quantity
-                              : '—'}
-                          </td>
-                          <td className="py-1.5 pl-4 text-slate-600">{row.expiry_date || '—'}</td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </>
-        )}
-
         {showFullScreen && (
           <FullScreenList
             view={fullScreenView}
-            expiryRows={expiryRows}
-            lowStock={lowStock}
+            expiryRows={filteredExpiryRows}
+            lowStock={filteredLowStock}
             expiryDays={expiryDays}
             onBack={() => setFullScreenView(null)}
           />
@@ -176,7 +119,7 @@ export const PharmacyPage = () => {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <Card
               title="Expiry"
-              count={expiryRows.length}
+              count={filteredExpiryRows.length}
               emptyMessage={`No batches expiring within ${expiryDays} days.`}
               headerRight={
                 <div className="flex items-center gap-2">
@@ -197,17 +140,17 @@ export const PharmacyPage = () => {
                   />
                 </div>
               }
-              onArrowClick={() => { setSearchResults(null); setFullScreenView('expiry') }}
+              onArrowClick={() => setFullScreenView('expiry')}
             >
-              <ExpiryTable rows={expiryRows.slice(0, CARD_MAX)} />
-              {expiryRows.length > CARD_MAX && (
-                <p className="text-slate-500 text-xs mt-2">Showing {CARD_MAX} of {expiryRows.length}. Click arrow to see all.</p>
+              <ExpiryTable rows={filteredExpiryRows.slice(0, CARD_MAX)} />
+              {filteredExpiryRows.length > CARD_MAX && (
+                <p className="text-slate-500 text-xs mt-2">Showing {CARD_MAX} of {filteredExpiryRows.length}. Click arrow to see all.</p>
               )}
             </Card>
 
             <Card
               title="Low stock"
-              count={lowStock.length}
+              count={filteredLowStock.length}
               emptyMessage="No low stock items."
               headerRight={
                 <div className="flex items-center gap-2">
@@ -228,12 +171,12 @@ export const PharmacyPage = () => {
                   />
                 </div>
               }
-              onArrowClick={() => { setSearchResults(null); setFullScreenView('low-stock') }}
+              onArrowClick={() => setFullScreenView('low-stock')}
               onAddClick={() => setShowMaterialRequestModal(true)}
             >
-              <LowStockTable rows={lowStock.slice(0, CARD_MAX)} />
-              {lowStock.length > CARD_MAX && (
-                <p className="text-slate-500 text-xs mt-2">Showing {CARD_MAX} of {lowStock.length}. Click arrow to see all (lowest first).</p>
+              <LowStockTable rows={filteredLowStock.slice(0, CARD_MAX)} />
+              {filteredLowStock.length > CARD_MAX && (
+                <p className="text-slate-500 text-xs mt-2">Showing {CARD_MAX} of {filteredLowStock.length}. Click arrow to see all (lowest first).</p>
               )}
             </Card>
           </div>

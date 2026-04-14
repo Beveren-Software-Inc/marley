@@ -97,7 +97,7 @@ def get_healthcare_practitioners(search=None, department=None):
 		filters['practitioner_name'] = ['like', f'%{search}%']
 	# if department:
 	# 	filters['department'] = department
-	
+	print("Flters ganiya:", filters)
 	practitioners = frappe.get_all(
 		'Healthcare Practitioner',
 		filters=filters,
@@ -2575,3 +2575,23 @@ def validate_warehouse_change_permission():
 		_("Only Administrators and System Managers can change warehouse and cost center assignments"),
 		frappe.PermissionError
 	)
+ 
+ 
+
+
+@frappe.whitelist()
+def get_observation_levels(query=None):
+    """Fetch observation levels (link field options)"""
+    filters = {}
+    if query:
+        filters["name"] = ["like", f"%{query}%"]
+    
+    levels = frappe.get_all(
+        "Observation Level",
+        fields=["name", "name as label"],
+        filters=filters,
+        limit=50,
+        order_by="name asc"
+    )
+    
+    return levels
