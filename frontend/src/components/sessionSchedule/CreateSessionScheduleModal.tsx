@@ -4,7 +4,7 @@ import {
   getSessionTypes,
   type CreateSessionScheduleData
 } from '../../services/sessionSchedule'
-import { fetchHealthcarePractitioners, type LinkFieldOption } from '../../services/common'
+import { fetchHealthcarePractitioners, getCurrentUserPractitioner, type LinkFieldOption } from '../../services/common'
 import { searchPatients, type PatientListItem } from '../../services/patients'
 import { fetchInpatientRecords, type InpatientRecord } from '../../services/inpatientRecords'
 import { toast } from '../../hooks/useToast'
@@ -253,6 +253,25 @@ export const CreateSessionScheduleModal = ({
       .catch(() => setDoctorOptions([]))
       .finally(() => setDoctorLoading(false))
   }
+
+  // Auto-populate doctor field if current user is a healthcare practitioner
+  useEffect(() => {
+    const autoPopulateDoctor = async () => {
+      try {
+        const practitioner = await getCurrentUserPractitioner()
+        if (practitioner) {
+          handleChange('doctor', practitioner)
+          handleChange('doctor_name', practitioner)
+          setDoctorQuery(practitioner)
+        }
+      } catch (err) {
+        console.error('Failed to auto-populate doctor:', err)
+        // If this fails, leave field blank - user can select manually
+      }
+    }
+    
+    autoPopulateDoctor()
+  }, [])
 
   const handleChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }))

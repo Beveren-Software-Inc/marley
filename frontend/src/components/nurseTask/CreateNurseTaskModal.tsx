@@ -658,6 +658,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { createNurseTask, type CreateNurseTaskData } from '../../services/nurseTask'
 import {
   fetchHealthcarePractitioners,
+  getCurrentUserPractitioner,
   fetchRouteOfAdministrationList,
   fetchPatientVisits,
   fetchInpatientAdmissions,
@@ -939,6 +940,24 @@ export const CreateNurseTaskModal = ({
       const opts = await fetchHealthcarePractitioners(q || undefined)
       setNurseOptions(opts)
     } catch { setNurseOptions([]) }
+  }, [])
+
+  // Auto-populate assigned nurse if current user is a healthcare practitioner
+  useEffect(() => {
+    const autoPopulateNurse = async () => {
+      try {
+        const practitioner = await getCurrentUserPractitioner()
+        if (practitioner) {
+          setAssignedNurse(practitioner)
+          setNurseDisplay(practitioner)
+        }
+      } catch (err) {
+        console.error('Failed to auto-populate assigned nurse:', err)
+        // If this fails, leave field blank - user can select manually
+      }
+    }
+    
+    autoPopulateNurse()
   }, [])
 
   const loadRouteOptions = useCallback(async (q?: string) => {

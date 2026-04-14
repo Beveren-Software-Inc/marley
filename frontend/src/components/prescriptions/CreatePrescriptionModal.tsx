@@ -3,6 +3,7 @@ import { searchPatients, fetchPatients, type PatientListItem } from '../../servi
 import {
   fetchCompanies,
   fetchHealthcarePractitioners,
+  getCurrentUserPractitioner,
   fetchPatientVisits,
   fetchInpatientAdmissions,
   fetchItems,

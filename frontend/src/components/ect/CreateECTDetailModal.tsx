@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { createECTDetail } from '../../services/ectDetails'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
-import { fetchHealthcarePractitioners, type LinkFieldOption } from '../../services/common'
+import { fetchHealthcarePractitioners, getCurrentUserPractitioner, type LinkFieldOption } from '../../services/common'
 import { toast } from '../../hooks/useToast'
 
 interface CreateECTDetailModalProps {
@@ -176,6 +176,33 @@ export const CreateECTDetailModal = ({
       load()
     }
   }, [initialPatient])
+
+  // Auto-populate practitioner fields if current user is a healthcare practitioner
+  useEffect(() => {
+    const autoPopulatePractitioners = async () => {
+      try {
+        const practitioner = await getCurrentUserPractitioner()
+        if (practitioner) {
+          // Populate all practitioner fields with the current user's practitioner
+          // User can modify individual fields as needed
+          setFormData(prev => ({
+            ...prev,
+            anathesiologist: practitioner,
+            assist_doctor: practitioner,
+            psychiatrist: practitioner,
+            nurse: practitioner,
+            psychology_doctor: practitioner,
+            anaesthetic_doctor: practitioner,
+          }))
+        }
+      } catch (err) {
+        console.error('Failed to auto-populate ECT practitioners:', err)
+        // If this fails, leave fields blank - user can select manually
+      }
+    }
+    
+    autoPopulatePractitioners()
+  }, [])
 
   useEffect(() => {
     if (!patientOpen) return
