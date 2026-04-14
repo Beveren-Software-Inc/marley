@@ -30,7 +30,7 @@ def get_observations(limit=50, offset=0, patient=None):
 			'healthcare_practitioner',
 			'practitioner_name',
 			'obs_code',
-			'obs_level',
+			'observation_level',
 			'result_data',
 			'result_text',
 			'result_float',
@@ -41,7 +41,8 @@ def get_observations(limit=50, offset=0, patient=None):
 			'medical_department',
 			'admission_no',
 			'note',
-			'amount'
+			'amount',
+			'duration'
 		],
 		limit=limit,
 		limit_start=offset,
@@ -97,9 +98,10 @@ def create_observation(data):
 		'healthcare_practitioner': data.get('practitioner'),
 		'medical_department': data.get('department'),
 		'admission_no': data.get('admission_no'),
-		'obs_level': data.get('obs_level') or '',
+		'observation_level': data.get('observation_level') or '',
 		'note': data.get('note') or '',
 		'amount': data.get('amount') or 0,
+		'duration': data.get('duration') or '',
 		'naming_series': naming_series
 	})
 	
@@ -113,8 +115,6 @@ def create_observation(data):
 		'observation_template': observation.observation_template,
 		'status': observation.status
 	}
-
-
 
 
 

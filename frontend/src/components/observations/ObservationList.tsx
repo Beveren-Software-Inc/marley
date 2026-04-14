@@ -102,7 +102,19 @@ export const ObservationList = ({ patient }: ObservationListProps) => {
               Start Date
             </th>
             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+              DC Date
+            </th>
+            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+              Obs Level
+            </th>
+            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
               Result
+            </th>
+            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+              Amount
+            </th>
+            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+              Duration
             </th>
             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
               Practitioner
@@ -137,7 +149,19 @@ export const ObservationList = ({ patient }: ObservationListProps) => {
                 {obs.start_date ? new Date(obs.start_date).toLocaleDateString() : '-'}
               </td>
               <td className="px-4 py-3 text-sm text-slate-700">
+                {obs.dc_date ? new Date(obs.dc_date).toLocaleDateString() : '-'}
+              </td>
+              <td className="px-4 py-3 text-sm text-slate-700">
+                {obs.observation_level || '-'}
+              </td>
+              <td className="px-4 py-3 text-sm text-slate-700">
                 {getResultDisplay(obs)}
+              </td>
+              <td className="px-4 py-3 text-sm text-slate-700">
+                {obs.amount !== undefined && obs.amount !== null ? `$${obs.amount.toFixed(2)}` : '-'}
+              </td>
+              <td className="px-4 py-3 text-sm text-slate-700">
+                {obs.duration || '-'}
               </td>
               <td className="px-4 py-3 text-sm text-slate-700">
                 {obs.practitioner_name || obs.healthcare_practitioner || '-'}
