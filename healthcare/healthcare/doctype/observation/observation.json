@@ -81,6 +81,11 @@
   "note",
   "description_section",
   "description",
+  "section_break_cjeo",
+  "cr_id",
+  "cr_date",
+  "column_break_oigq",
+  "branch_no",
   "medical_coding_section",
   "codification_table",
   "tab_more_information",
@@ -634,12 +639,35 @@
    "fieldname": "duration",
    "fieldtype": "Data",
    "label": "Duration"
+  },
+  {
+   "fieldname": "section_break_cjeo",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "cr_id",
+   "fieldtype": "Data",
+   "label": "CR ID"
+  },
+  {
+   "fieldname": "cr_date",
+   "fieldtype": "Datetime",
+   "label": "CR Date"
+  },
+  {
+   "fieldname": "column_break_oigq",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "branch_no",
+   "fieldtype": "Date",
+   "label": "Branch No"
   }
  ],
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-04-14 11:16:25.081722",
+ "modified": "2026-04-16 01:11:47.468613",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Observation",
