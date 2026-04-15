@@ -5,7 +5,6 @@ import {
   type CreateSessionScheduleData
 } from '../../services/sessionSchedule'
 import { fetchHealthcarePractitioners, getCurrentUserPractitioner, type LinkFieldOption } from '../../services/common'
-import { searchPatients, type PatientListItem } from '../../services/patients'
 import { fetchInpatientRecords, type InpatientRecord } from '../../services/inpatientRecords'
 import { toast } from '../../hooks/useToast'
 import { X, ChevronDown } from 'lucide-react'
@@ -13,7 +12,6 @@ import { X, ChevronDown } from 'lucide-react'
 interface CreateSessionScheduleModalProps {
   onClose: () => void
   onSuccess?: () => void
-  initialPatient?: string
   initialAdmission?: string
 }
 
@@ -125,7 +123,6 @@ const Combobox = ({
 export const CreateSessionScheduleModal = ({
   onClose,
   onSuccess,
-  initialPatient,
   initialAdmission
 }: CreateSessionScheduleModalProps) => {
   const [formData, setFormData] = useState({

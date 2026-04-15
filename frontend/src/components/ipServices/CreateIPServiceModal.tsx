@@ -39,6 +39,7 @@ export const CreateIPServiceModal = ({
   onSuccess,
   initialPatient,
   initialServiceRequest,
+  initialCategory,
   openInNewTab = true,
 }: CreateIPServiceModalProps) => {
   // Get context from CareContextProvider

@@ -19,11 +19,11 @@ const statusColors: Record<string, string> = {
   'Cancelled': 'danger',
 }
 
-export const SessionScheduleList = ({ refreshKey, patient, admissionNumber, onAddSessionSchedule }: SessionScheduleListProps) => {
+export const SessionScheduleList = ({ refreshKey, patient, admissionNumber }: SessionScheduleListProps) => {
   const [schedules, setSchedules] = useState<SessionSchedule[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
-  const [refreshTrigger, setRefreshTrigger] = useState(0)
+  const [refreshTrigger, _setRefreshTrigger] = useState(0)
 
   // Filters
   const [filterStatus, setFilterStatus] = useState<string>('')

@@ -296,3 +296,23 @@ export async function updatePrescription(data: any): Promise<any> {
 
   throw new Error('Failed to update prescription')
 }
+
+
+export async function fetchAfterDischargePrescriptions(
+  patient: string,
+  admission?: string
+): Promise<Prescription[]> {
+  const params = new URLSearchParams()
+  params.append('patient', patient)
+  if (admission) params.append('admission', admission)
+  
+  const response = await fetch(
+    `/api/method/healthcare.api.patient_medication_order.get_after_discharge_prescriptions?${params.toString()}`
+  )
+  const resData = await response.json()
+  
+  if (resData?.message && Array.isArray(resData.message)) {
+    return resData.message as Prescription[]
+  }
+  return []
+}

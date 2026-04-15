@@ -61,8 +61,6 @@ import { PrescriptionList } from '../components/prescriptions/PrescriptionList'
 import { RxPage } from '../components/prescriptions/SinglePrescription'
 import { CreateServiceRequestModal } from '../components/serviceRequests/CreateServiceRequestModal'
 import { ServiceRequestList } from '../components/serviceRequests/ServiceRequestList'
-import { CreateDoctorServiceModal } from '../components/services/CreateDoctorServiceModal'
-import { DoctorServiceDetailsTable } from '../components/services/DoctorServiceDetailsTable'
 import { CreateSleepingPatternModal } from '../components/sleeping/CreateSleepingPatternModal'
 import { SleepingPatternList } from '../components/sleeping/SleepingPatternList'
 import { SuicidalAssessmentList } from '../components/suicidal/SuicidalAssessmentList'
@@ -115,7 +113,6 @@ export const DoctorPage = () => {
   const [dischargeHasDraft, setDischargeHasDraft] = useState(false)
   const [showObservationModal, setShowObservationModal] = useState(false)
   const [showDiagnosisModal, setShowDiagnosisModal] = useState(false)
-  const [showServiceModal, setShowServiceModal] = useState(false)
   const [selectedAdmission, setSelectedAdmission] = useState<{ name: string; patient: string; patient_name?: string } | null>(null)
   const [warningRefreshKey, setWarningRefreshKey] = useState(0)
   const [labTestRefreshKey, setLabTestRefreshKey] = useState(0)
