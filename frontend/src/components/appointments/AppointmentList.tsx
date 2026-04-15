@@ -36,6 +36,18 @@ interface AppointmentListProps {
   onAddAppointment?: () => void
 }
 
+interface LeaveDetails {
+  leave_type: string
+  status: string
+  from_date: string
+  to_date: string
+}
+
+interface AvailabilityResponse {
+  available: boolean
+  leave_details?: LeaveDetails
+}
+
 const ACTIVE_STATUSES = ['Scheduled', 'Open', 'Confirmed', 'Checked In']
 const CAN_CONFIRM_STATUSES = ['Open', 'Scheduled']
 
@@ -43,6 +55,92 @@ const CAN_CONFIRM_STATUSES = ['Open', 'Scheduled']
 const sendAppointmentReminder = async (appointmentName: string): Promise<void> => {
   await new Promise((res) => setTimeout(res, 600))
   console.log('Reminder sent for', appointmentName)
+}
+
+// New function to check if practitioner is on leave on a specific date
+const checkPractitionerAvailability = async (practitioner: string, date: string): Promise<AvailabilityResponse> => {
+  try {
+    const response = await fetch(
+      `/api/method/healthcare.api.patient_appointment.check_practitioner_availability?practitioner=${encodeURIComponent(practitioner)}&date=${encodeURIComponent(date)}`
+    )
+    const resData = await response.json()
+    return resData?.message ?? { available: true }
+  } catch (error) {
+    console.error('Failed to check practitioner availability:', error)
+    return { available: true } // Default to available if check fails
+  }
+}
+
+// Tooltip component for leave information
+const LeaveTooltip = ({ leaveDetails, children }: { leaveDetails: LeaveDetails; children: React.ReactNode }) => {
+  const [showTooltip, setShowTooltip] = useState(false)
+  const tooltipRef = useRef<HTMLDivElement>(null)
+
+  const formatDate = (dateStr: string) => {
+    if (!dateStr) return 'Unknown'
+    return new Date(dateStr).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    })
+  }
+
+  return (
+    <div 
+      className="relative inline-block"
+      onMouseEnter={() => setShowTooltip(true)}
+      onMouseLeave={() => setShowTooltip(false)}
+    >
+      {children}
+      {showTooltip && (
+        <>
+          {/* Arrow */}
+          <div 
+            className="absolute z-20 left-1/2 transform -translate-x-1/2 -bottom-2 
+                       w-0 h-0 border-l-8 border-r-8 border-t-8 border-transparent border-t-slate-800"
+          />
+          {/* Tooltip content */}
+          <div 
+            ref={tooltipRef}
+            className="absolute z-20 left-1/2 transform -translate-x-1/2 mt-2 
+                        bg-red-200 rounded-lg shadow-xl p-3 min-w-[200px]"
+            style={{ bottom: '100%', marginBottom: '8px' }}
+          >
+            <div className="text-xs font-semibold text-red-300 mb-1">On Leave</div>
+            <div className="text-xs space-y-1">
+              <div><span className="text-slate-400">Leave Type:</span> {leaveDetails.leave_type}</div>
+              <div><span className="text-slate-400">Status:</span> {leaveDetails.status}</div>
+              <div><span className="text-slate-400">From:</span> {formatDate(leaveDetails.from_date)}</div>
+              <div><span className="text-slate-400">To:</span> {formatDate(leaveDetails.to_date)}</div>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+// Component to show practitioner status with red circle/dot for unavailable
+const PractitionerStatusIndicator = ({ available, leaveDetails }: { available: boolean; leaveDetails?: LeaveDetails }) => {
+  if (!available) {
+    return (
+      <LeaveTooltip leaveDetails={leaveDetails!}>
+        <div className="flex items-center gap-2 cursor-help">
+          <div className="relative">
+            <div className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse" />
+            <div className="absolute inset-0 w-2.5 h-2.5 bg-red-500 rounded-full opacity-75 animate-ping" />
+          </div>
+          <span className="text-sm text-red-600 font-medium">Not Available</span>
+        </div>
+      </LeaveTooltip>
+    )
+  }
+  return (
+    <div className="flex items-center gap-2">
+      <div className="w-2.5 h-2.5 bg-green-500 rounded-full" />
+      <span className="text-sm text-green-600">Available</span>
+    </div>
+  )
 }
 
 export const AppointmentList = ({ refreshKey, showAll = false, patient }: AppointmentListProps) => {
@@ -56,6 +154,8 @@ export const AppointmentList = ({ refreshKey, showAll = false, patient }: Appoin
   const [detailApt, setDetailApt] = useState<Appointment | null>(null)
   const [cancelTarget, setCancelTarget] = useState<Appointment | null>(null)
   const [cancelLoading, setCancelLoading] = useState(false)
+  const [practitionerAvailability, setPractitionerAvailability] = useState<Record<string, AvailabilityResponse>>({})
+  const [availabilityLoading, setAvailabilityLoading] = useState<Record<string, boolean>>({})
   const menuRef = useRef<HTMLDivElement>(null)
 
   // Filters
@@ -73,6 +173,20 @@ export const AppointmentList = ({ refreshKey, showAll = false, patient }: Appoin
           ? await fetchAllAppointments(50, 0, undefined, patient)
           : await fetchPractitionerAppointments(50, 0)
         setAppointments(response)
+        
+        // Check availability for each practitioner in the appointments
+        for (const apt of response) {
+          if (apt.practitioner && apt.appointment_date && !practitionerAvailability[apt.name]) {
+            setAvailabilityLoading(prev => ({ ...prev, [apt.name]: true }))
+            checkPractitionerAvailability(apt.practitioner, apt.appointment_date)
+              .then(availabilityResponse => {
+                setPractitionerAvailability(prev => ({ ...prev, [apt.name]: availabilityResponse }))
+              })
+              .finally(() => {
+                setAvailabilityLoading(prev => ({ ...prev, [apt.name]: false }))
+              })
+          }
+        }
       } catch (err) {
         setError(err instanceof Error ? err : new Error('Failed to fetch appointments'))
       } finally {
@@ -338,13 +452,16 @@ export const AppointmentList = ({ refreshKey, showAll = false, patient }: Appoin
         </div>
       ) : (
         <div className="min-w-full">
-          <table className="w-full min-w-[900px]">
+          <table className="w-full min-w-[1000px]">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Appointment ID</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Patient</th>
                 {showAll && (
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Practitioner</th>
+                  <>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Practitioner</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Practitioner Status</th>
+                  </>
                 )}
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Date & Time</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Type</th>
@@ -353,96 +470,121 @@ export const AppointmentList = ({ refreshKey, showAll = false, patient }: Appoin
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
-              {filtered.map((apt) => (
-                <tr key={apt.name} className="hover:bg-slate-50">
-                  <td
-                    className="px-4 py-3 text-sm font-medium text-primary cursor-pointer hover:underline"
-                    onClick={() => setDetailApt(apt)}
-                  >
-                    {apt.name}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-slate-700">{apt.patient_name || apt.patient || '-'}</td>
-                  {showAll && (
-                    <td className="px-4 py-3 text-sm text-slate-700">{apt.practitioner_name || apt.practitioner || '-'}</td>
-                  )}
-                  <td className="px-4 py-3 text-sm text-slate-700">
-                    {formatDateTime(apt.appointment_date, apt.appointment_time)}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-slate-700">{apt.appointment_type || '-'}</td>
-                  <td className="px-4 py-3">
-                    {apt.status
-                      ? <StatusPill status={apt.status} color={getStatusColor(apt.status)} />
-                      : <span className="text-sm text-slate-500">-</span>}
-                  </td>
-                  <td className="px-4 py-2 align-middle">
-                    <div className="relative" ref={openActionRow === apt.name ? menuRef : undefined}>
-                      <button
-                        type="button"
-                        onClick={() => setOpenActionRow((prev) => (prev === apt.name ? null : apt.name))}
-                        disabled={!!actionLoading}
-                        className="inline-flex items-center justify-center w-8 h-8 rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50"
-                        aria-label="Actions"
-                      >
-                        {actionLoading === apt.name ? (
-                          <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                          </svg>
-                        ) : (
-                          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
-                          </svg>
-                        )}
-                      </button>
-                      <PortalActionsMenu
-                        open={openActionRow === apt.name}
-                        onClose={() => setOpenActionRow(null)}
-                        triggerRef={menuRef}
-                        minWidth={180}
-                      >
-                        {canCancel(apt.status) && (
-                          <button type="button" onClick={() => handleCancel(apt)}
-                            className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">
-                            Cancel
-                          </button>
-                        )}
-                        {canConfirm(apt.status) && (
-                          <button type="button" onClick={() => handleConfirm(apt)}
-                            className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">
-                            Confirm
-                          </button>
-                        )}
-                        {canCancel(apt.status) && (
-                          <button type="button" onClick={() => handleReschedule(apt)}
-                            className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">
-                            Reschedule
-                          </button>
-                        )}
-                        {apt.patient && (
-                          <>
-                            <button type="button" onClick={() => handleCreateVitalSign(apt)}
+              {filtered.map((apt) => {
+                const availabilityResponse = practitionerAvailability[apt.name]
+                const isAvailable = availabilityResponse?.available ?? true
+                const leaveDetails = availabilityResponse?.leave_details
+                const isLoadingAvailability = availabilityLoading[apt.name]
+                const showPractitionerStatus = showAll && apt.practitioner
+                
+                return (
+                  <tr key={apt.name} className="hover:bg-slate-50">
+                    <td
+                      className="px-4 py-3 text-sm font-medium text-primary cursor-pointer hover:underline"
+                      onClick={() => setDetailApt(apt)}
+                    >
+                      {apt.name}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-slate-700">{apt.patient_name || apt.patient || '-'}</td>
+                    {showAll && (
+                      <>
+                        <td className="px-4 py-3 text-sm text-slate-700">{apt.practitioner_name || apt.practitioner || '-'}</td>
+                        <td className="px-4 py-3">
+                          {showPractitionerStatus && (
+                            isLoadingAvailability ? (
+                              <div className="flex items-center gap-2">
+                                <div className="w-2.5 h-2.5 bg-slate-300 rounded-full animate-pulse" />
+                                <span className="text-sm text-slate-400">Checking...</span>
+                              </div>
+                            ) : (
+                              <PractitionerStatusIndicator available={isAvailable} leaveDetails={leaveDetails} />
+                            )
+                          )}
+                          {!apt.practitioner && (
+                            <span className="text-sm text-slate-400">No practitioner assigned</span>
+                          )}
+                        </td>
+                      </>
+                    )}
+                    <td className="px-4 py-3 text-sm text-slate-700">
+                      {formatDateTime(apt.appointment_date, apt.appointment_time)}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-slate-700">{apt.appointment_type || '-'}</td>
+                    <td className="px-4 py-3">
+                      {apt.status
+                        ? <StatusPill status={apt.status} color={getStatusColor(apt.status)} />
+                        : <span className="text-sm text-slate-500">-</span>}
+                    </td>
+                    <td className="px-4 py-2 align-middle">
+                      <div className="relative" ref={openActionRow === apt.name ? menuRef : undefined}>
+                        <button
+                          type="button"
+                          onClick={() => setOpenActionRow((prev) => (prev === apt.name ? null : apt.name))}
+                          disabled={!!actionLoading}
+                          className="inline-flex items-center justify-center w-8 h-8 rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                          aria-label="Actions"
+                        >
+                          {actionLoading === apt.name ? (
+                            <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                            </svg>
+                          ) : (
+                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                              <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+                            </svg>
+                          )}
+                        </button>
+                        <PortalActionsMenu
+                          open={openActionRow === apt.name}
+                          onClose={() => setOpenActionRow(null)}
+                          triggerRef={menuRef}
+                          minWidth={180}
+                        >
+                          {canCancel(apt.status) && (
+                            <button type="button" onClick={() => handleCancel(apt)}
                               className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">
-                              Create Vital Sign
+                              Cancel
                             </button>
-                            <button type="button" onClick={() => handleCreatePatientVisit(apt)}
+                          )}
+                          {canConfirm(apt.status) && (
+                            <button type="button" onClick={() => handleConfirm(apt)}
+                              className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">
+                              Confirm
+                            </button>
+                          )}
+                          {canCancel(apt.status) && (
+                            <button type="button" onClick={() => handleReschedule(apt)}
+                              className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">
+                              Reschedule
+                            </button>
+                          )}
+                          {apt.patient && (
+                            <>
+                              <button type="button" onClick={() => handleCreateVitalSign(apt)}
+                                className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">
+                                Create Vital Sign
+                              </button>
+                              <button type="button" onClick={() => handleCreatePatientVisit(apt)}
+                                disabled={actionLoading === apt.name}
+                                className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 disabled:opacity-50">
+                                {actionLoading === apt.name ? 'Creating…' : 'Create Patient Visit'}
+                              </button>
+                            </>
+                          )}
+                          {apt.patient && (
+                            <button type="button" onClick={() => handleSendReminder(apt)}
                               disabled={actionLoading === apt.name}
-                              className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 disabled:opacity-50">
-                              {actionLoading === apt.name ? 'Creating…' : 'Create Patient Visit'}
+                              className="block w-full text-left px-3 py-2 text-sm text-primary font-medium hover:bg-primary/5 disabled:opacity-50 border-t border-slate-100 mt-1">
+                              Send Reminder
                             </button>
-                          </>
-                        )}
-                        {apt.patient && (
-                          <button type="button" onClick={() => handleSendReminder(apt)}
-                            disabled={actionLoading === apt.name}
-                            className="block w-full text-left px-3 py-2 text-sm text-primary font-medium hover:bg-primary/5 disabled:opacity-50 border-t border-slate-100 mt-1">
-                            Send Reminder
-                          </button>
-                        )}
-                      </PortalActionsMenu>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                          )}
+                        </PortalActionsMenu>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>

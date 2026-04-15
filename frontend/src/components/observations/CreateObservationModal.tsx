@@ -872,7 +872,7 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
                 type="number"
                 step="0.01"
                 value={formData.amount}
-                onChange={(e) => handleChange('amount', parseFloat(e.target.value) || 0)}
+                onChange={(e) => handleChange('amount', e.target.value)}
                 placeholder="0.00"
                 className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               />

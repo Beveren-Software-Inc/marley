@@ -47,6 +47,7 @@ export async function fetchPractitionerAppointments(
     `/api/method/healthcare.api.patient_appointment.get_practitioner_appointments?${params.toString()}`
   )
   const resData = await response.json()
+  console.log('fetchPractitionerAppointments response:', resData)
 
   if (resData?.message && Array.isArray(resData.message)) {
     return resData.message as Appointment[]
@@ -71,7 +72,7 @@ export async function fetchAllAppointments(
     `/api/method/healthcare.api.patient_appointment.get_all_appointments?${params.toString()}`
   )
   const resData = await response.json()
-
+  console.log('fetchAllAppointments response:', resData)
   if (resData?.message && Array.isArray(resData.message)) {
     return resData.message as Appointment[]
   } else {

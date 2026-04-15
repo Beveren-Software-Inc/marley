@@ -1449,7 +1449,7 @@ export const NursePage = () => {
               setSessionScheduleRefreshKey(prev => prev + 1)
               setShowSessionScheduleModal(false)
             }}
-            initialPatient={selectedPatient}
+            // initialPatient={selectedPatient}
             initialAdmission={activeAdmission}
           />
         )}

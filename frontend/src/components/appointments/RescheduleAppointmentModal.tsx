@@ -7,7 +7,7 @@ import {
   type AvailabilitySlotInfo
 } from '../../services/appointments'
 import { toast } from '../../hooks/useToast'
-import { X } from 'lucide-react'
+import { X, AlertCircle, CalendarOff } from 'lucide-react'
 
 interface RescheduleAppointmentModalProps {
   appointment: Appointment
@@ -42,7 +42,7 @@ function formatSlotTime(t: string | number | null | undefined): string {
   return `${h}:${m}`
 }
 
-/** Whether a slot is disabled: past (today), or overlapping with other appointments (exclude current). */
+/** Check if a slot is disabled due to past time or overlaps */
 function isSlotDisabled(
   slot: AvailabilitySlotInfo,
   slotInfo: SlotDetail,
@@ -144,6 +144,7 @@ export const RescheduleAppointmentModal = ({
     duration?: number
     service_unit?: string | null
   } | null>(null)
+  const [isPractitionerOnLeave, setIsPractitionerOnLeave] = useState(false)
 
   const hasPractitioner = Boolean(appointment.practitioner)
 
@@ -152,6 +153,7 @@ export const RescheduleAppointmentModal = ({
       setSlotDetails(null)
       setSlotsError(null)
       setSelectedSlot(null)
+      setIsPractitionerOnLeave(false)
       return
     }
     let cancelled = false
@@ -159,16 +161,30 @@ export const RescheduleAppointmentModal = ({
     setSlotsError(null)
     setSlotDetails(null)
     setSelectedSlot(null)
+    setIsPractitionerOnLeave(false)
+    
     getAvailabilityData(appointment_date, appointment.practitioner!, appointment.name)
       .then((res) => {
         if (!cancelled) {
           setSlotDetails(res.slot_details || [])
-          if (!res.slot_details?.length) setSlotsError('No slots available for this date.')
+          if (!res.slot_details?.length) {
+            setSlotsError('No slots available for this date. The practitioner may be on leave or it\'s a holiday.')
+          }
         }
       })
       .catch((err) => {
         if (!cancelled) {
-          setSlotsError(err instanceof Error ? err.message : 'Failed to load slots')
+          const errorMessage = err instanceof Error ? err.message : 'Failed to load slots'
+          
+          // Check if the error is about holiday or leave
+          if (errorMessage.toLowerCase().includes('holiday') || 
+              errorMessage.toLowerCase().includes('leave') ||
+              errorMessage.toLowerCase().includes('not available')) {
+            setIsPractitionerOnLeave(true)
+            setSlotsError(`❌ Practitioner is not available on ${appointment_date}. Please select a different date.`)
+          } else {
+            setSlotsError(errorMessage)
+          }
         }
       })
       .finally(() => {
@@ -180,7 +196,7 @@ export const RescheduleAppointmentModal = ({
   }, [hasPractitioner, appointment_date, appointment.practitioner, appointment.name])
 
   const flatSlots =
-    slotDetails && appointment_date
+    slotDetails && appointment_date && !isPractitionerOnLeave
       ? flattenSlots(slotDetails, appointment_date, appointment.name)
       : []
 
@@ -190,6 +206,13 @@ export const RescheduleAppointmentModal = ({
       setError('Appointment date is required')
       return
     }
+    
+    // Check if practitioner is on leave before submitting
+    if (isPractitionerOnLeave) {
+      setError(`Cannot reschedule: Practitioner is not available on ${appointment_date}. Please select a different date.`)
+      return
+    }
+    
     const timeToSend = selectedSlot
       ? toApiTime(selectedSlot.from_time)
       : appointment_time
@@ -213,12 +236,30 @@ export const RescheduleAppointmentModal = ({
       onSuccess?.()
       onClose()
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to reschedule appointment'
+      let message = err instanceof Error ? err.message : 'Failed to reschedule appointment'
+      
+      // Check for holiday/leave error in the response
+      if (message.toLowerCase().includes('holiday')) {
+        message = `❌ Cannot reschedule: ${message}`
+        setIsPractitionerOnLeave(true)
+      } else if (message.toLowerCase().includes('leave') || message.toLowerCase().includes('not available')) {
+        message = `❌ Practitioner is not available on ${appointment_date}. Please select a different date.`
+        setIsPractitionerOnLeave(true)
+      }
+      
       setError(message)
       toast.error(message)
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleDateChange = (newDate: string) => {
+    setAppointmentDate(newDate)
+    setError(null)
+    setSlotsError(null)
+    setIsPractitionerOnLeave(false)
+    setSelectedSlot(null)
   }
 
   return (
@@ -246,9 +287,21 @@ export const RescheduleAppointmentModal = ({
             </p>
           )}
 
+          {/* Error display with icon */}
           {error && (
-            <div className="bg-red-50 border border-red-200 rounded-md p-3 text-sm text-red-800">
-              {error}
+            <div className="bg-red-50 border border-red-200 rounded-md p-3 flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" />
+              <span className="text-sm text-red-800">{error}</span>
+            </div>
+          )}
+
+          {/* Practitioner on leave warning */}
+          {isPractitionerOnLeave && !error && (
+            <div className="bg-amber-50 border border-amber-200 rounded-md p-3 flex items-start gap-2">
+              <CalendarOff className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+              <span className="text-sm text-amber-800">
+                The practitioner is not available on {appointment_date}. Please select a different date.
+              </span>
             </div>
           )}
 
@@ -259,30 +312,36 @@ export const RescheduleAppointmentModal = ({
             <input
               type="date"
               value={appointment_date}
-              onChange={(e) => setAppointmentDate(e.target.value)}
+              onChange={(e) => handleDateChange(e.target.value)}
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
               required
+              min={new Date().toISOString().split('T')[0]}
             />
           </div>
 
-          {hasPractitioner ? (
+          {hasPractitioner && !isPractitionerOnLeave && (
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-2">
                 Available slots <span className="text-red-500">*</span>
               </label>
               {slotsLoading && (
-                <p className="text-sm text-slate-500 py-2">Loading slots…</p>
+                <div className="flex items-center justify-center py-4">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                  <span className="ml-2 text-sm text-slate-500">Loading available slots...</span>
+                </div>
               )}
               {slotsError && !slotsLoading && (
-                <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-md p-2">
-                  {slotsError}
-                </p>
+                <div className="bg-amber-50 border border-amber-200 rounded-md p-3">
+                  <p className="text-sm text-amber-800">{slotsError}</p>
+                </div>
               )}
               {!slotsLoading && !slotsError && flatSlots.length === 0 && slotDetails && (
-                <p className="text-sm text-slate-500">No slots available for this date.</p>
+                <div className="bg-amber-50 border border-amber-200 rounded-md p-3">
+                  <p className="text-sm text-amber-800">No slots available for this date. The practitioner may be on leave or fully booked.</p>
+                </div>
               )}
               {!slotsLoading && flatSlots.length > 0 && (
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto p-1">
                   {flatSlots.map(({ slot, slotInfo, disabled }, idx) => {
                     const key = `${slotInfo.slot_name}-${slot.from_time}-${idx}`
                     const isSelected =
@@ -302,7 +361,7 @@ export const RescheduleAppointmentModal = ({
                         }
                         className={`rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
                           disabled
-                            ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed'
+                            ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed line-through'
                             : isSelected
                               ? 'border-primary bg-primary text-white'
                               : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
@@ -316,7 +375,18 @@ export const RescheduleAppointmentModal = ({
                 </div>
               )}
             </div>
-          ) : (
+          )}
+
+          {hasPractitioner && isPractitionerOnLeave && (
+            <div className="bg-slate-50 border border-slate-200 rounded-md p-4 text-center">
+              <CalendarOff className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+              <p className="text-sm text-slate-600">
+                No slots available. Please select a different date when the practitioner is available.
+              </p>
+            </div>
+          )}
+
+          {!hasPractitioner && (
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
                 Appointment Time
@@ -343,7 +413,7 @@ export const RescheduleAppointmentModal = ({
             </button>
             <button
               type="submit"
-              disabled={loading || (hasPractitioner && !selectedSlot && flatSlots.length > 0)}
+              disabled={loading || (hasPractitioner && !selectedSlot && flatSlots.length > 0) || isPractitionerOnLeave}
               className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? 'Rescheduling…' : 'Reschedule'}

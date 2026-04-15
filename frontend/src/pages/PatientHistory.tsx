@@ -246,7 +246,7 @@ export const PatientHistoryPage = () => {
             <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[420px]">
               <div className="font-semibold mb-4 flex-shrink-0">Appointments</div>
               <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                <AppointmentList patient={selectedPatient} />
+                <AppointmentList patient={selectedPatient} showAll={true}/>
               </div>
             </section>
           </div>

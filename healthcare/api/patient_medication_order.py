@@ -765,3 +765,150 @@ def update_medication_order():
     frappe.db.commit()
     
     return doc
+
+
+# @frappe.whitelist()
+# def get_after_discharge_prescriptions(patient, admission=None):
+#     """
+#     Get prescriptions created after discharge (during medicine transfer)
+#     """
+#     filters = {
+#         'patient': patient,
+#         'after_discharge': 1,
+#         'docstatus': 1  # Submitted/Completed prescriptions only
+#     }
+    
+#     # if admission:
+#     #     filters['discharge_transfer'] = ['like', f'%{admission}%']
+    
+#     prescriptions = frappe.get_all(
+#         'Patient Medication Order',
+#         filters=filters,
+#         fields=[
+#             'name',
+#             'patient',
+#             'patient_name',
+#             'posting_date',
+#             # 'total_amount',
+#             'after_discharge',
+#             # 'discharge_transfer'
+#         ],
+#         order_by='creation desc'
+#     )
+    
+#     # For each prescription, get the drug details
+#     for pres in prescriptions:
+#         drugs = frappe.get_all(
+#             'Inpatient Medication Order Entry',
+#             filters={'parent': pres.name},
+#             fields=['drug', 'drug_name', 'dosage', 'quantity', 'rate', 'amount']
+#         )
+#         pres['drugs'] = drugs
+    
+#     return prescriptions
+
+def get_item_rate(item_code):
+    """
+    Get the selling rate for an item.
+    Tries standard_rate first, then selling_price, then valuation_rate.
+    Returns 0 if no rate found.
+    """
+    if not item_code:
+        return 0
+    
+    # Try standard_rate first
+    rate = frappe.db.get_value('Item', item_code, 'standard_rate')
+    if rate:
+        return rate
+    
+    # Try selling_price
+    rate = frappe.db.get_value('Item', item_code, 'selling_price')
+    if rate:
+        return rate
+    
+    # Try valuation_rate as last resort
+    rate = frappe.db.get_value('Item', item_code, 'valuation_rate')
+    if rate:
+        return rate
+    
+    return 0
+
+
+def get_item_rates_bulk(item_codes):
+    """
+    Get rates for multiple items at once.
+    Returns a dictionary mapping item_code to rate.
+    """
+    if not item_codes:
+        return {}
+    
+    # Remove duplicates and None values
+    item_codes = list(set([code for code in item_codes if code]))
+    
+    rates = {}
+    for code in item_codes:
+        rates[code] = get_item_rate(code)
+    
+    return rates
+
+
+@frappe.whitelist()
+def get_after_discharge_prescriptions(patient, admission=None):
+    """
+    Get prescriptions created after discharge (during medicine transfer)
+    """
+    filters = {
+        'patient': patient,
+        'after_discharge': 1,
+        'docstatus': 1
+    }
+    
+    prescriptions = frappe.get_all(
+        'Patient Medication Order',
+        filters=filters,
+        fields=[
+            'name',
+            'patient',
+            'patient_name',
+            'posting_date',
+            'after_discharge',
+        ],
+        order_by='creation desc'
+    )
+    
+    # For each prescription, get the drug details
+    for pres in prescriptions:
+        drugs = frappe.get_all(
+            'Inpatient Medication Order Entry',
+            filters={'parent': pres.name},
+            fields=['drug', 'drug_name', 'dosage', 'quantity']
+        )
+        
+        # Add rate and amount to each drug using the helper function
+        for drug in drugs:
+            drug['rate'] = get_item_rate(drug.get('drug'))
+            drug['amount'] = (drug.get('quantity') or 0) * drug['rate']
+        
+        pres['drugs'] = drugs
+    
+    return prescriptions
+
+
+@frappe.whitelist()
+def get_item_rate_api(item_code):
+    """
+    API endpoint to get rate for a single item
+    """
+    return {'item_code': item_code, 'rate': get_item_rate(item_code)}
+
+
+@frappe.whitelist()
+def get_item_rates_api(item_codes):
+    """
+    API endpoint to get rates for multiple items
+    """
+    if isinstance(item_codes, str):
+        import json
+        item_codes = json.loads(item_codes)
+    
+    return get_item_rates_bulk(item_codes)

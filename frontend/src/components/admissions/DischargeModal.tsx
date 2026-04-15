@@ -1,5 +1,7 @@
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+
+import React, { useState, useEffect, useRef, useCallback } from 'react'
+
 import { createDischarge, UnbilledServicesError } from '../../services/inpatientRecords'
 import { uploadPatientFile, type PatientDocumentRow } from '../../services/patients'
 import { MedicineGivenList } from '../medication/MedicineGivenList'
@@ -8,11 +10,91 @@ import { getDischargeReconciliationRows, type DischargeReconciliationRow } from 
 import { fetchHealthcarePractitioners, fetchUsers, fetchDischargeTemplates, fetchDischargeChecklist, fetchDepartments, fetchDocumentTypes, fetchNursingDischargeTemplates, type LinkFieldOption, fetchNursingDischargeChecklist } from '../../services/common'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { CreatePrescriptionModal } from '../prescriptions/CreatePrescriptionModal'
-import { fetchDischargeTransferPrescriptions } from '../../services/prescriptions'
+import { fetchDischargeTransferPrescriptions, fetchAfterDischargePrescriptions } from '../../services/prescriptions'
+import { fetchMedicineGiven } from '../../services/medicineGiven'
 import { toast } from '../../hooks/useToast'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { saveDischargeDraft, loadDischargeDraft, clearDischargeDraft, draftSavedAt } from '../../services/dischargeDraft'
-import { X, CheckCircle2, Circle, ChevronDown, ChevronUp, AlertCircle, Receipt, PenLine, Trash2, Check, Save, Clock } from 'lucide-react'
+import { X, CheckCircle2, Circle, ChevronDown, ChevronUp, AlertCircle, Receipt, PenLine, Trash2, Check, Save, Clock, Pill, Calendar, DollarSign } from 'lucide-react'
+
+// ─── Types ──────────────────────────────────────────────────────────────────
+
+interface ChecklistItem {
+  name: string
+  action_required: string
+  department: string
+  department_label?: string
+  user: string
+  name1: string
+  date_time: string
+  click: boolean
+  description?: string
+}
+
+interface DischargeModalProps {
+  admission: {
+    name: string
+    patient: string
+    patient_name?: string
+  }
+  onClose: () => void
+  onSuccess: () => void
+}
+
+
+interface DailyPatientVisitSetup {
+  name?: string
+  patient: string
+  patient_name?: string
+  from_date: string
+  to_date: string
+  time: string
+  session?: string
+  is_active: boolean
+  amount: number
+  admission: string      // Add this field
+  discharge?: string
+}
+
+const RELATION_OPTIONS = [
+  'Father',
+  'Mother',
+  'Brother',
+  'Sister',
+  'Husband',
+  'Wife',
+  'Son',
+  'Daughter',
+] as const
+
+const TRANSFER_ALLOWED_ROLES = ['Doctor', 'System Manager', 'Healthcare Administrator', 'Administrator'] as const
+
+const groupByDepartment = (items: ChecklistItem[]) => {
+  return items.reduce((acc, item) => {
+    const dept = item.department_label || item.department || 'General'
+    if (!acc[dept]) acc[dept] = []
+    acc[dept].push(item)
+    return acc
+  }, {} as Record<string, ChecklistItem[]>)
+}
+
+function addDaysToIsoDate(dateStr: string, days: number): string {
+  const d = new Date(dateStr)
+  d.setDate(d.getDate() + days)
+  return d.toISOString().split('T')[0]
+}
+
+function toFrappeDateTime(value?: string): string {
+  if (!value) return ''
+  let s = value.trim()
+  if (s.includes('T')) {
+    if (s.endsWith('Z')) s = s.slice(0, -1)
+    s = s.replace('T', ' ')
+  }
+  if (s.length > 19) s = s.slice(0, 19)
+  if (s.length === 16) s += ':00'
+  return s
+}
 
 // ─── Signature Pad Component ────────────────────────────────────────────────
 
@@ -21,6 +103,14 @@ interface SignaturePadProps {
   onClear?: () => void
   existingUrl?: string
   uploading?: boolean
+}
+
+interface MedicineSalesData {
+  prescriptions: any[]
+  given_medicines: any[]
+  prescription_total: number
+  given_total: number
+  grand_total: number
 }
 
 const SignaturePad = ({ onSave, onClear, existingUrl, uploading }: SignaturePadProps) => {
@@ -213,128 +303,214 @@ const SignaturePad = ({ onSave, onClear, existingUrl, uploading }: SignaturePadP
   )
 }
 
-// ─── Types ──────────────────────────────────────────────────────────────────
+// ─── Daily Visit Setup Form Component ───────────────────────────────────────
+const DailyVisitSetupForm = ({ 
+  patient, 
+  admission,
+  onSave, 
+  initialData,
+  onCancel
+}: { 
+  patient: string;
+  admission: string;
+  onSave: (data: DailyPatientVisitSetup) => void;
+  initialData?: DailyPatientVisitSetup;
+  onCancel?: () => void;
+}) => {
+  // Ensure admission is always set from props, not overwritten by initialData
+  const [formData, setFormData] = useState<DailyPatientVisitSetup>({
+    patient: patient,
+    patient_name: '',
+    admission: admission,  // This comes from props
+    discharge: initialData?.discharge || '',
+    from_date: initialData?.from_date || '',
+    to_date: initialData?.to_date || '',
+    time: initialData?.time || '',
+    session: initialData?.session || '',
+    is_active: initialData?.is_active || false,
+    amount: initialData?.amount || 0,
+  })
 
-interface ChecklistItem {
-  name: string
-  action_required: string
-  department: string
-  department_label?: string
-  user: string
-  name1: string
-  date_time: string
-  click: boolean
-  description?: string
-}
+  // Add a useEffect to ensure admission is always synced from props
+  useEffect(() => {
+    setFormData(prev => ({
+      ...prev,
+      admission: admission,  // Always use the current admission prop
+      patient: patient,
+    }))
+  }, [admission, patient])
 
-interface DischargeModalProps {
-  admission: {
-    name: string
-    patient: string
-    patient_name?: string
+  const [sessions, setSessions] = useState<LinkFieldOption[]>([])
+  const [sessionOpen, setSessionOpen] = useState(false)
+  const [sessionQuery, setSessionQuery] = useState('')
+
+  useEffect(() => {
+    const loadSessions = async () => {
+      try {
+        const response = await fetch('/api/method/frappe.client.get_list', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            doctype: 'Therapy Session',
+            fields: ['name', 'name'],
+            limit: 100
+          })
+        })
+        const data = await response.json()
+        if (data.message) {
+          setSessions(data.message.map((s: any) => ({ name: s.name, label: s.name || s.name })))
+        }
+      } catch (err) {
+        console.error('Failed to load sessions:', err)
+      }
+    }
+    loadSessions()
+  }, [])
+
+  const handleSave = () => {
+    // Ensure admission is included in the data being saved
+    const saveData = {
+      ...formData,
+      admission: admission,  // Explicitly set admission from props
+      patient: patient,
+    }
+    onSave(saveData)
   }
-  onClose: () => void
-  onSuccess: () => void
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">From Date *</label>
+          <input
+            type="date"
+            value={formData.from_date}
+            onChange={(e) => setFormData({ ...formData, from_date: e.target.value })}
+            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            required
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">To Date *</label>
+          <input
+            type="date"
+            value={formData.to_date}
+            onChange={(e) => setFormData({ ...formData, to_date: e.target.value })}
+            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            required
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Time *</label>
+          <input
+            type="time"
+            value={formData.time}
+            onChange={(e) => setFormData({ ...formData, time: e.target.value })}
+            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            required
+          />
+        </div>
+        <div className="relative dropdown-container">
+          <label className="block text-sm font-medium text-slate-700 mb-1">Therapy Session</label>
+          <input
+            type="text"
+            value={sessionOpen ? sessionQuery : (sessions.find(s => s.name === formData.session)?.label || formData.session || '')}
+            onChange={(e) => {
+              setFormData({ ...formData, session: '' })
+              setSessionQuery(e.target.value)
+              setSessionOpen(true)
+            }}
+            onFocus={() => setSessionOpen(true)}
+            placeholder="Select therapy session..."
+            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+          />
+          {sessionOpen && sessions.length > 0 && (
+            <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-auto">
+              {sessions
+                .filter(s => !sessionQuery || s.label.toLowerCase().includes(sessionQuery.toLowerCase()))
+                .map(session => (
+                  <button
+                    key={session.name}
+                    type="button"
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50"
+                    onClick={() => {
+                      setFormData({ ...formData, session: session.name })
+                      setSessionQuery(session.label)
+                      setSessionOpen(false)
+                    }}
+                  >
+                    {session.label}
+                  </button>
+                ))}
+            </div>
+          )}
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Amount (per visit)</label>
+          <input
+            type="number"
+            step="0.01"
+            value={formData.amount}
+            onChange={(e) => setFormData({ ...formData, amount: parseFloat(e.target.value) || 0 })}
+            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+          />
+        </div>
+        <div className="flex items-end">
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={formData.is_active}
+              onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
+              className="rounded border-slate-300 text-primary focus:ring-primary"
+            />
+            <span className="text-sm font-medium text-slate-700">Activate Daily Visits</span>
+          </label>
+        </div>
+      </div>
+
+      {/* Show read-only fields for admission and discharge info */}
+      <div className="grid grid-cols-2 gap-4 mt-2 pt-2 border-t border-slate-100">
+        <div>
+          <label className="block text-xs font-medium text-slate-500 mb-1">Admission</label>
+          <input
+            type="text"
+            value={formData.admission}
+            disabled
+            className="w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-600"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-slate-500 mb-1">Discharge (will be set after discharge)</label>
+          <input
+            type="text"
+            value={formData.discharge || 'Not discharged yet'}
+            disabled
+            className="w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-600"
+          />
+        </div>
+      </div>
+
+      <div className="flex justify-end gap-2 pt-4">
+        {onCancel && (
+          <button
+            type="button"
+            onClick={onCancel}
+            className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50"
+          >
+            Cancel
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={handleSave}
+          className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90"
+        >
+          Save Daily Visit Setup
+        </button>
+      </div>
+    </div>
+  )
 }
-
-const groupByDepartment = (items: ChecklistItem[]) => {
-  return items.reduce((acc, item) => {
-    const dept = item.department_label || item.department || 'General'
-    if (!acc[dept]) acc[dept] = []
-    acc[dept].push(item)
-    return acc
-  }, {} as Record<string, ChecklistItem[]>)
-}
-
-const RELATION_OPTIONS = [
-  'Father',
-  'Mother',
-  'Brother',
-  'Sister',
-  'Husband',
-  'Wife',
-  'Son',
-  'Daughter',
-] as const
-
-const TRANSFER_ALLOWED_ROLES = ['Doctor', 'System Manager', 'Healthcare Administrator', 'Administrator'] as const
-
-function addDaysToIsoDate(dateStr: string, days: number): string {
-  const d = new Date(dateStr)
-  d.setDate(d.getDate() + days)
-  return d.toISOString().split('T')[0]
-}
-
-// interface TransferPrescriptionModalProps {
-//   rows: DischargeReconciliationRow[]
-//   selectedNames: string[]
-//   onClose: () => void
-//   onConfirm: () => Promise<void>
-//   isSubmitting: boolean
-// }
-
-// const TransferPrescriptionModal = ({ rows, selectedNames, onClose, onConfirm, isSubmitting }: TransferPrescriptionModalProps) => (
-//   <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4">
-//     <div className="bg-white rounded-xl shadow-2xl max-w-3xl w-full max-h-[85vh] overflow-hidden flex flex-col">
-//       <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
-//         <div>
-//           <h2 className="text-lg font-semibold text-slate-900">Confirm prescription transfer</h2>
-//           <p className="text-sm text-slate-600">Review the remaining discharge medicines before creating the follow-up prescription and patient visit.</p>
-//         </div>
-//         <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1 rounded-md hover:bg-slate-100 transition-colors">
-//           <X className="w-5 h-5" />
-//         </button>
-//       </div>
-//       <div className="flex-1 overflow-y-auto p-6">
-//         {selectedNames.length === 0 ? (
-//           <div className="text-sm text-slate-500">No medicines selected for transfer.</div>
-//         ) : (
-//           <div className="space-y-4">
-//             <div className="text-sm text-slate-600">The following remaining medicines will be transferred to a new Patient Visit prescription:</div>
-//             <div className="bg-white border border-slate-200 rounded-lg overflow-auto max-h-[340px]">
-//               <table className="w-full text-sm">
-//                 <thead className="bg-slate-50 border-b border-slate-200">
-//                   <tr>
-//                     <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-600">Drug</th>
-//                     <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-600">Remaining</th>
-//                   </tr>
-//                 </thead>
-//                 <tbody className="divide-y divide-slate-200">
-//                   {rows
-//                     .filter((row) => selectedNames.includes(row.name))
-//                     .map((row) => (
-//                       <tr key={row.name} className="hover:bg-slate-50">
-//                         <td className="px-3 py-2 text-slate-800">{row.drug_name || row.drug}</td>
-//                         <td className="px-3 py-2 text-slate-700">{row.remaining}</td>
-//                       </tr>
-//                     ))}
-//                 </tbody>
-//               </table>
-//             </div>
-//           </div>
-//         )}
-//       </div>
-//       <div className="px-6 py-4 border-t border-slate-200 flex items-center justify-end gap-3 bg-slate-50">
-//         <button
-//           type="button"
-//           onClick={onClose}
-//           className="px-4 py-2 rounded border border-slate-300 text-slate-700 hover:bg-slate-100"
-//           disabled={isSubmitting}
-//         >
-//           Cancel
-//         </button>
-//         <button
-//           type="button"
-//           onClick={onConfirm}
-//           disabled={isSubmitting || selectedNames.length === 0}
-//           className="px-4 py-2 rounded bg-primary text-white hover:bg-primary-dark disabled:opacity-50 disabled:cursor-not-allowed"
-//         >
-//           {isSubmitting ? 'Creating prescription…' : 'Create prescription & visit'}
-//         </button>
-//       </div>
-//     </div>
-//   </div>
-// )
 
 // ─── Main Modal ─────────────────────────────────────────────────────────────
 
@@ -342,7 +518,7 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [unbilledServices, setUnbilledServices] = useState<{ type: string; ids: string[] }[] | null>(null)
-  const [activeTab, setActiveTab] = useState<'details' | 'checklist' | 'nursing' | 'transfer' | 'reconcile' | 'documents' | 'relatives'>('details')
+  const [activeTab, setActiveTab] = useState<'details' | 'checklist' | 'nursing' | 'transfer' | 'medicine-sales' | 'reconcile' | 'daily-visit' | 'documents' | 'relatives'>('details')
 
   const { userRole } = useCareContext()
   const canViewMedicineTransfer = (userRole || []).some((role) => TRANSFER_ALLOWED_ROLES.includes(role as typeof TRANSFER_ALLOWED_ROLES[number]))
@@ -352,7 +528,23 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
   const [transferError, setTransferError] = useState<string | null>(null)
   const [transferModalOpen, setTransferModalOpen] = useState(false)
   const [transferSelected, setTransferSelected] = useState<Set<string>>(new Set())
-const [transferPrescription, setTransferPrescription] = useState<{ name: string; patient_visit?: string } | undefined>(undefined)
+  const [transferPrescription, setTransferPrescription] = useState<{ name: string; patient_visit?: string } | undefined>(undefined)
+
+  // Medicine Sales state
+const [medicineSales, setMedicineSales] = useState<MedicineSalesData>({
+  prescriptions: [],
+  given_medicines: [],
+  prescription_total: 0,
+  given_total: 0,
+  grand_total: 0
+})
+  const [salesLoading, setSalesLoading] = useState(false)
+
+  // Daily Visit Setup state
+  const [dailyVisitSetup, setDailyVisitSetup] = useState<DailyPatientVisitSetup | null>(null)
+  const [dailyVisitLoading, setDailyVisitLoading] = useState(false)
+  const [dailyVisitSaved, setDailyVisitSaved] = useState(false)
+  const [showDailyVisitForm, setShowDailyVisitForm] = useState(false)
 
   // Checklist state
   const [checklistItems, setChecklistItems] = useState<ChecklistItem[]>([])
@@ -413,18 +605,6 @@ const [transferPrescription, setTransferPrescription] = useState<{ name: string;
   const [userQuery, setUserQuery] = useState('')
   const userTriggerRef = useRef<HTMLInputElement | null>(null)
 
-  const toFrappeDateTime = (value?: string) => {
-    if (!value) return ''
-    let s = value.trim()
-    if (s.includes('T')) {
-      if (s.endsWith('Z')) s = s.slice(0, -1)
-      s = s.replace('T', ' ')
-    }
-    if (s.length > 19) s = s.slice(0, 19)
-    if (s.length === 16) s += ':00'
-    return s
-  }
-
   const [formData, setFormData] = useState({
     discharge_type: '',
     ama_type: '',
@@ -450,7 +630,139 @@ const [transferPrescription, setTransferPrescription] = useState<{ name: string;
     next_appointment_time: ''
   })
 
-  // Load initial data
+  // ─── Load Medicine Sales ───────────────────────────────────────────────────
+const loadMedicineSales = async () => {
+  if (!admission?.patient) return
+  setSalesLoading(true)
+  try {
+    // Fetch after-discharge prescriptions (medicines for patient to take home)
+    const prescriptions = await fetchAfterDischargePrescriptions(admission.patient, admission.name)
+    console.log('After-discharge prescriptions:', prescriptions)
+    
+    // Fetch given medicines (medicines administered during admission)
+    const givenMedicines = await fetchMedicineGiven(admission.name, 500, 0)
+    console.log('Given medicines during admission:', givenMedicines)
+    
+    // Get rates for given medicines
+    const medicineCodes = [...new Set(
+  givenMedicines
+    .map(g => g.medicine_code)
+    .filter((code): code is string => Boolean(code))
+)]
+    const itemRates: Record<string, number> = {}
+    
+    for (const code of medicineCodes) {
+      try {
+        const response = await fetch(`/api/method/healthcare.api.patient_medication_order.get_item_rate_api?item_code=${encodeURIComponent(code)}`)
+        const data = await response.json()
+        itemRates[code] = data.message?.rate || 0
+      } catch (err) {
+        itemRates[code] = 0
+      }
+    }
+    
+    // Calculate totals for given medicines
+    const givenMedicinesWithAmount = givenMedicines.map(given => ({
+      ...given,
+      rate: given.medicine_code ? (itemRates[given.medicine_code] || 0) : 0,
+amount: (given.qty || 0) * (given.medicine_code ? (itemRates[given.medicine_code] || 0) : 0)
+    }))
+    
+    const givenTotal = givenMedicinesWithAmount.reduce((sum, g) => sum + (g.amount || 0), 0)
+    
+    // Calculate prescription totals
+    let prescriptionTotal = 0
+    for (const prescription of prescriptions) {
+      const items = (prescription as any).drugs || (prescription as any).medication_orders || (prescription as any).items || []
+const presTotal = items.reduce((sum: number, d: any) => sum + (d.amount || 0), 0)
+      prescriptionTotal += presTotal
+    }
+    
+    setMedicineSales({
+      prescriptions,
+      given_medicines: givenMedicinesWithAmount,
+      prescription_total: prescriptionTotal,
+      given_total: givenTotal,
+      grand_total: prescriptionTotal + givenTotal
+    })
+  } catch (err) {
+    console.error('Failed to load medicine sales:', err)
+    toast.error('Failed to load medicine sales data')
+  } finally {
+    setSalesLoading(false)
+  }
+}
+
+  // ─── Load Daily Visit Setup ────────────────────────────────────────────────
+ // ─── Load Daily Visit Setup ────────────────────────────────────────────────
+const loadDailyVisitSetup = async () => {
+  if (!admission?.patient) return
+  setDailyVisitLoading(true)
+  try {
+    // Specify all the fields you want to retrieve
+    const response = await fetch(
+      `/api/method/frappe.client.get_list?doctype=Daily%20Patient%20Visit%20Setup&filters={"patient":"${admission.patient}","admission":"${admission.name}"}&fields=["name","patient","patient_name","admission","discharge","from_date","to_date","time","session","is_active","amount"]&limit=1&order_by=creation%20desc`
+    )
+    const data = await response.json()
+    console.log('Daily Visit Setup response:', data)
+    if (data.message && data.message.length > 0) {
+      setDailyVisitSetup(data.message[0])
+      setDailyVisitSaved(true)
+    } else {
+      setDailyVisitSaved(false)
+      setDailyVisitSetup(null)
+    }
+  } catch (err) {
+    console.error('Failed to load daily visit setup:', err)
+  } finally {
+    setDailyVisitLoading(false)
+  }
+}
+  // ─── Save Daily Visit Setup ────────────────────────────────────────────────
+  const saveDailyVisitSetup = async (setupData: DailyPatientVisitSetup) => {
+    try {
+      const csrf = (window as any).csrf_token
+      let response
+      
+      if (dailyVisitSetup?.name) {
+        response = await fetch('/api/method/healthcare.api.daily_patient_visit.update_daily_patient_visit_setup', {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {})
+          },
+          body: JSON.stringify({ name: dailyVisitSetup.name, data: setupData })
+        })
+      } else {
+        response = await fetch('/api/method/healthcare.api.daily_patient_visit.create_daily_patient_visit_setup', {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {})
+          },
+          body: JSON.stringify({ data: setupData })
+        })
+      }
+      
+      const resData = await response.json()
+      if (resData?.exc) {
+        throw new Error(resData.exc_type ? `${resData.exc_type}: ${resData.exc}` : resData.exc)
+      }
+      
+      toast.success(dailyVisitSetup?.name ? 'Daily visit setup updated successfully' : 'Daily visit setup created successfully')
+      setDailyVisitSaved(true)
+      setShowDailyVisitForm(false)
+      await loadDailyVisitSetup()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to save daily visit setup')
+    }
+  }
+
+  // ─── Load Data ────────────────────────────────────────────────────────────
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -522,15 +834,13 @@ const [transferPrescription, setTransferPrescription] = useState<{ name: string;
           setDischargeTemplateQuery(defaultTemplate.label)
         }
 
-        // Check for existing discharge transfer prescriptions
         try {
           const existingTransfers = await fetchDischargeTransferPrescriptions(admission.patient)
           if (existingTransfers.length > 0) {
-            // Use the most recent one
             const latestTransfer = existingTransfers[0]
             setTransferPrescription({
               name: latestTransfer.name,
-              patient_visit: latestTransfer.patient_encounter, // Assuming patient_encounter is the visit
+              patient_visit: latestTransfer.patient_encounter,
             })
           }
         } catch (error) {
@@ -542,6 +852,16 @@ const [transferPrescription, setTransferPrescription] = useState<{ name: string;
     }
     loadData()
   }, [])
+
+  // Load data when tabs are opened
+  useEffect(() => {
+    if (activeTab === 'medicine-sales') {
+      loadMedicineSales()
+    }
+    if (activeTab === 'daily-visit') {
+      loadDailyVisitSetup()
+    }
+  }, [activeTab, admission?.patient, admission?.name])
 
   const loadChecklist = async (templateName: string) => {
     if (!templateName) return
@@ -922,9 +1242,21 @@ const [transferPrescription, setTransferPrescription] = useState<{ name: string;
     onClose()
   }
 
+  const tabs: { id: typeof activeTab; label: string; icon?: React.ReactNode }[] = [
+    { id: 'details', label: 'Details' },
+    { id: 'checklist', label: 'Discharge Checklist' },
+    { id: 'nursing', label: 'Nursing Checklist' },
+    ...(canViewMedicineTransfer ? [{ id: 'transfer' as const, label: 'Medicine Transfer' }] : []),
+    { id: 'medicine-sales', label: 'Sales of Medicine', icon: <DollarSign className="w-3.5 h-3.5" /> },
+    { id: 'reconcile', label: 'Medicine Reconciliation', icon: <Pill className="w-3.5 h-3.5" /> },
+    { id: 'daily-visit', label: 'Daily Visit Setup', icon: <Calendar className="w-3.5 h-3.5" /> },
+    { id: 'documents', label: 'Documents' },
+    { id: 'relatives', label: 'Relatives' },
+  ]
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl min-h-[800px] max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-5xl min-h-[800px] max-h-[90vh] overflow-hidden flex flex-col">
 
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
@@ -949,55 +1281,40 @@ const [transferPrescription, setTransferPrescription] = useState<{ name: string;
 
         {/* Tabs */}
         <div className="flex border-b border-slate-200 bg-slate-50 overflow-x-auto">
-          {([
-            'details',
-            'checklist',
-            'nursing',
-            ...(canViewMedicineTransfer ? ['transfer'] as const : []),
-            'reconcile',
-            'documents',
-            'relatives',
-          ] as const).map((tab) => (
+          {tabs.map((tab) => (
             <button
-              key={tab}
+              key={tab.id}
               type="button"
-              onClick={() => setActiveTab(tab)}
-              className={`px-6 py-3 text-sm font-medium transition-colors border-b-2 -mb-px flex items-center gap-2 whitespace-nowrap ${
-                activeTab === tab
+              onClick={() => setActiveTab(tab.id)}
+              className={`px-4 py-3 text-sm font-medium transition-colors border-b-2 -mb-px flex items-center gap-1.5 whitespace-nowrap ${
+                activeTab === tab.id
                   ? 'border-green-600 text-green-700 bg-white'
                   : 'border-transparent text-slate-500 hover:text-slate-700'
               }`}
             >
-              {tab === 'checklist'
-                ? 'Discharge Checklist'
-                : tab === 'nursing'
-                ? 'Nursing Checklist'
-                : tab === 'transfer'
-                ? 'Medicine Transfer'
-                : tab === 'reconcile'
-                ? 'Medicine Reconciliation'
-                : tab.charAt(0).toUpperCase() + tab.slice(1)}
-              {tab === 'checklist' && totalItems > 0 && (
-                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+              {tab.icon}
+              {tab.label}
+              {tab.id === 'checklist' && totalItems > 0 && (
+                <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium ml-1 ${
                   allCompleted ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
                 }`}>
                   {completedItems}/{totalItems}
                 </span>
               )}
-              {tab === 'nursing' && nurseTotalItems > 0 && (
-                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+              {tab.id === 'nursing' && nurseTotalItems > 0 && (
+                <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium ml-1 ${
                   nurseAllCompleted ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
                 }`}>
                   {nurseCompletedItems}/{nurseTotalItems}
                 </span>
               )}
-              {tab === 'documents' && documents.length > 0 && (
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-200 text-slate-600">
+              {tab.id === 'documents' && documents.length > 0 && (
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-slate-200 text-slate-600 ml-1">
                   {documents.length}
                 </span>
               )}
-              {tab === 'relatives' && relatives.length > 0 && (
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-200 text-slate-600">
+              {tab.id === 'relatives' && relatives.length > 0 && (
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-slate-200 text-slate-600 ml-1">
                   {relatives.length}
                 </span>
               )}
@@ -1344,7 +1661,6 @@ const [transferPrescription, setTransferPrescription] = useState<{ name: string;
                   <p className="text-sm">No checklist items found for the selected template.</p>
                 </div>
               ) : (
-                <>
                 <div className="space-y-4">
                   {Object.entries(groupedChecklist).map(([dept, items]) => {
                     const deptCompleted = items.filter(i => i.click).length
@@ -1448,65 +1764,64 @@ const [transferPrescription, setTransferPrescription] = useState<{ name: string;
                     )
                   })}
                 </div>
+              )}
 
-                {departmentOpenForItem && (
-                  <PortalActionsMenu
-                    open={!!departmentOpenForItem}
-                    onClose={() => setDepartmentOpenForItem(null)}
-                    triggerRef={departmentTriggerRef}
-                    minWidth={160}
-                    maxWidth={280}
-                    maxHeight={280}
-                  >
-                    {departmentOptions.map((dept) => (
+              {departmentOpenForItem && (
+                <PortalActionsMenu
+                  open={!!departmentOpenForItem}
+                  onClose={() => setDepartmentOpenForItem(null)}
+                  triggerRef={departmentTriggerRef}
+                  minWidth={160}
+                  maxWidth={280}
+                  maxHeight={280}
+                >
+                  {departmentOptions.map((dept) => (
+                    <button
+                      key={dept.name}
+                      type="button"
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-green-50"
+                      onClick={() => {
+                        if (departmentOpenForItem) {
+                          updateChecklistItem(departmentOpenForItem, 'department', dept.name)
+                          setDepartmentQuery(dept.label)
+                          setDepartmentOpenForItem(null)
+                        }
+                      }}
+                    >
+                      {dept.label}
+                    </button>
+                  ))}
+                </PortalActionsMenu>
+              )}
+
+              {userOpenForItem && (
+                <PortalActionsMenu
+                  open={!!userOpenForItem}
+                  onClose={() => setUserOpenForItem(null)}
+                  triggerRef={userTriggerRef}
+                  minWidth={160}
+                  maxWidth={280}
+                  maxHeight={280}
+                >
+                  {dischargedByUsers
+                    .filter((u) => !userQuery.trim() || (u.label || u.name || '').toLowerCase().includes(userQuery.toLowerCase()))
+                    .slice(0, 30)
+                    .map((user) => (
                       <button
-                        key={dept.name}
+                        key={user.name}
                         type="button"
                         className="w-full text-left px-3 py-2 text-sm hover:bg-green-50"
                         onClick={() => {
-                          if (departmentOpenForItem) {
-                            updateChecklistItem(departmentOpenForItem, 'department', dept.name)
-                            setDepartmentQuery(dept.label)
-                            setDepartmentOpenForItem(null)
+                          if (userOpenForItem) {
+                            updateChecklistItem(userOpenForItem, 'user', user.name)
+                            setUserOpenForItem(null)
                           }
                         }}
                       >
-                        {dept.label}
+                        {user.label}
                       </button>
                     ))}
-                  </PortalActionsMenu>
-                )}
-
-                {userOpenForItem && (
-                  <PortalActionsMenu
-                    open={!!userOpenForItem}
-                    onClose={() => setUserOpenForItem(null)}
-                    triggerRef={userTriggerRef}
-                    minWidth={160}
-                    maxWidth={280}
-                    maxHeight={280}
-                  >
-                    {dischargedByUsers
-                      .filter((u) => !userQuery.trim() || (u.label || u.name || '').toLowerCase().includes(userQuery.toLowerCase()))
-                      .slice(0, 30)
-                      .map((user) => (
-                        <button
-                          key={user.name}
-                          type="button"
-                          className="w-full text-left px-3 py-2 text-sm hover:bg-green-50"
-                          onClick={() => {
-                            if (userOpenForItem) {
-                              updateChecklistItem(userOpenForItem, 'user', user.name)
-                              setUserOpenForItem(null)
-                            }
-                          }}
-                        >
-                          {user.label}
-                        </button>
-                      ))}
-                  </PortalActionsMenu>
-                )}
-                </>
+                </PortalActionsMenu>
               )}
             </div>
           )}
@@ -1554,7 +1869,6 @@ const [transferPrescription, setTransferPrescription] = useState<{ name: string;
                   )}
                 </div>
               ) : (
-                <>
                 <div className="space-y-4">
                   {Object.entries(groupedNurseChecklist).map(([dept, items]) => {
                     const deptCompleted = items.filter(i => i.click).length
@@ -1642,65 +1956,42 @@ const [transferPrescription, setTransferPrescription] = useState<{ name: string;
                     )
                   })}
                 </div>
+              )}
 
-                {userOpenForItem && userOpenForItem.startsWith('nurse_') && (
-                  <PortalActionsMenu
-                    open={!!userOpenForItem}
-                    onClose={() => setUserOpenForItem(null)}
-                    triggerRef={userTriggerRef}
-                    minWidth={160}
-                    maxWidth={280}
-                    maxHeight={280}
-                  >
-                    {dischargedByUsers
-                      .filter((u) => !userQuery.trim() || (u.label || u.name || '').toLowerCase().includes(userQuery.toLowerCase()))
-                      .slice(0, 30)
-                      .map((user) => (
-                        <button
-                          key={user.name}
-                          type="button"
-                          className="w-full text-left px-3 py-2 text-sm hover:bg-green-50"
-                          onClick={() => {
-                            if (userOpenForItem) {
-                              const itemName = userOpenForItem.replace('nurse_', '')
-                              updateNurseChecklistItem(itemName, 'user', user.name)
-                              setUserOpenForItem(null)
-                            }
-                          }}
-                        >
-                          {user.label}
-                        </button>
-                      ))}
-                  </PortalActionsMenu>
-                )}
-                </>
+              {userOpenForItem && userOpenForItem.startsWith('nurse_') && (
+                <PortalActionsMenu
+                  open={!!userOpenForItem}
+                  onClose={() => setUserOpenForItem(null)}
+                  triggerRef={userTriggerRef}
+                  minWidth={160}
+                  maxWidth={280}
+                  maxHeight={280}
+                >
+                  {dischargedByUsers
+                    .filter((u) => !userQuery.trim() || (u.label || u.name || '').toLowerCase().includes(userQuery.toLowerCase()))
+                    .slice(0, 30)
+                    .map((user) => (
+                      <button
+                        key={user.name}
+                        type="button"
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-green-50"
+                        onClick={() => {
+                          if (userOpenForItem) {
+                            const itemName = userOpenForItem.replace('nurse_', '')
+                            updateNurseChecklistItem(itemName, 'user', user.name)
+                            setUserOpenForItem(null)
+                          }
+                        }}
+                      >
+                        {user.label}
+                      </button>
+                    ))}
+                </PortalActionsMenu>
               )}
             </div>
           )}
 
-          {/* ── TAB: MEDICINE RECONCILIATION ── */}
-          {activeTab === 'reconcile' && (
-            <div className="p-6 space-y-6">
-              <h3 className="text-sm font-semibold text-slate-700 mb-1">Medicine Reconciliation</h3>
-              <p className="text-xs text-slate-600 mb-2">
-                Review medicines given during this admission and reconcile remaining doses (return to store or transfer to follow-up).
-              </p>
-              <div className="space-y-4">
-                <div>
-                  <h4 className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Medicines given</h4>
-                  <MedicineGivenList patient={admission.patient} />
-                </div>
-                <div>
-                  <h4 className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Medicines not given (remaining)</h4>
-                  <MedicineReconciliationList
-                    admission={admission.name}
-                    onRefresh={() => {}}
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-
+          {/* ── TAB: MEDICINE TRANSFER ── */}
           {activeTab === 'transfer' && (
             <div className="p-6 space-y-6">
               <h3 className="text-sm font-semibold text-slate-700 mb-1">Medicine Transfer</h3>
@@ -1770,6 +2061,295 @@ const [transferPrescription, setTransferPrescription] = useState<{ name: string;
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* ── TAB: MEDICINE SALES ── */}
+          {/* ── TAB: MEDICINE SALES ── */}
+{activeTab === 'medicine-sales' && (
+  <div className="p-6 space-y-6">
+    <h3 className="text-sm font-semibold text-slate-700 mb-1">Medicine Sales Summary</h3>
+    <p className="text-xs text-slate-600 mb-2">
+      Summary of all prescriptions and medicines given during this admission.
+    </p>
+
+    {salesLoading ? (
+      <div className="flex items-center justify-center py-16">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    ) : (
+      <div className="space-y-6">
+        {/* Summary Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="text-xs font-medium text-blue-600 uppercase tracking-wide">Total Prescriptions</div>
+            <div className="text-2xl font-bold text-blue-800 mt-1">{medicineSales.prescriptions?.length || 0}</div>
+          </div>
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+            <div className="text-xs font-medium text-green-600 uppercase tracking-wide">Total Prescription Amount</div>
+            <div className="text-2xl font-bold text-green-800 mt-1">
+              {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(medicineSales.prescription_total || 0)}
+            </div>
+          </div>
+          <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+            <div className="text-xs font-medium text-purple-600 uppercase tracking-wide">Total Given Medicines Amount</div>
+            <div className="text-2xl font-bold text-purple-800 mt-1">
+              {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(medicineSales.given_total || 0)}
+            </div>
+          </div>
+        </div>
+
+        {/* Prescriptions Section - Medicines for patient to take home */}
+<div className="bg-white border border-slate-200 rounded-lg overflow-hidden mb-6">
+  <div className="bg-blue-50 px-4 py-3 border-b border-blue-200">
+    <h4 className="text-sm font-semibold text-blue-800 flex items-center gap-2">
+      <span>📋 Prescriptions (Medicines to take home after discharge)</span>
+      <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">After Discharge</span>
+    </h4>
+  </div>
+  <div className="overflow-x-auto">
+    <table className="w-full text-sm">
+      <thead className="bg-slate-50 border-b border-slate-200">
+        <tr>
+          <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-600">Medicine</th>
+          <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-600">Dosage</th>
+          <th className="px-4 py-3 text-right text-xs font-semibold uppercase text-slate-600">Quantity</th>
+          <th className="px-4 py-3 text-right text-xs font-semibold uppercase text-slate-600">Rate</th>
+          <th className="px-4 py-3 text-right text-xs font-semibold uppercase text-slate-600">Amount</th>
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-slate-200">
+        {medicineSales.prescriptions?.length === 0 ? (
+          <tr>
+            <td colSpan={5} className="px-4 py-8 text-center text-slate-400">
+              No after-discharge prescriptions found.
+            </td>
+          </tr>
+        ) : (
+          medicineSales.prescriptions?.map((prescription: any) => (
+<React.Fragment key={prescription.name}>
+              <tr className="bg-slate-50">
+                <td colSpan={5} className="px-4 py-2">
+                  <div className="font-medium text-primary">Prescription: {prescription.name}</div>
+                  <div className="text-xs text-slate-500">Date: {prescription.posting_date}</div>
+                </td>
+              </tr>
+              {prescription.drugs?.map((drug: any, drugIdx: number) => (
+                <tr key={`${prescription.name}-${drugIdx}`} className="hover:bg-slate-50">
+                  <td className="px-4 py-3 pl-8">
+                    <div className="text-sm text-slate-700">{drug.drug_name || drug.drug}</div>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-slate-600">{drug.dosage || '-'}</td>
+                  <td className="px-4 py-3 text-right text-sm text-slate-700">{drug.quantity || 0}</td>
+                  <td className="px-4 py-3 text-right text-sm text-slate-700">
+                    {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(drug.rate || 0)}
+                  </td>
+                  <td className="px-4 py-3 text-right text-sm font-medium text-slate-700">
+                    {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(drug.amount || 0)}
+                  </td>
+                </tr>
+              ))}
+</React.Fragment>
+          ))
+        )}
+        {medicineSales.prescriptions?.length > 0 && (
+          <tr className="bg-slate-100">
+            <td colSpan={4} className="px-4 py-2 text-right font-semibold text-slate-700">
+              Prescription Total:
+            </td>
+            <td className="px-4 py-2 text-right font-bold text-blue-700">
+              {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(medicineSales.prescription_total || 0)}
+            </td>
+          </tr>
+        )}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+        {/* Given Medicines Section - Medicines administered during admission */}
+        <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
+          <div className="bg-green-50 px-4 py-3 border-b border-green-200">
+            <h4 className="text-sm font-semibold text-green-800 flex items-center gap-2">
+              <span>💊 Given Medicines (Administered during admission)</span>
+            </h4>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 border-b border-slate-200">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-600">Medicine</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-600">Date/Time</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase text-slate-600">Quantity</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase text-slate-600">Rate</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase text-slate-600">Amount</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200">
+                {medicineSales.given_medicines?.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-4 py-8 text-center text-slate-400">
+                      No medicines given during this admission.
+                    </td>
+                  </tr>
+                ) : (
+                  medicineSales.given_medicines?.map((given: any, idx: number) => (
+                    <tr key={given.name || idx} className="hover:bg-slate-50">
+                      <td className="px-4 py-3">
+                        <div className="text-sm text-slate-700">{given.medicine_name || given.medicine_code}</div>
+                        <div className="text-xs text-slate-400">{given.medicine_code}</div>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-slate-600">
+                        {given.date} {given.time}
+                      </td>
+                      <td className="px-4 py-3 text-right text-sm text-slate-700">{given.qty || 0} {given.unit || ''}</td>
+                      <td className="px-4 py-3 text-right text-sm text-slate-700">
+                        {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(given.rate || 0)}
+                      </td>
+                      <td className="px-4 py-3 text-right text-sm font-medium text-slate-700">
+                        {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(given.amount || 0)}
+                      </td>
+                    </tr>
+                  ))
+                )}
+                {medicineSales.given_medicines?.length > 0 && (
+                  <tr className="bg-slate-100">
+                    <td colSpan={4} className="px-4 py-2 text-right font-semibold text-slate-700">
+                      Given Medicines Total:
+                    </td>
+                    <td className="px-4 py-2 text-right font-bold text-green-700">
+                      {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(medicineSales.given_total || 0)}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Grand Total */}
+        <div className="flex justify-end pt-4">
+          <div className="bg-slate-100 rounded-lg p-4 min-w-[250px]">
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-sm font-medium text-slate-600">Prescription Total:</span>
+              <span className="text-sm font-semibold text-blue-700">
+                {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(medicineSales.prescription_total || 0)}
+              </span>
+            </div>
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-sm font-medium text-slate-600">Given Medicines Total:</span>
+              <span className="text-sm font-semibold text-green-700">
+                {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(medicineSales.given_total || 0)}
+              </span>
+            </div>
+            <div className="border-t border-slate-200 pt-2 mt-2">
+              <div className="flex justify-between items-center">
+                <span className="text-base font-bold text-slate-800">Grand Total:</span>
+                <span className="text-lg font-bold text-primary">
+                  {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(medicineSales.grand_total || 0)}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+  </div>
+)}
+
+          {/* ── TAB: MEDICINE RECONCILIATION ── */}
+          {activeTab === 'reconcile' && (
+            <div className="p-6 space-y-6">
+              <h3 className="text-sm font-semibold text-slate-700 mb-1">Medicine Reconciliation</h3>
+              <p className="text-xs text-slate-600 mb-2">
+                Review medicines given during this admission and reconcile remaining doses (return to store or transfer to follow-up).
+              </p>
+              <div className="space-y-4">
+                <div>
+                  <h4 className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Medicines given</h4>
+                  <MedicineGivenList patient={admission.patient} />
+                </div>
+                <div>
+                  <h4 className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Medicines not given (remaining)</h4>
+                  <MedicineReconciliationList
+                    admission={admission.name}
+                    onRefresh={() => {}}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── TAB: DAILY PATIENT VISIT SETUP ── */}
+          {activeTab === 'daily-visit' && (
+  <div className="p-6 space-y-6">
+    <h3 className="text-sm font-semibold text-slate-700 mb-1">Daily Patient Visit Setup</h3>
+    <p className="text-xs text-slate-600 mb-2">
+      Configure automatic daily patient visits. A scheduler will run at 12:01 AM daily to activate these visits and create Patient Visit records.
+    </p>
+
+    {dailyVisitLoading ? (
+      <div className="flex items-center justify-center py-16">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    ) : dailyVisitSaved && !showDailyVisitForm ? (
+      <div>
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+          <div className="flex items-start gap-3">
+            <CheckCircle2 className="w-5 h-5 text-green-600 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-green-800">Daily Visit Setup Already Configured</p>
+              <p className="text-xs text-green-600 mt-1">
+                A daily visit setup already exists for this admission.
+              </p>
+              {dailyVisitSetup && (
+                <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                  <div><span className="text-green-700">From:</span> {dailyVisitSetup.from_date}</div>
+                  <div><span className="text-green-700">To:</span> {dailyVisitSetup.to_date}</div>
+                  <div><span className="text-green-700">Time:</span> {dailyVisitSetup.time}</div>
+                  <div><span className="text-green-700">Amount:</span> {dailyVisitSetup.amount}</div>
+                  <div><span className="text-green-700">Active:</span> {dailyVisitSetup.is_active ? 'Yes' : 'No'}</div>
+                  {dailyVisitSetup.session && <div><span className="text-green-700">Session:</span> {dailyVisitSetup.session}</div>}
+                  <div><span className="text-green-700">Admission:</span> {dailyVisitSetup.admission}</div>
+                  {dailyVisitSetup.discharge && <div><span className="text-green-700">Discharge:</span> {dailyVisitSetup.discharge}</div>}
+                </div>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowDailyVisitForm(true)}
+              className="px-3 py-1.5 text-sm font-medium text-primary border border-primary rounded-md hover:bg-primary/5"
+            >
+              Edit Setup
+            </button>
+          </div>
+        </div>
+      </div>
+    ) : (
+      <DailyVisitSetupForm
+        patient={admission.patient}
+        admission={admission.name}
+        initialData={dailyVisitSetup || undefined}
+        onSave={saveDailyVisitSetup}
+        onCancel={() => setShowDailyVisitForm(false)}
+      />
+    )}
+
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mt-4">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-amber-800">How Daily Visits Work</p>
+                    <ul className="text-xs text-amber-700 mt-2 space-y-1 list-disc list-inside">
+                      <li>The system scheduler runs daily at 12:01 AM</li>
+                      <li>For each active setup where current date is between From Date and To Date, a Patient Visit is automatically created</li>
+                      <li>Once the To Date is passed, the setup is automatically deactivated (is_active set to false)</li>
+                      <li>Each visit will be created with the specified time and therapy session</li>
+                      <li>The specified amount will be applied to each created visit</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
@@ -1969,8 +2549,8 @@ const [transferPrescription, setTransferPrescription] = useState<{ name: string;
                         </div>
                       </div>
 
-                       <div className="grid grid-cols-3 gap-3">
-                         <div>
+                      <div className="grid grid-cols-3 gap-3">
+                        <div>
                           <label className="block text-xs font-medium text-slate-700 mb-1">
                             Phone No
                           </label>
@@ -2061,7 +2641,7 @@ const [transferPrescription, setTransferPrescription] = useState<{ name: string;
           )}
 
           {/* Footer */}
-          <div className="px-6 py-4 border-t border-slate-200 flex items-center justify-between bg-slate-50">
+          <div className="px-6 py-4 border-t border-slate-200 flex items-center justify-between bg-slate-50 sticky bottom-0">
             <div className="text-xs text-slate-500">
               {totalItems > 0 && !allCompleted && (
                 <span className="flex items-center gap-1 text-amber-600">
@@ -2104,6 +2684,7 @@ const [transferPrescription, setTransferPrescription] = useState<{ name: string;
             </div>
           </div>
         </form>
+
         {transferModalOpen && (
           <CreatePrescriptionModal
             onClose={() => setTransferModalOpen(false)}
