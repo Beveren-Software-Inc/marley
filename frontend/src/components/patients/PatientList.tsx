@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { usePatients } from '../../hooks/usePatients'
 import { EditPatientModal } from './EditPatientModal'
 import { Pencil } from 'lucide-react'
+import { useCareContext } from '../../providers/CareContextProvider'
 
 interface PatientListProps {
   refreshKey?: string | number
@@ -18,11 +19,8 @@ const getPatientStatus = (p: any): PatientStatus => {
   const isNoShow = p.appointment_status === 'No Show'
   const isAdmitted = p.inpatient_status === 'Admitted'
   
-  // If patient has medication ongoing (admitted)
   if (isAdmitted) {
-    // Check if they also have missed appointments
     const hasMissedAppointment = isNoShow
-    
     return {
       color: 'green',
       label: 'Medication Ongoing',
@@ -30,7 +28,6 @@ const getPatientStatus = (p: any): PatientStatus => {
     }
   }
   
-  // If only no show (not admitted)
   if (isNoShow) {
     return {
       color: 'red',
@@ -39,7 +36,6 @@ const getPatientStatus = (p: any): PatientStatus => {
     }
   }
   
-  // Default/active status
   return {
     color: 'default',
     label: 'Active',
@@ -56,18 +52,33 @@ const STATUS_STYLES: Record<StatusColor, string> = {
 };
 
 export const PatientList = ({ refreshKey }: PatientListProps = {}) => {
-  const [searchQuery, setSearchQuery] = useState('')
+  const { selectedPatient: globalSelectedPatient } = useCareContext()
   const [editPatientName, setEditPatientName] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState<string>('')
+  const previousPatientRef = useRef<string>('')
+  
+  // Update search query only when global selected patient actually changes
+  useEffect(() => {
+    const newQuery = globalSelectedPatient || ''
+    if (previousPatientRef.current !== newQuery) {
+      previousPatientRef.current = newQuery
+      setSearchQuery(newQuery)
+    }
+  }, [globalSelectedPatient])
+  
   const { patients, loading, error, refetch } = usePatients(searchQuery || undefined)
 
+  // Handle refresh key changes
   useEffect(() => {
     if (refreshKey !== undefined) {
       refetch()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refreshKey])
+  }, [refreshKey, refetch])
 
-  if (loading) {
+
+
+  // Show loading only on initial load, not on every refetch
+  if (loading && patients.length === 0) {
     return (
       <div className="flex items-center justify-center p-8">
         <div className="text-slate-600">Loading patients...</div>
@@ -75,7 +86,7 @@ export const PatientList = ({ refreshKey }: PatientListProps = {}) => {
     )
   }
 
-  if (error) {
+  if (error && patients.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center p-8">
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 max-w-2xl w-full">
@@ -94,21 +105,27 @@ export const PatientList = ({ refreshKey }: PatientListProps = {}) => {
 
   return (
     <div className="space-y-4">
-      {/* Search */}
-      <div>
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Search patients by name, file number, or ID..."
-          className="w-full max-w-md rounded-md border border-slate-300 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-        />
-      </div>
+      {/* Search hint - showing what's being searched */}
+      {searchQuery && (
+        <div className="text-sm text-slate-500 bg-slate-50 rounded-md px-3 py-2">
+          Showing patients matching: <span className="font-medium text-slate-700">{searchQuery}</span>
+          {patients.length === 0 && !loading && (
+            <span className="ml-2 text-amber-600">No results found</span>
+          )}
+        </div>
+      )}
+
+      {/* Loading indicator overlay for subsequent loads (subtle) */}
+      {loading && patients.length > 0 && (
+        <div className="flex items-center justify-center py-2">
+          <div className="text-xs text-slate-400 animate-pulse">Refreshing...</div>
+        </div>
+      )}
 
       {/* Patients Table */}
-      <div className="min-w-full">
+      <div className="min-w-full overflow-x-auto">
         <table className="w-full min-w-[950px]">
-          <thead className="bg-slate-50 border-b border-slate-200">
+          <thead className="bg-slate-50 border-b border-slate-200 sticky top-0">
             <tr>
               <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
                 File Number
@@ -138,7 +155,7 @@ export const PatientList = ({ refreshKey }: PatientListProps = {}) => {
           </thead>
 
           <tbody className="divide-y divide-slate-200">
-            {patients.length === 0 ? (
+            {patients.length === 0 && !loading ? (
               <tr>
                 <td colSpan={8} className="px-4 py-8 text-center text-slate-500">
                   {searchQuery ? 'No patients match your search.' : 'No patients found.'}
@@ -152,6 +169,7 @@ export const PatientList = ({ refreshKey }: PatientListProps = {}) => {
                   <tr
                     key={patient.name}
                     className={`
+                      transition-colors duration-150
                       ${
                         status.color === 'red'
                           ? 'bg-red-100/40 hover:bg-red-200/60'
@@ -185,7 +203,6 @@ export const PatientList = ({ refreshKey }: PatientListProps = {}) => {
                       {patient.category || '-'}
                     </td>
 
-                    {/* ✅ STATUS COLUMN with subtext for missed appointments */}
                     <td className="px-4 py-3">
                       <div className="flex flex-col gap-1">
                         <span
@@ -194,7 +211,6 @@ export const PatientList = ({ refreshKey }: PatientListProps = {}) => {
                           {status.label}
                         </span>
                         
-                        {/* Show "Missed last appointments" text for green status with missed appointments */}
                         {status.color === 'green' && status.hasMissedAppointment && (
                           <span className="text-xs text-red-600 font-medium">
                             ⚠️ Missed last appointments
@@ -207,7 +223,7 @@ export const PatientList = ({ refreshKey }: PatientListProps = {}) => {
                       <button
                         type="button"
                         onClick={() => setEditPatientName(patient.name)}
-                        className="p-2 text-slate-500 hover:text-primary hover:bg-slate-100 rounded-md"
+                        className="p-2 text-slate-500 hover:text-primary hover:bg-slate-100 rounded-md transition-colors"
                         title="Edit patient"
                       >
                         <Pencil className="w-4 h-4" />
@@ -234,4 +250,3 @@ export const PatientList = ({ refreshKey }: PatientListProps = {}) => {
     </div>
   )
 }
-

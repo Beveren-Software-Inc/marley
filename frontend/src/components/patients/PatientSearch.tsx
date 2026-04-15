@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { CreatePatientModal } from './CreatePatientModal'
 import { PatientAlertsBanner } from './PatientAlertsBanner'
@@ -84,9 +84,35 @@ export const PatientSearch = ({
   >([])
   const [isHydrated, setIsHydrated] = useState(false)
 
+  // Refs for click outside handling
+  const patientContainerRef = useRef<HTMLDivElement>(null)
+  const secondaryContainerRef = useRef<HTMLDivElement>(null)
+
   const [alertsBannerDismissed, setAlertsBannerDismissed] = useState(
     () => Boolean(selectedPatient && _bannerShownForPatient === selectedPatient)
   )
+
+  // Click outside handler for patient dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (patientContainerRef.current && !patientContainerRef.current.contains(event.target as Node)) {
+        setPatientOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  // Click outside handler for secondary dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (secondaryContainerRef.current && !secondaryContainerRef.current.contains(event.target as Node)) {
+        setSecondaryOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -127,33 +153,6 @@ export const PatientSearch = ({
       setAlertsBannerDismissed(true)
     }
   }, [selectedPatient])
-
-  // Add this useEffect after the existing click-outside handlers
-useEffect(() => {
-  const handleClickOutside = (e: MouseEvent) => {
-    const target = e.target as HTMLElement
-    // Check if the click is outside the secondary input and its dropdown
-    if (secondaryOpen && !target.closest('.secondary-dropdown-container')) {
-      setSecondaryOpen(false)
-    }
-  }
-  document.addEventListener('mousedown', handleClickOutside)
-  return () => document.removeEventListener('mousedown', handleClickOutside)
-}, [secondaryOpen])
-
-// Click outside handler for patient dropdown
-useEffect(() => {
-  const handleClickOutside = (e: MouseEvent) => {
-    const target = e.target as HTMLElement
-    // Check if the click is outside the patient container
-    if (patientOpen && !target.closest('.patient-search-container')) {
-      setPatientOpen(false)
-    }
-  }
-  document.addEventListener('mousedown', handleClickOutside)
-  return () => document.removeEventListener('mousedown', handleClickOutside)
-}, [patientOpen])
-
 
   useEffect(() => {
     if (selectedPatient && !alertsBannerDismissed) {
@@ -341,19 +340,23 @@ useEffect(() => {
       {alertsPortal}
       <div className="w-full max-w-xs md:max-w-xl">
         <div className="relative flex items-center gap-2">
-          <div className="flex-1 relative">
+          {/* Patient Search Container */}
+          <div className="flex-1 relative" ref={patientContainerRef}>
             <input
               value={patientQuery}
               onChange={(e) => {
                 const value = e.target.value
                 setPatientQuery(value)
-                setPatientOpen(true)
-                if (selectedPatient && (value === '' || value !== selectedPatientName)) {
-                  if (value === '') {
+                if (value === '') {
+                  setPatientOpen(false)
+                  if (selectedPatient) {
                     onPatientSelect(undefined)
                     setGlobalPatient(undefined)
                     setSelectedPatientName('')
-                  } else if (value !== selectedPatientName) {
+                  }
+                } else {
+                  setPatientOpen(true)
+                  if (selectedPatient && value !== selectedPatientName) {
                     onPatientSelect(undefined)
                     setGlobalPatient(undefined)
                   }
@@ -446,6 +449,8 @@ useEffect(() => {
               </div>
             )}
           </div>
+
+          {/* OP/IP Buttons and Secondary Search */}
           <div className="flex items-center gap-1">
             <button
               type="button"
@@ -470,13 +475,18 @@ useEffect(() => {
               IP
             </button>
             {(mode === 'OP' || mode === 'IP') && (
-              <div className="relative ml-1 w-full max-w-xs">
+              <div className="relative ml-1 w-full max-w-xs" ref={secondaryContainerRef}>
                 <input
                   type="text"
                   value={secondaryQuery}
                   onChange={(e) => {
-                    setSecondaryQuery(e.target.value)
-                    setSecondaryOpen(true)
+                    const newValue = e.target.value
+                    setSecondaryQuery(newValue)
+                    if (newValue === '') {
+                      setSecondaryOpen(false)
+                    } else {
+                      setSecondaryOpen(true)
+                    }
                   }}
                   onFocus={() => setSecondaryOpen(true)}
                   placeholder={mode === 'OP' ? 'Search OP visits…' : 'Search IP admissions…'}
@@ -528,8 +538,8 @@ useEffect(() => {
                             ? 'No visits match your search.'
                             : 'No admissions match your search.'
                           : mode === 'OP'
-                            ? 'Loading visits…'
-                            : 'Loading admissions…'}
+                            ? 'Type to search visits…'
+                            : 'Type to search admissions…'}
                       </div>
                     )}
                   </div>

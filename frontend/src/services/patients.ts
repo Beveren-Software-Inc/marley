@@ -87,6 +87,7 @@ export interface PatientDocumentRow {
   transaction_no?: string
   upload_remarks?: string
   document?: string
+ 
 }
 
 export interface CreatePatientData {
@@ -390,6 +391,12 @@ export async function fetchPatientHistorySummary(patient: string): Promise<Patie
 }
 
 /** Full Patient doc for edit form (from Frappe REST). */
+interface PatientDocument {
+  document_type?: string
+  document_name?: string
+  attachment?: string
+}
+
 export interface PatientDoc {
   name: string
   patient_name?: string
@@ -411,6 +418,23 @@ export interface PatientDoc {
   is_black_list?: number
   remarks?: string
   patient_primary_address?: string
+  insurance_policy?: string
+  ref_no?: string
+  insurance_register?: string
+  has_insurance?: number
+  title?: string
+  insurance?:string
+  insurance_company_no?: string
+  job_title?: string
+  job_company?: string
+  company?: string
+  alternative_mobile_no_1?: string
+  alternative_mobile_no_2?: string
+  alternative_email?: string
+  patient_relation?: string
+  patient_relation_name?: string
+  insurance_type?: string
+  patient_document?: PatientDocument[]
 }
 
 /** Address doc (for edit form). */
@@ -438,8 +462,17 @@ export async function fetchAddressDoc(name: string): Promise<AddressDoc | null> 
   return null
 }
 
+interface PatientRelation{
+  full_name?:string 
+  email?:string
+  description?:string
+  is_next_of_kin?:number 
+  mobile_no?:string 
+
+}
 export interface UpdatePatientData {
   first_name?: string
+  file_no?:string
   middle_name?: string
   last_name?: string
   sex?: string
@@ -455,6 +488,23 @@ export interface UpdatePatientData {
   marital_status?: string
   is_black_list?: number
   remarks?: string
+  title?: string
+    insurance_policy?: string
+  ref_no?: string
+  insurance_register?: string
+  has_insurance?: number
+  insurance?:string
+  insurance_company_no?: string
+  job_title?: string
+  job_company?: string
+  company?: string
+  alternative_mobile_no_1?: string
+  alternative_mobile_no_2?: string
+  alternative_email?: string
+  patient_relation?: PatientRelation[]
+  patient_relation_name?: string
+  insurance_type?: string
+  patient_document?: PatientDocument[]
 }
 
 /** Extract user-facing message from Frappe error response (REST / method). */
