@@ -11,6 +11,7 @@ interface CreateIPServiceModalProps {
   onSuccess: (ipServiceName: string) => void
   initialPatient?: string
   initialServiceRequest?: string
+  initialCategory?: 'Medical Service' | 'Other Service'
   openInNewTab?: boolean
 }
 
@@ -53,6 +54,7 @@ export const CreateIPServiceModal = ({
   const [admissionOpen, setAdmissionOpen] = useState(false)
   const [serviceRequest, setServiceRequest] = useState(initialServiceRequest || '')
   const [serviceRequests, setServiceRequests] = useState<{ name: string; template_name?: string }[]>([])
+  const [category, setCategory] = useState<string>(initialCategory || 'Medical Service')
   const [type, setType] = useState<string>('External Service')
   const [costCenter, setCostCenter] = useState('')
   const [costCenters, setCostCenters] = useState<LinkFieldOption[]>([])
@@ -90,6 +92,10 @@ export const CreateIPServiceModal = ({
   useEffect(() => {
     if (initialServiceRequest) setServiceRequest(initialServiceRequest)
   }, [initialServiceRequest])
+
+  useEffect(() => {
+    if (initialCategory) setCategory(initialCategory)
+  }, [initialCategory])
 
   // Load service requests for the patient
   useEffect(() => {
@@ -162,6 +168,7 @@ export const CreateIPServiceModal = ({
         admission_no: admissionNo.trim(),
         cost_center: costCenter.trim(),
         type,
+        category,
       }
       if (serviceRequest) input.service_request = serviceRequest
       if (validItems.length > 0) {

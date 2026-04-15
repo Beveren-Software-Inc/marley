@@ -46,13 +46,13 @@ function MedicalHistoryDetailPanel({
       <div className="flex-1 bg-black/30" onClick={onClose} />
 
       {/* panel */}
-      <div className="w-full max-w-xl bg-white dark:bg-slate-800 flex flex-col shadow-2xl overflow-hidden">
+      <div className="w-full max-w-xl bg-white flex flex-col shadow-2xl overflow-hidden">
         {/* header */}
-        <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200 dark:border-slate-700">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200">
           <div>
-            <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Patient Medical History</h3>
+            <h3 className="text-sm font-semibold text-slate-900">Patient Medical History</h3>
             {detail?.template && (
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Template: {detail.template}</p>
+              <p className="text-xs text-slate-500 mt-0.5">Template: {detail.template}</p>
             )}
           </div>
           <div className="flex items-center gap-2">
@@ -60,7 +60,7 @@ function MedicalHistoryDetailPanel({
               <button
                 type="button"
                 onClick={() => onEdit(detail)}
-                className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-md border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-md border border-slate-300 text-slate-700 hover:bg-slate-50 transition-colors"
               >
                 <PenLine className="w-3.5 h-3.5" />
                 Edit
@@ -69,7 +69,7 @@ function MedicalHistoryDetailPanel({
             <button
               type="button"
               onClick={onClose}
-              className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 transition-colors"
+              className="p-1 rounded hover:bg-slate-100 text-slate-500 transition-colors"
             >
               <X className="w-4 h-4" />
             </button>
@@ -78,12 +78,12 @@ function MedicalHistoryDetailPanel({
 
         {/* meta info */}
         {detail && (
-          <div className="flex gap-6 px-5 py-2.5 border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-xs text-slate-500 dark:text-slate-400">
+          <div className="flex gap-6 px-5 py-2.5 border-b border-slate-100 bg-slate-50 text-xs text-slate-500">
             {detail.inpatient_admission && (
-              <span>Admission: <span className="font-medium text-slate-700 dark:text-slate-300">{detail.inpatient_admission}</span></span>
+              <span>Admission: <span className="font-medium text-slate-700">{detail.inpatient_admission}</span></span>
             )}
             {detail.creation && (
-              <span>Date: <span className="font-medium text-slate-700 dark:text-slate-300">{formatDate(detail.creation)}</span></span>
+              <span>Date: <span className="font-medium text-slate-700">{formatDate(detail.creation)}</span></span>
             )}
           </div>
         )}
@@ -104,33 +104,33 @@ function MedicalHistoryDetailPanel({
                 </div>
               ) : (
                 <table className="w-full text-xs">
-                  <thead className="bg-slate-50 dark:bg-slate-700 border-b border-slate-200 dark:border-slate-600 sticky top-0">
+                  <thead className="bg-slate-50 border-b border-slate-200 sticky top-0">
                     <tr>
-                      <th className="px-4 py-2.5 text-left font-semibold text-slate-600 dark:text-slate-300 w-[42%]">Attribute</th>
-                      <th className="px-4 py-2.5 text-left font-semibold text-slate-600 dark:text-slate-300 w-[14%]">Yes / No</th>
-                      <th className="px-4 py-2.5 text-left font-semibold text-slate-600 dark:text-slate-300">Description</th>
+                      <th className="px-4 py-2.5 text-left font-semibold text-slate-600 w-[42%]">Attribute</th>
+                      <th className="px-4 py-2.5 text-left font-semibold text-slate-600 w-[14%]">Yes / No</th>
+                      <th className="px-4 py-2.5 text-left font-semibold text-slate-600">Description</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                  <tbody className="divide-y divide-slate-100">
                     {detail.patient_history_details.map((row, idx) => (
-                      <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
-                        <td className="px-4 py-2.5 text-slate-800 dark:text-slate-200">{row.attributes || '—'}</td>
+                      <tr key={idx} className="hover:bg-slate-50">
+                        <td className="px-4 py-2.5 text-slate-800">{row.attributes || '—'}</td>
                         <td className="px-4 py-2.5">
                           {row.yesno ? (
                             <span
                               className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${
                                 row.yesno === 'Yes'
-                                  ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
-                                  : 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
+                                  ? 'bg-green-100 text-green-700'
+                                  : 'bg-red-100 text-red-600'
                               }`}
                             >
                               {row.yesno}
                             </span>
                           ) : (
-                            <span className="text-slate-400 dark:text-slate-500">—</span>
+                            <span className="text-slate-400">—</span>
                           )}
                         </td>
-                        <td className="px-4 py-2.5 text-slate-700 dark:text-slate-300 whitespace-pre-wrap">
+                        <td className="px-4 py-2.5 text-slate-700 whitespace-pre-wrap">
                           {row.description || '—'}
                         </td>
                       </tr>
@@ -169,16 +169,16 @@ function RowMenu({
       <button
         type="button"
         onClick={(e) => { e.stopPropagation(); setOpen((v) => !v) }}
-        className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-500 dark:text-slate-400 transition-colors"
+        className="p-1 rounded hover:bg-slate-100 text-slate-500 transition-colors"
       >
         <MoreVertical className="w-4 h-4" />
       </button>
       {open && (
-        <div className="absolute right-0 top-7 z-20 w-36 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md shadow-lg py-1">
+        <div className="absolute right-0 top-7 z-20 w-36 bg-white border border-slate-200 rounded-md shadow-lg py-1">
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); setOpen(false); onEdit() }}
-            className="flex items-center gap-2 w-full px-3 py-2 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+            className="flex items-center gap-2 w-full px-3 py-2 text-xs text-slate-700 hover:bg-slate-50 transition-colors"
           >
             <PenLine className="w-3.5 h-3.5 text-blue-500" />
             Edit
@@ -226,14 +226,14 @@ export function PatientMedicalHistoryList({ patient, patientName, refreshKey }: 
   return (
     <div className="flex flex-col h-full">
       {/* toolbar */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-slate-200 dark:border-slate-700">
-        <span className="text-xs font-medium text-slate-600 dark:text-slate-400">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-slate-200">
+        <span className="text-xs font-medium text-slate-500">
           {items.length} record{items.length !== 1 ? 's' : ''}
         </span>
         <button
           type="button"
           onClick={() => setShowCreate(true)}
-          className="inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+          className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md bg-primary text-white hover:bg-primary/90 transition-colors"
         >
           <Plus className="w-3.5 h-3.5" />
           New
@@ -247,11 +247,11 @@ export function PatientMedicalHistoryList({ patient, patientName, refreshKey }: 
         )}
         {!loading && items.length === 0 && (
           <div className="flex flex-col items-center justify-center py-10 gap-3">
-            <p className="text-sm text-slate-500 dark:text-slate-400">No patient medical history has been recorded yet.</p>
+            <p className="text-sm text-slate-500">No patient medical history has been recorded yet.</p>
             <button
               type="button"
               onClick={() => setShowCreate(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 transition-colors"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-white text-xs font-medium hover:bg-primary/90 transition-colors"
             >
               <Plus className="w-3.5 h-3.5" />
               Create Patient Medical History
@@ -260,31 +260,31 @@ export function PatientMedicalHistoryList({ patient, patientName, refreshKey }: 
         )}
         {!loading && items.length > 0 && (
           <table className="w-full text-xs">
-            <thead className="bg-slate-50 dark:bg-slate-700 border-b border-slate-200 dark:border-slate-600 sticky top-0">
+            <thead className="bg-slate-50 border-b border-slate-200 sticky top-0">
               <tr>
-                <th className="px-3 py-2.5 text-left font-semibold text-slate-600 dark:text-slate-300">Template</th>
-                <th className="px-3 py-2.5 text-left font-semibold text-slate-600 dark:text-slate-300">Admission</th>
-                <th className="px-3 py-2.5 text-left font-semibold text-slate-600 dark:text-slate-300">Date</th>
+                <th className="px-3 py-2.5 text-left font-semibold text-slate-600">Template</th>
+                <th className="px-3 py-2.5 text-left font-semibold text-slate-600">Admission</th>
+                <th className="px-3 py-2.5 text-left font-semibold text-slate-600">Date</th>
                 <th className="px-3 py-2.5 w-8" />
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+            <tbody className="divide-y divide-slate-100">
               {items.map((item) => (
                 <tr
                   key={item.name!}
-                  className="hover:bg-slate-50 dark:hover:bg-slate-700/40 cursor-pointer group"
+                  className="hover:bg-slate-50 cursor-pointer group"
                   onClick={() => setDetailName(item.name!)}
                 >
-                  <td className="px-3 py-2.5 text-slate-800 dark:text-slate-200">
+                  <td className="px-3 py-2.5 text-slate-800">
                     <span className="flex items-center gap-1">
                       {item.template || <span className="italic text-slate-400">—</span>}
-                      <ChevronRight className="w-3 h-3 text-slate-300 dark:text-slate-600 group-hover:text-slate-500 transition-colors" />
+                      <ChevronRight className="w-3 h-3 text-slate-300 group-hover:text-slate-500 transition-colors" />
                     </span>
                   </td>
-                  <td className="px-3 py-2.5 text-slate-600 dark:text-slate-400">
-                    {item.inpatient_admission || <span className="text-slate-300 dark:text-slate-600">—</span>}
+                  <td className="px-3 py-2.5 text-slate-600">
+                    {item.inpatient_admission || <span className="text-slate-300">—</span>}
                   </td>
-                  <td className="px-3 py-2.5 text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                  <td className="px-3 py-2.5 text-slate-500 whitespace-nowrap">
                     {formatDate(item.creation)}
                   </td>
                   <td className="px-3 py-2.5" onClick={(e) => e.stopPropagation()}>

@@ -31,9 +31,10 @@
   {
    "description": "e.g. Transport, External, Other",
    "fieldname": "category",
-   "fieldtype": "Data",
+   "fieldtype": "Select",
    "in_list_view": 1,
-   "label": "Category"
+   "label": "Category",
+   "options": "\nMedical Service\nOther Service"
   },
   {
    "fieldname": "column_break_1",
@@ -66,7 +67,7 @@
   }
  ],
  "links": [],
- "modified": "2026-04-12 14:06:34.621431",
+ "modified": "2026-04-14 17:03:56.013378",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "IP Service Type",

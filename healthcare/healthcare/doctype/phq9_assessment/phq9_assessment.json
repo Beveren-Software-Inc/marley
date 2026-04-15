@@ -5,60 +5,69 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "section_break_rbdd"
+  "patient",
+  "assessment_date",
+  "template",
+  "notes",
+  "total_score",
+  "severity",
+  "responses"
  ],
  "fields": [
-      {
-        "fieldname": "patient",
-        "label": "Patient",
-        "fieldtype": "Link",
-        "options": "Patient",
-        "reqd": 1
-      },
-      {
-        "fieldname": "assessment_date",
-        "label": "Assessment Date",
-        "fieldtype": "Date",
-        "reqd": 1,
-        "default": "Today"
-      },
-      {
-        "fieldname": "template",
-        "label": "Template",
-        "fieldtype": "Link",
-        "options": "PHQ9 Template",
-        "reqd": 1
-      },
-      {
-        "fieldname": "notes",
-        "label": "Notes",
-        "fieldtype": "Text"
-      },
-      {
-        "fieldname": "total_score",
-        "label": "Total Score",
-        "fieldtype": "Int",
-        "read_only": 1
-      },
-      {
-        "fieldname": "severity",
-        "label": "Severity",
-        "fieldtype": "Select",
-        "options": "Minimal\nMild\nModerate\nModerately Severe\nSevere",
-        "read_only": 1
-      },
-      {
-        "fieldname": "responses",
-        "label": "Assessment Responses",
-        "fieldtype": "Table",
-        "options": "PHQ9 Assessment Response",
-        "reqd": 1
-      }
-    ],
+  {
+   "fieldname": "patient",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Patient",
+   "options": "Patient",
+   "reqd": 1
+  },
+  {
+   "default": "Today",
+   "fieldname": "assessment_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Assessment Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "template",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Template",
+   "options": "PHQ9 Template",
+   "reqd": 1
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Text",
+   "label": "Notes"
+  },
+  {
+   "fieldname": "total_score",
+   "fieldtype": "Int",
+   "label": "Total Score",
+   "read_only": 1
+  },
+  {
+   "fieldname": "severity",
+   "fieldtype": "Select",
+   "label": "Severity",
+   "options": "Minimal\nMild\nModerate\nModerately Severe\nSevere",
+   "read_only": 1
+  },
+  {
+   "fieldname": "responses",
+   "fieldtype": "Table",
+   "label": "Assessment Responses",
+   "options": "PHQ9 Assessment Response",
+   "reqd": 1
+  }
+ ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-04-02 14:03:33.711294",
+ "modified": "2026-04-14 16:56:47.143145",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "PHQ9 Assessment",
@@ -73,6 +82,30 @@
    "read": 1,
    "report": 1,
    "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Nurse",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Doctor",
    "share": 1,
    "write": 1
   }

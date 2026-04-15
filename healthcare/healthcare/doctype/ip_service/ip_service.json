@@ -9,6 +9,7 @@
   "admission_no",
   "file_number",
   "type",
+  "category",
   "column_break_audp",
   "patient_full_name",
   "cost_center",
@@ -106,12 +107,18 @@
    "fieldtype": "Table",
    "label": "Patient Charges",
    "options": "Service Pricing"
+  },
+  {
+   "fieldname": "category",
+   "fieldtype": "Select",
+   "label": "Category",
+   "options": "\nMedical Service\nOther Service"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-03-22 08:35:05.917950",
+ "modified": "2026-04-14 17:00:43.850558",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "IP Service",
@@ -127,6 +134,18 @@
    "read": 1,
    "report": 1,
    "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Nurse",
    "share": 1,
    "write": 1
   }

@@ -5,9 +5,12 @@ interface IPServiceListProps {
   patient?: string
   admission_no?: string
   refreshKey?: number | string
+  category?: 'Medical Service' | 'Other Service'
 }
 
-export const IPServiceList = ({ patient, admission_no, refreshKey }: IPServiceListProps) => {
+const normalizeCategory = (category?: string) => (category || '').trim()
+
+export const IPServiceList = ({ patient, admission_no, refreshKey, category }: IPServiceListProps) => {
   const [list, setList] = useState<IPServiceRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
@@ -18,7 +21,18 @@ export const IPServiceList = ({ patient, admission_no, refreshKey }: IPServiceLi
     setLoading(true)
     fetchIPServices(50, 0, patient, admission_no)
       .then((data) => {
-        if (!cancelled) setList(data)
+        if (!cancelled) {
+          let filtered = data
+          if (category === 'Other Service') {
+            filtered = data.filter((row) => normalizeCategory(row.category) === 'Other Service')
+          } else if (category === 'Medical Service') {
+            filtered = data.filter((row) => {
+              const cat = normalizeCategory(row.category)
+              return !cat || cat === 'Medical Service'
+            })
+          }
+          setList(filtered)
+        }
       })
       .catch((err) => {
         if (!cancelled) setError(err instanceof Error ? err : new Error('Failed to fetch IP Services'))
@@ -56,9 +70,12 @@ export const IPServiceList = ({ patient, admission_no, refreshKey }: IPServiceLi
   }
 
   if (list.length === 0) {
+    const emptyMessage = category === 'Other Service'
+      ? 'No Other Services found. Create one with the + button.'
+      : 'No IP Services found. Create one with the + button.'
     return (
       <div className="flex items-center justify-center p-6 text-slate-500 text-sm">
-        No IP Services found. Create one with the + button.
+        {emptyMessage}
       </div>
     )
   }

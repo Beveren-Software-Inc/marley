@@ -8,6 +8,7 @@ export interface IPServiceRow {
   type?: string
   cost_center?: string
   service_request?: string
+  category?: string
   total_amount?: number
   creation?: string
 }
@@ -24,6 +25,7 @@ export interface CreateIPServiceInput {
   cost_center: string
   service_request?: string
   type?: string
+  category?: string
   services?: IPServiceLineInput[]
 }
 
@@ -52,6 +54,7 @@ export async function createIPService(input: CreateIPServiceInput): Promise<{ na
   }
   if (input.service_request) body.service_request = input.service_request
   if (input.type) body.type = input.type
+  if (input.category) body.category = input.category
   if (input.services && input.services.length) body.services = input.services
 
   const data = await apiRequest<{ name: string }>(
