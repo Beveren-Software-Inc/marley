@@ -128,6 +128,33 @@ export const PatientSearch = ({
     }
   }, [selectedPatient])
 
+  // Add this useEffect after the existing click-outside handlers
+useEffect(() => {
+  const handleClickOutside = (e: MouseEvent) => {
+    const target = e.target as HTMLElement
+    // Check if the click is outside the secondary input and its dropdown
+    if (secondaryOpen && !target.closest('.secondary-dropdown-container')) {
+      setSecondaryOpen(false)
+    }
+  }
+  document.addEventListener('mousedown', handleClickOutside)
+  return () => document.removeEventListener('mousedown', handleClickOutside)
+}, [secondaryOpen])
+
+// Click outside handler for patient dropdown
+useEffect(() => {
+  const handleClickOutside = (e: MouseEvent) => {
+    const target = e.target as HTMLElement
+    // Check if the click is outside the patient container
+    if (patientOpen && !target.closest('.patient-search-container')) {
+      setPatientOpen(false)
+    }
+  }
+  document.addEventListener('mousedown', handleClickOutside)
+  return () => document.removeEventListener('mousedown', handleClickOutside)
+}, [patientOpen])
+
+
   useEffect(() => {
     if (selectedPatient && !alertsBannerDismissed) {
       _bannerShownForPatient = selectedPatient

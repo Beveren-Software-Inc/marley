@@ -46,7 +46,7 @@
   },
   {
    "fieldname": "to_date",
-   "fieldtype": "Data",
+   "fieldtype": "Date",
    "label": "To Date"
   },
   {
@@ -104,7 +104,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-04-15 11:13:24.527899",
+ "modified": "2026-04-15 17:10:45.705639",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Daily Patient Visit Setup",
