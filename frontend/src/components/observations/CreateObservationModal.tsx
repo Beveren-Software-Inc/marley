@@ -190,6 +190,78 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
     }
   }, [initialPatient, contextPatient])
 
+  // Load initial options (practitioners, departments, etc.)
+  useEffect(() => {
+    const loadOptions = async () => {
+      try {
+        const [practs, depts] = await Promise.all([
+          fetchHealthcarePractitioners(),
+          fetchMedicalDepartments()
+        ])
+        setPractitionerOptions(practs)
+        setDepartmentOptions(depts)
+      } catch (err) {
+        console.error('Failed to load options:', err)
+      }
+    }
+    loadOptions()
+  }, [])
+
+  // Auto-populate current user's practitioner (same approach as CreateClinicalNoteModal)
+  useEffect(() => {
+    const autoPopulatePractitioner = async () => {
+      try {
+        const practitioner = await getCurrentUserPractitioner()
+        if (practitioner) {
+          setFormData(prev => ({ ...prev, practitioner }))
+          
+          // Find the practitioner option to set display label
+          const practitionerOption = practitionerOptions.find(p => p.name === practitioner)
+          if (practitionerOption) {
+            setSelectedPractitioner(practitionerOption)
+            setPractitionerQuery(practitionerOption.label)
+            
+            // Auto-populate department from practitioner if available
+            if (practitionerOption.department) {
+              setFormData(prev => ({ ...prev, department: practitionerOption.department || '' }))
+              // Find the department in options to set display label
+              const departmentOption = departmentOptions.find(d => d.name === practitionerOption.department)
+              if (departmentOption) {
+                setSelectedDepartment(departmentOption)
+                setDepartmentQuery(departmentOption.label)
+              } else {
+                // If department not in options, fetch all departments and try again
+                try {
+                  const deptResults = await fetchMedicalDepartments()
+                  const foundDept = deptResults.find(d => d.name === practitionerOption.department)
+                  if (foundDept) {
+                    setSelectedDepartment(foundDept)
+                    setDepartmentQuery(foundDept.label)
+                  } else {
+                    setDepartmentQuery(practitionerOption.department)
+                  }
+                } catch (err) {
+                  console.error('Failed to fetch departments:', err)
+                  setDepartmentQuery(practitionerOption.department)
+                }
+              }
+            }
+          } else {
+            // If practitioner not in options (shouldn't happen, but just in case)
+            setPractitionerQuery(practitioner)
+          }
+        }
+      } catch (err) {
+        console.error('Failed to auto-populate practitioner:', err)
+      }
+    }
+    
+    // Wait for practitionerOptions and departmentOptions to be loaded
+    if (practitionerOptions.length > 0) {
+      autoPopulatePractitioner()
+    }
+  }, [practitionerOptions, departmentOptions])
+
   // Search patients
   useEffect(() => {
     if (!patientOpen) return
@@ -229,7 +301,7 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
     return () => clearTimeout(timeoutId)
   }, [templateQuery, templateOpen])
 
-  // Search practitioners
+  // Search practitioners (with department filter)
   useEffect(() => {
     if (!practitionerOpen) return
 
@@ -333,25 +405,6 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
       loadVisitLabel()
     }
   }, [isOPMode, activeVisit, formData.patient])
-
-  // Auto-populate practitioner field if current user is a healthcare practitioner
-  useEffect(() => {
-    const autoPopulatePractitioner = async () => {
-      try {
-        const practitioner = await getCurrentUserPractitioner()
-        if (practitioner) {
-          setFormData(prev => ({ ...prev, practitioner }))
-          setSelectedPractitioner({ name: practitioner, label: practitioner })
-          setPractitionerQuery(practitioner)
-        }
-      } catch (err) {
-        console.error('Failed to auto-populate practitioner:', err)
-        // If this fails, leave field blank - user can select manually
-      }
-    }
-    
-    autoPopulatePractitioner()
-  }, [])
 
   const handlePatientSelect = (patient: PatientListItem) => {
     setFormData(prev => ({ ...prev, patient: patient.name, admission_no: '', patient_visit: '' }))

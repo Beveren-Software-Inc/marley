@@ -36,6 +36,7 @@ def get_ip_services(limit=50, offset=0, patient=None, admission_no=None):
 			"file_number",
 			"patient_full_name",
 			"type",
+			"category",
 			"cost_center",
 			"service_request",
 			"total_amount",
@@ -80,6 +81,10 @@ def create_ip_service(admission_no, cost_center, service_request=None, services=
 	doc.cost_center = cost_center
 	if kwargs.get("type"):
 		doc.type = kwargs.get("type")
+	if kwargs.get("category"):
+		doc.category = kwargs.get("category")
+	if kwargs.get("category"):
+		doc.category = kwargs.get("category")
 	if service_request:
 		doc.service_request = service_request
 

@@ -404,6 +404,32 @@ export const CreatePrescriptionModal = ({
     fetchDosageForms().then(setDosageForms).catch(() => setDosageForms([]))
   }, [])
 
+  // Auto-populate current user's practitioner (same approach as CreateClinicalNoteModal)
+  useEffect(() => {
+    const autoPopulatePractitioner = async () => {
+      try {
+        const practitioner = await getCurrentUserPractitioner()
+        if (practitioner && !isEditing) { // Only auto-populate when creating new prescription
+          setFormData(prev => ({ ...prev, practitioner }))
+          // Find the practitioner option to set display label
+          const practitionerOption = practitioners.find(p => p.name === practitioner)
+          if (practitionerOption) {
+            setPractQuery(practitionerOption.label || practitioner)
+          } else {
+            setPractQuery(practitioner)
+          }
+        }
+      } catch (err) {
+        console.error('Failed to auto-populate practitioner:', err)
+      }
+    }
+    
+    // Wait for practitioners to be loaded
+    if (practitioners.length > 0 && !isEditing && !formData.practitioner) {
+      autoPopulatePractitioner()
+    }
+  }, [practitioners, isEditing, formData.practitioner])
+
   useEffect(() => {
     if (initialPatient && !selectedPatient) {
       setPatientQuery(initialPatient)

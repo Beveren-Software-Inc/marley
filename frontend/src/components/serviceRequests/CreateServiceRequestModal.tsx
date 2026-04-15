@@ -7,6 +7,7 @@ import {
 
 import {
   fetchHealthcarePractitioners,
+  getCurrentUserPractitioner,
   fetchServiceRequestTemplateTypes,
   fetchServiceRequestTemplates,
   fetchPatientVisits,
@@ -188,6 +189,26 @@ export const CreateServiceRequestModal = ({
 
     loadInitialData()
   }, [initialTemplate, defaultTemplateType])
+
+  /* ────────────── AUTO-POPULATE PRACTITIONER ────────────── */
+  useEffect(() => {
+    const autoPopulatePractitioner = async () => {
+      try {
+        const practitioner = await getCurrentUserPractitioner()
+        if (practitioner) {
+          setFormData(prev => ({ ...prev, practitioner }))
+          // Also set the query for display
+          const practitionerOption = practitioners.find(p => p.name === practitioner)
+          if (practitionerOption) {
+            setPractQuery(practitionerOption.label)
+          }
+        }
+      } catch (err) {
+        console.error('Failed to auto-populate practitioner:', err)
+      }
+    }
+    autoPopulatePractitioner()
+  }, [practitioners])
 
   /* ────────────── TEMPLATE TYPE CHANGE ────────────── */
   useEffect(() => {

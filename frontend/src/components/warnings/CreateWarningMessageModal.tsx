@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { createWarningMessage } from '../../services/warningMessages'
-import { fetchHealthcarePractitioners, fetchClinicalNoteTypes, fetchMedicalRoles, getPractitionerMedicalRole, type LinkFieldOption } from '../../services/common'
+import { fetchHealthcarePractitioners, fetchClinicalNoteTypes, fetchMedicalRoles, getCurrentUserPractitioner, getPractitionerMedicalRole, type LinkFieldOption } from '../../services/common'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
+import { toast } from '../../hooks/useToast'
 import { CreatePractitionerModal } from '../practitioners/CreatePractitionerModal'
 import { CreatePatientModal } from '../patients/CreatePatientModal'
 import { CreateClinicalNoteTypeModal } from '../clinicalNotes/CreateClinicalNoteTypeModal'
@@ -61,6 +62,11 @@ export const CreateWarningMessageModal = ({ onClose, onSuccess, initialPatient }
       return
     }
 
+    if (!formData.warning.trim()) {
+      setError('Warning message is required')
+      return
+    }
+
     try {
       setLoading(true)
       setError(null)
@@ -74,13 +80,16 @@ export const CreateWarningMessageModal = ({ onClose, onSuccess, initialPatient }
         medical_role: formData.medical_role || undefined
       })
       
+      toast.success('Warning message created successfully')
       if (onSuccess) {
         onSuccess()
       }
       
       onClose()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create warning message')
+      const message = err instanceof Error ? err.message : 'Failed to create warning message'
+      setError(message)
+      toast.error(message)
     } finally {
       setLoading(false)
     }
@@ -125,6 +134,70 @@ export const CreateWarningMessageModal = ({ onClose, onSuccess, initialPatient }
     }
     loadOptions()
   }, [])
+
+  // Auto-populate current user's practitioner (same approach as CreateClinicalNoteModal)
+  useEffect(() => {
+    const autoPopulatePractitioner = async () => {
+      try {
+        const practitioner = await getCurrentUserPractitioner()
+        if (practitioner) {
+          setFormData(prev => ({ ...prev, practitioner }))
+          
+          // Find the practitioner option to set display label
+          const practitionerOption = practitionerOptions.find(p => p.name === practitioner)
+          if (practitionerOption) {
+            setSelectedPractitioner(practitionerOption)
+            setPractitionerQuery(practitionerOption.label)
+            
+            // Auto-fetch medical role from practitioner
+            let medicalRole: string | null = null
+            
+            // First try to get from practitioner data if available
+            if (practitionerOption.medical_role) {
+              medicalRole = practitionerOption.medical_role
+            } else {
+              // Fallback: fetch from API
+              try {
+                medicalRole = await getPractitionerMedicalRole(practitioner)
+              } catch (err) {
+                console.error('Failed to fetch medical role:', err)
+              }
+            }
+            
+            // Set the medical role if found
+            if (medicalRole) {
+              setFormData(prev => ({ ...prev, medical_role: medicalRole! }))
+              // Find the role in options to set the label
+              const roleOption = medicalRoleOptions.find(r => r.name === medicalRole)
+              if (roleOption) {
+                setSelectedMedicalRole(roleOption)
+                setMedicalRoleQuery(roleOption.label)
+              } else {
+                // If not found, fetch all roles and try again
+                try {
+                  const roleResults = await fetchMedicalRoles()
+                  const foundRole = roleResults.find(r => r.name === medicalRole)
+                  if (foundRole) {
+                    setSelectedMedicalRole(foundRole)
+                    setMedicalRoleQuery(foundRole.label)
+                  } else {
+                    // Just set the name as query if we can't find the label
+                    setMedicalRoleQuery(medicalRole)
+                  }
+                } catch (err) {
+                  console.error('Failed to fetch medical roles:', err)
+                  setMedicalRoleQuery(medicalRole)
+                }
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Failed to auto-populate practitioner:', err)
+      }
+    }
+    autoPopulatePractitioner()
+  }, [practitionerOptions, medicalRoleOptions])
 
   // Search/fetch patients
   useEffect(() => {
@@ -290,7 +363,7 @@ export const CreateWarningMessageModal = ({ onClose, onSuccess, initialPatient }
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-        <div className="p-6 border-b border-slate-200">
+        <div className="p-6 border-b border-slate-200 sticky top-0 bg-white z-10">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold text-slate-900">Create Warning Message</h2>
             <button
@@ -379,7 +452,7 @@ export const CreateWarningMessageModal = ({ onClose, onSuccess, initialPatient }
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Warning Message
+                  Warning Message <span className="text-red-500">*</span>
                 </label>
                 <textarea
                   value={formData.warning}
@@ -387,6 +460,7 @@ export const CreateWarningMessageModal = ({ onClose, onSuccess, initialPatient }
                   rows={4}
                   className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                   placeholder="Enter warning message..."
+                  required
                 />
               </div>
 
@@ -548,7 +622,7 @@ export const CreateWarningMessageModal = ({ onClose, onSuccess, initialPatient }
             </div>
           )}
 
-          <div className="flex justify-end gap-3 pt-4">
+          <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
             <button
               type="button"
               onClick={onClose}
@@ -570,7 +644,7 @@ export const CreateWarningMessageModal = ({ onClose, onSuccess, initialPatient }
         <CreatePractitionerModal
           onClose={() => setShowCreatePractitioner(false)}
           onSuccess={(practitionerName) => {
-            setFormData({ ...formData, practitioner: practitionerName })
+            setFormData(prev => ({ ...prev, practitioner: practitionerName }))
             const newPract = practitionerOptions.find(p => p.name === practitionerName)
             if (newPract) {
               setSelectedPractitioner(newPract)

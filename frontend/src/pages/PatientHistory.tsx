@@ -28,7 +28,7 @@ import {
 } from 'lucide-react'
 
 export const PatientHistoryPage = () => {
-  const { mode, selectedPatient: globalPatient, setSelectedPatient: setGlobalPatient } = useCareContext()
+  const { selectedPatient: globalPatient, setSelectedPatient: setGlobalPatient } = useCareContext()
   const [searchParams, setSearchParams] = useSearchParams()
   const patientFromUrl = searchParams.get('patient')
   const [selectedPatient, setSelectedPatient] = useState<string | undefined>(() => patientFromUrl || globalPatient || undefined)
@@ -81,7 +81,6 @@ export const PatientHistoryPage = () => {
     return Number(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   }
 
-
   return (
     <div className="flex flex-col min-h-full">
       <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
@@ -113,36 +112,32 @@ export const PatientHistoryPage = () => {
             <PatientSummaryCard patient={selectedPatient} />
           </section>
 
-          {/* Summary cards */}
+          {/* Summary cards - show both visits AND admissions always */}
           <section>
             <h2 className="font-semibold text-slate-900 mb-3">Summary</h2>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-              {mode !== 'IP' && (
-                <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-sky-100 text-sky-600">
-                    <CalendarCheck className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <div className="text-xs font-medium text-slate-500">Visits</div>
-                    <div className="text-lg font-semibold text-slate-900">
-                      {summaryLoading ? '…' : (summary?.visit_count ?? 0)}
-                    </div>
+              <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-sky-100 text-sky-600">
+                  <CalendarCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="text-xs font-medium text-slate-500">Visits</div>
+                  <div className="text-lg font-semibold text-slate-900">
+                    {summaryLoading ? '…' : (summary?.visit_count ?? 0)}
                   </div>
                 </div>
-              )}
-              {mode !== 'OP' && (
-                <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-emerald-100 text-emerald-600">
-                    <Building2 className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <div className="text-xs font-medium text-slate-500">Admissions</div>
-                    <div className="text-lg font-semibold text-slate-900">
-                      {summaryLoading ? '…' : (summary?.admission_count ?? 0)}
-                    </div>
+              </div>
+              <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-emerald-100 text-emerald-600">
+                  <Building2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="text-xs font-medium text-slate-500">Admissions</div>
+                  <div className="text-lg font-semibold text-slate-900">
+                    {summaryLoading ? '…' : (summary?.admission_count ?? 0)}
                   </div>
                 </div>
-              )}
+              </div>
               <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-violet-100 text-violet-600">
                   <FileText className="w-5 h-5" />
@@ -190,7 +185,7 @@ export const PatientHistoryPage = () => {
             </div>
           </section>
 
-          {/* Content cards: same as Doctor page */}
+          {/* Content cards - show ALL history regardless of mode */}
           <div className="grid gap-4 md:grid-cols-2">
             <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[420px]">
               <div className="font-semibold mb-4 flex-shrink-0">Warnings & Allergies</div>
@@ -207,24 +202,21 @@ export const PatientHistoryPage = () => {
             </section>
           </div>
 
+          {/* Admissions and Patient Visits - always side by side */}
           <div className="grid gap-4 md:grid-cols-2">
-            {mode !== 'OP' && (
-              <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[420px]">
-                <div className="font-semibold mb-4 flex-shrink-0">Admissions</div>
-                <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                  <AdmissionList patient={selectedPatient} />
-                </div>
-              </section>
-            )}
+            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[420px]">
+              <div className="font-semibold mb-4 flex-shrink-0">Admissions</div>
+              <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
+                <AdmissionList patient={selectedPatient} />
+              </div>
+            </section>
 
-            {mode !== 'IP' && (
-              <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[420px]">
-                <div className="font-semibold mb-4 flex-shrink-0">Patient Visits</div>
-                <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                  <PatientVisitList patient={selectedPatient} />
-                </div>
-              </section>
-            )}
+            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[420px]">
+              <div className="font-semibold mb-4 flex-shrink-0">Patient Visits</div>
+              <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
+                <PatientVisitList patient={selectedPatient} />
+              </div>
+            </section>
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
@@ -235,14 +227,12 @@ export const PatientHistoryPage = () => {
               </div>
             </section>
 
-            {mode !== 'OP' && (
-              <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[420px]">
-                <div className="font-semibold mb-4 flex-shrink-0">Discharge Form</div>
-                <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                  <DischargeList patient={selectedPatient} />
-                </div>
-              </section>
-            )}
+            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[420px]">
+              <div className="font-semibold mb-4 flex-shrink-0">Discharge Form</div>
+              <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
+                <DischargeList patient={selectedPatient} />
+              </div>
+            </section>
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
