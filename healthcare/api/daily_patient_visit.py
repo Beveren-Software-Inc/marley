@@ -43,33 +43,96 @@ def update_daily_patient_visit_setup(name, data):
     frappe.db.commit()
     
     return doc.as_dict()
+def get_or_create_daily_session_charge_item():
+    """
+    Get or create the 'Daily Session Charge' item.
+    Returns the item name.
+    """
+    item_name = "Daily Session Charge"
+    
+    # Check if item exists
+    if frappe.db.exists('Item', item_name):
+        return item_name
+    
+    # Create the item
+    item = frappe.get_doc({
+        'doctype': 'Item',
+        'item_code': item_name,
+        'item_name': item_name,
+        'item_group': 'Services',
+        'is_stock_item': 0,
+        'standard_rate': 0,
+        'description': 'Daily session charge for automatic patient visits'
+    })
+    item.insert()
+    frappe.db.commit()
+    
+    return item_name
+def add_op_charge_to_patient_visit(visit_name, amount, charge_date=None):
+    """
+    Add an OP charge to a Patient Visit.
+    """
+    if not charge_date:
+        charge_date = today()
+    
+    # Get or create the daily session charge item
+    item_code = get_or_create_daily_session_charge_item()
+    
+    # Get the Patient Visit document
+    visit = frappe.get_doc('Patient Visit', visit_name)
+    
+    # Get op_charges, ensure it's a list (not None)
+    op_charges = visit.get('charges')
+    if op_charges is None:
+        op_charges = []
+    
+    # Check if charge already exists for today to avoid duplicates
+    existing_charge = False
+    for charge in op_charges:
+        if charge.charges_item == item_code and str(charge.date) == str(charge_date):
+            existing_charge = True
+            # Update amount if needed
+            if charge.amount != amount:
+                charge.amount = amount
+                visit.save()
+                frappe.db.commit()
+            break
+    
+    if not existing_charge:
+        # Add new charge to the op_charges table
+        visit.append('charges', {
+            'charges_item': item_code,
+            'date': charge_date,
+            'amount': amount
+        })
+        visit.save()
+        frappe.db.commit()
 
-# Scheduler function - add to your hooks.py or create a scheduled task
+@frappe.whitelist()
 def process_daily_patient_visits():
     """
     Scheduler function that runs daily at 12:01 AM to create patient visits
     for active daily visit setups.
     """
-    current_date = today()
     
+    current_date = today()
     # Get all active setups where from_date <= current_date <= to_date
     setups = frappe.get_all(
         'Daily Patient Visit Setup',
         filters={
             'is_active': 1,
-            'from_date': ('<=', current_date),
+            # 'from_date': ('<=', current_date),
             'to_date': ('>=', current_date)
         },
         fields=['name', 'patient', 'from_date', 'to_date', 'time', 'session', 'amount']
     )
-    
     for setup in setups:
         try:
             # Check if a visit already exists for today
             existing_visit = frappe.db.exists('Patient Visit', {
                 'patient': setup.patient,
                 'visit_date': current_date,
-                'appointment_type': 'Daily Visit'
+                'visit_type': 'Daily Visit'
             })
             
             if not existing_visit:
@@ -84,19 +147,12 @@ def process_daily_patient_visits():
                     'status': 'Open'
                 })
                 visit.insert()
-                frappe.db.commit()
-                
-                # Optionally create a service line with the amount
+                # frappe.db.commit()
+                # frappe.throw(str(setup.amount))
+                # Add OP charge to the visit
                 if setup.amount > 0:
-                    service_line = frappe.get_doc({
-                        'doctype': 'Patient Visit Service',
-                        'parent': visit.name,
-                        'parentfield': 'services',
-                        'parenttype': 'Patient Visit',
-                        'item_code': 'Daily Visit Fee',
-                        'amount': setup.amount
-                    })
-                    service_line.db_insert()
+                    # frappe.throw("Adding OP charge to visit {0} for patient {1} with amount {2}".format(visit.name, setup.patient, setup.amount))
+                    add_op_charge_to_patient_visit(visit.name, setup.amount, current_date)
                 
                 frappe.db.commit()
                 
@@ -121,3 +177,4 @@ def process_daily_patient_visits():
             frappe.db.commit()
         except Exception as e:
             frappe.log_error(f"Failed to deactivate setup {expired.name}: {str(e)}", "Daily Patient Visit")
+

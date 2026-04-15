@@ -254,8 +254,7 @@
    "fieldtype": "Link",
    "in_standard_filter": 1,
    "label": "Consultation Doctor",
-   "options": "Healthcare Practitioner",
-   "reqd": 1
+   "options": "Healthcare Practitioner"
   },
   {
    "fetch_from": "practitioner.practitioner_name",
@@ -600,7 +599,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2026-04-01 15:37:01.184840",
+ "modified": "2026-04-15 15:40:10.843302",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Visit",
