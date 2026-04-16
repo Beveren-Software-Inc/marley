@@ -207,6 +207,8 @@ export interface InvoiceDetails {
   status: string
   cost_center: string
   items: InvoiceItem[]
+  company: string
+  department: string
 }
 
 export interface PaymentResponse {

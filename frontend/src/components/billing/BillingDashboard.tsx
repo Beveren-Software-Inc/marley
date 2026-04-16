@@ -16,7 +16,6 @@ import {
   type InvoiceSummary,
   type InpatientBalance,
   type OutpatientBalance,
-  type ReferenceInvoice
 } from '../../services/serviceOrders'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { 
@@ -158,7 +157,7 @@ export const BillingDashboard = ({ patient, admission, visit }: BillingDashboard
     try {
       setLoadingInvoices(referenceId)
       const invoices = await getInvoicesByReference(referenceId, referenceType)
-      
+      console.log(patientName)
       if (invoices.length === 0) {
         toast.error('No invoices found for this admission/visit')
         return
