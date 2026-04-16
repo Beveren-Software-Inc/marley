@@ -7,7 +7,16 @@
  "field_order": [
   "diagnosis",
   "details",
-  "posting_date"
+  "diagnoses_flag",
+  "section_break_bttg",
+  "posting_date",
+  "trans_num",
+  "column_break_qhej",
+  "diagnoses_time",
+  "section_break_uwrg",
+  "practitioner",
+  "column_break_cgwt",
+  "practitioner_name"
  ],
  "fields": [
   {
@@ -24,19 +33,67 @@
    "fieldtype": "Text Editor",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "Details"
+   "label": "Details",
+   "reqd": 1
   },
   {
    "fieldname": "posting_date",
    "fieldtype": "Datetime",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "Posting Date"
+   "label": "Posting Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "diagnoses_time",
+   "fieldtype": "Datetime",
+   "label": "Diagnoses Time",
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_break_bttg",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_qhej",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_uwrg",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "practitioner",
+   "fieldtype": "Link",
+   "label": "Practitioner",
+   "options": "Healthcare Practitioner",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_cgwt",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "practitioner.practitioner_name",
+   "fieldname": "practitioner_name",
+   "fieldtype": "Data",
+   "label": "Practitioner Name"
+  },
+  {
+   "default": "0",
+   "fieldname": "diagnoses_flag",
+   "fieldtype": "Check",
+   "label": "Diagnoses Flag"
+  },
+  {
+   "fieldname": "trans_num",
+   "fieldtype": "Data",
+   "label": "Trans Num"
   }
  ],
  "istable": 1,
  "links": [],
- "modified": "2026-03-25 16:52:19.329456",
+ "modified": "2026-04-16 01:32:29.110251",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Diagnosis",

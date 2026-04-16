@@ -21,7 +21,7 @@ def get_service_invoices(
         filters['patient'] = patient
     if status:
         filters['status'] = status
-    
+    print("Cost center is", str(filters))
     # Get permitted cost centers
     from healthcare.api.common import get_permitted_cost_centers
     permitted_cc = get_permitted_cost_centers()

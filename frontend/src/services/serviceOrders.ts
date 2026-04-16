@@ -185,6 +185,37 @@ export interface InpatientBalance {
   last_invoice_date?: string
 }
 
+export interface InvoiceItem {
+  item_code: string
+  item_name: string
+  description?: string
+  qty: number
+  rate: number
+  amount: number
+  discount_amount?: number
+  net_amount: number
+}
+
+export interface InvoiceDetails {
+  name: string
+  customer: string
+  customer_name: string
+  posting_date: string
+  due_date: string
+  grand_total: number
+  outstanding_amount: number
+  status: string
+  cost_center: string
+  items: InvoiceItem[]
+}
+
+export interface PaymentResponse {
+  success: boolean
+  message: string
+  payment_entry?: string
+}
+
+
 export async function fetchInpatientBalances(patientId?: string): Promise<InpatientBalance[]> {
   let url = '/api/method/healthcare.api.billing.get_inpatient_balances'
   if (patientId) {
@@ -199,9 +230,87 @@ export async function fetchInpatientBalances(patientId?: string): Promise<Inpati
 }
 
 
-// Add to services/serviceOrders.ts
+// Add these new API functions
 
+export const getInvoiceDetails = async (invoiceName: string): Promise<InvoiceDetails | null> => {
+  try {
+    const response = await fetch('/api/method/healthcare.api.billing.get_invoice_details', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        // 'X-Frappe-CSRF-Token': frappe.csrf_token
+      },
+      body: JSON.stringify({ invoice_name: invoiceName })
+    })
+    
+    const result = await response.json()
+    if (result.message) {
+      return result.message
+    }
+    throw new Error('Failed to load invoice details')
+  } catch (error) {
+    console.error('Error loading invoice details:', error)
+    throw error
+  }
+}
 
+export const getInvoiceItems = async (invoiceName: string): Promise<InvoiceItem[]> => {
+  try {
+    const response = await fetch('/api/method/healthcare.api.billing.get_invoice_items', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        // 'X-Frappe-CSRF-Token': frappe.csrf_token
+      },
+      body: JSON.stringify({ invoice_name: invoiceName })
+    })
+    
+    const result = await response.json()
+    if (result.message) {
+      return result.message
+    }
+    throw new Error('Failed to load invoice items')
+  } catch (error) {
+    console.error('Error loading invoice items:', error)
+    throw error
+  }
+}
+
+export const createPaymentEntry = async (
+  invoiceName: string,
+  paymentAmount: number,
+  paymentMode: string,
+  costCenter?: string,
+  department?:string,
+  referenceNumber?: string
+): Promise<PaymentResponse> => {
+  try {
+    const response = await fetch('/api/method/healthcare.api.billing.create_payment_entry', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        // 'X-Frappe-CSRF-Token': frappe.csrf_token
+      },
+      body: JSON.stringify({
+        invoice_name: invoiceName,
+        payment_amount: paymentAmount,
+        payment_mode: paymentMode,
+        cost_center: costCenter,
+        department:department,
+        reference_number: referenceNumber
+      })
+    })
+    
+    const result = await response.json()
+    if (result.message) {
+      return result.message
+    }
+    throw new Error('Failed to create payment entry')
+  } catch (error) {
+    console.error('Error creating payment entry:', error)
+    throw error
+  }
+}
 
 export async function fetchOutpatientBalances(patientId?: string): Promise<OutpatientBalance[]> {
   let url = '/api/method/healthcare.api.billing.get_outpatient_balances'
@@ -230,4 +339,47 @@ export async function fetchInvoicesByReference(
   const data = await response.json()
   if (!response.ok) throw new Error(data.message || 'Failed to fetch invoices')
   return data.message || []
+}
+
+
+// Add to services/serviceOrders.ts
+
+export interface ReferenceInvoice {
+  name: string
+  grand_total: number
+  outstanding_amount: number
+  posting_date: string
+  status: string
+}
+
+// services/serviceOrders.ts
+export const getInvoicesByReference = async (referenceName: string, referenceType: string): Promise<ReferenceInvoice[]> => {
+  try {
+    const response = await fetch('/api/method/healthcare.api.billing.get_invoices_by_reference', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        // 'X-Frappe-CSRF-Token': frappe.csrf_token
+      },
+      body: JSON.stringify({ 
+        reference_name: referenceName,
+        reference_type: referenceType 
+      })
+    })
+    
+    const result = await response.json()
+    console.log('API Response:', result); // Debug log
+    
+    if (result.message) {
+      // Check if result.message is an array
+      if (Array.isArray(result.message)) {
+        return result.message
+      }
+      return []
+    }
+    return []
+  } catch (error) {
+    console.error('Error loading invoices by reference:', error)
+    return []
+  }
 }

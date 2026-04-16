@@ -8,12 +8,15 @@ import {
   fetchInvoiceSummary,
   fetchInpatientBalances,
   fetchOutpatientBalances,
+  getInvoicesByReference,
+  getInvoiceDetails,
   type ServiceOrder,
   type ServiceInvoice,
   type OrderSummary,
   type InvoiceSummary,
   type InpatientBalance,
-  type OutpatientBalance
+  type OutpatientBalance,
+  type ReferenceInvoice
 } from '../../services/serviceOrders'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { 
@@ -30,12 +33,15 @@ import {
   FileText as FileIcon,
   Users,
   User,
-  Filter
+  Filter,
+  Loader2
 } from 'lucide-react'
 import { toast } from '../../hooks/useToast'
 
 import { ServiceOrdersList } from './ServiceOrdersList'
 import { ServiceInvoicesList } from './ServiceInvoicesList'
+import { InvoiceItemsModal } from './InvoiceItemsModal'
+import { PaymentModal } from './PaymentModal'
 
 type DashboardView = 'overview' | 'orders' | 'invoices' | 'inpatient' | 'outpatient' | 'unpaid' | 'paid'
 
@@ -122,7 +128,21 @@ export const BillingDashboard = ({ patient, admission, visit }: BillingDashboard
   const [recentInvoices, setRecentInvoices] = useState<ServiceInvoice[]>([])
   const [inpatientFilter, setInpatientFilter] = useState<'all' | 'paid' | 'unpaid' | 'partial' | 'overdue'>('all')
   const [outpatientFilter, setOutpatientFilter] = useState<'all' | 'paid' | 'unpaid' | 'partial' | 'overdue'>('all')
-
+  
+  // Modal states
+  const [selectedInvoice, setSelectedInvoice] = useState<string | null>(null)
+  const [showInvoiceItems, setShowInvoiceItems] = useState(false)
+  const [showPaymentModal, setShowPaymentModal] = useState(false)
+  const [selectedPaymentInvoice, setSelectedPaymentInvoice] = useState<{
+    name: string
+    customer_name: string
+    outstanding_amount: number
+    company?: string
+    cost_center?: string
+    department?:string
+  } | null>(null)
+  const [loadingInvoices, setLoadingInvoices] = useState<string | null>(null)
+  
   const effectivePatient = patient ?? selectedPatient
   const effectiveReferenceType = mode === 'IP' ? 'Inpatient Admission' : 'Patient Visit'
   const effectiveReferenceName = mode === 'IP' ? (admission ?? activeAdmission) : (visit ?? activeVisit)
@@ -131,6 +151,73 @@ export const BillingDashboard = ({ patient, admission, visit }: BillingDashboard
   const handleViewChange = (view: DashboardView) => {
     setCurrentView(view)
     localStorage.setItem('billingDashboardView', view)
+  }
+
+  // Handle view services - get actual invoices for the reference
+  const handleViewServices = async (referenceId: string, patientName: string, referenceType: string) => {
+    try {
+      setLoadingInvoices(referenceId)
+      const invoices = await getInvoicesByReference(referenceId, referenceType)
+      
+      if (invoices.length === 0) {
+        toast.error('No invoices found for this admission/visit')
+        return
+      }
+      
+      setSelectedInvoice(invoices[0].name)
+      setShowInvoiceItems(true)
+    } catch (error) {
+      console.error('Error loading invoices:', error)
+      toast.error('Failed to load invoice details')
+    } finally {
+      setLoadingInvoices(null)
+    }
+  }
+
+  // Handle make payment - fetch invoice details for company and cost center
+// Replace the handleMakePayment function with this:
+const handleMakePayment = async (referenceId: string, customerName: string, outstandingAmount: number, referenceType: string) => {
+  try {
+    setLoadingInvoices(referenceId)
+    // First, get the actual invoices for this reference
+    const invoices = await getInvoicesByReference(referenceId, referenceType)
+    
+    if (!invoices || invoices.length === 0) {
+      toast.error('No invoices found for this admission/visit')
+      return
+    }
+    
+    // Use the first invoice's name
+    const invoiceName = invoices[0].name
+    
+    // Fetch invoice details to get company and cost center
+    const invoiceDetails = await getInvoiceDetails(invoiceName)
+    
+    setSelectedPaymentInvoice({
+      name: invoiceName,  // Now this is the actual invoice name, not the admission ID
+      customer_name: customerName,
+      outstanding_amount: outstandingAmount,
+      company: invoiceDetails?.company || '',
+      cost_center: invoiceDetails?.cost_center || '',
+      department:invoiceDetails?.department || '',
+    })
+    setShowPaymentModal(true)
+  } catch (error) {
+    console.error('Error fetching invoice details:', error)
+    toast.error('Failed to load invoice details for payment')
+  } finally {
+    setLoadingInvoices(null)
+  }
+}
+
+  const handlePaymentSuccess = () => {
+    if (currentView === 'inpatient') {
+      loadInpatientBalances()
+    } else if (currentView === 'outpatient') {
+      loadOutpatientBalances()
+    } else {
+      loadDashboardData()
+    }
   }
 
   const loadDashboardData = async () => {
@@ -378,6 +465,64 @@ export const BillingDashboard = ({ patient, admission, visit }: BillingDashboard
     )
   }
 
+  // FIX: Shared modals rendered regardless of current view
+  const SharedModals = () => (
+    <>
+      <InvoiceItemsModal
+        isOpen={showInvoiceItems}
+        onClose={() => {
+          setShowInvoiceItems(false)
+          setSelectedInvoice(null)
+        }}
+        invoiceName={selectedInvoice || ''}
+        onMakePayment={(invoiceName) => {
+          // Find the invoice details from current balances
+          let invoiceDetails = null
+          if (currentView === 'inpatient') {
+            const balance = inpatientBalances.find(b => b.admission_id === invoiceName)
+            if (balance) {
+              invoiceDetails = {
+                name: invoiceName,
+                customer_name: balance.patient_name,
+                outstanding_amount: balance.outstanding_amount
+              }
+            }
+          } else if (currentView === 'outpatient') {
+            const balance = outpatientBalances.find(b => b.visit_id === invoiceName)
+            if (balance) {
+              invoiceDetails = {
+                name: invoiceName,
+                customer_name: balance.patient_name,
+                outstanding_amount: balance.outstanding_amount
+              }
+            }
+          }
+          
+          if (invoiceDetails) {
+            setShowInvoiceItems(false)
+            setSelectedPaymentInvoice(invoiceDetails)
+            setShowPaymentModal(true)
+          }
+        }}
+      />
+
+      <PaymentModal
+        isOpen={showPaymentModal}
+        onClose={() => {
+          setShowPaymentModal(false)
+          setSelectedPaymentInvoice(null)
+        }}
+        invoiceName={selectedPaymentInvoice?.name || ''}
+        customerName={selectedPaymentInvoice?.customer_name || ''}
+        outstandingAmount={selectedPaymentInvoice?.outstanding_amount || 0}
+        defaultCompany={selectedPaymentInvoice?.company}
+        defaultCostCenter={selectedPaymentInvoice?.cost_center}
+        defaultDepartment={selectedPaymentInvoice?.department}
+        onPaymentSuccess={handlePaymentSuccess}
+      />
+    </>
+  )
+
   if (loading && (currentView === 'inpatient' || currentView === 'outpatient')) {
     return (
       <div className="space-y-4">
@@ -385,6 +530,7 @@ export const BillingDashboard = ({ patient, admission, visit }: BillingDashboard
         <div className="flex items-center justify-center h-96">
           <div className="text-slate-500">Loading balances...</div>
         </div>
+        <SharedModals />
       </div>
     )
   }
@@ -393,6 +539,7 @@ export const BillingDashboard = ({ patient, admission, visit }: BillingDashboard
     return (
       <div className="flex items-center justify-center h-96">
         <div className="text-slate-500">Loading dashboard...</div>
+        <SharedModals />
       </div>
     )
   }
@@ -407,6 +554,7 @@ export const BillingDashboard = ({ patient, admission, visit }: BillingDashboard
           admission={effectiveReferenceName}
           visit={effectiveReferenceType === 'Patient Visit' ? effectiveReferenceName : undefined}
         />
+        <SharedModals />
       </div>
     )
   }
@@ -421,6 +569,7 @@ export const BillingDashboard = ({ patient, admission, visit }: BillingDashboard
           admission={effectiveReferenceName}
           visit={effectiveReferenceType === 'Patient Visit' ? effectiveReferenceName : undefined}
         />
+        <SharedModals />
       </div>
     )
   }
@@ -441,6 +590,7 @@ export const BillingDashboard = ({ patient, admission, visit }: BillingDashboard
           visit={effectiveReferenceType === 'Patient Visit' ? effectiveReferenceName : undefined}
           statusFilter="Unpaid,Overdue"
         />
+        <SharedModals />
       </div>
     )
   }
@@ -461,6 +611,7 @@ export const BillingDashboard = ({ patient, admission, visit }: BillingDashboard
           visit={effectiveReferenceType === 'Patient Visit' ? effectiveReferenceName : undefined}
           statusFilter="Paid"
         />
+        <SharedModals />
       </div>
     )
   }
@@ -519,6 +670,7 @@ export const BillingDashboard = ({ patient, admission, visit }: BillingDashboard
             {filteredInpatient.map((balance) => {
               const status = getBalanceStatusColor(balance)
               const percentagePaid = balance.total_amount > 0 ? (balance.total_paid / balance.total_amount) * 100 : 0
+              const isLoading = loadingInvoices === balance.admission_id
               
               return (
                 <div key={balance.admission_id} className={`bg-white rounded-xl border ${status.border} p-5 hover:shadow-md transition-all`}>
@@ -554,19 +706,44 @@ export const BillingDashboard = ({ patient, admission, visit }: BillingDashboard
                         <span>{percentagePaid.toFixed(1)}% paid</span>
                       </div>
                       <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
-                        <div className={`h-2 rounded-full transition-all duration-500 ${percentagePaid === 100 ? 'bg-green-500' : balance.days_overdue > 0 ? 'bg-red-500' : 'bg-primary'}`} style={{ width: `${percentagePaid}%` }} />
+                        <div
+                          className={`h-2 rounded-full transition-all duration-500 ${percentagePaid === 100 ? 'bg-green-500' : balance.days_overdue > 0 ? 'bg-red-500' : 'bg-primary'}`}
+                          style={{ width: `${percentagePaid}%` }}
+                        />
                       </div>
                     </div>
                   )}
                   <div className="flex gap-2 mt-4 pt-3 border-t border-slate-100">
-                    <button onClick={() => handleViewChange('invoices')} className="text-xs text-primary hover:underline flex items-center gap-1"><Receipt className="w-3 h-3" /> View Invoices</button>
-                    {balance.outstanding_amount > 0 && <button className="text-xs text-green-600 hover:underline flex items-center gap-1"><CreditCard className="w-3 h-3" /> Record Payment</button>}
+                    <button 
+                      onClick={() => handleViewServices(balance.admission_id, balance.patient_name, 'Inpatient Admission')}
+                      disabled={isLoading}
+                      className="text-xs text-primary hover:underline flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="View all invoices and services for this admission"
+                    >
+                      {isLoading ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <Receipt className="w-3 h-3" />
+                      )}
+                      View Services
+                    </button>
+                    {balance.outstanding_amount > 0 && (
+  <button 
+    onClick={() => handleMakePayment(balance.admission_id, balance.patient_name, balance.outstanding_amount, 'Inpatient Admission')}
+    className="text-xs text-green-600 hover:underline flex items-center gap-1"
+    title={`Pay outstanding amount of ${formatCurrency(balance.outstanding_amount)}`}
+  >
+    <CreditCard className="w-3 h-3" /> Make Payment
+  </button>
+)}
                   </div>
                 </div>
               )
             })}
           </div>
         )}
+
+        <SharedModals />
       </div>
     )
   }
@@ -607,6 +784,7 @@ export const BillingDashboard = ({ patient, admission, visit }: BillingDashboard
             {filteredOutpatient.map((balance) => {
               const status = getBalanceStatusColor(balance)
               const percentagePaid = balance.total_amount > 0 ? (balance.total_paid / balance.total_amount) * 100 : 0
+              const isLoading = loadingInvoices === balance.visit_id
               
               return (
                 <div key={balance.visit_id} className={`bg-white rounded-xl border ${status.border} p-5 hover:shadow-md transition-all`}>
@@ -642,19 +820,44 @@ export const BillingDashboard = ({ patient, admission, visit }: BillingDashboard
                         <span>{percentagePaid.toFixed(1)}% paid</span>
                       </div>
                       <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
-                        <div className={`h-2 rounded-full transition-all duration-500 ${percentagePaid === 100 ? 'bg-green-500' : balance.days_overdue > 0 ? 'bg-red-500' : 'bg-primary'}`} style={{ width: `${percentagePaid}%` }} />
+                        <div
+                          className={`h-2 rounded-full transition-all duration-500 ${percentagePaid === 100 ? 'bg-green-500' : balance.days_overdue > 0 ? 'bg-red-500' : 'bg-primary'}`}
+                          style={{ width: `${percentagePaid}%` }}
+                        />
                       </div>
                     </div>
                   )}
                   <div className="flex gap-2 mt-4 pt-3 border-t border-slate-100">
-                    <button onClick={() => handleViewChange('invoices')} className="text-xs text-primary hover:underline flex items-center gap-1"><Receipt className="w-3 h-3" /> View Invoices</button>
-                    {balance.outstanding_amount > 0 && <button className="text-xs text-green-600 hover:underline flex items-center gap-1"><CreditCard className="w-3 h-3" /> Record Payment</button>}
+                    <button 
+                      onClick={() => handleViewServices(balance.visit_id, balance.patient_name, 'Patient Visit')}
+                      disabled={isLoading}
+                      className="text-xs text-primary hover:underline flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="View all invoices and services for this visit"
+                    >
+                      {isLoading ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <Receipt className="w-3 h-3" />
+                      )}
+                      View Services
+                    </button>
+                    {balance.outstanding_amount > 0 && (
+  <button 
+    onClick={() => handleMakePayment(balance.visit_id, balance.patient_name, balance.outstanding_amount, 'Patient Visit')}
+    className="text-xs text-green-600 hover:underline flex items-center gap-1"
+    title={`Pay outstanding amount of ${formatCurrency(balance.outstanding_amount)}`}
+  >
+    <CreditCard className="w-3 h-3" /> Make Payment
+  </button>
+)}
                   </div>
                 </div>
               )
             })}
           </div>
         )}
+
+        <SharedModals />
       </div>
     )
   }
@@ -742,6 +945,9 @@ export const BillingDashboard = ({ patient, admission, visit }: BillingDashboard
           <div className="bg-red-50 rounded-lg p-4 text-center"><AlertCircle className="w-6 h-6 text-red-600 mx-auto mb-2" /><p className="text-2xl font-bold text-red-600">{formatCurrency(invoiceSummary?.overdue.amount || 0)}</p><p className="text-xs text-red-700">Overdue</p><p className="text-xs text-red-600 mt-1">{invoiceSummary?.overdue.count || 0} invoices</p></div>
         </div>
       </div>
+
+      {/* Modals - always present in Overview too */}
+      <SharedModals />
     </div>
   )
 }
