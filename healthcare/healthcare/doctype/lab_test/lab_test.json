@@ -2,17 +2,19 @@
  "actions": [],
  "allow_copy": 1,
  "allow_import": 1,
- "autoname": "naming_series:",
+ "autoname": "field:trans_num",
  "creation": "2016-03-29 17:34:47.509094",
  "doctype": "DocType",
  "document_type": "Document",
  "engine": "InnoDB",
  "field_order": [
   "naming_series",
+  "trans_num",
   "template",
   "lab_test_name",
   "lab_test_group",
   "department",
+  "data_pfpj",
   "reference_doctype",
   "reference_document",
   "priority",
@@ -79,6 +81,10 @@
   "column_break_oulm",
   "discount_amount",
   "grand_total",
+  "lab_amount_addition",
+  "section_break_olas",
+  "sta_flg",
+  "sr_num",
   "sample_collection_tab",
   "sample_instances",
   "medical_coding_section",
@@ -124,8 +130,7 @@
    "label": "Series",
    "options": "HLC-LAB-.YYYY.-",
    "print_hide": 1,
-   "report_hide": 1,
-   "reqd": 1
+   "report_hide": 1
   },
   {
    "default": "0",
@@ -375,7 +380,7 @@
    "fieldtype": "Link",
    "hidden": 1,
    "label": "Test Group",
-   "options": "Item Group",
+   "options": "Lab Test",
    "print_hide": 1,
    "report_hide": 1
   },
@@ -792,7 +797,7 @@
    "label": "Amount"
   },
   {
-   "default": "Percentage",
+   "default": "Amount",
    "fieldname": "discount_margin",
    "fieldtype": "Select",
    "label": "Discount Margin",
@@ -834,6 +839,36 @@
    "fieldname": "results",
    "fieldtype": "Data",
    "label": "Results"
+  },
+  {
+   "fieldname": "data_pfpj",
+   "fieldtype": "Data"
+  },
+  {
+   "fieldname": "section_break_olas",
+   "fieldtype": "Section Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "sta_flg",
+   "fieldtype": "Check",
+   "label": "STA FLG"
+  },
+  {
+   "fieldname": "trans_num",
+   "fieldtype": "Data",
+   "label": "Trans Num",
+   "unique": 1
+  },
+  {
+   "fieldname": "sr_num",
+   "fieldtype": "Data",
+   "label": "Sr Num"
+  },
+  {
+   "fieldname": "lab_amount_addition",
+   "fieldtype": "Currency",
+   "label": "Lab Addition Amount"
   }
  ],
  "is_submittable": 1,
@@ -843,11 +878,11 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2026-03-22 17:51:40.387146",
+ "modified": "2026-04-19 13:48:38.976946",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Lab Test",
- "naming_rule": "By \"Naming Series\" field",
+ "naming_rule": "By fieldname",
  "owner": "Administrator",
  "permissions": [
   {

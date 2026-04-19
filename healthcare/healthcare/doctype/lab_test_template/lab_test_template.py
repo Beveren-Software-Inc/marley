@@ -104,42 +104,82 @@ class LabTestTemplate(Document):
 				):
 					frappe.throw(_("Row #{0}: Conversion Factor is mandatory").format(group.idx))
 
-
 def create_item_from_template(doc):
-	uom = frappe.db.exists("UOM", "Unit") or frappe.db.get_single_value("Stock Settings", "stock_uom")
-	# Insert item
-	item = frappe.get_doc(
-		{
-			"doctype": "Item",
-			"item_code": doc.lab_test_code,
-			"item_name": doc.lab_test_name,
-			"item_group": doc.lab_test_group,
-			"description": doc.lab_test_description,
-			"is_sales_item": 1,
-			"is_service_item": 1,
-			"is_purchase_item": 0,
-			"is_stock_item": 0,
-			"include_item_in_manufacturing": 0,
-			"show_in_website": 0,
-			"is_pro_applicable": 0,
-			"disabled": 0 if doc.is_billable and not doc.disabled else doc.disabled,
-			"stock_uom": uom,
-		}
-	).insert(ignore_permissions=True, ignore_mandatory=True)
+    # Check if item already exists
+    existing_item = frappe.db.exists("Item", doc.lab_test_code)
 
-	# Insert item price
-	if doc.is_billable and doc.lab_test_rate != 0.0:
-		price_list_name = frappe.db.get_value(
-			"Selling Settings", None, "selling_price_list"
-		) or frappe.db.get_value("Price List", {"selling": 1})
-		if doc.lab_test_rate:
-			make_item_price(item.name, doc.lab_test_rate)
-		else:
-			make_item_price(item.name, 0.0)
-	# Set item in the template
-	frappe.db.set_value("Lab Test Template", doc.name, "item", item.name)
+    if existing_item:
+        item_name = existing_item  # already exists, use it
+    else:
+        uom = frappe.db.exists("UOM", "Unit") or frappe.db.get_single_value("Stock Settings", "stock_uom")
 
-	doc.reload()
+        # Create new item
+        item = frappe.get_doc({
+            "doctype": "Item",
+            "item_code": doc.lab_test_code,
+            "item_name": doc.lab_test_name,
+            "item_group": doc.lab_test_group,
+            "description": doc.lab_test_description,
+            "is_sales_item": 1,
+            "is_service_item": 1,
+            "is_purchase_item": 0,
+            "is_stock_item": 0,
+            "include_item_in_manufacturing": 0,
+            "show_in_website": 0,
+            "is_pro_applicable": 0,
+            "disabled": 0 if doc.is_billable and not doc.disabled else doc.disabled,
+            "stock_uom": uom,
+        }).insert(ignore_permissions=True, ignore_mandatory=True)
+
+        item_name = item.name
+
+        # Insert item price (only when newly created)
+        if doc.is_billable and doc.lab_test_rate != 0.0:
+            if doc.lab_test_rate:
+                make_item_price(item_name, doc.lab_test_rate)
+            else:
+                make_item_price(item_name, 0.0)
+
+    # Always link item to template
+    frappe.db.set_value("Lab Test Template", doc.name, "item", item_name)
+
+    doc.reload()
+
+# def create_item_from_template(doc):
+# 	uom = frappe.db.exists("UOM", "Unit") or frappe.db.get_single_value("Stock Settings", "stock_uom")
+# 	# Insert item
+# 	item = frappe.get_doc(
+# 		{
+# 			"doctype": "Item",
+# 			"item_code": doc.lab_test_code,
+# 			"item_name": doc.lab_test_name,
+# 			"item_group": doc.lab_test_group,
+# 			"description": doc.lab_test_description,
+# 			"is_sales_item": 1,
+# 			"is_service_item": 1,
+# 			"is_purchase_item": 0,
+# 			"is_stock_item": 0,
+# 			"include_item_in_manufacturing": 0,
+# 			"show_in_website": 0,
+# 			"is_pro_applicable": 0,
+# 			"disabled": 0 if doc.is_billable and not doc.disabled else doc.disabled,
+# 			"stock_uom": uom,
+# 		}
+# 	).insert(ignore_permissions=True, ignore_mandatory=True)
+
+# 	# Insert item price
+# 	if doc.is_billable and doc.lab_test_rate != 0.0:
+# 		price_list_name = frappe.db.get_value(
+# 			"Selling Settings", None, "selling_price_list"
+# 		) or frappe.db.get_value("Price List", {"selling": 1})
+# 		if doc.lab_test_rate:
+# 			make_item_price(item.name, doc.lab_test_rate)
+# 		else:
+# 			make_item_price(item.name, 0.0)
+# 	# Set item in the template
+# 	frappe.db.set_value("Lab Test Template", doc.name, "item", item.name)
+
+# 	doc.reload()
 
 
 @frappe.whitelist()
