@@ -802,3 +802,94 @@ def create_sample_collection_for_lab_sample(
 	doc.save(ignore_permissions=True)
 
 	return {"sample_collection": sample_doc.name}
+
+
+# healthcare/api/lab_test.py
+
+import frappe
+from frappe import _
+
+@frappe.whitelist()
+def get_lab_tests_by_inpatient_record(inpatient_record: str):
+    """
+    Get all lab tests for a specific inpatient admission
+    """
+    if not inpatient_record:
+        frappe.throw(_("Inpatient record is required"))
+    
+    lab_tests = frappe.get_all(
+        "Lab Test",
+        filters={
+            "inpatient_record": inpatient_record,
+            "docstatus": ("!=", 2)  # Not cancelled
+        },
+        fields=[
+            "name", "patient", "patient_name", "lab_test_name", "template",
+            "status", "date", "result_date", "submitted_date", "approved_date",
+            "practitioner", "practitioner_name", "department", "invoiced",
+            "amount", "grand_total", "results", "descriptive_result", "lab_test_comment"
+        ],
+        order_by="date desc"
+    )
+    
+    return lab_tests
+
+
+@frappe.whitelist()
+def get_lab_test_by_id(name: str):
+    """
+    Get a single lab test by ID with all details
+    """
+    if not name:
+        frappe.throw(_("Lab test name is required"))
+    
+    doc = frappe.get_doc("Lab Test", name)
+    
+    # Get normal test items
+    normal_items = []
+    for item in doc.normal_test_items:
+        normal_items.append({
+            "lab_test_name": item.lab_test_name,
+            "lab_test_event": item.lab_test_event,
+            "result_value": item.result_value,
+            "min_range": item.min_range,
+            "max_range": item.max_range,
+            "result_date": item.result_date,
+            "in_range": item.in_range,
+            "allow_edit": item.allow_edit
+        })
+    
+    # Get sensitivity test items
+    sensitivity_items = []
+    for item in doc.sensitivity_test_items:
+        sensitivity_items.append({
+            "antibiotic": item.antibiotic,
+            "sensitivity": item.sensitivity,
+            "antibiotic_sensitivity": item.antibiotic_sensitivity
+        })
+    
+    return {
+        "name": doc.name,
+        "patient": doc.patient,
+        "patient_name": doc.patient_name,
+        "lab_test_name": doc.lab_test_name,
+        "template": doc.template,
+        "status": doc.status,
+        "date": doc.date,
+        "result_date": doc.result_date,
+        "submitted_date": doc.submitted_date,
+        "approved_date": doc.approved_date,
+        "practitioner": doc.practitioner,
+        "practitioner_name": doc.practitioner_name,
+        "department": doc.department,
+        "inpatient_record": doc.inpatient_record,
+        "service_unit": doc.service_unit,
+        "invoiced": doc.invoiced,
+        "amount": doc.amount,
+        "grand_total": doc.grand_total,
+        "results": doc.results,
+        "descriptive_result": doc.descriptive_result,
+        "lab_test_comment": doc.lab_test_comment,
+        "normal_test_items": normal_items,
+        "sensitivity_test_items": sensitivity_items
+    }

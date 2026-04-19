@@ -124,8 +124,8 @@ export async function fetchServiceInvoices(
   )
   const data = await response.json()
 
-  console.log("Huko wapi response data:", data) // Add this line to log the response data
   return data.message || []
+
 }
 
 export async function fetchInvoiceSummary(
@@ -226,7 +226,6 @@ export async function fetchInpatientBalances(patientId?: string): Promise<Inpati
   const response = await fetch(url)
   const data = await response.json()
 
-  console.log("Inpatient balances response data:", data) // Add this line to log the response data
   if (!response.ok) throw new Error(data.message || 'Failed to fetch inpatient balances')
   return data.message || []
 }
