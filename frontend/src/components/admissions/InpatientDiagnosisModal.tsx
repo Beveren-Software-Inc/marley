@@ -1,9 +1,9 @@
 // components/diagnosis/InpatientDiagnosisModal.tsx
 import { useState, useEffect } from 'react'
-import { X, Plus, Trash2, Stethoscope, Calendar, User, FileText, Clock, Edit2, Save } from 'lucide-react'
+import { X, Plus, Trash2, Stethoscope, Calendar, FileText, Clock, Save } from 'lucide-react'
 import { toast } from '../../hooks/useToast'
 import { fetchHealthcarePractitioners, type LinkFieldOption } from '../../services/common'
-import { getInpatientDiagnoses, updateInpatientDiagnoses, type DiagnosisData, type DiagnosisRow } from '../../services/diagnosis'
+import { getInpatientDiagnoses, updateInpatientDiagnoses, type DiagnosisData } from '../../services/diagnosis'
 
 interface InpatientDiagnosisModalProps {
   parentDoctype: string
@@ -29,9 +29,7 @@ export const InpatientDiagnosisModal = ({
   const [diagnoses, setDiagnoses] = useState<DiagnosisData[]>([])
   const [submitting, setSubmitting] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [editMode, setEditMode] = useState(false)
-  const [editingRow, setEditingRow] = useState<string | null>(null)
-  
+
   // Practitioner options
   const [practitionerOptions, setPractitionerOptions] = useState<LinkFieldOption[]>([])
   const [practitionerOpen, setPractitionerOpen] = useState<{ [key: string]: boolean }>({})
@@ -47,6 +45,7 @@ export const InpatientDiagnosisModal = ({
     loadExistingDiagnoses()
   }, [parentName])
 
+  console.log('Loaded diagnoses:', parentDoctype) // Debug log
   const loadExistingDiagnoses = async () => {
     try {
       setLoading(true)
@@ -175,10 +174,6 @@ export const InpatientDiagnosisModal = ({
     setDiagnoses(newDiagnoses)
   }
 
-  const startEditRow = (index: number) => {
-    setEditingRow(`row-${index}`)
-  }
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
@@ -210,13 +205,12 @@ export const InpatientDiagnosisModal = ({
     try {
       setSubmitting(true)
       
-      // Generate transaction numbers for new diagnoses
-      const diagnosesWithTransNum = diagnoses.map((diag, idx) => ({
+      // FIX: removed unused `idx` parameter from map callback
+      const diagnosesWithTransNum = diagnoses.map((diag) => ({
         ...diag,
         trans_num: diag.trans_num || `DIA-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
       }))
       
-      // Use update endpoint to replace all diagnoses
       const result = await updateInpatientDiagnoses(parentName, diagnosesWithTransNum)
       
       if (result.success) {
