@@ -380,7 +380,7 @@
    "fieldtype": "Link",
    "hidden": 1,
    "label": "Test Group",
-   "options": "Lab Test",
+   "options": "Lab Test Template",
    "print_hide": 1,
    "report_hide": 1
   },
@@ -878,7 +878,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2026-04-19 13:48:38.976946",
+ "modified": "2026-04-19 17:15:01.654812",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Lab Test",
