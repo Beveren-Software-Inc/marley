@@ -10,6 +10,7 @@
  "field_order": [
   "lab_test_name",
   "department",
+  "no",
   "column_break_3",
   "disabled",
   "nursing_checklist_template",
@@ -25,10 +26,18 @@
   "is_billable",
   "lab_test_rate",
   "pricing",
+  "price",
   "inventory_section",
   "consumables",
   "section_break_description",
   "lab_test_description",
+  "section_break_vjvz",
+  "cr_id",
+  "cr_date",
+  "old_num",
+  "column_break_jyis",
+  "up_id",
+  "up_date",
   "result_format_tab",
   "result_format_section",
   "lab_test_template_type",
@@ -101,9 +110,9 @@
    "fieldtype": "Data",
    "in_list_view": 1,
    "label": "Item Code",
-   "mandatory_depends_on": "eval:!doc.link_existing_item",
+   "mandatory_depends_on": "eval:!doc.link_existing_item && !doc.is_group",
    "no_copy": 1,
-   "read_only_depends_on": "eval:!doc.__islocal"
+   "read_only_depends_on": "eval:!doc.__islocal && !doc.is_group"
   },
   {
    "fieldname": "lab_test_group",
@@ -112,8 +121,7 @@
    "in_standard_filter": 1,
    "label": "Item Group",
    "options": "Item Group",
-   "read_only_depends_on": "eval:doc.link_existing_item",
-   "reqd": 1,
+   "read_only_depends_on": "eval:doc.link_existing_item && !doc.is_group",
    "search_index": 1
   },
   {
@@ -480,6 +488,49 @@
    "fieldname": "by_nurse",
    "fieldtype": "Check",
    "label": "By Nurse"
+  },
+  {
+   "fieldname": "no",
+   "fieldtype": "Data",
+   "label": "No"
+  },
+  {
+   "fieldname": "section_break_vjvz",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "cr_id",
+   "fieldtype": "Data",
+   "label": "CR ID"
+  },
+  {
+   "fieldname": "cr_date",
+   "fieldtype": "Date",
+   "label": "CR Date"
+  },
+  {
+   "fieldname": "old_num",
+   "fieldtype": "Data",
+   "label": "Old Num"
+  },
+  {
+   "fieldname": "column_break_jyis",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "up_id",
+   "fieldtype": "Data",
+   "label": "UP ID"
+  },
+  {
+   "fieldname": "up_date",
+   "fieldtype": "Date",
+   "label": "UP Date"
+  },
+  {
+   "fieldname": "price",
+   "fieldtype": "Currency",
+   "label": "General Price"
   }
  ],
  "grid_page_length": 50,
@@ -490,7 +541,7 @@
    "link_fieldname": "template"
   }
  ],
- "modified": "2026-04-12 12:58:27.572640",
+ "modified": "2026-04-19 11:24:09.783574",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Lab Test Template",
