@@ -14,7 +14,6 @@
   "lab_test_name",
   "lab_test_group",
   "department",
-  "data_pfpj",
   "reference_doctype",
   "reference_document",
   "priority",
@@ -148,8 +147,6 @@
    "in_standard_filter": 1,
    "label": "Patient",
    "options": "Patient",
-   "reqd": 1,
-   "search_index": 1,
    "set_only_once": 1
   },
   {
@@ -177,7 +174,6 @@
    "print_hide": 1,
    "read_only": 1,
    "report_hide": 1,
-   "reqd": 1,
    "set_only_once": 1
   },
   {
@@ -748,8 +744,7 @@
    "fieldname": "cost_center",
    "fieldtype": "Link",
    "label": "Cost Center",
-   "options": "Cost Center",
-   "reqd": 1
+   "options": "Cost Center"
   },
   {
    "fieldname": "inpatient_admission",
@@ -840,10 +835,6 @@
    "label": "Results"
   },
   {
-   "fieldname": "data_pfpj",
-   "fieldtype": "Data"
-  },
-  {
    "fieldname": "section_break_olas",
    "fieldtype": "Section Break"
   },
@@ -877,7 +868,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2026-04-19 17:30:16.738207",
+ "modified": "2026-04-19 17:47:27.908275",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Lab Test",

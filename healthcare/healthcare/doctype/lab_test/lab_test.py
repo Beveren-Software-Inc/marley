@@ -215,6 +215,8 @@ class LabTest(Document):
 
 
 def create_test_from_template(lab_test):
+	if not lab_test.patient:
+		return
 	template = frappe.get_doc("Lab Test Template", lab_test.template)
 	patient = frappe.get_doc("Patient", lab_test.patient)
 
