@@ -39,7 +39,7 @@ export interface PrescriptionFilters {
 }
 
 
-import { apiRequest } from './apiClient'
+// import { apiRequest } from './apiClient'
 
 export interface InpatientPrescriptionRow {
   name: string
@@ -60,6 +60,7 @@ export interface InpatientPrescriptionRow {
   practitioner_name?: string
   created_at?: string
   modified_at?: string
+  patient?: string
 }
 
 export interface InpatientPrescription {
