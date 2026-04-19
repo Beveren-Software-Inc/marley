@@ -323,7 +323,7 @@ export const PatientSearch = ({
     return <div className="w-full max-w-xs md:max-w-xl" />
   }
 
-  // Handler for clear button
+  // ✅ Full clear: resets local state, context (patient + visit + admission), and localStorage
   const handleClearPatient = () => {
     onPatientSelect(undefined)
     setGlobalPatient(undefined)
@@ -332,6 +332,8 @@ export const PatientSearch = ({
     setSecondaryQuery('')
     setPatientOpen(false)
     setSecondaryOpen(false)
+    setActiveVisit(undefined)
+    setActiveAdmission(undefined)
     clearPatientData()
   }
 
@@ -353,6 +355,11 @@ export const PatientSearch = ({
                     onPatientSelect(undefined)
                     setGlobalPatient(undefined)
                     setSelectedPatientName('')
+                    // ✅ Also reset visit/admission context and localStorage when typing clears the input
+                    setActiveVisit(undefined)
+                    setActiveAdmission(undefined)
+                    setSecondaryQuery('')
+                    clearPatientData()
                   }
                 } else {
                   setPatientOpen(true)

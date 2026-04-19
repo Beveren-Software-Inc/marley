@@ -67,7 +67,6 @@ my_tasks: int | None = None,
 		limit_start=offset,
 		order_by="requested_start_time asc, date asc, name asc",
 	)
-	print("hapa nafika but sioni mzee", tasks)
 	return tasks
 
 

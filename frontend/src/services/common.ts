@@ -73,6 +73,22 @@ export async function fetchMedicalDepartments(search?: string): Promise<LinkFiel
   }
 }
 
+// export async function fetchDepartments(search?: string): Promise<LinkFieldOption[]> {
+//   const params = new URLSearchParams()
+//   if (search) params.append('search', search)
+  
+//   const url = `/api/method/healthcare.api.common.get_company_departments${params.toString() ? `?${params.toString()}` : ''}`
+  
+//   const response = await fetch(url)
+//   const resData = await response.json()
+
+//   if (resData?.message && Array.isArray(resData.message)) {
+//     return resData.message as LinkFieldOption[]
+//   } else {
+//     return []
+//   }
+// }
+
 export async function fetchAnaesthesiaTypes(search?: string): Promise<LinkFieldOption[]> {
   const params = new URLSearchParams()
   if (search) params.append('search', search)
@@ -433,7 +449,6 @@ export async function fetchCostCenters(company?: string, search?: string): Promi
   return []
 }
 
-
 export async function fetchBranches(search?: string): Promise<LinkFieldOption[]> {
   const params = new URLSearchParams()
   if (search) params.append('search', search)
@@ -468,7 +483,6 @@ export async function fetchEmployees(search?: string): Promise<EmployeeOption[]>
   }
   return []
 }
-
 
 
 export async function fetchItems(search?: string): Promise<LinkFieldOption[]> {

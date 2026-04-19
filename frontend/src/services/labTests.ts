@@ -382,3 +382,52 @@ export async function createSampleCollectionForLabSample(
 export function getLabTestUrl(name: string): string {
   return `/healthcare/lab-test/${name}`
 }
+
+
+export async function fetchLabTestsByInpatientRecord(
+  inpatientRecord: string
+): Promise<LabTest[]> {
+  if (!inpatientRecord) {
+    console.error('Inpatient record ID is required')
+    return []
+  }
+
+  try {
+    const response = await fetch(
+      `/api/method/healthcare.api.lab_test.get_lab_tests_by_inpatient_record?inpatient_record=${encodeURIComponent(inpatientRecord)}`
+    )
+    const resData = await response.json()
+    console.log('Fetch lab tests by inpatient record response:', resData)
+    if (resData?.message && Array.isArray(resData.message)) {
+      return resData.message as LabTest[]
+    }
+    
+    return []
+  } catch (error) {
+    console.error('Failed to fetch lab tests by inpatient record:', error)
+    return []
+  }
+}
+
+// NEW: Fetch lab test by ID
+export async function fetchLabTestById(name: string): Promise<LabTest | null> {
+  if (!name) {
+    throw new Error('Lab test ID is required')
+  }
+
+  try {
+    const response = await fetch(
+      `/api/method/healthcare.api.lab_test.get_lab_test_by_id?name=${encodeURIComponent(name)}`
+    )
+    const resData = await response.json()
+    
+    if (resData?.message) {
+      return resData.message as LabTest
+    }
+    
+    return null
+  } catch (error) {
+    console.error('Failed to fetch lab test:', error)
+    throw error
+  }
+}

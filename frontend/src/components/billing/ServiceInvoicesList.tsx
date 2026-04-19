@@ -45,7 +45,6 @@ export const ServiceInvoicesList = ({
       setLoading(false)
       return
     }
-
     try {
       setLoading(true)
       const [invoicesData, summaryData] = await Promise.all([

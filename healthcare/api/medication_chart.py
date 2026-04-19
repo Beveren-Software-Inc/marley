@@ -53,7 +53,6 @@ def get_daily_medication_chart(admission: str, date: str | None = None) -> dict:
 		return {"sessions": _get_sessions(), "rows": []}
 
 	pmo_names = [p.name for p in prescriptions]
-	print("hapa nafika kwelii", str(pmo_names))
 	# Fetch medication rows (Inpatient Medication Order Entry)
 	order_rows = frappe.get_all(
 		"Inpatient Medication Order Entry",

@@ -912,3 +912,122 @@ def get_item_rates_api(item_codes):
         item_codes = json.loads(item_codes)
     
     return get_item_rates_bulk(item_codes)
+
+
+
+@frappe.whitelist()
+def get_prescriptions_by_inpatient_record(inpatient_record: str):
+    """
+    Get all prescriptions for a specific inpatient admission
+    """
+    if not inpatient_record:
+        frappe.throw(_("Inpatient record is required"))
+    
+    prescriptions = frappe.get_all(
+        "Patient Medication Order",
+        filters={
+            "care_context": "Inpatient Admission",
+            "inpatient_record": inpatient_record,
+            "docstatus": 1
+        },
+        fields=["name", "patient", "patient_name", "status", "practitioner", "healthcare_practitioner_name"]
+    )
+    
+    result = []
+    for pres in prescriptions:
+        # Get medication items
+        doc = frappe.get_doc("Patient Medication Order", pres.name)
+        medications = []
+        for item in doc.medication_orders:
+            medications.append({
+                "name": item.name,
+                "drug": item.drug,
+                "drug_name": frappe.get_cached_value("Item", item.drug, "item_name") if item.drug else "",
+                "dosage": item.dosage,
+                "dosage_form": item.dosage_form,
+                "frequency": item.patient_frequency,
+                "period": item.no_of_days,
+                "instructions": item.instructions,
+                "status": item.status if hasattr(item, 'status') else "Active"
+            })
+        
+        result.append({
+            "name": pres.name,
+            "patient": pres.patient,
+            "patient_name": pres.patient_name,
+            "status": pres.status,
+            "from_date": pres.from_date,
+            "to_date": pres.to_date,
+            "practitioner": pres.practitioner,
+            "practitioner_name": pres.practitioner_name,
+            "medications": medications
+        })
+    
+    return result
+
+
+@frappe.whitelist()
+def get_medication_order_by_id(name: str):
+    """
+    Get a single medication order by ID
+    """
+    if not name:
+        frappe.throw(_("Medication order name is required"))
+    
+    doc = frappe.get_doc("Patient Medication Order", name)
+    
+    medications = []
+    for item in doc.medication_order:
+        medications.append({
+            "name": item.name,
+            "drug": item.drug,
+            "drug_name": frappe.get_cached_value("Item", item.drug, "item_name") if item.drug else "",
+            "dosage": item.dosage,
+            "dosage_form": item.dosage_form,
+            "frequency": item.frequency,
+            "period": item.period,
+            "instructions": item.instructions,
+            "status": item.status if hasattr(item, 'status') else "Active"
+        })
+    
+    return {
+        "name": doc.name,
+        "patient": doc.patient,
+        "patient_name": doc.patient_name,
+        "care_context": doc.care_context,
+        "inpatient_record": doc.inpatient_record if hasattr(doc, 'inpatient_record') else None,
+        "patient_visit": doc.patient_visit if hasattr(doc, 'patient_visit') else None,
+        "status": doc.status,
+        "from_date": doc.from_date,
+        "to_date": doc.to_date,
+        "practitioner": doc.practitioner,
+        "practitioner_name": doc.practitioner_name,
+        "notes": doc.notes if hasattr(doc, 'notes') else None,
+        "medications": medications
+    }
+
+
+@frappe.whitelist()
+def update_medication_order_status(name: str, status: str):
+    """
+    Update medication order status
+    """
+    if not name:
+        frappe.throw(_("Medication order name is required"))
+    
+    if status not in ['Active', 'Completed', 'Discontinued']:
+        frappe.throw(_("Invalid status. Must be Active, Completed, or Discontinued"))
+    
+    doc = frappe.get_doc("Patient Medication Order", name)
+    doc.status = status
+    
+    if status == 'Completed':
+        doc.to_date = frappe.utils.today()
+    
+    doc.save(ignore_permissions=False)
+    frappe.db.commit()
+    
+    return {
+        "success": True,
+        "message": f"Prescription {name} status updated to {status}"
+    }

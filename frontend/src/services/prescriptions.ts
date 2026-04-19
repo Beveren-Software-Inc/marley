@@ -38,6 +38,100 @@ export interface PrescriptionFilters {
   inpatientRecord?: string
 }
 
+
+import { apiRequest } from './apiClient'
+
+export interface InpatientPrescriptionRow {
+  name: string
+  drug: string
+  drug_name?: string
+  dosage: string
+  dosage_form?: string
+  frequency: string
+  period?: string
+  start_date?: string
+  end_date?: string
+  instructions?: string
+  status: string
+  care_context: 'Patient Visit' | 'Inpatient Admission'
+  inpatient_record?: string
+  patient_visit?: string
+  practitioner?: string
+  practitioner_name?: string
+  created_at?: string
+  modified_at?: string
+}
+
+export interface InpatientPrescription {
+  name: string
+  patient: string
+  patient_name: string
+  care_context: 'Patient Visit' | 'Inpatient Admission'
+  inpatient_record?: string
+  patient_visit?: string
+  status: string
+  from_date: string
+  to_date?: string
+  medications: InpatientPrescriptionRow[]
+  practitioner?: string
+  practitioner_name?: string
+  notes?: string
+}
+
+/**
+ * Fetch all prescriptions for an inpatient admission
+ */
+export async function fetchInpatientPrescriptions(admission: string): Promise<InpatientPrescriptionRow[]> {
+  if (!admission) {
+    console.error('Admission ID is required')
+    return []
+  }
+
+  try {
+    const response = await fetch(
+      `/api/method/healthcare.api.patient_medication_order.get_prescriptions_by_inpatient_record?inpatient_record=${encodeURIComponent(admission)}`
+    )
+    const result = await response.json()
+    console.log('Fetch inpatient prescriptions response:', result)
+    if (result.message && Array.isArray(result.message)) {
+      return result.message as InpatientPrescriptionRow[]
+    }
+    
+    return []
+  } catch (error) {
+    console.error('Failed to fetch inpatient prescriptions:', error)
+    return []
+  }
+}
+
+/**
+ * Fetch a single prescription by ID
+ */
+export async function fetchPrescriptionById(name: string): Promise<InpatientPrescription | null> {
+  if (!name) throw new Error('Prescription ID is required')
+
+  try {
+    const response = await fetch(
+      `/api/method/healthcare.api.patient_medication_order.get_medication_order_by_id?name=${encodeURIComponent(name)}`
+    )
+    const resData = await response.json()
+
+    if (resData?.message) {
+      return resData.message as InpatientPrescription
+    }
+
+    if (resData?.exc_type) {
+      throw new Error(resData?.message || 'Failed to fetch prescription')
+    }
+
+    return null
+  } catch (error) {
+    console.error('Failed to fetch prescription:', error)
+    throw error
+  }
+}
+
+
 export async function fetchPrescriptions(
   limit: number = 50,
   offset: number = 0,

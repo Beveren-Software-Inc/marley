@@ -77,6 +77,24 @@ def get_medical_departments(search=None):
 	
 	return [{'name': d.name, 'label': d.department or d.name} for d in departments]
 
+@frappe.whitelist()
+def get_company_departments(search=None):
+	"""Get list of Medical Departments"""
+	filters = {}
+	if search:
+		filters['department'] = ['like', f'%{search}%']
+  
+	
+	departments = frappe.get_all(
+		'Department',
+		filters=filters,
+		fields=['name', 'department'],
+		limit=50,
+		order_by='department'
+	)
+	
+	return [{'name': d.name, 'label': d.department or d.name} for d in departments]
+
 
 @frappe.whitelist()
 def get_anaesthesia_types(search=None):
@@ -2618,3 +2636,5 @@ def get_observation_levels(query=None):
     )
     
     return levels
+
+
