@@ -1,10 +1,11 @@
 {
  "actions": [],
- "autoname": "naming_series:",
+ "autoname": "field:transfer_num",
  "creation": "2026-02-16 12:00:00",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
+  "transfer_num",
   "naming_series",
   "inpatient_admission",
   "patient",
@@ -113,15 +114,21 @@
    "fieldname": "section_break_fept",
    "fieldtype": "Section Break",
    "label": "More information"
+  },
+  {
+   "fieldname": "transfer_num",
+   "fieldtype": "Data",
+   "label": "Transfer Num",
+   "unique": 1
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-02-15 12:45:19.823266",
+ "modified": "2026-04-19 15:51:15.315736",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Transfer Admission Event",
- "naming_rule": "By \"Naming Series\" field",
+ "naming_rule": "By fieldname",
  "owner": "Administrator",
  "permissions": [
   {
