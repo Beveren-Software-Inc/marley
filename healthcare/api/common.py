@@ -254,6 +254,7 @@ def get_discharge_templates(search=None):
 def get_lab_test_templates(search=None, department=None):
 	"""Get list of Lab Test Templates (with outpatient_rate)."""
 	filters = {'disabled': 0}  # Only get enabled templates
+	print("Tunafika hapa")
 	if search:
 		filters['lab_test_name'] = ['like', f'%{search}%']
 	if department:
@@ -263,10 +264,11 @@ def get_lab_test_templates(search=None, department=None):
 		'Lab Test Template',
 		filters=filters,
 		# inpatient_rate may or may not exist; safe to include
-		fields=['name', 'lab_test_name', 'department', 'outpatient_rate', 'inpatient_rate'],
+		fields=['name', 'lab_test_name', 'department', 'outpatient_rate', 'inpatient_rate', 'female_min_range', 'female_max_range', 'male_min_range', 'male_max_range', 'min_range', 'max_range', 'uom'],
 		limit=50,
 		order_by='lab_test_name'
 	)
+	print("Tunafika hapa clean")
 	return [
 		{
 			'name': t.name,
@@ -274,6 +276,13 @@ def get_lab_test_templates(search=None, department=None):
 			'department': t.department,
 			'outpatient_rate': t.outpatient_rate,
 			'inpatient_rate': getattr(t, 'inpatient_rate', None),
+			'female_min_range': t.female_min_range,
+			'female_max_range': t.female_max_range,
+			'male_min_range': t.male_min_range,
+			'male_max_range': t.male_max_range,
+			'min_range': t.min_range,
+			'max_range': t.max_range,
+			'uom': t.uom
 		}
 		for t in templates
 	]
@@ -1165,6 +1174,8 @@ def get_lab_test_templates(search=None):
 		fields=[
 			"name", "lab_test_name", "department",
 			"lab_test_template_type", "is_group", "is_billable", "disabled",
+   		 'outpatient_rate', 'inpatient_rate', 'female_min_range', 'female_max_range', 'male_min_range', 'male_max_range', 'min_range', 'max_range', 'lab_test_uom',
+		'lab_test_rate'
 		],
 		limit=200,
 		order_by="lab_test_name asc",

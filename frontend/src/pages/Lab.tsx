@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useCareContext } from '../providers/CareContextProvider'
-import { ClipboardList, FlaskConical, BookOpen, AlertTriangle, Droplet } from 'lucide-react'
+import { ClipboardList, FlaskConical, BookOpen, AlertTriangle, Droplet, FileCode } from 'lucide-react'
 import { PatientSearch } from '../components/patients/PatientSearch'
 import { NotificationBell } from '../components/notifications/NotificationBell'
 import { UserMenu } from '../components/user/UserMenu'
@@ -18,7 +18,7 @@ import { CreateSampleTypeModal } from '../components/labTests/CreateSampleTypeMo
 import { SampleCollectionList } from '../components/labTests/SampleCollectionList'
 import { fetchLabTestSamples, fetchSampleTypes, type LabTestSampleOption, type LinkFieldOption } from '../services/common'
 
-type LabTab = 'service-requests' | 'lab-tests' | 'medical-history' | 'warnings' | 'sample-collection'
+type LabTab = 'service-requests' | 'lab-tests' | 'medical-history' | 'warnings' | 'sample-collection' | 'lab-templates'
 
 const NAV_CARDS = [
   {
@@ -44,6 +44,14 @@ const NAV_CARDS = [
     icon: Droplet,
     color: 'bg-cyan-50 text-cyan-700 border-cyan-200',
     iconColor: 'text-cyan-600',
+  },
+  {
+    id: 'lab-templates' as LabTab,
+    title: 'Lab Test Templates',
+    desc: 'Manage test templates, parameters and reference ranges',
+    icon: FileCode,
+    color: 'bg-purple-50 text-purple-700 border-purple-200',
+    iconColor: 'text-purple-600',
   },
   {
     id: 'medical-history' as LabTab,
@@ -78,11 +86,12 @@ export const LabPage = () => {
   const [serviceRequestRefreshKey, setServiceRequestRefreshKey] = useState(0)
   const [sampleCollectionRefreshKey, setSampleCollectionRefreshKey] = useState(0)
 
-  // Setup screen state
+  // Template management state
   const [templateRefreshKey, setTemplateRefreshKey] = useState(0)
   const [showCreateTemplateModal, setShowCreateTemplateModal] = useState(false)
   const [editTemplateName, setEditTemplateName] = useState<string | undefined>(undefined)
 
+  // Setup screen state (existing)
   const [showCreateSampleModal, setShowCreateSampleModal] = useState(false)
   const [sampleRefreshKey, setSampleRefreshKey] = useState(0)
   const [labSamples, setLabSamples] = useState<LabTestSampleOption[]>([])
@@ -155,6 +164,15 @@ export const LabPage = () => {
     setServiceRequestRefreshKey(prev => prev + 1)
   }
 
+  const handleTemplateCreated = () => {
+    setTemplateRefreshKey(prev => prev + 1)
+  }
+
+  const handleEditTemplate = (templateName: string) => {
+    setEditTemplateName(templateName)
+    setShowCreateTemplateModal(true)
+  }
+
   // ─── l-setup ───────────────────────────────────────────
   if (screen === 'l-setup') {
     return (
@@ -187,7 +205,7 @@ export const LabPage = () => {
               <LabTestTemplateList
                 refreshKey={templateRefreshKey}
                 selectedPatient={selectedPatient}
-                onEditClick={name => { setEditTemplateName(name); setShowCreateTemplateModal(true) }}
+                onEditClick={handleEditTemplate}
               />
             </div>
           </section>
@@ -272,6 +290,7 @@ export const LabPage = () => {
               setShowCreateTemplateModal(false)
               setEditTemplateName(undefined)
               setTemplateRefreshKey(k => k + 1)
+              handleTemplateCreated()
             }}
             templateName={editTemplateName}
           />
@@ -334,16 +353,16 @@ export const LabPage = () => {
           </section>
         </div>
         {showServiceRequestModal && (
-  <CreateServiceRequestModal
-    onClose={() => setShowServiceRequestModal(false)}
-    onSuccess={() => { 
-      setShowServiceRequestModal(false); 
-      handleServiceRequestCreated() 
-    }}
-    initialPatient={selectedPatient}
-    initialTemplate="Lab Test Template"  // Add this line
-  />
-)}
+          <CreateServiceRequestModal
+            onClose={() => setShowServiceRequestModal(false)}
+            onSuccess={() => { 
+              setShowServiceRequestModal(false); 
+              handleServiceRequestCreated() 
+            }}
+            initialPatient={selectedPatient}
+            initialTemplate="Lab Test Template"
+          />
+        )}
       </div>
     )
   }
@@ -469,7 +488,7 @@ export const LabPage = () => {
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
 
         {/* Navigation cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           {NAV_CARDS.map(card => {
             const Icon = card.icon
             const isActive = activeTab === card.id
@@ -503,12 +522,32 @@ export const LabPage = () => {
               <h2 className="text-sm font-semibold text-slate-800">{activeCard.title}</h2>
               <p className="text-xs text-slate-500 mt-0.5">{activeCard.desc}</p>
             </div>
-            {(activeTab === 'service-requests' || activeTab === 'lab-tests') && (
+            {activeTab === 'service-requests' && (
               <button
                 type="button"
-                onClick={() => activeTab === 'service-requests' ? setShowServiceRequestModal(true) : setShowLabTestModal(true)}
+                onClick={() => setShowServiceRequestModal(true)}
                 className="w-7 h-7 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-base font-bold"
-                title={activeTab === 'service-requests' ? 'New Service Request' : 'New Lab Test'}
+                title="New Service Request"
+              >
+                +
+              </button>
+            )}
+            {activeTab === 'lab-tests' && (
+              <button
+                type="button"
+                onClick={() => setShowLabTestModal(true)}
+                className="w-7 h-7 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-base font-bold"
+                title="New Lab Test"
+              >
+                +
+              </button>
+            )}
+            {activeTab === 'lab-templates' && (
+              <button
+                type="button"
+                onClick={() => { setEditTemplateName(undefined); setShowCreateTemplateModal(true) }}
+                className="w-7 h-7 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-base font-bold"
+                title="New Lab Test Template"
               >
                 +
               </button>
@@ -532,6 +571,15 @@ export const LabPage = () => {
                 <SampleCollectionList
                   patient={selectedPatient}
                   refreshKey={sampleCollectionRefreshKey}
+                />
+              </div>
+            )}
+            {activeTab === 'lab-templates' && (
+              <div className="p-3">
+                <LabTestTemplateList
+                  refreshKey={templateRefreshKey}
+                  selectedPatient={selectedPatient}
+                  onEditClick={handleEditTemplate}
                 />
               </div>
             )}
@@ -571,17 +619,29 @@ export const LabPage = () => {
           initialPatient={selectedPatient}
         />
       )}
-     {showServiceRequestModal && (
-  <CreateServiceRequestModal
-    onClose={() => setShowServiceRequestModal(false)}
-    onSuccess={() => { 
-      setShowServiceRequestModal(false); 
-      handleServiceRequestCreated() 
-    }}
-    initialPatient={selectedPatient}
-    initialTemplate="Lab Test Template"  // Add this line
-  />
-)}
+      {showServiceRequestModal && (
+        <CreateServiceRequestModal
+          onClose={() => setShowServiceRequestModal(false)}
+          onSuccess={() => { 
+            setShowServiceRequestModal(false); 
+            handleServiceRequestCreated() 
+          }}
+          initialPatient={selectedPatient}
+          initialTemplate="Lab Test Template"
+        />
+      )}
+      {showCreateTemplateModal && (
+        <CreateLabTestTemplateModal
+          onClose={() => { setShowCreateTemplateModal(false); setEditTemplateName(undefined) }}
+          onSuccess={() => {
+            setShowCreateTemplateModal(false)
+            setEditTemplateName(undefined)
+            setTemplateRefreshKey(k => k + 1)
+            handleTemplateCreated()
+          }}
+          templateName={editTemplateName}
+        />
+      )}
     </div>
   )
 }

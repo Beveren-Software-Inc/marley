@@ -1011,6 +1011,14 @@ export interface LabTestTemplateListRow {
   is_group: number
   is_billable: number
   disabled: number
+  female_min_range: string
+  female_max_range: string
+  male_min_range: string
+  male_max_range: string
+  min_range: string
+  max_range: string
+  lab_test_uom:string
+  lab_test_rate: number
 }
 
 export async function fetchLabTestTemplateList(search?: string): Promise<LabTestTemplateListRow[]> {
@@ -1021,6 +1029,7 @@ export async function fetchLabTestTemplateList(search?: string): Promise<LabTest
   const response = await fetch(url)
   const resData = await response.json()
 
+  console.log('fetchLabTestTemplateList response:', resData)
   if (resData?.message && Array.isArray(resData.message)) {
     return resData.message as LabTestTemplateListRow[]
   }

@@ -3,6 +3,7 @@ import { MoreHorizontal, FlaskConical, Pencil } from 'lucide-react'
 import { fetchLabTestTemplateList, type LabTestTemplateListRow } from '../../services/common'
 import { CreateServiceRequestModal } from '../serviceRequests/CreateServiceRequestModal'
 import { LabTestTemplateDetailPanel } from './LabTestTemplateDetailPanel'
+import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 
 interface LabTestTemplateListProps {
   refreshKey?: number
@@ -142,10 +143,18 @@ export const LabTestTemplateList = ({ refreshKey = 0, onEditClick, selectedPatie
                 <th className="px-3 py-2 font-semibold text-slate-600 text-xs">Name</th>
                 <th className="px-3 py-2 font-semibold text-slate-600 text-xs">Department</th>
                 <th className="px-3 py-2 font-semibold text-slate-600 text-xs">Format</th>
+                <th className="px-3 py-2 font-semibold text-slate-600 text-xs">F-Min</th>
+                <th className="px-3 py-2 font-semibold text-slate-600 text-xs">F-Max</th>
+                <th className="px-3 py-2 font-semibold text-slate-600 text-xs">M-Min</th>
+                <th className="px-3 py-2 font-semibold text-slate-600 text-xs">M-Max</th>
+                <th className="px-3 py-2 font-semibold text-slate-600 text-xs">Unit</th>
+                <th className="px-3 py-2 font-semibold text-slate-600 text-xs">G-Min</th>
+                <th className="px-3 py-2 font-semibold text-slate-600 text-xs">G-Max</th>
+                <th className="px-3 py-2 font-semibold text-slate-600 text-xs">Rate</th>
                 <th className="px-3 py-2 font-semibold text-slate-600 text-xs">Group</th>
                 <th className="px-3 py-2 font-semibold text-slate-600 text-xs">Billable</th>
                 <th className="px-3 py-2 font-semibold text-slate-600 text-xs">Status</th>
-                <th className="px-2 py-2 w-8"></th>
+                <th className="px-2 py-2 w-8">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -173,6 +182,15 @@ export const LabTestTemplateList = ({ refreshKey = 0, onEditClick, selectedPatie
                   </td>
                   <td className="px-3 py-2 text-slate-600">{row.department || '—'}</td>
                   <td className="px-3 py-2 text-slate-600">{row.lab_test_template_type || '—'}</td>
+                  <td className="px-3 py-2 text-slate-600">{row.female_min_range || '—'}</td>
+                  <td className="px-3 py-2 text-slate-600">{row.female_max_range || '—'}</td>
+                  <td className="px-3 py-2 text-slate-600">{row.male_min_range || '—'}</td>
+                  <td className="px-3 py-2 text-slate-600">{row.male_max_range || '—'}</td>
+                  <td className="px-3 py-2 text-slate-600">{row.lab_test_uom || '—'}</td>
+                  <td className="px-3 py-2 text-slate-600">{row.min_range || '—'}</td>
+                  <td className="px-3 py-2 text-slate-600">{row.max_range || '—'}</td>
+                  <td className="px-3 py-2 text-slate-600">{row.lab_test_rate || '—'}</td>
+
                   <td className="px-3 py-2">
                     {row.is_group ? (
                       <span className="inline-block px-1.5 py-0.5 rounded text-xs bg-violet-100 text-violet-700 font-medium">Group</span>
@@ -231,6 +249,12 @@ export const LabTestTemplateList = ({ refreshKey = 0, onEditClick, selectedPatie
                         </button>
                       </div>
                     )}
+                    <PrintFormatDropdown
+                        doctype="Lab Test Template"
+                        docName={row.name}
+                        noLetterhead={0}
+                        triggerPrint={1}
+                      />
                   </td>
                 </tr>
               ))}
