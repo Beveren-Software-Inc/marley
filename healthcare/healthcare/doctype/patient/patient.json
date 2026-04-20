@@ -95,6 +95,7 @@
   "road_num",
   "block_num",
   "city",
+  "country",
   "section_break_bqpm",
   "mobile_1_code",
   "mobile_no_1",
@@ -866,7 +867,7 @@
   },
   {
    "fieldname": "job_location",
-   "fieldtype": "Link",
+   "fieldtype": "Data",
    "label": "Job Location",
    "options": "Location"
   },
@@ -1059,6 +1060,11 @@
    "fieldname": "ceo_remarks",
    "fieldtype": "Small Text",
    "label": "CEO Remarks"
+  },
+  {
+   "fieldname": "country",
+   "fieldtype": "Data",
+   "label": "Country"
   }
  ],
  "grid_page_length": 50,
@@ -1162,7 +1168,7 @@
   }
  ],
  "max_attachments": 50,
- "modified": "2026-04-20 16:19:15.159506",
+ "modified": "2026-04-20 17:18:11.812306",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient",
