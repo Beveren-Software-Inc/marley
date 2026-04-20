@@ -141,9 +141,10 @@ def make_clinical_procedure(service_request):
 
 	return doc
 
-def generate_lab_test_trans_num(format_type="integer", prefix="", suffix="", padding=6):
+def generate_lab_test_trans_num(format_type="prefixed", prefix="LT-", suffix="", padding=6):
     """
     Generate a sequential Trans Num for Lab Test by finding the largest existing integer.
+    More efficient version using SQL.
     
     Args:
         format_type (str): "integer", "padded", "prefixed", or "suffixed"
@@ -154,38 +155,58 @@ def generate_lab_test_trans_num(format_type="integer", prefix="", suffix="", pad
     Returns:
         str: The next sequential Trans Num
     """
-    # Get all Lab Test documents that have a Trans Num value
-    # Use a more robust query to get all possible trans_num values
-    lab_tests = frappe.db.sql("""
-        SELECT trans_num 
-        FROM `tabLab Test` 
-        WHERE trans_num IS NOT NULL 
-        AND trans_num != ''
-        AND docstatus != 2
-        ORDER BY 
-            CASE 
-                WHEN trans_num REGEXP '^[0-9]+$' THEN CAST(trans_num AS UNSIGNED)
-                ELSE 0
-            END DESC
-        LIMIT 1
-    """, as_dict=True)
+    import re
     
-    max_num = 0
+    # Escape special regex characters in prefix and suffix
+    escaped_prefix = re.escape(prefix) if prefix else ''
+    escaped_suffix = re.escape(suffix) if suffix else ''
     
-    if lab_tests and lab_tests[0].get("trans_num"):
-        trans_num = lab_tests[0]["trans_num"]
+    # Build regex pattern to extract numbers
+    # This pattern matches: optional prefix + digits + optional suffix
+    if prefix and suffix:
+        pattern = f'^{escaped_prefix}(\\d+){escaped_suffix}$'
+    elif prefix:
+        pattern = f'^{escaped_prefix}(\\d+)$'
+    elif suffix:
+        pattern = f'^(\\d+){escaped_suffix}$'
+    else:
+        pattern = '^(\\d+)$'
+    
+    # Query all trans_num and extract numbers using SQL
+    # Using REGEXP in MySQL/MariaDB
+    if prefix or suffix:
+        # For prefixed/suffixed values, we need to extract in Python
+        lab_tests = frappe.db.sql("""
+            SELECT trans_num 
+            FROM `tabLab Test` 
+            WHERE trans_num IS NOT NULL 
+            AND trans_num != ''
+            AND docstatus != 2
+        """, as_dict=True)
         
-        # Try to extract number if it has prefix/suffix
-        import re
+        max_num = 0
+        for test in lab_tests:
+            trans_num = test.get("trans_num", "")
+            match = re.match(pattern, trans_num)
+            if match:
+                try:
+                    current_num = int(match.group(1))
+                    if current_num > max_num:
+                        max_num = current_num
+                except (ValueError, TypeError):
+                    continue
+    else:
+        # For plain integers, use SQL CAST
+        result = frappe.db.sql("""
+            SELECT MAX(CAST(trans_num AS UNSIGNED)) as max_num
+            FROM `tabLab Test`
+            WHERE trans_num IS NOT NULL 
+            AND trans_num != ''
+            AND trans_num REGEXP '^[0-9]+$'
+            AND docstatus != 2
+        """, as_dict=True)
         
-        # Remove non-numeric characters and try to get the number
-        numeric_part = re.sub(r'[^0-9]', '', str(trans_num))
-        
-        if numeric_part:
-            try:
-                max_num = int(numeric_part)
-            except (ValueError, TypeError):
-                max_num = 0
+        max_num = result[0].get("max_num") or 0
     
     # Increment by 1
     next_num = max_num + 1

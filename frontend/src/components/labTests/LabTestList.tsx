@@ -1697,7 +1697,7 @@ export const LabTestList = ({
 
                   {/* ── Custom Result ── */}
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Custom / Descriptive Result</label>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Result</label>
                     <textarea className="w-full border border-slate-300 rounded-md p-2 text-sm min-h-[80px]"
                       value={customResult} onChange={(e) => setCustomResult(e.target.value)}
                       placeholder="Enter descriptive or custom result..." />
