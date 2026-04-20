@@ -473,7 +473,6 @@
   },
   {
    "default": "0",
-   "depends_on": "!is_group",
    "fieldname": "is_group",
    "fieldtype": "Check",
    "label": "Is Group"
@@ -633,7 +632,7 @@
    "link_fieldname": "template"
   }
  ],
- "modified": "2026-04-19 14:16:52.667547",
+ "modified": "2026-04-20 11:49:13.676328",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Lab Test Template",
