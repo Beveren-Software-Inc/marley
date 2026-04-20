@@ -91,11 +91,12 @@
   "section_break_hfef",
   "flat_num",
   "bldg_num",
-  "column_break_vdcu",
   "road_num",
   "block_num",
+  "column_break_vdcu",
   "city",
   "country",
+  "address",
   "section_break_bqpm",
   "mobile_1_code",
   "mobile_no_1",
@@ -1065,6 +1066,11 @@
    "fieldname": "country",
    "fieldtype": "Data",
    "label": "Country"
+  },
+  {
+   "fieldname": "address",
+   "fieldtype": "Small Text",
+   "label": "Address"
   }
  ],
  "grid_page_length": 50,
@@ -1168,7 +1174,7 @@
   }
  ],
  "max_attachments": 50,
- "modified": "2026-04-20 17:18:11.812306",
+ "modified": "2026-04-20 17:27:48.626361",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient",
