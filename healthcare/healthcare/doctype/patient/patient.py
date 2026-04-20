@@ -334,25 +334,56 @@ class Patient(Document):
 		self.notify_update()
 
 
+# def create_customer(doc):
+# 	customer = frappe.get_doc(
+# 		{
+# 			"doctype": "Customer",
+# 			"customer_name": doc.patient_name,
+# 			"customer_group": doc.customer_group
+# 			or frappe.db.get_single_value("Selling Settings", "customer_group"),
+# 			"territory": doc.territory or frappe.db.get_single_value("Selling Settings", "territory"),
+# 			"customer_type": "Individual",
+# 			"default_currency": doc.default_currency,
+# 			"default_price_list": doc.default_price_list,
+# 			"language": doc.language,
+# 			"image": doc.image,
+# 		}
+# 	).insert(ignore_permissions=True, ignore_mandatory=True)
+
+# 	frappe.db.set_value("Patient", doc.name, "customer", customer.name)
+# 	frappe.msgprint(_("Customer {0} created and linked to Patient").format(customer.name), alert=True)
 def create_customer(doc):
-	customer = frappe.get_doc(
-		{
-			"doctype": "Customer",
-			"customer_name": doc.patient_name,
-			"customer_group": doc.customer_group
-			or frappe.db.get_single_value("Selling Settings", "customer_group"),
-			"territory": doc.territory or frappe.db.get_single_value("Selling Settings", "territory"),
-			"customer_type": "Individual",
-			"default_currency": doc.default_currency,
-			"default_price_list": doc.default_price_list,
-			"language": doc.language,
-			"image": doc.image,
-		}
-	).insert(ignore_permissions=True, ignore_mandatory=True)
+	# Ensure Patient Customer Group exists
+	customer_group = "Patient"
 
+	if not frappe.db.exists("Customer Group", customer_group):
+		frappe.get_doc({
+			"doctype": "Customer Group",
+			"customer_group_name": customer_group,
+			"is_group": 0,
+			"parent_customer_group": frappe.db.get_single_value("Selling Settings", "customer_group")
+		}).insert(ignore_permissions=True)
+
+	# Create Customer
+	customer = frappe.get_doc({
+		"doctype": "Customer",
+		"customer_name": doc.patient_name,
+		"customer_group": customer_group,
+		"territory": doc.territory or frappe.db.get_single_value("Selling Settings", "territory"),
+		"customer_type": "Individual",
+		"default_currency": doc.default_currency,
+		"default_price_list": doc.default_price_list,
+		"language": doc.language,
+		"image": doc.image,
+	}).insert(ignore_permissions=True, ignore_mandatory=True)
+
+	# Link back to Patient
 	frappe.db.set_value("Patient", doc.name, "customer", customer.name)
-	frappe.msgprint(_("Customer {0} created and linked to Patient").format(customer.name), alert=True)
 
+	frappe.msgprint(
+		_("Customer {0} created and linked to Patient").format(customer.name),
+		alert=True
+	)
 
 def make_invoice(patient, company):
 	uom = frappe.db.exists("UOM", "Nos") or frappe.db.get_single_value("Stock Settings", "stock_uom")
