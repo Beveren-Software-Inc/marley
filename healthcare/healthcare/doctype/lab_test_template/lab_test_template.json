@@ -28,7 +28,7 @@
   "link_existing_item",
   "item",
   "lab_test_code",
-  "lab_test_group",
+  "lab_item_group",
   "column_break_buub",
   "is_billable",
   "lab_test_rate",
@@ -126,16 +126,6 @@
    "mandatory_depends_on": "eval:!doc.link_existing_item && !doc.is_group",
    "no_copy": 1,
    "read_only_depends_on": "eval:!doc.__islocal && !doc.is_group"
-  },
-  {
-   "fieldname": "lab_test_group",
-   "fieldtype": "Link",
-   "ignore_user_permissions": 1,
-   "in_standard_filter": 1,
-   "label": "Item Group",
-   "options": "Item Group",
-   "read_only_depends_on": "eval:doc.link_existing_item && !doc.is_group",
-   "search_index": 1
   },
   {
    "fieldname": "department",
@@ -475,6 +465,8 @@
    "default": "0",
    "fieldname": "is_group",
    "fieldtype": "Check",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Is Group"
   },
   {
@@ -622,6 +614,16 @@
    "fieldname": "female_max_range",
    "fieldtype": "Data",
    "label": "Female Max Range"
+  },
+  {
+   "fieldname": "lab_item_group",
+   "fieldtype": "Link",
+   "ignore_user_permissions": 1,
+   "in_standard_filter": 1,
+   "label": "Item Group",
+   "options": "Item Group",
+   "read_only_depends_on": "eval:doc.link_existing_item && !doc.is_group",
+   "search_index": 1
   }
  ],
  "grid_page_length": 50,
@@ -632,7 +634,7 @@
    "link_fieldname": "template"
   }
  ],
- "modified": "2026-04-20 11:49:13.676328",
+ "modified": "2026-04-20 14:00:04.114185",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Lab Test Template",

@@ -735,12 +735,11 @@ export async function fetchServiceRequestTemplates(templateDt: string, search?: 
   params.append('template_dt', templateDt)
   if (search) params.append('search', search)
   if (department) params.append('department', department)
-  
+  console.log('fetchServiceRequestTemplates params:', Object.fromEntries(params.entries()))
   const url = `/api/method/healthcare.api.common.get_service_request_templates?${params.toString()}`
   
   const response = await fetch(url)
   const resData = await response.json()
-
   if (resData?.message && Array.isArray(resData.message)) {
     return resData.message as LinkFieldOption[]
   } else {

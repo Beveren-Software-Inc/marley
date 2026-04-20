@@ -84,6 +84,62 @@ def get_lab_test_template_info(template):
 
 
 @frappe.whitelist(allow_guest=False)
+# def get_service_request_template_pricing(template_dt, template_dn):
+# 	"""
+# 	Return Service Pricing rows for any service request template type.
+# 	For Lab Test Templates that are groups, also returns child template pricing breakdowns.
+# 	All templates now share the 'service_pricing' child table (linked to Service Pricing doctype).
+# 	"""
+# 	if not template_dt or not template_dn:
+# 		return {'is_group': False, 'pricing': [], 'group_templates': []}
+
+# 	if not frappe.db.exists(template_dt, template_dn):
+# 		return {'is_group': False, 'pricing': [], 'group_templates': []}
+
+# 	def get_pricing(parent, parenttype=''):
+# 		return frappe.get_all(
+# 			'Service Pricing',
+# 			filters={'parent': parent, 'parenttype': parenttype or template_dt},
+# 			fields=['patient_category', 'price'],
+# 			order_by='idx asc',
+# 			ignore_permissions=True,
+# 		)
+
+# 	# Lab Test Template — handle group templates specially
+# 	if template_dt == 'Lab Test Template':
+# 		is_group = frappe.db.get_value('Lab Test Template', template_dn, 'is_group')
+# 		if is_group:
+# 			group_rows = frappe.get_all(
+# 				'Lab Test Group Template',
+# 				filters={
+# 					'parent': template_dn,
+# 					'parenttype': 'Lab Test Template',
+# 					'template_or_new_line': 'Add Test',
+# 				},
+# 				fields=['lab_test_template'],
+# 				order_by='idx asc',
+# 				ignore_permissions=True,
+# 			)
+# 			group_templates = []
+# 			for row in group_rows:
+# 				if not row.lab_test_template:
+# 					continue
+# 				label = (
+# 					frappe.db.get_value('Lab Test Template', row.lab_test_template, 'lab_test_name')
+# 					or row.lab_test_template
+# 				)
+# 				group_templates.append({
+# 					'template_dn': row.lab_test_template,
+# 					'template_label': label,
+# 					'pricing': get_pricing(row.lab_test_template, 'Lab Test Template'),
+# 				})
+# 			return {'is_group': True, 'pricing': [], 'group_templates': group_templates}
+
+# 	# Regular / all other template types
+# 	pricing = get_pricing(template_dn)
+# 	return {'is_group': False, 'pricing': pricing, 'group_templates': []}
+
+@frappe.whitelist(allow_guest=False)
 def get_service_request_template_pricing(template_dt, template_dn):
 	"""
 	Return Service Pricing rows for any service request template type.
@@ -109,31 +165,33 @@ def get_service_request_template_pricing(template_dt, template_dn):
 	if template_dt == 'Lab Test Template':
 		is_group = frappe.db.get_value('Lab Test Template', template_dn, 'is_group')
 		if is_group:
-			group_rows = frappe.get_all(
-				'Lab Test Group Template',
+			# Find all child lab test templates where lab_group equals the current template_dn
+			child_templates = frappe.get_all(
+				'Lab Test Template',
 				filters={
-					'parent': template_dn,
-					'parenttype': 'Lab Test Template',
-					'template_or_new_line': 'Add Test',
+					'lab_group': template_dn,
+					'disabled': 0  # Only get enabled templates
 				},
-				fields=['lab_test_template'],
-				order_by='idx asc',
+				fields=['name', 'lab_test_name'],
+				order_by='lab_test_name asc',
 				ignore_permissions=True,
 			)
+			
 			group_templates = []
-			for row in group_rows:
-				if not row.lab_test_template:
+			for child in child_templates:
+				if not child.name:
 					continue
-				label = (
-					frappe.db.get_value('Lab Test Template', row.lab_test_template, 'lab_test_name')
-					or row.lab_test_template
-				)
+				label = child.lab_test_name or child.name
 				group_templates.append({
-					'template_dn': row.lab_test_template,
+					'template_dn': child.name,
 					'template_label': label,
-					'pricing': get_pricing(row.lab_test_template, 'Lab Test Template'),
+					'pricing': get_pricing(child.name, 'Lab Test Template'),
 				})
 			return {'is_group': True, 'pricing': [], 'group_templates': group_templates}
+		else:
+			# Regular lab test template (not a group)
+			pricing = get_pricing(template_dn)
+			return {'is_group': False, 'pricing': pricing, 'group_templates': []}
 
 	# Regular / all other template types
 	pricing = get_pricing(template_dn)
