@@ -306,7 +306,6 @@ def get_lab_tests(
 				frappe.db.get_value("Healthcare Practitioner", lab_test.practitioner, "practitioner_name")
 				or lab_test.practitioner
 			)
-	print(f"Fetched {len(lab_tests)} lab tests with applied filters", str(lab_tests))
 	return lab_tests
 
 @frappe.whitelist()
