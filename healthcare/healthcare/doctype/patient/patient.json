@@ -642,7 +642,7 @@
   },
   {
    "fieldname": "pat_major_type",
-   "fieldtype": "Select",
+   "fieldtype": "Data",
    "label": "Pat Major Type",
    "options": "\nN\nA"
   },
@@ -1174,7 +1174,7 @@
   }
  ],
  "max_attachments": 50,
- "modified": "2026-04-20 17:29:00.092802",
+ "modified": "2026-04-20 17:46:42.795832",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient",
