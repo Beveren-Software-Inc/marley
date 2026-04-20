@@ -33,6 +33,7 @@
   "mobile",
   "phone",
   "email",
+  "email_2",
   "invite_user",
   "is_black_list",
   "user_id",
@@ -48,10 +49,14 @@
   "occupation_section",
   "job_title",
   "job_company",
-  "id_type",
   "column_break_knlb",
-  "nationality",
+  "job_location",
+  "personal_details_section",
+  "id_type",
   "id_number",
+  "column_break_uqag",
+  "pat_nationality",
+  "nationality",
   "section_break_zota",
   "cr_id",
   "cr_date",
@@ -66,13 +71,50 @@
   "insurance",
   "insurance_company_no",
   "insurance_policy_no",
+  "insurance_work_place",
+  "insurance_isdn_no",
   "column_break_eqbb",
   "insurance_active",
   "employee_code",
   "ref_no",
   "insurance_valid_till",
+  "insurance_expiry_date",
+  "insurance_deduction_amount",
+  "insurance_special_note",
   "more_info",
   "patient_details",
+  "section_break_imgx",
+  "pat_blood_group",
+  "time_no",
+  "column_break_hhap",
+  "pat_marital_status",
+  "section_break_hfef",
+  "flat_num",
+  "bldg_num",
+  "column_break_vdcu",
+  "road_num",
+  "block_num",
+  "city",
+  "section_break_bqpm",
+  "mobile_1_code",
+  "mobile_no_1",
+  "mobile_owner",
+  "mobile_1_whatsap",
+  "column_break_lfsk",
+  "mobile_2_code",
+  "mobile_no_2",
+  "mobile_owner_2",
+  "mobile_2_whatsap",
+  "column_break_muwk",
+  "mobile_3_code",
+  "mobile_no_3",
+  "mobile_owner_3",
+  "mobile_3_whatsap",
+  "section_break_fwov",
+  "any_other_information",
+  "reference_no",
+  "column_break_iwwk",
+  "ceo_remarks",
   "address_and_contact_tab",
   "address_contacts",
   "address_html",
@@ -94,13 +136,16 @@
   "column_break_25",
   "marital_status",
   "column_break_kwir",
+  "family_history",
   "allergy_medical_and_surgical_history",
+  "show_allergy",
   "allergies",
   "medication",
-  "show_allergy",
+  "mrd_no",
   "column_break_20",
   "medical_history",
   "surgical_history",
+  "previous_disease_history",
   "risk_factors",
   "tobacco_past_use",
   "tobacco_current_use",
@@ -625,7 +670,6 @@
   },
   {
    "depends_on": "is_insurance",
-   "fetch_from": "insurance.insurance_no",
    "fieldname": "insurance_company_no",
    "fieldtype": "Data",
    "label": "Insurance Company No"
@@ -636,7 +680,6 @@
   },
   {
    "depends_on": "is_insurance",
-   "fetch_from": "insurance.policy_no",
    "fieldname": "insurance_policy_no",
    "fieldtype": "Data",
    "label": "Insurance Policy No"
@@ -790,13 +833,232 @@
   {
    "fieldname": "employee_code",
    "fieldtype": "Data",
-   "label": "Employee Code"
+   "label": "Insurance Employee Code"
   },
   {
    "fieldname": "insurance_register",
    "fieldtype": "Link",
    "label": "Insurance Register",
    "options": "Insurance Patient Register"
+  },
+  {
+   "fieldname": "section_break_imgx",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "pat_nationality",
+   "fieldtype": "Data",
+   "label": "Pat Nationality"
+  },
+  {
+   "fieldname": "pat_blood_group",
+   "fieldtype": "Data",
+   "label": "Pat Blood Group"
+  },
+  {
+   "fieldname": "column_break_hhap",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "pat_marital_status",
+   "fieldtype": "Data",
+   "label": "Pat Marital Status"
+  },
+  {
+   "fieldname": "job_location",
+   "fieldtype": "Link",
+   "label": "Job Location",
+   "options": "Location"
+  },
+  {
+   "fieldname": "personal_details_section",
+   "fieldtype": "Section Break",
+   "label": "Personal Details"
+  },
+  {
+   "fieldname": "column_break_uqag",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_hfef",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "flat_num",
+   "fieldtype": "Data",
+   "label": "Flat Num"
+  },
+  {
+   "fieldname": "bldg_num",
+   "fieldtype": "Data",
+   "label": "BLDG Num"
+  },
+  {
+   "fieldname": "column_break_vdcu",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "road_num",
+   "fieldtype": "Data",
+   "label": "Road Num"
+  },
+  {
+   "fieldname": "block_num",
+   "fieldtype": "Data",
+   "label": "Block Num"
+  },
+  {
+   "fieldname": "city",
+   "fieldtype": "Data",
+   "label": "City"
+  },
+  {
+   "fieldname": "section_break_bqpm",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "mobile_no_1",
+   "fieldtype": "Data",
+   "label": "Mobile No 1"
+  },
+  {
+   "fieldname": "column_break_lfsk",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "mobile_no_2",
+   "fieldtype": "Data",
+   "label": "Mobile No 2"
+  },
+  {
+   "fieldname": "column_break_muwk",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "mobile_no_3",
+   "fieldtype": "Data",
+   "label": "Mobile No 3"
+  },
+  {
+   "fieldname": "mobile_1_code",
+   "fieldtype": "Data",
+   "label": "Mobile 1 Code"
+  },
+  {
+   "fieldname": "mobile_2_code",
+   "fieldtype": "Data",
+   "label": "Mobile 2 Code"
+  },
+  {
+   "fieldname": "mobile_3_code",
+   "fieldtype": "Data",
+   "label": "Mobile 3 Code"
+  },
+  {
+   "fieldname": "mobile_owner",
+   "fieldtype": "Data",
+   "label": "Mobile Owner"
+  },
+  {
+   "default": "0",
+   "fieldname": "mobile_1_whatsap",
+   "fieldtype": "Check",
+   "label": "Mobile 1 Whatsap"
+  },
+  {
+   "fieldname": "mobile_owner_2",
+   "fieldtype": "Data",
+   "label": "Mobile Owner 2"
+  },
+  {
+   "default": "0",
+   "fieldname": "mobile_2_whatsap",
+   "fieldtype": "Check",
+   "label": "Mobile 2 Whatsap"
+  },
+  {
+   "fieldname": "mobile_owner_3",
+   "fieldtype": "Data",
+   "label": "Mobile Owner 3"
+  },
+  {
+   "default": "0",
+   "fieldname": "mobile_3_whatsap",
+   "fieldtype": "Check",
+   "label": "Mobile 3 Whatsap"
+  },
+  {
+   "fieldname": "email_2",
+   "fieldtype": "Data",
+   "label": "Email 2"
+  },
+  {
+   "fieldname": "section_break_fwov",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "any_other_information",
+   "fieldtype": "Small Text",
+   "label": "Any Other Information"
+  },
+  {
+   "fieldname": "insurance_work_place",
+   "fieldtype": "Data",
+   "label": "Insurance Work Place"
+  },
+  {
+   "fieldname": "insurance_isdn_no",
+   "fieldtype": "Data",
+   "label": "Insurance ISDN No"
+  },
+  {
+   "fieldname": "insurance_expiry_date",
+   "fieldtype": "Date",
+   "label": "Insurance Expiry Date"
+  },
+  {
+   "fieldname": "insurance_deduction_amount",
+   "fieldtype": "Data",
+   "label": "Insurance Deduction Amount"
+  },
+  {
+   "fieldname": "insurance_special_note",
+   "fieldtype": "Small Text",
+   "label": "Insurance Special Note"
+  },
+  {
+   "fieldname": "time_no",
+   "fieldtype": "Data",
+   "label": "Time No"
+  },
+  {
+   "fieldname": "family_history",
+   "fieldtype": "Small Text",
+   "label": "Family History"
+  },
+  {
+   "fieldname": "previous_disease_history",
+   "fieldtype": "Small Text",
+   "label": "Previous Disease History"
+  },
+  {
+   "fieldname": "mrd_no",
+   "fieldtype": "Data",
+   "label": "MRD No"
+  },
+  {
+   "fieldname": "reference_no",
+   "fieldtype": "Data",
+   "label": "Reference No"
+  },
+  {
+   "fieldname": "column_break_iwwk",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "ceo_remarks",
+   "fieldtype": "Small Text",
+   "label": "CEO Remarks"
   }
  ],
  "grid_page_length": 50,
@@ -900,7 +1162,7 @@
   }
  ],
  "max_attachments": 50,
- "modified": "2026-04-16 00:42:14.173683",
+ "modified": "2026-04-20 16:19:15.159506",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient",
