@@ -142,6 +142,7 @@ export type CreateLabTestResult =
 export async function createLabTestFromServiceRequest(serviceRequestName: string): Promise<CreateLabTestResult> {
   const { ensureCSRF } = await import('./apiClient')
   const csrf = await ensureCSRF()
+  console.log("HUku ndio tuko")
   const response = await fetch(
     `/api/method/healthcare.api.service_request.create_lab_test_from_service_request?service_request=${encodeURIComponent(serviceRequestName)}`,
     {

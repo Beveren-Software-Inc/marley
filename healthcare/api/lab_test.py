@@ -38,6 +38,126 @@ def get_lab_test_template_details(template):
 	}
 
 
+# @frappe.whitelist()
+# def get_lab_tests(
+# 	limit=50,
+# 	offset=0,
+# 	patient=None,
+# 	status=None,
+# 	pending_review=False,
+# 	is_outsourced=None,
+# 	from_date=None,
+# 	to_date=None,
+# 	template=None,
+# 	patient_type=None,
+# 	by_nurse=None,
+# ):
+# 	"""Get list of Lab Tests with optional filters (patient, status, date range, OP/IP, template, outsourcing)."""
+# 	from healthcare.api.common import get_permitted_cost_centers
+# 	filters = {"docstatus": ["!=", 2]}  # Exclude cancelled
+
+# 	if patient:
+# 		filters["patient"] = patient
+
+# 	if status:
+# 		filters["status"] = status
+
+# 	if pending_review:
+# 		filters["status"] = ["in", ["Pending Review", "Submitted"]]
+
+# 	if is_outsourced is not None:
+# 		if isinstance(is_outsourced, str):
+# 			is_outsourced = is_outsourced == "1"
+# 		filters["is_outsourced"] = 1 if is_outsourced else 0
+
+# 	if template:
+# 		filters["template"] = template
+
+# 	# Filter by nurse-specific lab tests based on template's by_nurse field
+# 	if by_nurse is not None:
+# 		if isinstance(by_nurse, str):
+# 			by_nurse = by_nurse.lower() in ('1', 'true', 'yes')
+# 		# Get templates that have by_nurse set to the desired value
+# 		template_filters = {"by_nurse": 1 if by_nurse else 0}
+# 		nurse_templates = frappe.get_all("Lab Test Template", filters=template_filters, pluck="name")
+# 		if nurse_templates:
+# 			filters["template"] = ["in", nurse_templates]
+# 		else:
+# 			# If no templates match the criteria, return empty result
+# 			return []
+
+# 	# OP / IP filter based on inpatient_record link
+# 	if patient_type == "IP":
+# 		filters["inpatient_record"] = ["is", "set"]
+# 	elif patient_type == "OP":
+# 		filters["inpatient_record"] = ["is", "not set"]
+
+# 	# Date range filter — apply on result_date
+# 	if from_date or to_date:
+# 		if from_date and to_date:
+# 			filters["result_date"] = ["between", [from_date, to_date]]
+# 		elif from_date:
+# 			filters["result_date"] = [">=", from_date]
+# 		elif to_date:
+# 			filters["result_date"] = ["<=", to_date]
+
+# 	# ── Cost-centre User Permission enforcement ──────────────────────────────
+# 	permitted_cc = get_permitted_cost_centers()
+# 	if permitted_cc is not None:
+# 		if not permitted_cc:
+# 			return []
+# 		filters["cost_center"] = ["in", permitted_cc]
+
+# 	lab_tests = frappe.get_all(
+# 		"Lab Test",
+# 		filters=filters,
+# 		fields=[
+# 			"name",
+# 			"docstatus",
+# 			"patient",
+# 			"patient_name",
+# 			"practitioner",
+# 			"practitioner_name",
+# 			"lab_test_name",
+# 			"template",
+# 			"status",
+# 			"result_date",
+# 			"submitted_date",
+# 			"approved_date",
+# 			"invoiced",
+# 			"department",
+# 			"is_outsourced",
+# 			"material_request",
+# 			"amount",
+# 			"grand_total",
+# 			"cost_center",
+# 			"min_range",
+# 			"max_range",
+# 			"results",
+# 			"female_min_range",
+# 			"female_max_range",
+# 			"male_min_range",
+# 			"male_max_range"
+
+# 		],
+# 		limit=limit,
+# 		limit_start=offset,
+# 		order_by="submitted_date desc, result_date desc",
+# 	)
+
+# 	for lab_test in lab_tests:
+# 		if lab_test.patient and not lab_test.patient_name:
+# 			lab_test["patient_name"] = (
+# 				frappe.db.get_value("Patient", lab_test.patient, "patient_name") or lab_test.patient
+# 			)
+# 		if lab_test.practitioner and not lab_test.practitioner_name:
+# 			lab_test["practitioner_name"] = (
+# 				frappe.db.get_value("Healthcare Practitioner", lab_test.practitioner, "practitioner_name")
+# 				or lab_test.practitioner
+# 			)
+
+# 	return lab_tests
+
 @frappe.whitelist()
 def get_lab_tests(
 	limit=50,
@@ -131,8 +251,9 @@ def get_lab_tests(
 			"amount",
 			"grand_total",
 			"cost_center",
-			"min_range",
-			"max_range",
+			"custom_result",
+			# "min_range",
+			# "max_range",
 			"results",
 		],
 		limit=limit,
@@ -140,7 +261,42 @@ def get_lab_tests(
 		order_by="submitted_date desc, result_date desc",
 	)
 
+	# Fetch template details for each lab test to get gender-specific ranges
+	template_cache = {}
 	for lab_test in lab_tests:
+		# Get patient gender for proper range selection
+		patient_gender = None
+		if lab_test.patient:
+			patient_gender = frappe.db.get_value("Patient", lab_test.patient, "sex")
+		
+		# Initialize range fields with None
+		lab_test["female_min_range"] = None
+		lab_test["female_max_range"] = None
+		lab_test["male_min_range"] = None
+		lab_test["male_max_range"] = None
+		lab_test['min_range'] = None
+		lab_test['max_range'] = None
+		
+		# Fetch template details if template exists
+		if lab_test.template:
+			if lab_test.template not in template_cache:
+				template_doc = frappe.get_doc("Lab Test Template", lab_test.template)
+				template_cache[lab_test.template] = template_doc
+			else:
+				template_doc = template_cache[lab_test.template]
+			
+			# Get min/max ranges from the first normal_test_template (or aggregate as needed)
+			# You might need to adjust this logic based on your requirements
+			# if template_doc.normal_test_templates and len(template_doc.normal_test_templates) > 0:
+			# 	first_test = template_doc.normal_test_templates[0]
+			lab_test["female_min_range"] = template_doc.get("female_min_range")
+			lab_test["female_max_range"] = template_doc.get("female_max_range")
+			lab_test["male_min_range"] = template_doc.get("male_min_range")
+			lab_test["male_max_range"] = template_doc.get("male_max_range")
+			lab_test['min_range'] = template_doc.get('min_range')
+			lab_test['max_range'] = template_doc.get('max_range')
+		
+		# Fill patient_name and practitioner_name if missing
 		if lab_test.patient and not lab_test.patient_name:
 			lab_test["patient_name"] = (
 				frappe.db.get_value("Patient", lab_test.patient, "patient_name") or lab_test.patient
@@ -150,7 +306,7 @@ def get_lab_tests(
 				frappe.db.get_value("Healthcare Practitioner", lab_test.practitioner, "practitioner_name")
 				or lab_test.practitioner
 			)
-
+	print(f"Fetched {len(lab_tests)} lab tests with applied filters", str(lab_tests))
 	return lab_tests
 
 @frappe.whitelist()

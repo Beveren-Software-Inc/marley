@@ -13,6 +13,10 @@ export interface LabTest {
   date?: string
   result_date?: string
   submitted_date?: string
+  female_min_range?: number | null
+  female_max_range?: number | null
+  male_min_range?: number | null
+  male_max_range?: number | null
   approved_date?: string
   expected_result_date?: string
   printed_on?: string
@@ -231,7 +235,13 @@ export interface LabTestTemplateDetails {
   normal_test_templates?: Array<{
     lab_test_event?: string
     lab_test_uom?: string
-    normal_range?: string
+    normal_range?: string,
+    female_min_range?: number | null
+    male_min_range?: number | null
+    female_max_range?: number | null
+    male_max_range?: number | null
+    result_type?: string
+    result_mul_value?: string
   }>
 }
 

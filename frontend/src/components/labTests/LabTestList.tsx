@@ -759,6 +759,10 @@ export const LabTestList = ({
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Date</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase">Amount</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Actions</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">F-Min</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">F-Max</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">M-Min</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">M-Max</th>
                 <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600 uppercase">Min</th>
                 <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600 uppercase">Max</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Results</th>
@@ -904,6 +908,35 @@ export const LabTestList = ({
                       />
                     </div>
                   </td>
+
+                  <td className="px-4 py-3 text-center text-sm text-slate-700">
+                    {labTest.female_min_range != null ? (
+                      <span className="font-medium">{labTest.female_min_range}</span>
+                    ) : (
+                      <span className="text-slate-300">—</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-center text-sm text-slate-700">
+                    {labTest.female_max_range != null ? (
+                      <span className="font-medium">{labTest.female_max_range}</span>
+                    ) : (
+                      <span className="text-slate-300">—</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-center text-sm text-slate-700">
+                    {labTest.male_min_range != null ? (
+                      <span className="font-medium">{labTest.male_min_range}</span>
+                    ) : (
+                      <span className="text-slate-300">—</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-center text-sm text-slate-700">
+                    {labTest.male_max_range != null ? (
+                      <span className="font-medium">{labTest.male_max_range}</span>
+                    ) : (
+                      <span className="text-slate-300">—</span>
+                    )}
+                  </td>
                   {/* Min range */}
                   <td className="px-4 py-3 text-center text-sm text-slate-700">
                     {labTest.min_range != null ? (
@@ -922,9 +955,9 @@ export const LabTestList = ({
                   </td>
                   {/* Results */}
                   <td className="px-4 py-3 text-sm max-w-[160px]">
-                    {labTest.results ? (
-                      <span className="text-slate-800 font-medium truncate block" title={labTest.results}>
-                        {labTest.results}
+                    {labTest.custom_result ? (
+                      <span className="text-slate-800 font-medium truncate block" title={labTest.custom_result}>
+                        {labTest.custom_result}
                       </span>
                     ) : (
                       <span className="text-slate-300">—</span>

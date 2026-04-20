@@ -141,7 +141,65 @@ def make_clinical_procedure(service_request):
 
 	return doc
 
-
+def generate_lab_test_trans_num(format_type="integer", prefix="", suffix="", padding=6):
+    """
+    Generate a sequential Trans Num for Lab Test by finding the largest existing integer.
+    
+    Args:
+        format_type (str): "integer", "padded", "prefixed", or "suffixed"
+        prefix (str): Prefix to add to the number (e.g., "LT-")
+        suffix (str): Suffix to add to the number (e.g., "-2024")
+        padding (int): Number of digits for zero padding (e.g., 6 for "000001")
+    
+    Returns:
+        str: The next sequential Trans Num
+    """
+    # Get all Lab Test documents that have a Trans Num value
+    # Use a more robust query to get all possible trans_num values
+    lab_tests = frappe.db.sql("""
+        SELECT trans_num 
+        FROM `tabLab Test` 
+        WHERE trans_num IS NOT NULL 
+        AND trans_num != ''
+        AND docstatus != 2
+        ORDER BY 
+            CASE 
+                WHEN trans_num REGEXP '^[0-9]+$' THEN CAST(trans_num AS UNSIGNED)
+                ELSE 0
+            END DESC
+        LIMIT 1
+    """, as_dict=True)
+    
+    max_num = 0
+    
+    if lab_tests and lab_tests[0].get("trans_num"):
+        trans_num = lab_tests[0]["trans_num"]
+        
+        # Try to extract number if it has prefix/suffix
+        import re
+        
+        # Remove non-numeric characters and try to get the number
+        numeric_part = re.sub(r'[^0-9]', '', str(trans_num))
+        
+        if numeric_part:
+            try:
+                max_num = int(numeric_part)
+            except (ValueError, TypeError):
+                max_num = 0
+    
+    # Increment by 1
+    next_num = max_num + 1
+    
+    # Format based on requirements
+    if format_type == "padded":
+        return str(next_num).zfill(padding)
+    elif format_type == "prefixed":
+        return f"{prefix}{next_num}"
+    elif format_type == "suffixed":
+        return f"{next_num}{suffix}"
+    else:  # "integer" or default
+        return str(next_num)
+    
 @frappe.whitelist()
 def make_lab_test(service_request):
 	if isinstance(service_request, string_types):
@@ -156,10 +214,12 @@ def make_lab_test(service_request):
 			_("Service Request need to be invoiced before proceeding"),
 			title=_("Payment Required"),
 		)
-
+	print("TRans number is", generate_lab_test_trans_num(format_type="prefixed", prefix="LT-", padding=6))
 	doc = frappe.new_doc("Lab Test")
 	doc.template = service_request.template_dn
 	doc.service_request = service_request.name
+	doc.trans_num = generate_lab_test_trans_num(format_type="prefixed", prefix="LT-", padding=6)  # Example: "LT-000001"
+	
 	doc.company = service_request.company
 	doc.patient = service_request.patient
 	doc.patient_name = service_request.patient_name
@@ -219,6 +279,7 @@ def book_lab_and_forward(service_request_name):
 		lt = frappe.new_doc("Lab Test")
 		lt.template = template_dn
 		lt.service_request = sr.name
+		lt.trans_num = generate_lab_test_trans_num(format_type="prefixed", prefix="LT-", padding=6)  # Example: "LT-000001"
 		lt.company = sr.company
 		lt.patient = sr.patient
 		lt.patient_name = sr.patient_name
