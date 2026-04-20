@@ -457,11 +457,11 @@ def get_service_request_templates(template_dt, search=None, department=None):
 		templates = frappe.get_all(
 			'Lab Test Template',
 			filters={**filters, 'disabled': 0},
-			fields=['name', 'lab_test_name', 'department'],
+			fields=['name', 'lab_test_name', 'department', 'is_group'],
 			limit=50,
 			order_by='lab_test_name'
 		)
-		return [{'name': t.name, 'label': t.lab_test_name or t.name, 'department': t.department} for t in templates]
+		return [{'name': t.name, 'label': t.lab_test_name or t.name, 'department': t.department, 'is_group': t.is_group} for t in templates]
 	
 	elif template_dt == 'Clinical Procedure Template':
 		templates = frappe.get_all(

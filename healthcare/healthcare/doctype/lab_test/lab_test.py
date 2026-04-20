@@ -521,64 +521,65 @@ def create_sample_collection(lab_test, template, patient, invoice):
 
 
 def load_result_format(lab_test, template, prescription, invoice):
-	if template.lab_test_template_type == "Single":
-		create_normals(template, lab_test)
+    pass
+	# if template.lab_test_template_type == "Single":
+	# 	create_normals(template, lab_test)
 
-	elif template.lab_test_template_type == "Compound":
-		create_compounds(template, lab_test, False)
+	# elif template.lab_test_template_type == "Compound":
+	# 	create_compounds(template, lab_test, False)
 
-	elif template.lab_test_template_type == "Descriptive":
-		create_descriptives(template, lab_test)
+	# elif template.lab_test_template_type == "Descriptive":
+	# 	create_descriptives(template, lab_test)
 
-	elif template.lab_test_template_type == "Imaging":
-		create_imaging(template, lab_test)
+	# elif template.lab_test_template_type == "Imaging":
+	# 	create_imaging(template, lab_test)
 
-	elif template.lab_test_template_type == "Grouped":
-		# Iterate for each template in the group and create one result for all.
-		for lab_test_group in template.lab_test_groups:
-			# Template_in_group = None
-			if lab_test_group.lab_test_template:
-				template_in_group = frappe.get_doc("Lab Test Template", lab_test_group.lab_test_template)
-				if template_in_group:
-					if template_in_group.lab_test_template_type == "Single":
-						create_normals(template_in_group, lab_test)
+	# elif template.lab_test_template_type == "Grouped":
+	# 	# Iterate for each template in the group and create one result for all.
+	# 	for lab_test_group in template.lab_test_groups:
+	# 		# Template_in_group = None
+	# 		if lab_test_group.lab_test_template:
+	# 			template_in_group = frappe.get_doc("Lab Test Template", lab_test_group.lab_test_template)
+	# 			if template_in_group:
+	# 				if template_in_group.lab_test_template_type == "Single":
+	# 					create_normals(template_in_group, lab_test)
 
-					elif template_in_group.lab_test_template_type == "Compound":
-						normal_heading = lab_test.append("normal_test_items")
-						normal_heading.lab_test_name = template_in_group.lab_test_name
-						normal_heading.require_result_value = 0
-						normal_heading.allow_blank = 1
-						normal_heading.template = template_in_group.name
-						create_compounds(template_in_group, lab_test, True)
+	# 				elif template_in_group.lab_test_template_type == "Compound":
+	# 					normal_heading = lab_test.append("normal_test_items")
+	# 					normal_heading.lab_test_name = template_in_group.lab_test_name
+	# 					normal_heading.require_result_value = 0
+	# 					normal_heading.allow_blank = 1
+	# 					normal_heading.template = template_in_group.name
+	# 					create_compounds(template_in_group, lab_test, True)
 
-					elif template_in_group.lab_test_template_type == "Descriptive":
-						descriptive_heading = lab_test.append("descriptive_test_items")
-						descriptive_heading.lab_test_name = template_in_group.lab_test_name
-						descriptive_heading.require_result_value = 0
-						descriptive_heading.allow_blank = 1
-						descriptive_heading.template = template_in_group.name
-						create_descriptives(template_in_group, lab_test)
+	# 				elif template_in_group.lab_test_template_type == "Descriptive":
+	# 					descriptive_heading = lab_test.append("descriptive_test_items")
+	# 					descriptive_heading.lab_test_name = template_in_group.lab_test_name
+	# 					descriptive_heading.require_result_value = 0
+	# 					descriptive_heading.allow_blank = 1
+	# 					descriptive_heading.template = template_in_group.name
+	# 					create_descriptives(template_in_group, lab_test)
 
-			else:  # Lab Test Group - Add New Line
-				normal = lab_test.append("normal_test_items")
-				normal.lab_test_name = lab_test_group.group_event
-				normal.lab_test_uom = lab_test_group.group_test_uom
-				normal.secondary_uom = lab_test_group.secondary_uom
-				normal.conversion_factor = lab_test_group.conversion_factor
-				normal.normal_range = lab_test_group.group_test_normal_range
-				normal.allow_blank = lab_test_group.allow_blank
-				normal.require_result_value = 1
-				normal.template = template.name
+	# 		else:  # Lab Test Group - Add New Line
+	# 			normal = lab_test.append("normal_test_items")
+	# 			normal.lab_test_name = lab_test_group.group_event
+	# 			normal.lab_test_uom = lab_test_group.group_test_uom
+	# 			normal.secondary_uom = lab_test_group.secondary_uom
+	# 			normal.conversion_factor = lab_test_group.conversion_factor
+	# 			normal.normal_range = lab_test_group.group_test_normal_range
+	# 			normal.allow_blank = lab_test_group.allow_blank
+	# 			normal.require_result_value = 1
+	# 			normal.template = template.name
 
-	if template.lab_test_template_type != "No Result":
-		if prescription:
-			lab_test.prescription = prescription
-			if invoice:
-				frappe.db.set_value(
-					"Service Request", lab_test.service_request, "status", "completed-Request Status"
-				)
-		lab_test.save(ignore_permissions=True)  # Insert the result
-		return lab_test
+	# if template.lab_test_template_type != "No Result":
+	# 	if prescription:
+	# 		lab_test.prescription = prescription
+	# 		if invoice:
+	# 			frappe.db.set_value(
+	# 				"Service Request", lab_test.service_request, "status", "completed-Request Status"
+	# 			)
+	# 	lab_test.save(ignore_permissions=True)  # Insert the result
+	# 	return lab_test
 
 
 @frappe.whitelist()
