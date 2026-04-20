@@ -294,8 +294,7 @@
    "in_standard_filter": 1,
    "label": "Mobile",
    "no_copy": 1,
-   "options": "Phone",
-   "reqd": 1
+   "options": "Phone"
   },
   {
    "bold": 1,
@@ -738,8 +737,7 @@
    "fieldname": "category",
    "fieldtype": "Select",
    "label": "Category",
-   "options": "\nRoyal\nAmerican Navy\nRegular",
-   "reqd": 1
+   "options": "\nRoyal\nAmerican Navy\nRegular"
   },
   {
    "allow_in_quick_entry": 1,
@@ -752,8 +750,7 @@
    "fieldname": "source",
    "fieldtype": "Link",
    "label": "Source",
-   "options": "Patient Source",
-   "reqd": 1
+   "options": "Patient Source"
   },
   {
    "fieldname": "column_break_kwir",
@@ -1174,7 +1171,7 @@
   }
  ],
  "max_attachments": 50,
- "modified": "2026-04-20 17:46:42.795832",
+ "modified": "2026-04-20 23:35:32.988012",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient",
