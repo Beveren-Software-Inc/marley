@@ -214,7 +214,65 @@ def get_service_requests(limit=50, offset=0, patient=None, template_dt=None, sta
 	
 	return service_requests
 
-
+def generate_lab_test_trans_num(format_type="integer", prefix="", suffix="", padding=6):
+    """
+    Generate a sequential Trans Num for Lab Test by finding the largest existing integer.
+    
+    Args:
+        format_type (str): "integer", "padded", "prefixed", or "suffixed"
+        prefix (str): Prefix to add to the number (e.g., "LT-")
+        suffix (str): Suffix to add to the number (e.g., "-2024")
+        padding (int): Number of digits for zero padding (e.g., 6 for "000001")
+    
+    Returns:
+        str: The next sequential Trans Num
+    """
+    # Get all Lab Test documents that have a Trans Num value
+    # Use a more robust query to get all possible trans_num values
+    lab_tests = frappe.db.sql("""
+        SELECT trans_num 
+        FROM `tabLab Test` 
+        WHERE trans_num IS NOT NULL 
+        AND trans_num != ''
+        AND docstatus != 2
+        ORDER BY 
+            CASE 
+                WHEN trans_num REGEXP '^[0-9]+$' THEN CAST(trans_num AS UNSIGNED)
+                ELSE 0
+            END DESC
+        LIMIT 1
+    """, as_dict=True)
+    
+    max_num = 0
+    
+    if lab_tests and lab_tests[0].get("trans_num"):
+        trans_num = lab_tests[0]["trans_num"]
+        
+        # Try to extract number if it has prefix/suffix
+        import re
+        
+        # Remove non-numeric characters and try to get the number
+        numeric_part = re.sub(r'[^0-9]', '', str(trans_num))
+        
+        if numeric_part:
+            try:
+                max_num = int(numeric_part)
+            except (ValueError, TypeError):
+                max_num = 0
+    
+    # Increment by 1
+    next_num = max_num + 1
+    
+    # Format based on requirements
+    if format_type == "padded":
+        return str(next_num).zfill(padding)
+    elif format_type == "prefixed":
+        return f"{prefix}{next_num}"
+    elif format_type == "suffixed":
+        return f"{next_num}{suffix}"
+    else:  # "integer" or default
+        return str(next_num)
+    
 @frappe.whitelist()
 def create_lab_test_from_service_request(service_request):
 	"""Create Lab Test(s) from a Service Request. For group templates, creates one per child."""
@@ -283,6 +341,7 @@ def create_lab_test_from_service_request(service_request):
 		frappe.throw(_("Lab Test {0} already exists for this Service Request").format(existing_lab_test))
 
 	service_request_dict = service_request_doc.as_dict()
+	print("Inafika hapa")
 	lab_test = make_lab_test(service_request_dict)
 	lab_test.insert()
 	frappe.db.commit()
@@ -443,6 +502,107 @@ from frappe import _
 from frappe.utils import nowdate
 
 @frappe.whitelist()
+# def confirm_payment(service_request_name):
+
+# 	if not service_request_name:
+# 		frappe.throw(_("Service Request name is required"))
+
+# 	sr = frappe.get_doc("Service Request", service_request_name)
+
+# 	# Prevent duplicate execution
+# 	if sr.patient_accepted_cost:
+# 		return {"ok": True, "patient_accepted_cost": 1}
+
+# 	# Validate dynamic template
+# 	if not sr.template_dt or not sr.template_dn:
+# 		frappe.throw(_("Template is required"))
+
+# 	# Load dynamic template document
+# 	template_doc = frappe.get_doc(sr.template_dt, sr.template_dn)
+# 	delivery_date = sr.expected_date or nowdate()
+
+# 	# ---- IMPORTANT PART ----
+# 	# Template may have `item` or `item_code` (e.g. IP Service Type)
+# 	item_code = getattr(template_doc, "item", None) or getattr(template_doc, "item_code", None)
+# 	if not item_code:
+# 		frappe.throw(_("{0} must have an Item or Item Code for billing").format(sr.template_dt))
+
+# 	amount = (
+# 		getattr(template_doc, "lab_test_rate", None)
+# 		or getattr(template_doc, "rate", None)
+# 		or 0
+# 		)
+
+# 	# ------------------------
+# 	# Create Sales Order
+# 	# ------------------------
+# 	so = frappe.new_doc("Sales Order")
+# 	so.patient = sr.patient
+# 	so.customer = sr.patient   # adjust if mapped via Customer
+# 	so.transaction_date = nowdate()
+# 	so.delivery_date = delivery_date
+# 	so.ignore_pricing_rule = 1
+# 	# Use grand_total (post-discount) if set and non-zero; fall back to cost
+# 	billing_rate = frappe.utils.flt(sr.grand_total) or frappe.utils.flt(sr.cost) or 0
+# 	so.append("items", {
+# 		"item_code": item_code,
+# 		"qty": 1,
+# 		"rate": billing_rate,
+# 		"price_list_rate": billing_rate,
+# 		"description": f"Service Request {sr.name}"
+# 	})
+# 	so.custom_reference_type = "Service Request"
+# 	so.custom_reference_name = sr.name
+
+# 	so.insert(ignore_permissions=True)
+# 	so.submit()
+
+# 	# Update Service Request
+# 	sr.db_set("patient_accepted_cost", 1)
+# 	sr.db_set("reference_document_type", "Sales Order")
+# 	sr.db_set("reference_document_name", so.name)
+
+	
+# 	patient_visit_name = getattr(sr, "patient_visit", None)
+	
+# 	if patient_visit_name:
+# 		try:
+# 			visit = frappe.get_doc("Patient Visit", patient_visit_name)
+
+# 			# Avoid duplicate entries for the same service request
+# 			already_added = any(
+# 				row.get("test_code") == sr.name
+# 				for row in visit.get("lab_tests_charges", [])
+# 			)
+# 			print("amount ni: ", sr.amount)
+# 			if not already_added:
+# 				visit.append("lab_tests_charges", {
+# 					"test_code": lab_test.name,                         
+# 					# "test_name": sr.template_dn or "", 
+# 					# # Fetched from template
+# 					"amount": amount or 0,
+# 					"discount_type": "Percentage",
+# 					"discount_rate": 0,
+# 					"net_amount": amount or 0
+# 				})
+# 				visit.save(ignore_permissions=True)
+# 				frappe.db.commit()
+
+# 		except Exception as e:
+# 			frappe.log_error(
+# 				title="Failed to update Patient Visit lab charges",
+# 				message=frappe.get_traceback()
+# 			)
+# 			# We don't throw here — SO was already created, don't block the flow
+
+# 	frappe.db.commit()
+
+# 	return {
+# 		"ok": True,
+# 		"patient_accepted_cost": 1,
+# 		"sales_order": so.name
+# 	}
+@frappe.whitelist()
 def confirm_payment(service_request_name):
 
 	if not service_request_name:
@@ -463,28 +623,67 @@ def confirm_payment(service_request_name):
 	delivery_date = sr.expected_date or nowdate()
 
 	# ---- IMPORTANT PART ----
-	# Template may have `item` or `item_code` (e.g. IP Service Type)
-	item_code = getattr(template_doc, "item", None) or getattr(template_doc, "item_code", None)
+	# Try multiple possible field names for item code
+	item_code = (
+		getattr(template_doc, "item", None) or 
+		getattr(template_doc, "item_code", None) or
+		getattr(template_doc, "service_item", None) or
+		getattr(template_doc, "service_item_code", None)
+	)
+	
 	if not item_code:
-		frappe.throw(_("{0} must have an Item or Item Code for billing").format(sr.template_dt))
+		frappe.throw(_("{0} {1} must have an Item or Item Code configured for billing").format(sr.template_dt, sr.template_dn))
+
+	# Validate item exists and is properly configured
+	if not frappe.db.exists("Item", item_code):
+		frappe.throw(_("Item {0} does not exist in the system").format(item_code))
+	
+	# Check item configuration and create/fix item group if needed
+	item_doc = frappe.get_doc("Item", item_code)
+	
+	if not item_doc.item_group:
+		# Check if "Lab Test" item group exists, create if not
+		item_group_name = "Lab Test"
+		if not frappe.db.exists("Item Group", item_group_name):
+			item_group = frappe.new_doc("Item Group")
+			item_group.item_group_name = item_group_name
+			item_group.parent_item_group = "All Item Groups"  # or whatever your root is
+			item_group.insert(ignore_permissions=True)
+			frappe.db.commit()
+			frappe.log_error(title="Item Group Created", message=f"Created Item Group: {item_group_name}")
+		
+		# Update the item with the item group
+		item_doc.item_group = item_group_name
+		item_doc.save(ignore_permissions=True)
+		frappe.db.commit()
+		frappe.log_error(title="Item Updated", message=f"Updated Item {item_code} with Item Group: {item_group_name}")
 
 	amount = (
-		getattr(template_doc, "lab_test_rate", None)
-		or getattr(template_doc, "rate", None)
-		or 0
-		)
+		getattr(template_doc, "lab_test_rate", None) or
+		getattr(template_doc, "rate", None) or 
+		getattr(template_doc, "amount", None) or
+		0
+	)
 
 	# ------------------------
 	# Create Sales Order
 	# ------------------------
 	so = frappe.new_doc("Sales Order")
 	so.patient = sr.patient
-	so.customer = sr.patient   # adjust if mapped via Customer
+	
+	# Get customer from patient if not set
+	customer = sr.patient
+	if frappe.db.exists("Patient", sr.patient):
+		customer = frappe.db.get_value("Patient", sr.patient, "customer") or sr.patient
+	
+	so.customer = customer
 	so.transaction_date = nowdate()
 	so.delivery_date = delivery_date
 	so.ignore_pricing_rule = 1
+	
 	# Use grand_total (post-discount) if set and non-zero; fall back to cost
-	billing_rate = frappe.utils.flt(sr.grand_total) or frappe.utils.flt(sr.cost) or 0
+	billing_rate = frappe.utils.flt(sr.grand_total) or frappe.utils.flt(sr.cost) or amount or 0
+	
 	so.append("items", {
 		"item_code": item_code,
 		"qty": 1,
@@ -503,7 +702,6 @@ def confirm_payment(service_request_name):
 	sr.db_set("reference_document_type", "Sales Order")
 	sr.db_set("reference_document_name", so.name)
 
-	
 	patient_visit_name = getattr(sr, "patient_visit", None)
 	
 	if patient_visit_name:
@@ -517,10 +715,11 @@ def confirm_payment(service_request_name):
 			)
 			print("amount ni: ", sr.amount)
 			if not already_added:
+				# You need to define lab_test here - maybe from sr or template_doc
+				lab_test_name = getattr(sr, "lab_test", None) or getattr(template_doc, "name", None)
 				visit.append("lab_tests_charges", {
-					"test_code": lab_test.name,                         
-					# "test_name": sr.template_dn or "", 
-					# # Fetched from template
+					"test_code": lab_test_name,                         
+					"test_name": sr.template_dn or "", 
 					"amount": amount or 0,
 					"discount_type": "Percentage",
 					"discount_rate": 0,
