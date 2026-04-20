@@ -1060,7 +1060,7 @@
   {
    "fieldname": "ceo_remarks",
    "fieldtype": "Small Text",
-   "label": "CEO Remarks"
+   "label": "CEO Remark"
   },
   {
    "fieldname": "country",
@@ -1174,7 +1174,7 @@
   }
  ],
  "max_attachments": 50,
- "modified": "2026-04-20 17:27:48.626361",
+ "modified": "2026-04-20 17:29:00.092802",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient",
