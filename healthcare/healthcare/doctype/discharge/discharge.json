@@ -286,7 +286,7 @@
   },
   {
    "fieldname": "next_appointment_time",
-   "fieldtype": "Datetime",
+   "fieldtype": "Data",
    "label": "Next appointment Time"
   },
   {
@@ -582,7 +582,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-04-21 22:15:35.388789",
+ "modified": "2026-04-21 22:28:02.733344",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Discharge",
