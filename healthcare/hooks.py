@@ -167,6 +167,9 @@ fixtures = [
 	},
     {
 		"doctype":"Patient Relative Relationship"
+	},
+    {
+		"doctype":"DAMA Type"
 	}
 ]
 
