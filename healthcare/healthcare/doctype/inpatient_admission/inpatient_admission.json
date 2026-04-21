@@ -83,16 +83,21 @@
   "column_break_llon",
   "ip_re_admission_count",
   "special_care",
+  "admission_no_old",
   "section_break_plbj",
   "room_service_no",
   "room_gl_code",
   "case_service_no",
+  "column_break_ljch",
   "case_gl_code",
   "mode_of_admission",
   "section_break_mlta",
   "management",
+  "column_break_pofw",
   "progress",
   "management_in_hospital",
+  "section_break_ogpv",
+  "remark",
   "medical_details_tab",
   "sb_discharge_details",
   "discharge_ordered_date",
@@ -384,9 +389,9 @@
   },
   {
    "fieldname": "contact_relationship",
-   "fieldtype": "Select",
+   "fieldtype": "Link",
    "label": "Relationship",
-   "options": "\nFATHER\nSON\nCOLLEAGUES\nMOTHER\nAUNT\nSISTER\nBROTHER\nFRIEND\nUNCLE\nWIFE\nDAUGHTER\nHUSBAND"
+   "options": "Patient Relative Relationship"
   },
   {
    "fieldname": "guardian_name",
@@ -1087,6 +1092,28 @@
    "fieldname": "mode_of_admission",
    "fieldtype": "Data",
    "label": "Mode of Admission"
+  },
+  {
+   "fieldname": "admission_no_old",
+   "fieldtype": "Data",
+   "label": "Admission No Old"
+  },
+  {
+   "fieldname": "column_break_ljch",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_pofw",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_ogpv",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "remark",
+   "fieldtype": "Small Text",
+   "label": "Remark"
   }
  ],
  "index_web_pages_for_search": 1,
@@ -1100,7 +1127,7 @@
    "link_fieldname": "admission"
   }
  ],
- "modified": "2026-04-21 12:16:36.064808",
+ "modified": "2026-04-21 12:42:24.546150",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Inpatient Admission",

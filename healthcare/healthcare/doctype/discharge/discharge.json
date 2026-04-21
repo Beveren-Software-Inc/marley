@@ -12,15 +12,30 @@
   "column_break_talh",
   "patient_name",
   "discharge_type",
+  "discharge_flag",
+  "dama_section",
   "ama_type",
+  "dama_reason",
+  "dama_gp_doc_no",
+  "dama_consultation_doc_no",
+  "dama_reception_doc_no",
+  "column_break_wdsx",
+  "dama_nurse_no",
+  "dama_nurse_no_2",
+  "dama_relationship",
+  "dama_name",
+  "dama_cpr_id",
+  "dama_phone_cell",
+  "dama_email",
   "section_break_ujbp",
   "discharged_by_user",
   "user_name",
   "receiving_doctors",
-  "column_break_stpu",
   "final_discharge_user_id",
+  "column_break_stpu",
   "final_discharger_username",
   "prescription",
+  "discharge_consultation_doc_no",
   "section_break_tleb",
   "discharge_date",
   "discharge_time",
@@ -56,17 +71,21 @@
   "ip_case_management_fee",
   "room_charges",
   "today_charge_obs",
+  "section_break_zwbl",
+  "remark",
   "more_infor_tab",
   "discharge_treatment_plan",
   "discharge_reason",
   "discharge_diagnosis",
   "final_exam_mental_status_summary",
   "prognosis",
+  "discharge_medic_stopped_why",
   "column_break_thyv",
   "discharge_conditions",
   "discharge_instructions",
   "discharge_medic_stopped_reason",
   "management_in_hospital",
+  "discharge_responsibility",
   "history_decription_tab",
   "history_form_details_template",
   "history_details",
@@ -199,7 +218,7 @@
    "fieldname": "discharge_type",
    "fieldtype": "Select",
    "label": "Discharge Type",
-   "options": "\nHome\nRefer To Another Hospital\nAMA"
+   "options": "\nHome\nRefer To Another Hospital\nDAMA\nHOME"
   },
   {
    "fieldname": "discharge_treatment_plan",
@@ -365,7 +384,7 @@
    "depends_on": "eval: doc.discharge_type==\"AMA\"",
    "fieldname": "ama_type",
    "fieldtype": "Select",
-   "label": "AMA Type",
+   "label": "DAMA Type",
    "options": "\nRefuse Admission\nRefuse Treatment / Procedure\nDischarge Against Medical Advice(DAMA)"
   },
   {
@@ -457,13 +476,112 @@
    "fieldname": "today_charge_obs",
    "fieldtype": "Currency",
    "label": "Today Charge OBS"
+  },
+  {
+   "fieldname": "discharge_responsibility",
+   "fieldtype": "Small Text",
+   "label": "Discharge Responsibility"
+  },
+  {
+   "fieldname": "discharge_consultation_doc_no",
+   "fieldtype": "Link",
+   "label": "Discharge Consultation Doc No",
+   "options": "Healthcare Practitioner"
+  },
+  {
+   "fieldname": "dama_section",
+   "fieldtype": "Section Break",
+   "label": "DAMA"
+  },
+  {
+   "fieldname": "dama_reason",
+   "fieldtype": "Small Text",
+   "label": "DAMA Reason"
+  },
+  {
+   "fieldname": "dama_gp_doc_no",
+   "fieldtype": "Link",
+   "label": "DAMA GP Doc No",
+   "options": "Healthcare Practitioner"
+  },
+  {
+   "fieldname": "dama_consultation_doc_no",
+   "fieldtype": "Link",
+   "label": "DAMA Consultation Doc No",
+   "options": "Healthcare Practitioner"
+  },
+  {
+   "fieldname": "dama_reception_doc_no",
+   "fieldtype": "Link",
+   "label": "DAMA Reception Doc No",
+   "options": "Healthcare Practitioner"
+  },
+  {
+   "fieldname": "dama_nurse_no",
+   "fieldtype": "Link",
+   "label": "Dama Nurse No",
+   "options": "Healthcare Practitioner"
+  },
+  {
+   "fieldname": "dama_nurse_no_2",
+   "fieldtype": "Link",
+   "label": "Dama Nurse No 2",
+   "options": "Healthcare Practitioner"
+  },
+  {
+   "fieldname": "dama_relationship",
+   "fieldtype": "Data",
+   "label": "DAMA Relationship"
+  },
+  {
+   "fieldname": "dama_name",
+   "fieldtype": "Data",
+   "label": "DAMA Name"
+  },
+  {
+   "fieldname": "column_break_wdsx",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "dama_cpr_id",
+   "fieldtype": "Data",
+   "label": "DAMA CPR ID"
+  },
+  {
+   "fieldname": "dama_phone_cell",
+   "fieldtype": "Data",
+   "label": "DAMA Phone Cell"
+  },
+  {
+   "fieldname": "dama_email",
+   "fieldtype": "Data",
+   "label": "DAMA Email"
+  },
+  {
+   "fieldname": "discharge_medic_stopped_why",
+   "fieldtype": "Small Text",
+   "label": "Discharge Medic Stopped Why"
+  },
+  {
+   "fieldname": "discharge_flag",
+   "fieldtype": "Data",
+   "label": "Discharge Flag"
+  },
+  {
+   "fieldname": "section_break_zwbl",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "remark",
+   "fieldtype": "Small Text",
+   "label": "Remark"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-04-21 12:12:33.901011",
+ "modified": "2026-04-21 12:42:37.282189",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Discharge",
