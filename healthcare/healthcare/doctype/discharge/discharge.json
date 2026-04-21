@@ -1,5 +1,6 @@
 {
  "actions": [],
+ "allow_import": 1,
  "allow_rename": 1,
  "autoname": "field:admission",
  "creation": "2025-12-01 12:02:03.384993",
@@ -130,7 +131,7 @@
   },
   {
    "fieldname": "discharge_date",
-   "fieldtype": "Datetime",
+   "fieldtype": "Date",
    "label": "Discharge Date"
   },
   {
@@ -206,7 +207,7 @@
   },
   {
    "fieldname": "final_discharge_date",
-   "fieldtype": "Datetime",
+   "fieldtype": "Date",
    "label": "Final Discharge Date"
   },
   {
@@ -218,7 +219,7 @@
    "fieldname": "discharge_type",
    "fieldtype": "Select",
    "label": "Discharge Type",
-   "options": "\nHome\nRefer To Another Hospital\nDAMA\nHOME"
+   "options": "\nHome\nRefer To Another Hospital\nDAMA\nHOME\nHOSPITAL"
   },
   {
    "fieldname": "discharge_treatment_plan",
@@ -581,7 +582,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-04-21 12:42:37.282189",
+ "modified": "2026-04-21 22:15:35.388789",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Discharge",
