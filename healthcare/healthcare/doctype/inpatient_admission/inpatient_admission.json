@@ -244,7 +244,6 @@
    "fieldname": "email",
    "fieldtype": "Data",
    "label": "Email",
-   "options": "Email",
    "read_only": 1
   },
   {
@@ -1175,7 +1174,7 @@
    "link_fieldname": "admission"
   }
  ],
- "modified": "2026-04-21 16:55:06.500356",
+ "modified": "2026-04-21 17:10:30.571019",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Inpatient Admission",
