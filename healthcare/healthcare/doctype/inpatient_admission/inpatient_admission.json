@@ -37,6 +37,9 @@
   "admission_nursing_checklist_template",
   "discharge_nursing_checklist_template",
   "expected_length_of_stay",
+  "forward_from",
+  "escort_no",
+  "escort_name",
   "cb_admission",
   "primary_practitioner",
   "secondary_practitioner",
@@ -1138,6 +1141,21 @@
    "fieldname": "old_bed_no",
    "fieldtype": "Data",
    "label": "Old Bed No"
+  },
+  {
+   "fieldname": "forward_from",
+   "fieldtype": "Data",
+   "label": "Forward From"
+  },
+  {
+   "fieldname": "escort_no",
+   "fieldtype": "Data",
+   "label": "Escort No"
+  },
+  {
+   "fieldname": "escort_name",
+   "fieldtype": "Data",
+   "label": "Escort Name"
   }
  ],
  "index_web_pages_for_search": 1,
@@ -1151,7 +1169,7 @@
    "link_fieldname": "admission"
   }
  ],
- "modified": "2026-04-21 15:42:16.903933",
+ "modified": "2026-04-21 15:58:48.273642",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Inpatient Admission",
