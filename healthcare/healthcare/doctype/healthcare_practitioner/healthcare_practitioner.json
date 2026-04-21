@@ -63,8 +63,7 @@
    "fieldname": "first_name",
    "fieldtype": "Data",
    "label": "First Name",
-   "no_copy": 1,
-   "reqd": 1
+   "no_copy": 1
   },
   {
    "fieldname": "middle_name",
@@ -245,7 +244,6 @@
    "in_standard_filter": 1,
    "label": "Full Name",
    "no_copy": 1,
-   "read_only": 1,
    "search_index": 1
   },
   {
@@ -412,7 +410,7 @@
    "link_fieldname": "practitioner"
   }
  ],
- "modified": "2026-04-21 15:10:03.379246",
+ "modified": "2026-04-21 15:26:01.151229",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Practitioner",

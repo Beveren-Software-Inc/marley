@@ -20,15 +20,15 @@ class HealthcarePractitioner(Document):
 	def onload(self):
 		load_address_and_contact(self)
 
-	def autoname(self):
-		# concat first and last name
-		self.name = self.practitioner_name
+	# def autoname(self):
+	# 	# concat first and last name
+	# 	self.name = self.practitioner_name
 
-		if frappe.db.exists("Healthcare Practitioner", self.name):
-			self.name = append_number_if_name_exists("Contact", self.name)
+	# 	if frappe.db.exists("Healthcare Practitioner", self.name):
+	# 		self.name = append_number_if_name_exists("Contact", self.name)
 
 	def validate(self):
-		self.set_full_name()
+		# self.set_full_name()
 		validate_party_accounts(self)
 		if self.inpatient_visit_charge_item:
 			validate_service_item(
