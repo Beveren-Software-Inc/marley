@@ -164,6 +164,9 @@ fixtures = [
 	},
     {
 		"doctype":"Observation Level"
+	},
+    {
+		"doctype":"Patient Relative Relationship"
 	}
 ]
 

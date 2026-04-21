@@ -43,6 +43,19 @@
   "follow_up_crm_section",
   "follow_up_date",
   "allow_follow_up",
+  "addons_section",
+  "append_date",
+  "escort",
+  "escort_name",
+  "is_dama_yn",
+  "receiving_doctor",
+  "column_break_mucy",
+  "forward_from",
+  "today_charge",
+  "ip_case_management",
+  "ip_case_management_fee",
+  "room_charges",
+  "today_charge_obs",
   "more_infor_tab",
   "discharge_treatment_plan",
   "discharge_reason",
@@ -125,12 +138,10 @@
   },
   {
    "fieldname": "discharged_by_user",
-   "fieldtype": "Link",
-   "label": "Discharged By User",
-   "options": "User"
+   "fieldtype": "Data",
+   "label": "Discharged By User"
   },
   {
-   "fetch_from": "admission.patient_name",
    "fieldname": "user_name",
    "fieldtype": "Data",
    "label": "User Name"
@@ -146,7 +157,7 @@
   },
   {
    "fieldname": "final_discharge_user_id",
-   "fieldtype": "Link",
+   "fieldtype": "Data",
    "label": "Final Discharge User ID",
    "options": "User"
   },
@@ -162,13 +173,13 @@
   },
   {
    "fieldname": "discharge_time",
-   "fieldtype": "Date",
+   "fieldtype": "Data",
    "label": "Discharge Time"
   },
   {
    "fieldname": "duration",
    "fieldtype": "Data",
-   "label": "Duration"
+   "label": "Spend Days(Duration)"
   },
   {
    "fieldname": "column_break_fivt",
@@ -176,7 +187,7 @@
   },
   {
    "fieldname": "final_discharge_date",
-   "fieldtype": "Date",
+   "fieldtype": "Datetime",
    "label": "Final Discharge Date"
   },
   {
@@ -237,7 +248,7 @@
   {
    "fieldname": "prognosis",
    "fieldtype": "Small Text",
-   "label": "Prognosis"
+   "label": "Prognosis Instruction"
   },
   {
    "fieldname": "appointment_section",
@@ -378,13 +389,81 @@
    "fieldtype": "Link",
    "label": "Prescription",
    "options": "Patient Medication Order"
+  },
+  {
+   "fieldname": "addons_section",
+   "fieldtype": "Section Break",
+   "label": "Addons"
+  },
+  {
+   "fieldname": "append_date",
+   "fieldtype": "Date",
+   "label": "Append Date"
+  },
+  {
+   "fieldname": "escort",
+   "fieldtype": "Data",
+   "label": "Escort"
+  },
+  {
+   "fieldname": "escort_name",
+   "fieldtype": "Data",
+   "label": "Escort Name"
+  },
+  {
+   "fieldname": "column_break_mucy",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "forward_from",
+   "fieldtype": "Data",
+   "label": "Forward From"
+  },
+  {
+   "default": "0",
+   "fieldname": "today_charge",
+   "fieldtype": "Check",
+   "label": "Today Charge"
+  },
+  {
+   "default": "0",
+   "fieldname": "ip_case_management",
+   "fieldtype": "Check",
+   "label": "IP Case Management"
+  },
+  {
+   "default": "0",
+   "fieldname": "ip_case_management_fee",
+   "fieldtype": "Check",
+   "label": "IP Case Management Fee"
+  },
+  {
+   "fieldname": "room_charges",
+   "fieldtype": "Currency",
+   "label": "Room Charges"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_dama_yn",
+   "fieldtype": "Check",
+   "label": "Is Dama Yn"
+  },
+  {
+   "fieldname": "receiving_doctor",
+   "fieldtype": "Data",
+   "label": "Receiving Doctor"
+  },
+  {
+   "fieldname": "today_charge_obs",
+   "fieldtype": "Currency",
+   "label": "Today Charge OBS"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-04-14 01:19:12.859772",
+ "modified": "2026-04-21 12:12:33.901011",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Discharge",
