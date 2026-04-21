@@ -2,7 +2,7 @@
  "actions": [],
  "allow_import": 1,
  "allow_rename": 1,
- "autoname": "naming_series:",
+ "autoname": "field:doctors_id",
  "creation": "2016-02-23 11:20:53.565119",
  "doctype": "DocType",
  "document_type": "Setup",
@@ -10,6 +10,7 @@
  "field_order": [
   "basic_details_section",
   "naming_series",
+  "doctors_id",
   "first_name",
   "middle_name",
   "last_name",
@@ -366,6 +367,12 @@
    "fieldname": "licence_no",
    "fieldtype": "Data",
    "label": "Licence No"
+  },
+  {
+   "fieldname": "doctors_id",
+   "fieldtype": "Data",
+   "label": "Doctors ID",
+   "unique": 1
   }
  ],
  "image_field": "image",
@@ -396,11 +403,11 @@
    "link_fieldname": "practitioner"
   }
  ],
- "modified": "2026-01-27 14:23:44.956335",
+ "modified": "2026-04-21 11:00:44.589632",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Practitioner",
- "naming_rule": "By \"Naming Series\" field",
+ "naming_rule": "By fieldname",
  "owner": "Administrator",
  "permissions": [
   {

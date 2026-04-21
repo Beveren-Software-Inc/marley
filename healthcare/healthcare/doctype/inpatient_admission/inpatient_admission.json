@@ -24,6 +24,7 @@
   "admitted_datetime",
   "expected_discharge",
   "patient_ip_category",
+  "admission_time",
   "references",
   "admission_encounter",
   "admission_practitioner",
@@ -36,6 +37,7 @@
   "cb_admission",
   "primary_practitioner",
   "secondary_practitioner",
+  "admission_reason",
   "admission_instruction",
   "service_unit",
   "section_break_person_contact",
@@ -67,9 +69,30 @@
   "inpatient_package",
   "rate_per_day",
   "case_management_fee",
+  "package_num",
   "column_break_costs",
   "admission_cost",
   "room_charges",
+  "adons_section",
+  "belonging",
+  "admission_type",
+  "column_break_lunl",
+  "is_med_supr_required",
+  "med_supr_service_code",
+  "branch",
+  "column_break_llon",
+  "ip_re_admission_count",
+  "special_care",
+  "section_break_plbj",
+  "room_service_no",
+  "room_gl_code",
+  "case_service_no",
+  "case_gl_code",
+  "mode_of_admission",
+  "section_break_mlta",
+  "management",
+  "progress",
+  "management_in_hospital",
   "medical_details_tab",
   "sb_discharge_details",
   "discharge_ordered_date",
@@ -105,9 +128,11 @@
   "allergy_medical_and_surgical_history",
   "allergies",
   "medication_history",
+  "family_history",
   "column_break_medical",
   "medical_history",
   "surgical_history",
+  "illness_history",
   "visitors_allowed_tab",
   "relatives_section",
   "patient_relatives",
@@ -939,6 +964,129 @@
    "fieldtype": "Table",
    "label": "Diagnosis Breakdown",
    "options": "Patient Diagnosis"
+  },
+  {
+   "fieldname": "admission_reason",
+   "fieldtype": "Small Text",
+   "label": "Admission Reason"
+  },
+  {
+   "fieldname": "family_history",
+   "fieldtype": "Small Text",
+   "label": "Family History"
+  },
+  {
+   "fieldname": "admission_time",
+   "fieldtype": "Data",
+   "label": "Admission Time"
+  },
+  {
+   "fieldname": "adons_section",
+   "fieldtype": "Section Break",
+   "label": "Adons"
+  },
+  {
+   "fieldname": "belonging",
+   "fieldtype": "Small Text",
+   "label": "Belonging"
+  },
+  {
+   "fieldname": "illness_history",
+   "fieldtype": "Small Text",
+   "label": "Illness History"
+  },
+  {
+   "fieldname": "section_break_mlta",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "management",
+   "fieldtype": "Text Editor",
+   "label": "Management"
+  },
+  {
+   "fieldname": "progress",
+   "fieldtype": "Small Text",
+   "label": "Progress"
+  },
+  {
+   "fieldname": "admission_type",
+   "fieldtype": "Data",
+   "label": "Admission Type"
+  },
+  {
+   "fieldname": "column_break_llon",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_med_supr_required",
+   "fieldtype": "Check",
+   "label": "Is Med Supr Required"
+  },
+  {
+   "fieldname": "med_supr_service_code",
+   "fieldtype": "Data",
+   "label": "Med Supr Service Code"
+  },
+  {
+   "fieldname": "column_break_lunl",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "branch",
+   "fieldtype": "Data",
+   "label": "Branch"
+  },
+  {
+   "fieldname": "ip_re_admission_count",
+   "fieldtype": "Data",
+   "label": "IP Re Admission Count"
+  },
+  {
+   "fieldname": "management_in_hospital",
+   "fieldtype": "Small Text",
+   "label": "Management in Hospital"
+  },
+  {
+   "default": "0",
+   "fieldname": "special_care",
+   "fieldtype": "Check",
+   "label": "Special Care"
+  },
+  {
+   "fieldname": "package_num",
+   "fieldtype": "Data",
+   "label": "Package Num"
+  },
+  {
+   "fieldname": "section_break_plbj",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "room_service_no",
+   "fieldtype": "Data",
+   "label": "Room Service No"
+  },
+  {
+   "fieldname": "room_gl_code",
+   "fieldtype": "Data",
+   "label": "Room GL Code"
+  },
+  {
+   "fieldname": "case_service_no",
+   "fieldtype": "Data",
+   "label": "Case Service No"
+  },
+  {
+   "fieldname": "case_gl_code",
+   "fieldtype": "Data",
+   "label": "Case GL Code"
+  },
+  {
+   "fieldname": "mode_of_admission",
+   "fieldtype": "Data",
+   "label": "Mode of Admission"
   }
  ],
  "index_web_pages_for_search": 1,
@@ -952,7 +1100,7 @@
    "link_fieldname": "admission"
   }
  ],
- "modified": "2026-04-16 01:30:23.515330",
+ "modified": "2026-04-21 12:16:36.064808",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Inpatient Admission",

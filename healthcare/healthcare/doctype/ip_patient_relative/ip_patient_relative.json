@@ -20,11 +20,11 @@
  "fields": [
   {
    "fieldname": "relationship_with_patient",
-   "fieldtype": "Select",
+   "fieldtype": "Link",
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Relationship With Patient",
-   "options": "\nFather\nMother\nBrother\nSister\nHusband\nWife\nSon\nDaughter",
+   "options": "Patient Relative Relationship",
    "reqd": 1
   },
   {
@@ -91,7 +91,7 @@
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-03-31 13:21:57.016310",
+ "modified": "2026-04-21 12:19:55.212559",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "IP Patient Relative",
