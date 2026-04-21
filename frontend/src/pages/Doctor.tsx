@@ -599,7 +599,7 @@ const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
             </div>
             <ClinicalNotesList 
               patient={selectedPatient} 
-              medicalRole="Psychologists"
+              medicalRole="Psychologist"
               clinicalNoteType="Psychologist Note"
               key={clinicalNotesRefreshKey}
             />
@@ -652,7 +652,7 @@ const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
             </div>
             <ClinicalNotesList
               patient={selectedPatient}
-              medicalRole="Psychologists"
+              medicalRole="Psychologist"
               clinicalNoteType="Psychologist Order"
             />
           </section>

@@ -83,7 +83,7 @@ export const PsychologistPage = () => {
             </div>
             <ClinicalNotesList
               patient={selectedPatient}
-              medicalRole="Psychologists"
+              medicalRole="Psychologist"
               clinicalNoteType="Psychologist Note"
               key={clinicalNotesRefreshKey}
             />
@@ -119,7 +119,7 @@ export const PsychologistPage = () => {
             </div>
             <ClinicalNotesList
               patient={selectedPatient}
-              medicalRole="Psychologists"
+              medicalRole="Psychologist"
               clinicalNoteType="Psychologist Order"
               key={clinicalNotesRefreshKey}
             />
@@ -284,7 +284,7 @@ export const PsychologistPage = () => {
             <div className="flex-1 min-h-[80px]">
               <ClinicalNotesList
                 patient={selectedPatient}
-                medicalRole="Psychologists"
+                medicalRole="Psychologist"
                 clinicalNoteType="Psychologist Note"
                 key={clinicalNotesRefreshKey}
               />
@@ -304,7 +304,7 @@ export const PsychologistPage = () => {
             <div className="flex-1 min-h-[80px]">
               <ClinicalNotesList
                 patient={selectedPatient}
-                medicalRole="Psychologists"
+                medicalRole="Psychologist"
                 clinicalNoteType="Psychologist Order"
                 key={`order-${clinicalNotesRefreshKey}`}
               />

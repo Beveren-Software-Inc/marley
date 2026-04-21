@@ -780,7 +780,7 @@ export const NursePage = () => {
             <div className="font-semibold mb-4">Psychologist Notes</div>
             <ClinicalNotesList
               patient={selectedPatient}
-              medicalRole="Psychologists"
+              medicalRole="Psychologist"
             />
           </section>
         </div>
@@ -872,7 +872,7 @@ export const NursePage = () => {
             </div>
             <ClinicalNotesList
               patient={selectedPatient}
-              medicalRole="Psychologists"
+              medicalRole="Psychologist"
               noteType="Order"
             />
           </section>
