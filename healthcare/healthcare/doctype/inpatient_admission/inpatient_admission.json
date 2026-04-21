@@ -52,6 +52,7 @@
   "contact_mobile",
   "contact_phone",
   "admission_by_cpr",
+  "emergency_mobile_no",
   "column_break_contact",
   "contact_email",
   "contact_relationship",
@@ -1156,6 +1157,11 @@
    "fieldname": "escort_name",
    "fieldtype": "Data",
    "label": "Escort Name"
+  },
+  {
+   "fieldname": "emergency_mobile_no",
+   "fieldtype": "Data",
+   "label": "Emergency Mobile No"
   }
  ],
  "index_web_pages_for_search": 1,
@@ -1169,7 +1175,7 @@
    "link_fieldname": "admission"
   }
  ],
- "modified": "2026-04-21 15:58:48.273642",
+ "modified": "2026-04-21 16:55:06.500356",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Inpatient Admission",
