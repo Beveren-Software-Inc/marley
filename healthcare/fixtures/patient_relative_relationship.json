@@ -1,0 +1,58 @@
+[
+ {
+  "docstatus": 0,
+  "doctype": "Patient Relative Relationship",
+  "modified": "2026-04-21 12:18:39.053566",
+  "name": "Father",
+  "relationship": "Father"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Relative Relationship",
+  "modified": "2026-04-21 12:18:44.241292",
+  "name": "Mother",
+  "relationship": "Mother"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Relative Relationship",
+  "modified": "2026-04-21 12:18:49.008307",
+  "name": "Brother",
+  "relationship": "Brother"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Relative Relationship",
+  "modified": "2026-04-21 12:18:55.087209",
+  "name": "Sister",
+  "relationship": "Sister"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Relative Relationship",
+  "modified": "2026-04-21 12:19:03.227380",
+  "name": "Husband",
+  "relationship": "Husband"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Relative Relationship",
+  "modified": "2026-04-21 12:19:11.966354",
+  "name": "Wife",
+  "relationship": "Wife"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Relative Relationship",
+  "modified": "2026-04-21 12:19:15.297329",
+  "name": "Son",
+  "relationship": "Son"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Relative Relationship",
+  "modified": "2026-04-21 12:19:22.368828",
+  "name": "Daughter",
+  "relationship": "Daughter"
+ }
+]

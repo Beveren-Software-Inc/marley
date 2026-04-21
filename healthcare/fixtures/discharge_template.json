@@ -1,5 +1,20 @@
 [
  {
+  "date": "2026-02-19",
+  "default": 0,
+  "discharge_checklist": [
+   {
+    "action_required": "1",
+    "department": "Psychology - SPH"
+   }
+  ],
+  "docstatus": 0,
+  "doctype": "Discharge Template",
+  "modified": "2026-02-19 16:46:21.992764",
+  "name": "Discharge Procedure",
+  "template_name": "Discharge Procedure"
+ },
+ {
   "date": "2025-12-01",
   "default": 0,
   "discharge_checklist": [
