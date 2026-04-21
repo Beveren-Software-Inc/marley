@@ -33,6 +33,7 @@
   "user_id",
   "hospital",
   "medical_role",
+  "parent_medical_role",
   "appointments",
   "practitioner_schedules",
   "google_calendar",
@@ -373,6 +374,14 @@
    "fieldtype": "Data",
    "label": "Doctors ID",
    "unique": 1
+  },
+  {
+   "fetch_from": "medical_role.parent_medical_role",
+   "fetch_if_empty": 1,
+   "fieldname": "parent_medical_role",
+   "fieldtype": "Link",
+   "label": "Parent Medical Role",
+   "options": "Medical Role"
   }
  ],
  "image_field": "image",
@@ -403,7 +412,7 @@
    "link_fieldname": "practitioner"
   }
  ],
- "modified": "2026-04-21 11:00:44.589632",
+ "modified": "2026-04-21 15:10:03.379246",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Practitioner",
