@@ -44,6 +44,7 @@
   "admission_instruction",
   "service_unit",
   "bed_no",
+  "old_bed_no",
   "section_break_person_contact",
   "contact_mobile",
   "contact_phone",
@@ -1132,6 +1133,11 @@
    "fieldtype": "Link",
    "label": "Bed No",
    "options": "Bed No"
+  },
+  {
+   "fieldname": "old_bed_no",
+   "fieldtype": "Data",
+   "label": "Old Bed No"
   }
  ],
  "index_web_pages_for_search": 1,
@@ -1145,7 +1151,7 @@
    "link_fieldname": "admission"
   }
  ],
- "modified": "2026-04-21 13:56:21.512132",
+ "modified": "2026-04-21 15:42:16.903933",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Inpatient Admission",
