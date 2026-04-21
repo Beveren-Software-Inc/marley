@@ -384,9 +384,9 @@
   {
    "depends_on": "eval: doc.discharge_type==\"AMA\"",
    "fieldname": "ama_type",
-   "fieldtype": "Select",
+   "fieldtype": "Link",
    "label": "DAMA Type",
-   "options": "\nRefuse Admission\nRefuse Treatment / Procedure\nDischarge Against Medical Advice(DAMA)"
+   "options": "DAMA Type"
   },
   {
    "fieldname": "section_break_xjwy",
@@ -582,7 +582,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-04-21 22:28:02.733344",
+ "modified": "2026-04-21 22:40:18.137130",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Discharge",
