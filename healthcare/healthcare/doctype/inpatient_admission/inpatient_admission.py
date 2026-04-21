@@ -147,21 +147,23 @@ class InpatientAdmission(Document):
 				)
 
 	def validate_already_scheduled_or_admitted(self):
-		query = """
-			select name, status
-			from `tabInpatient Admission`
-			where (status = 'Admitted' or status = 'Admission Scheduled')
-			and name != %(name)s and patient = %(patient)s
-			"""
+		pass
+		#Uncomment when done
+		# query = """
+		# 	select name, status
+		# 	from `tabInpatient Admission`
+		# 	where (status = 'Admitted' or status = 'Admission Scheduled')
+		# 	and name != %(name)s and patient = %(patient)s
+		# 	"""
 
-		ip_record = frappe.db.sql(query, {"name": self.name, "patient": self.patient}, as_dict=1)
+		# ip_record = frappe.db.sql(query, {"name": self.name, "patient": self.patient}, as_dict=1)
 
-		if ip_record:
-			msg = _(
-				("Already {0} Patient {1} with Inpatient Admission ").format(ip_record[0].status, self.patient)
-				+ """ <b><a href="/app/Form/Inpatient Admission/{0}">{0}</a></b>""".format(ip_record[0].name)
-			)
-			frappe.throw(msg)
+		# if ip_record:
+		# 	msg = _(
+		# 		("Already {0} Patient {1} with Inpatient Admission ").format(ip_record[0].status, self.patient)
+		# 		+ """ <b><a href="/app/Form/Inpatient Admission/{0}">{0}</a></b>""".format(ip_record[0].name)
+		# 	)
+		# 	frappe.throw(msg)
 
 	@frappe.whitelist()
 	def admit(self, service_unit, check_in, expected_discharge=None):
