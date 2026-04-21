@@ -6,7 +6,9 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "medical_role"
+  "medical_role",
+  "parent_medical_role",
+  "is_group"
  ],
  "fields": [
   {
@@ -16,12 +18,24 @@
    "in_standard_filter": 1,
    "label": "Medical Role",
    "unique": 1
+  },
+  {
+   "fieldname": "parent_medical_role",
+   "fieldtype": "Link",
+   "label": "Parent medical Role",
+   "options": "Medical Role"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_group",
+   "fieldtype": "Check",
+   "label": "Is Group"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-12-02 16:00:55.840867",
+ "modified": "2026-04-21 14:46:33.387537",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Medical Role",
