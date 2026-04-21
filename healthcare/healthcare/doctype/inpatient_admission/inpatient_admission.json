@@ -1,5 +1,6 @@
 {
  "actions": [],
+ "allow_import": 1,
  "autoname": "format:{patient}-{MM}-{##}",
  "creation": "2018-07-11 17:48:51.404139",
  "doctype": "DocType",
@@ -24,6 +25,7 @@
   "admitted_datetime",
   "expected_discharge",
   "patient_ip_category",
+  "admission_date",
   "admission_time",
   "references",
   "admission_encounter",
@@ -256,7 +258,6 @@
    "fieldname": "primary_practitioner",
    "fieldtype": "Link",
    "label": "Healthcare Practitioner (Primary)",
-   "mandatory_depends_on": "eval:!doc.admission_encounter;",
    "options": "Healthcare Practitioner"
   },
   {
@@ -284,8 +285,7 @@
    "fieldtype": "Date",
    "in_list_view": 1,
    "label": "Admission Schedule Date",
-   "read_only": 1,
-   "reqd": 1
+   "read_only": 1
   },
   {
    "fieldname": "admission_ordered_for",
@@ -304,7 +304,6 @@
    "fieldname": "expected_length_of_stay",
    "fieldtype": "Int",
    "label": "Expected Length of Stay",
-   "mandatory_depends_on": "eval:!doc.admission_encounter;",
    "set_only_once": 1
   },
   {
@@ -1114,6 +1113,11 @@
    "fieldname": "remark",
    "fieldtype": "Small Text",
    "label": "Remark"
+  },
+  {
+   "fieldname": "admission_date",
+   "fieldtype": "Date",
+   "label": "Admission Date"
   }
  ],
  "index_web_pages_for_search": 1,
@@ -1127,7 +1131,7 @@
    "link_fieldname": "admission"
   }
  ],
- "modified": "2026-04-21 12:42:24.546150",
+ "modified": "2026-04-21 13:28:41.113189",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Inpatient Admission",
