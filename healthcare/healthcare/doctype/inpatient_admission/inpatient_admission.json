@@ -1,7 +1,7 @@
 {
  "actions": [],
  "allow_import": 1,
- "autoname": "format:{patient}-{MM}-{##}",
+ "autoname": "field:case_no",
  "creation": "2018-07-11 17:48:51.404139",
  "doctype": "DocType",
  "editable_grid": 1,
@@ -9,6 +9,7 @@
  "field_order": [
   "section_break_1",
   "naming_series",
+  "case_no",
   "patient",
   "patient_name",
   "gender",
@@ -1118,6 +1119,12 @@
    "fieldname": "admission_date",
    "fieldtype": "Date",
    "label": "Admission Date"
+  },
+  {
+   "fieldname": "case_no",
+   "fieldtype": "Data",
+   "label": "Case No",
+   "unique": 1
   }
  ],
  "index_web_pages_for_search": 1,
@@ -1131,11 +1138,11 @@
    "link_fieldname": "admission"
   }
  ],
- "modified": "2026-04-21 13:28:41.113189",
+ "modified": "2026-04-21 13:42:14.627608",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Inpatient Admission",
- "naming_rule": "Expression (old style)",
+ "naming_rule": "By fieldname",
  "owner": "Administrator",
  "permissions": [
   {
