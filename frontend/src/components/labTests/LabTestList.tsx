@@ -1,3 +1,5 @@
+
+
 import { useState, useEffect, useRef } from 'react'
 import { useLabTests } from '../../hooks/useLabTests'
 import { useCareContext } from '../../providers/CareContextProvider'
@@ -330,6 +332,29 @@ export const LabTestList = ({
     filters.opIp || undefined,
     byNurse
   )
+
+  // ── Inline Result Editing ──
+  const [editingResult, setEditingResult] = useState<string | null>(null)
+  const [editingValue, setEditingValue] = useState<string>('')
+  const [updatingResult, setUpdatingResult] = useState<string | null>(null)
+
+  const handleInlineResultUpdate = async (labTestName: string, newResult: string) => {
+    setUpdatingResult(labTestName)
+    try {
+      await saveAndSubmitLabTest(labTestName, {
+        custom_result: newResult,
+        submit: false,
+      })
+      await refetch()
+      toast.success('Result updated')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to update result')
+    } finally {
+      setUpdatingResult(null)
+      setEditingResult(null)
+      setEditingValue('')
+    }
+  }
 
   // ── Consumables dialog ───────────────────────────────────────────────────
 
@@ -708,7 +733,19 @@ export const LabTestList = ({
     }
   }
 
+  // Helper function to determine which range columns to show based on patient gender
+  const getRangeHeaders = (labTestsList: LabTest[]) => {
+    if (labTestsList.length === 0) return { showFemale: false, showMale: false, showGeneric: true }
+    const gender = labTestsList[0].gender
+    console.log('Determining range headers to show based on patient gender:', gender)
+    if (gender === 'Female') return { showFemale: true, showMale: false, showGeneric: false }
+    if (gender === 'Male') return { showFemale: false, showMale: true, showGeneric: false }
+    return { showFemale: false, showMale: false, showGeneric: true }
+  }
+
   // ── Render ───────────────────────────────────────────────────────────────
+
+  const rangeHeaders = getRangeHeaders(labTests)
 
   return (
     <div className="flex flex-col min-w-full">
@@ -759,12 +796,25 @@ export const LabTestList = ({
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Date</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase">Amount</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Actions</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">F-Min</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">F-Max</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">M-Min</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">M-Max</th>
-                <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600 uppercase">Min</th>
-                <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600 uppercase">Max</th>
+                {/* Gender-specific range headers */}
+                {rangeHeaders.showFemale && (
+                  <>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600 uppercase">F-Min</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600 uppercase">F-Max</th>
+                  </>
+                )}
+                {rangeHeaders.showMale && (
+                  <>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600 uppercase">M-Min</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600 uppercase">M-Max</th>
+                  </>
+                )}
+                {rangeHeaders.showGeneric && (
+                  <>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600 uppercase">Min</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600 uppercase">Max</th>
+                  </>
+                )}
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Results</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Inventory</th>
               </tr>
@@ -909,60 +959,111 @@ export const LabTestList = ({
                     </div>
                   </td>
 
-                  <td className="px-4 py-3 text-center text-sm text-slate-700">
-                    {labTest.female_min_range != null ? (
-                      <span className="font-medium">{labTest.female_min_range}</span>
+                  {/* Gender-specific range values */}
+                  {rangeHeaders.showFemale && (
+                    <>
+                      <td className="px-4 py-3 text-center text-sm text-slate-700">
+                        {labTest.female_min_range != null ? (
+                          <span className="font-medium">{labTest.female_min_range}</span>
+                        ) : (
+                          <span className="text-slate-300">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-center text-sm text-slate-700">
+                        {labTest.female_max_range != null ? (
+                          <span className="font-medium">{labTest.female_max_range}</span>
+                        ) : (
+                          <span className="text-slate-300">—</span>
+                        )}
+                      </td>
+                    </>
+                  )}
+                  {rangeHeaders.showMale && (
+                    <>
+                      <td className="px-4 py-3 text-center text-sm text-slate-700">
+                        {labTest.male_min_range != null ? (
+                          <span className="font-medium">{labTest.male_min_range}</span>
+                        ) : (
+                          <span className="text-slate-300">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-center text-sm text-slate-700">
+                        {labTest.male_max_range != null ? (
+                          <span className="font-medium">{labTest.male_max_range}</span>
+                        ) : (
+                          <span className="text-slate-300">—</span>
+                        )}
+                      </td>
+                    </>
+                  )}
+                  {rangeHeaders.showGeneric && (
+                    <>
+                      <td className="px-4 py-3 text-center text-sm text-slate-700">
+                        {labTest.min_range != null ? (
+                          <span className="font-medium">{labTest.min_range}</span>
+                        ) : (
+                          <span className="text-slate-300">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-center text-sm text-slate-700">
+                        {labTest.max_range != null ? (
+                          <span className="font-medium">{labTest.max_range}</span>
+                        ) : (
+                          <span className="text-slate-300">—</span>
+                        )}
+                      </td>
+                    </>
+                  )}
+
+                  {/* Editable Results cell */}
+                  <td className="px-4 py-3 text-sm max-w-[200px]">
+                    {updatingResult === labTest.name ? (
+                      <div className="flex items-center gap-1">
+                        <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                        </svg>
+                        <span className="text-xs text-slate-400">Updating...</span>
+                      </div>
+                    ) : editingResult === labTest.name ? (
+                      <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="text"
+                          value={editingValue}
+                          onChange={(e) => setEditingValue(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              handleInlineResultUpdate(labTest.name, editingValue)
+                            } else if (e.key === 'Escape') {
+                              setEditingResult(null)
+                              setEditingValue('')
+                            }
+                          }}
+                          onBlur={() => {
+                            handleInlineResultUpdate(labTest.name, editingValue)
+                          }}
+                          className="w-full px-2 py-1 text-sm border border-primary rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                          autoFocus
+                        />
+                      </div>
                     ) : (
-                      <span className="text-slate-300">—</span>
+                      <div
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setEditingResult(labTest.name)
+                          setEditingValue(labTest.custom_result || '')
+                        }}
+                        className={`cursor-pointer hover:bg-slate-100 rounded-md px-2 py-1 transition-colors ${
+                          labTest.custom_result ? 'text-slate-800 font-medium' : 'text-slate-300 italic'
+                        }`}
+                        title="Click to edit result"
+                      >
+                        {labTest.custom_result || 'Click to add result'}
+                      </div>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-center text-sm text-slate-700">
-                    {labTest.female_max_range != null ? (
-                      <span className="font-medium">{labTest.female_max_range}</span>
-                    ) : (
-                      <span className="text-slate-300">—</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-center text-sm text-slate-700">
-                    {labTest.male_min_range != null ? (
-                      <span className="font-medium">{labTest.male_min_range}</span>
-                    ) : (
-                      <span className="text-slate-300">—</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-center text-sm text-slate-700">
-                    {labTest.male_max_range != null ? (
-                      <span className="font-medium">{labTest.male_max_range}</span>
-                    ) : (
-                      <span className="text-slate-300">—</span>
-                    )}
-                  </td>
-                  {/* Min range */}
-                  <td className="px-4 py-3 text-center text-sm text-slate-700">
-                    {labTest.min_range != null ? (
-                      <span className="font-medium">{labTest.min_range}</span>
-                    ) : (
-                      <span className="text-slate-300">—</span>
-                    )}
-                  </td>
-                  {/* Max range */}
-                  <td className="px-4 py-3 text-center text-sm text-slate-700">
-                    {labTest.max_range != null ? (
-                      <span className="font-medium">{labTest.max_range}</span>
-                    ) : (
-                      <span className="text-slate-300">—</span>
-                    )}
-                  </td>
-                  {/* Results */}
-                  <td className="px-4 py-3 text-sm max-w-[160px]">
-                    {labTest.custom_result ? (
-                      <span className="text-slate-800 font-medium truncate block" title={labTest.custom_result}>
-                        {labTest.custom_result}
-                      </span>
-                    ) : (
-                      <span className="text-slate-300">—</span>
-                    )}
-                  </td>
+
+                  {/* Inventory cell */}
                   <td className="px-4 py-3 text-sm text-slate-700">
                     {labTest.docstatus === 0 && !labTest.material_request ? (
                       <button
@@ -1126,7 +1227,6 @@ export const LabTestList = ({
                                   onClick={async () => {
                                     setSampleFormError(null)
                                     setSampleObsRows([{ sample: row.sample, sample_qty: row.sample_qty, collection_date_time: new Date().toISOString().slice(0, 16).replace('T', ' ') }])
-                                    // Fetch template sample_details as instructions
                                     if (sampleModalLabTest.template) {
                                       fetchLabTestTemplateDetails(sampleModalLabTest.template)
                                         .then((d) => setTemplateSampleDetails(d.sample_details || ''))
@@ -1158,6 +1258,8 @@ export const LabTestList = ({
               </button>
             </div>
           </div>
+
+          {/* Sample Collection Form Modal */}
           {sampleFormRowIndex !== null && sampleModalLabTest && (
             <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
               <div className="bg-white rounded-lg shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col">
@@ -1178,7 +1280,6 @@ export const LabTestList = ({
                     <div className="bg-red-50 border border-red-200 text-red-700 text-xs rounded-md px-3 py-2">{sampleFormError}</div>
                   )}
 
-                  {/* Template Instructions - Large display */}
                   {templateSampleDetails && (
                     <div className="rounded-md border border-blue-200 bg-blue-50 px-5 py-4">
                       <p className="text-sm font-bold text-blue-800 mb-3">📋 Collection Instructions (from template)</p>
@@ -1194,7 +1295,6 @@ export const LabTestList = ({
                     if (!row) return null
                     return (
                       <>
-                        {/* Basic info - COMPACT (2 columns for more horizontal space) */}
                         <div className="grid grid-cols-2 gap-3 text-xs bg-slate-100 border border-slate-300 rounded-lg p-2">
                           <div>
                             <div className="text-[9px] font-medium text-slate-500 mb-0.5">Sample</div>
@@ -1208,11 +1308,9 @@ export const LabTestList = ({
                           </div>
                         </div>
 
-                        {/* Collection Details - Large display for detailed instructions */}
                         <div>
                           <label className="block text-sm font-bold text-slate-800 mb-2">Collection Details & Observations</label>
                           {row.sample_details && row.sample_details.includes('<') ? (
-                            // HTML/Rich text display (from Quill editor) - LARGE
                             <div className="w-full rounded-md border border-slate-300 px-4 py-3 bg-slate-50 min-h-[280px] overflow-y-auto">
                               <div 
                                 className="prose prose-base max-w-none text-base text-slate-800 leading-relaxed [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:mb-2.5 [&_li]:leading-relaxed [&_strong]:font-semibold [&_strong]:text-slate-900 [&_em]:italic [&_p]:mb-3"
@@ -1220,19 +1318,16 @@ export const LabTestList = ({
                               />
                             </div>
                           ) : row.sample_details ? (
-                            // Plain text display - LARGE
                             <div className="w-full rounded-md border border-slate-300 px-4 py-3 text-base bg-slate-50 min-h-[280px] whitespace-pre-wrap leading-relaxed text-slate-800 font-medium">
                               {row.sample_details}
                             </div>
                           ) : (
-                            // Empty state - show placeholder
                             <div className="w-full rounded-md border border-slate-300 px-4 py-3 text-base bg-slate-50 min-h-[280px] text-slate-400 flex items-center justify-center">
                               Collection details will appear here...
                             </div>
                           )}
                         </div>
 
-                        {/* Collection Point + Referring Practitioner */}
                         <div className="grid grid-cols-2 gap-4">
                           <div className="relative">
                             <label className="block text-xs font-semibold text-slate-700 mb-1">Collection Point</label>
@@ -1280,7 +1375,6 @@ export const LabTestList = ({
                           </div>
                         </div>
 
-                        {/* Observation Sample Collection child table */}
                         <div>
                           <div className="flex items-center justify-between mb-2">
                             <label className="block text-xs font-semibold text-slate-700">Observation Sample Collection</label>
@@ -1397,7 +1491,7 @@ export const LabTestList = ({
         </div>
       )}
 
-      {/* ── Add Remarks modal (table: multiple remarks) ── */}
+      {/* ── Add Remarks modal ── */}
       {remarksModalOpen && remarksLabTestName && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-hidden flex flex-col">
@@ -1602,7 +1696,6 @@ export const LabTestList = ({
                 <div className="text-sm text-slate-600">Loading...</div>
               ) : resultDialogTab === 'results' ? (
                 <>
-                  {/* ── Normal Test Items Table ── */}
                   {normalTestItems.length > 0 && (
                     <div>
                       <label className="block text-sm font-semibold text-slate-800 mb-2">Test Results</label>
@@ -1695,7 +1788,6 @@ export const LabTestList = ({
                     </div>
                   )}
 
-                  {/* ── Custom Result ── */}
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Result</label>
                     <textarea className="w-full border border-slate-300 rounded-md p-2 text-sm min-h-[80px]"
@@ -1703,7 +1795,6 @@ export const LabTestList = ({
                       placeholder="Enter descriptive or custom result..." />
                   </div>
 
-                  {/* ── General Comments ── */}
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">General Comments</label>
                     <textarea className="w-full border border-slate-300 rounded-md p-2 text-sm min-h-[70px]"
@@ -1711,7 +1802,6 @@ export const LabTestList = ({
                       placeholder="Overall test comments..." />
                   </div>
 
-                  {/* ── Worksheet Instructions ── */}
                   {(worksheetText || templateDetails.worksheet_instructions) && (
                     <div className="rounded-md border border-amber-200 bg-amber-50">
                       <button
@@ -1784,7 +1874,7 @@ export const LabTestList = ({
         </div>
       )}
 
-      {/* ── Edit Lab Test modal (basic fields) ── */}
+      {/* ── Edit Lab Test modal ── */}
       {editLabTestName && (
         <EditLabTestModal
           labTestName={editLabTestName}

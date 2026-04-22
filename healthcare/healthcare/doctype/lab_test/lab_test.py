@@ -16,19 +16,21 @@ from healthcare.api.patient_visit import update_patient_visit_status
 
 class LabTest(Document):
 	def validate(self):
-		if not self.is_new():
-			self.set_secondary_uom_result()
+		if self.template and not self.get("sample_instances"):
+			populate_sample_instances_from_template(self)
+		# if not self.is_new():
+		# 	self.set_secondary_uom_result()
 
 	def on_submit(self):
 		from healthcare.healthcare.utils import validate_nursing_tasks
 
 		validate_nursing_tasks(self)
-		self.validate_result_values()
+		# self.validate_result_values()
 		self.db_set("submitted_date", getdate())
 		self.db_set("status", "Pending Review")
 
 		# Inventory integration: auto issue lab consumables as material issue
-		self.create_inventory_consumption()
+		# self.create_inventory_consumption()
 
 		if self.service_request:
 			frappe.db.set_value(
@@ -56,6 +58,14 @@ class LabTest(Document):
 				action="lab_test_created",
 				doc_name=self.name,
 			)
+		# if self.template:
+		# 	self.load_test_from_template()
+		# 	self.reload()
+
+		# 	# create nursing tasks
+		# 	template = frappe.db.get_value("Lab Test Template", self.template, "nursing_checklist_template")
+		# 	if template:
+		# 		NursingTask.create_nursing_tasks_from_template(template, self, start_time=now_datetime())
 
 	def after_insert(self):
 		if self.service_request:
@@ -63,7 +73,6 @@ class LabTest(Document):
 			billing_status = frappe.db.get_value("Service Request", self.service_request, "billing_status")
 			if billing_status == "Invoiced":
 				self.db_set("invoiced", True)
-
 		if self.template:
 			self.load_test_from_template()
 			self.reload()
@@ -73,145 +82,175 @@ class LabTest(Document):
 			if template:
 				NursingTask.create_nursing_tasks_from_template(template, self, start_time=now_datetime())
 
-	def create_inventory_consumption(self):
-		"""Create Stock Entry (Material Issue) for lab consumables based on template mapping."""
-		# Check if lab inventory integration is enabled and auto-issue is turned on
-		if not frappe.get_cached_value("Healthcare Settings", None, "lab_inventory_integration_enabled"):
-			return
+# 	def create_inventory_consumption(self):
+# 		"""Create Stock Entry (Material Issue) for lab consumables based on template mapping."""
+# 		# Check if lab inventory integration is enabled and auto-issue is turned on
+# 		if not frappe.get_cached_value("Healthcare Settings", None, "lab_inventory_integration_enabled"):
+# 			return
 
-		if not frappe.get_cached_value("Healthcare Settings", None, "lab_auto_issue_on_submit"):
-			return
+# 		if not frappe.get_cached_value("Healthcare Settings", None, "lab_auto_issue_on_submit"):
+# 			return
 
-		if not self.template:
-			return
+# 		if not self.template:
+# 			return
 
-		template = frappe.get_doc("Lab Test Template", self.template)
-		default_warehouse = frappe.get_cached_value("Healthcare Settings", None, "lab_default_warehouse")
-		# Use company default cost center instead of a lab-specific setting
-		cost_center = frappe.get_cached_value("Company", self.company, "cost_center") if self.company else None
+# 		template = frappe.get_doc("Lab Test Template", self.template)
+# 		default_warehouse = frappe.get_cached_value("Healthcare Settings", None, "lab_default_warehouse")
+# 		# Use company default cost center instead of a lab-specific setting
+# 		cost_center = frappe.get_cached_value("Company", self.company, "cost_center") if self.company else None
 
-		if not default_warehouse:
-			# Do not block submission if configuration is incomplete
-			frappe.logger().warning("Healthcare Settings: lab_default_warehouse not set, skipping lab inventory issue")
-			return
+# 		if not default_warehouse:
+# 			# Do not block submission if configuration is incomplete
+# 			frappe.logger().warning("Healthcare Settings: lab_default_warehouse not set, skipping lab inventory issue")
+# 			return
 
-		stock_entry = frappe.new_doc("Stock Entry")
-		stock_entry.stock_entry_type = "Material Issue"
-		if self.company:
-			stock_entry.company = self.company
+# 		stock_entry = frappe.new_doc("Stock Entry")
+# 		stock_entry.stock_entry_type = "Material Issue"
+# 		if self.company:
+# 			stock_entry.company = self.company
 
-		stock_entry.set(
-			"items",
-			[],
-		)
+# 		stock_entry.set(
+# 			"items",
+# 			[],
+# 		)
 
-		# 1) Standard consumables from template
-		if template.get("consumables"):
-			for row in template.consumables:
-				if not row.item_code or not row.qty_per_test:
-					continue
+# 		# 1) Standard consumables from template
+# 		if template.get("consumables"):
+# 			for row in template.consumables:
+# 				if not row.item_code or not row.qty_per_test:
+# 					continue
 
-				item_row = stock_entry.append("items")
-				item_row.item_code = row.item_code
-				item_row.qty = row.qty_per_test
-				item_row.s_warehouse = row.warehouse or default_warehouse
+# 				item_row = stock_entry.append("items")
+# 				item_row.item_code = row.item_code
+# 				item_row.qty = row.qty_per_test
+# 				item_row.s_warehouse = row.warehouse or default_warehouse
 
-				if row.uom:
-					item_row.uom = row.uom
-					item_row.stock_uom = row.uom
+# 				if row.uom:
+# 					item_row.uom = row.uom
+# 					item_row.stock_uom = row.uom
 
-				if cost_center:
-					item_row.cost_center = cost_center
+# 				if cost_center:
+# 					item_row.cost_center = cost_center
 
-		# 2) Additional/requested consumables captured on the Lab Test
-		if self.get("requested_consumables"):
-			for row in self.requested_consumables:
-				if not row.item_code or not row.qty_per_test:
-					continue
+# 		# 2) Additional/requested consumables captured on the Lab Test
+# 		if self.get("requested_consumables"):
+# 			for row in self.requested_consumables:
+# 				if not row.item_code or not row.qty_per_test:
+# 					continue
 
-				item_row = stock_entry.append("items")
-				item_row.item_code = row.item_code
-				item_row.qty = row.qty_per_test
-				item_row.s_warehouse = row.warehouse or default_warehouse
+# 				item_row = stock_entry.append("items")
+# 				item_row.item_code = row.item_code
+# 				item_row.qty = row.qty_per_test
+# 				item_row.s_warehouse = row.warehouse or default_warehouse
 
-				if row.uom:
-					item_row.uom = row.uom
-					item_row.stock_uom = row.uom
+# 				if row.uom:
+# 					item_row.uom = row.uom
+# 					item_row.stock_uom = row.uom
 
-				if cost_center:
-					item_row.cost_center = cost_center
+# 				if cost_center:
+# 					item_row.cost_center = cost_center
 
-		# If no valid rows, do nothing
-		if not stock_entry.items:
-			return
+# 		# If no valid rows, do nothing
+# 		if not stock_entry.items:
+# 			return
 
-		stock_entry.insert(ignore_permissions=True)
-		stock_entry.submit()
-		stock_entry.add_comment(
-			"Comment",
-			_("Created automatically for Lab Test {0}").format(self.name),
-		)
+# 		stock_entry.insert(ignore_permissions=True)
+# 		stock_entry.submit()
+# 		stock_entry.add_comment(
+# 			"Comment",
+# 			_("Created automatically for Lab Test {0}").format(self.name),
+# 		)
 
 	def load_test_from_template(self):
 		lab_test = self
 		create_test_from_template(lab_test)
-		self.reload()
+		self.save(ignore_permissions=True)
+		# self.reload()
 
-	def set_secondary_uom_result(self):
-		for item in self.normal_test_items:
-			if item.result_value and item.secondary_uom and item.conversion_factor:
-				try:
-					item.secondary_uom_result = float(item.result_value) * float(item.conversion_factor)
-				except Exception:
-					item.secondary_uom_result = ""
-					frappe.msgprint(
-						_("Row #{0}: Result for Secondary UOM not calculated").format(item.idx), title=_("Warning")
-					)
+# 	def set_secondary_uom_result(self):
+# 		for item in self.normal_test_items:
+# 			if item.result_value and item.secondary_uom and item.conversion_factor:
+# 				try:
+# 					item.secondary_uom_result = float(item.result_value) * float(item.conversion_factor)
+# 				except Exception:
+# 					item.secondary_uom_result = ""
+# 					frappe.msgprint(
+# 						_("Row #{0}: Result for Secondary UOM not calculated").format(item.idx), title=_("Warning")
+# 					)
 
-	def validate_result_values(self):
-		if self.normal_test_items:
-			for item in self.normal_test_items:
-				if not item.result_value and not item.allow_blank and item.require_result_value:
-					frappe.throw(
-						_("Row #{0}: Please enter the result value for {1}").format(
-							item.idx, frappe.bold(item.lab_test_name)
-						),
-						title=_("Mandatory Results"),
-					)
+# 	def validate_result_values(self):
+# 		if self.normal_test_items:
+# 			for item in self.normal_test_items:
+# 				if not item.result_value and not item.allow_blank and item.require_result_value:
+# 					frappe.throw(
+# 						_("Row #{0}: Please enter the result value for {1}").format(
+# 							item.idx, frappe.bold(item.lab_test_name)
+# 						),
+# 						title=_("Mandatory Results"),
+# 					)
 
-		if self.descriptive_test_items:
-			for item in self.descriptive_test_items:
-				if not item.result_value and not item.allow_blank and item.require_result_value:
-					frappe.throw(
-						_("Row #{0}: Please enter the result value for {1}").format(
-							item.idx, frappe.bold(item.lab_test_particulars)
-						),
-						title=_("Mandatory Results"),
-					)
+# 		if self.descriptive_test_items:
+# 			for item in self.descriptive_test_items:
+# 				if not item.result_value and not item.allow_blank and item.require_result_value:
+# 					frappe.throw(
+# 						_("Row #{0}: Please enter the result value for {1}").format(
+# 							item.idx, frappe.bold(item.lab_test_particulars)
+# 						),
+# 						title=_("Mandatory Results"),
+# 					)
 
-	def before_insert(self):
-		# When creating a new Lab Test, default to awaiting sample collection
-		if not self.status:
-			self.status = "Awaiting sample collection"
+# 	def before_insert(self):
+# 		# When creating a new Lab Test, default to awaiting sample collection
+# 		if not self.status:
+# 			self.status = "Awaiting sample collection"
 
-		if self.service_request:
-			# For group Lab Test Templates, multiple lab tests (one per child) are expected —
-			# skip the duplicate check in that case.
-			sr_template_dn = frappe.db.get_value("Service Request", self.service_request, "template_dn")
-			is_group = sr_template_dn and frappe.db.get_value("Lab Test Template", sr_template_dn, "is_group")
-			if not is_group:
-				lab_test = frappe.db.exists(
-					"Lab Test",
-					{"service_request": self.service_request, "docstatus": ["!=", 2]},
-				)
-				if lab_test:
-					frappe.throw(
-						_("Lab Test {0} already created from service request {1}").format(
-							frappe.bold(get_link_to_form("Lab Test", lab_test)),
-							frappe.bold(get_link_to_form("Service Request", self.service_request)),
-						),
-						title=_("Already Exist"),
-					)
+# 		if self.service_request:
+# 			# For group Lab Test Templates, multiple lab tests (one per child) are expected —
+# 			# skip the duplicate check in that case.
+# 			sr_template_dn = frappe.db.get_value("Service Request", self.service_request, "template_dn")
+# 			is_group = sr_template_dn and frappe.db.get_value("Lab Test Template", sr_template_dn, "is_group")
+# 			if not is_group:
+# 				lab_test = frappe.db.exists(
+# 					"Lab Test",
+# 					{"service_request": self.service_request, "docstatus": ["!=", 2]},
+# 				)
+# 				if lab_test:
+# 					frappe.throw(
+# 						_("Lab Test {0} already created from service request {1}").format(
+# 							frappe.bold(get_link_to_form("Lab Test", lab_test)),
+# 							frappe.bold(get_link_to_form("Service Request", self.service_request)),
+# 						),
+# 						title=_("Already Exist"),
+# 					)
+
+
+# def _set_lab_test_group_from_template(lab_test, template):
+# 	"""Set Lab Test Group only if the link target exists.
+
+# 	Some sites store an old/incorrect value (e.g. an Item Group like "Consumable")
+# 	in the template's lab_test_group field. If we blindly copy it, saving the Lab
+# 	Test fails with LinkValidationError.
+# 	"""
+# 	group = getattr(template, "lab_test_group", None)
+# 	if not group:
+# 		return
+
+# 	# In many deployments, "Lab Test Group" is effectively just a template selector.
+# 	# Prefer linking to Lab Test Template if it exists.
+# 	if frappe.db.exists("Lab Test Template", group):
+# 		lab_test.lab_test_group = group
+# 		return
+
+# 	# Backward compatibility: if a separate Lab Test Group DocType exists, allow it.
+# 	if frappe.db.exists("DocType", "Lab Test Group") and frappe.db.exists("Lab Test Group", group):
+# 		lab_test.lab_test_group = group
+# 		return
+
+# 	frappe.logger().warning(
+# 		"Lab Test Template %s has invalid lab_test_group '%s'; skipping lab_test_group assignment",
+# 		getattr(template, "name", "<unknown>"),
+# 		group,
+# 	)
 
 
 def create_test_from_template(lab_test):
@@ -223,71 +262,90 @@ def create_test_from_template(lab_test):
 	lab_test.lab_test_name = template.lab_test_name
 	lab_test.result_date = getdate()
 	lab_test.department = template.department
-	lab_test.lab_test_group = template.lab_test_group
+	# _set_lab_test_group_from_template(lab_test, template)
 	lab_test.legend_print_position = template.legend_print_position
 	lab_test.result_legend = template.result_legend
 	lab_test.worksheet_instructions = template.worksheet_instructions
 
-	lab_test = create_sample_collection(lab_test, template, patient, None)
-	# Populate sample_instances child table from template.sample_requirements, if any
-	lab_test.sample_instances = []
+	# lab_test = create_sample_collection(lab_test, template, patient, None)
+	populate_sample_instances_from_template(lab_test, template)
+	# frappe.throw(str(lab_test.sample_instances))
+	# load_result_format(lab_test, template, None, None)
+
+
+def populate_sample_instances_from_template(lab_test, template=None, force=False):
+	"""Copy sample requirements from template into sample instances.
+
+	By default this only fills when the Lab Test doesn't already have sample rows,
+	so later saves don't wipe user-entered sample collection links/details.
+	"""
+	if not getattr(lab_test, "template", None):
+		return
+
+	if not force and lab_test.get("sample_instances"):
+		return
+
+	template = template or frappe.get_doc("Lab Test Template", lab_test.template)
+	lab_test.set("sample_instances", [])
+
 	for row in template.get("sample_requirements", []) or []:
+		if not getattr(row, "sample", None):
+			continue
+
 		child = lab_test.append("sample_instances", {})
-		child.sample = getattr(row, "sample", None)
-		child.sample_qty = getattr(row, "sample_qty", None)
-		child.sample_details = getattr(row, "sample_details", None)
-
-	load_result_format(lab_test, template, None, None)
+		child.sample = row.sample
+		child.sample_qty = row.sample_qty
+		child.sample_details = row.sample_details
 
 
-@frappe.whitelist()
-def get_consumables_for_lab_test(lab_test_name):
-	"""Return default consumables for a Lab Test (from its template), including any already requested ones."""
-	if not lab_test_name:
-		frappe.throw(_("Lab Test name is required"))
+# @frappe.whitelist()
+# def get_consumables_for_lab_test(lab_test_name):
+# 	"""Return default consumables for a Lab Test (from its template), including any already requested ones."""
+# 	if not lab_test_name:
+# 		frappe.throw(_("Lab Test name is required"))
 
-	lab_test = frappe.get_doc("Lab Test", lab_test_name)
-	if not lab_test.template:
-		return []
+# 	lab_test = frappe.get_doc("Lab Test", lab_test_name)
+# 	if not lab_test.template:
+# 		return []
 
-	template = frappe.get_doc("Lab Test Template", lab_test.template)
-	items = []
+# 	template = frappe.get_doc("Lab Test Template", lab_test.template)
+# 	items = []
 
-	# From template
-	for row in template.get("consumables", []):
-		if not row.item_code:
-			continue
-		items.append(
-			{
-				"item_code": row.item_code,
-				"item_name": row.item_name,
-				"qty": row.qty_per_test,
-				"uom": row.uom,
-				"warehouse": row.warehouse,
-			}
-		)
+# 	# From template
+# 	for row in template.get("consumables", []):
+# 		if not row.item_code:
+# 			continue
+# 		items.append(
+# 			{
+# 				"item_code": row.item_code,
+# 				"item_name": row.item_name,
+# 				"qty": row.qty_per_test,
+# 				"uom": row.uom,
+# 				"warehouse": row.warehouse,
+# 			}
+# 		)
 
-	# Already requested on this lab test (if any)
-	for row in lab_test.get("requested_consumables", []):
-		if not row.item_code:
-			continue
-		items.append(
-			{
-				"item_code": row.item_code,
-				"item_name": row.item_name,
-				"qty": row.qty_per_test,
-				"uom": row.uom,
-				"warehouse": row.warehouse,
-			}
-		)
+# 	# Already requested on this lab test (if any)
+# 	for row in lab_test.get("requested_consumables", []):
+# 		if not row.item_code:
+# 			continue
+# 		items.append(
+# 			{
+# 				"item_code": row.item_code,
+# 				"item_name": row.item_name,
+# 				"qty": row.qty_per_test,
+# 				"uom": row.uom,
+# 				"warehouse": row.warehouse,
+# 			}
+# 		)
 
-	return items
+# 	return items
 
 
-@frappe.whitelist()
-def update_status(status, name):
-	if name and status:
-		frappe.db.set_value("Lab Test", name, {"status": status, "approved_date": getdate()})
+# @frappe.whitelist()
+# def update_status(status, name):
+# 	if name and status:
+# 		frappe.db.set_value("Lab Test", name, {"status": status, "approved_date": getdate()})
 
 
 @frappe.whitelist()
@@ -404,61 +462,61 @@ def create_lab_test_doc(
 	lab_test.report_preference = patient.report_preference
 	lab_test.department = template.department
 	lab_test.template = template.name
-	lab_test.lab_test_group = template.lab_test_group
+	# _set_lab_test_group_from_template(lab_test, template)
 	lab_test.result_date = getdate()
 	lab_test.company = company
 	lab_test.service_unit = service_unit
 	return lab_test
 
 
-def create_normals(template, lab_test):
-	lab_test.normal_toggle = 1
-	normal = lab_test.append("normal_test_items")
-	normal.lab_test_name = template.lab_test_name
-	normal.lab_test_uom = template.lab_test_uom
-	normal.secondary_uom = template.secondary_uom
-	normal.conversion_factor = template.conversion_factor
-	normal.normal_range = template.lab_test_normal_range
-	normal.require_result_value = 1
-	normal.allow_blank = 0
-	normal.template = template.name
+# def create_normals(template, lab_test):
+# 	lab_test.normal_toggle = 1
+# 	normal = lab_test.append("normal_test_items")
+# 	normal.lab_test_name = template.lab_test_name
+# 	normal.lab_test_uom = template.lab_test_uom
+# 	normal.secondary_uom = template.secondary_uom
+# 	normal.conversion_factor = template.conversion_factor
+# 	normal.normal_range = template.lab_test_normal_range
+# 	normal.require_result_value = 1
+# 	normal.allow_blank = 0
+# 	normal.template = template.name
 
 
-def create_imaging(template, lab_test):
-	lab_test.imaging_toggle = 1
-	lab_test.template = template.name
-	lab_test.lab_test_name = template.lab_test_name
-	lab_test.descriptive_result = template.descriptive_result
+# def create_imaging(template, lab_test):
+# 	lab_test.imaging_toggle = 1
+# 	lab_test.template = template.name
+# 	lab_test.lab_test_name = template.lab_test_name
+# 	lab_test.descriptive_result = template.descriptive_result
 
 
-def create_compounds(template, lab_test, is_group):
-	lab_test.normal_toggle = 1
-	for normal_test_template in template.normal_test_templates:
-		normal = lab_test.append("normal_test_items")
-		if is_group:
-			normal.lab_test_event = normal_test_template.lab_test_event
-		else:
-			normal.lab_test_name = normal_test_template.lab_test_event
+# def create_compounds(template, lab_test, is_group):
+# 	lab_test.normal_toggle = 1
+# 	for normal_test_template in template.normal_test_templates:
+# 		normal = lab_test.append("normal_test_items")
+# 		if is_group:
+# 			normal.lab_test_event = normal_test_template.lab_test_event
+# 		else:
+# 			normal.lab_test_name = normal_test_template.lab_test_event
 
-		normal.lab_test_uom = normal_test_template.lab_test_uom
-		normal.secondary_uom = normal_test_template.secondary_uom
-		normal.conversion_factor = normal_test_template.conversion_factor
-		normal.normal_range = normal_test_template.normal_range
-		normal.require_result_value = 1
-		normal.allow_blank = normal_test_template.allow_blank
-		normal.template = template.name
+# 		normal.lab_test_uom = normal_test_template.lab_test_uom
+# 		normal.secondary_uom = normal_test_template.secondary_uom
+# 		normal.conversion_factor = normal_test_template.conversion_factor
+# 		normal.normal_range = normal_test_template.normal_range
+# 		normal.require_result_value = 1
+# 		normal.allow_blank = normal_test_template.allow_blank
+# 		normal.template = template.name
 
 
-def create_descriptives(template, lab_test):
-	lab_test.descriptive_toggle = 1
-	if template.sensitivity:
-		lab_test.sensitivity_toggle = 1
-	for descriptive_test_template in template.descriptive_test_templates:
-		descriptive = lab_test.append("descriptive_test_items")
-		descriptive.lab_test_particulars = descriptive_test_template.particulars
-		descriptive.require_result_value = 1
-		descriptive.allow_blank = descriptive_test_template.allow_blank
-		descriptive.template = template.name
+# def create_descriptives(template, lab_test):
+# 	lab_test.descriptive_toggle = 1
+# 	if template.sensitivity:
+# 		lab_test.sensitivity_toggle = 1
+# 	for descriptive_test_template in template.descriptive_test_templates:
+# 		descriptive = lab_test.append("descriptive_test_items")
+# 		descriptive.lab_test_particulars = descriptive_test_template.particulars
+# 		descriptive.require_result_value = 1
+# 		descriptive.allow_blank = descriptive_test_template.allow_blank
+# 		descriptive.template = template.name
 
 
 def create_sample_doc(template, patient, invoice, company=None):
@@ -506,18 +564,18 @@ def create_sample_doc(template, patient, invoice, company=None):
 		return sample_collection
 
 
-def create_sample_collection(lab_test, template, patient, invoice):
-	# Always create and link a Sample Collection for a Lab Test created from template.
-	sample_collection = create_sample_doc(template, patient, invoice, lab_test.company)
-	if sample_collection:
-		lab_test.sample = sample_collection.name
-		sample_collection_doc = get_link_to_form("Sample Collection", sample_collection.name)
-		frappe.msgprint(
-			_("Sample Collection {0} has been created").format(sample_collection_doc),
-			title=_("Sample Collection"),
-			indicator="green",
-		)
-	return lab_test
+# def create_sample_collection(lab_test, template, patient, invoice):
+# 	# Always create and link a Sample Collection for a Lab Test created from template.
+# 	sample_collection = create_sample_doc(template, patient, invoice, lab_test.company)
+# 	if sample_collection:
+# 		lab_test.sample = sample_collection.name
+# 		sample_collection_doc = get_link_to_form("Sample Collection", sample_collection.name)
+# 		frappe.msgprint(
+# 			_("Sample Collection {0} has been created").format(sample_collection_doc),
+# 			title=_("Sample Collection"),
+# 			indicator="green",
+# 		)
+# 	return lab_test
 
 
 def load_result_format(lab_test, template, prescription, invoice):
@@ -582,24 +640,24 @@ def load_result_format(lab_test, template, prescription, invoice):
 	# 	return lab_test
 
 
-@frappe.whitelist()
-def get_employee_by_user_id(user_id):
-	emp_id = frappe.db.exists("Employee", {"user_id": user_id})
-	if emp_id:
-		return frappe.get_doc("Employee", emp_id)
-	return None
+# @frappe.whitelist()
+# def get_employee_by_user_id(user_id):
+# 	emp_id = frappe.db.exists("Employee", {"user_id": user_id})
+# 	if emp_id:
+# 		return frappe.get_doc("Employee", emp_id)
+# 	return None
 
 
-@frappe.whitelist()
-def get_lab_test_prescribed(patient):
-	hso = frappe.qb.DocType("Service Request")
-	return (
-		frappe.qb.from_(hso)
-		.select(
-			hso.template_dn, hso.order_group, hso.billing_status, hso.practitioner, hso.order_date, hso.name
-		)
-		.where(hso.patient == patient)
-		.where(hso.status != "completed-Request Status")
-		.where(hso.template_dt == "Lab Test Template")
-		.orderby(hso.creation, order=frappe.qb.desc)
-	).run()
+# @frappe.whitelist()
+# def get_lab_test_prescribed(patient):
+# 	hso = frappe.qb.DocType("Service Request")
+# 	return (
+# 		frappe.qb.from_(hso)
+# 		.select(
+# 			hso.template_dn, hso.order_group, hso.billing_status, hso.practitioner, hso.order_date, hso.name
+# 		)
+# 		.where(hso.patient == patient)
+# 		.where(hso.status != "completed-Request Status")
+# 		.where(hso.template_dt == "Lab Test Template")
+# 		.orderby(hso.creation, order=frappe.qb.desc)
+# 	).run()

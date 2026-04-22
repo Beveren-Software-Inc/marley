@@ -48,6 +48,7 @@
   "report_preference",
   "email",
   "mobile",
+  "gender",
   "c_b",
   "service_unit",
   "practitioner",
@@ -372,6 +373,7 @@
    "set_only_once": 1
   },
   {
+   "fetch_from": "template.lab_group",
    "fieldname": "lab_test_group",
    "fieldtype": "Link",
    "label": "Lab Test Group",
@@ -859,6 +861,13 @@
    "fieldname": "lab_amount_addition",
    "fieldtype": "Currency",
    "label": "Lab Addition Amount"
+  },
+  {
+   "fetch_from": "patient.sex",
+   "fieldname": "gender",
+   "fieldtype": "Link",
+   "label": "Gender",
+   "options": "Gender"
   }
  ],
  "is_submittable": 1,
@@ -868,7 +877,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2026-04-19 17:47:27.908275",
+ "modified": "2026-04-22 13:07:57.631445",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Lab Test",
