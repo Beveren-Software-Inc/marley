@@ -442,6 +442,17 @@ def create_service_request(data):
 		naming_series = 'HSR-'
 	
 	# Create the service request
+	selected_group_templates = data.get("selected_group_templates") or []
+	if isinstance(selected_group_templates, str):
+		import json
+		try:
+			selected_group_templates = json.loads(selected_group_templates)
+		except Exception:
+			selected_group_templates = [selected_group_templates]
+	if not isinstance(selected_group_templates, list):
+		selected_group_templates = []
+	selected_group_templates = [t for t in selected_group_templates if t]
+
 	service_request = frappe.get_doc({
 		'doctype': 'Service Request',
 		'patient': data.get('patient'),
@@ -467,6 +478,7 @@ def create_service_request(data):
 		'discount_value': data.get('discount_value') or '',
 		'discount_amount': frappe.utils.flt(data.get('discount_amount') or 0),
 		'grand_total': frappe.utils.flt(data.get('grand_total') or data.get('cost') or 0),
+		'selected_group_templates': frappe.as_json(selected_group_templates),
 	})
 	
 	service_request.insert()

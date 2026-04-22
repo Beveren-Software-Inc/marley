@@ -74,6 +74,7 @@
   "service_details_section",
   "template_dt",
   "template_dn",
+  "selected_group_templates",
   "amount",
   "column_break_uafs",
   "reference_document_type",
@@ -491,6 +492,13 @@
    "label": "Order Template",
    "options": "template_dt",
    "search_index": 1
+  },
+  {
+   "fieldname": "selected_group_templates",
+   "fieldtype": "Long Text",
+   "hidden": 1,
+   "label": "Selected Group Templates",
+   "read_only": 1
   },
   {
    "fieldname": "patient_age_data",

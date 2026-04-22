@@ -617,19 +617,34 @@ def book_lab_and_forward(service_request_name):
 	is_group = frappe.db.get_value("Lab Test Template", sr.template_dn, "is_group")
 	
 	if is_group:
+		selected_template_names = []
+		if getattr(sr, "selected_group_templates", None):
+			try:
+				selected_template_names = json.loads(sr.selected_group_templates)
+			except Exception:
+				selected_template_names = []
+		if not isinstance(selected_template_names, list):
+			selected_template_names = []
+		selected_template_names = [t for t in selected_template_names if t]
+
 		# Find all child lab test templates where lab_group equals the parent template
+		filters = {"lab_group": sr.template_dn, "disabled": 0}
+		if selected_template_names:
+			filters["name"] = ["in", selected_template_names]
+
 		child_templates = frappe.get_all(
 			"Lab Test Template",
-			filters={
-				"lab_group": sr.template_dn,
-				"disabled": 0
-			},
+			filters=filters,
 			fields=["name", "lab_test_name"],
 			order_by="lab_test_name asc",
 			ignore_permissions=True,
 		)
 		
 		if not child_templates:
+			if selected_template_names:
+				frappe.throw(
+					_("No selected child templates found for this group template. Please reselect tests.")
+				)
 			frappe.throw(_("No child templates found for this group template."))
 		
 		# Get pricing information for each child template based on patient category
