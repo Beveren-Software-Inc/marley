@@ -6,6 +6,18 @@ import frappe
 from frappe import _
 
 
+def _ensure_lab_result_edit_permission():
+	"""Only LabTest Approver can enter/adjust lab results."""
+	roles = set(frappe.get_roles(frappe.session.user))
+	if "LabTest Approver" in roles:
+		return
+
+	frappe.throw(
+		_("Only users with LabTest Approver role can enter or adjust Lab Test results."),
+		frappe.PermissionError,
+	)
+
+
 @frappe.whitelist(allow_guest=False)
 def get_lab_test_template_details(template):
 	"""Return display/meta fields from a Lab Test Template for result-entry UI.
@@ -529,6 +541,8 @@ def save_and_submit_lab_test(
 	submit: bool = False,
 ):
 	"""Save custom result/comment/worksheet/documents/normal_test_items/pricing on Lab Test and optionally submit it."""
+	_ensure_lab_result_edit_permission()
+
 	if not name:
 		frappe.throw(_("Lab Test name is required"))
 
@@ -598,10 +612,12 @@ def save_and_submit_lab_test(
 		doc.grand_total = base - (disc_amt or 0)
 
 	_apply_documents_to_doc(doc, documents)
-
+	print("Uko wapi")
 	if submit:
 		if doc.docstatus == 0:
+			doc.flags.ignore_permissions = True
 			doc.save(ignore_permissions=True)
+			doc.flags.ignore_permissions = True
 			doc.submit()
 		else:
 			# If already submitted, just save changes
