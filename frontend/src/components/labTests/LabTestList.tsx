@@ -26,7 +26,6 @@ import {
   fetchLabTestTemplates,
   type LinkFieldOption,
 } from '../../services/common'
-import { fetchServiceUnits, type ServiceUnit } from '../../services/inpatientRecords'
 import { uploadPatientFile, type PatientDocumentRow } from '../../services/patients'
 import { LabTestDetails } from './LabTestDetails'
 import { EditLabTestModal } from './EditLabTestModal'
@@ -257,9 +256,6 @@ export const LabTestList = ({
   const [sampleFormLoading, setSampleFormLoading] = useState(false)
   const [sampleFormError, setSampleFormError] = useState<string | null>(null)
   const [sampleFormCollectionPoint, setSampleFormCollectionPoint] = useState<string>('')
-  const [collectionPointQuery, setCollectionPointQuery] = useState<string>('')
-  const [collectionPointOptions, setCollectionPointOptions] = useState<ServiceUnit[]>([])
-  const [collectionPointOpen, setCollectionPointOpen] = useState(false)
   const [sampleFormRefPractitioner, setSampleFormRefPractitioner] = useState<string>('')
   const [refPractitionerOptions, setRefPractitionerOptions] = useState<LinkFieldOption[]>([])
   const [refPractitionerQuery, setRefPractitionerQuery] = useState('')
@@ -271,15 +267,6 @@ export const LabTestList = ({
   const [finishingGroupKey, setFinishingGroupKey] = useState<string | null>(null)
   // Track if create sample modal is open to close the parent modal
   const [isCreatingSample, setIsCreatingSample] = useState(false)
-
-  useEffect(() => {
-    const loadCollectionPoints = async () => {
-      if (!collectionPointQuery.trim()) { setCollectionPointOptions([]); return }
-      try { setCollectionPointOptions(await fetchServiceUnits(undefined, undefined, collectionPointQuery.trim())) }
-      catch { setCollectionPointOptions([]) }
-    }
-    loadCollectionPoints()
-  }, [collectionPointQuery])
 
   useEffect(() => {
     const loadPractitioners = async () => {
@@ -933,7 +920,7 @@ export const LabTestList = ({
                 <p className="text-xs text-slate-500 mt-0.5">Sample: <strong>{sampleModalLabTest.sample_instances?.[sampleFormRowIndex!]?.sample || '—'}</strong></p>
               </div>
               <button type="button" disabled={sampleFormLoading}
-                onClick={() => { if (!sampleFormLoading) { setSampleFormRowIndex(null); setSampleFormError(null); setSampleFormCollectionPoint(''); setCollectionPointQuery(''); setCollectionPointOptions([]); setSampleFormRefPractitioner(''); setRefPractitionerQuery(''); setRefPractitionerOptions([]); setCollectionPointOpen(false); setRefPractitionerOpen(false); setSampleObsRows([]); setTemplateSampleDetails(''); setIsCreatingSample(false) } }}
+                onClick={() => { if (!sampleFormLoading) { setSampleFormRowIndex(null); setSampleFormError(null); setSampleFormCollectionPoint(''); setSampleFormRefPractitioner(''); setRefPractitionerQuery(''); setRefPractitionerOptions([]); setRefPractitionerOpen(false); setSampleObsRows([]); setTemplateSampleDetails(''); setIsCreatingSample(false) } }}
                 className="text-slate-400 hover:text-slate-600 disabled:opacity-40 text-lg">✕</button>
             </div>
             <div className="p-5 space-y-4 overflow-y-auto flex-1">
@@ -1021,7 +1008,7 @@ export const LabTestList = ({
             </div>
             <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 flex justify-end gap-2">
               <button type="button" disabled={sampleFormLoading}
-                onClick={() => { if (!sampleFormLoading) { setSampleFormRowIndex(null); setSampleFormError(null); setSampleFormCollectionPoint(''); setCollectionPointQuery(''); setCollectionPointOptions([]); setSampleFormRefPractitioner(''); setRefPractitionerQuery(''); setRefPractitionerOptions([]); setCollectionPointOpen(false); setRefPractitionerOpen(false); setSampleObsRows([]); setTemplateSampleDetails(''); setIsCreatingSample(false) } }}
+                  onClick={() => { if (!sampleFormLoading) { setSampleFormRowIndex(null); setSampleFormError(null); setSampleFormCollectionPoint(''); setSampleFormRefPractitioner(''); setRefPractitionerQuery(''); setRefPractitionerOptions([]); setRefPractitionerOpen(false); setSampleObsRows([]); setTemplateSampleDetails(''); setIsCreatingSample(false) } }}
                 className="px-4 py-2 text-xs rounded-md border border-slate-300 text-slate-700 hover:bg-white disabled:opacity-50">Cancel</button>
               <button type="button" disabled={sampleFormLoading || sampleFormRowIndex === null}
                 className="px-4 py-2 text-xs rounded-md bg-primary text-white hover:bg-primary/90 disabled:opacity-50 font-medium"
