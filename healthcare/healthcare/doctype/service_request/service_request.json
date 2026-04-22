@@ -387,7 +387,7 @@
   },
   {
    "fieldname": "order_time",
-   "fieldtype": "Time",
+   "fieldtype": "Data",
    "label": "Order Time",
    "reqd": 1
   },
@@ -652,7 +652,7 @@
    "link_fieldname": "service_request"
   }
  ],
- "modified": "2026-03-18 17:01:11.807085",
+ "modified": "2026-04-22 09:41:55.748995",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Service Request",

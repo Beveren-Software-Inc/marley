@@ -10,13 +10,13 @@ frappe.ui.form.on('Lab Test Template', {
 	},
 	refresh : function(frm) {
 		// Restrict Special, Grouped type templates in Child Test Groups
-		frm.set_query('lab_test_template', 'lab_test_groups', function() {
-			return {
-				filters: {
-					lab_test_template_type: ['in', ['Single','Compound']]
-				}
-			};
-		});
+		// frm.set_query('lab_test_template', 'lab_test_groups', function() {
+		// 	return {
+		// 		filters: {
+		// 			lab_test_template_type: ['in', ['Single','Compound']]
+		// 		}
+		// 	};
+		// });
 
 		frm.set_query('item', function() {
 			return {
@@ -52,7 +52,7 @@ frappe.ui.form.on('Lab Test Template', {
 			frappe.db.get_value('Item', frm.doc.item, ['item_group'])
 			.then(r => {
 				frm.set_value({
-					'lab_test_group': r.message.item_group,
+					'lab_item_group': r.message.item_group,
 					'lab_test_code': frm.doc.item
 				});
 			})
@@ -109,9 +109,9 @@ frappe.ui.form.on('Lab Test Template', 'lab_test_rate', function(frm) {
 	frm.doc.change_in_item = 1;
 });
 
-frappe.ui.form.on('Lab Test Template', 'lab_test_group', function(frm) {
-	frm.doc.change_in_item = 1;
-});
+// frappe.ui.form.on('Lab Test Template', 'lab_test_group', function(frm) {
+// 	frm.doc.change_in_item = 1;
+// });
 
 frappe.ui.form.on('Lab Test Template', 'lab_test_description', function(frm) {
 	frm.doc.change_in_item = 1;
