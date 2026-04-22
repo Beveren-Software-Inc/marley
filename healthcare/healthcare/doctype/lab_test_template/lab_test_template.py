@@ -73,7 +73,7 @@ class LabTestTemplate(Document):
 			item.update(
 				{
 					"item_name": self.lab_test_name,
-					"item_group": self.lab_test_group,
+					"item_group": self.lab_item_group,
 					"disabled": 0,
 					"standard_rate": self.lab_test_rate,
 					"description": self.lab_test_description,
@@ -96,7 +96,7 @@ class LabTestTemplate(Document):
 				if item.secondary_uom and not item.conversion_factor:
 					frappe.throw(_("Row #{0}: Conversion Factor is mandatory").format(item.idx))
 		if self.lab_test_template_type == "Grouped":
-			for group in self.lab_test_groups:
+			for group in self.lab_item_group:
 				if (
 					group.template_or_new_line == "Add New Line"
 					and group.secondary_uom
@@ -118,7 +118,7 @@ def create_item_from_template(doc):
             "doctype": "Item",
             "item_code": doc.lab_test_code,
             "item_name": doc.lab_test_name,
-            "item_group": doc.lab_test_group,
+            "item_group": doc.lab_item_group,
             "description": doc.lab_test_description,
             "is_sales_item": 1,
             "is_service_item": 1,
