@@ -734,9 +734,9 @@
   },
   {
    "fieldname": "category",
-   "fieldtype": "Select",
+   "fieldtype": "Link",
    "label": "Category",
-   "options": "\nRoyal\nAmerican Navy\nRegular"
+   "options": "Patient Category"
   },
   {
    "allow_in_quick_entry": 1,
@@ -1170,7 +1170,7 @@
   }
  ],
  "max_attachments": 50,
- "modified": "2026-04-21 00:26:58.878184",
+ "modified": "2026-04-22 17:19:45.507414",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient",

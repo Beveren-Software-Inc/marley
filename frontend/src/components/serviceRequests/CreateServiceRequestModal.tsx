@@ -1143,6 +1143,7 @@ interface CreateServiceRequestModalProps {
 interface PricingRow {
   patient_category: string
   price: number | null
+  multiplier?: number | null
 }
 
 interface GroupTemplateItem {
@@ -2049,9 +2050,10 @@ export const CreateServiceRequestModal = ({
               
               <div className="space-y-2 mb-4">
                 {groupTemplates.map((gt, idx) => {
-                  const matchedPrice = patientCategory
-                    ? gt.pricing.find((p) => p.patient_category === patientCategory)?.price
-                    : gt.pricing[0]?.price
+                  const matched = patientCategory
+                    ? gt.pricing.find((p) => p.patient_category === patientCategory)
+                    : gt.pricing[0]
+                  const matchedPrice = matched?.price
                   return (
                     <label 
                       key={idx} 
@@ -2074,6 +2076,11 @@ export const CreateServiceRequestModal = ({
                             {matchedPrice != null ? matchedPrice.toFixed(2) : <span className="italic">No price</span>}
                           </span>
                         </div>
+                        {matched?.multiplier != null && (
+                          <div className="text-[11px] text-slate-500 mt-0.5">
+                            {matched.patient_category} × {matched.multiplier}
+                          </div>
+                        )}
                         <div className="text-xs text-slate-500 mt-0.5">
                           ID: {gt.template_dn}
                         </div>
@@ -2125,6 +2132,9 @@ export const CreateServiceRequestModal = ({
                       </span>
                       {row.patient_category === patientCategory && (
                         <span className="ml-2 text-xs text-green-600 font-medium">(Patient's category)</span>
+                      )}
+                      {row.multiplier != null && (
+                        <span className="ml-2 text-xs text-slate-500">× {row.multiplier}</span>
                       )}
                     </div>
                     <div className="text-sm font-semibold text-slate-900">

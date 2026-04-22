@@ -170,6 +170,9 @@ fixtures = [
 	},
     {
 		"doctype":"DAMA Type"
+	},
+    {
+		"doctype":"Patient Category"
 	}
 ]
 

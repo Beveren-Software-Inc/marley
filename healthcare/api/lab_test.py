@@ -252,6 +252,9 @@ def get_lab_tests(
 			"grand_total",
 			"cost_center",
 			"custom_result",
+			"service_request",
+			"lab_test_group",
+			"is_group_lab_test",
 			# "min_range",
 			# "max_range",
 			"results",
@@ -1049,3 +1052,47 @@ def get_lab_test_by_id(name: str):
         "normal_test_items": normal_items,
         "sensitivity_test_items": sensitivity_items
     }
+
+
+@frappe.whitelist(allow_guest=False)
+def finish_group_lab_tests(service_request_name: str):
+	"""Mark grouped lab request as finished only if all child tests are completed."""
+	if not service_request_name:
+		frappe.throw(_("Service Request name is required"))
+
+	if not frappe.db.exists("Service Request", service_request_name):
+		frappe.throw(_("Service Request not found"))
+
+	lab_tests = frappe.get_all(
+		"Lab Test",
+		filters={"service_request": service_request_name, "docstatus": ["!=", 2]},
+		fields=["name", "docstatus", "status", "is_group_lab_test"],
+		order_by="creation asc",
+	)
+
+	if not lab_tests:
+		frappe.throw(_("No Lab Tests found for this Service Request"))
+
+	grouped = [lt for lt in lab_tests if int(lt.get("is_group_lab_test") or 0) == 1]
+	if not grouped:
+		frappe.throw(_("This Service Request is not a grouped lab request"))
+
+	done_statuses = {"Completed", "Pending Review", "Reviewed"}
+	incomplete = [
+		lt.get("name")
+		for lt in grouped
+		if int(lt.get("docstatus") or 0) != 1 or lt.get("status") not in done_statuses
+	]
+
+	if incomplete:
+		frappe.throw(_("Cannot finish group. Pending tests: {0}").format(", ".join(incomplete)))
+
+	frappe.db.set_value(
+		"Service Request",
+		service_request_name,
+		"status",
+		"completed-Request Status",
+		update_modified=True,
+	)
+
+	return {"ok": True, "service_request": service_request_name, "finished": True}
