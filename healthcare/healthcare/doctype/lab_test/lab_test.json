@@ -433,6 +433,7 @@
    "label": "Comments"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "lab_test_comment",
    "fieldtype": "Text",
    "ignore_xss_filter": 1,
@@ -446,6 +447,7 @@
    "label": "Custom Result"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "custom_result",
    "fieldtype": "Text Editor",
    "ignore_xss_filter": 1,
@@ -887,7 +889,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2026-04-22 13:07:57.631445",
+ "modified": "2026-04-22 18:10:28.734583",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Lab Test",
