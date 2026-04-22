@@ -255,6 +255,7 @@ def get_lab_tests(
 			# "min_range",
 			# "max_range",
 			"results",
+			"gender",
 		],
 		limit=limit,
 		limit_start=offset,
