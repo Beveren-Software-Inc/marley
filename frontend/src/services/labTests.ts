@@ -5,6 +5,7 @@ export interface LabTest {
   patient_name?: string
   patient_age?: string
   patient_sex?: string
+  gender?: string
   practitioner?: string
   practitioner_name?: string
   lab_test_name?: string
