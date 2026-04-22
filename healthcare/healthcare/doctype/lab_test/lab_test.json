@@ -13,6 +13,7 @@
   "template",
   "lab_test_name",
   "lab_test_group",
+  "is_group_lab_test",
   "department",
   "reference_doctype",
   "reference_document",
@@ -379,6 +380,15 @@
    "label": "Lab Test Group",
    "options": "Lab Test Template",
    "print_hide": 1,
+   "report_hide": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "is_group_lab_test",
+   "fieldtype": "Check",
+   "label": "Is Group Lab Test",
+   "print_hide": 1,
+   "read_only": 1,
    "report_hide": 1
   },
   {

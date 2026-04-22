@@ -72,14 +72,24 @@ const NAV_CARDS = [
 ]
 
 export const LabPage = () => {
-  const { selectedPatient: globalPatient, setSelectedPatient: setGlobalPatient } = useCareContext()
+  const {
+    selectedPatient: globalPatient,
+    setSelectedPatient: setGlobalPatient,
+    userRole,
+  } = useCareContext()
   const [searchParams, setSearchParams] = useSearchParams()
   const patientFromUrl = searchParams.get('patient')
   const screen = searchParams.get('screen')
   const tabFromUrl = (searchParams.get('tab') || 'service-requests') as LabTab
+  const roles = userRole || []
+  const canCreateLabServiceRequests = roles.some((role) =>
+    ['Doctor', 'System Manager', 'Healthcare Administrator', 'Administrator'].includes(role)
+  )
   
   const [selectedPatient, setSelectedPatient] = useState<string | undefined>(() => patientFromUrl || globalPatient || undefined)
-  const [activeTab, setActiveTab] = useState<LabTab>(tabFromUrl)
+  const [activeTab, setActiveTab] = useState<LabTab>(
+    canCreateLabServiceRequests || tabFromUrl !== 'service-requests' ? tabFromUrl : 'lab-tests'
+  )
   const [labTestRefreshKey, setLabTestRefreshKey] = useState(0)
   const [showLabTestModal, setShowLabTestModal] = useState(false)
   const [showServiceRequestModal, setShowServiceRequestModal] = useState(false)
@@ -148,11 +158,18 @@ export const LabPage = () => {
   }
 
   const handleTabChange = (newTab: LabTab) => {
+    if (newTab === 'service-requests' && !canCreateLabServiceRequests) return
     setActiveTab(newTab)
     const newSearchParams = new URLSearchParams(searchParams)
     newSearchParams.set('tab', newTab)
     setSearchParams(newSearchParams, { replace: true })
   }
+
+  useEffect(() => {
+    if (!canCreateLabServiceRequests && activeTab === 'service-requests') {
+      handleTabChange('lab-tests')
+    }
+  }, [canCreateLabServiceRequests, activeTab])
 
   const handleLabTestCreated = () => {
     setLabTestRefreshKey(prev => prev + 1)
@@ -176,7 +193,7 @@ export const LabPage = () => {
   // ─── l-setup ───────────────────────────────────────────
   if (screen === 'l-setup') {
     return (
-      <div className="flex flex-col">
+      <div className="flex flex-col min-w-0">
         <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
           <div className="flex-1 min-w-0">
             <PatientSearch selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
@@ -313,9 +330,36 @@ export const LabPage = () => {
 
   // Render based on screen
   if (screen === 'l-req') {
+    if (!canCreateLabServiceRequests) {
+      return (
+        <div className="flex flex-col">
+          <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+            <div className="flex-1 min-w-0">
+              <PatientSearch
+                selectedPatient={selectedPatient || ''}
+                onPatientSelect={handlePatientSelect}
+                patients={[]}
+              />
+            </div>
+            <div className="flex items-center gap-3 flex-shrink-0">
+              <UserMenu />
+              <NotificationBell />
+            </div>
+          </header>
+          <div className="p-4">
+            <section className="bg-white border border-slate-200 rounded-lg p-6 shadow-sm">
+              <p className="text-sm text-slate-700">
+                You are not allowed to create Lab Service Requests. Please contact a Doctor, System Manager, or Healthcare Administrator.
+              </p>
+            </section>
+          </div>
+        </div>
+      )
+    }
+
     // Lab Test Requests - show service requests with Lab Test Template
     return (
-      <div className="flex flex-col">
+      <div className="flex flex-col min-w-0">
         <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
           <div className="flex-1 min-w-0">
             <PatientSearch
@@ -370,7 +414,7 @@ export const LabPage = () => {
   if (screen === 'l-out') {
     // Outsourced Tests - show only lab tests where is_outsourced = 1
     return (
-      <div className="flex flex-col">
+      <div className="flex flex-col min-w-0">
         <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
           <div className="flex-1 min-w-0">
             <PatientSearch
@@ -419,7 +463,7 @@ export const LabPage = () => {
   if (screen === 'l-results') {
     // Lab Test & Result - show all lab tests
     return (
-      <div className="flex flex-col">
+      <div className="flex flex-col min-w-0">
         <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
           <div className="flex-1 min-w-0">
             <PatientSearch
@@ -470,7 +514,7 @@ export const LabPage = () => {
   const needsPatient = activeTab === 'medical-history' || activeTab === 'warnings'
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full min-w-0">
       <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
         <div className="flex-1 min-w-0">
           <PatientSearch
@@ -485,11 +529,11 @@ export const LabPage = () => {
         </div>
       </header>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 min-w-0 overflow-y-auto p-4 space-y-4">
 
         {/* Navigation cards */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          {NAV_CARDS.map(card => {
+          {NAV_CARDS.filter(card => canCreateLabServiceRequests || card.id !== 'service-requests').map(card => {
             const Icon = card.icon
             const isActive = activeTab === card.id
             return (
@@ -522,7 +566,7 @@ export const LabPage = () => {
               <h2 className="text-sm font-semibold text-slate-800">{activeCard.title}</h2>
               <p className="text-xs text-slate-500 mt-0.5">{activeCard.desc}</p>
             </div>
-            {activeTab === 'service-requests' && (
+            {activeTab === 'service-requests' && canCreateLabServiceRequests && (
               <button
                 type="button"
                 onClick={() => setShowServiceRequestModal(true)}
@@ -555,7 +599,7 @@ export const LabPage = () => {
           </div>
 
           <div className="overflow-x-auto overflow-y-auto max-h-[480px] p-1" style={{ scrollbarWidth: 'thin' }}>
-            {activeTab === 'service-requests' && (
+            {activeTab === 'service-requests' && canCreateLabServiceRequests && (
               <ServiceRequestList
                 patient={selectedPatient}
                 onLabTestCreated={handleLabTestCreated}
@@ -619,7 +663,7 @@ export const LabPage = () => {
           initialPatient={selectedPatient}
         />
       )}
-      {showServiceRequestModal && (
+      {showServiceRequestModal && canCreateLabServiceRequests && (
         <CreateServiceRequestModal
           onClose={() => setShowServiceRequestModal(false)}
           onSuccess={() => { 

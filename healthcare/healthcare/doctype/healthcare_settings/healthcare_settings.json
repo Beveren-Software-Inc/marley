@@ -79,7 +79,9 @@
   "section_break_whbc",
   "nurse_mini_warehouse",
   "more_info_tab",
-  "default_patient"
+  "default_patient",
+  "pricing_tab",
+  "patient_category_pricing"
  ],
  "fields": [
   {
@@ -535,11 +537,22 @@
    "fieldtype": "Table",
    "label": "Nurse Mini Warehouse",
    "options": "Nurses Warehouse"
+  },
+  {
+   "fieldname": "pricing_tab",
+   "fieldtype": "Tab Break",
+   "label": "Pricing"
+  },
+  {
+   "fieldname": "patient_category_pricing",
+   "fieldtype": "Table",
+   "label": "Patient Category Pricing",
+   "options": "Service Pricing"
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-04-13 12:41:11.721630",
+ "modified": "2026-04-22 17:25:02.398122",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Settings",

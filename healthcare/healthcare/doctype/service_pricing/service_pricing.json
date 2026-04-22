@@ -7,17 +7,18 @@
  "engine": "InnoDB",
  "field_order": [
   "patient_category",
+  "multiplier",
   "column_break_udsh",
   "price"
  ],
  "fields": [
   {
    "fieldname": "patient_category",
-   "fieldtype": "Select",
+   "fieldtype": "Link",
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Patient Category",
-   "options": "\nRoyal\nAmerican Navy\nRegular"
+   "options": "Patient Category"
   },
   {
    "fieldname": "column_break_udsh",
@@ -26,16 +27,21 @@
   {
    "fieldname": "price",
    "fieldtype": "Currency",
+   "label": "Price"
+  },
+  {
+   "fieldname": "multiplier",
+   "fieldtype": "Float",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "Price"
+   "label": "Multiplier"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-03-22 08:34:47.267457",
+ "modified": "2026-04-22 17:25:17.841680",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Service Pricing",

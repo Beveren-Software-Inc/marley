@@ -413,13 +413,13 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
       </aside>
 
       {/* ── Main content ── */}
-      <main className="p-0 h-screen flex flex-col flex-1 md:ml-0">
+      <main className="p-0 h-screen flex flex-col flex-1 min-w-0 overflow-hidden md:ml-0">
         <div
           id="patient-alerts-portal"
           className="fixed top-14 left-0 right-0 z-30 md:left-[240px]"
           aria-hidden
         />
-        <div className="flex-1 overflow-y-auto">{children}</div>
+        <div className="flex-1 min-w-0 overflow-y-auto">{children}</div>
         <footer className="h-9 flex items-center justify-end px-4 text-[11px] text-white bg-gradient-to-r from-primary/70 via-primary to-primary/60">
           © 2025 Powered by <span className="font-semibold ml-1">Beveren Software Inc.</span>
         </footer>

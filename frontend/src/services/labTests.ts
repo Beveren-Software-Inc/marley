@@ -36,6 +36,8 @@ export interface LabTest {
   company?: string
   requesting_department?: string
   service_request?: string
+  lab_test_group?: string
+  is_group_lab_test?: number
   reference_document?: string
   employee_name?: string
   employee?: string
@@ -358,6 +360,21 @@ export async function updateLabTestStatus(
       body: JSON.stringify({
         lab_test_name,
         new_status,
+      }),
+    }
+  )
+}
+
+export async function finishGroupLabTests(
+  serviceRequestName: string
+): Promise<{ ok: boolean; service_request: string; finished: boolean }> {
+  const { apiRequest } = await import('./apiClient')
+  return apiRequest<{ ok: boolean; service_request: string; finished: boolean }>(
+    '/api/method/healthcare.api.lab_test.finish_group_lab_tests',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        service_request_name: serviceRequestName,
       }),
     }
   )

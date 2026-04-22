@@ -31,6 +31,7 @@ interface EditServiceRequestModalProps {
 interface PricingRow {
   patient_category: string
   price: number | null
+  multiplier?: number | null
 }
 
 const defaultFormData = {
@@ -831,6 +832,9 @@ export const EditServiceRequestModal = ({
                             <span className="text-sm font-medium text-slate-900">{row.patient_category}</span>
                             {row.patient_category === patientCategory && (
                               <span className="ml-2 text-xs text-green-600 font-medium">(Patient's category)</span>
+                            )}
+                            {row.multiplier != null && (
+                              <span className="ml-2 text-xs text-slate-500">× {row.multiplier}</span>
                             )}
                           </div>
                           <div className="text-sm font-semibold text-slate-900">{row.price?.toFixed(2) || 'N/A'}</div>

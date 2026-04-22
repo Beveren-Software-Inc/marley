@@ -6,23 +6,135 @@ import frappe
 from frappe import _
 from frappe.utils import nowdate
 
+LAB_SERVICE_REQUEST_ALLOWED_ROLES = {
+	"Doctor",
+	"System Manager",
+	"Healthcare Administrator",
+	"Administrator",
+}
+
+def _get_template_base_rate(template_dt: str, template_dn: str) -> float:
+    """Resolve base rate from template document safely."""
+
+    meta = frappe.get_meta(template_dt)
+
+    possible_fields = ["lab_test_rate", "rate", "amount"]
+    existing_fields = [f for f in possible_fields if meta.has_field(f)]
+
+    base = {}
+
+    if existing_fields:
+        base = frappe.db.get_value(
+            template_dt,
+            template_dn,
+            existing_fields,
+            as_dict=True,
+        ) or {}
+
+    for field in possible_fields:
+        if field in base and base.get(field):
+            return float(base[field])
+
+    # fallback to Service Pricing
+    first_pricing = frappe.get_all(
+        "Service Pricing",
+        filters={"parent": template_dn, "parenttype": template_dt},
+        fields=["price"],
+        order_by="idx asc",
+        limit=1,
+        ignore_permissions=True,
+    )
+
+    if first_pricing and first_pricing[0].get("price"):
+        return float(first_pricing[0]["price"])
+
+    return 0.0
+# def _get_template_base_rate(template_dt: str, template_dn: str) -> float:
+# 	"""Resolve base rate from template document."""
+# 	base = frappe.db.get_value(
+# 		template_dt,
+# 		template_dn,
+# 		["lab_test_rate", "rate", "amount"],
+# 		as_dict=True,
+# 	) or {}
+# 	base = base.get("lab_test_rate") or base.get("rate") or base.get("amount")
+# 	if base:
+# 		return float(base)
+
+# 	# Backward compatibility: if no single base-rate field exists, use first pricing row.
+# 	first_pricing = frappe.get_all(
+# 		"Service Pricing",
+# 		filters={"parent": template_dn, "parenttype": template_dt},
+# 		fields=["price"],
+# 		order_by="idx asc",
+# 		limit=1,
+# 		ignore_permissions=True,
+# 	)
+# 	if first_pricing and first_pricing[0].get("price"):
+# 		return float(first_pricing[0]["price"])
+
+# 	return 0.0
+
+
+def _get_patient_category_multipliers():
+	"""Return patient-category multipliers from Healthcare Settings."""
+	settings = frappe.get_cached_doc("Healthcare Settings")
+	rows = []
+	for row in (settings.get("patient_category_pricing") or []):
+		category = getattr(row, "patient_category", None)
+		if not category:
+			continue
+		multiplier = float(getattr(row, "multiplier", None) or 0)
+		if multiplier <= 0:
+			continue
+		rows.append(
+			{
+				"patient_category": category,
+				"multiplier": multiplier,
+			}
+		)
+	return rows
+
+
+def _build_pricing_rows_for_template(template_dt: str, template_dn: str):
+	base_rate = _get_template_base_rate(template_dt, template_dn)
+	rows = []
+	print("Hapa pia nafika")
+	for row in _get_patient_category_multipliers():
+		rows.append(
+			{
+				"patient_category": row["patient_category"],
+				"multiplier": row["multiplier"],
+				"price": (base_rate * row["multiplier"]) if base_rate else 0.0,
+			}
+		)
+	return rows
+
+
+def _ensure_lab_service_request_create_permission(template_dt):
+	if template_dt != "Lab Test Template":
+		return
+
+	user_roles = set(frappe.get_roles(frappe.session.user))
+	if user_roles.intersection(LAB_SERVICE_REQUEST_ALLOWED_ROLES):
+		return
+
+	frappe.throw(
+		_(
+			"Only users with Doctor, System Manager, or Healthcare Administrator roles can create Lab Service Requests."
+		),
+		frappe.PermissionError,
+	)
+
 
 @frappe.whitelist(allow_guest=False)
 def get_lab_test_template_pricing(template):
-	"""Return the pricing child table rows for a Lab Test Template."""
+	"""Return computed pricing rows for a Lab Test Template."""
 	if not template:
 		return []
 	if not frappe.db.exists('Lab Test Template', template):
 		return []
-
-	rows = frappe.get_all(
-		'Lab Test Pricing',
-		filters={'parent': template, 'parenttype': 'Lab Test Template'},
-		fields=['patient_category', 'price'],
-		order_by='idx asc',
-		ignore_permissions=True
-	)
-	return rows
+	return _build_pricing_rows_for_template("Lab Test Template", template)
 
 
 @frappe.whitelist(allow_guest=False)
@@ -40,13 +152,7 @@ def get_lab_test_template_info(template):
 	is_group = frappe.db.get_value('Lab Test Template', template, 'is_group')
 
 	if not is_group:
-		pricing = frappe.get_all(
-			'Lab Test Pricing',
-			filters={'parent': template, 'parenttype': 'Lab Test Template'},
-			fields=['patient_category', 'price'],
-			order_by='idx asc',
-			ignore_permissions=True
-		)
+		pricing = _build_pricing_rows_for_template("Lab Test Template", template)
 		return {'is_group': False, 'pricing': pricing}
 
 	# Group template — fetch each child template with its own pricing
@@ -67,13 +173,7 @@ def get_lab_test_template_info(template):
 		if not row.lab_test_template:
 			continue
 		lab_test_name = frappe.db.get_value('Lab Test Template', row.lab_test_template, 'lab_test_name') or row.lab_test_template
-		pricing = frappe.get_all(
-			'Lab Test Pricing',
-			filters={'parent': row.lab_test_template, 'parenttype': 'Lab Test Template'},
-			fields=['patient_category', 'price'],
-			order_by='idx asc',
-			ignore_permissions=True
-		)
+		pricing = _build_pricing_rows_for_template("Lab Test Template", row.lab_test_template)
 		group_templates.append({
 			'lab_test_template': row.lab_test_template,
 			'lab_test_name': lab_test_name,
@@ -142,24 +242,15 @@ def get_lab_test_template_info(template):
 @frappe.whitelist(allow_guest=False)
 def get_service_request_template_pricing(template_dt, template_dn):
 	"""
-	Return Service Pricing rows for any service request template type.
-	For Lab Test Templates that are groups, also returns child template pricing breakdowns.
-	All templates now share the 'service_pricing' child table (linked to Service Pricing doctype).
+	Return computed pricing rows for any service request template type.
+	Price is derived as: template_base_rate * Healthcare Settings category multiplier.
+	For group lab templates, child-template pricing is returned per child.
 	"""
 	if not template_dt or not template_dn:
 		return {'is_group': False, 'pricing': [], 'group_templates': []}
 
 	if not frappe.db.exists(template_dt, template_dn):
 		return {'is_group': False, 'pricing': [], 'group_templates': []}
-
-	def get_pricing(parent, parenttype=''):
-		return frappe.get_all(
-			'Service Pricing',
-			filters={'parent': parent, 'parenttype': parenttype or template_dt},
-			fields=['patient_category', 'price'],
-			order_by='idx asc',
-			ignore_permissions=True,
-		)
 
 	# Lab Test Template — handle group templates specially
 	if template_dt == 'Lab Test Template':
@@ -185,16 +276,16 @@ def get_service_request_template_pricing(template_dt, template_dn):
 				group_templates.append({
 					'template_dn': child.name,
 					'template_label': label,
-					'pricing': get_pricing(child.name, 'Lab Test Template'),
+					'pricing': _build_pricing_rows_for_template('Lab Test Template', child.name),
 				})
 			return {'is_group': True, 'pricing': [], 'group_templates': group_templates}
 		else:
 			# Regular lab test template (not a group)
-			pricing = get_pricing(template_dn)
+			pricing = _build_pricing_rows_for_template(template_dt, template_dn)
 			return {'is_group': False, 'pricing': pricing, 'group_templates': []}
 
 	# Regular / all other template types
-	pricing = get_pricing(template_dn)
+	pricing = _build_pricing_rows_for_template(template_dt, template_dn)
 	return {'is_group': False, 'pricing': pricing, 'group_templates': []}
 
 
@@ -431,6 +522,7 @@ def create_service_request(data):
 	
 	if not data.get('template_dn'):
 		frappe.throw(_("Template is required"))
+	_ensure_lab_service_request_create_permission(data.get("template_dt"))
 
 	# Require either Patient Visit (OP) or Inpatient Admission for clinical context
 	if not data.get('patient_visit') and not data.get('inpatient_record'):
@@ -442,6 +534,17 @@ def create_service_request(data):
 		naming_series = 'HSR-'
 	
 	# Create the service request
+	selected_group_templates = data.get("selected_group_templates") or []
+	if isinstance(selected_group_templates, str):
+		import json
+		try:
+			selected_group_templates = json.loads(selected_group_templates)
+		except Exception:
+			selected_group_templates = [selected_group_templates]
+	if not isinstance(selected_group_templates, list):
+		selected_group_templates = []
+	selected_group_templates = [t for t in selected_group_templates if t]
+
 	service_request = frappe.get_doc({
 		'doctype': 'Service Request',
 		'patient': data.get('patient'),
@@ -467,6 +570,7 @@ def create_service_request(data):
 		'discount_value': data.get('discount_value') or '',
 		'discount_amount': frappe.utils.flt(data.get('discount_amount') or 0),
 		'grand_total': frappe.utils.flt(data.get('grand_total') or data.get('cost') or 0),
+		'selected_group_templates': frappe.as_json(selected_group_templates),
 	})
 	
 	service_request.insert()

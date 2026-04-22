@@ -11,7 +11,7 @@ from six import string_types
 import frappe
 from frappe import _
 from frappe.model.mapper import get_mapped_doc
-from frappe.utils import now_datetime
+from frappe.utils import flt, now_datetime
 
 from healthcare.controllers.service_request_controller import ServiceRequestController
 from healthcare.healthcare.doctype.observation.observation import add_observation
@@ -21,6 +21,37 @@ from healthcare.healthcare.doctype.observation_template.observation_template imp
 from healthcare.healthcare.doctype.sample_collection.sample_collection import (
 	set_component_observation_data,
 )
+
+
+def _get_lab_template_base_rate(template_name):
+	template_doc = frappe.get_doc("Lab Test Template", template_name)
+	base = (
+		getattr(template_doc, "lab_test_rate", None)
+		or getattr(template_doc, "rate", None)
+		or getattr(template_doc, "amount", None)
+	)
+	if base:
+		return flt(base)
+
+	# Fallback for legacy rows where only service_pricing exists.
+	first_pricing = (getattr(template_doc, "service_pricing", None) or [None])[0]
+	if first_pricing and getattr(first_pricing, "price", None):
+		return flt(first_pricing.price)
+	return 0
+
+
+def _get_patient_category_multiplier(patient_name):
+	category = frappe.db.get_value("Patient", patient_name, "category")
+	if not category:
+		return 1, None
+
+	settings = frappe.get_cached_doc("Healthcare Settings")
+	for row in (settings.get("patient_category_pricing") or []):
+		if getattr(row, "patient_category", None) == category:
+			multiplier = flt(getattr(row, "multiplier", None) or 0)
+			if multiplier > 0:
+				return multiplier, category
+	return 1, category
 
 
 class ServiceRequest(ServiceRequestController):
@@ -583,8 +614,8 @@ def book_lab_and_forward(service_request_name):
 		
 		# If this is a child of a group template, set the lab_group to parent
 		if parent_group:
-			if hasattr(lt, 'lab_group'):
-				lt.lab_group = parent_group
+			lt.lab_test_group = parent_group
+			lt.is_group_lab_test = 1
 		
 		lt.practitioner = sr.practitioner
 		lt.requesting_department = sr.medical_department
@@ -617,23 +648,38 @@ def book_lab_and_forward(service_request_name):
 	is_group = frappe.db.get_value("Lab Test Template", sr.template_dn, "is_group")
 	
 	if is_group:
+		selected_template_names = []
+		if getattr(sr, "selected_group_templates", None):
+			try:
+				selected_template_names = json.loads(sr.selected_group_templates)
+			except Exception:
+				selected_template_names = []
+		if not isinstance(selected_template_names, list):
+			selected_template_names = []
+		selected_template_names = [t for t in selected_template_names if t]
+
 		# Find all child lab test templates where lab_group equals the parent template
+		filters = {"lab_group": sr.template_dn, "disabled": 0}
+		if selected_template_names:
+			filters["name"] = ["in", selected_template_names]
+
 		child_templates = frappe.get_all(
 			"Lab Test Template",
-			filters={
-				"lab_group": sr.template_dn,
-				"disabled": 0
-			},
+			filters=filters,
 			fields=["name", "lab_test_name"],
 			order_by="lab_test_name asc",
 			ignore_permissions=True,
 		)
 		
 		if not child_templates:
+			if selected_template_names:
+				frappe.throw(
+					_("No selected child templates found for this group template. Please reselect tests.")
+				)
 			frappe.throw(_("No child templates found for this group template."))
 		
-		# Get pricing information for each child template based on patient category
-		patient_category = frappe.db.get_value("Patient", sr.patient, "category")
+		# Compute prices from template base-rate x patient-category multiplier.
+		multiplier, _patient_category = _get_patient_category_multiplier(sr.patient)
 		
 		created_names = []
 		errors = []
@@ -642,48 +688,8 @@ def book_lab_and_forward(service_request_name):
 			if not child.name:
 				continue
 			
-			# Get the individual price for this child template
-			individual_price = None
-			
-			# Try to get pricing from the Service Request's group_templates data
-			# You may need to store this data when creating the Service Request
-			if hasattr(sr, 'group_templates_pricing') and sr.group_templates_pricing:
-				# Assuming group_templates_pricing is a JSON field or table
-				for group_item in sr.group_templates_pricing:
-					if group_item.get('template_dn') == child.name:
-						if patient_category:
-							# Find price for specific patient category
-							for pricing in group_item.get('pricing', []):
-								if pricing.get('patient_category') == patient_category:
-									individual_price = pricing.get('price')
-									break
-						if individual_price is None and group_item.get('pricing'):
-							# Fall back to first price
-							individual_price = group_item.get('pricing', [{}])[0].get('price')
-						break
-			
-			# Fallback: get price from template pricing
-			if individual_price is None:
-				# Query the pricing table for this template
-				pricing = frappe.db.sql("""
-					SELECT price, patient_category
-					FROM `tabService Pricing`
-					WHERE parent = %s
-				""", child.name, as_dict=1)
-				
-				if pricing:
-					if patient_category:
-						# Find price for specific category
-						for p in pricing:
-							if p.get('patient_category') == patient_category:
-								individual_price = p.get('price')
-								break
-					if individual_price is None and pricing:
-						# Fall back to first price
-						individual_price = pricing[0].get('price')
-			
-			if individual_price is None:
-				frappe.throw(_("Could not determine price for test: {0}").format(child.lab_test_name or child.name))
+			base_rate = _get_lab_template_base_rate(child.name)
+			individual_price = flt(base_rate) * flt(multiplier)
 			
 			# Create lab test with individual price
 			lt = _build_lab_test(child.name, amount=individual_price, parent_group=sr.template_dn)

@@ -190,6 +190,7 @@ export interface CreateServiceRequestData {
   discount_value?: string
   discount_amount?: number
   grand_total?: number
+  selected_group_templates?: string[]
 }
 
 export async function createServiceRequest(data: CreateServiceRequestData): Promise<ServiceRequest> {
