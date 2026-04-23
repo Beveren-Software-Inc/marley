@@ -8,6 +8,9 @@ frappe.ui.form.on('Digital Connect Whatsap Settings', {
 			frm.add_custom_button(__('Send Test WhatsApp'), function() {
 				show_test_message_dialog(frm);
 			}, __('Actions'));
+		frm.add_custom_button(__('Send Test Template WhatsApp'), function() {
+			show_test_template_message_dialog(frm);
+		}, __('Actions'));
 
 			frm.add_custom_button(__('Fetch Templates from Digital Connect'), function() {
 				show_fetch_templates_dialog_from_settings();
@@ -225,6 +228,129 @@ function send_test_whatsapp_message(frm, values) {
 				// Show success alert
 				frappe.show_alert({
 					message: __('Test message sent successfully!'),
+					indicator: 'green',
+				}, 3);
+			}
+		},
+	});
+}
+
+function show_test_template_message_dialog(frm) {
+	let dialog = new frappe.ui.Dialog({
+		title: __('Send Test Template WhatsApp'),
+		fields: [
+			{
+				fieldname: 'template',
+				label: __('Template'),
+				fieldtype: 'Link',
+				options: 'Digital Whatsapp Template',
+				reqd: 1,
+				filters: {
+					status: 'APPROVED'
+				},
+				get_query: function() {
+					return {
+						filters: {
+							status: 'APPROVED'
+						}
+					};
+				}
+			},
+			{
+				fieldname: 'phone_number',
+				label: __('Phone Number'),
+				fieldtype: 'Data',
+				reqd: 1,
+				description: __('Enter phone number in international format (e.g., 254740743521)')
+			},
+			{
+				fieldname: 'template_parameters',
+				label: __('Template Parameters'),
+				fieldtype: 'Small Text',
+				description: __('Comma-separated values for template variables'),
+			}
+		],
+		primary_action_label: __('Send'),
+		primary_action(values) {
+			if (!values.template) {
+				frappe.msgprint({
+					title: __('Validation Error'),
+					message: __('Please select a template.'),
+					indicator: 'red'
+				});
+				return;
+			}
+			send_test_template_whatsapp_message(frm, values);
+			dialog.hide();
+		}
+	});
+
+	// Show dynamic parameter guidance based on selected template variables
+	if (dialog.fields_dict.template) {
+		dialog.fields_dict.template.df.onchange = function() {
+			let template_name = this.get_value();
+			if (!template_name) return;
+
+			frappe.db.get_doc('Digital Whatsapp Template', template_name).then(function(template_doc) {
+				function countVariables(text) {
+					if (!text) return 0;
+					let matches = text.match(/\{\{(\d+)\}\}/g);
+					if (!matches) return 0;
+					return Math.max(...matches.map(m => parseInt(m.match(/\d+/)[0])));
+				}
+
+				let headerVars = 0;
+				if (template_doc.header_type === 'TEXT' && template_doc.header_text) {
+					headerVars = countVariables(template_doc.header_text);
+				}
+				let bodyVars = countVariables(template_doc.body_text);
+				let totalVars = headerVars + bodyVars;
+				let paramField = dialog.fields_dict.template_parameters;
+
+				if (totalVars > 0) {
+					paramField.df.description = __(
+						'Template requires {0} parameter(s) (Header: {1}, Body: {2}). Enter comma-separated values.',
+						[totalVars, headerVars, bodyVars]
+					);
+				} else {
+					paramField.df.description = __('This template has no variables. Leave parameters empty.');
+				}
+				paramField.refresh();
+			});
+		};
+	}
+
+	dialog.show();
+}
+
+function send_test_template_whatsapp_message(frm, values) {
+	frappe.call({
+		method: 'healthcare.healthcare.doctype.digital_connect_whatsap_settings.digital_connect_whatsap_settings.send_test_message',
+		args: {
+			phone_number: values.phone_number,
+			template_name: values.template,
+			template_parameters: values.template_parameters || '',
+		},
+		freeze: true,
+		freeze_message: __('Sending template test message...'),
+		callback: function(r) {
+			if (r.exc) {
+				frappe.msgprint({
+					title: __('Error'),
+					message: r.exc,
+					indicator: 'red',
+				});
+			} else if (r.message) {
+				frappe.msgprint({
+					title: __('Digital Connect Response'),
+					message: '<div style="max-height: 400px; overflow-y: auto;"><pre style="white-space: pre-wrap; word-break: break-word; font-size: 12px;">' +
+						frappe.utils.escape_html(JSON.stringify(r.message, null, 2)) +
+					'</pre></div>',
+					indicator: 'green',
+				});
+
+				frappe.show_alert({
+					message: __('Template test message sent successfully!'),
 					indicator: 'green',
 				}, 3);
 			}
