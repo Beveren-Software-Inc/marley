@@ -86,6 +86,25 @@
   "section_break_olas",
   "sta_flg",
   "sr_num",
+  "lab_test_type",
+  "confirm",
+  "in_out",
+  "transaction_date",
+  "fill_id",
+  "fill_date",
+  "ap_id",
+  "ap_date",
+  "column_break_fjao",
+  "sample_collected_id",
+  "sample_collected_date",
+  "old_no",
+  "doc_no",
+  "sample_collect_id",
+  "dr_gl_code",
+  "sub_dr_gl_code",
+  "trans_source",
+  "section_break_jhxk",
+  "transfer_remark",
   "sample_collection_tab",
   "sample_instances",
   "medical_coding_section",
@@ -880,6 +899,100 @@
    "fieldtype": "Link",
    "label": "Gender",
    "options": "Gender"
+  },
+  {
+   "fieldname": "lab_test_type",
+   "fieldtype": "Data",
+   "label": "Lab Test Type"
+  },
+  {
+   "default": "0",
+   "fieldname": "confirm",
+   "fieldtype": "Check",
+   "label": "Confirm"
+  },
+  {
+   "fieldname": "in_out",
+   "fieldtype": "Data",
+   "label": "IN OUT"
+  },
+  {
+   "fieldname": "column_break_fjao",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "fill_id",
+   "fieldtype": "Data",
+   "label": "Fill ID"
+  },
+  {
+   "fieldname": "fill_date",
+   "fieldtype": "Data",
+   "label": "Fill Date"
+  },
+  {
+   "fieldname": "transaction_date",
+   "fieldtype": "Data",
+   "label": "Transaction Date"
+  },
+  {
+   "fieldname": "sample_collected_id",
+   "fieldtype": "Data",
+   "label": "Sample Collected ID"
+  },
+  {
+   "fieldname": "sample_collected_date",
+   "fieldtype": "Data",
+   "label": "Sample Collected Date"
+  },
+  {
+   "fieldname": "ap_id",
+   "fieldtype": "Data",
+   "label": "AP ID"
+  },
+  {
+   "fieldname": "ap_date",
+   "fieldtype": "Data",
+   "label": "AP Date"
+  },
+  {
+   "fieldname": "old_no",
+   "fieldtype": "Data",
+   "label": "Old No"
+  },
+  {
+   "fieldname": "doc_no",
+   "fieldtype": "Data",
+   "label": "Doc No"
+  },
+  {
+   "fieldname": "section_break_jhxk",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "transfer_remark",
+   "fieldtype": "Small Text",
+   "label": "Transfer Remark"
+  },
+  {
+   "fieldname": "sample_collect_id",
+   "fieldtype": "Data",
+   "label": "Sample Collect ID"
+  },
+  {
+   "fieldname": "dr_gl_code",
+   "fieldtype": "Data",
+   "label": "DR GL Code"
+  },
+  {
+   "fieldname": "sub_dr_gl_code",
+   "fieldtype": "Data",
+   "label": "SUB DR GL Code"
+  },
+  {
+   "fieldname": "trans_source",
+   "fieldtype": "Data",
+   "label": "Trans Source"
   }
  ],
  "is_submittable": 1,
@@ -889,7 +1002,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2026-04-22 18:10:28.734583",
+ "modified": "2026-04-23 15:33:25.921579",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Lab Test",

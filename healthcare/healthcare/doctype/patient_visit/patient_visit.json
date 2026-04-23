@@ -183,8 +183,7 @@
    "fieldname": "inpatient_record",
    "fieldtype": "Link",
    "label": "Inpatient Admission",
-   "options": "Inpatient Admission",
-   "read_only": 1
+   "options": "Inpatient Admission"
   },
   {
    "fieldname": "visit_type",
@@ -599,7 +598,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2026-04-15 15:40:10.843302",
+ "modified": "2026-04-23 15:32:04.981161",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Visit",

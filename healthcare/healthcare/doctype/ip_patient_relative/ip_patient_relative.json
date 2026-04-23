@@ -10,6 +10,8 @@
   "relationship_with_patient",
   "cpr__id_no",
   "any_remarks",
+  "trans_no",
+  "relative_id_no",
   "column_break_ctaw",
   "entered_by",
   "entered_date",
@@ -91,13 +93,23 @@
    "fieldname": "relation_email",
    "fieldtype": "Data",
    "label": "Relation Email"
+  },
+  {
+   "fieldname": "trans_no",
+   "fieldtype": "Data",
+   "label": "Trans No"
+  },
+  {
+   "fieldname": "relative_id_no",
+   "fieldtype": "Data",
+   "label": "Relative ID No"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-04-21 12:24:40.853362",
+ "modified": "2026-04-23 15:50:27.296229",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "IP Patient Relative",
