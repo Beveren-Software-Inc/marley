@@ -31,7 +31,7 @@ interface IPServiceDetail {
   }>
 }
 
-export const IPServiceDetailView = ({ name, onUpdate }: IPServiceDetailViewProps) => {
+export const IPServiceDetailView = ({ name, onUpdate: _onUpdate}: IPServiceDetailViewProps) => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [data, setData] = useState<IPServiceDetail | null>(null)

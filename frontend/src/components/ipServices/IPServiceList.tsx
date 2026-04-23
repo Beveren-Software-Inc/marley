@@ -20,7 +20,6 @@ export const IPServiceList = ({ patient, admission_no, refreshKey, category }: I
   const [error, setError] = useState<Error | null>(null)
   const [openActionRow, setOpenActionRow] = useState<string | null>(null)
   const [detailName, setDetailName] = useState<string | null>(null)
-  const [actionLoading, setActionLoading] = useState<string | null>(null)
   const actionMenuRef = useRef<HTMLDivElement>(null)
 
   // Close action menu when clicking outside
@@ -181,27 +180,17 @@ export const IPServiceList = ({ patient, admission_no, refreshKey, category }: I
                 {/* Actions column with both three-dot menu and print button */}
                 <td className="py-2 pr-2 text-right">
                   <div className="flex items-center justify-end gap-2">
-                   
-                    
                     {/* Three-dot actions menu */}
                     <div className="relative inline-block" ref={openActionRow === row.name ? actionMenuRef : undefined}>
                       <button
                         type="button"
                         onClick={() => setOpenActionRow((prev) => (prev === row.name ? null : row.name))}
-                        disabled={!!actionLoading}
-                        className="inline-flex items-center justify-center w-8 h-8 rounded-md border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                        className="inline-flex items-center justify-center w-8 h-8 rounded-md border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
                         aria-label="Actions"
                       >
-                        {actionLoading === row.name ? (
-                          <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                          </svg>
-                        ) : (
-                          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
-                          </svg>
-                        )}
+                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+                        </svg>
                       </button>
                       <PortalActionsMenu
                         open={openActionRow === row.name}
@@ -226,7 +215,7 @@ export const IPServiceList = ({ patient, admission_no, refreshKey, category }: I
                       </PortalActionsMenu>
                     </div>
 
-                     {/* Print button */}
+                    {/* Print button */}
                     <PrintFormatDropdown 
                       doctype="IP Service" 
                       docName={row.name} 
