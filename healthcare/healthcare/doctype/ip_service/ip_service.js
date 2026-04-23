@@ -4,15 +4,15 @@ frappe.ui.form.on('IP Service', {
 	}
 });
 
-frappe.ui.form.on('IP External Trip Service', {
+frappe.ui.form.on('IP Service Detail', {
 	amount(frm, cdt, cdn) {
 		calculate_total_amount(frm);
 	},
-	ip_external_trip_service_remove(frm) {
+	services_remove(frm) {
 		calculate_total_amount(frm);
 	},
 	services_add(frm, cdt, cdn) {
-		set_child_date_from_header(frm, cdt, cdn);
+		row_default_date(frm, cdt, cdn);
 	}
 });
 
@@ -28,14 +28,10 @@ function calculate_total_amount(frm) {
 	frm.set_value('total_amount', total);
 }
 
-function set_child_date_from_header(frm, cdt, cdn) {
-	if (!frm.doc.trip_date) {
-		return;
-	}
-
+function row_default_date(frm, cdt, cdn) {
 	const row = frappe.get_doc(cdt, cdn);
 	if (!row.date) {
-		row.date = frm.doc.trip_date;
+		row.date = frappe.datetime.get_today();
 		frm.refresh_field('services');
 	}
 }

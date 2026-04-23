@@ -1,5 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { fetchIPServices, type IPServiceRow } from '../../services/ipServices'
+import { PortalActionsMenu } from '../ui/PortalActionsMenu'
+import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
+import { DetailSlideOver } from '../ui/DetailSlideOver'
+import { IPServiceDetailView } from './IPServiceDetailView'
 
 interface IPServiceListProps {
   patient?: string
@@ -14,6 +18,24 @@ export const IPServiceList = ({ patient, admission_no, refreshKey, category }: I
   const [list, setList] = useState<IPServiceRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
+  const [openActionRow, setOpenActionRow] = useState<string | null>(null)
+  const [detailName, setDetailName] = useState<string | null>(null)
+  const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const actionMenuRef = useRef<HTMLDivElement>(null)
+
+  // Close action menu when clicking outside
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      const el = e.target as HTMLElement
+      if (el.closest('[data-portal-actions-menu]')) return
+      if (el.closest('button[aria-label="Actions"]')) return
+      if (actionMenuRef.current && !actionMenuRef.current.contains(e.target as Node)) {
+        setOpenActionRow(null)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -43,14 +65,35 @@ export const IPServiceList = ({ patient, admission_no, refreshKey, category }: I
     return () => {
       cancelled = true
     }
-  }, [patient, admission_no, refreshKey])
+  }, [patient, admission_no, refreshKey, category])
 
-  const openForm = (name: string | null) => {
-    if (name) {
-      window.open(`/app/ip-service/${encodeURIComponent(name)}`, '_blank')
-    } else {
-      window.open('/app/ip-service/new', '_blank')
-    }
+  const handleView = (name: string) => {
+    setDetailName(name)
+    setOpenActionRow(null)
+  }
+
+  const handleEdit = (name: string) => {
+    window.open(`/app/ip-service/${encodeURIComponent(name)}`, '_blank')
+    setOpenActionRow(null)
+  }
+
+  const doRefetch = () => {
+    fetchIPServices(50, 0, patient, admission_no)
+      .then((data) => {
+        let filtered = data
+        if (category === 'Other Service') {
+          filtered = data.filter((row) => normalizeCategory(row.category) === 'Other Service')
+        } else if (category === 'Medical Service') {
+          filtered = data.filter((row) => {
+            const cat = normalizeCategory(row.category)
+            return !cat || cat === 'Medical Service'
+          })
+        }
+        setList(filtered)
+      })
+      .catch((err) => {
+        setError(err instanceof Error ? err : new Error('Failed to fetch IP Services'))
+      })
   }
 
   if (loading) {
@@ -81,35 +124,134 @@ export const IPServiceList = ({ patient, admission_no, refreshKey, category }: I
   }
 
   return (
-    <div className="overflow-x-auto min-w-0">
-      <table className="w-full text-sm min-w-[600px]">
-        <thead>
-          <tr className="border-b border-slate-200 text-left text-slate-600 font-medium">
-            <th className="py-2 pr-2">Name</th>
-            <th className="py-2 pr-2">Admission</th>
-            <th className="py-2 pr-2">Patient</th>
-            <th className="py-2 pr-2">Type</th>
-            <th className="py-2 pr-2">Service Request</th>
-            <th className="py-2 pr-2 text-right">Total</th>
-          </tr>
-        </thead>
-        <tbody>
-          {list.map((row) => (
-            <tr
-              key={row.name}
-              className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer"
-              onClick={() => openForm(row.name)}
-            >
-              <td className="py-2 pr-2 font-medium text-primary">{row.name}</td>
-              <td className="py-2 pr-2">{row.admission_no ?? '–'}</td>
-              <td className="py-2 pr-2">{row.patient_full_name ?? row.file_number ?? '–'}</td>
-              <td className="py-2 pr-2">{row.type ?? '–'}</td>
-              <td className="py-2 pr-2">{row.service_request ?? '–'}</td>
-              <td className="py-2 pr-2 text-right">{row.total_amount != null ? Number(row.total_amount) : '–'}</td>
+    <>
+      <div className="overflow-x-auto min-w-0">
+        <table className="w-full text-sm min-w-[700px]">
+          <thead>
+            <tr className="border-b border-slate-200 text-left text-slate-600 font-medium">
+              <th className="py-2 pr-2">Name</th>
+              <th className="py-2 pr-2">Admission</th>
+              <th className="py-2 pr-2">Patient</th>
+              <th className="py-2 pr-2">Type</th>
+              <th className="py-2 pr-2">Service Request</th>
+              <th className="py-2 pr-2 text-right">Total</th>
+              <th className="py-2 pr-2 text-right">Actions</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody>
+            {list.map((row) => (
+              <tr key={row.name} className="border-b border-slate-100 hover:bg-slate-50">
+                <td 
+                  className="py-2 pr-2 font-medium text-primary cursor-pointer hover:underline"
+                  onClick={() => handleView(row.name)}
+                >
+                  {row.name}
+                </td>
+                <td 
+                  className="py-2 pr-2 cursor-pointer"
+                  onClick={() => handleView(row.name)}
+                >
+                  {row.admission_no ?? '–'}
+                </td>
+                <td 
+                  className="py-2 pr-2 cursor-pointer"
+                  onClick={() => handleView(row.name)}
+                >
+                  {row.patient_full_name ?? row.file_number ?? '–'}
+                </td>
+                <td 
+                  className="py-2 pr-2 cursor-pointer"
+                  onClick={() => handleView(row.name)}
+                >
+                  {row.type ?? '–'}
+                </td>
+                <td 
+                  className="py-2 pr-2 cursor-pointer"
+                  onClick={() => handleView(row.name)}
+                >
+                  {row.service_request ?? '–'}
+                </td>
+                <td 
+                  className="py-2 pr-2 text-right cursor-pointer"
+                  onClick={() => handleView(row.name)}
+                >
+                  {row.total_amount != null ? Number(row.total_amount).toLocaleString() : '–'}
+                </td>
+                
+                {/* Actions column with both three-dot menu and print button */}
+                <td className="py-2 pr-2 text-right">
+                  <div className="flex items-center justify-end gap-2">
+                   
+                    
+                    {/* Three-dot actions menu */}
+                    <div className="relative inline-block" ref={openActionRow === row.name ? actionMenuRef : undefined}>
+                      <button
+                        type="button"
+                        onClick={() => setOpenActionRow((prev) => (prev === row.name ? null : row.name))}
+                        disabled={!!actionLoading}
+                        className="inline-flex items-center justify-center w-8 h-8 rounded-md border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                        aria-label="Actions"
+                      >
+                        {actionLoading === row.name ? (
+                          <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                          </svg>
+                        ) : (
+                          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+                          </svg>
+                        )}
+                      </button>
+                      <PortalActionsMenu
+                        open={openActionRow === row.name}
+                        onClose={() => setOpenActionRow(null)}
+                        triggerRef={actionMenuRef}
+                        minWidth={160}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => handleView(row.name)}
+                          className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                        >
+                          View
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleEdit(row.name)}
+                          className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                        >
+                          Edit
+                        </button>
+                      </PortalActionsMenu>
+                    </div>
+
+                     {/* Print button */}
+                    <PrintFormatDropdown 
+                      doctype="IP Service" 
+                      docName={row.name} 
+                      noLetterhead={0} 
+                      triggerPrint={1}
+                      className="inline-flex items-center justify-center w-8 h-8 rounded-md border border-slate-300 bg-white text-primary hover:bg-slate-50"
+                    />
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Detail Slide Over */}
+      {detailName && (
+        <DetailSlideOver
+          title="IP Service"
+          subtitle={detailName}
+          onClose={() => setDetailName(null)}
+        >
+          <IPServiceDetailView name={detailName} onUpdate={doRefetch} />
+        </DetailSlideOver>
+      )}
+    </>
   )
 }

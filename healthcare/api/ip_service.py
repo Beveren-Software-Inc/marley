@@ -7,6 +7,59 @@ from frappe import _
 from frappe.utils import getdate, flt
 
 
+def _compute_total_amount(doc):
+	total = 0.0
+	for row in doc.get("services") or []:
+		total += flt(getattr(row, "amount", 0), 2)
+	doc.total_amount = flt(total, 2)
+
+
+def _build_services_from_service_request(service_request_name):
+	if not service_request_name or not frappe.db.exists("Service Request", service_request_name):
+		return []
+
+	sr = frappe.get_doc("Service Request", service_request_name)
+	template_dt = getattr(sr, "template_dt", None)
+	template_dn = getattr(sr, "template_dn", None)
+	if template_dt != "IP Service Type" or not template_dn or not frappe.db.exists("IP Service Type", template_dn):
+		return []
+
+	template_doc = frappe.get_doc("IP Service Type", template_dn)
+	default_amount = flt(getattr(sr, "grand_total", None) or getattr(sr, "cost", None) or getattr(sr, "amount", None) or 0, 2)
+
+	rows = []
+	pricing_rows = template_doc.get("pricing") or []
+	for row in pricing_rows:
+		service_code = getattr(row, "item", None)
+		price = flt(getattr(row, "price", None) or 0, 2)
+		rows.append(
+			{
+				"date": getdate(),
+				"service_type": template_dn,
+				"service_code": service_code,
+				"amount": price,
+				"note": getattr(row, "note", None),
+			}
+		)
+
+	if rows:
+		return rows
+
+	service_code = getattr(template_doc, "item_code", None)
+	if service_code or default_amount:
+		return [
+			{
+				"date": getdate(),
+				"service_type": template_dn,
+				"service_code": service_code,
+				"amount": default_amount,
+				"note": _("Created from Service Request {0}").format(sr.name),
+			}
+		]
+
+	return []
+
+
 @frappe.whitelist()
 def get_ip_services(limit=50, offset=0, patient=None, admission_no=None):
 	"""Get list of IP Service documents. Optionally filter by patient (file_number) or admission."""
@@ -83,18 +136,22 @@ def create_ip_service(admission_no, cost_center, service_request=None, services=
 		doc.type = kwargs.get("type")
 	if kwargs.get("category"):
 		doc.category = kwargs.get("category")
-	if kwargs.get("category"):
-		doc.category = kwargs.get("category")
 	if service_request:
 		doc.service_request = service_request
 
 	# Compliance: child table rows are user-stamped (who performed the action)
 	current_user = frappe.session.user
+	if (not services or not isinstance(services, list) or len(services) == 0) and service_request:
+		services = _build_services_from_service_request(service_request)
+
 	if services and isinstance(services, list) and len(services) > 0:
 		for row in services:
 			service_code = row.get("service_code") or row.get("item_code")
+			service_type = row.get("service_type")
 			if not service_code:
-				continue
+				# allow type-only rows when created from service request
+				if not service_type:
+					continue
 			amount = flt(row.get("amount"), 2)
 			row_date = row.get("date")
 			try:
@@ -105,6 +162,7 @@ def create_ip_service(admission_no, cost_center, service_request=None, services=
 				"services",
 				{
 					"date": date_val,
+					"service_type": service_type,
 					"service_code": service_code,
 					"amount": amount,
 					"note": row.get("note") or None,
@@ -112,8 +170,66 @@ def create_ip_service(admission_no, cost_center, service_request=None, services=
 				},
 			)
 	else:
-		# With service request, one minimal row so the table is valid
+		# Fallback minimal row
 		doc.append("services", {"date": getdate(), "amount": 0, "user": current_user})
 
+	_compute_total_amount(doc)
 	doc.insert()
+	if doc.docstatus == 0:
+		doc.db_set("total_amount", doc.total_amount)
 	return {"name": doc.name}
+
+# -*- coding: utf-8 -*-
+# healthcare/api/ip_service_type.py
+
+import frappe
+from frappe import _
+
+@frappe.whitelist()
+def get_ip_service_types(limit=50, search=None):
+    """Get list of IP Service Types"""
+    filters = {"disabled": 0}
+    
+    if search:
+        filters["service_name"] = ["like", f"%{search}%"]
+    
+    types = frappe.get_all(
+        "IP Service Type",
+        filters=filters,
+        fields=["name", "service_name", "category", "rate"],
+        limit=limit,
+        order_by="service_name"
+    )
+    
+    return types
+
+@frappe.whitelist()
+def get_ip_service_type(template_name):
+    """Get full IP Service Type details including pricing"""
+    if not frappe.db.exists("IP Service Type", template_name):
+        frappe.throw(_("IP Service Type {0} not found").format(template_name))
+    
+    doc = frappe.get_doc("IP Service Type", template_name)
+    
+    # Format the response
+    result = {
+        "name": doc.name,
+        "service_name": doc.service_name,
+        "description": doc.description,
+        "category": doc.category,
+        "item_code": doc.item_code,
+        "rate": doc.rate,
+        "disabled": doc.disabled,
+        "pricing": []
+    }
+    
+    # Include pricing table if exists
+    if hasattr(doc, 'pricing') and doc.pricing:
+        for row in doc.pricing:
+            result["pricing"].append({
+                "item": row.item,
+                "rate": row.rate,
+                "note": row.note
+            })
+    
+    return result

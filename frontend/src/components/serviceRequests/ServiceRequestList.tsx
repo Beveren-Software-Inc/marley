@@ -23,6 +23,8 @@ interface ServiceRequestListProps {
   refreshKey?: string | number
   template_dt?: string // Optional template type filter
   onCreateIPService?: (sr: ServiceRequest) => void
+  /** Flag to indicate if we're in nurse/IP context */
+  isNurseContext?: boolean
 }
 
 const statusColors: Record<string, string> = {
@@ -59,7 +61,14 @@ const refetch = (
     .finally(() => setLoading(false))
 }
 
-export const ServiceRequestList = ({ patient, onLabTestCreated, refreshKey, template_dt, onCreateIPService }: ServiceRequestListProps) => {
+export const ServiceRequestList = ({ 
+  patient, 
+  onLabTestCreated, 
+  refreshKey, 
+  template_dt, 
+  onCreateIPService,
+  isNurseContext = false 
+}: ServiceRequestListProps) => {
   const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
@@ -311,9 +320,14 @@ export const ServiceRequestList = ({ patient, onLabTestCreated, refreshKey, temp
         <tbody className="divide-y divide-slate-200">
           {serviceRequests.map((sr) => {
             const isLab = sr.template_dt === 'Lab Test Template'
+            const isIPService = sr.template_dt === 'IP Service Type'
             const accepted = !!sr.patient_accepted_cost
             const booked = !!sr.booked
             const loadingThis = actionLoading === sr.name
+            
+            // Determine what action button to show after payment confirmation
+            const shouldShowBookingAction = accepted && !booked
+            
             return (
               <tr key={sr.name} className="hover:bg-slate-50">
                 <td
@@ -346,9 +360,9 @@ export const ServiceRequestList = ({ patient, onLabTestCreated, refreshKey, temp
                     ? new Date(sr.order_date).toLocaleDateString()
                     : '-'}
                 </td>
-              <td className="px-4 py-3 text-sm text-slate-700">
-                {typeof sr.cost === 'number' ? sr.cost.toFixed(3) : sr.amount != null ? sr.amount.toFixed(3) : '-'}
-              </td>
+                <td className="px-4 py-3 text-sm text-slate-700">
+                  {typeof sr.cost === 'number' ? sr.cost.toFixed(3) : sr.amount != null ? sr.amount.toFixed(3) : '-'}
+                </td>
                 <td className="px-4 py-3">
                   <div className="flex flex-wrap items-center gap-1.5">
                     
@@ -377,52 +391,74 @@ export const ServiceRequestList = ({ patient, onLabTestCreated, refreshKey, temp
                         triggerRef={actionMenuRef}
                         minWidth={180}
                       >
-                        {/* ── LAB TEST TEMPLATE flow ── */}
-                        {isLab && !accepted && (
-                          <button
-                            type="button"
-                            onClick={() => handleConfirmPayment(sr)}
-                            disabled={loadingThis}
-                            className="block w-full text-left px-3 py-2 text-sm text-amber-700 hover:bg-amber-50 disabled:opacity-50"
-                          >
-                            Confirm Payment
-                          </button>
-                        )}
-                        {isLab && accepted && !booked && (
-                          <button
-                            type="button"
-                            onClick={() => handleBookLab(sr)}
-                            disabled={loadingThis}
-                            className="block w-full text-left px-3 py-2 text-sm text-primary hover:bg-primary/5 font-medium"
-                          >
-                            {loadingThis ? '…' : 'Book Lab'}
-                          </button>
-                        )}
-
-                        {/* ── ALL OTHER TEMPLATE TYPES flow ── */}
-                        {!isLab && !accepted && (
-                          <button
-                            type="button"
-                            onClick={() => handleConfirmSessionPayment(sr)}
-                            disabled={loadingThis}
-                            className="block w-full text-left px-3 py-2 text-sm text-amber-700 hover:bg-amber-50 disabled:opacity-50"
-                          >
-                            Confirm Payment
-                          </button>
-                        )}
-                        {!isLab && accepted && !booked && (
-                          <button
-                            type="button"
-                            onClick={() => handleBookSession(sr)}
-                            disabled={loadingThis}
-                            className="block w-full text-left px-3 py-2 text-sm text-primary hover:bg-primary/5 font-medium"
-                          >
-                            {loadingThis ? '…' : 'Book Session'}
-                          </button>
+                        {/* ── CONFIRM PAYMENT (for all types) ── */}
+                        {!accepted && (
+                          <>
+                            {isLab ? (
+                              <button
+                                type="button"
+                                onClick={() => handleConfirmPayment(sr)}
+                                disabled={loadingThis}
+                                className="block w-full text-left px-3 py-2 text-sm text-amber-700 hover:bg-amber-50 disabled:opacity-50"
+                              >
+                                Confirm Payment
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleConfirmSessionPayment(sr)}
+                                disabled={loadingThis}
+                                className="block w-full text-left px-3 py-2 text-sm text-amber-700 hover:bg-amber-50 disabled:opacity-50"
+                              >
+                                Confirm Payment
+                              </button>
+                            )}
+                          </>
                         )}
 
-                        {/* ── IP SERVICE TYPE ── */}
-                        {sr.template_dt === 'IP Service Type' && onCreateIPService && (
+                        {/* ── BOOK ACTION (after payment confirmed) ── */}
+                        {shouldShowBookingAction && (
+                          <>
+                            {/* Lab Test Template → Book Lab */}
+                            {isLab && (
+                              <button
+                                type="button"
+                                onClick={() => handleBookLab(sr)}
+                                disabled={loadingThis}
+                                className="block w-full text-left px-3 py-2 text-sm text-primary hover:bg-primary/5 font-medium"
+                              >
+                                {loadingThis ? '…' : 'Book Lab'}
+                              </button>
+                            )}
+                            
+                            {/* IP Service Type in Nurse Context → Book the Service */}
+                            {isIPService && isNurseContext && (
+                              <button
+                                type="button"
+                                onClick={() => handleBookSession(sr)}
+                                disabled={loadingThis}
+                                className="block w-full text-left px-3 py-2 text-sm text-primary hover:bg-primary/5 font-medium"
+                              >
+                                {loadingThis ? '…' : 'Book the Service'}
+                              </button>
+                            )}
+                            
+                            {/* Other templates (non-lab, non-IP) → Book Session */}
+                            {!isLab && !isIPService && (
+                              <button
+                                type="button"
+                                onClick={() => handleBookSession(sr)}
+                                disabled={loadingThis}
+                                className="block w-full text-left px-3 py-2 text-sm text-primary hover:bg-primary/5 font-medium"
+                              >
+                                {loadingThis ? '…' : 'Book Session'}
+                              </button>
+                            )}
+                          </>
+                        )}
+
+                        {/* ── IP SERVICE TYPE fallback (if not in nurse context or not accepted) ── */}
+                        {isIPService && onCreateIPService && !shouldShowBookingAction && (
                           <button
                             type="button"
                             onClick={() => { setOpenActionRow(null); onCreateIPService(sr) }}
@@ -442,7 +478,7 @@ export const ServiceRequestList = ({ patient, onLabTestCreated, refreshKey, temp
                       </PortalActionsMenu>
                     </div>
 
-{booked && (
+                    {booked && (
                       <span className="text-xs text-slate-500">Booked</span>
                     )}
                   </div>
@@ -482,4 +518,3 @@ export const ServiceRequestList = ({ patient, onLabTestCreated, refreshKey, temp
     </div>
   )
 }
-

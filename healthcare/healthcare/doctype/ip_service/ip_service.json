@@ -14,12 +14,11 @@
   "patient_full_name",
   "cost_center",
   "service_request",
-  "section_break_kusj",
-  "patient_charges",
   "section_break_services",
   "services",
   "section_break_totals",
-  "total_amount"
+  "total_amount",
+  "amended_from"
  ],
  "fields": [
   {
@@ -58,7 +57,7 @@
    "fieldname": "services",
    "fieldtype": "Table",
    "label": "Services",
-   "options": "IP External Trip Service",
+   "options": "IP Service Detail",
    "reqd": 1
   },
   {
@@ -99,26 +98,27 @@
    "options": "Service Request"
   },
   {
-   "fieldname": "section_break_kusj",
-   "fieldtype": "Section Break"
-  },
-  {
-   "fieldname": "patient_charges",
-   "fieldtype": "Table",
-   "label": "Patient Charges",
-   "options": "Service Pricing"
-  },
-  {
    "fieldname": "category",
    "fieldtype": "Select",
    "label": "Category",
    "options": "\nMedical Service\nOther Service"
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "IP Service",
+   "print_hide": 1,
+   "read_only": 1,
+   "search_index": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
+ "is_submittable": 1,
  "links": [],
- "modified": "2026-04-14 17:00:43.850558",
+ "modified": "2026-04-23 11:53:37.491375",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "IP Service",

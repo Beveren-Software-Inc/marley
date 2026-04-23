@@ -13,6 +13,21 @@ export interface IPServiceRow {
   creation?: string
 }
 
+export interface IPServiceType {
+  name: string
+  service_name: string
+  description?: string
+  category?: 'Medical Service' | 'Other Service'
+  item_code?: string
+  rate?: number
+  disabled?: boolean
+  pricing?: Array<{
+    item: string
+    rate: number
+    note?: string
+  }>
+}
+
 export interface IPServiceLineInput {
   service_code: string
   amount: number
@@ -67,4 +82,29 @@ export async function createIPService(input: CreateIPServiceInput): Promise<{ na
   const name = data && typeof data === 'object' && 'name' in data ? (data as { name: string }).name : ''
   if (!name) throw new Error('Create IP Service did not return a name')
   return { name }
+}
+
+
+
+
+export async function fetchIPServiceTypes(
+  search?: string,
+  limit: number = 50
+): Promise<{ name: string; service_name: string; category?: string; rate?: number }[]> {
+  const params = new URLSearchParams()
+  params.append('limit', limit.toString())
+  if (search) params.append('search', search)
+  
+  const data = await apiRequest<any[]>(
+    `/api/method/healthcare.api.ip_service_type.get_ip_service_types?${params.toString()}`
+  )
+  
+  return Array.isArray(data) ? data : []
+}
+
+export async function fetchIPServiceType(templateName: string): Promise<IPServiceType | null> {
+  const data = await apiRequest<IPServiceType>(
+    `/api/method/healthcare.api.ip_service_type.get_ip_service_type?template_name=${encodeURIComponent(templateName)}`
+  )
+  return data || null
 }

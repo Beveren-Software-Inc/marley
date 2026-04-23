@@ -3,6 +3,7 @@ import { fetchInpatientRecords, type InpatientRecord } from '../../services/inpa
 import { fetchServiceRequests } from '../../services/serviceRequests'
 import { fetchCostCenters, fetchItems, type LinkFieldOption } from '../../services/common'
 import { createIPService, type CreateIPServiceInput, type IPServiceLineInput } from '../../services/ipServices'
+import { fetchIPServiceType } from '../../services/ipServices'
 import { toast } from '../../hooks/useToast'
 import { useCareContext } from '../../providers/CareContextProvider'
 
@@ -13,6 +14,7 @@ interface CreateIPServiceModalProps {
   initialServiceRequest?: string
   initialCategory?: 'Medical Service' | 'Other Service'
   openInNewTab?: boolean
+  prefillFromServiceRequest?: boolean  // New prop
 }
 
 const TYPE_OPTIONS = [
@@ -41,6 +43,7 @@ export const CreateIPServiceModal = ({
   initialServiceRequest,
   initialCategory,
   openInNewTab = true,
+  prefillFromServiceRequest = false,  // New prop
 }: CreateIPServiceModalProps) => {
   // Get context from CareContextProvider
   const { mode, activeAdmission, selectedPatient: contextPatient } = useCareContext()
@@ -62,6 +65,7 @@ export const CreateIPServiceModal = ({
   const [costCenterOpen, setCostCenterOpen] = useState(false)
   const [costCenterSearch, setCostCenterSearch] = useState('')
   const [items, setItems] = useState<ItemRow[]>([])
+  const [loadingTemplate, setLoadingTemplate] = useState(false)
 
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -72,10 +76,106 @@ export const CreateIPServiceModal = ({
   const effectivePatient = initialPatient || contextPatient || ''
   const effectiveAdmission = activeAdmission || ''
 
+  // NEW: Auto-load items from Service Request when prefillFromServiceRequest is true
+  useEffect(() => {
+    const loadFromServiceRequest = async () => {
+      if (!prefillFromServiceRequest || !initialServiceRequest) return
+      
+      setLoadingTemplate(true)
+      try {
+        // Fetch service request details
+        const srResponse = await fetch(`/api/resource/Service Request/${encodeURIComponent(initialServiceRequest)}`)
+        const srData = await srResponse.json()
+        const sr = srData?.data
+        
+        if (sr && sr.template_dt === 'IP Service Type' && sr.template_dn) {
+          // Auto-fill cost center from service request
+          if (sr.cost_center) {
+            setCostCenter(sr.cost_center)
+          }
+          
+          // Auto-fill category from service request
+          if (sr.category) {
+            setCategory(sr.category)
+          }
+          
+          // Fetch IP Service Type template to get items
+          const template = await fetchIPServiceType(sr.template_dn)
+          
+          if (template && template.pricing && template.pricing.length > 0) {
+            const newItems: ItemRow[] = []
+            
+            for (const pricingRow of template.pricing) {
+              if (pricingRow.item) {
+                // Fetch item details to get label
+                try {
+                  const itemResponse = await fetch(`/api/resource/Item/${encodeURIComponent(pricingRow.item)}`)
+                  const itemData = await itemResponse.json()
+                  const item = itemData?.data
+                  
+                  newItems.push({
+                    id: nextId(),
+                    service_code: pricingRow.item,
+                    item_label: item?.item_name || pricingRow.item,
+                    amount: pricingRow.rate?.toString() || sr.amount?.toString() || '0',
+                    note: pricingRow.note || '',
+                  })
+                } catch (err) {
+                  newItems.push({
+                    id: nextId(),
+                    service_code: pricingRow.item,
+                    item_label: pricingRow.item,
+                    amount: pricingRow.rate?.toString() || sr.amount?.toString() || '0',
+                    note: pricingRow.note || '',
+                  })
+                }
+              }
+            }
+            
+            if (newItems.length > 0) {
+              setItems(newItems)
+              toast.success(`Loaded ${newItems.length} service item(s) from template`)
+            }
+          } else if (template && template.rate && template.item_code) {
+            // Fallback to single item
+            try {
+              const itemResponse = await fetch(`/api/resource/Item/${encodeURIComponent(template.item_code)}`)
+              const itemData = await itemResponse.json()
+              const item = itemData?.data
+              
+              setItems([{
+                id: nextId(),
+                service_code: template.item_code,
+                item_label: item?.item_name || template.item_code,
+                amount: template.rate.toString(),
+                note: template.description || '',
+              }])
+              toast.success('Loaded service item from template')
+            } catch (err) {
+              setItems([{
+                id: nextId(),
+                service_code: template.item_code,
+                item_label: template.item_code,
+                amount: template.rate.toString(),
+                note: template.description || '',
+              }])
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load from service request:', err)
+        toast.error('Could not auto-load service details')
+      } finally {
+        setLoadingTemplate(false)
+      }
+    }
+    
+    loadFromServiceRequest()
+  }, [prefillFromServiceRequest, initialServiceRequest])
+
   // Auto-load admission from context
   useEffect(() => {
     if (isIPMode && effectiveAdmission && !admissionNo) {
-      // Fetch and set the admission from context
       fetchInpatientRecords(undefined, effectiveAdmission, effectivePatient, undefined, undefined, undefined)
         .then((list) => {
           const matched = list.find(a => a.name === effectiveAdmission)
@@ -240,6 +340,17 @@ export const CreateIPServiceModal = ({
           </p>
         </div>
 
+        {/* Loading indicator */}
+        {loadingTemplate && (
+          <div className="mx-4 mt-2 px-3 py-2 bg-blue-50 text-blue-700 text-xs rounded-md flex items-center gap-2">
+            <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+            </svg>
+            Loading service items from template...
+          </div>
+        )}
+
         {/* Tabs */}
         <div className="flex border-b border-slate-200 flex-shrink-0 mt-3">
           <button
@@ -340,22 +451,46 @@ export const CreateIPServiceModal = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Service Request (optional)</label>
-                  <select
-                    value={serviceRequest}
-                    onChange={(e) => setServiceRequest(e.target.value)}
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary"
-                  >
-                    <option value="">None</option>
-                    {serviceRequests.map((sr) => (
-                      <option key={sr.name} value={sr.name}>
-                        {sr.template_name || sr.name}
-                      </option>
-                    ))}
-                  </select>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Service Request</label>
+                  {initialServiceRequest ? (
+                    <div>
+                      <input
+                        type="text"
+                        value={serviceRequest}
+                        readOnly
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm bg-slate-100 cursor-not-allowed"
+                      />
+                      <p className="text-xs text-slate-400 mt-1">Linked from Service Request</p>
+                    </div>
+                  ) : (
+                    <select
+                      value={serviceRequest}
+                      onChange={(e) => setServiceRequest(e.target.value)}
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary"
+                    >
+                      <option value="">None</option>
+                      {serviceRequests.map((sr) => (
+                        <option key={sr.name} value={sr.name}>
+                          {sr.template_name || sr.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                   {!serviceRequest && (
                     <p className="text-xs text-amber-700 mt-1">Add at least one item in the Items tab.</p>
                   )}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Category</label>
+                  <select
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary"
+                  >
+                    <option value="Medical Service">Medical Service</option>
+                    <option value="Other Service">Other Service</option>
+                  </select>
                 </div>
 
                 <div>
@@ -377,24 +512,36 @@ export const CreateIPServiceModal = ({
                   <label className="block text-xs font-medium text-slate-600 mb-1">
                     Cost Center <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="text"
-                    value={
-                      costCenterOpen
-                        ? costCenterSearch
-                        : costCenter
-                          ? costCenters.find((c) => c.name === costCenter)?.label ?? costCenter
-                          : ''
-                    }
-                    onChange={(e) => {
-                      setCostCenterSearch(e.target.value)
-                      if (!costCenterOpen) setCostCenterOpen(true)
-                    }}
-                    onFocus={() => setCostCenterOpen(true)}
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                    placeholder="Search cost center..."
-                  />
-                  {costCenterOpen && (
+                  {prefillFromServiceRequest && initialServiceRequest && costCenter ? (
+                    <div>
+                      <input
+                        type="text"
+                        value={costCenter}
+                        readOnly
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm bg-slate-100 cursor-not-allowed"
+                      />
+                      <p className="text-xs text-slate-400 mt-1">Auto-loaded from Service Request</p>
+                    </div>
+                  ) : (
+                    <input
+                      type="text"
+                      value={
+                        costCenterOpen
+                          ? costCenterSearch
+                          : costCenter
+                            ? costCenters.find((c) => c.name === costCenter)?.label ?? costCenter
+                            : ''
+                      }
+                      onChange={(e) => {
+                        setCostCenterSearch(e.target.value)
+                        if (!costCenterOpen) setCostCenterOpen(true)
+                      }}
+                      onFocus={() => setCostCenterOpen(true)}
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      placeholder="Search cost center..."
+                    />
+                  )}
+                  {costCenterOpen && !(prefillFromServiceRequest && initialServiceRequest) && (
                     <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-y-auto">
                       {costCenters.length === 0 ? (
                         <div className="px-3 py-2 text-sm text-slate-500">No cost centers found.</div>
@@ -425,7 +572,7 @@ export const CreateIPServiceModal = ({
                 <div className="flex items-center justify-between">
                   <p className="text-sm text-slate-600">
                     {serviceRequest
-                      ? 'Optionally add service items (or save and edit in the form).'
+                      ? 'Service items loaded from template. You can modify or add more.'
                       : 'Add at least one item and price when no Service Request is linked.'}
                   </p>
                   <button
@@ -481,6 +628,7 @@ export const CreateIPServiceModal = ({
               type="submit"
               disabled={
                 submitting ||
+                loadingTemplate ||
                 !admissionNo.trim() ||
                 !costCenter.trim() ||
                 (!serviceRequest && items.filter((r) => r.service_code.trim() && r.amount.trim()).length === 0) ||
