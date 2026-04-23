@@ -28,7 +28,7 @@
   },
   {
    "fieldname": "api_key",
-   "fieldtype": "Password",
+   "fieldtype": "Small Text",
    "in_list_view": 1,
    "label": "API Key",
    "reqd": 1
@@ -45,7 +45,7 @@
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-01-13 12:43:31.548293",
+ "modified": "2026-04-23 13:19:09.456994",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Digital Connect Whatsap Settings",

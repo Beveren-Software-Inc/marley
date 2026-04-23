@@ -3,6 +3,7 @@
 # For license information, please see license.txt
 
 import json
+from typing import Any, Dict, List
 
 import frappe
 from frappe import _
@@ -18,6 +19,275 @@ class DigitalConnectWhatsapSettings(Document):
 	"""Settings for Digital Connect Whatsap integration."""
 
 	pass
+
+
+def _normalize_delivery_status(status: str | None) -> str:
+	value = (status or "").strip().lower()
+	if not value:
+		return "received"
+	if value in {"sent", "message sent", "message_sent"}:
+		return "sent"
+	if value in {"delivered", "message delivered", "message_delivered"}:
+		return "delivered"
+	if value in {"read", "message read", "message_read"}:
+		return "read"
+	if value in {"failed", "message failed", "message_failed", "undelivered"}:
+		return "failed"
+	if value in {"received", "incoming", "message received", "message_received"}:
+		return "received"
+	return value
+
+
+def _extract_error_message(data: Any) -> str | None:
+	if isinstance(data, dict):
+		message = data.get("message")
+		if isinstance(message, dict):
+			error_data = message.get("error")
+			if isinstance(error_data, dict) and error_data.get("message"):
+				return str(error_data.get("message"))
+		error_data = data.get("error")
+		if isinstance(error_data, dict) and error_data.get("message"):
+			return str(error_data.get("message"))
+		if message and isinstance(message, str):
+			return message
+	return None
+
+
+def _extract_message_id_from_send_response(response_data: Any) -> str | None:
+	if not isinstance(response_data, dict):
+		return None
+
+	candidates = [
+		response_data,
+		response_data.get("response"),
+		response_data.get("response", {}).get("message"),
+		response_data.get("message"),
+	]
+	for node in candidates:
+		if not isinstance(node, dict):
+			continue
+		if node.get("message_id"):
+			return str(node.get("message_id"))
+		messages = node.get("messages")
+		if isinstance(messages, list) and messages:
+			first = messages[0]
+			if isinstance(first, dict) and first.get("id"):
+				return str(first.get("id"))
+	return None
+
+
+def _extract_conversation_id_from_send_response(response_data: Any) -> str | None:
+	if not isinstance(response_data, dict):
+		return None
+	for node in [response_data, response_data.get("response"), response_data.get("response", {}).get("message")]:
+		if not isinstance(node, dict):
+			continue
+		conversation = node.get("conversation")
+		if isinstance(conversation, dict) and conversation.get("id"):
+			return str(conversation.get("id"))
+		if node.get("conversation_id"):
+			return str(node.get("conversation_id"))
+	return None
+
+
+def _extract_status_events(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
+	events: List[Dict[str, Any]] = []
+
+	def parse_status_row(row: Dict[str, Any], parent: Dict[str, Any] | None = None):
+		parent = parent or {}
+		message_id = row.get("id") or row.get("message_id") or row.get("wamid")
+		status = _normalize_delivery_status(row.get("status") or row.get("event"))
+		if not message_id:
+			return
+		conversation_id = None
+		if isinstance(row.get("conversation"), dict):
+			conversation_id = row.get("conversation", {}).get("id")
+		if not conversation_id and parent.get("conversation_id"):
+			conversation_id = parent.get("conversation_id")
+		error = None
+		errors = row.get("errors")
+		if isinstance(errors, list) and errors and isinstance(errors[0], dict):
+			error = errors[0].get("title") or errors[0].get("message")
+
+		events.append(
+			{
+				"kind": "status",
+				"message_id": str(message_id),
+				"status": status,
+				"conversation_id": conversation_id,
+				"to": row.get("recipient_id") or row.get("to") or parent.get("to"),
+				"error": error,
+				"timestamp": row.get("timestamp") or parent.get("timestamp"),
+			}
+		)
+
+	def walk(node: Any, parent: Dict[str, Any] | None = None):
+		if isinstance(node, dict):
+			statuses = node.get("statuses")
+			if isinstance(statuses, list):
+				for row in statuses:
+					if isinstance(row, dict):
+						parse_status_row(row, node)
+			if node.get("message_id") and node.get("status"):
+				parse_status_row(node, parent)
+			event_name = _normalize_delivery_status(node.get("event") if isinstance(node.get("event"), str) else None)
+			if node.get("message_id") and event_name in {"sent", "delivered", "read", "failed"}:
+				parse_status_row({"message_id": node.get("message_id"), "status": event_name, "to": node.get("to")}, node)
+			for value in node.values():
+				walk(value, node)
+		elif isinstance(node, list):
+			for row in node:
+				walk(row, parent)
+
+	walk(payload)
+
+	seen = set()
+	deduped = []
+	for event in events:
+		key = (event.get("message_id"), event.get("status"), event.get("timestamp"), event.get("error"))
+		if key in seen:
+			continue
+		seen.add(key)
+		deduped.append(event)
+	return deduped
+
+
+def _extract_incoming_events(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
+	events: List[Dict[str, Any]] = []
+
+	def parse_messages_block(node: Dict[str, Any]):
+		messages = node.get("messages")
+		if not isinstance(messages, list):
+			return
+		contacts = node.get("contacts") or []
+		contact = contacts[0] if isinstance(contacts, list) and contacts and isinstance(contacts[0], dict) else {}
+		profile_name = None
+		if isinstance(contact.get("profile"), dict):
+			profile_name = contact.get("profile", {}).get("name")
+		from_contact = contact.get("wa_id")
+		metadata = node.get("metadata") if isinstance(node.get("metadata"), dict) else {}
+		to_number = metadata.get("display_phone_number")
+
+		for msg in messages:
+			if not isinstance(msg, dict):
+				continue
+			from_number = msg.get("from") or msg.get("wa_id") or from_contact
+			message_id = msg.get("id") or msg.get("message_id")
+			content_type = msg.get("type") or msg.get("message_type") or "text"
+			text_body = (
+				(msg.get("text") or {}).get("body")
+				if isinstance(msg.get("text"), dict)
+				else msg.get("body")
+			)
+			reply_to = None
+			if isinstance(msg.get("context"), dict):
+				reply_to = msg.get("context", {}).get("id")
+			if not from_number and not message_id:
+				continue
+			events.append(
+				{
+					"kind": "incoming",
+					"from": from_number,
+					"to": to_number,
+					"message_id": message_id,
+					"status": "received",
+					"content_type": content_type,
+					"message": text_body or "",
+					"profile_name": profile_name,
+					"reply_to_message_id": reply_to,
+				}
+			)
+
+	def walk(node: Any):
+		if isinstance(node, dict):
+			parse_messages_block(node)
+			for value in node.values():
+				walk(value)
+		elif isinstance(node, list):
+			for row in node:
+				walk(row)
+
+	walk(payload)
+	return events
+
+
+def _collect_webhook_events(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
+	if not isinstance(payload, dict):
+		return []
+	return _extract_status_events(payload) + _extract_incoming_events(payload)
+
+
+def _upsert_chat_from_webhook_event(event: Dict[str, Any], payload: Dict[str, Any]):
+	message_id = event.get("message_id")
+	existing_name = None
+	if message_id:
+		existing_name = frappe.db.get_value("Digital Whatsapp Chat", {"message_id": message_id}, "name")
+
+	if existing_name:
+		updates = {"status": event.get("status") or "received"}
+		if event.get("conversation_id"):
+			updates["conversation_id"] = event.get("conversation_id")
+		for field, value in updates.items():
+			frappe.db.set_value("Digital Whatsapp Chat", existing_name, field, value, update_modified=True)
+		return existing_name
+
+	doc = frappe.new_doc("Digital Whatsapp Chat")
+	doc.label = f"WhatsApp {event.get('kind', 'event').title()}"
+	doc.type = "Incoming" if event.get("kind") == "incoming" else "Outgoing"
+	doc.status = event.get("status") or "received"
+	doc.content_type = event.get("content_type") or "text"
+	doc.message_type = "Manual"
+	doc.message_id = message_id
+	doc.conversation_id = event.get("conversation_id")
+	doc.message = event.get("message") or event.get("error") or ""
+	if doc.type == "Incoming":
+		doc.set("from", event.get("from") or event.get("to"))
+		doc.to = event.get("to")
+	else:
+		doc.to = event.get("to")
+	if event.get("profile_name"):
+		doc.profile_name = event.get("profile_name")
+	if event.get("reply_to_message_id"):
+		doc.is_reply = 1
+		doc.reply_to_message_id = event.get("reply_to_message_id")
+	doc.insert(ignore_permissions=True)
+	return doc.name
+
+
+@frappe.whitelist(allow_guest=True)
+def digital_connect_webhook():
+	"""Webhook endpoint for Digital Connect delivery and incoming events."""
+	try:
+		raw = frappe.request.get_data(as_text=True) or ""
+	except Exception:
+		raw = ""
+
+	payload: Dict[str, Any] = {}
+	if raw:
+		try:
+			payload = json.loads(raw)
+		except Exception:
+			payload = {}
+	if not payload:
+		form_dict = dict(getattr(frappe.local, "form_dict", {}) or {})
+		if form_dict:
+			payload = form_dict
+	if not isinstance(payload, dict):
+		payload = {}
+
+	events = _collect_webhook_events(payload)
+	updated_docs = []
+	for event in events:
+		try:
+			updated_docs.append(_upsert_chat_from_webhook_event(event, payload))
+		except Exception:
+			frappe.log_error(frappe.get_traceback(), "Digital Connect Webhook Processing Error")
+
+	return {
+		"ok": True,
+		"events_processed": len(events),
+		"chat_docs": [name for name in updated_docs if name],
+	}
 
 
 @frappe.whitelist()
@@ -172,7 +442,21 @@ def send_test_message(phone_number, body=None, preview_url=1, template_name=None
 		}
 		
 		url = settings.base_url
-	
+
+	chat_doc = frappe.new_doc("Digital Whatsapp Chat")
+	chat_doc.label = "WhatsApp Outgoing"
+	chat_doc.type = "Outgoing"
+	chat_doc.status = "queued"
+	chat_doc.to = phone_number
+	# Keep content_type aligned with doctype options.
+	# Template is a message mode, not a content type in this schema.
+	chat_doc.content_type = "text"
+	chat_doc.message_type = "Template" if template_name else "Manual"
+	chat_doc.message = body or ""
+	if template_parameters:
+		chat_doc.template_parameters = template_parameters
+	chat_doc.insert(ignore_permissions=True)
+
 	try:
 		response = requests.post(
 			url,
@@ -189,14 +473,10 @@ def send_test_message(phone_number, body=None, preview_url=1, template_name=None
 		data = response.text
 
 	if not response.ok:
+		frappe.db.set_value("Digital Whatsapp Chat", chat_doc.name, "status", "failed", update_modified=True)
 		error_message = None
 		if isinstance(data, dict):
-			error_message = (
-				data.get("message", {}).get("error", {}).get("message")
-				or data.get("error", {}).get("message")
-				or data.get("message")
-				or str(data)
-			)
+			error_message = _extract_error_message(data) or str(data)
 		else:
 			error_message = str(data)
 		
@@ -207,9 +487,23 @@ def send_test_message(phone_number, body=None, preview_url=1, template_name=None
 			)
 		)
 
+	message_id = _extract_message_id_from_send_response(data)
+	conversation_id = _extract_conversation_id_from_send_response(data)
+	update_values = {
+		"status": "sent",
+		"message_id": message_id,
+		"conversation_id": conversation_id,
+	}
+	for fieldname, value in update_values.items():
+		if value:
+			frappe.db.set_value("Digital Whatsapp Chat", chat_doc.name, fieldname, value, update_modified=True)
+	frappe.db.set_value("Digital Whatsapp Chat", chat_doc.name, "status", "sent", update_modified=True)
+
 	return {
 		"status": "success",
 		"http_status": response.status_code,
 		"response": data,
 		"message_type": "template" if template_name else "text",
+		"chat_name": chat_doc.name,
+		"message_id": message_id,
 	}

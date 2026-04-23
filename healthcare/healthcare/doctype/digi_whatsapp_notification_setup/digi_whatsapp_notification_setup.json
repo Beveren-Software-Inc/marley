@@ -1,0 +1,172 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "field:notification_name",
+ "creation": "2026-04-23 18:00:00",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "notification_name",
+  "enabled",
+  "section_break_target",
+  "reference_doctype",
+  "event",
+  "column_break_target",
+  "template",
+  "mobile_field",
+  "section_break_recipients",
+  "recipient_roles",
+  "column_break_recipients",
+  "additional_numbers",
+  "section_break_logic",
+  "condition",
+  "template_parameter_fields",
+  "section_break_audit",
+  "last_run_on",
+  "last_error"
+ ],
+ "fields": [
+  {
+   "fieldname": "notification_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Notification Name",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Enabled"
+  },
+  {
+   "fieldname": "section_break_target",
+   "fieldtype": "Section Break",
+   "label": "Target"
+  },
+  {
+   "fieldname": "reference_doctype",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Reference DocType",
+   "options": "DocType",
+   "reqd": 1
+  },
+  {
+   "fieldname": "event",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Event",
+   "options": "\nafter_insert\non_update\non_submit\non_cancel\non_update_after_submit",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_target",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "template",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "WhatsApp Template",
+   "options": "Digital Whatsapp Template"
+  },
+  {
+   "description": "Phone field on the target document (e.g. custom_whatsapp, mobile_no)",
+   "fieldname": "mobile_field",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Mobile Field"
+  },
+  {
+   "fieldname": "section_break_recipients",
+   "fieldtype": "Section Break",
+   "label": "Recipients"
+  },
+  {
+   "fieldname": "recipient_roles",
+   "fieldtype": "Table",
+   "label": "Recipient Roles",
+   "options": "Digi Whatsapp Notification Recipient"
+  },
+  {
+   "fieldname": "column_break_recipients",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Comma/newline separated phone numbers in international format",
+   "fieldname": "additional_numbers",
+   "fieldtype": "Small Text",
+   "label": "Additional Numbers"
+  },
+  {
+   "fieldname": "section_break_logic",
+   "fieldtype": "Section Break",
+   "label": "Logic"
+  },
+  {
+   "description": "Optional Python expression. Example: doc.status == 'Open'",
+   "fieldname": "condition",
+   "fieldtype": "Small Text",
+   "label": "Condition"
+  },
+  {
+   "description": "Comma/newline separated target document field names to map into template parameters",
+   "fieldname": "template_parameter_fields",
+   "fieldtype": "Small Text",
+   "label": "Template Parameter Fields"
+  },
+  {
+   "fieldname": "section_break_audit",
+   "fieldtype": "Section Break",
+   "label": "Audit"
+  },
+  {
+   "fieldname": "last_run_on",
+   "fieldtype": "Datetime",
+   "label": "Last Run On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_error",
+   "fieldtype": "Small Text",
+   "label": "Last Error",
+   "read_only": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-04-23 14:33:02.958602",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Digi Whatsapp Notification Setup",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

@@ -277,9 +277,20 @@ override_doctype_class = {
 
 doc_events = {
 	"*": {
-		"on_submit": "healthcare.healthcare.doctype.patient_history_settings.patient_history_settings.create_medical_record",
-		"on_cancel": "healthcare.healthcare.doctype.patient_history_settings.patient_history_settings.delete_medical_record",
-		"on_update_after_submit": "healthcare.healthcare.doctype.patient_history_settings.patient_history_settings.update_medical_record",
+		"after_insert": "healthcare.healthcare.doctype.digi_whatsapp_notification_setup.digi_whatsapp_notification_setup.handle_after_insert",
+		"on_update": "healthcare.healthcare.doctype.digi_whatsapp_notification_setup.digi_whatsapp_notification_setup.handle_on_update",
+		"on_submit": [
+			"healthcare.healthcare.doctype.patient_history_settings.patient_history_settings.create_medical_record",
+			"healthcare.healthcare.doctype.digi_whatsapp_notification_setup.digi_whatsapp_notification_setup.handle_on_submit",
+		],
+		"on_cancel": [
+			"healthcare.healthcare.doctype.patient_history_settings.patient_history_settings.delete_medical_record",
+			"healthcare.healthcare.doctype.digi_whatsapp_notification_setup.digi_whatsapp_notification_setup.handle_on_cancel",
+		],
+		"on_update_after_submit": [
+			"healthcare.healthcare.doctype.patient_history_settings.patient_history_settings.update_medical_record",
+			"healthcare.healthcare.doctype.digi_whatsapp_notification_setup.digi_whatsapp_notification_setup.handle_on_update_after_submit",
+		],
 	},
 	"Sales Invoice": {
 		"on_submit": "healthcare.healthcare.utils.manage_invoice_submit_cancel",
