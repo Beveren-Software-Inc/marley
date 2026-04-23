@@ -17,8 +17,8 @@
   "docstatus": 0,
   "doctype": "Patient Visit Type",
   "modified": "2026-02-15 10:29:01.854770",
-  "name": "ECT Session,",
-  "visit_type": "ECT Session,"
+  "name": "ECT Session",
+  "visit_type": "ECT Session"
  },
  {
   "docstatus": 0,
@@ -66,8 +66,8 @@
   "docstatus": 0,
   "doctype": "Patient Visit Type",
   "modified": "2026-02-15 10:31:33.653408",
-  "name": "Medical Report,",
-  "visit_type": "Medical Report,"
+  "name": "Medical Report",
+  "visit_type": "Medical Report"
  },
  {
   "docstatus": 0,
@@ -75,5 +75,96 @@
   "modified": "2026-02-15 10:32:00.583598",
   "name": "Psychologist",
   "visit_type": "Psychologist"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Visit Type",
+  "modified": "2026-04-23 17:53:27.196279",
+  "name": "New Visit",
+  "visit_type": "New Visit"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Visit Type",
+  "modified": "2026-04-23 17:54:06.115895",
+  "name": "EEG Request",
+  "visit_type": "EEG Request"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Visit Type",
+  "modified": "2026-04-23 17:54:54.754930",
+  "name": "Child Psychiatry Visit",
+  "visit_type": "Child Psychiatry Visit"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Visit Type",
+  "modified": "2026-04-23 17:55:11.472859",
+  "name": "ECT Request",
+  "visit_type": "ECT Request"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Visit Type",
+  "modified": "2026-04-23 17:55:39.406727",
+  "name": "Online-Followup",
+  "visit_type": "Online-Followup"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Visit Type",
+  "modified": "2026-04-23 17:55:48.892265",
+  "name": "Online-New Visist",
+  "visit_type": "Online-New Visist"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Visit Type",
+  "modified": "2026-04-23 17:55:58.493538",
+  "name": "Day Case",
+  "visit_type": "Day Case"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Visit Type",
+  "modified": "2026-04-23 17:56:07.642305",
+  "name": "Payment Only",
+  "visit_type": "Payment Only"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Visit Type",
+  "modified": "2026-04-23 17:56:27.174606",
+  "name": "Online Psychology",
+  "visit_type": "Online Psychology"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Visit Type",
+  "modified": "2026-04-23 17:57:04.728797",
+  "name": "Renew Medicine Prescription",
+  "visit_type": "Renew Medicine Prescription"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Visit Type",
+  "modified": "2026-04-23 17:57:45.785491",
+  "name": "Nutrition (New Visit)",
+  "visit_type": "Nutrition (New Visit)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Visit Type",
+  "modified": "2026-04-23 17:58:02.056635",
+  "name": "Nutrition (Followup)",
+  "visit_type": "Nutrition (Followup)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Visit Type",
+  "modified": "2026-04-23 18:00:44.351582",
+  "name": "Daily Auto Visit",
+  "visit_type": "Daily Auto Visit"
  }
 ]
