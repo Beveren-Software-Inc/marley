@@ -134,11 +134,12 @@ def get_nationalities(search=None):
 def get_healthcare_practitioners(search=None, department=None):
 	"""Get list of Healthcare Practitioners"""
 	filters = {}
+	filters['status'] = 'Active'  # Only get active practitioners
 	if search:
 		filters['practitioner_name'] = ['like', f'%{search}%']
 	# if department:
 	# 	filters['department'] = department
-	print("Flters ganiya:", filters)
+	
 	practitioners = frappe.get_all(
 		'Healthcare Practitioner',
 		filters=filters,
