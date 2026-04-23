@@ -1013,6 +1013,28 @@ def book_session(service_request_name, appointment=None):
 		cs.flags.ignore_permissions = True
 		cs.insert()
 		created_doc = {"doctype": "Consultation Service", "name": cs.name}
+	elif sr.template_dt == "IP Service Type":
+		if not sr.get("inpatient_record"):
+			frappe.throw(_("An Inpatient Admission is required to book an IP Service request"))
+		if not sr.get("cost_center"):
+			frappe.throw(_("Cost Center is required on the Service Request before booking"))
+
+		template_category = None
+		if sr.get("template_dn") and frappe.db.exists("IP Service Type", sr.template_dn):
+			template_category = frappe.db.get_value("IP Service Type", sr.template_dn, "category")
+
+		from healthcare.api.ip_service import create_ip_service
+
+		result = create_ip_service(
+			admission_no=sr.inpatient_record,
+			cost_center=sr.cost_center,
+			service_request=sr.name,
+			type="Internal Service",
+			category=template_category or None,
+		)
+		ip_service_name = result.get("name") if isinstance(result, dict) else None
+		if ip_service_name:
+			created_doc = {"doctype": "IP Service", "name": ip_service_name}
 
 	sr.db_set("booked", 1)
 	frappe.db.commit()

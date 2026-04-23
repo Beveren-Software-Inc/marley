@@ -1290,6 +1290,7 @@ export const NursePage = () => {
                 patient={selectedPatient}
                 refreshKey={serviceRequestRefreshKey}
                 template_dt="IP Service Type"
+                isNurseContext={true}
                 onCreateIPService={(sr) => {
                   setCreateIPServicePreFill({ serviceRequest: sr.name, patient: sr.patient })
                   setShowCreateIPServiceModal(true)
@@ -1345,6 +1346,7 @@ export const NursePage = () => {
             }}
             initialPatient={createIPServicePreFill?.patient ?? selectedPatient}
             initialServiceRequest={createIPServicePreFill?.serviceRequest}
+            prefillFromServiceRequest={!!createIPServicePreFill?.serviceRequest}
             openInNewTab={false}
           />
         )}
@@ -2051,6 +2053,7 @@ export const NursePage = () => {
                 <ServiceRequestList
                   patient={selectedPatient}
                   refreshKey={serviceRequestRefreshKey}
+                  isNurseContext={true}
                 />
               </div>
             </section>

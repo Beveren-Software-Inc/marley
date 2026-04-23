@@ -92,7 +92,7 @@
    "fieldname": "services",
    "fieldtype": "Table",
    "label": "Services",
-   "options": "IP External Trip Service"
+   "options": "IP Service Detail"
   },
   {
    "fieldname": "section_break_totals",
@@ -110,7 +110,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-03-25 00:56:56.654094",
+ "modified": "2026-04-23 11:10:52.384997",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Consultation Service",
