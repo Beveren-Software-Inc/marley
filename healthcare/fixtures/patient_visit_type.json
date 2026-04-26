@@ -166,5 +166,19 @@
   "modified": "2026-04-23 18:00:44.351582",
   "name": "Daily Auto Visit",
   "visit_type": "Daily Auto Visit"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Visit Type",
+  "modified": "2026-04-26 10:12:33.140406",
+  "name": "Followup",
+  "visit_type": "Followup"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Visit Type",
+  "modified": "2026-04-26 10:14:36.959734",
+  "name": "Psychology",
+  "visit_type": "Psychology"
  }
 ]
