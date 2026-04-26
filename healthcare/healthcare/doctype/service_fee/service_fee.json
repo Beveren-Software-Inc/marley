@@ -6,9 +6,13 @@
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
+  "sr_no",
   "service_code",
+  "service_group_no",
+  "item",
   "service_name",
   "amount",
+  "service",
   "column_break_dzja",
   "additional_amount",
   "discount_type",
@@ -19,12 +23,11 @@
  "fields": [
   {
    "fieldname": "service_code",
-   "fieldtype": "Link",
+   "fieldtype": "Data",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "Service Code",
-   "options": "Item",
-   "reqd": 1
+   "label": "Service Code(Old System)",
+   "options": "Item"
   },
   {
    "fetch_from": "service_code.item_name",
@@ -53,7 +56,7 @@
    "label": "Additional Amount"
   },
   {
-   "default": "Percentage",
+   "default": "Amount",
    "fieldname": "discount_type",
    "fieldtype": "Select",
    "in_list_view": 1,
@@ -82,16 +85,43 @@
    "in_standard_filter": 1,
    "label": "Net Amount",
    "read_only": 1
+  },
+  {
+   "fieldname": "item",
+   "fieldtype": "Link",
+   "label": "Item",
+   "options": "Item"
+  },
+  {
+   "fieldname": "service",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Service "
+  },
+  {
+   "fieldname": "sr_no",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "SR No"
+  },
+  {
+   "fieldname": "service_group_no",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Service Group No"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2025-11-30 18:03:55.949640",
+ "modified": "2026-04-26 11:46:46.986391",
  "modified_by": "Administrator",
  "module": "Healthcare",
- "name": "Consultation Fee",
+ "name": "Service Fee",
  "owner": "Administrator",
  "permissions": [],
  "row_format": "Dynamic",
