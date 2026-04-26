@@ -149,7 +149,6 @@
    "in_standard_filter": 1,
    "label": "Patient",
    "options": "Patient",
-   "reqd": 1,
    "search_index": 1
   },
   {
@@ -736,7 +735,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2026-04-26 11:40:55.228366",
+ "modified": "2026-04-26 12:29:07.534867",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Visit",
