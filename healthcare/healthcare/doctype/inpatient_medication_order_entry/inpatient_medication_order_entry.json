@@ -7,6 +7,7 @@
  "field_order": [
   "drug",
   "drug_name",
+  "medication",
   "dosage",
   "no_of_days",
   "dosage_form",
@@ -40,8 +41,7 @@
    "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Drug",
-   "options": "Item",
-   "reqd": 1
+   "options": "Item"
   },
   {
    "fetch_from": "drug.item_name",
@@ -208,12 +208,17 @@
   {
    "fieldname": "column_break_ugjx",
    "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "medication",
+   "fieldtype": "Data",
+   "label": "Medication"
   }
  ],
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-04-15 12:01:09.494781",
+ "modified": "2026-04-26 14:37:03.377023",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Inpatient Medication Order Entry",
