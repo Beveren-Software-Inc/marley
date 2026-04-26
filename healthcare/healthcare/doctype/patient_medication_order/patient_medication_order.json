@@ -83,8 +83,7 @@
    "fieldtype": "Link",
    "label": "Patient",
    "options": "Patient",
-   "read_only_depends_on": "patient_encounter",
-   "reqd": 1
+   "read_only_depends_on": "patient_encounter"
   },
   {
    "fetch_from": "patient.patient_name",
@@ -312,7 +311,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-04-26 14:45:30.742782",
+ "modified": "2026-04-26 17:55:39.585645",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Medication Order",
