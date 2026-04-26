@@ -1,7 +1,7 @@
 // Copyright (c) 2025, Healthcare and contributors
 // For license information, please see license.txt
 
-frappe.ui.form.on('Consultation Fee', {
+frappe.ui.form.on('Service Fee', {
 	refresh: function(frm) {
 		// Calculate net amount on refresh
 		calculate_net_amount(frm);

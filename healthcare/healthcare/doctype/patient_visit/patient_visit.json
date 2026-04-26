@@ -503,7 +503,7 @@
    "fieldname": "consultation_fee",
    "fieldtype": "Table",
    "label": "Consultation Fee",
-   "options": "Consultation Fee"
+   "options": "Service Fee"
   },
   {
    "allow_on_submit": 1,
@@ -736,7 +736,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2026-04-26 11:11:54.772998",
+ "modified": "2026-04-26 11:40:55.228366",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Visit",
