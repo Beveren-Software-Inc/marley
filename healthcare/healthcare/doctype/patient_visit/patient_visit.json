@@ -28,6 +28,7 @@
   "is_blacklist",
   "column_break_6",
   "company",
+  "cost_center",
   "status",
   "encounter_date",
   "encounter_time",
@@ -60,11 +61,28 @@
   "encounter_comment",
   "cancel_reason_section",
   "reason_for_cancel",
+  "section_break_imzr",
+  "visit_doctor_checked",
+  "patient_serial",
+  "srv_trans_no",
+  "lab_trans_no",
+  "ip_admission_no",
+  "print_count",
+  "rv_no",
+  "column_break_reeh",
+  "op_vat_no",
+  "patient_weight",
+  "visit_bp_1",
+  "visit_bp2",
+  "daily_transfer_no",
   "sb_refs",
   "amended_from",
   "encounter_details_tab",
   "order_history_html",
   "encounter_details",
+  "section_break_zpdi",
+  "visit_allergies_history",
+  "medical_history",
   "notes_tab",
   "clinical_notes",
   "patient_notes",
@@ -553,6 +571,96 @@
    "fieldtype": "Table",
    "label": "Patient Diagnosis",
    "options": "Patient Diagnosis"
+  },
+  {
+   "fieldname": "section_break_imzr",
+   "fieldtype": "Section Break",
+   "label": "Additional Fields"
+  },
+  {
+   "default": "0",
+   "fieldname": "visit_doctor_checked",
+   "fieldtype": "Check",
+   "label": "Visit Doctor Checked"
+  },
+  {
+   "fieldname": "section_break_zpdi",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "visit_allergies_history",
+   "fieldtype": "Small Text",
+   "label": "Visit Allergies History"
+  },
+  {
+   "fieldname": "medical_history",
+   "fieldtype": "Small Text",
+   "label": "Medical History"
+  },
+  {
+   "fieldname": "patient_serial",
+   "fieldtype": "Data",
+   "label": "Patient Serial"
+  },
+  {
+   "fieldname": "srv_trans_no",
+   "fieldtype": "Data",
+   "label": "SRV Trans No"
+  },
+  {
+   "fieldname": "lab_trans_no",
+   "fieldtype": "Data",
+   "label": "Lab Trans No"
+  },
+  {
+   "fieldname": "column_break_reeh",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "ip_admission_no",
+   "fieldtype": "Data",
+   "label": "IP Admission No"
+  },
+  {
+   "fieldname": "rv_no",
+   "fieldtype": "Data",
+   "label": "RV No"
+  },
+  {
+   "fieldname": "cost_center",
+   "fieldtype": "Link",
+   "label": "Cost Center",
+   "options": "Cost Center"
+  },
+  {
+   "fieldname": "op_vat_no",
+   "fieldtype": "Data",
+   "label": "OP VAT No"
+  },
+  {
+   "fieldname": "patient_weight",
+   "fieldtype": "Data",
+   "label": "Patient Weight"
+  },
+  {
+   "fieldname": "visit_bp_1",
+   "fieldtype": "Data",
+   "label": "Visit BP 1"
+  },
+  {
+   "fieldname": "visit_bp2",
+   "fieldtype": "Data",
+   "label": "Visit BP2"
+  },
+  {
+   "fieldname": "print_count",
+   "fieldtype": "Data",
+   "label": "Print Count"
+  },
+  {
+   "fieldname": "daily_transfer_no",
+   "fieldtype": "Data",
+   "label": "Daily Transfer No"
   }
  ],
  "is_submittable": 1,
@@ -598,7 +706,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2026-04-23 15:32:04.981161",
+ "modified": "2026-04-26 10:06:55.598876",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Visit",
