@@ -16,6 +16,7 @@
   "reason_stopped",
   "is_prn",
   "medication_type",
+  "dose_term",
   "column_break_4",
   "date",
   "end_date",
@@ -213,12 +214,17 @@
    "fieldname": "medication",
    "fieldtype": "Data",
    "label": "Medication"
+  },
+  {
+   "fieldname": "dose_term",
+   "fieldtype": "Data",
+   "label": "Dose Term"
   }
  ],
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-04-26 14:37:03.377023",
+ "modified": "2026-04-26 15:36:42.539835",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Inpatient Medication Order Entry",
