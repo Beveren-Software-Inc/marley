@@ -1,12 +1,13 @@
 {
  "actions": [],
- "autoname": "naming_series:",
+ "autoname": "field:trans_no",
  "creation": "2020-09-14 18:33:56.715736",
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
   "patient_details_section",
+  "trans_no",
   "naming_series",
   "care_context",
   "patient_encounter",
@@ -38,7 +39,13 @@
   "reference_document_name",
   "column_break_azig",
   "user",
-  "healthcare_practitioner"
+  "healthcare_practitioner",
+  "section_break_pram",
+  "is_cancelled",
+  "rt_flag",
+  "lt_flag",
+  "column_break_binn",
+  "cancelled_remarks"
  ],
  "fields": [
   {
@@ -263,16 +270,53 @@
    "fieldname": "after_discharge",
    "fieldtype": "Check",
    "label": "After Discharge"
+  },
+  {
+   "fieldname": "section_break_pram",
+   "fieldtype": "Section Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_cancelled",
+   "fieldtype": "Check",
+   "label": "Is Cancelled"
+  },
+  {
+   "default": "0",
+   "fieldname": "rt_flag",
+   "fieldtype": "Check",
+   "label": "RT Flag"
+  },
+  {
+   "default": "0",
+   "fieldname": "lt_flag",
+   "fieldtype": "Check",
+   "label": "LT Flag"
+  },
+  {
+   "fieldname": "column_break_binn",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "cancelled_remarks",
+   "fieldtype": "Small Text",
+   "label": "Cancelled Remarks"
+  },
+  {
+   "fieldname": "trans_no",
+   "fieldtype": "Data",
+   "label": "Trans No",
+   "unique": 1
   }
  ],
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-04-14 01:08:17.211585",
+ "modified": "2026-04-26 14:45:30.742782",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Medication Order",
- "naming_rule": "By \"Naming Series\" field",
+ "naming_rule": "By fieldname",
  "owner": "Administrator",
  "permissions": [
   {
