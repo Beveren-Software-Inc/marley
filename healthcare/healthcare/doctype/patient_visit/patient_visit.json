@@ -162,6 +162,7 @@
    "read_only": 1
   },
   {
+   "fetch_from": "patient.patient_name",
    "fieldname": "patient_name",
    "fieldtype": "Data",
    "label": "Patient Name",
@@ -735,7 +736,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2026-04-26 10:38:47.554910",
+ "modified": "2026-04-26 11:11:54.772998",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Visit",
