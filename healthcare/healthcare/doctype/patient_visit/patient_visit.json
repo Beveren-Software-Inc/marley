@@ -2,7 +2,7 @@
  "actions": [],
  "allow_copy": 1,
  "allow_import": 1,
- "autoname": "naming_series:",
+ "autoname": "field:case_no",
  "creation": "2016-04-21 10:53:44.637684",
  "doctype": "DocType",
  "document_type": "Document",
@@ -10,6 +10,7 @@
  "engine": "InnoDB",
  "field_order": [
   "naming_series",
+  "case_no",
   "title",
   "appointment",
   "appointment_type",
@@ -661,6 +662,12 @@
    "fieldname": "daily_transfer_no",
    "fieldtype": "Data",
    "label": "Daily Transfer No"
+  },
+  {
+   "fieldname": "case_no",
+   "fieldtype": "Data",
+   "label": "Case No",
+   "unique": 1
   }
  ],
  "is_submittable": 1,
@@ -706,11 +713,11 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2026-04-26 10:06:55.598876",
+ "modified": "2026-04-26 10:28:37.265021",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Visit",
- "naming_rule": "By \"Naming Series\" field",
+ "naming_rule": "By fieldname",
  "owner": "Administrator",
  "permissions": [
   {
