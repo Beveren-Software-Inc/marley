@@ -25,30 +25,26 @@
    "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Diagnosis",
-   "options": "Diagnosis",
-   "reqd": 1
+   "options": "Diagnosis"
   },
   {
    "fieldname": "details",
    "fieldtype": "Text Editor",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "Details",
-   "reqd": 1
+   "label": "Details"
   },
   {
    "fieldname": "posting_date",
    "fieldtype": "Datetime",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "Posting Date",
-   "reqd": 1
+   "label": "Posting Date"
   },
   {
    "fieldname": "diagnoses_time",
    "fieldtype": "Datetime",
-   "label": "Diagnoses Time",
-   "reqd": 1
+   "label": "Diagnoses Time"
   },
   {
    "fieldname": "section_break_bttg",
@@ -66,8 +62,7 @@
    "fieldname": "practitioner",
    "fieldtype": "Link",
    "label": "Practitioner",
-   "options": "Healthcare Practitioner",
-   "reqd": 1
+   "options": "Healthcare Practitioner"
   },
   {
    "fieldname": "column_break_cgwt",
@@ -93,7 +88,7 @@
  ],
  "istable": 1,
  "links": [],
- "modified": "2026-04-16 01:32:29.110251",
+ "modified": "2026-04-26 10:34:02.352706",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Diagnosis",

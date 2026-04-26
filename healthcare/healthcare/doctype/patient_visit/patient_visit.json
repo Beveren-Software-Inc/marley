@@ -22,10 +22,6 @@
   "patient_id_no",
   "patient_mobile_no",
   "previous_visit_no",
-  "inpatient_record",
-  "visit_type",
-  "iop_enrollment",
-  "inpatient_status",
   "is_blacklist",
   "column_break_6",
   "company",
@@ -39,14 +35,22 @@
   "google_meet_link",
   "invoiced",
   "submit_orders_on_save",
+  "section_break_ugrw",
+  "old_visit_type_",
+  "visit_type",
+  "iop_enrollment",
+  "column_break_sblk",
+  "inpatient_status",
+  "inpatient_record",
   "sb_symptoms",
   "symptoms",
   "symptoms_in_print",
   "get_applicable_treatment_plans",
-  "physical_examination",
   "diagnosis",
+  "physical_examination",
   "patient_diagnosis",
   "diagnosis_in_print",
+  "diagnosis_description",
   "codification",
   "codification_table",
   "sb_drug_prescription",
@@ -668,6 +672,24 @@
    "fieldtype": "Data",
    "label": "Case No",
    "unique": 1
+  },
+  {
+   "fieldname": "diagnosis_description",
+   "fieldtype": "Small Text",
+   "label": "Diagnosis Description"
+  },
+  {
+   "fieldname": "old_visit_type_",
+   "fieldtype": "Data",
+   "label": "Old VISIT_TYPE_"
+  },
+  {
+   "fieldname": "section_break_ugrw",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_sblk",
+   "fieldtype": "Column Break"
   }
  ],
  "is_submittable": 1,
@@ -713,7 +735,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2026-04-26 10:28:37.265021",
+ "modified": "2026-04-26 10:38:47.554910",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Visit",
