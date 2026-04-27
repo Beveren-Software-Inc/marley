@@ -27,6 +27,8 @@
   "healthcare_practitioner_name",
   "start_date",
   "end_date",
+  "user_name",
+  "time",
   "medication_orders_section",
   "medication_orders",
   "section_break_16",
@@ -40,12 +42,20 @@
   "column_break_azig",
   "user",
   "healthcare_practitioner",
+  "section_break_zqws",
+  "general_remark",
   "section_break_pram",
   "is_cancelled",
   "rt_flag",
   "lt_flag",
+  "trans_type",
+  "route",
+  "strength",
+  "effective_status",
   "column_break_binn",
-  "cancelled_remarks"
+  "cancelled_remarks",
+  "duration_type",
+  "old_admission_no"
  ],
  "fields": [
   {
@@ -306,12 +316,61 @@
    "fieldtype": "Data",
    "label": "Trans No",
    "unique": 1
+  },
+  {
+   "fieldname": "user_name",
+   "fieldtype": "Data",
+   "label": "User Name"
+  },
+  {
+   "fieldname": "time",
+   "fieldtype": "Data",
+   "label": "Time"
+  },
+  {
+   "fieldname": "section_break_zqws",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "general_remark",
+   "fieldtype": "Small Text",
+   "label": "General Remark"
+  },
+  {
+   "fieldname": "trans_type",
+   "fieldtype": "Data",
+   "label": "Trans Type"
+  },
+  {
+   "fieldname": "route",
+   "fieldtype": "Data",
+   "label": "Route"
+  },
+  {
+   "fieldname": "strength",
+   "fieldtype": "Data",
+   "label": "Strength"
+  },
+  {
+   "fieldname": "duration_type",
+   "fieldtype": "Data",
+   "label": "Duration Type"
+  },
+  {
+   "fieldname": "old_admission_no",
+   "fieldtype": "Data",
+   "label": "Old Admission No"
+  },
+  {
+   "fieldname": "effective_status",
+   "fieldtype": "Data",
+   "label": "Effective Status"
   }
  ],
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-04-26 17:55:39.585645",
+ "modified": "2026-04-27 17:27:01.915292",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Medication Order",
