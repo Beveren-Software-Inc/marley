@@ -20,6 +20,7 @@
   "practitioner_name",
   "user",
   "medical_role",
+  "cost_center",
   "warning_section",
   "warning",
   "high_risk_text",
@@ -166,11 +167,17 @@
    "fieldname": "sta_flg",
    "fieldtype": "Check",
    "label": "STA FLG"
+  },
+  {
+   "fieldname": "cost_center",
+   "fieldtype": "Link",
+   "label": "Cost Center",
+   "options": "Cost Center"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-04-27 16:46:46.412532",
+ "modified": "2026-04-27 16:54:20.273232",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Warning Message",
