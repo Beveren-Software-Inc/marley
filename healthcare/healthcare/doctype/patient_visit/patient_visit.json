@@ -511,6 +511,7 @@
    "label": "Lab Tests"
   },
   {
+   "allow_bulk_edit": 1,
    "allow_on_submit": 1,
    "fieldname": "lab_tests_charges",
    "fieldtype": "Table",
@@ -735,7 +736,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2026-04-26 12:29:07.534867",
+ "modified": "2026-04-27 10:13:48.188910",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Visit",
