@@ -39,6 +39,7 @@
   "redundancy_type",
   "dc",
   "written_frequency",
+  "duration",
   "section_break_oruo",
   "rate",
   "column_break_ugjx",
@@ -266,12 +267,17 @@
    "fieldname": "written_frequency",
    "fieldtype": "Data",
    "label": "Written Frequency"
+  },
+  {
+   "fieldname": "duration",
+   "fieldtype": "Data",
+   "label": "Duration"
   }
  ],
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-04-27 17:56:24.917214",
+ "modified": "2026-04-27 18:29:56.349046",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Inpatient Medication Order Entry",
