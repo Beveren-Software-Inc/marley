@@ -70,7 +70,7 @@
    "options": "HLC-IMO-.YYYY.-"
   },
   {
-   "default": "Patient Visit",
+   "default": "Inpatient Admission",
    "fieldname": "care_context",
    "fieldtype": "Select",
    "in_list_view": 1,
@@ -370,7 +370,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-04-27 17:27:01.915292",
+ "modified": "2026-04-27 17:44:38.514533",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Medication Order",
