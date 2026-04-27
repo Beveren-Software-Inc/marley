@@ -25,7 +25,7 @@ class PatientMedicationOrder(Document):
 		self.validate_inpatient()
 		self.set_status()
   
-		#ACtivate after goung live
+		#ACtivate after going live with medication orders
 		# if self.care_context=="Patient Visit":
 		# 	update_patient_visit_status(
 		# 		visit_name=self.patient_encounter,
