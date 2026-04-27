@@ -25,7 +25,8 @@
   "is_doc_income",
   "is_open",
   "is_auto",
-  "inv_type"
+  "inv_type",
+  "old_no"
  ],
  "fields": [
   {
@@ -138,10 +139,15 @@
    "fieldname": "inv_type",
    "fieldtype": "Data",
    "label": "INV Type"
+  },
+  {
+   "fieldname": "old_no",
+   "fieldtype": "Data",
+   "label": "Old No"
   }
  ],
  "links": [],
- "modified": "2026-04-27 15:25:43.758470",
+ "modified": "2026-04-27 15:37:33.462727",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Service Template",
