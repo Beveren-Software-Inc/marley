@@ -13,7 +13,7 @@ frappe.ui.form.on('Service Request', {
 				"Appointment Type",
 				"Observation Template",
 				"Healthcare Activity",
-				"IP Service Type"
+				"Healthcare Service Template"
 			];
 			return {
 				filters: {

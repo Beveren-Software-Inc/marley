@@ -21,10 +21,10 @@ def _build_services_from_service_request(service_request_name):
 	sr = frappe.get_doc("Service Request", service_request_name)
 	template_dt = getattr(sr, "template_dt", None)
 	template_dn = getattr(sr, "template_dn", None)
-	if template_dt != "IP Service Type" or not template_dn or not frappe.db.exists("IP Service Type", template_dn):
+	if template_dt != "Healthcare Service Template" or not template_dn or not frappe.db.exists("Healthcare Service Template", template_dn):
 		return []
 
-	template_doc = frappe.get_doc("IP Service Type", template_dn)
+	template_doc = frappe.get_doc("Healthcare Service Template", template_dn)
 	default_amount = flt(getattr(sr, "grand_total", None) or getattr(sr, "cost", None) or getattr(sr, "amount", None) or 0, 2)
 
 	rows = []
@@ -187,14 +187,14 @@ from frappe import _
 
 @frappe.whitelist()
 def get_ip_service_types(limit=50, search=None):
-    """Get list of IP Service Types"""
+    """Get list of Healthcare Service Template"""
     filters = {"disabled": 0}
     
     if search:
         filters["service_name"] = ["like", f"%{search}%"]
     
     types = frappe.get_all(
-        "IP Service Type",
+        "Healthcare Service Template",
         filters=filters,
         fields=["name", "service_name", "category", "rate"],
         limit=limit,
@@ -205,11 +205,11 @@ def get_ip_service_types(limit=50, search=None):
 
 @frappe.whitelist()
 def get_ip_service_type(template_name):
-    """Get full IP Service Type details including pricing"""
-    if not frappe.db.exists("IP Service Type", template_name):
-        frappe.throw(_("IP Service Type {0} not found").format(template_name))
+    """Get full Healthcare Service Template details including pricing"""
+    if not frappe.db.exists("Healthcare Service Template", template_name):
+        frappe.throw(_("Healthcare Service Template {0} not found").format(template_name))
     
-    doc = frappe.get_doc("IP Service Type", template_name)
+    doc = frappe.get_doc("Healthcare Service Template", template_name)
     
     # Format the response
     result = {

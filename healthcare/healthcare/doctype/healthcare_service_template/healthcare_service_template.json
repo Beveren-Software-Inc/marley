@@ -1,10 +1,11 @@
 {
  "actions": [],
- "autoname": "field:service_name",
+ "autoname": "field:service_id",
  "creation": "2026-01-01 00:00:00",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
+  "service_id",
   "service_name",
   "description",
   "category",
@@ -19,9 +20,7 @@
    "fieldname": "service_name",
    "fieldtype": "Data",
    "in_list_view": 1,
-   "label": "Service Name",
-   "reqd": 1,
-   "unique": 1
+   "label": "Service Name"
   },
   {
    "fieldname": "description",
@@ -64,13 +63,19 @@
    "fieldtype": "Table",
    "label": "Pricing",
    "options": "Service Pricing"
+  },
+  {
+   "fieldname": "service_id",
+   "fieldtype": "Data",
+   "label": "Service ID",
+   "unique": 1
   }
  ],
  "links": [],
- "modified": "2026-04-14 17:03:56.013378",
+ "modified": "2026-04-27 15:11:16.072476",
  "modified_by": "Administrator",
  "module": "Healthcare",
- "name": "IP Service Type",
+ "name": "Healthcare Service Template",
  "naming_rule": "By fieldname",
  "owner": "Administrator",
  "permissions": [

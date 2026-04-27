@@ -324,7 +324,7 @@ def get_service_requests(limit=50, offset=0, patient=None, template_dt=None, sta
 		'Observation Template': 'observation',
 		'Therapy Type': 'therapy_type',
 		'Healthcare Activity': 'activity_type',
-		'IP Service Type': 'service_name',
+		'Healthcare Service Template': 'service_name',
 		'Consultation Service Template': 'template_name',
 		'Appointment Type': 'name',
 	}
@@ -588,8 +588,8 @@ def create_service_request(data):
 			template_name = frappe.db.get_value('Therapy Type', service_request.template_dn, 'therapy_type')
 		elif service_request.template_dt == 'Healthcare Activity':
 			template_name = frappe.db.get_value('Healthcare Activity', service_request.template_dn, 'activity_type')
-		elif service_request.template_dt == 'IP Service Type':
-			template_name = frappe.db.get_value('IP Service Type', service_request.template_dn, 'service_name')
+		elif service_request.template_dt == 'Healthcare Service Template':
+			template_name = frappe.db.get_value('Healthcare Service Template', service_request.template_dn, 'service_name')
 		else:
 			template_name = service_request.template_dn
 	
@@ -663,107 +663,6 @@ import frappe
 from frappe import _
 from frappe.utils import nowdate
 
-@frappe.whitelist()
-# def confirm_payment(service_request_name):
-
-# 	if not service_request_name:
-# 		frappe.throw(_("Service Request name is required"))
-
-# 	sr = frappe.get_doc("Service Request", service_request_name)
-
-# 	# Prevent duplicate execution
-# 	if sr.patient_accepted_cost:
-# 		return {"ok": True, "patient_accepted_cost": 1}
-
-# 	# Validate dynamic template
-# 	if not sr.template_dt or not sr.template_dn:
-# 		frappe.throw(_("Template is required"))
-
-# 	# Load dynamic template document
-# 	template_doc = frappe.get_doc(sr.template_dt, sr.template_dn)
-# 	delivery_date = sr.expected_date or nowdate()
-
-# 	# ---- IMPORTANT PART ----
-# 	# Template may have `item` or `item_code` (e.g. IP Service Type)
-# 	item_code = getattr(template_doc, "item", None) or getattr(template_doc, "item_code", None)
-# 	if not item_code:
-# 		frappe.throw(_("{0} must have an Item or Item Code for billing").format(sr.template_dt))
-
-# 	amount = (
-# 		getattr(template_doc, "lab_test_rate", None)
-# 		or getattr(template_doc, "rate", None)
-# 		or 0
-# 		)
-
-# 	# ------------------------
-# 	# Create Sales Order
-# 	# ------------------------
-# 	so = frappe.new_doc("Sales Order")
-# 	so.patient = sr.patient
-# 	so.customer = sr.patient   # adjust if mapped via Customer
-# 	so.transaction_date = nowdate()
-# 	so.delivery_date = delivery_date
-# 	so.ignore_pricing_rule = 1
-# 	# Use grand_total (post-discount) if set and non-zero; fall back to cost
-# 	billing_rate = frappe.utils.flt(sr.grand_total) or frappe.utils.flt(sr.cost) or 0
-# 	so.append("items", {
-# 		"item_code": item_code,
-# 		"qty": 1,
-# 		"rate": billing_rate,
-# 		"price_list_rate": billing_rate,
-# 		"description": f"Service Request {sr.name}"
-# 	})
-# 	so.custom_reference_type = "Service Request"
-# 	so.custom_reference_name = sr.name
-
-# 	so.insert(ignore_permissions=True)
-# 	so.submit()
-
-# 	# Update Service Request
-# 	sr.db_set("patient_accepted_cost", 1)
-# 	sr.db_set("reference_document_type", "Sales Order")
-# 	sr.db_set("reference_document_name", so.name)
-
-	
-# 	patient_visit_name = getattr(sr, "patient_visit", None)
-	
-# 	if patient_visit_name:
-# 		try:
-# 			visit = frappe.get_doc("Patient Visit", patient_visit_name)
-
-# 			# Avoid duplicate entries for the same service request
-# 			already_added = any(
-# 				row.get("test_code") == sr.name
-# 				for row in visit.get("lab_tests_charges", [])
-# 			)
-# 			print("amount ni: ", sr.amount)
-# 			if not already_added:
-# 				visit.append("lab_tests_charges", {
-# 					"test_code": lab_test.name,                         
-# 					# "test_name": sr.template_dn or "", 
-# 					# # Fetched from template
-# 					"amount": amount or 0,
-# 					"discount_type": "Percentage",
-# 					"discount_rate": 0,
-# 					"net_amount": amount or 0
-# 				})
-# 				visit.save(ignore_permissions=True)
-# 				frappe.db.commit()
-
-# 		except Exception as e:
-# 			frappe.log_error(
-# 				title="Failed to update Patient Visit lab charges",
-# 				message=frappe.get_traceback()
-# 			)
-# 			# We don't throw here — SO was already created, don't block the flow
-
-# 	frappe.db.commit()
-
-# 	return {
-# 		"ok": True,
-# 		"patient_accepted_cost": 1,
-# 		"sales_order": so.name
-# 	}
 @frappe.whitelist()
 def confirm_payment(service_request_name):
 
@@ -1013,15 +912,15 @@ def book_session(service_request_name, appointment=None):
 		cs.flags.ignore_permissions = True
 		cs.insert()
 		created_doc = {"doctype": "Consultation Service", "name": cs.name}
-	elif sr.template_dt == "IP Service Type":
+	elif sr.template_dt == "Healthcare Service Template":
 		if not sr.get("inpatient_record"):
 			frappe.throw(_("An Inpatient Admission is required to book an IP Service request"))
 		if not sr.get("cost_center"):
 			frappe.throw(_("Cost Center is required on the Service Request before booking"))
 
 		template_category = None
-		if sr.get("template_dn") and frappe.db.exists("IP Service Type", sr.template_dn):
-			template_category = frappe.db.get_value("IP Service Type", sr.template_dn, "category")
+		if sr.get("template_dn") and frappe.db.exists("Healthcare Service Template", sr.template_dn):
+			template_category = frappe.db.get_value("Healthcare Service Template", sr.template_dn, "category")
 
 		from healthcare.api.ip_service import create_ip_service
 
