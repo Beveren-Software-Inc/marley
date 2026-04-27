@@ -31,8 +31,13 @@
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
- "links": [],
- "modified": "2026-04-27 15:54:06.392532",
+ "links": [
+  {
+   "link_doctype": "Healthcare Service Template",
+   "link_fieldname": "service_group"
+  }
+ ],
+ "modified": "2026-04-27 16:26:29.885423",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Service Template Group",

@@ -8,6 +8,7 @@
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
+  "trans_id",
   "patient",
   "gender",
   "blood_group",
@@ -21,9 +22,14 @@
   "medical_role",
   "warning_section",
   "warning",
+  "high_risk_text",
   "reference_section",
   "reference_doc",
-  "reference_name"
+  "reference_name",
+  "section_break_zjja",
+  "warning_message_type",
+  "warning_message_class",
+  "sta_flg"
  ],
  "fields": [
   {
@@ -32,8 +38,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Patient",
-   "options": "Patient",
-   "reqd": 1
+   "options": "Patient"
   },
   {
    "fetch_from": "patient.sex",
@@ -130,11 +135,41 @@
    "fieldname": "practitioner_name",
    "fieldtype": "Data",
    "label": "Practitioner Name"
+  },
+  {
+   "fieldname": "trans_id",
+   "fieldtype": "Data",
+   "label": "Trans ID"
+  },
+  {
+   "fieldname": "high_risk_text",
+   "fieldtype": "Small Text",
+   "label": "High Risk Text"
+  },
+  {
+   "fieldname": "section_break_zjja",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "warning_message_type",
+   "fieldtype": "Data",
+   "label": "Warning Message Type"
+  },
+  {
+   "fieldname": "warning_message_class",
+   "fieldtype": "Data",
+   "label": "Warning Message Class"
+  },
+  {
+   "default": "0",
+   "fieldname": "sta_flg",
+   "fieldtype": "Check",
+   "label": "STA FLG"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-04-14 15:59:48.421090",
+ "modified": "2026-04-27 16:45:26.296659",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Warning Message",
