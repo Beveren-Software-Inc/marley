@@ -12,12 +12,14 @@
   "care_context",
   "patient_encounter",
   "inpatient_record",
+  "written_inpatient_admission",
   "patient",
   "patient_name",
   "nationality",
   "patient_age",
   "is_pink",
   "after_discharge",
+  "ip_admission_rec_id",
   "column_break_6",
   "posting_date",
   "company",
@@ -365,12 +367,22 @@
    "fieldname": "effective_status",
    "fieldtype": "Data",
    "label": "Effective Status"
+  },
+  {
+   "fieldname": "written_inpatient_admission",
+   "fieldtype": "Data",
+   "label": "Written Inpatient Admission"
+  },
+  {
+   "fieldname": "ip_admission_rec_id",
+   "fieldtype": "Data",
+   "label": "IP_ADMISSION_REC_ID"
   }
  ],
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-04-27 17:44:38.514533",
+ "modified": "2026-04-27 18:21:37.006518",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Medication Order",
