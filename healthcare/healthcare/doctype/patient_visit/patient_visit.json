@@ -91,6 +91,8 @@
   "notes_tab",
   "clinical_notes",
   "patient_notes",
+  "tab_9_tab",
+  "visit_complain",
   "consultationservice_tab",
   "consultation_fee",
   "lab_tests_tab",
@@ -101,9 +103,7 @@
   "charges",
   "invoice_created",
   "uploaded_documents_tab",
-  "documents",
-  "tab_9_tab",
-  "visit_complain"
+  "documents"
  ],
  "fields": [
   {
@@ -697,9 +697,11 @@
   {
    "fieldname": "tab_9_tab",
    "fieldtype": "Tab Break",
-   "label": "Tab 9"
+   "label": "Visits Complain"
   },
   {
+   "allow_bulk_edit": 1,
+   "allow_on_submit": 1,
    "fieldname": "visit_complain",
    "fieldtype": "Table",
    "label": "Visit Complain",
@@ -749,7 +751,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2026-04-27 11:04:00.737307",
+ "modified": "2026-04-27 11:36:57.658372",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Visit",
