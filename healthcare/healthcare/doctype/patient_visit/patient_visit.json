@@ -101,7 +101,9 @@
   "charges",
   "invoice_created",
   "uploaded_documents_tab",
-  "documents"
+  "documents",
+  "tab_9_tab",
+  "visit_complain"
  ],
  "fields": [
   {
@@ -691,6 +693,17 @@
   {
    "fieldname": "column_break_sblk",
    "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "tab_9_tab",
+   "fieldtype": "Tab Break",
+   "label": "Tab 9"
+  },
+  {
+   "fieldname": "visit_complain",
+   "fieldtype": "Table",
+   "label": "Visit Complain",
+   "options": "Visit Complain"
   }
  ],
  "is_submittable": 1,
@@ -736,7 +749,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2026-04-27 10:13:48.188910",
+ "modified": "2026-04-27 11:04:00.737307",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Visit",
