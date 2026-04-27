@@ -38,6 +38,7 @@
   "trans_type",
   "redundancy_type",
   "dc",
+  "written_frequency",
   "section_break_oruo",
   "rate",
   "column_break_ugjx",
@@ -260,12 +261,17 @@
    "fieldname": "medicine_no",
    "fieldtype": "Data",
    "label": "Medicine No"
+  },
+  {
+   "fieldname": "written_frequency",
+   "fieldtype": "Data",
+   "label": "Written Frequency"
   }
  ],
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-04-27 17:31:35.375464",
+ "modified": "2026-04-27 17:56:24.917214",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Inpatient Medication Order Entry",
