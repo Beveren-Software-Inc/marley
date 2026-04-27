@@ -10,6 +10,7 @@
   "service_name",
   "description",
   "category",
+  "service_group",
   "column_break_1",
   "item_code",
   "rate",
@@ -144,10 +145,16 @@
    "fieldname": "old_no",
    "fieldtype": "Data",
    "label": "Old No"
+  },
+  {
+   "fieldname": "service_group",
+   "fieldtype": "Link",
+   "label": "Service Group",
+   "options": "Service Template Group"
   }
  ],
  "links": [],
- "modified": "2026-04-27 15:37:33.462727",
+ "modified": "2026-04-27 15:53:37.834565",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Service Template",
