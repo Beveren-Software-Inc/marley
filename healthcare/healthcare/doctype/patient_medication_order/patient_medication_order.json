@@ -134,11 +134,11 @@
    "read_only_depends_on": "patient_encounter"
   },
   {
+   "default": "Today",
    "fieldname": "start_date",
    "fieldtype": "Date",
    "in_list_view": 1,
-   "label": "Start Date",
-   "reqd": 1
+   "label": "Start Date"
   },
   {
    "allow_on_submit": 1,
@@ -382,7 +382,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-04-27 18:21:37.006518",
+ "modified": "2026-04-27 18:32:48.607044",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Medication Order",
