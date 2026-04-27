@@ -320,7 +320,7 @@ export const ServiceRequestList = ({
         <tbody className="divide-y divide-slate-200">
           {serviceRequests.map((sr) => {
             const isLab = sr.template_dt === 'Lab Test Template'
-            const isIPService = sr.template_dt === 'IP Service Type'
+            const isIPService = sr.template_dt === 'Healthcare Service Template'
             const accepted = !!sr.patient_accepted_cost
             const booked = !!sr.booked
             const loadingThis = actionLoading === sr.name
@@ -431,7 +431,6 @@ export const ServiceRequestList = ({
                               </button>
                             )}
                             
-                            {/* IP Service Type in Nurse Context → Book the Service */}
                             {isIPService && isNurseContext && (
                               <button
                                 type="button"
@@ -457,7 +456,6 @@ export const ServiceRequestList = ({
                           </>
                         )}
 
-                        {/* ── IP SERVICE TYPE fallback (if not in nurse context or not accepted) ── */}
                         {isIPService && onCreateIPService && !shouldShowBookingAction && (
                           <button
                             type="button"

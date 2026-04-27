@@ -88,7 +88,7 @@ export const CreateIPServiceModal = ({
         const srData = await srResponse.json()
         const sr = srData?.data
         
-        if (sr && sr.template_dt === 'IP Service Type' && sr.template_dn) {
+        if (sr && sr.template_dt === 'Healthcare Service Template' && sr.template_dn) {
           // Auto-fill cost center from service request
           if (sr.cost_center) {
             setCostCenter(sr.cost_center)
@@ -99,7 +99,7 @@ export const CreateIPServiceModal = ({
             setCategory(sr.category)
           }
           
-          // Fetch IP Service Type template to get items
+          // Fetch Healthcare Service Template template to get items
           const template = await fetchIPServiceType(sr.template_dn)
           
           if (template && template.pricing && template.pricing.length > 0) {
@@ -201,7 +201,7 @@ export const CreateIPServiceModal = ({
   // Load service requests for the patient
   useEffect(() => {
     if (!effectivePatient) return
-    fetchServiceRequests(50, 0, effectivePatient, 'IP Service Type')
+    fetchServiceRequests(50, 0, effectivePatient, 'Healthcare Service Template')
       .then(setServiceRequests)
       .catch(() => setServiceRequests([]))
   }, [effectivePatient])

@@ -1277,7 +1277,7 @@ export const NursePage = () => {
                 <button
                   onClick={() => setShowServiceRequestModal(true)}
                   className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
-                  title="New service request (IP Service Type)"
+                  title="New service request (Healthcare Service Template)"
                 >
                   +
                 </button>
@@ -1289,7 +1289,7 @@ export const NursePage = () => {
 <ServiceRequestList
                 patient={selectedPatient}
                 refreshKey={serviceRequestRefreshKey}
-                template_dt="IP Service Type"
+                template_dt="Healthcare Service Template"
                 isNurseContext={true}
                 onCreateIPService={(sr) => {
                   setCreateIPServicePreFill({ serviceRequest: sr.name, patient: sr.patient })
@@ -1330,7 +1330,7 @@ export const NursePage = () => {
               setShowServiceRequestModal(false)
             }}
             initialPatient={selectedPatient}
-            initialTemplate='IP Service Type'
+            initialTemplate='Healthcare Service Template'
           />
         )}
         {showCreateIPServiceModal && (
@@ -1393,7 +1393,7 @@ export const NursePage = () => {
               setShowServiceRequestModal(false)
             }}
             initialPatient={selectedPatient}
-             initialTemplate="IP Service Type" 
+             initialTemplate="Healthcare Service Template" 
           />
         )}
       </div>
@@ -2261,7 +2261,7 @@ export const NursePage = () => {
             toast.success('Service request created successfully')
           }}
           initialPatient={selectedPatient}
-          initialTemplate='IP Service Type'
+          initialTemplate='Healthcare Service Template'
         />
       )}
     </div>

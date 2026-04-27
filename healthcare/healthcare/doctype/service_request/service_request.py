@@ -89,7 +89,7 @@ class ServiceRequest(ServiceRequestController):
 			)
 
 		template = frappe.get_doc(self.template_dt, self.template_dn)
-		# set item code (template may have "item" or "item_code", e.g. IP Service Type)
+		# set item code (template may have "item" or "item_code", e.g. Healthcare Service Template)
 		self.item_code = template.get("item") or template.get("item_code")
 
 		if not self.patient_care_type and template.get("patient_care_type"):
