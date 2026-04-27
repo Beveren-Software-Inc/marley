@@ -1,5 +1,6 @@
 {
  "actions": [],
+ "allow_import": 1,
  "autoname": "field:service_id",
  "creation": "2026-01-01 00:00:00",
  "doctype": "DocType",
@@ -13,7 +14,18 @@
   "item_code",
   "rate",
   "disabled",
-  "pricing"
+  "pricing",
+  "section_break_gxzz",
+  "display_name",
+  "sg_no",
+  "sbg_no",
+  "service_income_gl_code",
+  "column_break_fokq",
+  "sta_flg",
+  "is_doc_income",
+  "is_open",
+  "is_auto",
+  "inv_type"
  ],
  "fields": [
   {
@@ -69,10 +81,67 @@
    "fieldtype": "Data",
    "label": "Service ID",
    "unique": 1
+  },
+  {
+   "fieldname": "section_break_gxzz",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "display_name",
+   "fieldtype": "Data",
+   "label": "Display Name"
+  },
+  {
+   "fieldname": "sg_no",
+   "fieldtype": "Data",
+   "label": "SG No"
+  },
+  {
+   "fieldname": "sbg_no",
+   "fieldtype": "Data",
+   "label": "SBG No"
+  },
+  {
+   "fieldname": "service_income_gl_code",
+   "fieldtype": "Data",
+   "label": "Service Income GL Code"
+  },
+  {
+   "fieldname": "column_break_fokq",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "sta_flg",
+   "fieldtype": "Check",
+   "label": "STA FLG"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_doc_income",
+   "fieldtype": "Check",
+   "label": "Is Doc Income"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_open",
+   "fieldtype": "Check",
+   "label": "Is Open"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_auto",
+   "fieldtype": "Check",
+   "label": "Is Auto"
+  },
+  {
+   "fieldname": "inv_type",
+   "fieldtype": "Data",
+   "label": "INV Type"
   }
  ],
  "links": [],
- "modified": "2026-04-27 15:11:16.072476",
+ "modified": "2026-04-27 15:25:43.758470",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Service Template",
