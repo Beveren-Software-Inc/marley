@@ -10,6 +10,7 @@
   "service_name",
   "description",
   "category",
+  "service_group",
   "column_break_1",
   "item_code",
   "rate",
@@ -25,7 +26,8 @@
   "is_doc_income",
   "is_open",
   "is_auto",
-  "inv_type"
+  "inv_type",
+  "old_no"
  ],
  "fields": [
   {
@@ -138,10 +140,21 @@
    "fieldname": "inv_type",
    "fieldtype": "Data",
    "label": "INV Type"
+  },
+  {
+   "fieldname": "old_no",
+   "fieldtype": "Data",
+   "label": "Old No"
+  },
+  {
+   "fieldname": "service_group",
+   "fieldtype": "Link",
+   "label": "Service Group",
+   "options": "Service Template Group"
   }
  ],
  "links": [],
- "modified": "2026-04-27 15:25:43.758470",
+ "modified": "2026-04-27 15:53:37.834565",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Service Template",
