@@ -2,22 +2,28 @@
  {
   "docstatus": 0,
   "doctype": "Service Template Group",
-  "modified": "2026-04-27 15:52:22.793030",
-  "name": "IP Service",
-  "service_template_group": "IP Service"
+  "group_abbreviation": "IP",
+  "modified": "2026-04-27 15:54:36.316630",
+  "name": "IP Services",
+  "service_template_group": "IP Services",
+  "sta_flg": 0
  },
  {
   "docstatus": 0,
   "doctype": "Service Template Group",
-  "modified": "2026-04-27 15:52:30.737198",
-  "name": "OP Service",
-  "service_template_group": "OP Service"
+  "group_abbreviation": "OP",
+  "modified": "2026-04-27 15:54:29.928823",
+  "name": "OP Services",
+  "service_template_group": "OP Services",
+  "sta_flg": 1
  },
  {
   "docstatus": 0,
   "doctype": "Service Template Group",
-  "modified": "2026-04-27 15:52:38.230474",
+  "group_abbreviation": "PR",
+  "modified": "2026-04-27 15:54:20.440997",
   "name": "Procedures",
-  "service_template_group": "Procedures"
+  "service_template_group": "Procedures",
+  "sta_flg": 1
  }
 ]
