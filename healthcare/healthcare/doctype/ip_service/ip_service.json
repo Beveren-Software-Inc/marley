@@ -1,5 +1,6 @@
 {
  "actions": [],
+ "allow_import": 1,
  "allow_rename": 1,
  "autoname": "field:trans_no",
  "creation": "2025-12-17 13:00:00",
@@ -72,6 +73,8 @@
    "label": "Services"
   },
   {
+   "allow_bulk_edit": 1,
+   "allow_on_submit": 1,
    "fieldname": "services",
    "fieldtype": "Table",
    "label": "Services",
@@ -234,7 +237,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-04-28 13:10:55.014081",
+ "modified": "2026-04-28 14:17:56.519254",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "IP Service",
