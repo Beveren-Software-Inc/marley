@@ -8,13 +8,21 @@
  "field_order": [
   "date",
   "service_type",
+  "service_group",
   "service_code",
   "service_name",
+  "sr_no",
   "column_break_ifpg",
   "amount",
   "invoice_num",
   "note",
-  "user"
+  "user",
+  "section_break_vwnn",
+  "total_amount",
+  "additional_amount",
+  "column_break_wcbh",
+  "discount_amount",
+  "net_amount"
  ],
  "fields": [
   {
@@ -28,6 +36,7 @@
    "fieldname": "invoice_num",
    "fieldtype": "Data",
    "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Invoice Number"
   },
   {
@@ -48,11 +57,14 @@
    "fieldname": "amount",
    "fieldtype": "Currency",
    "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Amount"
   },
   {
    "fieldname": "note",
    "fieldtype": "Small Text",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Note"
   },
   {
@@ -72,13 +84,54 @@
    "in_standard_filter": 1,
    "label": "Service Type",
    "options": "Healthcare Service Template"
+  },
+  {
+   "fieldname": "service_group",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Service Group",
+   "options": "Service Template Group"
+  },
+  {
+   "fieldname": "section_break_vwnn",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "total_amount",
+   "fieldtype": "Currency",
+   "label": "Total Amount"
+  },
+  {
+   "fieldname": "additional_amount",
+   "fieldtype": "Currency",
+   "label": "Additional Amount"
+  },
+  {
+   "fieldname": "column_break_wcbh",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "discount_amount",
+   "fieldtype": "Currency",
+   "label": "Discount Amount"
+  },
+  {
+   "fieldname": "net_amount",
+   "fieldtype": "Currency",
+   "label": "Net Amount"
+  },
+  {
+   "fieldname": "sr_no",
+   "fieldtype": "Data",
+   "label": "SR No"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-04-27 14:53:03.225782",
+ "modified": "2026-04-28 13:16:02.197844",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "IP Service Detail",

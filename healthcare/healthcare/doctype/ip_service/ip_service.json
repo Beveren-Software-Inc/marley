@@ -1,11 +1,12 @@
 {
  "actions": [],
  "allow_rename": 1,
- "autoname": "IPS-.{service_request}-.#####",
+ "autoname": "field:trans_no",
  "creation": "2025-12-17 13:00:00",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
+  "trans_no",
   "admission_no",
   "file_number",
   "type",
@@ -18,7 +19,26 @@
   "services",
   "section_break_totals",
   "total_amount",
-  "amended_from"
+  "additional_amount",
+  "column_break_yzdq",
+  "discount_amount",
+  "net_amount",
+  "section_break_roqi",
+  "amended_from",
+  "section_break_bpoe",
+  "remarks",
+  "additional_details_section",
+  "dr_gl_code",
+  "sub_dr_gl_code",
+  "trans_source",
+  "patient_visit",
+  "sta_flg",
+  "column_break_cqnr",
+  "cr_id",
+  "cr_date",
+  "up_id",
+  "up_date",
+  "sr_num"
  ],
  "fields": [
   {
@@ -27,8 +47,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Admission No",
-   "options": "Inpatient Admission",
-   "reqd": 1
+   "options": "Inpatient Admission"
   },
   {
    "fetch_from": "admission_no.patient",
@@ -37,8 +56,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "File Number",
-   "options": "Patient",
-   "reqd": 1
+   "options": "Patient"
   },
   {
    "fetch_from": "file_number.patient_name",
@@ -51,14 +69,13 @@
   {
    "fieldname": "section_break_services",
    "fieldtype": "Section Break",
-   "label": "External Services"
+   "label": "Services"
   },
   {
    "fieldname": "services",
    "fieldtype": "Table",
    "label": "Services",
-   "options": "IP Service Detail",
-   "reqd": 1
+   "options": "IP Service Detail"
   },
   {
    "fieldname": "section_break_totals",
@@ -112,17 +129,116 @@
    "print_hide": 1,
    "read_only": 1,
    "search_index": 1
+  },
+  {
+   "fieldname": "section_break_bpoe",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "remarks",
+   "fieldtype": "Small Text",
+   "label": "Remarks"
+  },
+  {
+   "fieldname": "additional_details_section",
+   "fieldtype": "Section Break",
+   "label": "Additional Details"
+  },
+  {
+   "fieldname": "dr_gl_code",
+   "fieldtype": "Data",
+   "label": "DR GL Code"
+  },
+  {
+   "fieldname": "sub_dr_gl_code",
+   "fieldtype": "Data",
+   "label": "SUb DR GL Code"
+  },
+  {
+   "fieldname": "trans_source",
+   "fieldtype": "Data",
+   "label": "Trans Source"
+  },
+  {
+   "fieldname": "patient_visit",
+   "fieldtype": "Link",
+   "label": "Patient Visit",
+   "options": "Patient Visit"
+  },
+  {
+   "default": "0",
+   "fieldname": "sta_flg",
+   "fieldtype": "Check",
+   "label": "STA FLG"
+  },
+  {
+   "fieldname": "column_break_cqnr",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "cr_id",
+   "fieldtype": "Data",
+   "label": "CR ID"
+  },
+  {
+   "fieldname": "cr_date",
+   "fieldtype": "Data",
+   "label": "CR Date"
+  },
+  {
+   "fieldname": "up_id",
+   "fieldtype": "Data",
+   "label": "UP ID"
+  },
+  {
+   "fieldname": "up_date",
+   "fieldtype": "Data",
+   "label": "UP Date"
+  },
+  {
+   "fieldname": "additional_amount",
+   "fieldtype": "Currency",
+   "label": "Additional Amount"
+  },
+  {
+   "fieldname": "column_break_yzdq",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "discount_amount",
+   "fieldtype": "Currency",
+   "label": "Discount Amount"
+  },
+  {
+   "fieldname": "net_amount",
+   "fieldtype": "Currency",
+   "label": "Net Amount"
+  },
+  {
+   "fieldname": "section_break_roqi",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "trans_no",
+   "fieldtype": "Data",
+   "label": "Trans No",
+   "unique": 1
+  },
+  {
+   "fieldname": "sr_num",
+   "fieldtype": "Data",
+   "label": "SR Num"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-04-23 11:53:37.491375",
+ "modified": "2026-04-28 13:10:55.014081",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "IP Service",
- "naming_rule": "Expression",
+ "naming_rule": "By fieldname",
  "owner": "Administrator",
  "permissions": [
   {
