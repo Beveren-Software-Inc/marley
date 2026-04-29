@@ -9,6 +9,7 @@
   "trans_no",
   "admission_no",
   "patient_no",
+  "date",
   "column_break_patient",
   "orderer_number",
   "company",
@@ -119,11 +120,16 @@
    "fieldname": "written_admission",
    "fieldtype": "Data",
    "label": "Written Admission"
+  },
+  {
+   "fieldname": "date",
+   "fieldtype": "Date",
+   "label": "Date"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-04-29 12:49:52.998284",
+ "modified": "2026-04-29 13:35:07.694819",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Morse Fall Scale",
