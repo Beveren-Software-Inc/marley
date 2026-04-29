@@ -1,20 +1,28 @@
 {
  "actions": [],
  "allow_rename": 1,
- "autoname": "MFS-.#####",
+ "autoname": "field:trans_no",
  "creation": "2025-12-24 14:00:00",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
+  "trans_no",
   "admission_no",
   "patient_no",
   "column_break_patient",
   "orderer_number",
   "company",
+  "written_admission",
   "section_break_details",
   "morse_fall_scale_detail",
   "section_break_total",
-  "total_points"
+  "total_points",
+  "section_break_hkbc",
+  "cr_id",
+  "cr_date",
+  "column_break_lewv",
+  "up_id",
+  "up_date"
  ],
  "fields": [
   {
@@ -23,8 +31,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Admission No",
-   "options": "Inpatient Admission",
-   "reqd": 1
+   "options": "Inpatient Admission"
   },
   {
    "fetch_from": "admission_no.patient",
@@ -73,15 +80,54 @@
    "fieldtype": "Int",
    "label": "Total Points",
    "read_only": 1
+  },
+  {
+   "fieldname": "trans_no",
+   "fieldtype": "Data",
+   "label": "Trans No",
+   "unique": 1
+  },
+  {
+   "fieldname": "section_break_hkbc",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "cr_id",
+   "fieldtype": "Data",
+   "label": "CR ID"
+  },
+  {
+   "fieldname": "cr_date",
+   "fieldtype": "Data",
+   "label": "CR Date"
+  },
+  {
+   "fieldname": "column_break_lewv",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "up_id",
+   "fieldtype": "Data",
+   "label": "UP ID"
+  },
+  {
+   "fieldname": "up_date",
+   "fieldtype": "Data",
+   "label": "UP Date"
+  },
+  {
+   "fieldname": "written_admission",
+   "fieldtype": "Data",
+   "label": "Written Admission"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-03-09 10:32:30.103079",
+ "modified": "2026-04-29 12:49:52.998284",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Morse Fall Scale",
- "naming_rule": "Expression",
+ "naming_rule": "By fieldname",
  "owner": "Administrator",
  "permissions": [
   {
