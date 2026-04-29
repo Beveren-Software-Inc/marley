@@ -1,13 +1,14 @@
 {
  "actions": [],
  "allow_import": 1,
- "autoname": "naming_series:",
+ "autoname": "field:trans_no",
  "creation": "2017-05-04 11:52:40.941507",
  "doctype": "DocType",
  "document_type": "Document",
  "engine": "InnoDB",
  "field_order": [
   "naming_series",
+  "trans_no",
   "title",
   "status",
   "appointment_type",
@@ -20,6 +21,7 @@
   "department",
   "service_unit",
   "appointment_date",
+  "cost_center",
   "section_patient_details",
   "patient",
   "patient_name",
@@ -46,6 +48,7 @@
   "add_video_conferencing",
   "event",
   "google_meet_link",
+  "old_time",
   "section_break_16",
   "mode_of_payment",
   "billing_item",
@@ -59,7 +62,21 @@
   "appointment_based_on_check_in",
   "reminded",
   "column_break_36",
-  "notes"
+  "notes",
+  "section_break_ejqy",
+  "remarks",
+  "additional_migration_section",
+  "hh_time",
+  "mi_time",
+  "ampm_time",
+  "old_status",
+  "sta_flg",
+  "column_break_sywb",
+  "cr_id",
+  "cr_date",
+  "up_id",
+  "up_date",
+  "doc_code"
  ],
  "fields": [
   {
@@ -87,7 +104,6 @@
    "ignore_user_permissions": 1,
    "label": "Appointment Type",
    "options": "Appointment Type",
-   "reqd": 1,
    "set_only_once": 1
   },
   {
@@ -188,18 +204,13 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Date",
-   "read_only_depends_on": "eval:doc.appointment_for==\"Practitioner\"",
-   "reqd": 1,
    "search_index": 1
   },
   {
-   "depends_on": "eval: doc.appointment_for == \"Practitioner\"",
    "fieldname": "appointment_time",
    "fieldtype": "Time",
    "in_list_view": 1,
-   "label": "Time",
-   "mandatory_depends_on": "eval:doc.appointment_based_on_check_in == false && doc.appointment_for == \"Practitioner\";",
-   "read_only": 1
+   "label": "Time"
   },
   {
    "fieldname": "section_break_16",
@@ -271,7 +282,6 @@
    "label": "Company",
    "no_copy": 1,
    "options": "Company",
-   "reqd": 1,
    "set_only_once": 1
   },
   {
@@ -400,13 +410,13 @@
    "read_only": 1
   },
   {
+   "default": "Practitioner",
    "fetch_from": "appointment_type.allow_booking_for",
    "fieldname": "appointment_for",
    "fieldtype": "Select",
    "label": "Appointment For",
    "options": "\nPractitioner\nDepartment\nService Unit",
    "read_only": 1,
-   "reqd": 1,
    "set_only_once": 1
   },
   {
@@ -455,6 +465,92 @@
    "fieldname": "temporary_mobile_no",
    "fieldtype": "Data",
    "label": "Temporary Mobile No"
+  },
+  {
+   "fieldname": "additional_migration_section",
+   "fieldtype": "Section Break",
+   "label": "Additional Migration"
+  },
+  {
+   "fieldname": "hh_time",
+   "fieldtype": "Data",
+   "label": "HH Time"
+  },
+  {
+   "fieldname": "mi_time",
+   "fieldtype": "Data",
+   "label": "MI Time"
+  },
+  {
+   "fieldname": "ampm_time",
+   "fieldtype": "Data",
+   "label": "AMPM Time"
+  },
+  {
+   "fieldname": "cr_id",
+   "fieldtype": "Data",
+   "label": "CR ID"
+  },
+  {
+   "fieldname": "column_break_sywb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "cr_date",
+   "fieldtype": "Data",
+   "label": "CR Date"
+  },
+  {
+   "fieldname": "up_id",
+   "fieldtype": "Data",
+   "label": "UP ID"
+  },
+  {
+   "fieldname": "up_date",
+   "fieldtype": "Data",
+   "label": "UP Date"
+  },
+  {
+   "fieldname": "section_break_ejqy",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "remarks",
+   "fieldtype": "Small Text",
+   "label": "Remarks"
+  },
+  {
+   "fieldname": "old_status",
+   "fieldtype": "Data",
+   "label": "Old Status"
+  },
+  {
+   "default": "0",
+   "fieldname": "sta_flg",
+   "fieldtype": "Check",
+   "label": "STA FLG"
+  },
+  {
+   "fieldname": "old_time",
+   "fieldtype": "Data",
+   "label": "Old Time"
+  },
+  {
+   "fieldname": "doc_code",
+   "fieldtype": "Data",
+   "label": "Doc Code"
+  },
+  {
+   "fieldname": "cost_center",
+   "fieldtype": "Link",
+   "label": "Cost Center",
+   "options": "Cost Center"
+  },
+  {
+   "fieldname": "trans_no",
+   "fieldtype": "Data",
+   "label": "Trans No",
+   "unique": 1
   }
  ],
  "grid_page_length": 50,
@@ -475,11 +571,11 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2026-03-31 17:53:15.496681",
+ "modified": "2026-04-29 11:35:45.617776",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Appointment",
- "naming_rule": "By \"Naming Series\" field",
+ "naming_rule": "By fieldname",
  "owner": "Administrator",
  "permissions": [
   {
