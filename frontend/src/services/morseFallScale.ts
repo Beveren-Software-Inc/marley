@@ -1,4 +1,4 @@
-import { apiRequest, ensureCSRF } from './apiClient'
+import { apiRequest } from './apiClient'
 
 export interface MorseFallScaleDetailRow {
   text_message: string
@@ -39,25 +39,22 @@ export async function fetchMorseFallScales(
 export async function createMorseFallScale(
   data: Omit<MorseFallScale, 'name' | 'total_points' | 'modified'>
 ): Promise<MorseFallScale> {
-  const csrf = (window as unknown as { frappe?: { csrf_token?: string } }).frappe?.csrf_token
-    || await ensureCSRF()
-
-  const res = await fetch('/api/resource/Morse Fall Scale', {
+  const res = await fetch('/api/method/healthcare.api.morse_fall_scale.create_morse_fall_scale', {
     method: 'POST',
-    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
-      Accept: 'application/json',
-      ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
     },
-    body: JSON.stringify(data),
+    body: JSON.stringify({ data }),
   })
-  const out = await res.json().catch(() => ({} as Record<string, unknown>))
-  if (!res.ok || out?.exc) {
-    const msg = (out as Record<string, unknown>)?.message || (out as Record<string, unknown>)?.exc || 'Failed to create Morse Fall Scale'
+  const resData = await res.json().catch(() => ({} as Record<string, unknown>))
+  if (!res.ok || !(resData as Record<string, unknown>)?.message) {
+    const msg =
+      (resData as Record<string, unknown>)?.message ||
+      (resData as Record<string, unknown>)?.exc ||
+      (resData as Record<string, unknown>)?.exception ||
+      'Failed to create Morse Fall Scale'
     throw new Error(typeof msg === 'string' ? msg : String(msg))
   }
-  const doc = (out as Record<string, unknown>)?.data ?? out
-  return doc as MorseFallScale
+  return (resData as { message: MorseFallScale }).message
 }
 
