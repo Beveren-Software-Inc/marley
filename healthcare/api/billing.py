@@ -509,8 +509,8 @@ def get_related_sales_orders(reference_type, reference_name):
 @frappe.whitelist()
 def create_additional_collection_invoice(
     company,
-    customer=None,
     created_at_cost_center,
+    customer=None,
     reference_type=None,
     reference_name=None,
     patient=None,
