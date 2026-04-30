@@ -407,8 +407,8 @@ export const CreatePatientModal = ({ onClose, onSuccess, initialName, initialNat
       setActiveTab('details')
       return
     }
-    if (!formData.address_line1 || !formData.city) {
-      setError('Address (Line 1 and City) is required')
+    if (!formData.address_line1) {
+      setError('Address (Line 1) is required')
       setActiveTab('details')
       return
     }
@@ -931,27 +931,6 @@ export const CreatePatientModal = ({ onClose, onSuccess, initialName, initialNat
                         value={formData.address_line2}
                         onChange={(e) => handleChange('address_line2', e.target.value)}
                         placeholder="Apartment, suite, unit, building, floor, etc."
-                        className="w-full rounded-md border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">
-                        City <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.city}
-                        onChange={(e) => handleChange('city', e.target.value)}
-                        className="w-full rounded-md border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">State/Province</label>
-                      <input
-                        type="text"
-                        value={formData.state}
-                        onChange={(e) => handleChange('state', e.target.value)}
                         className="w-full rounded-md border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                       />
                     </div>

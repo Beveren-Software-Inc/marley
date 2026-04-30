@@ -28,6 +28,7 @@ import { CreateInsurancePatientRegisterModal } from '../components/insurance/Cre
 import { PatientReferralList } from '../components/referrals/PatientReferralList'
 import { CreatePatientReferralModal } from '../components/referrals/CreatePatientReferralModal'
 import { BillingDashboard } from '../components/billing/BillingDashboard'
+import { DailyAutoVisitView } from '../components/patientVisits/DailyAutoVisitView'
 
 type View =
   | 'default'
@@ -48,6 +49,7 @@ type View =
   | 'referral'
   | 'patients'
   | 'billing'
+  | 'daily-auto-visit'
 
 export const ReceptionistPage = () => {
 
@@ -114,6 +116,8 @@ export const ReceptionistPage = () => {
       const newParams = new URLSearchParams(searchParams)
       newParams.delete('screen')
       setSearchParams(newParams, { replace: true })
+    } else if (screen === 'r-daily-auto-visit') {
+      setCurrentView('daily-auto-visit')
     } else if (screen === 'r-followup') {
       setCurrentView('followup')
     } else if (screen === 'r-medical-history') {
@@ -264,6 +268,18 @@ export const ReceptionistPage = () => {
               patient={selectedPatient || undefined}
               refreshKey={patientVisitRefreshKey}
             />
+          </div>
+        )}
+
+        {currentView === 'daily-auto-visit' && (
+          <div className="p-4">
+            <div className="mb-4">
+              <h2 className="text-xl font-semibold text-slate-900">Daily Auto Visit</h2>
+              <p className="text-sm text-slate-600 mt-1">
+                Manage Daily Patient Visit Setup and review all visits created with Daily Auto Visit type.
+              </p>
+            </div>
+            <DailyAutoVisitView patient={selectedPatient || undefined} />
           </div>
         )}
 

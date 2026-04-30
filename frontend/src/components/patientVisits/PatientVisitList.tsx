@@ -29,6 +29,7 @@ interface PatientVisitListProps {
   searchQuery?: string
   patient?: string
   refreshKey?: string | number
+  visitType?: string
 }
 
 export const PatientVisitList = ({
@@ -36,7 +37,8 @@ export const PatientVisitList = ({
   onPatientFromVisit,
   searchQuery: externalSearchQuery = '',
   patient,
-  refreshKey
+  refreshKey,
+  visitType
 }: PatientVisitListProps = {}) => {
   const { mode, activeVisit, selectedPatient: contextPatient } = useCareContext()
 
@@ -122,7 +124,8 @@ export const PatientVisitList = ({
         effectiveVisitFilter ? undefined : (practitionerFilter || undefined),
         effectiveVisitFilter ? undefined : (dateFrom || undefined),
         effectiveVisitFilter ? undefined : (dateTo || undefined),
-        effectiveVisitFilter ? undefined : (selectedStatus || undefined)
+        effectiveVisitFilter ? undefined : (selectedStatus || undefined),
+        effectiveVisitFilter ? undefined : (visitType || undefined)
       )
       setVisits(results)
     } catch (err) {
@@ -232,6 +235,8 @@ export const PatientVisitList = ({
   const hasActiveFilters = visitIdFilter || practitionerFilter || dateFrom || dateTo || selectedStatus
   const statuses = ['Open', 'Ordered', 'Completed', 'Cancelled']
   const inputClass = 'w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white'
+  const formatAmount = (value?: number) =>
+    new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value ?? 0)
 
   return (
     <>
@@ -387,13 +392,16 @@ export const PatientVisitList = ({
             </div>
           </div>
         ) : (
-          <table className="w-full min-w-[900px]">
+          <table className="w-full min-w-[1200px]">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Visit No</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Patient</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Practitioner</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Encounter Date</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase tracking-wide">Lab Amount</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase tracking-wide">Pharmacy Amount</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase tracking-wide">Service Amount</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Status</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide w-[100px]">Actions</th>
               </tr>
@@ -401,7 +409,7 @@ export const PatientVisitList = ({
             <tbody className="divide-y divide-slate-200">
               {visits.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-10 text-center text-slate-400 text-sm">
+                  <td colSpan={9} className="px-4 py-10 text-center text-slate-400 text-sm">
                     {hasActiveFilters ? 'No visits match your filters.' : 'No patient visits found.'}
                   </td>
                 </tr>
@@ -420,6 +428,9 @@ export const PatientVisitList = ({
                       ? new Date(visit.encounter_date).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' })
                       : '-'}
                   </td>
+                  <td className="px-4 py-3 text-sm text-slate-700 text-right">{formatAmount(visit.lab_amount)}</td>
+                  <td className="px-4 py-3 text-sm text-slate-700 text-right">{formatAmount(visit.pharmacy_amount)}</td>
+                  <td className="px-4 py-3 text-sm text-slate-700 text-right">{formatAmount(visit.service_amount)}</td>
                   <td className="px-4 py-3">
                     <StatusPill status={visit.status} color={statusColors[visit.status] || 'default'} />
                   </td>

@@ -47,6 +47,9 @@ export interface PatientVisitListRow {
   encounter_date: string | null
   practitioner_name: string
   status: string
+  lab_amount: number
+  service_amount: number
+  pharmacy_amount: number
 }
 
 /**
@@ -62,7 +65,8 @@ export async function fetchPatientVisitsFull(
   practitioner?: string,
   fromDate?: string,
   toDate?: string,
-  status?: string
+  status?: string,
+  visitType?: string
 ): Promise<PatientVisitListRow[]> {
   const params = new URLSearchParams()
   if (patient) params.append('patient', patient)
@@ -71,6 +75,7 @@ export async function fetchPatientVisitsFull(
   if (fromDate) params.append('from_date', fromDate)
   if (toDate) params.append('to_date', toDate)
   if (status) params.append('status', status)
+  if (visitType) params.append('visit_type', visitType)
   try {
     const res = await fetch(
       `/api/method/healthcare.api.patient_visit.get_patient_visits_full?${params}`
@@ -88,6 +93,9 @@ export async function fetchPatientVisitsFull(
       encounter_date: m.encounter_date ?? null,
       practitioner_name: m.practitioner_name ?? '',
       status: m.status ?? '',
+      lab_amount: Number(m.lab_amount ?? 0),
+      service_amount: Number(m.service_amount ?? 0),
+      pharmacy_amount: Number(m.pharmacy_amount ?? 0),
     }))
   } catch (err) {
     console.error('fetchPatientVisitsFull error:', err)
