@@ -5,18 +5,21 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
+  "trans_no",
   "date",
   "admission_no",
   "branch",
   "column_break_main",
   "file_no",
   "patient_name",
+  "cost_center",
   "section_break_periods",
   "morning_from",
   "morning_to",
+  "column_break_utso",
+  "evening_to",
   "evening_from",
   "column_break_wsqe",
-  "evening_to",
   "night_from",
   "night_to",
   "section_break_other",
@@ -40,9 +43,9 @@
   {
    "fieldname": "branch",
    "fieldtype": "Link",
+   "hidden": 1,
    "label": "Branch",
-   "options": "Branch",
-   "hidden": 1
+   "options": "Branch"
   },
   {
    "fieldname": "column_break_main",
@@ -121,12 +124,27 @@
   {
    "fieldname": "column_break_wsqe",
    "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "trans_no",
+   "fieldtype": "Data",
+   "label": "Trans No"
+  },
+  {
+   "fieldname": "column_break_utso",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "cost_center",
+   "fieldtype": "Link",
+   "label": "Cost Center",
+   "options": "Cost Center"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-12-22 11:16:38.909388",
+ "modified": "2026-04-29 16:06:15.072189",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Sleeping Pattern",

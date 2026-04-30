@@ -34,12 +34,14 @@
   "trans_source",
   "patient_visit",
   "sta_flg",
+  "ap_date",
   "column_break_cqnr",
   "cr_id",
   "cr_date",
   "up_id",
   "up_date",
-  "sr_num"
+  "sr_num",
+  "vch_status"
  ],
  "fields": [
   {
@@ -231,13 +233,23 @@
    "fieldname": "sr_num",
    "fieldtype": "Data",
    "label": "SR Num"
+  },
+  {
+   "fieldname": "ap_date",
+   "fieldtype": "Data",
+   "label": "AP Date"
+  },
+  {
+   "fieldname": "vch_status",
+   "fieldtype": "Data",
+   "label": "VCH Status"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-04-28 14:17:56.519254",
+ "modified": "2026-04-29 15:21:27.441550",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "IP Service",
