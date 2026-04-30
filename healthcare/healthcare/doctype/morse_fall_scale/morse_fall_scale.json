@@ -14,6 +14,7 @@
   "orderer_number",
   "company",
   "written_admission",
+  "cost_center",
   "section_break_details",
   "morse_fall_scale_detail",
   "section_break_total",
@@ -125,11 +126,17 @@
    "fieldname": "date",
    "fieldtype": "Date",
    "label": "Date"
+  },
+  {
+   "fieldname": "cost_center",
+   "fieldtype": "Link",
+   "label": "Cost Center",
+   "options": "Cost Center"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-04-29 13:35:07.694819",
+ "modified": "2026-04-29 13:38:15.115980",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Morse Fall Scale",
