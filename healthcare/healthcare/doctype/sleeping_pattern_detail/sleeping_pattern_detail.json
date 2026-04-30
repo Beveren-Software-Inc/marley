@@ -5,6 +5,7 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
+  "trans_no",
   "date",
   "column_break_main",
   "branch",
@@ -26,6 +27,12 @@
   "admission_no_old"
  ],
  "fields": [
+  {
+   "fieldname": "trans_no",
+   "fieldtype": "Data",
+   "label": "Trans No",
+   "read_only": 1
+  },
   {
    "default": "Today",
    "fieldname": "date",

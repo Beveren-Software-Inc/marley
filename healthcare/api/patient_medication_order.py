@@ -6,6 +6,8 @@ import frappe
 from frappe import _
 from frappe.utils import flt, nowdate, getdate, add_days
 
+from healthcare.api.utils.api_utility import get_next_transaction_number
+
 
 @frappe.whitelist()
 def get_medication_orders(
@@ -206,6 +208,7 @@ def create_patient_medication_order(
 	
 	
 	doc = frappe.new_doc('Patient Medication Order')
+	doc.trans_no = get_next_transaction_number('Patient Medication Order', fieldname='trans_no')
 	doc.patient = patient
 	doc.care_context = care_context
 	doc.company = company

@@ -226,7 +226,7 @@ export const PatientList = ({ refreshKey }: PatientListProps = {}) => {
               <col className="w-[80px]" />
             </colgroup>
             
-            <thead className="bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
+            <thead className="bg--50 border-b border-slate-200 sticky top-0">
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
                   File Number

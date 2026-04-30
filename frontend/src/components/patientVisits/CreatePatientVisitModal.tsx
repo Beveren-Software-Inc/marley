@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { searchPatients, fetchPatients, type PatientListItem, uploadPatientFile, type PatientDocumentRow } from '../../services/patients'
-import { fetchPatientVisitTypes, type PatientVisitTypeOption } from '../../services/patientVisits'
+import { fetchPatientVisitTypes, type PatientVisitTypeOption, createPatientVisit } from '../../services/patientVisits'
 import { 
   fetchHealthcarePractitioners,
   fetchDocumentTypes,
@@ -343,65 +343,104 @@ export const CreatePatientVisitModal = ({ onClose, onSuccess, initialPatient, in
     }
   }, [practQuery, practOpen])
 
+  // const handleSubmit = async (e: React.FormEvent) => {
+  //   e.preventDefault()
+  //   setError(null)
+
+  //   if (!selectedPatient) {
+  //     setError('Please select a patient')
+  //     setActiveTab('details')
+  //     return
+  //   }
+
+  //   if (!formData.practitioner) {
+  //     setError('Please select a practitioner')
+  //     setActiveTab('details')
+  //     return
+  //   }
+
+  //   try {
+  //     setSubmitting(true)
+
+  //     const patientDocuments = documents
+  //       .filter(r => (r.file_name || '').trim() || (r.document || '').trim())
+  //       .map(r => ({
+  //         file_name: (r.document_type || '').trim() || undefined,
+  //         document_type: (r.document_type || '').trim() || undefined,
+  //         transaction_no: (r.transaction_no || '').trim() || undefined,
+  //         upload_remarks: (r.upload_remarks || '').trim() || undefined,
+  //         document: (r.document || '').trim() || undefined,
+  //       }))
+
+  //     const { ensureCSRF } = await import('../../services/apiClient')
+  //     const csrf = await ensureCSRF()
+  //     const response = await fetch('/api/resource/Patient Visit', {
+  //       method: 'POST',
+  //       credentials: 'include',
+  //       headers: {
+  //         'Content-Type': 'application/json',
+  //         'Accept': 'application/json',
+  //         ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {})
+  //       },
+  //       body: JSON.stringify({
+  //         patient: selectedPatient.name,
+  //         practitioner: formData.practitioner,
+  //         encounter_date: formData.encounter_date,
+  //         encounter_time: formData.encounter_time,
+  //         visit_type: formData.visit_type,
+  //         appointment: formData.appointment || undefined,
+  //         iop_enrollment: initialIOPEnrollment || undefined,
+  //         status: 'Open',
+  //         // Patient Upload Document child rows on Patient Visit
+  //         documents: patientDocuments.length > 0 ? patientDocuments : undefined,
+  //       })
+  //     })
+
+  //     const resData = await response.json()
+
+  //     if (resData.data && resData.data.name) {
+  //       onSuccess(resData.data.name)
+  //     } else if (resData.exc) {
+  //       throw new Error(resData.exc || 'Failed to create patient visit')
+  //     } else {
+  //       throw new Error('Visit created but no name returned')
+  //     }
+  //   } catch (err) {
+  //     setError(err instanceof Error ? err.message : 'Failed to create patient visit')
+  //   } finally {
+  //     setSubmitting(false)
+  //   }
+  // }
+
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
 
     if (!selectedPatient) {
       setError('Please select a patient')
-      setActiveTab('details')
       return
     }
 
     if (!formData.practitioner) {
       setError('Please select a practitioner')
-      setActiveTab('details')
       return
     }
 
     try {
       setSubmitting(true)
-
-      const patientDocuments = documents
-        .filter(r => (r.file_name || '').trim() || (r.document || '').trim())
-        .map(r => ({
-          file_name: (r.document_type || '').trim() || undefined,
-          document_type: (r.document_type || '').trim() || undefined,
-          transaction_no: (r.transaction_no || '').trim() || undefined,
-          upload_remarks: (r.upload_remarks || '').trim() || undefined,
-          document: (r.document || '').trim() || undefined,
-        }))
-
-      const { ensureCSRF } = await import('../../services/apiClient')
-      const csrf = await ensureCSRF()
-      const response = await fetch('/api/resource/Patient Visit', {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {})
-        },
-        body: JSON.stringify({
-          patient: selectedPatient.name,
-          practitioner: formData.practitioner,
-          encounter_date: formData.encounter_date,
-          encounter_time: formData.encounter_time,
-          visit_type: formData.visit_type,
-          appointment: formData.appointment || undefined,
-          iop_enrollment: initialIOPEnrollment || undefined,
-          status: 'Open',
-          // Patient Upload Document child rows on Patient Visit
-          documents: patientDocuments.length > 0 ? patientDocuments : undefined,
-        })
+      const createdVisit = await createPatientVisit({
+        patient: selectedPatient.name,
+        practitioner: formData.practitioner,
+        encounter_date: formData.encounter_date,
+        encounter_time: formData.encounter_time,
+        visit_type: formData.visit_type,
+        appointment: formData.appointment || undefined,
+        status: 'Open'
       })
 
-      const resData = await response.json()
-
-      if (resData.data && resData.data.name) {
-        onSuccess(resData.data.name)
-      } else if (resData.exc) {
-        throw new Error(resData.exc || 'Failed to create patient visit')
+      if (createdVisit?.name) {
+        onSuccess(createdVisit.name)
       } else {
         throw new Error('Visit created but no name returned')
       }

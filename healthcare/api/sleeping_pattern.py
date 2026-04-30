@@ -4,6 +4,7 @@ from frappe import _
 from frappe.utils import nowdate, get_datetime, flt
 
 from healthcare.api.medicine_given import _get_or_create_admission_detail
+from healthcare.api.utils.api_utility import get_next_transaction_number
 
 
 @frappe.whitelist()
@@ -27,6 +28,7 @@ def create_sleeping_pattern(**data):
 		frappe.throw(_("Admission is required"))
 
 	admission_detail = _get_or_create_admission_detail(admission)
+	trans_no = get_next_transaction_number("Sleeping Pattern", fieldname="trans_no")
 
 	# Derive patient/file_no for the row
 	if patient:
@@ -39,6 +41,7 @@ def create_sleeping_pattern(**data):
 		patient_name = frappe.db.get_value("Patient", file_no, "patient_name") if file_no else None
 
 	row = admission_detail.append("sleeping_pattern", {})
+	row.trans_no = trans_no
 	row.date = date or nowdate()
 	row.file_no = file_no
 	row.patient_name = patient_name
@@ -72,6 +75,7 @@ def create_sleeping_pattern(**data):
 
 	return {
 		"name": row.name,
+		"trans_no": row.trans_no,
 		"date": row.date,
 		"admission_no": admission,
 		"file_no": row.file_no,

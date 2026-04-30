@@ -5,6 +5,10 @@
 import frappe
 from frappe import _
 from frappe.utils import nowdate
+import json
+
+from healthcare.api.utils.api_utility import get_next_transaction_number
+
 
 
 @frappe.whitelist()
@@ -520,5 +524,62 @@ def create_invoice_from_visit(visit_name: str):
         dict: Dictionary containing invoice name and status
     """
     return create_invoice("Patient Visit", visit_name)
+
+
+
+@frappe.whitelist()
+def create_patient_visit(data):
+	"""Create a new Patient Visit through backend API."""
+	if isinstance(data, str):
+		data = json.loads(data)
+
+	if not data:
+		frappe.throw(_("Patient Visit data is required"))
+
+	required_fields = ["patient", "practitioner", "encounter_date", "encounter_time"]
+	for field in required_fields:
+		if not data.get(field):
+			frappe.throw(_("{0} is required").format(field.replace("_", " ").title()))
+	case_no = get_next_transaction_number('Patient Visit', fieldname='case_no')
+	visit_doc = frappe.get_doc({
+		"doctype": "Patient Visit",
+		"patient": data.get("patient"),
+		"case_no": case_no,
+		"practitioner": data.get("practitioner"),
+		"encounter_date": data.get("encounter_date"),
+		"encounter_time": data.get("encounter_time"),
+		"visit_type": data.get("visit_type") or "New Visit",
+		"appointment": data.get("appointment"),
+		"iop_enrollment": data.get("iop_enrollment"),
+		"status": data.get("status") or "Open",
+	})
+
+	# Optional child table rows (Patient Upload Document table on Patient Visit).
+	if data.get("documents") and isinstance(data.get("documents"), list):
+		for row in data.get("documents"):
+			if isinstance(row, dict):
+				visit_doc.append("documents", row)
+
+	visit_doc.insert()
+	frappe.db.commit()
+
+	return {
+		"name": visit_doc.name,
+		"patient": visit_doc.patient,
+		"patient_name": visit_doc.patient_name,
+		"status": visit_doc.status,
+		"encounter_date": visit_doc.encounter_date,
+		"encounter_time": visit_doc.encounter_time,
+		"practitioner": visit_doc.practitioner,
+		"practitioner_name": visit_doc.practitioner_name,
+		"medical_department": visit_doc.medical_department,
+		"visit_type": visit_doc.visit_type,
+		"file_number": visit_doc.file_number,
+		"inpatient_record": visit_doc.inpatient_record,
+		"inpatient_status": visit_doc.inpatient_status,
+		"appointment": visit_doc.appointment,
+		"company": visit_doc.company
+	}
+
 
 

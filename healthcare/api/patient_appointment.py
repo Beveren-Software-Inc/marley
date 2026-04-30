@@ -1,6 +1,8 @@
 import frappe
 from frappe import _
 
+from healthcare.api.utils.api_utility import get_next_prefixed, get_next_transaction_number
+
 @frappe.whitelist()
 def get_practitioner_appointments(limit=50, offset=0, status=None):
 	"""Get appointments for the current user's healthcare practitioner"""
@@ -78,7 +80,7 @@ def create_appointment(data):
 	if isinstance(data, str):
 		import json
 		data = json.loads(data)
-	
+	number = get_next_transaction_number('Patient Appointment')
 	# Create the appointment document
 	appointment = frappe.get_doc({
 		'doctype': 'Patient Appointment',
@@ -92,6 +94,7 @@ def create_appointment(data):
 		'temporary_patient_name': data.get('temporary_patient_name'),
 		'temporary_mobile_no': data.get('temporary_mobile_no'),
 		'notes': data.get('notes'),
+		'trans_no': number
 	})
 	
 	appointment.insert()
