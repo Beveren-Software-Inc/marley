@@ -128,8 +128,11 @@
 
 # healthcare/api/billing.py
 
+import json
+
 import frappe
 from frappe import _
+from frappe.utils import nowdate
 
 @frappe.whitelist()
 def get_inpatient_balances(patient=None):
@@ -423,3 +426,222 @@ def get_invoices_by_reference(reference_name, reference_type):
     )
     
     return invoices
+
+
+def _load_payload_list(payload):
+    if isinstance(payload, str):
+        try:
+            payload = json.loads(payload)
+        except Exception:
+            payload = []
+    return payload or []
+
+
+def _get_or_create_employee_customer(employee_name):
+    customer = frappe.db.get_value("Customer", {"customer_name": employee_name}, "name")
+    if customer:
+        return customer
+
+    customer_doc = frappe.get_doc(
+        {
+            "doctype": "Customer",
+            "customer_name": employee_name,
+            "customer_type": "Individual",
+            "customer_group": frappe.db.get_single_value("Selling Settings", "customer_group")
+            or "Individual",
+            "territory": frappe.db.get_single_value("Selling Settings", "territory")
+            or "All Territories",
+        }
+    )
+    customer_doc.insert(ignore_permissions=True)
+    return customer_doc.name
+
+
+@frappe.whitelist()
+def get_related_sales_orders(reference_type, reference_name):
+    if not reference_type or not reference_name:
+        frappe.throw(_("Reference type and reference name are required"))
+
+    if reference_type not in ("Patient Visit", "Inpatient Admission"):
+        frappe.throw(_("Unsupported reference type"))
+
+    direct = frappe.get_all(
+        "Sales Order",
+        filters={
+            "custom_reference_type": reference_type,
+            "custom_reference_name": reference_name,
+            "docstatus": ["!=", 2],
+        },
+        fields=["name", "transaction_date", "grand_total", "status", "customer", "company"],
+        order_by="creation desc",
+    )
+
+    service_request_field = "patient_visit" if reference_type == "Patient Visit" else "inpatient_record"
+    service_requests = frappe.get_all(
+        "Service Request",
+        filters={service_request_field: reference_name, "docstatus": ["!=", 2]},
+        fields=["name"],
+    )
+    sr_names = [row.name for row in service_requests]
+    sr_orders = []
+    if sr_names:
+        sr_orders = frappe.get_all(
+            "Sales Order",
+            filters={
+                "custom_reference_type": "Service Request",
+                "custom_reference_name": ["in", sr_names],
+                "docstatus": ["!=", 2],
+            },
+            fields=["name", "transaction_date", "grand_total", "status", "customer", "company"],
+            order_by="creation desc",
+        )
+
+    out = []
+    seen = set()
+    for row in direct + sr_orders:
+        if row.name in seen:
+            continue
+        seen.add(row.name)
+        out.append(row)
+    return out
+
+
+@frappe.whitelist()
+def create_additional_collection_invoice(
+    company,
+    customer=None,
+    created_at_cost_center,
+    reference_type=None,
+    reference_name=None,
+    patient=None,
+    posting_date=None,
+    due_date=None,
+    sales_orders=None,
+    additional_items=None,
+):
+    sales_orders = _load_payload_list(sales_orders)
+    additional_items = _load_payload_list(additional_items)
+
+    if not company:
+        frappe.throw(_("Company is required"))
+    if not customer and patient:
+        customer = frappe.db.get_value("Patient", patient, "customer")
+    if not customer:
+        frappe.throw(_("Customer is required (or provide patient linked to a customer)"))
+    if not created_at_cost_center:
+        frappe.throw(_("Collection cost center is required"))
+
+    invoice = frappe.new_doc("Sales Invoice")
+    invoice.company = company
+    invoice.customer = customer
+    invoice.posting_date = posting_date or nowdate()
+    invoice.due_date = due_date or invoice.posting_date
+    invoice.custom_created_at = created_at_cost_center
+    if patient:
+        invoice.patient = patient
+    if reference_type and reference_name:
+        invoice.custom_reference_type = reference_type
+        invoice.custom_reference_name = reference_name
+
+    for so_name in sales_orders:
+        if not so_name:
+            continue
+        so_doc = frappe.get_doc("Sales Order", so_name)
+        for item in so_doc.items:
+            invoice.append(
+                "items",
+                {
+                    "item_code": item.item_code,
+                    "item_name": item.item_name,
+                    "description": item.description,
+                    "qty": item.qty,
+                    "uom": item.uom,
+                    "rate": item.rate,
+                    "income_account": item.income_account,
+                    "cost_center": item.cost_center or created_at_cost_center,
+                    "warehouse": item.warehouse,
+                },
+            )
+
+    for row in additional_items:
+        if not isinstance(row, dict):
+            continue
+        if not row.get("item_code"):
+            continue
+        qty = float(row.get("qty") or 0)
+        if qty <= 0:
+            continue
+        invoice.append(
+            "items",
+            {
+                "item_code": row.get("item_code"),
+                "item_name": row.get("item_name"),
+                "description": row.get("description"),
+                "qty": qty,
+                "rate": float(row.get("rate") or 0),
+                "cost_center": row.get("cost_center") or created_at_cost_center,
+            },
+        )
+
+    if not invoice.items:
+        frappe.throw(_("Please add at least one item or sales order"))
+
+    invoice.insert(ignore_permissions=True)
+    return {"name": invoice.name, "grand_total": invoice.grand_total, "customer": invoice.customer}
+
+
+@frappe.whitelist()
+def create_internal_employee_invoice(
+    employee_name,
+    company,
+    created_at_cost_center,
+    items,
+    posting_date=None,
+    due_date=None,
+):
+    if not employee_name:
+        frappe.throw(_("Employee name is required"))
+    if not company:
+        frappe.throw(_("Company is required"))
+    if not created_at_cost_center:
+        frappe.throw(_("Collection cost center is required"))
+
+    items = _load_payload_list(items)
+    if not items:
+        frappe.throw(_("Please add at least one item"))
+
+    customer = _get_or_create_employee_customer(employee_name)
+
+    invoice = frappe.new_doc("Sales Invoice")
+    invoice.company = company
+    invoice.customer = customer
+    invoice.posting_date = posting_date or nowdate()
+    invoice.due_date = due_date or invoice.posting_date
+    invoice.custom_created_at = created_at_cost_center
+    invoice.custom_internal_employee = 1
+
+    for row in items:
+        if not isinstance(row, dict):
+            continue
+        if not row.get("item_code"):
+            continue
+        qty = float(row.get("qty") or 0)
+        if qty <= 0:
+            continue
+        invoice.append(
+            "items",
+            {
+                "item_code": row.get("item_code"),
+                "item_name": row.get("item_name"),
+                "description": row.get("description"),
+                "qty": qty,
+                "rate": float(row.get("rate") or 0),
+                "cost_center": row.get("cost_center") or created_at_cost_center,
+            },
+        )
+
+    if not invoice.items:
+        frappe.throw(_("Please add at least one valid item"))
+
+    invoice.insert(ignore_permissions=True)
+    return {"name": invoice.name, "customer": invoice.customer, "grand_total": invoice.grand_total}

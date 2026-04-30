@@ -157,6 +157,7 @@ const receptionScreenGroups: ScreenGroup[] = [
     screens: [
       { id: 'r-visit',     title: 'Patient Visit' },
       { id: 'r-new-visit', title: 'New Patient Visit' },
+      { id: 'r-daily-auto-visit', title: 'Daily Auto Visit' },
     ],
   },
   {

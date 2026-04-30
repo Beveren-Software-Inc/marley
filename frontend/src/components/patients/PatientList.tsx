@@ -61,7 +61,7 @@ export const PatientList = ({ refreshKey }: PatientListProps = {}) => {
   
   // Track loading with a delay to prevent flashing
   const [showRefreshing, setShowRefreshing] = useState<boolean>(false)
-  const loadingTimeoutRef = useRef<NodeJS.Timeout>()
+  const loadingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   
   // Debounce search query to prevent rapid refetching
   useEffect(() => {
@@ -94,7 +94,7 @@ export const PatientList = ({ refreshKey }: PatientListProps = {}) => {
       // Clear the timeout and hide refreshing text immediately
       if (loadingTimeoutRef.current) {
         clearTimeout(loadingTimeoutRef.current)
-        loadingTimeoutRef.current = undefined
+        loadingTimeoutRef.current = null
       }
       setShowRefreshing(false)
     }
@@ -107,7 +107,7 @@ export const PatientList = ({ refreshKey }: PatientListProps = {}) => {
   }, [loading])
 
   // Handle refresh key changes with debounce
-  const refreshTimeoutRef = useRef<NodeJS.Timeout>()
+  const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastRefreshRef = useRef<number>(0)
   
   useEffect(() => {
@@ -266,7 +266,7 @@ export const PatientList = ({ refreshKey }: PatientListProps = {}) => {
                 patients.map((patient) => {
                   const status = getPatientStatus(patient)
                   // Create a stable unique key
-                  const uniqueKey = patient.id || patient.patient_id || `${patient.name}_${patient.mobile}`
+                  const uniqueKey = patient.name || `${patient.patient_name || 'patient'}_${patient.mobile || ''}`
 
                   return (
                     <tr

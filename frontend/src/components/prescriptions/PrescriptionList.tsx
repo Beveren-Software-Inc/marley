@@ -5,7 +5,7 @@ import { fetchHealthcarePractitioners, type LinkFieldOption } from '../../servic
 import { StatusPill } from '../ui/StatusPill'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
-import { PrescriptionSlideOver } from './prescriptionSlideOver'
+import { PrescriptionSlideOver } from './PrescriptionSlideOver'
 import { useCareContext } from '../../providers/CareContextProvider'
 
 

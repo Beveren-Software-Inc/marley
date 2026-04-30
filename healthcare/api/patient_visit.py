@@ -213,7 +213,7 @@ def get_patient_visit(name):
 # healthcare/api/common.py
 
 @frappe.whitelist()
-def get_patient_visits_full(search=None, patient=None, practitioner=None, from_date=None, to_date=None, limit=50):
+def get_patient_visits_full(search=None, patient=None, practitioner=None, from_date=None, to_date=None, visit_type=None, limit=50):
 	"""
 	Fetch patient visits with all filters:
 	- search: filters by visit name
@@ -230,6 +230,9 @@ def get_patient_visits_full(search=None, patient=None, practitioner=None, from_d
 
 	if practitioner:
 		filters.append(["practitioner", "=", practitioner])
+
+	if visit_type:
+		filters.append(["visit_type", "=", visit_type])
 
 	if from_date:
 		filters.append(["encounter_date", ">=", from_date])
@@ -262,6 +265,74 @@ def get_patient_visits_full(search=None, patient=None, practitioner=None, from_d
 		order_by="creation desc",
 	)
 
+	visit_names = [v.name for v in visits if v.get("name")]
+	lab_amount_map = {}
+	service_amount_map = {}
+	pharmacy_amount_map = {}
+
+	if visit_names:
+		lab_rows = frappe.db.sql(
+			"""
+			SELECT
+				sr.patient_visit AS visit_name,
+				SUM(COALESCE(so.grand_total, 0)) AS amount
+			FROM `tabService Request` sr
+			INNER JOIN `tabSales Order` so
+				ON so.custom_reference_type = 'Service Request'
+				AND so.custom_reference_name = sr.name
+			WHERE
+				sr.patient_visit IN %(visit_names)s
+				AND so.docstatus != 2
+				AND sr.template_dt = 'Lab Test Template'
+			GROUP BY sr.patient_visit
+			""",
+			{"visit_names": tuple(visit_names)},
+			as_dict=True,
+		)
+		for row in lab_rows:
+			lab_amount_map[row.visit_name] = float(row.amount or 0)
+
+		service_rows = frappe.db.sql(
+			"""
+			SELECT
+				sr.patient_visit AS visit_name,
+				SUM(COALESCE(so.grand_total, 0)) AS amount
+			FROM `tabService Request` sr
+			INNER JOIN `tabSales Order` so
+				ON so.custom_reference_type = 'Service Request'
+				AND so.custom_reference_name = sr.name
+			WHERE
+				sr.patient_visit IN %(visit_names)s
+				AND so.docstatus != 2
+				AND sr.template_dt != 'Lab Test Template'
+			GROUP BY sr.patient_visit
+			""",
+			{"visit_names": tuple(visit_names)},
+			as_dict=True,
+		)
+		for row in service_rows:
+			service_amount_map[row.visit_name] = float(row.amount or 0)
+
+		pharmacy_rows = frappe.db.sql(
+			"""
+			SELECT
+				pmo.patient_encounter AS visit_name,
+				SUM(COALESCE(so.grand_total, 0)) AS amount
+			FROM `tabPatient Medication Order` pmo
+			INNER JOIN `tabSales Order` so
+				ON so.custom_base_reference = 'Patient Medication Order'
+				AND so.custom_base_reference_name = pmo.name
+			WHERE
+				pmo.patient_encounter IN %(visit_names)s
+				AND so.docstatus != 2
+			GROUP BY pmo.patient_encounter
+			""",
+			{"visit_names": tuple(visit_names)},
+			as_dict=True,
+		)
+		for row in pharmacy_rows:
+			pharmacy_amount_map[row.visit_name] = float(row.amount or 0)
+
 	return [
 		{
 			"name": v.name,
@@ -271,6 +342,9 @@ def get_patient_visits_full(search=None, patient=None, practitioner=None, from_d
 			"encounter_date": str(v.encounter_date) if v.encounter_date else None,
 			"practitioner_name": v.practitioner_name,
 			"status": v.status,
+			"lab_amount": lab_amount_map.get(v.name, 0),
+			"service_amount": service_amount_map.get(v.name, 0),
+			"pharmacy_amount": pharmacy_amount_map.get(v.name, 0),
 		}
 		for v in visits
 	]

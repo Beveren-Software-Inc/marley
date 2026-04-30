@@ -43,6 +43,48 @@ def update_daily_patient_visit_setup(name, data):
     frappe.db.commit()
     
     return doc.as_dict()
+
+
+@frappe.whitelist()
+def get_daily_patient_visit_setups(patient=None, active_only=0, limit=100):
+    """List Daily Patient Visit Setup rows for UI."""
+    filters = {}
+    if patient:
+        filters["patient"] = patient
+    if str(active_only).lower() in ("1", "true", "yes"):
+        filters["is_active"] = 1
+
+    return frappe.get_all(
+        "Daily Patient Visit Setup",
+        filters=filters,
+        fields=[
+            "name",
+            "patient",
+            "patient_name",
+            "admission",
+            "discharge",
+            "from_date",
+            "to_date",
+            "time",
+            "session",
+            "is_active",
+            "amount",
+        ],
+        order_by="creation desc",
+        limit_page_length=int(limit or 100),
+    )
+
+
+@frappe.whitelist()
+def stop_daily_patient_visit_setup(name):
+    """Stop Daily Auto Visit for a setup by toggling is_active off."""
+    if not name:
+        frappe.throw(_("Setup name is required"))
+    doc = frappe.get_doc("Daily Patient Visit Setup", name)
+    doc.is_active = 0
+    doc.save()
+    frappe.db.commit()
+    return {"name": doc.name, "is_active": doc.is_active}
 def get_or_create_daily_session_charge_item():
     """
     Get or create the 'Daily Session Charge' item.

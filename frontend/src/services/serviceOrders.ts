@@ -353,6 +353,24 @@ export interface ReferenceInvoice {
   status: string
 }
 
+export interface RelatedSalesOrder {
+  name: string
+  transaction_date: string
+  grand_total: number
+  status: string
+  customer?: string
+  company?: string
+}
+
+export interface BillingInvoiceItemInput {
+  item_code: string
+  item_name?: string
+  description?: string
+  qty: number
+  rate: number
+  cost_center?: string
+}
+
 // services/serviceOrders.ts
 export const getInvoicesByReference = async (referenceName: string, referenceType: string): Promise<ReferenceInvoice[]> => {
   try {
@@ -383,4 +401,58 @@ export const getInvoicesByReference = async (referenceName: string, referenceTyp
     console.error('Error loading invoices by reference:', error)
     return []
   }
+}
+
+export async function fetchRelatedSalesOrders(
+  referenceType: 'Patient Visit' | 'Inpatient Admission',
+  referenceName: string
+): Promise<RelatedSalesOrder[]> {
+  const response = await fetch('/api/method/healthcare.api.billing.get_related_sales_orders', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reference_type: referenceType, reference_name: referenceName }),
+  })
+  const data = await response.json()
+  if (!response.ok) throw new Error(data?.message || 'Failed to fetch related sales orders')
+  return (data?.message || []) as RelatedSalesOrder[]
+}
+
+export async function createAdditionalCollectionInvoice(payload: {
+  company: string
+  customer: string
+  created_at_cost_center: string
+  reference_type?: string
+  reference_name?: string
+  patient?: string
+  posting_date?: string
+  due_date?: string
+  sales_orders?: string[]
+  additional_items?: BillingInvoiceItemInput[]
+}): Promise<{ name: string; grand_total: number; customer: string }> {
+  const response = await fetch('/api/method/healthcare.api.billing.create_additional_collection_invoice', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  const data = await response.json()
+  if (!response.ok) throw new Error(data?.message || 'Failed to create invoice')
+  return data.message
+}
+
+export async function createInternalEmployeeInvoice(payload: {
+  employee_name: string
+  company: string
+  created_at_cost_center: string
+  items: BillingInvoiceItemInput[]
+  posting_date?: string
+  due_date?: string
+}): Promise<{ name: string; customer: string; grand_total: number }> {
+  const response = await fetch('/api/method/healthcare.api.billing.create_internal_employee_invoice', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  const data = await response.json()
+  if (!response.ok) throw new Error(data?.message || 'Failed to create internal invoice')
+  return data.message
 }

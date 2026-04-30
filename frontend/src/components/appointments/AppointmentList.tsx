@@ -654,12 +654,13 @@ const statusColors: Record<string, string> = {
   'Confirmed': 'success',
   'Checked In': 'success',
   'Checked Out': 'default',
+  'Postponed': 'warning',
   'Closed': 'default',
   'Cancelled': 'danger',
   'No Show': 'danger'
 }
 
-const ALL_STATUSES = ['Scheduled', 'Open', 'Confirmed', 'Checked In', 'Checked Out', 'Closed', 'Cancelled', 'No Show']
+const ALL_STATUSES = ['Scheduled', 'Open', 'Confirmed', 'Checked In', 'Checked Out', 'Postponed', 'Closed', 'Cancelled', 'No Show']
 
 interface AppointmentListProps {
   refreshKey?: string | number
@@ -682,6 +683,7 @@ interface AvailabilityResponse {
 
 const ACTIVE_STATUSES = ['Scheduled', 'Open', 'Confirmed', 'Checked In']
 const CAN_CONFIRM_STATUSES = ['Open', 'Scheduled']
+const CAN_POSTPONE_STATUSES = ['Scheduled', 'Open', 'Confirmed', 'Checked In']
 
 // Stub — replace with your real API call
 const sendAppointmentReminder = async (appointmentName: string): Promise<void> => {
@@ -880,6 +882,7 @@ export const AppointmentList = ({ refreshKey, showAll = false, patient }: Appoin
 
   const canCancel = (status?: string) => status && ACTIVE_STATUSES.includes(status)
   const canConfirm = (status?: string) => status && CAN_CONFIRM_STATUSES.includes(status)
+  const canPostpone = (status?: string) => status && CAN_POSTPONE_STATUSES.includes(status)
 
   const handleCancel = (apt: Appointment) => {
     setOpenActionRow(null)
@@ -911,6 +914,20 @@ export const AppointmentList = ({ refreshKey, showAll = false, patient }: Appoin
       setRefreshTrigger((t) => t + 1)
     } catch (e) {
       window.alert(e instanceof Error ? e.message : 'Failed to confirm')
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const handlePostpone = async (apt: Appointment) => {
+    setActionLoading(apt.name)
+    setOpenActionRow(null)
+    try {
+      await updateAppointmentStatus(apt.name, 'Postponed')
+      setRefreshTrigger((t) => t + 1)
+      toast.success('Appointment postponed')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to postpone appointment')
     } finally {
       setActionLoading(null)
     }
@@ -1220,6 +1237,12 @@ export const AppointmentList = ({ refreshKey, showAll = false, patient }: Appoin
                             <button type="button" onClick={() => handleConfirm(apt)}
                               className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">
                               Confirm
+                            </button>
+                          )}
+                          {canPostpone(apt.status) && (
+                            <button type="button" onClick={() => handlePostpone(apt)}
+                              className="block w-full text-left px-3 py-2 text-sm text-amber-700 hover:bg-amber-50">
+                              Postpone
                             </button>
                           )}
                           {canCancel(apt.status) && (
