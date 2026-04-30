@@ -13,6 +13,7 @@ from frappe.model.document import Document
 from frappe.model.mapper import get_mapped_doc
 from frappe.utils import get_datetime, get_link_to_form, getdate, now_datetime, today
 
+from healthcare.api.utils.api_utility import get_next_transaction_number
 from healthcare.healthcare.doctype.nursing_task.nursing_task import NursingTask
 from healthcare.healthcare.utils import validate_nursing_tasks
 
@@ -230,6 +231,7 @@ def schedule_inpatient(args):
 	# Patient details
 	patient = frappe.get_doc("Patient", admission_order["patient"])
 	inpatient_record.patient = patient.name
+	inpatient_record.case_no = get_next_transaction_number('Inpatient Admission')
 	inpatient_record.patient_name = patient.patient_name
 	inpatient_record.gender = patient.sex
 	inpatient_record.blood_group = patient.blood_group
@@ -746,6 +748,7 @@ def validate_incompleted_service_requests(inpatient_record):
 @frappe.whitelist()
 def create_discharge_from_inpatient_admission(source_name, target_doc=None):
 	"""Create Discharge document from Inpatient Admission"""
+ 
 	def set_missing_values(source, target):
 		target.admission = source.name
 		target.discharge_date = now_datetime()
@@ -779,6 +782,7 @@ def create_discharge_from_inpatient_admission(source_name, target_doc=None):
 				"field_map": {
 					"patient": "file_no",
 					"patient_name": "patient_name",
+					"trans_no":"trans_no"
 				},
 			}
 		},

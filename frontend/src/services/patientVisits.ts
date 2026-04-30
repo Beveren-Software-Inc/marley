@@ -176,3 +176,39 @@ export async function createInvoiceForVisit(visitName: string): Promise<{
   
   return resData.message;
 }
+
+export interface CreatePatientVisitData {
+  patient: string
+  practitioner: string
+  encounter_date: string
+  encounter_time: string
+  visit_type?: string
+  appointment?: string
+  iop_enrollment?: string
+  documents?: Record<string, unknown>[]
+  status?: 'Open' | 'Ordered' | 'Completed' | 'Cancelled'
+}
+
+
+export async function createPatientVisit(data: CreatePatientVisitData): Promise<PatientVisit> {
+  // return await apiRequest<PatientVisit>('/api/method/healthcare.api.patient_visit.create_patient_visit', {
+  //   method: 'POST',
+  //   body: JSON.stringify({ data }),
+  // })
+
+  const response = await fetch(`/api/method/healthcare.api.patient_visit.create_patient_visit`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ data})
+  });
+  
+  const resData = await response.json();
+  
+  if (!resData?.message) {
+    throw new Error(resData?.exception || 'Failed to create invoice');
+  }
+  
+  return resData.message;
+}
+
+
