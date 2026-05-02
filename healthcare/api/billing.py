@@ -676,7 +676,7 @@ def create_additional_collection_invoice(
                     "qty": item.qty,
                     "uom": item.uom,
                     "rate": item.rate,
-                    "income_account": item.income_account,
+                    # "income_account": item.income_account,
                     "cost_center": item.cost_center or created_at_cost_center,
                     "warehouse": item.warehouse,
                 },
@@ -768,7 +768,7 @@ def create_internal_employee_invoice(
 
 @frappe.whitelist()
 def list_additional_collection_invoices(limit_start=0, limit_page_length=100):
-    """Additional collection (cross–cost center): Created At cost center set; excludes internal employee."""
+    """Cross‑Branch Payment (cross–cost center): Created At cost center set; excludes internal employee."""
     limit_start = int(limit_start or 0)
     limit_page_length = min(int(limit_page_length or 100), 500)
 

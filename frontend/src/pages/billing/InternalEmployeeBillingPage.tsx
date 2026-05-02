@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Loader2, PlusCircle, ExternalLink, Receipt, AlertCircle, Wallet } from 'lucide-react'
+import { Loader2, PlusCircle, ExternalLink } from 'lucide-react'
 import { BillingSpecialtyNavCards } from '../../components/billing/BillingSpecialtyNavCards'
 import { InternalEmployeeInvoiceModal } from '../../components/billing/InternalEmployeeInvoiceModal'
 import {
@@ -9,9 +9,22 @@ import {
   type InternalBillingSummary,
 } from '../../services/billingSpecialty'
 import { toast } from '../../hooks/useToast'
+import { PrintFormatDropdown } from '../../components/ui/PrintFormatDropdown'
 
 function formatMoney(n: number) {
   return new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES' }).format(n)
+}
+
+function getStatusColor(status: string): string {
+  const s = status.toLowerCase()
+  if (s === 'draft') return 'bg-gray-100 text-gray-600 border border-gray-200'
+  if (s === 'unpaid' || s === 'overdue') return 'bg-red-100 text-red-700 border border-red-200'
+  if (s === 'paid') return 'bg-green-100 text-green-700 border border-green-200'
+  if (s === 'partially paid') return 'bg-yellow-100 text-yellow-700 border border-yellow-200'
+  if (s === 'cancelled') return 'bg-gray-100 text-gray-500 border border-gray-200 line-through'
+  if (s === 'return') return 'bg-orange-100 text-orange-700 border border-orange-200'
+  if (s === 'credit note issued') return 'bg-purple-100 text-purple-700 border border-purple-200'
+  return 'bg-slate-100 text-slate-700 border border-slate-200'
 }
 
 interface InternalEmployeeBillingPageProps {
@@ -34,7 +47,7 @@ export function InternalEmployeeBillingPage({ patient }: InternalEmployeeBilling
       setRows(inv)
       setSummary(sum)
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to load data')
+      toast.error(e instanceof Error ? e.message : 'Failed to load')
     } finally {
       setLoading(false)
     }
@@ -44,17 +57,15 @@ export function InternalEmployeeBillingPage({ patient }: InternalEmployeeBilling
     void load()
   }, [load])
 
-  const s = summary || { invoice_count: 0, total_billed: 0, total_outstanding: 0 }
-
   return (
     <div className="p-4 max-w-6xl mx-auto">
       <BillingSpecialtyNavCards active="internal" patient={patient} />
 
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-5">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
         <div>
           <h1 className="text-xl font-semibold text-slate-900">Internal employee billing</h1>
           <p className="text-slate-600 text-xs mt-1 max-w-xl">
-            Invoices flagged as internal employee — staff meds and services.
+            Staff invoices flagged internal employee. Create new invoices from the button below.
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -78,42 +89,22 @@ export function InternalEmployeeBillingPage({ patient }: InternalEmployeeBilling
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-5">
-        <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-sm text-slate-500 mb-1">Invoices</p>
-              <p className="text-2xl font-bold text-slate-900">{s.invoice_count}</p>
-              <p className="text-xs text-slate-400 mt-1">Draft + submitted</p>
-            </div>
-            <div className="p-3 rounded-xl bg-blue-50 text-blue-600 shrink-0">
-              <Receipt className="w-6 h-6" />
-            </div>
+      {summary && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Invoices</p>
+            <p className="text-2xl font-semibold text-slate-900 mt-1 tabular-nums">{summary.invoice_count}</p>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Total billed</p>
+            <p className="text-xl font-semibold text-slate-900 mt-1 tabular-nums">{formatMoney(summary.total_billed)}</p>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Outstanding</p>
+            <p className="text-xl font-semibold text-slate-900 mt-1 tabular-nums">{formatMoney(summary.total_outstanding)}</p>
           </div>
         </div>
-        <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-sm text-slate-500 mb-1">Total billed</p>
-              <p className="text-xl font-bold text-slate-900 tabular-nums truncate">{formatMoney(s.total_billed)}</p>
-            </div>
-            <div className="p-3 rounded-xl bg-emerald-50 text-emerald-600 shrink-0">
-              <Wallet className="w-6 h-6" />
-            </div>
-          </div>
-        </div>
-        <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-sm text-slate-500 mb-1">Outstanding</p>
-              <p className="text-xl font-bold text-slate-900 tabular-nums truncate">{formatMoney(s.total_outstanding)}</p>
-            </div>
-            <div className="p-3 rounded-xl bg-amber-50 text-amber-600 shrink-0">
-              <AlertCircle className="w-6 h-6" />
-            </div>
-          </div>
-        </div>
-      </div>
+      )}
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         {loading && rows.length === 0 ? (
@@ -129,12 +120,12 @@ export function InternalEmployeeBillingPage({ patient }: InternalEmployeeBilling
                 <tr>
                   <th className="text-left px-3 py-2 font-medium text-slate-600">Invoice</th>
                   <th className="text-left px-3 py-2 font-medium text-slate-600">Date</th>
-                  <th className="text-left px-3 py-2 font-medium text-slate-600">Employee / customer</th>
+                  <th className="text-left px-3 py-2 font-medium text-slate-600">Customer</th>
                   <th className="text-left px-3 py-2 font-medium text-slate-600">Collection CC</th>
                   <th className="text-right px-3 py-2 font-medium text-slate-600">Total</th>
                   <th className="text-right px-3 py-2 font-medium text-slate-600">Outstanding</th>
                   <th className="text-left px-3 py-2 font-medium text-slate-600">Status</th>
-                  <th className="text-center px-3 py-2 font-medium text-slate-600 w-14">Desk</th>
+                  <th className="text-center px-3 py-2 font-medium text-slate-600 w-[100px]">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -147,17 +138,28 @@ export function InternalEmployeeBillingPage({ patient }: InternalEmployeeBilling
                     <td className="px-3 py-2 text-right font-medium">{formatMoney(r.grand_total)}</td>
                     <td className="px-3 py-2 text-right">{formatMoney(r.outstanding_amount)}</td>
                     <td className="px-3 py-2">
-                      <span className="inline-flex px-1.5 py-0.5 rounded text-[11px] bg-slate-100 text-slate-700">{r.status}</span>
+                      <span className={`inline-flex px-2 py-1 rounded-full text-[11px] font-medium ${getStatusColor(r.status)}`}>
+                        {r.status}
+                      </span>
                     </td>
-                    <td className="px-3 py-2 text-center">
-                      <a
-                        href={`/app/sales-invoice/${encodeURIComponent(r.name)}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex text-primary hover:underline"
-                      >
-                        <ExternalLink className="w-3.5 h-3.5 mx-auto" />
-                      </a>
+                    <td className="px-3 py-2 align-middle">
+                      <div className="flex items-center justify-center gap-2">
+                        <a
+                          href={`/app/sales-invoice/${encodeURIComponent(r.name)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-1 text-slate-500 hover:text-primary transition-colors"
+                          title="Open in ERPNext Desk"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        </a>
+                        <PrintFormatDropdown
+                          doctype="Sales Invoice"
+                          docName={r.name}
+                          noLetterhead={0}
+                          triggerPrint={1}
+                        />
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -167,7 +169,12 @@ export function InternalEmployeeBillingPage({ patient }: InternalEmployeeBilling
         )}
       </div>
 
-      <InternalEmployeeInvoiceModal isOpen={showCreate} onClose={() => setShowCreate(false)} onSuccess={() => void load()} />
+      <InternalEmployeeInvoiceModal
+        isOpen={showCreate}
+        onClose={() => setShowCreate(false)}
+        onSuccess={() => void load()}
+      />
     </div>
   )
 }
+

@@ -4,9 +4,39 @@ import { BillingSpecialtyNavCards } from '../../components/billing/BillingSpecia
 import { AdditionalCollectionInvoiceModal } from '../../components/billing/AdditionalCollectionInvoiceModal'
 import { fetchAdditionalCollectionInvoices, type SpecialtyInvoiceRow } from '../../services/billingSpecialty'
 import { toast } from '../../hooks/useToast'
+import { PrintFormatDropdown } from '../../components/ui/PrintFormatDropdown'
 
 function formatMoney(n: number) {
   return new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES' }).format(n)
+}
+
+// ERPNext standard status colors for Sales Invoice
+function getStatusColor(status: string): string {
+  const statusLower = status.toLowerCase()
+  
+  if (statusLower === 'draft') {
+    return 'bg-gray-100 text-gray-600 border border-gray-200'
+  }
+  if (statusLower === 'unpaid' || statusLower === 'overdue') {
+    return 'bg-red-100 text-red-700 border border-red-200'
+  }
+  if (statusLower === 'paid') {
+    return 'bg-green-100 text-green-700 border border-green-200'
+  }
+  if (statusLower === 'partially paid') {
+    return 'bg-yellow-100 text-yellow-700 border border-yellow-200'
+  }
+  if (statusLower === 'cancelled') {
+    return 'bg-gray-100 text-gray-500 border border-gray-200 line-through'
+  }
+  if (statusLower === 'return') {
+    return 'bg-orange-100 text-orange-700 border border-orange-200'
+  }
+  if (statusLower === 'credit note issued') {
+    return 'bg-purple-100 text-purple-700 border border-purple-200'
+  }
+  // Default fallback
+  return 'bg-slate-100 text-slate-700 border border-slate-200'
 }
 
 interface AdditionalCollectionBillingPageProps {
@@ -40,7 +70,7 @@ export function AdditionalCollectionBillingPage({ patient }: AdditionalCollectio
 
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
         <div>
-          <h1 className="text-xl font-semibold text-slate-900">Additional collection invoices</h1>
+          <h1 className="text-xl font-semibold text-slate-900">Cross‑Branch Payment invoices</h1>
           <p className="text-slate-600 text-xs mt-1 max-w-xl">
             Invoices with a collection cost center (excludes internal employee). Use the button to create.
           </p>
@@ -72,7 +102,7 @@ export function AdditionalCollectionBillingPage({ patient }: AdditionalCollectio
             <Loader2 className="w-6 h-6 animate-spin" />
           </div>
         ) : rows.length === 0 ? (
-          <div className="py-12 text-center text-slate-500 text-xs">No additional collection invoices yet.</div>
+          <div className="py-12 text-center text-slate-500 text-xs">No Cross‑Branch Payment invoices yet.</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full text-xs">
@@ -86,7 +116,7 @@ export function AdditionalCollectionBillingPage({ patient }: AdditionalCollectio
                   <th className="text-right px-3 py-2 font-medium text-slate-600">Total</th>
                   <th className="text-right px-3 py-2 font-medium text-slate-600">Outstanding</th>
                   <th className="text-left px-3 py-2 font-medium text-slate-600">Status</th>
-                  <th className="text-center px-3 py-2 font-medium text-slate-600 w-14">Desk</th>
+                  <th className="text-center px-3 py-2 font-medium text-slate-600 w-[100px]">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -102,18 +132,30 @@ export function AdditionalCollectionBillingPage({ patient }: AdditionalCollectio
                     <td className="px-3 py-2 text-right font-medium">{formatMoney(r.grand_total)}</td>
                     <td className="px-3 py-2 text-right">{formatMoney(r.outstanding_amount)}</td>
                     <td className="px-3 py-2">
-                      <span className="inline-flex px-1.5 py-0.5 rounded text-[11px] bg-slate-100 text-slate-700">{r.status}</span>
+                      <span className={`inline-flex px-2 py-1 rounded-full text-[11px] font-medium ${getStatusColor(r.status)}`}>
+                        {r.status}
+                      </span>
                     </td>
-                    <td className="px-3 py-2 text-center">
-                      <a
-                        href={`/app/sales-invoice/${encodeURIComponent(r.name)}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex text-primary hover:underline"
-                        title="Open in desk"
-                      >
-                        <ExternalLink className="w-3.5 h-3.5 mx-auto" />
-                      </a>
+                    <td className="px-3 py-2 align-middle">
+                      <div className="flex items-center justify-center gap-2">
+                        {/* ERPNext Desk Link */}
+                        <a
+                          href={`/app/sales-invoice/${encodeURIComponent(r.name)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-1 text-slate-500 hover:text-primary transition-colors"
+                          title="Open in ERPNext Desk"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        </a>
+                        {/* Print Button with Dropdown */}
+                        <PrintFormatDropdown
+                          doctype="Sales Invoice"
+                          docName={r.name}
+                          noLetterhead={0}
+                          triggerPrint={1}
+                        />
+                      </div>
                     </td>
                   </tr>
                 ))}

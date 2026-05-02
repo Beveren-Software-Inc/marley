@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback } from 'react'
-import { X } from 'lucide-react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { X, Loader2, User, Building2, Briefcase } from 'lucide-react'
 import { createInternalEmployeeInvoice, type BillingInvoiceItemInput } from '../../services/serviceOrders'
-import { fetchCompanies, fetchCostCenters, fetchEmployees } from '../../services/common'
+import { fetchCompanies, fetchCostCenters, fetchEmployees, type EmployeeOption } from '../../services/common'
 import { toast } from '../../hooks/useToast'
 import { CollapsibleFormSection } from './CollapsibleFormSection'
 import { BillingInvoiceItemsEditor } from './BillingInvoiceItemsEditor'
@@ -26,8 +26,14 @@ export function InternalEmployeeInvoiceModal({ isOpen, onClose, onSuccess }: Int
   const [activeTab, setActiveTab] = useState<TabId>('details')
   const [companies, setCompanies] = useState<Array<{ name: string; label: string }>>([])
   const [costCenters, setCostCenters] = useState<Array<{ name: string; label: string }>>([])
-  const [employeeOptions, setEmployeeOptions] = useState<Array<{ name: string; label: string }>>([])
-  const [employeeName, setEmployeeName] = useState('')
+  const [selectedEmployee, setSelectedEmployee] = useState<EmployeeOption | null>(null)
+  const [employeeQuery, setEmployeeQuery] = useState('')
+  const [employeeOpen, setEmployeeOpen] = useState(false)
+  const [employeeResults, setEmployeeResults] = useState<EmployeeOption[]>([])
+  const [employeeSearching, setEmployeeSearching] = useState(false)
+  const employeeInputRef = useRef<HTMLInputElement>(null)
+  const employeeDropdownRef = useRef<HTMLDivElement>(null)
+
   const [company, setCompany] = useState('')
   const [createdAtCostCenter, setCreatedAtCostCenter] = useState('')
   const [postingDate, setPostingDate] = useState('')
@@ -37,7 +43,10 @@ export function InternalEmployeeInvoiceModal({ isOpen, onClose, onSuccess }: Int
 
   const reset = useCallback(() => {
     setActiveTab('details')
-    setEmployeeName('')
+    setSelectedEmployee(null)
+    setEmployeeQuery('')
+    setEmployeeOpen(false)
+    setEmployeeResults([])
     setCompany('')
     setCreatedAtCostCenter('')
     setPostingDate('')
@@ -52,14 +61,47 @@ export function InternalEmployeeInvoiceModal({ isOpen, onClose, onSuccess }: Int
     }
     ;(async () => {
       try {
-        const [companyData, employeesData] = await Promise.all([fetchCompanies(), fetchEmployees()])
+        const companyData = await fetchCompanies()
         setCompanies(companyData)
-        setEmployeeOptions(employeesData.map((emp) => ({ name: emp.name, label: emp.label || emp.name })))
       } catch {
-        toast.error('Failed to load references')
+        toast.error('Failed to load companies')
       }
     })()
   }, [isOpen, reset])
+
+  useEffect(() => {
+    if (!employeeOpen) return
+
+    const q = employeeQuery.trim()
+    const run = async () => {
+      setEmployeeSearching(true)
+      try {
+        setEmployeeResults(await fetchEmployees(q || undefined))
+      } catch {
+        setEmployeeResults([])
+      } finally {
+        setEmployeeSearching(false)
+      }
+    }
+
+    const id = window.setTimeout(run, q === '' ? 0 : 280)
+    return () => window.clearTimeout(id)
+  }, [employeeQuery, employeeOpen])
+
+  useEffect(() => {
+    const close = (e: MouseEvent) => {
+      const t = e.target as Node
+      if (
+        employeeDropdownRef.current?.contains(t) ||
+        employeeInputRef.current?.contains(t)
+      ) {
+        return
+      }
+      setEmployeeOpen(false)
+    }
+    if (isOpen) document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [isOpen])
 
   useEffect(() => {
     if (!isOpen || !company) {
@@ -74,10 +116,20 @@ export function InternalEmployeeInvoiceModal({ isOpen, onClose, onSuccess }: Int
   const filledLines = items.filter((r) => r.item_code?.trim()).length
 
   const handleSubmit = async () => {
+    if (!selectedEmployee) {
+      toast.error('Search and select an employee')
+      return
+    }
+    const employee_name = (selectedEmployee.label || selectedEmployee.name || '').trim()
+    if (!employee_name) {
+      toast.error('Employee name is missing')
+      return
+    }
+
     try {
       setSaving(true)
       const created = await createInternalEmployeeInvoice({
-        employee_name: employeeName.trim(),
+        employee_name,
         company,
         created_at_cost_center: createdAtCostCenter,
         posting_date: postingDate || undefined,
@@ -96,6 +148,8 @@ export function InternalEmployeeInvoiceModal({ isOpen, onClose, onSuccess }: Int
 
   if (!isOpen) return null
 
+  const employeeInputDisplay = selectedEmployee ? selectedEmployee.label || selectedEmployee.name : employeeQuery
+
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
       <div className="bg-white rounded-xl shadow-xl max-w-3xl w-full max-h-[90vh] min-h-[260px] flex flex-col border border-slate-200">
@@ -103,7 +157,8 @@ export function InternalEmployeeInvoiceModal({ isOpen, onClose, onSuccess }: Int
           <div className="min-w-0">
             <h2 className="text-lg font-semibold text-slate-900">Internal employee invoice</h2>
             <p className="text-xs text-slate-600 mt-0.5">
-              Creates Customer from employee name if needed; sets <strong className="font-medium text-slate-700">Internal Employee</strong>.
+              Creates Customer from employee name if needed; sets{' '}
+              <strong className="font-medium text-slate-700">Internal Employee</strong>.
             </p>
           </div>
           <button
@@ -138,20 +193,77 @@ export function InternalEmployeeInvoiceModal({ isOpen, onClose, onSuccess }: Int
             <>
               <CollapsibleFormSection title="Employee & organization" defaultOpen>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div className="md:col-span-2">
-                    <label className="block text-xs font-medium text-slate-600 mb-1.5">Employee name</label>
+                  <div className="md:col-span-2 relative">
+                    <label className="block text-xs font-medium text-slate-600 mb-1.5">
+                      Employee <span className="text-red-500">*</span>
+                    </label>
                     <input
-                      list="internal-billing-employee-datalist"
+                      ref={employeeInputRef}
+                      type="text"
+                      autoComplete="off"
                       className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                      placeholder="Type or pick employee"
-                      value={employeeName}
-                      onChange={(e) => setEmployeeName(e.target.value)}
+                      placeholder="Search by employee name…"
+                      value={employeeInputDisplay}
+                      onChange={(e) => {
+                        setEmployeeQuery(e.target.value)
+                        setSelectedEmployee(null)
+                        setEmployeeOpen(true)
+                      }}
+                      onFocus={() => {
+                        setEmployeeOpen(true)
+                        if (!employeeQuery.trim() && !selectedEmployee) setEmployeeQuery('')
+                      }}
                     />
-                    <datalist id="internal-billing-employee-datalist">
-                      {employeeOptions.map((emp) => (
-                        <option key={emp.name} value={emp.label} />
-                      ))}
-                    </datalist>
+                    {employeeOpen && (
+                      <div
+                        ref={employeeDropdownRef}
+                        className="absolute left-0 right-0 z-20 mt-1 rounded-md border border-slate-200 bg-white shadow-lg max-h-56 overflow-auto"
+                      >
+                        {employeeSearching ? (
+                          <div className="flex items-center gap-2 px-3 py-2 text-xs text-slate-500">
+                            <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+                            Searching…
+                          </div>
+                        ) : employeeResults.length > 0 ? (
+                          employeeResults.map((emp) => (
+                            <button
+                              key={emp.name}
+                              type="button"
+                              className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 transition-colors border-b border-slate-100 last:border-0"
+                              onClick={() => {
+                                setSelectedEmployee(emp)
+                                setEmployeeQuery(emp.label || emp.name)
+                                setEmployeeOpen(false)
+                              }}
+                            >
+                              <div className="font-medium text-slate-900">{emp.label || emp.name}</div>
+                              <div className="text-[11px] text-slate-500 flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
+                                <span className="flex items-center gap-1">
+                                  <User className="w-3 h-3 shrink-0" />
+                                  ID: {emp.name}
+                                </span>
+                                {emp.department ? (
+                                  <span className="flex items-center gap-1">
+                                    <Building2 className="w-3 h-3 shrink-0" />
+                                    {emp.department}
+                                  </span>
+                                ) : null}
+                                {emp.designation ? (
+                                  <span className="flex items-center gap-1">
+                                    <Briefcase className="w-3 h-3 shrink-0" />
+                                    {emp.designation}
+                                  </span>
+                                ) : null}
+                              </div>
+                            </button>
+                          ))
+                        ) : (
+                          <div className="px-3 py-2 text-xs text-slate-500">
+                            {employeeQuery.trim() ? 'No matching employees.' : 'Type to search active employees.'}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-slate-600 mb-1.5">Company</label>
@@ -213,7 +325,9 @@ export function InternalEmployeeInvoiceModal({ isOpen, onClose, onSuccess }: Int
 
           {activeTab === 'items' && (
             <CollapsibleFormSection title="Drugs & services" defaultOpen>
-              <p className="text-xs text-slate-600 mb-2">Stock or service lines used by the employee.</p>
+              <p className="text-xs text-slate-600 mb-2">
+                Search stock / service items like prescriptions — pick from the list to set code and name.
+              </p>
               <BillingInvoiceItemsEditor
                 items={items}
                 onChange={setItems}
