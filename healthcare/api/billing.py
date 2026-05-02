@@ -284,15 +284,23 @@ def get_invoice_items(invoice_name):
 @frappe.whitelist()
 def get_invoice_details(invoice_name):
     """
-    Get detailed information about an invoice including items
+    Get detailed information about an invoice including items (for Reception slide-over).
     """
     if not invoice_name:
         return None
-    
+
     invoice = frappe.get_doc("Sales Invoice", invoice_name)
-    
+    frappe.has_permission("Sales Invoice", "read", doc=invoice, throw=True)
+
+    cc = getattr(invoice, "custom_created_at", None)
+    cc_label = (
+        frappe.db.get_value("Cost Center", cc, "cost_center_name") if cc else None
+    ) or cc
+
     return {
         "name": invoice.name,
+        "docstatus": invoice.docstatus,
+        "company": invoice.company,
         "customer": invoice.customer,
         "customer_name": invoice.customer_name,
         "posting_date": invoice.posting_date,
@@ -301,6 +309,12 @@ def get_invoice_details(invoice_name):
         "outstanding_amount": invoice.outstanding_amount,
         "status": invoice.status,
         "cost_center": invoice.cost_center,
+        "custom_created_at": getattr(invoice, "custom_created_at", None),
+        "collection_cost_center_name": cc_label,
+        "custom_internal_employee": int(getattr(invoice, "custom_internal_employee", 0) or 0),
+        "custom_reference_type": getattr(invoice, "custom_reference_type", None),
+        "custom_reference_name": getattr(invoice, "custom_reference_name", None),
+        "patient": getattr(invoice, "patient", None),
         "items": [
             {
                 "item_code": item.item_code,
@@ -309,11 +323,53 @@ def get_invoice_details(invoice_name):
                 "qty": item.qty,
                 "rate": item.rate,
                 "amount": item.amount,
-                "net_amount": item.net_amount
+                "net_amount": item.net_amount,
             }
             for item in invoice.items
-        ]
+        ],
     }
+
+
+@frappe.whitelist()
+def submit_sales_invoice_doc(invoice_name):
+    """Submit a draft Sales Invoice."""
+    if not invoice_name:
+        frappe.throw(_("Invoice name is required"))
+
+    doc = frappe.get_doc("Sales Invoice", invoice_name)
+    frappe.has_permission("Sales Invoice", "submit", doc=doc, throw=True)
+    if doc.docstatus != 0:
+        frappe.throw(_("Only draft invoices can be submitted"))
+
+    doc.submit()
+    frappe.db.commit()
+    return {"name": doc.name, "docstatus": doc.docstatus, "status": doc.status}
+
+
+@frappe.whitelist()
+def cancel_or_delete_sales_invoice(invoice_name):
+    """
+    Draft (docstatus 0): delete document.
+    Submitted (docstatus 1): cancel document.
+    """
+    if not invoice_name:
+        frappe.throw(_("Invoice name is required"))
+
+    doc = frappe.get_doc("Sales Invoice", invoice_name)
+
+    if doc.docstatus == 1:
+        frappe.has_permission("Sales Invoice", "cancel", doc=doc, throw=True)
+        doc.cancel()
+        frappe.db.commit()
+        return {"name": doc.name, "docstatus": doc.docstatus, "status": doc.status}
+
+    if doc.docstatus == 0:
+        frappe.has_permission("Sales Invoice", "delete", doc=doc, throw=True)
+        frappe.delete_doc("Sales Invoice", invoice_name)
+        frappe.db.commit()
+        return {"deleted": True, "name": invoice_name}
+
+    frappe.throw(_("This invoice cannot be cancelled"))
 
 
 @frappe.whitelist()
@@ -775,7 +831,7 @@ def list_additional_collection_invoices(limit_start=0, limit_page_length=100):
     rows = frappe.db.sql(
         """
         SELECT
-            name, posting_date, customer, customer_name, grand_total,
+            name, docstatus, posting_date, customer, customer_name, grand_total,
             outstanding_amount, status, company, custom_created_at,
             custom_reference_type, custom_reference_name, patient
         FROM `tabSales Invoice`
@@ -811,6 +867,7 @@ def list_internal_employee_invoices(limit_start=0, limit_page_length=100):
         },
         fields=[
             "name",
+            "docstatus",
             "posting_date",
             "customer",
             "customer_name",
