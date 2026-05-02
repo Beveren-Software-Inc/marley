@@ -1,9 +1,42 @@
 import frappe
 
+from erpnext.accounts.doctype.accounting_dimension.accounting_dimension import get_dimensions
 from erpnext.accounts.doctype.sales_invoice.sales_invoice import SalesInvoice
 
 
 class HealthcareSalesInvoice(SalesInvoice):
+	def validate(self):
+		self.apply_missing_accounting_dimension_defaults()
+		super().validate()
+
+	def apply_missing_accounting_dimension_defaults(self):
+		"""Fill blank accounting dimensions from company defaults on Accounting Dimension."""
+		if not self.company:
+			return
+
+		dimension_filters, default_dimensions_map = get_dimensions()
+		company_defaults = default_dimensions_map.get(self.company) or {}
+		if not company_defaults:
+			return
+
+		doc_meta = frappe.get_meta(self.doctype)
+
+		for dim in dimension_filters:
+			fieldname = dim.fieldname
+			default_val = company_defaults.get(fieldname)
+			if not default_val:
+				continue
+
+			if doc_meta.has_field(fieldname) and not self.get(fieldname):
+				self.set(fieldname, default_val)
+
+			for table_fieldname in ("items", "taxes"):
+				for row in self.get(table_fieldname) or []:
+					if not frappe.get_meta(row.doctype).has_field(fieldname):
+						continue
+					if not row.get(fieldname):
+						row.set(fieldname, default_val)
+
 	@frappe.whitelist()
 	def set_healthcare_services(self, checked_values):
 		from erpnext.stock.get_item_details import get_item_details

@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Loader2, PlusCircle, ExternalLink } from 'lucide-react'
+import { Loader2, PlusCircle } from 'lucide-react'
 import { BillingSpecialtyNavCards } from '../../components/billing/BillingSpecialtyNavCards'
 import { InternalEmployeeInvoiceModal } from '../../components/billing/InternalEmployeeInvoiceModal'
+import { SpecialtySalesInvoiceSlideOver } from '../../components/billing/SpecialtySalesInvoiceSlideOver'
+import { SpecialtyBillingInvoiceRowActions } from '../../components/billing/SpecialtyBillingInvoiceRowActions'
 import {
   fetchInternalEmployeeInvoices,
   fetchInternalEmployeeBillingSummary,
@@ -9,7 +11,6 @@ import {
   type InternalBillingSummary,
 } from '../../services/billingSpecialty'
 import { toast } from '../../hooks/useToast'
-import { PrintFormatDropdown } from '../../components/ui/PrintFormatDropdown'
 
 function formatMoney(n: number) {
   return new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES' }).format(n)
@@ -36,6 +37,8 @@ export function InternalEmployeeBillingPage({ patient }: InternalEmployeeBilling
   const [summary, setSummary] = useState<InternalBillingSummary | null>(null)
   const [loading, setLoading] = useState(true)
   const [showCreate, setShowCreate] = useState(false)
+  const [detailInvoice, setDetailInvoice] = useState<string | null>(null)
+  const [openActionRow, setOpenActionRow] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     try {
@@ -125,41 +128,48 @@ export function InternalEmployeeBillingPage({ patient }: InternalEmployeeBilling
                   <th className="text-right px-3 py-2 font-medium text-slate-600">Total</th>
                   <th className="text-right px-3 py-2 font-medium text-slate-600">Outstanding</th>
                   <th className="text-left px-3 py-2 font-medium text-slate-600">Status</th>
-                  <th className="text-center px-3 py-2 font-medium text-slate-600 w-[100px]">Actions</th>
+                  <th className="text-center px-3 py-2 font-medium text-slate-600 w-[132px]">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {rows.map((r) => (
                   <tr key={r.name} className="hover:bg-slate-50/80">
-                    <td className="px-3 py-2 font-mono text-[11px] text-primary font-medium">{r.name}</td>
+                    <td className="px-3 py-2">
+                      <button
+                        type="button"
+                        onClick={() => setDetailInvoice(r.name)}
+                        className="font-mono text-[11px] text-primary font-medium hover:underline text-left"
+                      >
+                        {r.name}
+                      </button>
+                    </td>
                     <td className="px-3 py-2 text-slate-700">{r.posting_date}</td>
                     <td className="px-3 py-2 text-slate-800">{r.customer_name || r.customer}</td>
                     <td className="px-3 py-2 text-slate-700">{r.collection_cost_center_name || r.custom_created_at || '—'}</td>
                     <td className="px-3 py-2 text-right font-medium">{formatMoney(r.grand_total)}</td>
                     <td className="px-3 py-2 text-right">{formatMoney(r.outstanding_amount)}</td>
                     <td className="px-3 py-2">
-                      <span className={`inline-flex px-2 py-1 rounded-full text-[11px] font-medium ${getStatusColor(r.status)}`}>
-                        {r.status}
-                      </span>
+                      <div className="flex flex-wrap items-center gap-1">
+                        {r.docstatus === 0 && (
+                          <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-900 border border-amber-200">
+                            Draft
+                          </span>
+                        )}
+                        <span
+                          className={`inline-flex px-2 py-1 rounded-full text-[11px] font-medium ${getStatusColor(r.status)}`}
+                        >
+                          {r.status}
+                        </span>
+                      </div>
                     </td>
                     <td className="px-3 py-2 align-middle">
-                      <div className="flex items-center justify-center gap-2">
-                        <a
-                          href={`/app/sales-invoice/${encodeURIComponent(r.name)}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="p-1 text-slate-500 hover:text-primary transition-colors"
-                          title="Open in ERPNext Desk"
-                        >
-                          <ExternalLink className="w-3.5 h-3.5" />
-                        </a>
-                        <PrintFormatDropdown
-                          doctype="Sales Invoice"
-                          docName={r.name}
-                          noLetterhead={0}
-                          triggerPrint={1}
-                        />
-                      </div>
+                      <SpecialtyBillingInvoiceRowActions
+                        row={r}
+                        openMenuRow={openActionRow}
+                        onOpenMenuRow={setOpenActionRow}
+                        onViewDetails={() => setDetailInvoice(r.name)}
+                        onRefresh={() => void load()}
+                      />
                     </td>
                   </tr>
                 ))}
@@ -174,7 +184,12 @@ export function InternalEmployeeBillingPage({ patient }: InternalEmployeeBilling
         onClose={() => setShowCreate(false)}
         onSuccess={() => void load()}
       />
+
+      <SpecialtySalesInvoiceSlideOver
+        invoiceName={detailInvoice}
+        onClose={() => setDetailInvoice(null)}
+        onUpdated={() => void load()}
+      />
     </div>
   )
 }
-
