@@ -208,7 +208,7 @@ export function AdditionalCollectionInvoiceModal({
         <div className="sticky top-0 z-10 bg-white border-b border-slate-200 px-4 py-3 shrink-0 rounded-t-xl">
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div className="min-w-0 flex-1">
-              <h2 className="text-lg font-semibold text-slate-900">Additional collection invoice</h2>
+              <h2 className="text-lg font-semibold text-slate-900">Cross‑Branch Payment invoice</h2>
               <p className="text-xs text-slate-600 mt-0.5">
                 Sets <strong className="font-medium text-slate-700">Created At</strong> (collection cost center) on Sales Invoice.
               </p>

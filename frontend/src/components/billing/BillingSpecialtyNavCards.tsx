@@ -31,7 +31,7 @@ export function BillingSpecialtyNavCards({ active, patient }: BillingSpecialtyNa
           <Landmark className="w-5 h-5" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-slate-800">Additional collection</p>
+          <p className="text-sm font-semibold text-slate-800">Cross‑Branch Payment</p>
           <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
             Cross–cost center receipts (<span className="font-medium text-slate-600">Created At</span> cost center).
           </p>

@@ -164,7 +164,7 @@ const receptionScreenGroups: ScreenGroup[] = [
     groupTitle: 'Billing',
     screens: [
       { id: 'billing',                        title: 'Billing Dashboard' },
-      { id: 'billing-additional-collection',  title: 'Additional Collection' },
+      { id: 'billing-additional-collection',  title: 'Cross‑Branch Payment' },
       { id: 'billing-internal-employee',      title: 'Internal Employee Billing' },
     ],
   },
