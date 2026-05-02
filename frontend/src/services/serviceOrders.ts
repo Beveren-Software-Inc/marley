@@ -353,6 +353,15 @@ export interface ReferenceInvoice {
   status: string
 }
 
+export interface RelatedSalesOrderLine {
+  item_code: string
+  item_name: string
+  description?: string
+  qty: number
+  rate?: number
+  amount?: number
+}
+
 export interface RelatedSalesOrder {
   name: string
   transaction_date: string
@@ -360,6 +369,12 @@ export interface RelatedSalesOrder {
   status: string
   customer?: string
   company?: string
+  custom_reference_type?: string
+  custom_reference_name?: string
+  custom_base_reference?: string
+  /** Reception-friendly e.g. Lab tests, Medication / pharmacy, IP / ward service */
+  order_kind_label?: string
+  items?: RelatedSalesOrderLine[]
 }
 
 export interface BillingInvoiceItemInput {
@@ -419,7 +434,7 @@ export async function fetchRelatedSalesOrders(
 
 export async function createAdditionalCollectionInvoice(payload: {
   company: string
-  customer: string
+  customer?: string
   created_at_cost_center: string
   reference_type?: string
   reference_name?: string

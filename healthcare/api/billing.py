@@ -457,6 +457,109 @@ def _get_or_create_employee_customer(employee_name):
     return customer_doc.name
 
 
+def _kind_label_for_service_request(sr):
+    """Reception-friendly category from Service Request template."""
+    if not sr:
+        return _("Clinical service")
+
+    td = (sr.get("template_dt") or "").strip()
+    dn = (sr.get("template_dn") or "").strip()
+    suffix = f" — {dn}" if dn else ""
+
+    if td == "Lab Test Template":
+        return _("Lab tests") + suffix
+    if td == "Clinical Procedure Template":
+        return _("Clinical procedure") + suffix
+    if td == "Observation Template":
+        return _("Observation") + suffix
+    if td == "Therapy Type":
+        return _("Therapy") + suffix
+    if td == "Healthcare Service Template":
+        return _("IP / ward service") + suffix
+    if td == "Healthcare Activity":
+        return _("Healthcare activity") + suffix
+    if td == "Consultation Service Template":
+        return _("Consultation") + suffix
+    if td == "Appointment Type":
+        return _("Appointment") + suffix
+
+    if td:
+        return td + suffix
+    od = (sr.get("order_description") or "").strip()
+    if od:
+        return od[:120]
+    return _("Service request")
+
+
+def _order_kind_label(so_row, sr_by_name):
+    """Human-readable order type for reception (labs, drugs, IP services, etc.)."""
+    ref_t = (so_row.get("custom_reference_type") or "").strip()
+    base_ref = (so_row.get("custom_base_reference") or "").strip()
+
+    if base_ref == "Patient Medication Order":
+        return _("Medication / pharmacy")
+
+    if ref_t == "Service Request":
+        sr_name = so_row.get("custom_reference_name")
+        sr = sr_by_name.get(sr_name) if sr_name else None
+        return _kind_label_for_service_request(sr)
+
+    if ref_t == "Patient Visit":
+        return _("OP visit charges")
+    if ref_t == "Inpatient Admission":
+        return _("Admission charges")
+
+    return ref_t or _("Billing order")
+
+
+def _attach_sales_order_items(rows):
+    """Attach SO lines and reception labels.
+
+    Lines are loaded via get_doc(\"Sales Order\").items — same as Desk — because
+    frappe.get_all(\"Sales Order Item\", ...) often returns nothing for roles that
+    can read Sales Order but lack explicit Sales Order Item list permission; get_all
+    also applies a row limit by default.
+    """
+    sr_refs = [
+        r.get("custom_reference_name")
+        for r in rows
+        if r.get("custom_reference_type") == "Service Request" and r.get("custom_reference_name")
+    ]
+    sr_by_name = {}
+    if sr_refs:
+        uniq_sr = list(dict.fromkeys(sr_refs))
+        srs = frappe.get_all(
+            "Service Request",
+            filters={"name": ["in", uniq_sr]},
+            fields=["name", "template_dt", "template_dn", "order_description"],
+        )
+        sr_by_name = {s.name: s for s in srs}
+
+    for row in rows:
+        so_name = row.get("name")
+        items = []
+        if so_name:
+            try:
+                doc = frappe.get_doc("Sales Order", so_name)
+                for it in doc.get("items") or []:
+                    items.append(
+                        {
+                            "item_code": it.item_code,
+                            "item_name": (it.item_name or it.item_code or "").strip(),
+                            "description": (getattr(it, "description", None) or "").strip(),
+                            "qty": it.qty,
+                            "rate": it.rate,
+                            "amount": it.amount,
+                        }
+                    )
+            except frappe.PermissionError:
+                items = []
+            except frappe.DoesNotExistError:
+                items = []
+        row["items"] = items
+        row["order_kind_label"] = _order_kind_label(row, sr_by_name)
+
+
 @frappe.whitelist()
 def get_related_sales_orders(reference_type, reference_name):
     if not reference_type or not reference_name:
@@ -465,6 +568,19 @@ def get_related_sales_orders(reference_type, reference_name):
     if reference_type not in ("Patient Visit", "Inpatient Admission"):
         frappe.throw(_("Unsupported reference type"))
 
+    so_fields = [
+        "name",
+        "transaction_date",
+        "grand_total",
+        "status",
+        "customer",
+        "company",
+        "custom_reference_type",
+        "custom_reference_name",
+        "custom_base_reference",
+        "custom_base_reference_name",
+    ]
+
     direct = frappe.get_all(
         "Sales Order",
         filters={
@@ -472,10 +588,10 @@ def get_related_sales_orders(reference_type, reference_name):
             "custom_reference_name": reference_name,
             "docstatus": ["!=", 2],
         },
-        fields=["name", "transaction_date", "grand_total", "status", "customer", "company"],
+        fields=so_fields,
         order_by="creation desc",
     )
-
+    
     service_request_field = "patient_visit" if reference_type == "Patient Visit" else "inpatient_record"
     service_requests = frappe.get_all(
         "Service Request",
@@ -492,7 +608,7 @@ def get_related_sales_orders(reference_type, reference_name):
                 "custom_reference_name": ["in", sr_names],
                 "docstatus": ["!=", 2],
             },
-            fields=["name", "transaction_date", "grand_total", "status", "customer", "company"],
+            fields=so_fields,
             order_by="creation desc",
         )
 
@@ -503,6 +619,9 @@ def get_related_sales_orders(reference_type, reference_name):
             continue
         seen.add(row.name)
         out.append(row)
+
+    # Per-order lines: loaded inside _attach_sales_order_items via frappe.get_doc(...).items
+    _attach_sales_order_items(out)
     return out
 
 
@@ -645,3 +764,94 @@ def create_internal_employee_invoice(
 
     invoice.insert(ignore_permissions=True)
     return {"name": invoice.name, "customer": invoice.customer, "grand_total": invoice.grand_total}
+
+
+@frappe.whitelist()
+def list_additional_collection_invoices(limit_start=0, limit_page_length=100):
+    """Additional collection (cross–cost center): Created At cost center set; excludes internal employee."""
+    limit_start = int(limit_start or 0)
+    limit_page_length = min(int(limit_page_length or 100), 500)
+
+    rows = frappe.db.sql(
+        """
+        SELECT
+            name, posting_date, customer, customer_name, grand_total,
+            outstanding_amount, status, company, custom_created_at,
+            custom_reference_type, custom_reference_name, patient
+        FROM `tabSales Invoice`
+        WHERE docstatus != 2
+          AND IFNULL(custom_created_at, '') != ''
+          AND IFNULL(custom_internal_employee, 0) = 0
+        ORDER BY creation DESC
+        LIMIT %(limit)s OFFSET %(start)s
+        """,
+        {"start": limit_start, "limit": limit_page_length},
+        as_dict=True,
+    )
+
+    for r in rows:
+        cc = r.get("custom_created_at")
+        r["collection_cost_center_name"] = (
+            frappe.db.get_value("Cost Center", cc, "cost_center_name") if cc else None
+        ) or cc
+
+    return rows
+
+
+@frappe.whitelist()
+def list_internal_employee_invoices(limit_start=0, limit_page_length=100):
+    limit_start = int(limit_start or 0)
+    limit_page_length = min(int(limit_page_length or 100), 500)
+
+    rows = frappe.get_all(
+        "Sales Invoice",
+        filters={
+            "docstatus": ["!=", 2],
+            "custom_internal_employee": 1,
+        },
+        fields=[
+            "name",
+            "posting_date",
+            "customer",
+            "customer_name",
+            "grand_total",
+            "outstanding_amount",
+            "status",
+            "company",
+            "custom_created_at",
+            "patient",
+        ],
+        order_by="creation desc",
+        limit_start=limit_start,
+        limit_page_length=limit_page_length,
+    )
+
+    for r in rows:
+        cc = r.get("custom_created_at")
+        r["collection_cost_center_name"] = (
+            frappe.db.get_value("Cost Center", cc, "cost_center_name") if cc else None
+        ) or cc
+
+    return rows
+
+
+@frappe.whitelist()
+def get_internal_employee_billing_summary():
+    row = frappe.db.sql(
+        """
+        SELECT
+            COUNT(*) AS invoice_count,
+            COALESCE(SUM(grand_total), 0) AS total_billed,
+            COALESCE(SUM(outstanding_amount), 0) AS total_outstanding
+        FROM `tabSales Invoice`
+        WHERE docstatus != 2
+          AND IFNULL(custom_internal_employee, 0) = 1
+        """,
+        as_dict=True,
+    )
+    r = row[0] if row else {}
+    return {
+        "invoice_count": int(r.get("invoice_count") or 0),
+        "total_billed": float(r.get("total_billed") or 0),
+        "total_outstanding": float(r.get("total_outstanding") or 0),
+    }
