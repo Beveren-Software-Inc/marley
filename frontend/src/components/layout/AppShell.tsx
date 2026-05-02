@@ -1,8 +1,6 @@
-
-
 import type { ReactNode } from 'react'
 import { useState, useMemo } from 'react'
-import { NavLink } from 'react-router-dom'
+import { NavLink, useLocation } from 'react-router-dom'
 import { ChevronDown, ChevronRight, Menu, X, Folder } from 'lucide-react'
 import { doctorScreenGroups } from '../../config/doctorScreens'
 import { useAuth } from '../../providers/AuthProvider'
@@ -36,7 +34,6 @@ const nurseScreenGroups: ScreenGroup[] = [
       { id: 'n-nut',         title: 'Nutritionist Notes' },
       { id: 'n-ther',        title: 'Therapist Notes' },
       { id: 'n-nurse-notes', title: 'Nursing Notes' },
-     
       { id: 'n-tpr',         title: 'TPR / Vital Signs' },
       // { id: 'n-ect',         title: 'ECT Form' },
       // { id: 'n-obs',         title: 'Observation Level' },
@@ -53,15 +50,12 @@ const nurseScreenGroups: ScreenGroup[] = [
       { id: 'n-fall',   title: 'Morse Fall Scale' },
     ],
   },
-
-    {
+  {
     groupTitle: 'Observation & Monitoring',
     screens: [
       { id: 'n-ob', title: 'Observation' },
-      
     ],
   },
-
   {
     groupTitle: 'Admission & Discharge',
     screens: [
@@ -72,19 +66,17 @@ const nurseScreenGroups: ScreenGroup[] = [
       { id: 'n-patient-history', title: 'Patient History' },
     ],
   },
-    {
+  {
     groupTitle: 'ECT Forms & Procedures',
     screens: [
       { id: 'n-ect', title: 'ECT Forms' },
-      
     ],
   },
-   {
+  {
     groupTitle: 'Laboratory',
     screens: [
-       { id: 'n-labs',        title: 'Lab Reports Status' },
-      { id: 'n-lab',         title: 'Laboratory' },
-      
+      { id: 'n-labs', title: 'Lab Reports Status' },
+      { id: 'n-lab',  title: 'Laboratory' },
     ],
   },
   {
@@ -97,10 +89,10 @@ const nurseScreenGroups: ScreenGroup[] = [
       { id: 'n-sick',        title: 'Sick Leave' },
     ],
   },
-   {
+  {
     groupTitle: 'Inventory',
     screens: [
-      { id: 'n-inventory',    title: 'Dashboard Inventory' },
+      { id: 'n-inventory', title: 'Dashboard Inventory' },
     ],
   },
   {
@@ -138,25 +130,25 @@ const receptionScreenGroups: ScreenGroup[] = [
   {
     groupTitle: 'Appointments & Scheduling',
     screens: [
-      { id: 'r-appointment',        title: 'New Appointment' },
+      { id: 'r-appointment',         title: 'New Appointment' },
       { id: 'r-appointments-freeze', title: 'Appointments' },
-      { id: 'r-followup',           title: 'Follow-up Dashboard' },
-      { id: 'r-iop',                title: 'IOP Dashboard' },
+      { id: 'r-followup',            title: 'Follow-up Dashboard' },
+      { id: 'r-iop',                 title: 'IOP Dashboard' },
     ],
   },
   {
     groupTitle: 'Admission & Discharge',
     screens: [
-      { id: 'r-ip-adm',   title: 'New IP Admission' },
-      { id: 'r-reg',      title: 'Admission' },
+      { id: 'r-ip-adm',    title: 'New IP Admission' },
+      { id: 'r-reg',       title: 'Admission' },
       { id: 'r-discharge', title: 'Discharge' },
     ],
   },
   {
     groupTitle: 'Patient Visits',
     screens: [
-      { id: 'r-visit',     title: 'Patient Visit' },
-      { id: 'r-new-visit', title: 'New Patient Visit' },
+      { id: 'r-visit',           title: 'Patient Visit' },
+      { id: 'r-new-visit',       title: 'New Patient Visit' },
       { id: 'r-daily-auto-visit', title: 'Daily Auto Visit' },
     ],
   },
@@ -171,7 +163,9 @@ const receptionScreenGroups: ScreenGroup[] = [
   {
     groupTitle: 'Billing',
     screens: [
-      { id: 'billing', title: 'Billing Dashboard' },
+      { id: 'billing',                        title: 'Billing Dashboard' },
+      { id: 'billing-additional-collection',  title: 'Additional Collection' },
+      { id: 'billing-internal-employee',      title: 'Internal Employee Billing' },
     ],
   },
 ]
@@ -210,18 +204,18 @@ const psychologistScreens = [
 // ─── Main links ───────────────────────────────────────────────────────────────
 
 const ALL_MAIN_LINKS: MainLinkItem[] = [
-  { to: '/doctor',           label: 'Doctor',           screenGroups: doctorScreenGroups,      prefix: '/doctor' },
-  { to: '/nurse',            label: 'Nurse',            screenGroups: nurseScreenGroups,        prefix: '/nurse' },
-  { to: '/lab',              label: 'Lab',              screens: labScreens,                   prefix: '/lab' },
-  { to: '/psychologist',     label: 'Psychologist',     screens: psychologistScreens,          prefix: '/psychologist' },
-  { to: '/anesthesiologist', label: 'Anesthesiologist', screens: anesthesiologistScreens,      prefix: '/anesthesiologist' },
-  { to: '/reception',        label: 'Reception',        screenGroups: receptionScreenGroups,    prefix: '/reception' },
-  { to: '/insurance',        label: 'Insurance',        screens: insuranceScreens,             prefix: '/insurance' },
-  { to: '/pharmacy',         label: 'Pharmacy',         screens: [],                           prefix: '/pharmacy' },
-  { to: '/patient',          label: 'Patients',         screens: [],                           prefix: '/patient' },
-  { to: '/patient-history',  label: 'Patient History',  screens: [],                           prefix: '/patient-history' },
-  { to: '/employee',         label: 'Employee',         screens: [],                           prefix: '/employee' },
-  { to: '/qmps',             label: 'QMPS',             screens: [],                           prefix: '/qmps' },
+  { to: '/doctor',           label: 'Doctor',           screenGroups: doctorScreenGroups,     prefix: '/doctor' },
+  { to: '/nurse',            label: 'Nurse',            screenGroups: nurseScreenGroups,       prefix: '/nurse' },
+  { to: '/lab',              label: 'Lab',              screens: labScreens,                  prefix: '/lab' },
+  { to: '/psychologist',     label: 'Psychologist',     screens: psychologistScreens,         prefix: '/psychologist' },
+  { to: '/anesthesiologist', label: 'Anesthesiologist', screens: anesthesiologistScreens,     prefix: '/anesthesiologist' },
+  { to: '/reception',        label: 'Reception',        screenGroups: receptionScreenGroups,   prefix: '/reception' },
+  { to: '/insurance',        label: 'Insurance',        screens: insuranceScreens,            prefix: '/insurance' },
+  { to: '/pharmacy',         label: 'Pharmacy',         screens: [],                          prefix: '/pharmacy' },
+  { to: '/patient',          label: 'Patients',         screens: [],                          prefix: '/patient' },
+  { to: '/patient-history',  label: 'Patient History',  screens: [],                          prefix: '/patient-history' },
+  { to: '/employee',         label: 'Employee',         screens: [],                          prefix: '/employee' },
+  { to: '/qmps',             label: 'QMPS',             screens: [],                          prefix: '/qmps' },
 ]
 
 // ─── AppShell ─────────────────────────────────────────────────────────────────
@@ -229,6 +223,10 @@ const ALL_MAIN_LINKS: MainLinkItem[] = [
 export const AppShell = ({ children }: { children: ReactNode }) => {
   const { user } = useAuth()
   const { selectedPatient } = useCareContext()
+  const location = useLocation()
+
+  // Derive the active screen id from the current URL query param
+  const activeScreen = new URLSearchParams(location.search).get('screen')
 
   const roles = user?.roles?.length
     ? user.roles
@@ -336,7 +334,7 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
                     onClick={closeSidebar}
                     className={({ isActive }) =>
                       `flex-1 px-3 py-2 rounded-md ${
-                        isActive ? 'bg-white text-primary' : 'bg-white/10 hover:bg-white/20'
+                        isActive ? 'bg-green-200 text-primary' : 'bg-white/10 hover:bg-white/20'
                       }`
                     }
                   >
@@ -371,10 +369,10 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
                                   key={s.id}
                                   to={`${link.to}?screen=${s.id}`}
                                   onClick={closeSidebar}
-                                  className={({ isActive }) =>
-                                    `px-3 py-1.5 rounded-md text-xs ${
-                                      isActive ? 'bg-white text-primary font-medium' : 'bg-white/10 hover:bg-white/20'
-                                    }`
+                                  className={
+                                    activeScreen === s.id
+                                      ? 'px-3 py-1.5 rounded-md text-xs bg-green-300 text-primary font-medium'
+                                      : 'px-3 py-1.5 rounded-md text-xs bg-white/10 hover:bg-white/20'
                                   }
                                 >
                                   {s.title}
@@ -396,10 +394,10 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
                         key={s.id}
                         to={`${link.to}?screen=${s.id}`}
                         onClick={closeSidebar}
-                        className={({ isActive }) =>
-                          `px-3 py-1.5 rounded-md ${
-                            isActive ? 'bg-white text-primary font-medium' : 'bg-white/10 hover:bg-white/20'
-                          }`
+                        className={
+                          activeScreen === s.id
+                            ? 'px-3 py-1.5 rounded-md bg-white text-primary font-medium'
+                            : 'px-3 py-1.5 rounded-md bg-white/10 hover:bg-white/20'
                         }
                       >
                         {s.title}

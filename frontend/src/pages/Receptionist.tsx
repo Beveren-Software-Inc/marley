@@ -29,6 +29,8 @@ import { PatientReferralList } from '../components/referrals/PatientReferralList
 import { CreatePatientReferralModal } from '../components/referrals/CreatePatientReferralModal'
 import { BillingDashboard } from '../components/billing/BillingDashboard'
 import { DailyAutoVisitView } from '../components/patientVisits/DailyAutoVisitView'
+import { AdditionalCollectionBillingPage } from './billing/AdditionalCollectionBillingPage'
+import { InternalEmployeeBillingPage } from './billing/InternalEmployeeBillingPage'
 
 type View =
   | 'default'
@@ -49,6 +51,8 @@ type View =
   | 'referral'
   | 'patients'
   | 'billing'
+  | 'billing-additional-collection'
+  | 'billing-internal-employee'
   | 'daily-auto-visit'
 
 export const ReceptionistPage = () => {
@@ -144,7 +148,11 @@ export const ReceptionistPage = () => {
       setCurrentView('referral')
       } else if (screen === 'billing') {
       setCurrentView('billing')
-    }else if (screen === 'patients') {
+    } else if (screen === 'billing-additional-collection') {
+      setCurrentView('billing-additional-collection')
+    } else if (screen === 'billing-internal-employee') {
+      setCurrentView('billing-internal-employee')
+    } else if (screen === 'patients') {
       setCurrentView('patients')
       }
     
@@ -392,21 +400,27 @@ export const ReceptionistPage = () => {
           </div>
         )}
 
-{currentView === 'billing' && (
-    <div className="flex flex-col">
+        {currentView === 'billing' && (
+          <div className="flex flex-col">
+            <div className="p-4">
+              <div className="bg-white border border-slate-200 rounded-lg p-6">
+                <BillingDashboard
+                  patient={selectedPatient}
+                  admission={activeAdmission}
+                  visit={activeVisit}
+                />
+              </div>
+            </div>
+          </div>
+        )}
 
-      <div className="p-4">
-        <div className="bg-white border border-slate-200 rounded-lg p-6">
-          <BillingDashboard
-            patient={selectedPatient}
-            admission={activeAdmission}
-            visit={activeVisit}
-          />
-        </div>
-      </div>
-    </div>
-  )
-}
+        {currentView === 'billing-additional-collection' && (
+          <AdditionalCollectionBillingPage patient={selectedPatient || undefined} />
+        )}
+
+        {currentView === 'billing-internal-employee' && (
+          <InternalEmployeeBillingPage patient={selectedPatient || undefined} />
+        )}
 
         {currentView === 'insurance' && (
           <div className="p-4">

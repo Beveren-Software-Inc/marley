@@ -10,11 +10,6 @@ import {
   fetchOutpatientBalances,
   getInvoicesByReference,
   getInvoiceDetails,
-  fetchRelatedSalesOrders,
-  createAdditionalCollectionInvoice,
-  createInternalEmployeeInvoice,
-  type BillingInvoiceItemInput,
-  type RelatedSalesOrder,
   type ServiceOrder,
   type ServiceInvoice,
   type OrderSummary,
@@ -22,7 +17,6 @@ import {
   type InpatientBalance,
   type OutpatientBalance,
 } from '../../services/serviceOrders'
-import { fetchCompanies, fetchCostCenters, fetchEmployees } from '../../services/common'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { 
   Receipt, 
@@ -147,39 +141,6 @@ export const BillingDashboard = ({ patient, admission, visit }: BillingDashboard
     department?:string
   } | null>(null)
   const [loadingInvoices, setLoadingInvoices] = useState<string | null>(null)
-  const [showAdditionalModal, setShowAdditionalModal] = useState(false)
-  const [showInternalModal, setShowInternalModal] = useState(false)
-  const [companies, setCompanies] = useState<Array<{ name: string; label: string }>>([])
-  const [costCenters, setCostCenters] = useState<Array<{ name: string; label: string }>>([])
-  const [employeeOptions, setEmployeeOptions] = useState<Array<{ name: string; label: string }>>([])
-  const [relatedOrders, setRelatedOrders] = useState<RelatedSalesOrder[]>([])
-  const [selectedOrders, setSelectedOrders] = useState<string[]>([])
-  const [additionalLoadingOrders, setAdditionalLoadingOrders] = useState(false)
-  const [additionalSaving, setAdditionalSaving] = useState(false)
-  const [internalSaving, setInternalSaving] = useState(false)
-  const [additionalForm, setAdditionalForm] = useState({
-    reference_type: 'Patient Visit',
-    reference_name: '',
-    patient: '',
-    customer: '',
-    company: '',
-    created_at_cost_center: '',
-    posting_date: '',
-    due_date: '',
-  })
-  const [internalForm, setInternalForm] = useState({
-    employee_name: '',
-    company: '',
-    created_at_cost_center: '',
-    posting_date: '',
-    due_date: '',
-  })
-  const [additionalItems, setAdditionalItems] = useState<BillingInvoiceItemInput[]>([
-    { item_code: '', item_name: '', description: '', qty: 1, rate: 0 },
-  ])
-  const [internalItems, setInternalItems] = useState<BillingInvoiceItemInput[]>([
-    { item_code: '', item_name: '', description: '', qty: 1, rate: 0 },
-  ])
   
   const effectivePatient = patient ?? selectedPatient
   const effectiveReferenceType = mode === 'IP' ? 'Inpatient Admission' : 'Patient Visit'
@@ -255,94 +216,6 @@ const handleMakePayment = async (referenceId: string, customerName: string, outs
       loadOutpatientBalances()
     } else {
       loadDashboardData()
-    }
-  }
-
-  useEffect(() => {
-    setAdditionalForm((prev) => ({ ...prev, patient: effectivePatient || prev.patient }))
-  }, [effectivePatient])
-
-  useEffect(() => {
-    ;(async () => {
-      const [companyData, employeesData] = await Promise.all([fetchCompanies(), fetchEmployees()])
-      setCompanies(companyData)
-      setEmployeeOptions(employeesData.map((emp) => ({ name: emp.name, label: emp.label || emp.name })))
-    })().catch((error) => {
-      console.error(error)
-      toast.error('Failed to load billing references')
-    })
-  }, [])
-
-  useEffect(() => {
-    const selectedCompany = additionalForm.company || internalForm.company
-    if (!selectedCompany) return
-    fetchCostCenters(selectedCompany)
-      .then(setCostCenters)
-      .catch(() => toast.error('Failed to load cost centers'))
-  }, [additionalForm.company, internalForm.company])
-
-  const loadRelatedOrders = async () => {
-    if (!additionalForm.reference_name) {
-      toast.error('Enter a patient visit or admission number')
-      return
-    }
-    try {
-      setAdditionalLoadingOrders(true)
-      const rows = await fetchRelatedSalesOrders(
-        additionalForm.reference_type as 'Patient Visit' | 'Inpatient Admission',
-        additionalForm.reference_name
-      )
-      setRelatedOrders(rows)
-      setSelectedOrders(rows.map((r) => r.name))
-      if (!additionalForm.company && rows[0]?.company) {
-        setAdditionalForm((prev) => ({ ...prev, company: rows[0].company || '' }))
-      }
-      if (!additionalForm.customer && rows[0]?.customer) {
-        setAdditionalForm((prev) => ({ ...prev, customer: rows[0].customer || '' }))
-      }
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to fetch sales orders')
-    } finally {
-      setAdditionalLoadingOrders(false)
-    }
-  }
-
-  const addItemRow = (setter: (update: (prev: BillingInvoiceItemInput[]) => BillingInvoiceItemInput[]) => void) => {
-    setter((prev) => [...prev, { item_code: '', item_name: '', description: '', qty: 1, rate: 0 }])
-  }
-
-  const handleCreateAdditionalInvoice = async () => {
-    try {
-      setAdditionalSaving(true)
-      const created = await createAdditionalCollectionInvoice({
-        ...additionalForm,
-        sales_orders: selectedOrders,
-        additional_items: additionalItems,
-      })
-      toast.success(`Invoice ${created.name} created`)
-      setShowAdditionalModal(false)
-      loadDashboardData()
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to create additional invoice')
-    } finally {
-      setAdditionalSaving(false)
-    }
-  }
-
-  const handleCreateInternalInvoice = async () => {
-    try {
-      setInternalSaving(true)
-      const created = await createInternalEmployeeInvoice({
-        ...internalForm,
-        items: internalItems,
-      })
-      toast.success(`Internal invoice ${created.name} created`)
-      setShowInternalModal(false)
-      loadDashboardData()
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to create internal invoice')
-    } finally {
-      setInternalSaving(false)
     }
   }
 
@@ -647,64 +520,6 @@ const handleMakePayment = async (referenceId: string, customerName: string, outs
         onPaymentSuccess={handlePaymentSuccess}
       />
     </>
-  )
-
-  const BillingItemsEditor = ({
-    items,
-    onChange,
-    defaultCostCenter,
-  }: {
-    items: BillingInvoiceItemInput[]
-    onChange: (items: BillingInvoiceItemInput[]) => void
-    defaultCostCenter: string
-  }) => (
-    <div className="space-y-2">
-      {items.map((item, idx) => (
-        <div key={idx} className="grid grid-cols-1 md:grid-cols-6 gap-2">
-          <input
-            className="border rounded px-2 py-1 text-sm"
-            placeholder="Item Code"
-            value={item.item_code}
-            onChange={(e) => onChange(items.map((r, i) => (i === idx ? { ...r, item_code: e.target.value } : r)))}
-          />
-          <input
-            className="border rounded px-2 py-1 text-sm"
-            placeholder="Item Name"
-            value={item.item_name || ''}
-            onChange={(e) => onChange(items.map((r, i) => (i === idx ? { ...r, item_name: e.target.value } : r)))}
-          />
-          <input
-            className="border rounded px-2 py-1 text-sm"
-            placeholder="Qty"
-            type="number"
-            min="0"
-            value={item.qty}
-            onChange={(e) => onChange(items.map((r, i) => (i === idx ? { ...r, qty: Number(e.target.value || 0) } : r)))}
-          />
-          <input
-            className="border rounded px-2 py-1 text-sm"
-            placeholder="Rate"
-            type="number"
-            min="0"
-            value={item.rate}
-            onChange={(e) => onChange(items.map((r, i) => (i === idx ? { ...r, rate: Number(e.target.value || 0) } : r)))}
-          />
-          <input
-            className="border rounded px-2 py-1 text-sm"
-            placeholder="Cost Center"
-            value={item.cost_center || defaultCostCenter}
-            onChange={(e) => onChange(items.map((r, i) => (i === idx ? { ...r, cost_center: e.target.value } : r)))}
-          />
-          <button
-            className="text-xs text-red-600 border border-red-200 rounded px-2 py-1"
-            onClick={() => onChange(items.filter((_, i) => i !== idx))}
-            type="button"
-          >
-            Remove
-          </button>
-        </div>
-      ))}
-    </div>
   )
 
   if (loading && (currentView === 'inpatient' || currentView === 'outpatient')) {
@@ -1130,126 +945,6 @@ const handleMakePayment = async (referenceId: string, customerName: string, outs
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 p-5">
-        <h3 className="font-semibold text-slate-800 mb-4">Additional</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <button
-            type="button"
-            onClick={() => setShowAdditionalModal(true)}
-            className="border border-primary/30 rounded-lg p-4 text-left hover:bg-primary/5"
-          >
-            <p className="font-medium text-slate-900">Additional Collection Invoice</p>
-            <p className="text-sm text-slate-600 mt-1">Collect payment at this cost center for treatment done elsewhere.</p>
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowInternalModal(true)}
-            className="border border-primary/30 rounded-lg p-4 text-left hover:bg-primary/5"
-          >
-            <p className="font-medium text-slate-900">Internal Employee Invoice</p>
-            <p className="text-sm text-slate-600 mt-1">Invoice employee medicine/service usage and mark as internal.</p>
-          </button>
-        </div>
-      </div>
-
-      {showAdditionalModal && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl w-full max-w-5xl max-h-[90vh] overflow-auto p-5 space-y-4">
-            <h3 className="text-lg font-semibold">Create Additional Collection Invoice</h3>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-              <select className="border rounded px-2 py-2 text-sm" value={additionalForm.reference_type} onChange={(e) => setAdditionalForm((p) => ({ ...p, reference_type: e.target.value }))}>
-                <option value="Patient Visit">Patient Visit</option>
-                <option value="Inpatient Admission">Inpatient Admission</option>
-              </select>
-              <input className="border rounded px-2 py-2 text-sm" placeholder="Visit/Admission ID" value={additionalForm.reference_name} onChange={(e) => setAdditionalForm((p) => ({ ...p, reference_name: e.target.value }))} />
-              <button type="button" onClick={loadRelatedOrders} className="px-3 py-2 bg-slate-100 rounded text-sm">{additionalLoadingOrders ? 'Loading...' : 'Fetch Related Sales Orders'}</button>
-              <input className="border rounded px-2 py-2 text-sm" placeholder="Patient (optional)" value={additionalForm.patient} onChange={(e) => setAdditionalForm((p) => ({ ...p, patient: e.target.value }))} />
-              <input className="border rounded px-2 py-2 text-sm" placeholder="Customer" value={additionalForm.customer} onChange={(e) => setAdditionalForm((p) => ({ ...p, customer: e.target.value }))} />
-              <select className="border rounded px-2 py-2 text-sm" value={additionalForm.company} onChange={(e) => setAdditionalForm((p) => ({ ...p, company: e.target.value }))}>
-                <option value="">Select Company</option>
-                {companies.map((c) => <option key={c.name} value={c.name}>{c.label}</option>)}
-              </select>
-              <select className="border rounded px-2 py-2 text-sm" value={additionalForm.created_at_cost_center} onChange={(e) => setAdditionalForm((p) => ({ ...p, created_at_cost_center: e.target.value }))}>
-                <option value="">Collection Cost Center</option>
-                {costCenters.map((c) => <option key={c.name} value={c.name}>{c.label}</option>)}
-              </select>
-              <input type="date" className="border rounded px-2 py-2 text-sm" value={additionalForm.posting_date} onChange={(e) => setAdditionalForm((p) => ({ ...p, posting_date: e.target.value }))} />
-            </div>
-
-            <div className="border rounded p-3">
-              <p className="text-sm font-medium mb-2">Related Sales Orders</p>
-              {relatedOrders.length === 0 ? <p className="text-sm text-slate-500">No loaded sales orders.</p> : (
-                <div className="space-y-2">
-                  {relatedOrders.map((so) => (
-                    <label key={so.name} className="flex items-center justify-between text-sm">
-                      <span className="flex items-center gap-2">
-                        <input type="checkbox" checked={selectedOrders.includes(so.name)} onChange={(e) => {
-                          setSelectedOrders((prev) => e.target.checked ? [...prev, so.name] : prev.filter((x) => x !== so.name))
-                        }} />
-                        {so.name} ({so.status})
-                      </span>
-                      <span>{formatCurrency(so.grand_total)}</span>
-                    </label>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="border rounded p-3">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-sm font-medium">Manual Items</p>
-                <button type="button" className="text-xs text-primary" onClick={() => addItemRow(setAdditionalItems)}>+ Add Item</button>
-              </div>
-              <BillingItemsEditor items={additionalItems} onChange={setAdditionalItems} defaultCostCenter={additionalForm.created_at_cost_center} />
-            </div>
-
-            <div className="flex justify-end gap-2">
-              <button type="button" className="px-3 py-2 rounded border" onClick={() => setShowAdditionalModal(false)}>Cancel</button>
-              <button type="button" className="px-3 py-2 rounded bg-primary text-white" onClick={handleCreateAdditionalInvoice} disabled={additionalSaving}>
-                {additionalSaving ? 'Creating...' : 'Create Invoice'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showInternalModal && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl w-full max-w-4xl max-h-[90vh] overflow-auto p-5 space-y-4">
-            <h3 className="text-lg font-semibold">Create Internal Employee Invoice</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <input list="employee-options" className="border rounded px-2 py-2 text-sm" placeholder="Employee Name" value={internalForm.employee_name} onChange={(e) => setInternalForm((p) => ({ ...p, employee_name: e.target.value }))} />
-              <datalist id="employee-options">
-                {employeeOptions.map((emp) => <option key={emp.name} value={emp.label} />)}
-              </datalist>
-              <select className="border rounded px-2 py-2 text-sm" value={internalForm.company} onChange={(e) => setInternalForm((p) => ({ ...p, company: e.target.value }))}>
-                <option value="">Select Company</option>
-                {companies.map((c) => <option key={c.name} value={c.name}>{c.label}</option>)}
-              </select>
-              <select className="border rounded px-2 py-2 text-sm" value={internalForm.created_at_cost_center} onChange={(e) => setInternalForm((p) => ({ ...p, created_at_cost_center: e.target.value }))}>
-                <option value="">Collection Cost Center</option>
-                {costCenters.map((c) => <option key={c.name} value={c.name}>{c.label}</option>)}
-              </select>
-            </div>
-            <div className="border rounded p-3">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-sm font-medium">Items (drugs/services)</p>
-                <button type="button" className="text-xs text-primary" onClick={() => addItemRow(setInternalItems)}>+ Add Item</button>
-              </div>
-              <BillingItemsEditor items={internalItems} onChange={setInternalItems} defaultCostCenter={internalForm.created_at_cost_center} />
-            </div>
-            <div className="text-xs text-slate-500">This flow automatically sets <strong>custom_internal_employee</strong> on the invoice.</div>
-            <div className="flex justify-end gap-2">
-              <button type="button" className="px-3 py-2 rounded border" onClick={() => setShowInternalModal(false)}>Cancel</button>
-              <button type="button" className="px-3 py-2 rounded bg-primary text-white" onClick={handleCreateInternalInvoice} disabled={internalSaving}>
-                {internalSaving ? 'Creating...' : 'Create Internal Invoice'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modals - always present in Overview too */}
       <SharedModals />
     </div>
   )
