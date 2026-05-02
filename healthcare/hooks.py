@@ -295,6 +295,7 @@ doc_events = {
 			"healthcare.healthcare.doctype.patient_history_settings.patient_history_settings.update_medical_record",
 			"healthcare.healthcare.doctype.digi_whatsapp_notification_setup.digi_whatsapp_notification_setup.handle_on_update_after_submit",
 		],
+		"validate":"healthcare.healthcare.custom_doctype.sales_invoice.validate"
 	},
 	"Sales Invoice": {
 		"on_submit": "healthcare.healthcare.utils.manage_invoice_submit_cancel",
