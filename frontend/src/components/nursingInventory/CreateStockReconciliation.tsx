@@ -1,5 +1,9 @@
 // CreateStockReconciliationModal.tsx
 import { useState, useEffect } from 'react'
+import {
+  CREATE_MODAL_OVERLAY,
+  createModalShellClass,
+} from '../ui/CreateModalChrome'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { fetchStockLedger, getWarehousesForCostCenter, createStockReconciliation, getItemBatches, getItemSerials, getBatchSerials } from '../../services/nursingInventory'
 import { toast } from '../../hooks/useToast'
@@ -473,12 +477,12 @@ export const CreateStockReconciliationModal = ({ onClose, onSuccess, costCenter 
   const discrepanciesCount = items.filter(i => i.difference !== 0).length
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-2xl max-w-6xl w-full max-h-[90vh] flex flex-col">
+    <div className={CREATE_MODAL_OVERLAY}>
+      <div className={createModalShellClass('max-w-6xl w-full max-h-[90vh]')}>
         {/* Header */}
         <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between shrink-0 rounded-t-xl">
           <div>
-            <h2 className="text-xl font-semibold text-slate-900">Stock Reconciliation</h2>
+            <h2 className="text-lg font-semibold tracking-tight text-emerald-950">Stock Reconciliation</h2>
             <p className="text-xs text-slate-500 mt-0.5">Physical count and stock adjustment for {effectiveCostCenter}</p>
           </div>
           <button
@@ -767,11 +771,11 @@ export const CreateStockReconciliationModal = ({ onClose, onSuccess, costCenter 
 
       {/* Serial Number Manager Modal */}
       {selectedItemForSerial && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full max-h-[80vh] flex flex-col">
+        <div className={CREATE_MODAL_OVERLAY}>
+          <div className={createModalShellClass('max-w-md w-full max-h-[80vh]')}>
             <div className="p-4 border-b border-slate-200 flex justify-between items-center shrink-0">
               <h3 className="text-lg font-semibold">Manage Serial Numbers</h3>
-              <button onClick={() => setSelectedItemForSerial(null)} className="text-slate-400 hover:text-slate-600">
+              <button onClick={() => setSelectedItemForSerial(null)} className="shrink-0 rounded-lg p-2 text-emerald-800/70 transition hover:bg-emerald-200/50 hover:text-emerald-950">
                 <X className="w-5 h-5" />
               </button>
             </div>

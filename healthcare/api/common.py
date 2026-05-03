@@ -150,6 +150,37 @@ def get_healthcare_practitioners(search=None, department=None):
 	return [{'name': p.name, 'label': p.practitioner_name or p.name, 'department': p.department, 'medical_role': p.medical_role} for p in practitioners]
 
 
+LAB_TECHNICIAN_MEDICAL_ROLES = ("Lab Technologist", "Lab Technician")
+
+
+@frappe.whitelist()
+def get_lab_technician_practitioners(search=None):
+	"""Healthcare Practitioners whose Medical Role is Lab Technologist or Lab Technician (active only)."""
+	filters = {
+		"status": "Active",
+		"medical_role": ["in", list(LAB_TECHNICIAN_MEDICAL_ROLES)],
+	}
+	if search:
+		filters["practitioner_name"] = ["like", f"%{search}%"]
+
+	practitioners = frappe.get_all(
+		"Healthcare Practitioner",
+		filters=filters,
+		fields=["name", "practitioner_name", "department", "medical_role"],
+		limit=100,
+		order_by="practitioner_name",
+	)
+	return [
+		{
+			"name": p.name,
+			"label": p.practitioner_name or p.name,
+			"department": p.department,
+			"medical_role": p.medical_role,
+		}
+		for p in practitioners
+	]
+
+
 @frappe.whitelist()
 def get_service_unit_types(search=None):
 	"""Get list of Healthcare Service Unit Types with inpatient occupancy"""
@@ -252,15 +283,22 @@ def get_discharge_templates(search=None):
 
 
 @frappe.whitelist()
-def get_lab_test_templates(search=None, department=None):
-	"""Get list of Lab Test Templates (with outpatient_rate)."""
+def get_lab_test_templates(search=None, department=None, by_nurse=None):
+	"""Get list of Lab Test Templates (with outpatient_rate) for link fields / create lab test.
+
+	Optional by_nurse: when truthy, only templates with Lab Test Template.by_nurse set.
+	"""
 	filters = {'disabled': 0}  # Only get enabled templates
-	print("Tunafika hapa")
 	if search:
 		filters['lab_test_name'] = ['like', f'%{search}%']
 	if department:
 		filters['department'] = department
-	
+	if by_nurse is not None:
+		if isinstance(by_nurse, str):
+			by_nurse = by_nurse.lower() in ('1', 'true', 'yes')
+		if by_nurse:
+			filters['by_nurse'] = 1
+
 	templates = frappe.get_all(
 		'Lab Test Template',
 		filters=filters,
@@ -269,7 +307,6 @@ def get_lab_test_templates(search=None, department=None):
 		limit=50,
 		order_by='lab_test_name'
 	)
-	print("Tunafika hapa clean")
 	return [
 		{
 			'name': t.name,
@@ -424,8 +461,11 @@ def get_service_request_template_types():
 
 
 @frappe.whitelist()
-def get_service_request_templates(template_dt, search=None, department=None):
-	"""Get list of templates based on template_dt (Order Template Type)"""
+def get_service_request_templates(template_dt, search=None, department=None, is_group=None):
+	"""Get list of templates based on template_dt (Order Template Type).
+
+	For Lab Test Template only, pass is_group=0 or is_group=1 to filter non-group vs group templates.
+	"""
 	if not template_dt:
 		return []
 	
@@ -444,6 +484,14 @@ def get_service_request_templates(template_dt, search=None, department=None):
 			filters['name'] = ['like', f'%{search}%']
 		elif template_dt == 'Healthcare Activity':
 			filters['activity_type'] = ['like', f'%{search}%']
+
+	if template_dt == 'Lab Test Template' and is_group is not None and str(is_group).strip() != '':
+		try:
+			ig = int(is_group)
+			if ig in (0, 1):
+				filters['is_group'] = ig
+		except (TypeError, ValueError):
+			pass
 	
 	if department:
 		if template_dt == 'Lab Test Template':
@@ -1163,8 +1211,8 @@ def get_lab_test_template_detail(name):
 
 
 @frappe.whitelist()
-def get_lab_test_templates(search=None):
-	"""Get list of Lab Test Templates for the setup screen."""
+def get_lab_test_templates_admin_list(search=None):
+	"""Get list of Lab Test Templates for the admin/setup template list screen (wide field set)."""
 	filters = {}
 	if search:
 		filters["lab_test_name"] = ["like", f"%{search}%"]
@@ -1175,8 +1223,8 @@ def get_lab_test_templates(search=None):
 		fields=[
 			"name", "lab_test_name", "department",
 			"lab_test_template_type", "is_group", "is_billable", "disabled",
-   		 'outpatient_rate', 'inpatient_rate', 'female_min_range', 'female_max_range', 'male_min_range', 'male_max_range', 'min_range', 'max_range', 'lab_test_uom',
-		'lab_test_rate'
+			"outpatient_rate", "inpatient_rate", "female_min_range", "female_max_range", "male_min_range", "male_max_range", "min_range", "max_range", "lab_test_uom",
+			"lab_test_rate",
 		],
 		limit=200,
 		order_by="lab_test_name asc",

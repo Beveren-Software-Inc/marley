@@ -276,6 +276,10 @@ export interface MedicationOrderEntry {
   /** 1 if this is a PRN (as-needed) medication */
   is_prn?: 0 | 1
   medication_type?: string
+  /** When set, this line is treated as stopped (no longer given) */
+  reason_stopped?: string
+  stopped_date?: string
+  stop_by?: string
 }
 
 export async function createPrescription(
@@ -390,6 +394,31 @@ export async function updatePrescription(data: any): Promise<any> {
   }
 
   throw new Error('Failed to update prescription')
+}
+
+/** Set stop reason on one prescription line, or clear it (resume). */
+export async function saveMedicationOrderEntryStopReason(
+  patientMedicationOrder: string,
+  orderEntryName: string,
+  opts: { reasonStopped: string } | { clear: true }
+): Promise<void> {
+  const { apiRequest } = await import('./apiClient')
+  const body: Record<string, unknown> = {
+    patient_medication_order: patientMedicationOrder,
+    order_entry_name: orderEntryName,
+  }
+  if ('clear' in opts && opts.clear) {
+    body.clear = 1
+  } else if ('reasonStopped' in opts) {
+    body.reason_stopped = opts.reasonStopped
+  }
+  await apiRequest<{ ok?: boolean }>(
+    '/api/method/healthcare.api.patient_medication_order.save_medication_order_entry_stop_reason',
+    {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }
+  )
 }
 
 

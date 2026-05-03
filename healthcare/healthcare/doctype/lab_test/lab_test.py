@@ -15,11 +15,34 @@ from healthcare.healthcare.doctype.service_request.service_request import (
 from healthcare.api.patient_visit import update_patient_visit_status
 
 class LabTest(Document):
+	_lab_technician_allowed_roles = ("Lab Technologist", "Lab Technician")
+
 	def validate(self):
 		if self.template and not self.get("sample_instances"):
 			populate_sample_instances_from_template(self)
 		# if not self.is_new():
 		# 	self.set_secondary_uom_result()
+
+	def before_submit(self):
+		if not self.get("lab_technician"):
+			frappe.throw(
+				_(
+					"Lab Technician is required before submit. Choose an active Healthcare Practitioner "
+					"with Medical Role Lab Technologist or Lab Technician."
+				),
+				title=_("Missing Lab Technician"),
+			)
+		role = frappe.db.get_value("Healthcare Practitioner", self.lab_technician, "medical_role")
+		if role not in self._lab_technician_allowed_roles:
+			frappe.throw(
+				_(
+					"Lab Technician must have Medical Role {0} or {1} (selected practitioner does not qualify)."
+				).format(
+					frappe.bold(self._lab_technician_allowed_roles[0]),
+					frappe.bold(self._lab_technician_allowed_roles[1]),
+				),
+				title=_("Invalid Lab Technician"),
+			)
 
 	def on_submit(self):
 		from healthcare.healthcare.utils import validate_nursing_tasks

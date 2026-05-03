@@ -8,6 +8,11 @@ import { useCareContext } from '../../providers/CareContextProvider'
 import { apiRequest } from '../../services/apiClient'
 import { fetchHealthcarePractitioners, fetchInpatientAdmissionOptions, fetchPatientOptions, fetchPatientVisits, type LinkFieldOption } from '../../services/common'
 import { uploadPatientFile } from '../../services/patients'
+import {
+  linkComboboxDropdownClass,
+  linkComboboxInputWithClearClass,
+  linkComboboxOptionClassCompact,
+} from '../ui/linkComboboxStyles'
 
 // ─── Signature Pad (mirrors DischargeModal implementation) ───────────────────
 
@@ -248,7 +253,6 @@ const LinkCombobox = ({ label, value, onSelect, onClear, fetchOptions, placehold
   }, [])
 
   const labelClass2 = 'block text-xs font-semibold text-slate-600 mb-1'
-  const inputClass2 = 'w-full rounded-md border border-slate-300 px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white'
 
   return (
     <div ref={containerRef} className="relative">
@@ -266,7 +270,7 @@ const LinkCombobox = ({ label, value, onSelect, onClear, fetchOptions, placehold
           }}
           onFocus={() => !disabled && setOpen(true)}
           placeholder={placeholder ?? 'Search...'}
-          className={`${inputClass2} ${disabled ? 'bg-slate-100 cursor-not-allowed' : ''}`}
+          className={`${linkComboboxInputWithClearClass} ${disabled ? 'bg-slate-100 cursor-not-allowed' : ''}`}
           disabled={disabled}
           autoComplete="off"
         />
@@ -277,7 +281,7 @@ const LinkCombobox = ({ label, value, onSelect, onClear, fetchOptions, placehold
         </span>
       </div>
       {open && !disabled && (
-        <div className="absolute z-30 mt-1 w-full bg-white border border-slate-200 rounded-md shadow-lg max-h-52 overflow-y-auto">
+        <div className={linkComboboxDropdownClass}>
           {options.length === 0 ? (
             <div className="px-3 py-2 text-xs text-slate-400">{loading ? 'Searching…' : 'No results found'}</div>
           ) : (
@@ -285,7 +289,7 @@ const LinkCombobox = ({ label, value, onSelect, onClear, fetchOptions, placehold
               <button
                 key={opt.name}
                 type="button"
-                className="w-full text-left px-3 py-2 text-sm hover:bg-primary/5 focus:bg-primary/5 focus:outline-none"
+                className={linkComboboxOptionClassCompact}
                 onClick={() => {
                   onSelect(opt)
                   setQuery(opt.label)

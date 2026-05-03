@@ -1,4 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
+import {
+  CREATE_MODAL_OVERLAY,
+  createModalShellClass,
+} from '../ui/CreateModalChrome'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
 import {
   fetchCompanies,
@@ -25,6 +29,11 @@ import { bulkCreateNurseTasks, type CreateNurseTaskData } from '../../services/n
 import { toast } from '../../hooks/useToast'
 import { X, Plus, Trash2, Pill, ChevronDown, ChevronUp } from 'lucide-react'
 import { useCareContext } from '../../providers/CareContextProvider'
+import {
+  linkComboboxDropdownClass,
+  linkComboboxInputWithClearClass,
+  linkComboboxOptionClassCompact,
+} from '../ui/linkComboboxStyles'
 
 interface CreatePrescriptionModalProps {
   onClose: () => void
@@ -154,7 +163,7 @@ const Combobox = ({
           }}
           placeholder={placeholder}
           required={required}
-          className="w-full rounded-md border border-slate-300 px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+          className={linkComboboxInputWithClearClass}
         />
         <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
           {displayValue && onClear && (
@@ -177,7 +186,7 @@ const Combobox = ({
       </div>
       
       {open && (
-        <div className="absolute z-50 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-xl max-h-52 overflow-auto text-slate-900">
+        <div className={linkComboboxDropdownClass}>
           {loading ? (
             <div className="px-3 py-2 text-xs text-slate-500">Loading...</div>
           ) : options.length ? (
@@ -186,7 +195,7 @@ const Combobox = ({
                 <button
                   key={opt.name}
                   type="button"
-                  className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 transition-colors"
+                  className={linkComboboxOptionClassCompact}
                   onClick={() => {
                     onSelect(opt)
                     setOpen(false)
@@ -199,7 +208,7 @@ const Combobox = ({
                 <button
                   type="button"
                   onClick={handleSelectCustom}
-                  className="w-full text-left px-3 py-2 text-sm border-t border-slate-100 bg-slate-50 hover:bg-blue-50 transition-colors text-primary font-medium"
+                  className="w-full text-left px-3 py-2 text-sm border-t border-slate-100 bg-slate-50 hover:bg-emerald-50/80 transition-colors text-primary font-medium"
                 >
                   + Use "{customValue}"
                 </button>
@@ -689,10 +698,10 @@ export const CreatePrescriptionModal = ({
   const isIP = mode === 'IP'
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] min-h-[500px] flex flex-col">
+    <div className={CREATE_MODAL_OVERLAY}>
+      <div className={createModalShellClass('max-w-4xl w-full max-h-[90vh] min-h-[500px]')}>
         <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between shrink-0 rounded-t-xl">
-          <h2 className="text-xl font-semibold text-slate-900">
+          <h2 className="text-lg font-semibold tracking-tight text-emerald-950">
             {isEditing ? 'Edit Prescription' : 'Create Prescription'}
           </h2>
           <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1 rounded-md hover:bg-slate-100 transition-colors">

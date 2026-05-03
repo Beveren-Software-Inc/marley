@@ -4,6 +4,8 @@ export interface LinkFieldOption {
   name: string
   label: string
   department?: string
+  /** Lab Test Template: 1 = group template, 0 = single test */
+  is_group?: number | boolean
   medical_role?: string
   item_code?: string
   item_group?: string
@@ -110,12 +112,24 @@ export async function fetchHealthcarePractitioners(search?: string, department?:
   
   const response = await fetch(url)
   const resData = await response.json()
-console.log('fetchHealthcarePractitioners response:', resData)
   if (resData?.message && Array.isArray(resData.message)) {
     return resData.message as LinkFieldOption[]
   } else {
     return []
   }
+}
+
+/** Practitioners with Medical Role Lab Technologist or Lab Technician (active only). */
+export async function fetchLabTechnicianPractitioners(search?: string): Promise<LinkFieldOption[]> {
+  const params = new URLSearchParams()
+  if (search) params.append('search', search)
+  const url = `/api/method/healthcare.api.common.get_lab_technician_practitioners${params.toString() ? `?${params.toString()}` : ''}`
+  const response = await fetch(url, { credentials: 'include' })
+  const resData = await response.json()
+  if (resData?.message && Array.isArray(resData.message)) {
+    return resData.message as LinkFieldOption[]
+  }
+  return []
 }
 
 /**
@@ -317,11 +331,16 @@ export interface LabTestTemplateOption extends LinkFieldOption {
   inpatient_rate?: number
 }
 
-export async function fetchLabTestTemplates(search?: string, department?: string): Promise<LabTestTemplateOption[]> {
+export async function fetchLabTestTemplates(
+  search?: string,
+  department?: string,
+  byNurse?: boolean
+): Promise<LabTestTemplateOption[]> {
   const params = new URLSearchParams()
   if (search) params.append('search', search)
   if (department) params.append('department', department)
-  
+  if (byNurse) params.append('by_nurse', '1')
+
   const url = `/api/method/healthcare.api.common.get_lab_test_templates${params.toString() ? `?${params.toString()}` : ''}`
   
   const response = await fetch(url)
@@ -401,13 +420,32 @@ export async function fetchObservationTemplates(search?: string, department?: st
 
 export async function getPractitionerMedicalRole(practitioner: string): Promise<string | null> {
   const response = await fetch(
-    `/api/method/healthcare.api.common.get_practitioner_medical_role?practitioner=${encodeURIComponent(practitioner)}`
+    `/api/method/healthcare.api.common.get_practitioner_medical_role?practitioner=${encodeURIComponent(practitioner)}`,
+    { credentials: 'include' }
   )
   const resData = await response.json()
 
   if (resData?.message) {
     return resData.message as string
   } else {
+    return null
+  }
+}
+
+/** Resolve Medical Role link (document name) to label for dropdowns. */
+export async function fetchMedicalRoleByName(name: string): Promise<LinkFieldOption | null> {
+  const key = (name || '').trim()
+  if (!key) return null
+  try {
+    const res = await fetch(`/api/resource/Medical Role/${encodeURIComponent(key)}`, {
+      credentials: 'include',
+    })
+    if (!res.ok) return null
+    const body = await res.json().catch(() => null)
+    const d = body?.data
+    if (!d?.name) return null
+    return { name: d.name, label: (d.medical_role as string) || d.name }
+  } catch {
     return null
   }
 }
@@ -730,15 +768,21 @@ export async function fetchServiceRequestTemplateTypes(): Promise<LinkFieldOptio
   }
 }
 
-export async function fetchServiceRequestTemplates(templateDt: string, search?: string, department?: string): Promise<LinkFieldOption[]> {
+export async function fetchServiceRequestTemplates(
+  templateDt: string,
+  search?: string,
+  department?: string,
+  /** Lab Test Template only: filter by `is_group` on Lab Test Template (0 or 1). Omit for all. */
+  isGroup?: 0 | 1
+): Promise<LinkFieldOption[]> {
   const params = new URLSearchParams()
   params.append('template_dt', templateDt)
   if (search) params.append('search', search)
   if (department) params.append('department', department)
-  console.log('fetchServiceRequestTemplates params:', Object.fromEntries(params.entries()))
+  if (isGroup === 0 || isGroup === 1) params.append('is_group', String(isGroup))
   const url = `/api/method/healthcare.api.common.get_service_request_templates?${params.toString()}`
-  
-  const response = await fetch(url)
+
+  const response = await fetch(url, { credentials: 'include' })
   const resData = await response.json()
   if (resData?.message && Array.isArray(resData.message)) {
     return resData.message as LinkFieldOption[]
@@ -1024,7 +1068,7 @@ export async function fetchLabTestTemplateList(search?: string): Promise<LabTest
   const params = new URLSearchParams()
   if (search) params.append('search', search)
 
-  const url = `/api/method/healthcare.api.common.get_lab_test_templates${params.toString() ? `?${params.toString()}` : ''}`
+  const url = `/api/method/healthcare.api.common.get_lab_test_templates_admin_list${params.toString() ? `?${params.toString()}` : ''}`
   const response = await fetch(url)
   const resData = await response.json()
 

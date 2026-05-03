@@ -1,4 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
+import {
+  CREATE_MODAL_OVERLAY,
+  createModalShellClass,
+} from '../ui/CreateModalChrome'
 import { createPortal } from 'react-dom'
 import {
   getMaterialRequestOptions,
@@ -249,8 +253,8 @@ export const CreateMaterialRequestModal = ({ onClose, onSuccess }: CreateMateria
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[95vh] min-h-[80vh] flex flex-col">
+    <div className={CREATE_MODAL_OVERLAY}>
+      <div className={createModalShellClass('max-w-2xl w-full max-h-[95vh] min-h-[80vh]')}>
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
           <h2 className="font-semibold text-slate-800">Create Material Request</h2>
           <button

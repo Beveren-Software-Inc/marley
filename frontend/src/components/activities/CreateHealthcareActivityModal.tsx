@@ -1,4 +1,9 @@
 import { useState } from 'react'
+import {
+  CM_BTN_PRIMARY,
+  CREATE_MODAL_OVERLAY,
+  createModalShellClass,
+} from '../ui/CreateModalChrome'
 import { apiRequest } from '../../services/apiClient'
 import { toast } from '../../hooks/useToast'
 
@@ -51,8 +56,8 @@ export const CreateHealthcareActivityModal = ({ onClose, onSuccess }: CreateHeal
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-2xl max-w-md w-full max-h-[90vh] flex flex-col">
+    <div className={CREATE_MODAL_OVERLAY}>
+      <div className={createModalShellClass('max-w-md w-full max-h-[90vh]')}>
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
           <h2 className="text-sm font-semibold text-slate-900">Create Healthcare Activity</h2>
           <button
@@ -112,7 +117,7 @@ export const CreateHealthcareActivityModal = ({ onClose, onSuccess }: CreateHeal
             <button
               type="submit"
               disabled={submitting}
-              className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-50"
+              className={CM_BTN_PRIMARY}
             >
               {submitting ? 'Creating…' : 'Create'}
             </button>

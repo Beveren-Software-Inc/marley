@@ -1,11 +1,24 @@
 import { useState, useEffect, useRef } from 'react'
 import {
+  CM_BTN_CANCEL,
+  CM_BTN_PRIMARY,
+  CREATE_MODAL_FOOTER_STICKY,
+  CREATE_MODAL_OVERLAY,
+  CREATE_MODAL_OVERLAY_STACK,
+  createModalShellClass,
+} from '../ui/CreateModalChrome'
+import {
   fetchInsuranceCompanies, createHealthInsurance, createInsuranceCompany,
   fetchModeOfPayments, fetchItemCodes, fetchItemGroups,
   type LinkFieldOption,
 } from '../../services/common'
 import { toast } from '../../hooks/useToast'
 import { X } from 'lucide-react'
+import {
+  linkComboboxDropdownClassShort,
+  linkComboboxInputWithClearClass,
+  linkComboboxOptionClassCompact,
+} from '../ui/linkComboboxStyles'
 
 interface Props {
   onClose: () => void
@@ -99,7 +112,7 @@ function LinkInput({ value, label, placeholder, fetchFn, onChange, showCreate, o
           }}
           onFocus={() => setOpen(true)}
           placeholder={placeholder || `Search ${label}…`}
-          className="w-full rounded-md border border-slate-300 pr-9 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+          className={`${linkComboboxInputWithClearClass} pr-9`}
         />
         {selected ? (
           <button type="button" onClick={clear}
@@ -114,10 +127,10 @@ function LinkInput({ value, label, placeholder, fetchFn, onChange, showCreate, o
           </button>
         ) : null}
         {open && options.length > 0 && (
-          <div className="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-md shadow-lg max-h-48 overflow-y-auto">
+          <div className={linkComboboxDropdownClassShort}>
             {options.map(opt => (
               <button key={opt.name} type="button" onClick={() => select(opt)}
-                className="w-full text-left px-3 py-2 text-sm text-slate-900 hover:bg-slate-100">
+                className={`${linkComboboxOptionClassCompact} text-slate-900`}>
                 {opt.label}
               </button>
             ))}
@@ -295,14 +308,14 @@ export const CreateHealthInsuranceModal = ({ onClose, onSuccess }: Props) => {
   ]
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-xl mx-4 max-h-[90vh] flex flex-col">
+    <div className={CREATE_MODAL_OVERLAY}>
+      <div className={createModalShellClass('w-full max-w-xl max-h-[90vh]')}>
 
         {/* Header */}
         <div className="px-6 pt-4 pb-0 border-b border-slate-200 shrink-0">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-semibold text-slate-900">New Health Insurance</h2>
-            <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600">
+            <h2 className="text-lg font-semibold tracking-tight text-emerald-950">New Health Insurance</h2>
+            <button type="button" onClick={onClose} className="shrink-0 rounded-lg p-2 text-emerald-800/70 transition hover:bg-emerald-200/50 hover:text-emerald-950">
               <X className="w-5 h-5" />
             </button>
           </div>
@@ -472,13 +485,13 @@ export const CreateHealthInsuranceModal = ({ onClose, onSuccess }: Props) => {
           </div>
 
           {/* Footer */}
-          <div className="shrink-0 flex justify-end gap-3 px-6 py-4 border-t border-slate-200 bg-white rounded-b-lg">
+          <div className={`${CREATE_MODAL_FOOTER_STICKY} justify-end gap-3`}>
             <button type="button" onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50">
+              className={CM_BTN_CANCEL}>
               Cancel
             </button>
             <button type="submit" disabled={loading}
-              className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-50">
+              className={CM_BTN_PRIMARY}>
               {loading ? 'Creating…' : 'Create Insurance'}
             </button>
           </div>
@@ -487,8 +500,8 @@ export const CreateHealthInsuranceModal = ({ onClose, onSuccess }: Props) => {
 
       {/* Inline create company modal */}
       {showCreateCompany && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-sm mx-4 p-6">
+        <div className={CREATE_MODAL_OVERLAY_STACK}>
+          <div className={createModalShellClass('w-full max-w-sm p-6')}>
             <h3 className="text-base font-semibold text-slate-900 mb-4">New Insurance Company</h3>
             <div className="mb-4">
               <label className="block text-sm font-medium text-slate-700 mb-1">Company Name</label>

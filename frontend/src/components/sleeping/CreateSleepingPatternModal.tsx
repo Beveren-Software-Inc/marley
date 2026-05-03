@@ -1,4 +1,8 @@
 import { useEffect, useState } from 'react'
+import {
+  CREATE_MODAL_OVERLAY,
+  createModalShellClass,
+} from '../ui/CreateModalChrome'
 import { fetchInpatientAdmissions, type LinkFieldOption } from '../../services/common'
 import { createSleepingPattern } from '../../services/sleepingPattern'
 import { toast } from '../../hooks/useToast'
@@ -89,13 +93,13 @@ export const CreateSleepingPatternModal = ({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto">
+    <div className={CREATE_MODAL_OVERLAY}>
+      <div className={createModalShellClass('max-w-lg w-full max-h-[90vh] overflow-y-auto')}>
         <div className="p-4 border-b border-slate-200 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-slate-900">Create Sleeping Pattern</h2>
+          <h2 className="text-lg font-semibold tracking-tight text-emerald-950">Create Sleeping Pattern</h2>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-600"
+            className="shrink-0 rounded-lg p-2 text-emerald-800/70 transition hover:bg-emerald-200/50 hover:text-emerald-950"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

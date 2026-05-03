@@ -1,8 +1,15 @@
-import { useState, useEffect } from 'react'
-import { fetchPrescriptionByInpatientOrEncounter, type Prescription } from '../../services/prescriptions'
-import { RefreshCw } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
+import {
+  fetchPrescriptionByInpatientOrEncounter,
+  saveMedicationOrderEntryStopReason,
+  type Prescription,
+} from '../../services/prescriptions'
+import { RefreshCw, MoreVertical } from 'lucide-react'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { CreatePrescriptionModal } from './CreatePrescriptionModal'
+import { PortalActionsMenu } from '../ui/PortalActionsMenu'
+import { toast } from '../../hooks/useToast'
 
 
 // ─── Medication type definitions ──────────────────────────────────────────────
@@ -88,50 +95,218 @@ const TypeFilterCard = ({
 }
 
 // ─── Table row ────────────────────────────────────────────────────────────────
-const MedicationRow = ({ order }: { order: any }) => {
+const MedicationRow = ({
+  order,
+  prescriptionName,
+  onUpdated,
+}: {
+  order: any
+  prescriptionName: string
+  onUpdated: () => void | Promise<void>
+}) => {
   const color = getTypeColor(order.medication_type)
   const rowStyle = isHex(color) ? hexRowStyle(color) : {}
+  const reasonStopped = String(order.reason_stopped || '').trim()
+  const isStopped = Boolean(reasonStopped)
 
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [stopModalOpen, setStopModalOpen] = useState(false)
+  const [stopModalMode, setStopModalMode] = useState<'stop' | 'edit'>('stop')
+  const [reasonDraft, setReasonDraft] = useState('')
+  const [saving, setSaving] = useState(false)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+
+  const openStopModal = (mode: 'stop' | 'edit') => {
+    setStopModalMode(mode)
+    setReasonDraft(mode === 'edit' ? reasonStopped : '')
+    setStopModalOpen(true)
+    setMenuOpen(false)
+  }
+
+  const handleSaveStopReason = async () => {
+    const text = reasonDraft.trim()
+    if (!text) {
+      toast.error('Please enter a stop reason.')
+      return
+    }
+    try {
+      setSaving(true)
+      await saveMedicationOrderEntryStopReason(prescriptionName, order.name, { reasonStopped: text })
+      toast.success(stopModalMode === 'edit' ? 'Stop reason updated' : 'Medication marked as stopped')
+      setStopModalOpen(false)
+      await onUpdated()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to save stop reason')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleResume = async () => {
+    if (!window.confirm('Clear the stop and resume this medication line?')) return
+    try {
+      setSaving(true)
+      await saveMedicationOrderEntryStopReason(prescriptionName, order.name, { clear: true })
+      toast.success('Stop cleared — line active again')
+      setMenuOpen(false)
+      await onUpdated()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to clear stop')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const stopModal =
+    stopModalOpen && typeof document !== 'undefined'
+      ? createPortal(
+          <div
+            className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/40 p-4"
+            role="dialog"
+            aria-modal="true"
+            onMouseDown={(e) => {
+              if (e.target === e.currentTarget) setStopModalOpen(false)
+            }}
+          >
+            <div className="w-full max-w-md rounded-lg bg-white shadow-xl border border-slate-200 p-4 space-y-3">
+              <h3 className="text-sm font-semibold text-slate-900">
+                {stopModalMode === 'edit' ? 'Change stop reason' : 'Stop medication'}
+              </h3>
+              <p className="text-xs text-slate-500">
+                {stopModalMode === 'edit'
+                  ? 'Update the reason documented for stopping this line.'
+                  : 'This line will show as stopped. Enter a clinical reason (required).'}
+              </p>
+              <label className="block text-xs font-medium text-slate-600">Reason stopped</label>
+              <textarea
+                value={reasonDraft}
+                onChange={(e) => setReasonDraft(e.target.value)}
+                rows={4}
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary"
+                placeholder="e.g. Side effects, replaced by X, patient refused…"
+              />
+              <div className="flex justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setStopModalOpen(false)}
+                  className="px-3 py-1.5 text-sm rounded-md border border-slate-300 text-slate-700 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() => void handleSaveStopReason()}
+                  className="px-3 py-1.5 text-sm rounded-md bg-primary text-white hover:bg-primary/90 disabled:opacity-50"
+                >
+                  {saving ? 'Saving…' : 'Save'}
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )
+      : null
 
   return (
-    <tr
-      className={order.is_pink ? 'bg-pink-50/60' : ''}
-      style={!order.is_pink && isHex(color) ? rowStyle : undefined}
-    >
-      <td className="px-3 py-2.5">
-        <div className="flex items-center flex-wrap gap-1.5">
-          <span className="font-medium text-slate-800">{order.drug_name?.trim()}</span>
-          {order.is_pink && <SmallBadge cls="bg-pink-100 text-pink-700">🩷 Pink</SmallBadge>}
-          {order.is_prn && <SmallBadge cls="bg-amber-100 text-amber-700">PRN</SmallBadge>}
-          {order.is_long_acting_medicine && <SmallBadge cls="bg-teal-100 text-teal-700">⏳ Long Acting</SmallBadge>}
-        </div>
-        <div className="text-xs text-slate-400 mt-0.5">{order.drug}</div>
-      </td>
-      <td className="px-3 py-2.5">
-        <span className="font-medium text-slate-800">{order.dosage}</span>
-        <span className="text-slate-500 text-xs ml-1">{order.uom}</span>
-      </td>
-      <td className="px-3 py-2.5 text-slate-600 text-sm">{order.dosage_form}</td>
-      <td className="px-3 py-2.5">
-        <SmallBadge cls="bg-blue-100 text-blue-700">{order.patient_frequency}</SmallBadge>
-        {order.frequency_in_a_day > 0 && (
-          <div className="text-xs text-slate-400 mt-0.5">{order.frequency_in_a_day}×/day</div>
-        )}
-      </td>
-      <td className="px-3 py-2.5 text-slate-600 text-xs">{order.route_of_administration}</td>
-      <td className="px-3 py-2.5 text-xs text-slate-500">
-        <div>{order.date}</div>
-        <div className="text-slate-400">→ {order.end_date}</div>
-      </td>
-      <td className="px-3 py-2.5">
-        {order.is_completed
-          ? <SmallBadge cls="bg-green-100 text-green-700">Completed</SmallBadge>
-          : <SmallBadge cls="bg-amber-100 text-amber-700">Pending</SmallBadge>}
-        {order.returned_to_store && (
-          <div className="mt-1"><SmallBadge cls="bg-slate-100 text-slate-500">Returned</SmallBadge></div>
-        )}
-      </td>
-    </tr>
+    <>
+      {stopModal}
+      <tr
+        className={`${order.is_pink ? 'bg-pink-50/60' : ''} ${isStopped ? 'opacity-90' : ''}`}
+        style={!order.is_pink && isHex(color) ? rowStyle : undefined}
+      >
+        <td className="px-3 py-2.5">
+          <div className="flex items-center flex-wrap gap-1.5">
+            <span className={`font-medium ${isStopped ? 'text-slate-500 line-through' : 'text-slate-800'}`}>
+              {order.drug_name?.trim()}
+            </span>
+            {isStopped && <SmallBadge cls="bg-rose-100 text-rose-800 border border-rose-200">Stopped</SmallBadge>}
+            {order.is_pink && <SmallBadge cls="bg-pink-100 text-pink-700">🩷 Pink</SmallBadge>}
+            {order.is_prn && <SmallBadge cls="bg-amber-100 text-amber-700">PRN</SmallBadge>}
+            {order.is_long_acting_medicine && <SmallBadge cls="bg-teal-100 text-teal-700">⏳ Long Acting</SmallBadge>}
+          </div>
+          <div className="text-xs text-slate-400 mt-0.5">{order.drug}</div>
+          {isStopped && (
+            <div className="mt-1.5 text-xs text-rose-800 bg-rose-50/80 border border-rose-100 rounded px-2 py-1 max-w-md" title={reasonStopped}>
+              <span className="font-semibold text-rose-900">Reason: </span>
+              {reasonStopped}
+            </div>
+          )}
+        </td>
+        <td className="px-3 py-2.5">
+          <span className="font-medium text-slate-800">{order.dosage}</span>
+          <span className="text-slate-500 text-xs ml-1">{order.uom}</span>
+        </td>
+        <td className="px-3 py-2.5 text-slate-600 text-sm">{order.dosage_form}</td>
+        <td className="px-3 py-2.5">
+          <SmallBadge cls="bg-blue-100 text-blue-700">{order.patient_frequency}</SmallBadge>
+          {order.frequency_in_a_day > 0 && (
+            <div className="text-xs text-slate-400 mt-0.5">{order.frequency_in_a_day}×/day</div>
+          )}
+        </td>
+        <td className="px-3 py-2.5 text-slate-600 text-xs">{order.route_of_administration}</td>
+        <td className="px-3 py-2.5 text-xs text-slate-500">
+          <div>{order.date}</div>
+          <div className="text-slate-400">→ {order.end_date}</div>
+        </td>
+        <td className="px-3 py-2.5">
+          {order.is_completed ? (
+            <SmallBadge cls="bg-green-100 text-green-700">Completed</SmallBadge>
+          ) : isStopped ? (
+            <SmallBadge cls="bg-rose-100 text-rose-800">Stopped</SmallBadge>
+          ) : (
+            <SmallBadge cls="bg-amber-100 text-amber-700">Pending</SmallBadge>
+          )}
+          {order.returned_to_store && (
+            <div className="mt-1">
+              <SmallBadge cls="bg-slate-100 text-slate-500">Returned</SmallBadge>
+            </div>
+          )}
+        </td>
+        <td className="px-3 py-2.5 text-right align-middle">
+          <button
+            ref={triggerRef}
+            type="button"
+            onClick={() => setMenuOpen((o) => !o)}
+            disabled={saving}
+            className="inline-flex items-center justify-center rounded-md border border-slate-200 bg-white p-1.5 text-slate-600 hover:bg-slate-50 hover:text-slate-900 disabled:opacity-50"
+            title="Actions"
+            aria-label="Row actions"
+          >
+            <MoreVertical className="h-4 w-4" />
+          </button>
+          <PortalActionsMenu open={menuOpen} onClose={() => setMenuOpen(false)} triggerRef={triggerRef} placement="below-right">
+            <button
+              type="button"
+              disabled={isStopped}
+              onClick={() => openStopModal('stop')}
+              className="block w-full text-left px-3 py-2 text-sm text-slate-800 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Stop medication…
+            </button>
+            <button
+              type="button"
+              disabled={!isStopped}
+              onClick={() => openStopModal('edit')}
+              className="block w-full text-left px-3 py-2 text-sm text-slate-800 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Change stop reason…
+            </button>
+            <button
+              type="button"
+              disabled={!isStopped}
+              onClick={() => {
+                setMenuOpen(false)
+                void handleResume()
+              }}
+              className="block w-full text-left px-3 py-2 text-sm text-rose-700 hover:bg-rose-50 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Resume medication
+            </button>
+          </PortalActionsMenu>
+        </td>
+      </tr>
+    </>
   )
 }
 
@@ -359,8 +534,13 @@ const data = await fetchPrescriptionByInpatientOrEncounter(inpatientRecordId, pa
             <table className="min-w-full text-sm divide-y divide-slate-200">
               <thead className="bg-slate-50">
                 <tr>
-                  {['Drug', 'Dosage', 'Form', 'Frequency', 'Route', 'Period', 'Status'].map(h => (
-                    <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">
+                  {['Drug', 'Dosage', 'Form', 'Frequency', 'Route', 'Period', 'Status', 'Actions'].map(h => (
+                    <th
+                      key={h}
+                      className={`px-3 py-2.5 text-xs font-semibold text-slate-600 uppercase tracking-wide ${
+                        h === 'Actions' ? 'text-right' : 'text-left'
+                      }`}
+                    >
                       {h}
                     </th>
                   ))}
@@ -368,7 +548,12 @@ const data = await fetchPrescriptionByInpatientOrEncounter(inpatientRecordId, pa
               </thead>
               <tbody className="divide-y divide-slate-100 bg-white">
                 {filteredOrders.map((order: any) => (
-                  <MedicationRow key={order.name} order={order} />
+                  <MedicationRow
+                    key={order.name}
+                    order={order}
+                    prescriptionName={prescription.name}
+                    onUpdated={load}
+                  />
                 ))}
               </tbody>
             </table>

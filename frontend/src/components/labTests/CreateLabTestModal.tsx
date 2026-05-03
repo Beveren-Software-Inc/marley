@@ -1,4 +1,10 @@
 import { useState, useEffect } from 'react'
+import {
+  CM_BTN_CANCEL,
+  CM_BTN_PRIMARY,
+  CREATE_MODAL_OVERLAY,
+  createModalShellClass,
+} from '../ui/CreateModalChrome'
 import { createLabTest } from '../../services/labTests'
 import { fetchHealthcarePractitioners, fetchLabTestTemplates, fetchMedicalDepartments, fetchDocumentTypes, fetchCostCenters, type LinkFieldOption } from '../../services/common'
 import { createNurseTask } from '../../services/nurseTask'
@@ -12,9 +18,16 @@ interface CreateLabTestModalProps {
   onClose: () => void
   onSuccess?: () => void
   initialPatient?: string
+  /** Nurse portal: only Lab Test Templates with by_nurse set */
+  templatesNurseOnly?: boolean
 }
 
-export const CreateLabTestModal = ({ onClose, onSuccess, initialPatient }: CreateLabTestModalProps) => {
+export const CreateLabTestModal = ({
+  onClose,
+  onSuccess,
+  initialPatient,
+  templatesNurseOnly = false,
+}: CreateLabTestModalProps) => {
   const [formData, setFormData] = useState({
     patient: initialPatient || '',
     cost_center: '',
@@ -191,7 +204,7 @@ export const CreateLabTestModal = ({ onClose, onSuccess, initialPatient }: Creat
     const loadOptions = async () => {
       try {
         const [templates, practs, depts, costCenters] = await Promise.all([
-          fetchLabTestTemplates(),
+          fetchLabTestTemplates(undefined, undefined, templatesNurseOnly),
           fetchHealthcarePractitioners(),
           fetchMedicalDepartments(),
           fetchCostCenters()
@@ -205,7 +218,7 @@ export const CreateLabTestModal = ({ onClose, onSuccess, initialPatient }: Creat
       }
     }
     loadOptions()
-  }, [])
+  }, [templatesNurseOnly])
 
   // Search/fetch patients
   useEffect(() => {
@@ -242,7 +255,11 @@ export const CreateLabTestModal = ({ onClose, onSuccess, initialPatient }: Creat
 
     const search = async () => {
       try {
-        const results = await fetchLabTestTemplates(templateQuery, formData.department || undefined)
+        const results = await fetchLabTestTemplates(
+          templateQuery,
+          formData.department || undefined,
+          templatesNurseOnly
+        )
         setTemplateOptions(results)
       } catch (err) {
         console.error('Failed to search templates:', err)
@@ -255,7 +272,7 @@ export const CreateLabTestModal = ({ onClose, onSuccess, initialPatient }: Creat
     }, templateQuery.trim() === '' ? 0 : 300)
 
     return () => clearTimeout(timeoutId)
-  }, [templateQuery, templateOpen, formData.department])
+  }, [templateQuery, templateOpen, formData.department, templatesNurseOnly])
 
   // Search practitioners
   useEffect(() => {
@@ -346,7 +363,7 @@ export const CreateLabTestModal = ({ onClose, onSuccess, initialPatient }: Creat
     setDepartmentQuery(dept.label)
     setDepartmentOpen(false)
     // Refresh templates and practitioners when department changes
-    fetchLabTestTemplates(undefined, dept.name).then(setTemplateOptions).catch(console.error)
+    fetchLabTestTemplates(undefined, dept.name, templatesNurseOnly).then(setTemplateOptions).catch(console.error)
     fetchHealthcarePractitioners(undefined, dept.name).then(setPractitionerOptions).catch(console.error)
   }
 
@@ -358,12 +375,12 @@ export const CreateLabTestModal = ({ onClose, onSuccess, initialPatient }: Creat
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col">
-        <div className="p-4 border-b border-slate-200 flex-shrink-0">
+    <div className={CREATE_MODAL_OVERLAY}>
+      <div className={createModalShellClass('max-w-2xl w-full max-h-[90vh] overflow-hidden')}>
+        <div className="relative shrink-0 border-b border-emerald-100/60 bg-gradient-to-r from-emerald-100 via-teal-50 to-sky-100 p-4 sm:px-5 flex-shrink-0">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold text-slate-900">Create Lab Test</h2>
-            <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600">
+            <h2 className="text-lg font-semibold tracking-tight text-emerald-950">Create Lab Test</h2>
+            <button type="button" onClick={onClose} className="shrink-0 rounded-lg p-2 text-emerald-800/70 transition hover:bg-emerald-200/50 hover:text-emerald-950">
               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
@@ -736,14 +753,14 @@ export const CreateLabTestModal = ({ onClose, onSuccess, initialPatient }: Creat
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50"
+              className={CM_BTN_CANCEL}
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-50"
+              className={CM_BTN_PRIMARY}
             >
               {loading ? 'Creating...' : 'Create Lab Test'}
             </button>

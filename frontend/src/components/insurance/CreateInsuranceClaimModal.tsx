@@ -1,7 +1,15 @@
 import { useState, useCallback, useEffect } from 'react'
+import {
+  CREATE_MODAL_OVERLAY,
+} from '../ui/CreateModalChrome'
 import { Plus, Trash2, FileText, AlertCircle } from 'lucide-react'
 import { fetchHealthcareInsurance, type LinkFieldOption } from '../../services/common'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
+import {
+  linkComboboxDropdownDarkSurfaceClassTight,
+  linkComboboxInputDarkSurfaceClass,
+  linkComboboxOptionDarkSurfaceClass,
+} from '../ui/linkComboboxStyles'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -66,18 +74,18 @@ function LinkField({
           onChange={e => { onQueryChange(e.target.value); onOpenChange(true) }}
           onFocus={() => { onFocus(); onOpenChange(true) }}
           placeholder={placeholder || `Search ${label}…`}
-          className="w-full rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white px-2.5 py-1.5 text-sm placeholder-slate-500 dark:placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 pr-7 transition-colors"
+          className={`${linkComboboxInputDarkSurfaceClass} px-2.5 py-1.5 pr-7`}
         />
         {(selected || query) && (
           <button type="button" onClick={() => { onClear(); onQueryChange('') }}
             className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 text-xs transition-colors">✕</button>
         )}
         {open && options.length > 0 && (
-          <div className="absolute z-20 w-full mt-1 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded shadow-lg max-h-44 overflow-y-auto">
+          <div className={linkComboboxDropdownDarkSurfaceClassTight}>
             {options.map(o => (
               <button key={o.name} type="button"
                 onClick={() => { onSelect(o); onOpenChange(false) }}
-                className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-600 text-slate-900 dark:text-white transition-colors">
+                className={linkComboboxOptionDarkSurfaceClass}>
                 {o.label || o.name}
               </button>
             ))}
@@ -453,7 +461,7 @@ export const CreateInsuranceClaimModal = ({
 
   return (
     <div
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+      className={CREATE_MODAL_OVERLAY}
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
       <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-3xl flex flex-col h-[85vh]"

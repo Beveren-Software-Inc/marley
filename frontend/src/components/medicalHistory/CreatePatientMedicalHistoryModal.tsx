@@ -1,4 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
+import {
+  CREATE_MODAL_OVERLAY,
+  createModalShellClass,
+} from '../ui/CreateModalChrome'
 import type { PatientMedicalHistory, PatientMedicalHistoryRow } from '../../services/patients'
 import {
   fetchPatientHealthHistoryTemplates,
@@ -241,8 +245,8 @@ export const CreatePatientMedicalHistoryModal = ({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col">
+    <div className={CREATE_MODAL_OVERLAY}>
+      <div className={createModalShellClass('max-w-3xl w-full max-h-[90vh] overflow-hidden')}>
         <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
           <div>
             <h2 className="text-sm font-semibold text-slate-900">Create Patient Medical History</h2>

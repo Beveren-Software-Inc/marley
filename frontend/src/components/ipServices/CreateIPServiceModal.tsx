@@ -1,7 +1,19 @@
 import { useState, useEffect, useRef } from 'react'
+import {
+  CM_BTN_PRIMARY,
+  CREATE_MODAL_OVERLAY,
+  createModalShellClass,
+} from '../ui/CreateModalChrome'
 import { fetchInpatientRecords, type InpatientRecord } from '../../services/inpatientRecords'
 import { fetchServiceRequests } from '../../services/serviceRequests'
 import { fetchCostCenters, fetchItems, type LinkFieldOption } from '../../services/common'
+import {
+  linkComboboxDropdownClassLow,
+  linkComboboxDropdownClassShort,
+  linkComboboxInputClass,
+  linkComboboxInputClassCompact,
+  linkComboboxOptionClassCompact,
+} from '../ui/linkComboboxStyles'
 import { createIPService, type CreateIPServiceInput, type IPServiceLineInput } from '../../services/ipServices'
 import { fetchIPServiceType } from '../../services/ipServices'
 import { toast } from '../../hooks/useToast'
@@ -305,8 +317,8 @@ export const CreateIPServiceModal = ({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full min-h-[32rem] max-h-[90vh] flex flex-col">
+    <div className={CREATE_MODAL_OVERLAY}>
+      <div className={createModalShellClass('max-w-2xl w-full min-h-[32rem] max-h-[90vh]')}>
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 flex-shrink-0">
           <div>
             <h2 className="text-sm font-semibold text-slate-900">Create IP Service</h2>
@@ -420,11 +432,11 @@ export const CreateIPServiceModal = ({
                           if (!admissionOpen) setAdmissionOpen(true)
                         }}
                         onFocus={() => setAdmissionOpen(true)}
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                        className={linkComboboxInputClass}
                         placeholder="Search admission..."
                       />
                       {admissionOpen && (
-                        <div className="absolute z-10 mt-1 w-full max-w-md rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-y-auto">
+                        <div className={`${linkComboboxDropdownClassShort} max-w-md`}>
                           {admissions.length === 0 ? (
                             <div className="px-3 py-2 text-sm text-slate-500">No admissions found.</div>
                           ) : (
@@ -432,7 +444,7 @@ export const CreateIPServiceModal = ({
                               <button
                                 key={a.name}
                                 type="button"
-                                className="block w-full text-left px-3 py-2 text-sm hover:bg-slate-50 border-b border-slate-100 last:border-0"
+                                className={`block w-full ${linkComboboxOptionClassCompact} border-b border-slate-100 last:border-0`}
                                 onClick={() => {
                                   setAdmissionNo(a.name)
                                   setAdmissionSearch('')
@@ -537,12 +549,12 @@ export const CreateIPServiceModal = ({
                         if (!costCenterOpen) setCostCenterOpen(true)
                       }}
                       onFocus={() => setCostCenterOpen(true)}
-                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      className={linkComboboxInputClass}
                       placeholder="Search cost center..."
                     />
                   )}
                   {costCenterOpen && !(prefillFromServiceRequest && initialServiceRequest) && (
-                    <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-y-auto">
+                    <div className={linkComboboxDropdownClassShort}>
                       {costCenters.length === 0 ? (
                         <div className="px-3 py-2 text-sm text-slate-500">No cost centers found.</div>
                       ) : (
@@ -550,7 +562,7 @@ export const CreateIPServiceModal = ({
                           <button
                             key={c.name}
                             type="button"
-                            className="block w-full text-left px-3 py-2 text-sm hover:bg-slate-50 border-b border-slate-100 last:border-0"
+                            className={`block w-full ${linkComboboxOptionClassCompact} border-b border-slate-100 last:border-0`}
                             onClick={() => {
                               setCostCenter(c.name)
                               setCostCenterSearch('')
@@ -634,7 +646,7 @@ export const CreateIPServiceModal = ({
                 (!serviceRequest && items.filter((r) => r.service_code.trim() && r.amount.trim()).length === 0) ||
                 !isIPMode
               }
-              className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-50"
+              className={CM_BTN_PRIMARY}
             >
               {submitting ? 'Creating…' : 'Create IP Service'}
             </button>
@@ -681,16 +693,16 @@ function ItemRowEditor({ row, onUpdate, onRemove }: ItemRowEditorProps) {
             }}
             onFocus={() => setItemOpen(true)}
             onBlur={() => setTimeout(() => setItemOpen(false), 200)}
-            className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+            className={linkComboboxInputClassCompact}
             placeholder="Search item..."
           />
           {itemOpen && (
-            <div className="absolute z-20 mt-0.5 left-0 right-0 rounded border border-slate-200 bg-white shadow-lg max-h-40 overflow-y-auto">
+            <div className={`${linkComboboxDropdownClassLow} left-0 right-0`}>
               {itemOptions.map((opt) => (
                 <button
                   key={opt.name}
                   type="button"
-                  className="block w-full text-left px-2 py-1.5 text-sm hover:bg-slate-50"
+                  className={`block w-full ${linkComboboxOptionClassCompact} px-2`}
                   onMouseDown={() => {
                     onUpdate('service_code', opt.name)
                     onUpdate('item_label', opt.label || opt.name)

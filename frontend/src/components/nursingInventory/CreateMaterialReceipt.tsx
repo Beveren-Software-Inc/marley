@@ -1,5 +1,9 @@
 // CreateMaterialReceiptModal.tsx
 import { useState, useEffect } from 'react'
+import {
+  CREATE_MODAL_OVERLAY,
+  createModalShellClass,
+} from '../ui/CreateModalChrome'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { createMaterialReceipt, fetchInventoryItems, getWarehousesForCostCenter } from '../../services/nursingInventory'
 import { toast } from '../../hooks/useToast'
@@ -166,12 +170,12 @@ export const CreateMaterialReceiptModal = ({ onClose, onSuccess, costCenter }: C
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-2xl max-w-5xl w-full max-h-[90vh] flex flex-col">
+    <div className={CREATE_MODAL_OVERLAY}>
+      <div className={createModalShellClass('max-w-5xl w-full max-h-[90vh]')}>
         {/* Header */}
         <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between shrink-0 rounded-t-xl">
           <div>
-            <h2 className="text-xl font-semibold text-slate-900">Receive Materials</h2>
+            <h2 className="text-lg font-semibold tracking-tight text-emerald-950">Receive Materials</h2>
             <p className="text-xs text-slate-500 mt-0.5">Record material receipt for {effectiveCostCenter}</p>
           </div>
           <button

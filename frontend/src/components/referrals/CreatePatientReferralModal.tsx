@@ -1,4 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
+import {
+  CM_BTN_CANCEL,
+  CREATE_MODAL_OVERLAY,
+  createModalShellClass,
+} from '../ui/CreateModalChrome'
 import { createPatientReferral, searchReferralSourceDocs, type ReferralSourceDoc } from '../../services/patientReferral'
 import { searchPatients, type PatientListItem } from '../../services/patients'
 import { fetchCostCenters, fetchHealthcarePractitioners, type LinkFieldOption } from '../../services/common'
@@ -167,13 +172,13 @@ export const CreatePatientReferralModal = ({
   const isSourceLocked = !!propDoctype
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+    <div className={CREATE_MODAL_OVERLAY}>
+      <div className={createModalShellClass('w-full max-w-2xl max-h-[90vh]')}>
 
         {/* ── Header ── */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
           <div>
-            <h2 className="text-lg font-semibold text-slate-900">Create Patient Referral</h2>
+            <h2 className="text-lg font-semibold tracking-tight text-emerald-950">Create Patient Referral</h2>
             {propDoctype && propDocname && (
               <p className="text-xs text-slate-500 mt-0.5">
                 From {propDoctype}: <span className="font-medium text-slate-700">{propDocname}</span>
@@ -508,7 +513,7 @@ export const CreatePatientReferralModal = ({
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50"
+            className={CM_BTN_CANCEL}
           >
             Cancel
           </button>

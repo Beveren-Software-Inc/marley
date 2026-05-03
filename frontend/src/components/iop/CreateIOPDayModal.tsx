@@ -1,4 +1,10 @@
 import { useState, useEffect } from 'react'
+import {
+  CM_BTN_CANCEL,
+  CM_BTN_PRIMARY,
+  CREATE_MODAL_OVERLAY,
+  createModalShellClass,
+} from '../ui/CreateModalChrome'
 import { createIOPDay, fetchIOPSessionTypes, fetchCompanies, fetchCostCenters, type IOPSessionType } from '../../services/iop'
 import { toast } from '../../hooks/useToast'
 import { X } from 'lucide-react'
@@ -79,11 +85,11 @@ export const CreateIOPDayModal = ({ onClose, onSuccess }: CreateIOPDayModalProps
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+    <div className={CREATE_MODAL_OVERLAY}>
+      <div className={createModalShellClass('max-w-lg w-full max-h-[90vh] overflow-y-auto')}>
         <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
-          <h2 className="text-xl font-semibold text-slate-900">Create IOP Day</h2>
-          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600">
+          <h2 className="text-lg font-semibold tracking-tight text-emerald-950">Create IOP Day</h2>
+          <button type="button" onClick={onClose} className="shrink-0 rounded-lg p-2 text-emerald-800/70 transition hover:bg-emerald-200/50 hover:text-emerald-950">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -176,10 +182,10 @@ export const CreateIOPDayModal = ({ onClose, onSuccess }: CreateIOPDayModalProps
             </div>
           </div>
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
-            <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50">
+            <button type="button" onClick={onClose} className={CM_BTN_CANCEL}>
               Cancel
             </button>
-            <button type="submit" disabled={loading} className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-50">
+            <button type="submit" disabled={loading} className={CM_BTN_PRIMARY}>
               {loading ? 'Creating…' : 'Create IOP Day'}
             </button>
           </div>

@@ -1,5 +1,10 @@
 import { useState, useEffect } from 'react'
 import {
+  CM_BTN_CANCEL,
+  CREATE_MODAL_OVERLAY,
+  createModalShellClass,
+} from '../ui/CreateModalChrome'
+import {
   createAppointment,
   getAvailabilityData,
   type SlotDetail,
@@ -387,10 +392,10 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+    <div className={CREATE_MODAL_OVERLAY}>
+      <div className={createModalShellClass('max-w-2xl w-full max-h-[90vh] overflow-y-auto')}>
         <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
-          <h2 className="text-xl font-semibold text-slate-900">Create Appointment</h2>
+          <h2 className="text-lg font-semibold tracking-tight text-emerald-950">Create Appointment</h2>
           <button
             onClick={onClose}
             className="text-slate-400 hover:text-slate-600 transition-colors"
@@ -737,13 +742,13 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
         />
       )}
       {showCreateAppointmentType && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
+        <div className={CREATE_MODAL_OVERLAY}>
+          <div className={createModalShellClass('max-w-md w-full p-6')}>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold text-slate-900">Create Appointment Type</h2>
+              <h2 className="text-lg font-semibold tracking-tight text-emerald-950">Create Appointment Type</h2>
               <button
                 onClick={() => setShowCreateAppointmentType(false)}
-                className="text-slate-400 hover:text-slate-600"
+                className="shrink-0 rounded-lg p-2 text-emerald-800/70 transition hover:bg-emerald-200/50 hover:text-emerald-950"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -754,7 +759,7 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
             <div className="flex justify-end">
               <button
                 onClick={() => setShowCreateAppointmentType(false)}
-                className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50"
+                className={CM_BTN_CANCEL}
               >
                 Close
               </button>

@@ -1,4 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
+import {
+  CREATE_MODAL_OVERLAY,
+  createModalShellClass,
+} from '../ui/CreateModalChrome'
 import { apiRequest } from '../../services/apiClient'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
 import {
@@ -373,11 +377,11 @@ export const CreateLongActingMedicineModal = ({
   const shouldShowCollapse = medications.length >= 2
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] flex flex-col">
+    <div className={CREATE_MODAL_OVERLAY}>
+      <div className={createModalShellClass('max-w-4xl w-full max-h-[90vh]')}>
         {/* Header */}
         <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between shrink-0 rounded-t-xl">
-          <h2 className="text-xl font-semibold text-slate-900">Create Long Acting Medicine</h2>
+          <h2 className="text-lg font-semibold tracking-tight text-emerald-950">Create Long Acting Medicine</h2>
           <button
             type="button"
             onClick={onClose}

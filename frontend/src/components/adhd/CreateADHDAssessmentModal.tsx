@@ -1,4 +1,11 @@
 import { useEffect, useState } from 'react'
+import {
+  CM_BTN_CANCEL,
+  CM_BTN_PRIMARY,
+  CREATE_MODAL_FOOTER_STICKY,
+  CREATE_MODAL_OVERLAY,
+  createModalShellClass,
+} from '../ui/CreateModalChrome'
 import { ChevronDown, ChevronUp, Brain, Info, FileText, ClipboardList } from 'lucide-react'
 import {
   fetchADHDTemplates,
@@ -310,16 +317,16 @@ export const CreateADHDAssessmentModal = ({
   const isFooterEnabled = !!selectedTemplate?.footer_description
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[92vh] overflow-hidden flex flex-col">
+    <div className={CREATE_MODAL_OVERLAY}>
+      <div className={createModalShellClass('max-w-2xl w-full max-h-[92vh] overflow-hidden')}>
 
         {/* Header */}
-        <div className="px-5 py-4 border-b border-slate-200 flex-shrink-0 flex items-center justify-between">
+        <div className="relative shrink-0 border-b border-emerald-100/60 bg-gradient-to-r from-emerald-100 via-teal-50 to-sky-100 px-5 py-4 sm:px-6 flex flex-shrink-0 items-center justify-between">
           <div className="flex items-center gap-2.5">
             <Brain className="w-5 h-5 text-primary" />
-            <h2 className="text-lg font-semibold text-slate-900">New ADHD Assessment</h2>
+            <h2 className="text-lg font-semibold tracking-tight text-emerald-950">New ADHD Assessment</h2>
           </div>
-          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600">
+          <button type="button" onClick={onClose} className="shrink-0 rounded-lg p-2 text-emerald-800/70 transition hover:bg-emerald-200/50 hover:text-emerald-950">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -620,7 +627,7 @@ export const CreateADHDAssessmentModal = ({
           </div>
 
           {/* Footer */}
-          <div className="border-t border-slate-200 bg-white px-5 py-4 flex items-center justify-between gap-3 flex-shrink-0">
+          <div className={`${CREATE_MODAL_FOOTER_STICKY} items-center justify-between gap-3`}>
             <div className="text-xs text-slate-400">
               {responses.length > 0 && `${answeredCount} / ${responses.length} questions answered`}
             </div>
@@ -628,14 +635,14 @@ export const CreateADHDAssessmentModal = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50"
+                className={CM_BTN_CANCEL}
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={saving}
-                className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-50"
+                className={CM_BTN_PRIMARY}
               >
                 {saving ? 'Creating…' : 'Create Assessment'}
               </button>

@@ -44,6 +44,9 @@ export interface LabTest {
   employee?: string
   employee_designation?: string
   reviewed_by?: string
+  /** Healthcare Practitioner (Lab Technologist / Lab Technician) who entered results */
+  lab_technician?: string
+  lab_technician_name?: string
   material_request?: string
   amount?: number
   grand_total?: number
@@ -277,6 +280,8 @@ export interface SaveAndSubmitLabTestInput {
   worksheet_instructions?: string
   documents?: Array<{ file_name?: string; document_type?: string; transaction_no?: string; upload_remarks?: string; document?: string }>
   normal_test_items?: NormalTestResultRow[]
+  /** Link to Healthcare Practitioner (Lab Technologist or Lab Technician); required when submit is true */
+  lab_technician?: string
   submit?: boolean
   amount?: number
   discount_margin?: string

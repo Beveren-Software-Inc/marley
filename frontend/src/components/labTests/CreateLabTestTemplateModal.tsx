@@ -1,4 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import {
+  CM_BTN_CANCEL,
+  CM_BTN_PRIMARY,
+  CREATE_MODAL_OVERLAY,
+  CREATE_MODAL_OVERLAY_STACK,
+  createModalShellClass,
+} from '../ui/CreateModalChrome'
 import { apiRequest } from '../../services/apiClient'
 import {
   fetchMedicalDepartments,
@@ -1234,22 +1241,22 @@ export const CreateLabTestTemplateModal = ({
   /* ─── Main render ────────────────────────── */
   return (
     <>
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+    <div className={CREATE_MODAL_OVERLAY}
       onClick={e => {
         if (e.target === e.currentTarget) onClose()
         setDeptOpen(false); setNurseOpen(false); setItemOpen(false); setItemGroupOpen(false)
         setOpenGroupRowIdx(null); setOpenSampleRowIdx(null); setOpenUomCellKey(null)
       }}>
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl flex flex-col h-[85vh]"
+      <div className={createModalShellClass('w-full max-w-3xl flex flex-col h-[85vh]')}
         onClick={e => e.stopPropagation()}>
 
         {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between flex-shrink-0">
-          <h2 className="text-lg font-semibold text-slate-900">
+        <div className="relative shrink-0 border-b border-emerald-100/60 bg-gradient-to-r from-emerald-100 via-teal-50 to-sky-100 px-6 py-4 flex flex-shrink-0 items-center justify-between">
+          <h2 className="text-lg font-semibold tracking-tight text-emerald-950">
             {isEdit ? 'Edit Lab Test Template' : 'Create Lab Test Template'}
             {isEdit && <span className="ml-2 text-sm font-normal text-slate-500">{templateName}</span>}
           </h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+          <button onClick={onClose} className="shrink-0 rounded-lg p-2 text-emerald-800/70 transition hover:bg-emerald-200/50 hover:text-emerald-950">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -1286,11 +1293,11 @@ export const CreateLabTestTemplateModal = ({
               )}
               <div className="flex justify-end gap-3">
                 <button type="button" onClick={onClose}
-                  className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50">
+                  className={CM_BTN_CANCEL}>
                   Cancel
                 </button>
                 <button type="submit" disabled={saving}
-                  className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-50">
+                  className={CM_BTN_PRIMARY}>
                   {saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Create Template'}
                 </button>
               </div>
@@ -1302,9 +1309,9 @@ export const CreateLabTestTemplateModal = ({
 
     {/* Create UOM mini-modal */}
     {showCreateUom && (
-      <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60]"
+      <div className={CREATE_MODAL_OVERLAY_STACK}
         onClick={() => { setShowCreateUom(false); setNewUomName('') }}>
-        <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6" onClick={e => e.stopPropagation()}>
+        <div className={createModalShellClass('w-full max-w-sm p-6')} onClick={e => e.stopPropagation()}>
           <h3 className="text-base font-semibold text-slate-900 mb-4">Create UOM</h3>
           <div className="mb-4">
             <label className="block text-xs font-medium text-slate-600 mb-1">UOM Name <span className="text-red-500">*</span></label>
@@ -1320,9 +1327,9 @@ export const CreateLabTestTemplateModal = ({
           </div>
           <div className="flex justify-end gap-3">
             <button type="button" onClick={() => { setShowCreateUom(false); setNewUomName('') }}
-              className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50">Cancel</button>
+              className={CM_BTN_CANCEL}>Cancel</button>
             <button type="button" onClick={handleCreateUom} disabled={creatingUom || !newUomName.trim()}
-              className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-50">
+              className={CM_BTN_PRIMARY}>
               {creatingUom ? 'Creating…' : 'Create UOM'}
             </button>
           </div>
@@ -1332,9 +1339,9 @@ export const CreateLabTestTemplateModal = ({
 
     {/* Create Item Group mini-modal */}
     {showCreateItemGroup && (
-      <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60]"
+      <div className={CREATE_MODAL_OVERLAY_STACK}
         onClick={() => { setShowCreateItemGroup(false); setNewItemGroupName('') }}>
-        <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6" onClick={e => e.stopPropagation()}>
+        <div className={createModalShellClass('w-full max-w-sm p-6')} onClick={e => e.stopPropagation()}>
           <h3 className="text-base font-semibold text-slate-900 mb-4">Create Item Group</h3>
           <div className="mb-4">
             <label className="block text-xs font-medium text-slate-600 mb-1">Item Group Name <span className="text-red-500">*</span></label>
@@ -1350,9 +1357,9 @@ export const CreateLabTestTemplateModal = ({
           </div>
           <div className="flex justify-end gap-3">
             <button type="button" onClick={() => { setShowCreateItemGroup(false); setNewItemGroupName('') }}
-              className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50">Cancel</button>
+              className={CM_BTN_CANCEL}>Cancel</button>
             <button type="button" onClick={handleCreateItemGroup} disabled={creatingItemGroup || !newItemGroupName.trim()}
-              className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-50">
+              className={CM_BTN_PRIMARY}>
               {creatingItemGroup ? 'Creating…' : 'Create Item Group'}
             </button>
           </div>

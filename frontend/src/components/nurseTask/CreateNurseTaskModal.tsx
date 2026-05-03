@@ -318,8 +318,8 @@
 //   const showMedSection = defaultMedication || form.task_type === 'Medication Administration'
 
 //   return (
-//     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-//       <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full max-h-[90vh] flex flex-col">
+//     <div className={CREATE_MODAL_OVERLAY}>
+//       <div className={createModalShellClass('max-w-lg w-full max-h-[90vh]')}>
 
 //         {/* Header */}
 //         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 shrink-0">
@@ -644,7 +644,7 @@
 //               Cancel
 //             </button>
 //             <button type="submit" disabled={submitting || !patient}
-//               className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-50">
+//               className={CM_BTN_PRIMARY}>
 //               {submitting ? 'Creating…' : 'Create Task'}
 //             </button>
 //           </div>
@@ -655,6 +655,11 @@
 // }
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import {
+  CM_BTN_PRIMARY,
+  CREATE_MODAL_OVERLAY,
+  createModalShellClass,
+} from '../ui/CreateModalChrome'
 import { createNurseTask, type CreateNurseTaskData } from '../../services/nurseTask'
 import {
   fetchHealthcarePractitioners,
@@ -1072,8 +1077,8 @@ export const CreateNurseTaskModal = ({
   const isContextLocked = Boolean(isIPMode || isOPMode)
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full max-h-[90vh] flex flex-col">
+    <div className={CREATE_MODAL_OVERLAY}>
+      <div className={createModalShellClass('max-w-lg w-full max-h-[90vh]')}>
 
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 shrink-0">
@@ -1434,7 +1439,7 @@ export const CreateNurseTaskModal = ({
               Cancel
             </button>
             <button type="submit" disabled={submitting || !effectivePatient || (!isIPMode && !isOPMode) || (isIPMode && !encounter) || (isOPMode && !encounter)}
-              className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-50">
+              className={CM_BTN_PRIMARY}>
               {submitting ? 'Creating…' : 'Create Task'}
             </button>
           </div>

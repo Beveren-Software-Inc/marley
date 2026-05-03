@@ -1,9 +1,13 @@
 import { useEffect, useState } from 'react'
+import { Loader2, ShoppingCart, Trash2 } from 'lucide-react'
 import { getPatientActiveAdmission, type InpatientRecord } from '../../services/inpatientRecords'
 import { fetchMedicineGiven, deleteMedicineGiven, type MedicineGivenRow } from '../../services/medicineGiven'
 import { toast } from '../../hooks/useToast'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { useCareContext } from '../../providers/CareContextProvider'
+
+const iconToolbarBtn =
+  'inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-40 disabled:cursor-not-allowed transition-colors'
 
 interface MedicineGivenListProps {
   patient?: string
@@ -140,26 +144,34 @@ export const MedicineGivenList = ({ patient, refreshKey }: MedicineGivenListProp
 
   return (
     <div className="space-y-2">
-      {/* Toolbar */}
-      <div className="flex items-center justify-between">
-        <div className="text-xs text-slate-500">
+      {/* Toolbar — icon actions; hover shows full label */}
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="text-xs text-slate-500 min-w-0 truncate">
           Admission: <span className="font-medium text-slate-700">{admission.name}</span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50/90 p-1">
           <button
+            type="button"
             onClick={handleCreateSalesOrder}
             disabled={creatingSalesOrder}
-            className="px-3 py-1 rounded-md bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Create sales order for today's medicine consumption"
+            className={`${iconToolbarBtn} text-blue-700 border-blue-200/80 hover:bg-blue-50`}
+            title="Create sales order for today's medicine consumption (draft; reduces stock from warehouse)"
           >
-            {creatingSalesOrder ? 'Creating...' : 'Create Sales Order'}
+            {creatingSalesOrder ? (
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+            ) : (
+              <ShoppingCart className="h-4 w-4" aria-hidden />
+            )}
+            <span className="sr-only">Create sales order</span>
           </button>
           <PrintFormatDropdown
             doctype="Admission Detail"
             docName={admission.name}
             noLetterhead={0}
             triggerPrint={1}
-            className="inline-flex items-center justify-center w-8 h-8 rounded border border-slate-300 bg-white text-primary hover:bg-slate-50"
+            title="Print — choose format"
+            className={`${iconToolbarBtn} text-primary border-slate-200`}
+            ariaLabel="Print"
           />
         </div>
       </div>
@@ -204,9 +216,11 @@ export const MedicineGivenList = ({ patient, refreshKey }: MedicineGivenListProp
                   <button
                     type="button"
                     onClick={() => handleDelete(row)}
-                    className="inline-flex items-center justify-center px-2 py-1 rounded-md border border-red-300 text-[11px] text-red-700 hover:bg-red-50"
+                    className={`${iconToolbarBtn} border-red-200 text-red-700 hover:bg-red-50`}
+                    title="Remove this given medicine row"
                   >
-                    Remove
+                    <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                    <span className="sr-only">Remove</span>
                   </button>
                 </td>
               </tr>

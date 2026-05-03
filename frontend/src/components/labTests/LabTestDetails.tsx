@@ -166,7 +166,8 @@ export const LabTestDetails = ({ labTestName, onUpdate }: LabTestDetailsProps) =
         <div>
           <SectionTitle title="Lab Technician" />
           <div className="space-y-1">
-            <Field label="Name" value={labTest.employee_name || labTest.employee} />
+            <Field label="Healthcare Practitioner" value={labTest.lab_technician_name || labTest.lab_technician} />
+            <Field label="Employee (legacy)" value={labTest.employee_name || labTest.employee} />
             <Field label="Designation" value={labTest.employee_designation} />
             <Field label="Reviewed By" value={labTest.reviewed_by} />
           </div>

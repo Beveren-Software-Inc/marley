@@ -1,6 +1,9 @@
 
 
 import { useState, useEffect } from 'react'
+import {
+  CREATE_MODAL_OVERLAY,
+} from '../ui/CreateModalChrome'
 import { createMorseFallScale, type MorseFallScaleDetailRow } from '../../services/morseFallScale'
 import { fetchCompanies, fetchInpatientAdmissionOptions } from '../../services/common'
 import { toast } from '../../hooks/useToast'
@@ -174,7 +177,7 @@ export function CreateMorseFallScaleModal({
   }
 
   return (
-    <div className="fixed inset-0 bg-white/50 flex items-center justify-center z-50 p-4">
+    <div className={CREATE_MODAL_OVERLAY}>
       <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-200 dark:border-slate-700 flex-shrink-0">

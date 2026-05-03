@@ -1,4 +1,10 @@
 import { useState } from 'react'
+import {
+  CM_BTN_CANCEL,
+  CM_BTN_PRIMARY,
+  CREATE_MODAL_OVERLAY,
+  createModalShellClass,
+} from '../ui/CreateModalChrome'
 import { apiRequest } from '../../services/apiClient'
 
 interface CreateSampleTypeModalProps {
@@ -31,12 +37,12 @@ export const CreateSampleTypeModal = ({ onClose, onSuccess }: CreateSampleTypeMo
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+    <div className={CREATE_MODAL_OVERLAY}
       onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
+      <div className={createModalShellClass('w-full max-w-sm')} onClick={e => e.stopPropagation()}>
         <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-slate-900">Create Sample Type</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+          <h2 className="text-lg font-semibold tracking-tight text-emerald-950">Create Sample Type</h2>
+          <button onClick={onClose} className="shrink-0 rounded-lg p-2 text-emerald-800/70 transition hover:bg-emerald-200/50 hover:text-emerald-950">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -57,11 +63,11 @@ export const CreateSampleTypeModal = ({ onClose, onSuccess }: CreateSampleTypeMo
           )}
           <div className="flex justify-end gap-3 pt-1">
             <button type="button" onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50">
+              className={CM_BTN_CANCEL}>
               Cancel
             </button>
             <button type="submit" disabled={saving}
-              className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-50">
+              className={CM_BTN_PRIMARY}>
               {saving ? 'Creating…' : 'Create'}
             </button>
           </div>

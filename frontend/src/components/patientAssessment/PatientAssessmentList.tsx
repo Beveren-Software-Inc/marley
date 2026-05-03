@@ -134,7 +134,7 @@ export const PatientAssessmentList = ({
         </div>
         {onCreateNew && (
           <div className="flex items-end">
-            <button
+            {/* <button
               onClick={onCreateNew}
               className="px-3 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 transition-colors flex items-center gap-2"
               title="New Patient Assessment"
@@ -153,7 +153,7 @@ export const PatientAssessmentList = ({
                 />
               </svg>
               New Assessment
-            </button>
+            </button> */}
           </div>
         )}
       </div>

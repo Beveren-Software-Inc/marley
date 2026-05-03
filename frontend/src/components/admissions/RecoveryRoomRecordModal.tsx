@@ -699,6 +699,11 @@ import { fetchInpatientAdmissionOptions, fetchPatientVisits, type LinkFieldOptio
 import { toast } from '../../hooks/useToast'
 import { X, Plus, Trash2, ChevronDown } from 'lucide-react'
 import { useCareContext } from '../../providers/CareContextProvider'
+import {
+  linkComboboxDropdownClass,
+  linkComboboxInputWithClearClass,
+  linkComboboxOptionClassCompact,
+} from '../ui/linkComboboxStyles'
 
 interface RecoveryRoomRecordModalProps {
   admissionNo: string
@@ -831,7 +836,6 @@ const LinkCombobox = ({ label, value, onSelect, onClear, fetchOptions, placehold
   }, [])
 
   const lc = 'block text-xs font-semibold text-slate-600 mb-1'
-  const ic = 'w-full rounded-md border border-slate-300 px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white'
 
   return (
     <div ref={containerRef} className="relative">
@@ -841,7 +845,7 @@ const LinkCombobox = ({ label, value, onSelect, onClear, fetchOptions, placehold
           onChange={e => { if (!disabled) { setQuery(e.target.value); onClear(); setOpen(true) } }}
           onFocus={() => !disabled && setOpen(true)}
           placeholder={placeholder ?? 'Search...'}
-          className={`${ic} ${disabled ? 'bg-slate-100 cursor-not-allowed' : ''}`}
+          className={`${linkComboboxInputWithClearClass} ${disabled ? 'bg-slate-100 cursor-not-allowed' : ''}`}
           disabled={disabled}
           autoComplete="off" />
         <span className="absolute inset-y-0 right-2 flex items-center pointer-events-none text-slate-400">
@@ -851,12 +855,12 @@ const LinkCombobox = ({ label, value, onSelect, onClear, fetchOptions, placehold
         </span>
       </div>
       {open && !disabled && (
-        <div className="absolute z-30 mt-1 w-full bg-white border border-slate-200 rounded-md shadow-lg max-h-52 overflow-y-auto">
+        <div className={linkComboboxDropdownClass}>
           {options.length === 0
             ? <div className="px-3 py-2 text-xs text-slate-400">{loading ? 'Searching…' : 'No results found'}</div>
             : options.map(opt => (
               <button key={opt.name} type="button"
-                className="w-full text-left px-3 py-2 text-sm hover:bg-primary/5 focus:outline-none"
+                className={linkComboboxOptionClassCompact}
                 onClick={() => { onSelect(opt); setQuery(opt.label); setOpen(false) }}>
                 <span className="font-medium text-slate-800">{opt.label}</span>
                 {opt.label !== opt.name && <span className="ml-1.5 text-xs text-slate-400">{opt.name}</span>}
