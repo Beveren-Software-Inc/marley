@@ -286,6 +286,7 @@ export const LabTestTemplateList = ({ refreshKey = 0, onEditClick, selectedPatie
           onSuccess={() => setRequestTemplate(null)}
           initialTemplate={requestTemplate.name}
           initialPatient={selectedPatient}
+          labTestTemplateOnly
         />
       )}
     </div>

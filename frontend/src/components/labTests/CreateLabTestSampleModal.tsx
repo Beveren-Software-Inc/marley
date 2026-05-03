@@ -1,4 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import {
+  CM_BTN_CANCEL,
+  CM_BTN_PRIMARY,
+  CREATE_MODAL_OVERLAY,
+  CREATE_MODAL_OVERLAY_STACK,
+  createModalShellClass,
+} from '../ui/CreateModalChrome'
 import { apiRequest } from '../../services/apiClient'
 import { fetchUoms, fetchSampleTypes, fetchColors, type LinkFieldOption } from '../../services/common'
 
@@ -98,9 +105,9 @@ function CreateMiniModal({
 }) {
   const [value, setValue] = useState('')
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60]"
+    <div className={CREATE_MODAL_OVERLAY_STACK}
       onClick={onClose}>
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6" onClick={e => e.stopPropagation()}>
+      <div className={createModalShellClass('w-full max-w-sm p-6')} onClick={e => e.stopPropagation()}>
         <h3 className="text-base font-semibold text-slate-900 mb-4">{title}</h3>
         <div className="mb-4">
           <label className="block text-xs font-medium text-slate-600 mb-1">{label} <span className="text-red-500">*</span></label>
@@ -114,9 +121,9 @@ function CreateMiniModal({
         </div>
         <div className="flex justify-end gap-3">
           <button type="button" onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50">Cancel</button>
+            className={CM_BTN_CANCEL}>Cancel</button>
           <button type="button" onClick={() => { if (value.trim()) onSave(value.trim()) }} disabled={saving || !value.trim()}
-            className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-50">
+            className={CM_BTN_PRIMARY}>
             {saving ? 'Creating…' : `Create ${title.replace('Create ', '')}`}
           </button>
         </div>
@@ -195,14 +202,14 @@ export const CreateLabTestSampleModal = ({ onClose, onSuccess }: CreateLabTestSa
 
   return (
     <>
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+    <div className={CREATE_MODAL_OVERLAY}
       onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh]"
+      <div className={createModalShellClass('w-full max-w-lg flex flex-col max-h-[90vh]')}
         onClick={e => e.stopPropagation()}>
 
-        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between flex-shrink-0">
-          <h2 className="text-lg font-semibold text-slate-900">Create Lab Test Sample</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+        <div className="relative shrink-0 border-b border-emerald-100/60 bg-gradient-to-r from-emerald-100 via-teal-50 to-sky-100 px-6 py-4 flex flex-shrink-0 items-center justify-between">
+          <h2 className="text-lg font-semibold tracking-tight text-emerald-950">Create Lab Test Sample</h2>
+          <button onClick={onClose} className="shrink-0 rounded-lg p-2 text-emerald-800/70 transition hover:bg-emerald-200/50 hover:text-emerald-950">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -264,11 +271,11 @@ export const CreateLabTestSampleModal = ({ onClose, onSuccess }: CreateLabTestSa
             )}
             <div className="flex justify-end gap-3">
               <button type="button" onClick={onClose}
-                className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50">
+                className={CM_BTN_CANCEL}>
                 Cancel
               </button>
               <button type="submit" disabled={saving}
-                className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-50">
+                className={CM_BTN_PRIMARY}>
                 {saving ? 'Creating…' : 'Create Sample'}
               </button>
             </div>

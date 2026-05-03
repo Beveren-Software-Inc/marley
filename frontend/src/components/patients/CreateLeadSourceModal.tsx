@@ -1,4 +1,7 @@
 import { useState } from 'react'
+import {
+  CREATE_MODAL_OVERLAY,
+} from '../ui/CreateModalChrome'
 import { createLeadSource } from '../../services/common'
 
 interface CreateLeadSourceModalProps {
@@ -37,7 +40,7 @@ export const CreateLeadSourceModal = ({ onClose, onSuccess }: CreateLeadSourceMo
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+    <div className={CREATE_MODAL_OVERLAY}>
       <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl max-w-md w-full mx-4">
         <div className="p-6 border-b border-slate-200 dark:border-slate-700">
           <div className="flex items-center justify-between">

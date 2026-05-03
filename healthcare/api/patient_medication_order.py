@@ -716,6 +716,50 @@ def get_medication_order_by_inpatient_or_encounter(inpatient_record=None, patien
     return doc
 
 
+@frappe.whitelist()
+def save_medication_order_entry_stop_reason(
+	patient_medication_order: str,
+	order_entry_name: str,
+	reason_stopped: str | None = None,
+	clear: int | str | None = None,
+):
+	"""Set or clear ``reason_stopped`` on one Inpatient Medication Order Entry (child of Patient Medication Order).
+
+	Used from the single-prescription UI. When not clearing, ``reason_stopped`` is required.
+	Optionally sets ``stopped_date`` / ``stop_by`` when those columns exist.
+	"""
+	if not patient_medication_order or not order_entry_name:
+		frappe.throw(_("Patient Medication Order and medication line are required"))
+
+	if not frappe.has_permission("Patient Medication Order", "write", patient_medication_order):
+		frappe.throw(_("Not permitted"), frappe.PermissionError)
+
+	parent = frappe.db.get_value("Inpatient Medication Order Entry", order_entry_name, "parent")
+	if not parent or parent != patient_medication_order:
+		frappe.throw(_("This medication line does not belong to the selected prescription."))
+
+	clear_flag = clear is not None and str(clear).lower() in ("1", "true", "yes")
+
+	if clear_flag:
+		frappe.db.set_value("Inpatient Medication Order Entry", order_entry_name, "reason_stopped", "")
+		if frappe.db.has_column("Inpatient Medication Order Entry", "stopped_date"):
+			frappe.db.set_value("Inpatient Medication Order Entry", order_entry_name, "stopped_date", None)
+		if frappe.db.has_column("Inpatient Medication Order Entry", "stop_by"):
+			frappe.db.set_value("Inpatient Medication Order Entry", order_entry_name, "stop_by", None)
+	else:
+		reason = (reason_stopped or "").strip()
+		if not reason:
+			frappe.throw(_("Stop reason is required."))
+		frappe.db.set_value("Inpatient Medication Order Entry", order_entry_name, "reason_stopped", reason)
+		if frappe.db.has_column("Inpatient Medication Order Entry", "stopped_date"):
+			frappe.db.set_value("Inpatient Medication Order Entry", order_entry_name, "stopped_date", nowdate())
+		if frappe.db.has_column("Inpatient Medication Order Entry", "stop_by"):
+			frappe.db.set_value("Inpatient Medication Order Entry", order_entry_name, "stop_by", frappe.session.user)
+
+	frappe.db.commit()
+	return {"ok": True}
+
+
 # In your patient_medication_order.py
 @frappe.whitelist()
 def update_medication_order():

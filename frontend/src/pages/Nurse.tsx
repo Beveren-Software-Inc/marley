@@ -17,7 +17,6 @@ import { NursingTaskList } from '../components/nursing/NursingTaskList'
 import { NurseTaskList } from '../components/nurseTask/NurseTaskList'
 import { CreateNurseTaskModal } from '../components/nurseTask/CreateNurseTaskModal'
 import { PatientSummaryCard } from '../components/patients/PatientSummaryCard'
-import { DoctorServiceDetailsTable } from '../components/services/DoctorServiceDetailsTable'
 import { CreateClinicalNoteModal } from '../components/clinicalNotes/CreateClinicalNoteModal'
 import { getPatientActiveAdmission } from '../services/inpatientRecords'
 import { toast } from '../hooks/useToast'
@@ -39,6 +38,7 @@ import { DailyMedicationChart } from '../components/medication/DailyMedicationCh
 import { MedicationSheet } from '../components/medication/MedicationSheet'
 import { LongActingMedReminderList } from '../components/medication/LongActingMedReminderList'
 import { reconcileDischargeMedicines } from '../services/medicineGiven'
+import { Loader2, PackageSearch, Plus } from 'lucide-react'
 import { DiagnosisSymptomsScreen } from '../components/diagnosis/DiagnosisSymptomsScreen'
 import { AppointmentList } from '../components/appointments/AppointmentList'
 import { EnvironmentalChecklistList } from '../components/environmental/EnvironmentalChecklistList'
@@ -69,6 +69,11 @@ import { PatientList } from '../components/patients/PatientList'
 import { RxPage } from '../components/prescriptions/SinglePrescription'
 import { NursingInventoryDashboard } from '../components/nursingInventory/NursingInventoryDashboard'
 
+/** Icon-only toolbar buttons for Given Medicines (native `title` = hover tooltip) */
+const gmIconBtn =
+  'inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-40 disabled:cursor-not-allowed transition-colors'
+const gmIconBtnPrimary =
+  'inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-primary/40 bg-primary text-white hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors'
 
 export const NursePage = () => {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -633,6 +638,7 @@ export const NursePage = () => {
             <LabTestList
               patient={selectedPatient}
               defaultStatus="Requested"
+              byNurse={true}
               key={labTestRefreshKey}
             />
           </section>
@@ -1132,23 +1138,31 @@ export const NursePage = () => {
         </header>
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4 flex items-center justify-between">
+            <div className="font-semibold mb-4 flex items-center justify-between gap-2">
               <span>Given Medicines</span>
-              <div className="flex items-center gap-2">
-                {/* <button
-                  onClick={handleReconcileGiven}
-                  className="px-3 py-1 rounded-md bg-primary text-white text-xs font-semibold hover:bg-primary/90 disabled:opacity-50"
-                  disabled={reconcileLoading}
-                  title="Create Stock Entry for remaining medicines"
-                >
-                  {reconcileLoading ? 'Reconciling…' : 'Reconcile for Discharge'}
-                </button> */}
+              <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50/90 p-1">
                 <button
-                  onClick={() => setShowGivenMedicineModal(true)}
-                  className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
-                  title="Record Given Medicine"
+                  type="button"
+                  onClick={handleReconcileGiven}
+                  disabled={reconcileLoading}
+                  className={`${gmIconBtn} text-emerald-800 border-emerald-200/80 hover:bg-emerald-50`}
+                  title="Reconcile for discharge — create stock entry for remaining medicines to return"
                 >
-                  +
+                  {reconcileLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                  ) : (
+                    <PackageSearch className="h-4 w-4" aria-hidden />
+                  )}
+                  <span className="sr-only">Reconcile for discharge</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowGivenMedicineModal(true)}
+                  className={gmIconBtnPrimary}
+                  title="Record given medicine"
+                >
+                  <Plus className="h-4 w-4" strokeWidth={2.5} aria-hidden />
+                  <span className="sr-only">Add given medicine</span>
                 </button>
               </div>
             </div>
@@ -1681,13 +1695,28 @@ export const NursePage = () => {
     )
   }
 
-  // Show Diagnosis & Symptoms (from left sidebar "Diagnoses" -> screen=n-dx)
+  // Show Diagnoses (Patient Diagnosis child on active OP visit / IP admission — screen=n-dx)
   if (screen === 'n-dx') {
     return (
-      <DiagnosisSymptomsScreen
-        selectedPatient={selectedPatient || ''}
-        onPatientSelect={handlePatientSelect}
-      />
+      <div className="flex flex-col">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+        <DiagnosisSymptomsScreen
+          selectedPatient={selectedPatient || ''}
+          onPatientSelect={handlePatientSelect}
+        />
+      </div>
     )
   }
 
@@ -1982,23 +2011,31 @@ export const NursePage = () => {
           <div className="grid gap-4 md:grid-cols-2 p-4">
             {/* Given Medicines */}
             <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-              <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
+              <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0 gap-2">
                 <span>Given Medicines</span>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50/90 p-1">
                   <button
+                    type="button"
                     onClick={handleReconcileGiven}
-                    className="px-3 py-1 rounded-md bg-primary text-white text-xs font-semibold hover:bg-primary/90 disabled:opacity-50"
                     disabled={reconcileLoading}
-                    title="Create Stock Entry for remaining medicines"
+                    className={`${gmIconBtn} text-emerald-800 border-emerald-200/80 hover:bg-emerald-50`}
+                    title="Reconcile for discharge — create stock entry for remaining medicines to return"
                   >
-                    {reconcileLoading ? 'Reconciling…' : 'Reconcile for Discharge'}
+                    {reconcileLoading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                    ) : (
+                      <PackageSearch className="h-4 w-4" aria-hidden />
+                    )}
+                    <span className="sr-only">Reconcile for discharge</span>
                   </button>
                   <button
+                    type="button"
                     onClick={() => setShowGivenMedicineModal(true)}
-                    className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
-                    title="Record Given Medicine"
+                    className={gmIconBtnPrimary}
+                    title="Record given medicine"
                   >
-                    +
+                    <Plus className="h-4 w-4" strokeWidth={2.5} aria-hidden />
+                    <span className="sr-only">Add given medicine</span>
                   </button>
                 </div>
               </div>
@@ -2023,17 +2060,17 @@ export const NursePage = () => {
             {/* Lab Test Reports */}
             <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
               <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
-                <span>Lab Test Reports</span>
-                <button
+                <span>Lab Test</span>
+                {/* <button
                   onClick={() => setShowLabTestModal(true)}
                   className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
                   title="Add Lab Test Report"
                 >
                   +
-                </button>
+                </button> */}
               </div>
               <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                <LabTestList patient={selectedPatient} key={labTestRefreshKey} />
+                <LabTestList patient={selectedPatient} byNurse={true} key={labTestRefreshKey} />
               </div>
             </section>
 
@@ -2065,13 +2102,13 @@ export const NursePage = () => {
             <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
               <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
                 <span>Prescription</span>
-                <button
+                {/* <button
                   onClick={() => setShowPrescriptionModal(true)}
                   className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
                   title="Create Prescription"
                 >
                   +
-                </button>
+                </button> */}
               </div>
               <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
                 <PrescriptionList patient={selectedPatient} refreshKey={prescriptionRefreshKey} />
@@ -2137,12 +2174,12 @@ export const NursePage = () => {
             </div>
           )}
 
-          <div className="px-4 pb-4">
+          {/* <div className="px-4 pb-4">
             <DoctorServiceDetailsTable 
               patient={selectedPatient} 
               onAddService={() => setShowServiceModal(true)}
             />
-          </div>
+          </div> */}
         </>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 p-4">
@@ -2174,7 +2211,7 @@ export const NursePage = () => {
               </button>
             </div>
             <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-              <LabTestList defaultStatus="Pending Review" key={labTestRefreshKey} />
+              <LabTestList defaultStatus="Pending Review" byNurse={true} key={labTestRefreshKey} />
             </div>
           </section>
 
@@ -2226,6 +2263,7 @@ export const NursePage = () => {
             setShowLabTestModal(false)
           }}
           initialPatient={selectedPatient}
+          templatesNurseOnly
         />
       )}
       {showDiagnosisModal && selectedPatient && (
@@ -2262,6 +2300,17 @@ export const NursePage = () => {
           }}
           initialPatient={selectedPatient}
           initialTemplate='Healthcare Service Template'
+        />
+      )}
+
+      {showGivenMedicineModal && (
+        <CreateMedicineGivenModal
+          initialPatient={selectedPatient}
+          onClose={() => setShowGivenMedicineModal(false)}
+          onSuccess={() => {
+            setGivenRefreshKey((prev) => prev + 1)
+            setShowGivenMedicineModal(false)
+          }}
         />
       )}
     </div>

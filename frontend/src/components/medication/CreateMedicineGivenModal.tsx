@@ -1,4 +1,8 @@
 import { useEffect, useState } from 'react'
+import {
+  CREATE_MODAL_OVERLAY,
+  createModalShellClass,
+} from '../ui/CreateModalChrome'
 import type { Prescription, MedicationOrderEntry } from '../../services/prescriptions'
 import { fetchPrescriptions, fetchMedicationOrders } from '../../services/prescriptions'
 import { getPatientActiveAdmission, type InpatientRecord } from '../../services/inpatientRecords'
@@ -59,9 +63,11 @@ export const CreateMedicineGivenModal = ({
         setAdmission(adm)
 
         if (mode === 'prescription') {
+          // Only PMOs for *this* admission — otherwise the first match can be an old IP (wrong inpatient_record).
           const list = await fetchPrescriptions(50, 0, {
             patient: initialPatient,
             careContext: 'Inpatient Admission',
+            inpatientRecord: adm.name,
           })
           setPrescriptions(list)
           if (list.length > 0) {
@@ -71,12 +77,18 @@ export const CreateMedicineGivenModal = ({
             setOrders(ords)
             if (ords.length > 0) {
               setSelectedOrder(ords[0].name)
+            } else {
+              setSelectedOrder('')
             }
           } else {
-            setError('No inpatient prescriptions found for this patient')
+            setSelectedPrescription('')
+            setOrders([])
+            setSelectedOrder('')
+            setError(
+              `No submitted prescription (Patient Medication Order) for admission ${adm.name}. Use “Direct Medicine” to record a dose, or add a prescription for this admission.`
+            )
           }
         } else {
-          // Direct medicine mode – load items list
           const opts = await fetchItems()
           setItems(opts)
           if (opts.length > 0) {
@@ -140,7 +152,6 @@ export const CreateMedicineGivenModal = ({
       setLoading(true)
       setError(null)
 
-      // Simple override flow: if override is checked, require justification and send to backend
       if (overrideChecked && !overrideReason.trim()) {
         const msg = 'Please enter a justification for overriding the prescribed frequency.'
         setError(msg)
@@ -160,17 +171,13 @@ export const CreateMedicineGivenModal = ({
         time,
         dose_notes: notes || undefined,
         is_prn: isPrn || undefined,
-        // medication_type: medication_type
       })
 
       toast.success(overrideChecked ? 'Given medicine recorded with override' : 'Given medicine recorded')
       onSuccess()
       onClose()
     } catch (e) {
-      const msg =
-        e instanceof Error
-          ? e.message
-          : 'Failed to record given medicine'
+      const msg = e instanceof Error ? e.message : 'Failed to record given medicine'
       setError(msg)
       toast.error(msg)
     } finally {
@@ -179,91 +186,112 @@ export const CreateMedicineGivenModal = ({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
-          <div>
-            <h2 className="text-base font-semibold text-slate-900">Record Given Medicine</h2>
-            {admission && (
-              <p className="text-xs text-slate-600">
-                Admission: <span className="font-medium">{admission.name}</span>
-              </p>
-            )}
+    <div className={CREATE_MODAL_OVERLAY}>
+      <div className={createModalShellClass('w-full max-w-2xl max-h-[90vh] overflow-hidden')}>
+        {/* Enhanced Header */}
+        <div className="relative bg-gradient-to-r from-emerald-100 via-teal-50 to-sky-100 px-6 py-5 border-b border-emerald-200/60">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(16,185,129,0.12),transparent_55%)]" />
+          <div className="relative flex items-start justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-500/20 ring-1 ring-emerald-400/40">
+                <svg className="h-5 w-5 text-emerald-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                  <path d="M20 12V8H4v4M12 4v16M8 8h8M4 12h16M4 12v4a2 2 0 002 2h12a2 2 0 002-2v-4" />
+                  <path d="M9 12h6" />
+                </svg>
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold tracking-tight text-emerald-950">Record Given Medicine</h2>
+                {admission && (
+                  <p className="mt-1 text-sm text-emerald-800/80">
+                    Admission: <span className="font-medium">{admission.name}</span>
+                  </p>
+                )}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="shrink-0 rounded-lg p-2 text-emerald-800/70 transition hover:bg-emerald-200/50 hover:text-emerald-950"
+              aria-label="Close"
+            >
+              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-slate-400 hover:text-slate-600"
-          >
-            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="px-4 py-3 space-y-3">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
           {error && (
-            <div className="bg-red-50 border border-red-200 rounded-md px-3 py-2 text-sm text-red-700">
+            <div className="rounded-xl border border-red-200/80 bg-red-50 px-4 py-3 text-sm text-red-800 shadow-sm">
               {error}
             </div>
           )}
+
+          {/* Override section */}
           {mode === 'prescription' && (
-            <div className="bg-amber-50 border border-amber-200 rounded-md px-3 py-3 text-xs text-amber-800 space-y-2">
-              <div className="font-semibold">Override prescribed frequency (optional)</div>
-              <p className="text-[11px]">
+            <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <svg className="h-4 w-4 text-amber-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                  <path d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span className="font-semibold text-amber-800">Override prescribed frequency (optional)</span>
+              </div>
+              <p className="text-xs text-amber-700">
                 Use this only when an extra dose is clinically justified (e.g. ICU, high-risk treatment, explicit
                 consultant order). All overrides are logged with user and reason.
               </p>
-              <label className="flex items-center gap-2 text-[11px]">
+              <label className="flex items-center gap-2 text-sm text-amber-800">
                 <input
                   type="checkbox"
-                  className="h-3 w-3"
+                  className="h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
                   checked={overrideChecked}
                   onChange={(e) => setOverrideChecked(e.target.checked)}
                 />
                 I need to override the prescribed daily frequency for this dose.
               </label>
-              <div className="space-y-1">
-                <label className="block text-[11px] font-medium text-amber-900">
-                  Override justification
-                </label>
-                <textarea
-                  rows={2}
-                  value={overrideReason}
-                  onChange={(e) => setOverrideReason(e.target.value)}
-                  className="w-full rounded-md border border-amber-300 px-2 py-1.5 text-xs bg-amber-50"
-                  placeholder="e.g. ICU patient, consultant order to give extra dose now…"
-                  disabled={!overrideChecked}
-                />
-              </div>
+              {overrideChecked && (
+                <div className="space-y-2">
+                  <label className="block text-xs font-semibold text-amber-900">
+                    Override justification <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={overrideReason}
+                    onChange={(e) => setOverrideReason(e.target.value)}
+                    className="w-full rounded-lg border border-amber-300 px-3 py-2 text-sm bg-amber-50/50 focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
+                    placeholder="e.g. ICU patient, consultant order to give extra dose now…"
+                  />
+                </div>
+              )}
             </div>
           )}
 
           {/* Mode toggle + PRN filter */}
-          <div className="flex flex-wrap items-center gap-3 text-xs font-medium text-slate-600">
-            <label className="inline-flex items-center gap-1">
+          <div className="flex flex-wrap items-center gap-4 text-sm font-medium text-slate-600 border-b border-slate-200 pb-3">
+            <label className="inline-flex items-center gap-2 cursor-pointer">
               <input
                 type="radio"
-                className="h-3 w-3"
+                className="h-4 w-4 text-emerald-600 focus:ring-emerald-500"
                 checked={mode === 'prescription'}
                 onChange={() => setMode('prescription')}
               />
               From Prescription
             </label>
-            <label className="inline-flex items-center gap-1">
+            <label className="inline-flex items-center gap-2 cursor-pointer">
               <input
                 type="radio"
-                className="h-3 w-3"
+                className="h-4 w-4 text-emerald-600 focus:ring-emerald-500"
                 checked={mode === 'direct'}
                 onChange={() => setMode('direct')}
               />
               Direct Medicine
             </label>
             {mode === 'prescription' && (
-              <label className="inline-flex items-center gap-1.5 ml-auto cursor-pointer select-none">
+              <label className="inline-flex items-center gap-2 ml-auto cursor-pointer">
                 <input
                   type="checkbox"
-                  className="h-3.5 w-3.5 rounded accent-amber-500"
+                  className="h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
                   checked={isPrn}
                   onChange={(e) => {
                     setIsPrn(e.target.checked)
@@ -271,75 +299,74 @@ export const CreateMedicineGivenModal = ({
                   }}
                 />
                 <span className="text-amber-700 font-semibold">PRN only</span>
-                <span className="text-slate-400 font-normal">(as-needed)</span>
+                <span className="text-slate-400 text-xs">(as-needed)</span>
               </label>
             )}
           </div>
 
           {mode === 'prescription' && (
             <>
-          <div className="space-y-1">
-            <label className="block text-xs font-medium text-slate-600">
-              Prescription (Patient Medication Order)
-            </label>
-            <select
-              value={selectedPrescription}
-              onChange={(e) => handleChangePrescription(e.target.value)}
-              className="w-full rounded-md border border-slate-300 px-2 py-2 text-sm"
-              disabled={loading || !prescriptions.length}
-            >
-              {prescriptions.map((p) => (
-                <option key={p.name} value={p.name}>
-                  {p.name} – {p.patient_name || p.patient}
-                </option>
-              ))}
-            </select>
-          </div>
+              <div className="space-y-2">
+                <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Prescription (Patient Medication Order)
+                </label>
+                <select
+                  value={selectedPrescription}
+                  onChange={(e) => handleChangePrescription(e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                  disabled={loading || !prescriptions.length}
+                >
+                  {prescriptions.map((p) => (
+                    <option key={p.name} value={p.name}>
+                      {p.name} – {p.patient_name || p.patient}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-          <div className="space-y-1">
-            <label className="block text-xs font-medium text-slate-600">
-              {isPrn ? (
-                <span className="text-amber-700">PRN Medicine from Prescription</span>
-              ) : (
-                'Medicine from Prescription'
-              )}
-            </label>
-            {isPrn && (
-              <p className="text-[11px] text-amber-600 bg-amber-50 border border-amber-200 rounded px-2 py-1">
-                Showing only PRN (as-needed) medications from this prescription.
-              </p>
-            )}
-            <select
-              value={selectedOrder}
-              onChange={(e) => setSelectedOrder(e.target.value)}
-              className="w-full rounded-md border border-slate-300 px-2 py-2 text-sm"
-              disabled={loading || !orders.length}
-            >
-             <option value="">
-                {isPrn && orders.filter((o) => o.is_prn === 1 || o.medication_type === 'PRN').length === 0
-                  ? 'No PRN medicines on this prescription'
-                  : 'Select medicine...'}
-              </option>
-              {(isPrn ? orders.filter((o) => o.is_prn === 1 || o.medication_type === 'PRN') : orders).map((o) => (
-                <option key={o.name} value={o.name}>
-                  {o.drug_name || o.drug} – {o.dosage}
-                  {o.is_prn === 1 ? ' (PRN)' : ''}
-                </option>
-              ))}
-            </select>
-          </div>
+              <div className="space-y-2">
+                <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  {isPrn ? 'PRN Medicine from Prescription' : 'Medicine from Prescription'}
+                </label>
+                {isPrn && (
+                  <div className="flex items-center gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                      <path d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Showing only PRN (as-needed) medications from this prescription.
+                  </div>
+                )}
+                <select
+                  value={selectedOrder}
+                  onChange={(e) => setSelectedOrder(e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                  disabled={loading || !orders.length}
+                >
+                  <option value="">
+                    {isPrn && orders.filter((o) => o.is_prn === 1 || o.medication_type === 'PRN').length === 0
+                      ? 'No PRN medicines on this prescription'
+                      : 'Select medicine...'}
+                  </option>
+                  {(isPrn ? orders.filter((o) => o.is_prn === 1 || o.medication_type === 'PRN') : orders).map((o) => (
+                    <option key={o.name} value={o.name}>
+                      {o.drug_name || o.drug} – {o.dosage}
+                      {o.is_prn === 1 ? ' (PRN)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </>
           )}
 
           {mode === 'direct' && (
-            <div className="space-y-1">
-              <label className="block text-xs font-medium text-slate-600">
+            <div className="space-y-2">
+              <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">
                 Medicine Item
               </label>
               <select
                 value={selectedItem}
                 onChange={(e) => setSelectedItem(e.target.value)}
-                className="w-full rounded-md border border-slate-300 px-2 py-2 text-sm"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
                 disabled={loading || !items.length}
               >
                 {items.map((it) => (
@@ -351,68 +378,80 @@ export const CreateMedicineGivenModal = ({
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <label className="block text-xs font-medium text-slate-600">Date</label>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">Date</label>
               <input
                 type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="w-full rounded-md border border-slate-300 px-2 py-2 text-sm"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
               />
             </div>
-            <div className="space-y-1">
-              <label className="block text-xs font-medium text-slate-600">Time</label>
+            <div className="space-y-2">
+              <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">Time</label>
               <input
                 type="time"
                 value={time}
                 onChange={(e) => setTime(e.target.value)}
-                className="w-full rounded-md border border-slate-300 px-2 py-2 text-sm"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
               />
             </div>
           </div>
 
-          <div className="space-y-1">
-            <label className="block text-xs font-medium text-slate-600">Quantity</label>
+          <div className="space-y-2">
+            <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">Quantity</label>
             <input
               type="number"
               min={0}
               step="0.01"
               value={qty}
               onChange={(e) => setQty(parseFloat(e.target.value) || 0)}
-              className="w-full rounded-md border border-slate-300 px-2 py-2 text-sm"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
             />
           </div>
 
-          <div className="space-y-1">
-            <label className="block text-xs font-medium text-slate-600">Notes</label>
+          <div className="space-y-2">
+            <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">Notes</label>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              rows={2}
-              className="w-full rounded-md border border-slate-300 px-2 py-2 text-sm"
+              rows={3}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+              placeholder="Additional notes or observations..."
             />
           </div>
-
-          <div className="flex justify-end gap-2 pt-2 border-t border-slate-200 mt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-3 py-1.5 text-sm border border-slate-300 rounded-md text-slate-700 hover:bg-slate-50"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={loading || !selectedPrescription || !admission}
-              className="px-3 py-1.5 text-sm rounded-md bg-primary text-white hover:bg-primary/90 disabled:opacity-50"
-            >
-              {loading ? 'Saving…' : 'Save'}
-            </button>
-          </div>
         </form>
+
+        {/* Enhanced Footer */}
+        <div className="sticky bottom-0 flex justify-end gap-3 border-t border-emerald-100 bg-gradient-to-r from-white via-emerald-50/50 to-teal-50/40 px-6 py-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-medium rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            onClick={handleSubmit}
+            disabled={loading || !admission || (mode === 'prescription' && (!selectedPrescription || !selectedOrder)) || (mode === 'direct' && !selectedItem)}
+            className="px-4 py-2 text-sm font-semibold rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md shadow-emerald-600/30 hover:from-emerald-500 hover:to-teal-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading ? (
+              <span className="flex items-center gap-2">
+                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+                Saving...
+              </span>
+            ) : (
+              'Save Medicine Record'
+            )}
+          </button>
+        </div>
       </div>
     </div>
   )
 }
-

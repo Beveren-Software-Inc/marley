@@ -4,6 +4,8 @@
 
 import frappe
 from frappe import _
+from healthcare.api.utils.api_utility import get_next_transaction_number
+
 
 
 @frappe.whitelist()
@@ -84,10 +86,11 @@ def create_warning_message(data):
 	# Validate required fields
 	if not data.get('patient'):
 		frappe.throw(_("Patient is required"))
-	
+	trans_no = get_next_transaction_number('Patient Medication Order', fieldname='trans_no')
 	# Create the warning message
 	warning = frappe.get_doc({
 		'doctype': 'Warning Message',
+			'trans_id': trans_no,
 		'patient': data.get('patient'),
 		'warning': data.get('warning', ''),
 		'practitioner': data.get('practitioner'),

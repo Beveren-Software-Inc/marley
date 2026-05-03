@@ -233,10 +233,19 @@ export function PatientMedicalHistoryList({ patient, patientName, refreshKey }: 
         <button
           type="button"
           onClick={() => setShowCreate(true)}
-          className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md bg-primary text-white hover:bg-primary/90 transition-colors"
+          className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
         >
-          <Plus className="w-3.5 h-3.5" />
-          New
+          +
+         
+
+          {/* <button
+          onClick={onAdd}
+          className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
+          title={addButtonTitle}
+        >
+          +
+        </button> */}
+
         </button>
       </div>
 

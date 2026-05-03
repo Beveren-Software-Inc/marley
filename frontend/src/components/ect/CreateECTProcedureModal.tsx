@@ -1,4 +1,8 @@
 import { useEffect, useState, useCallback, memo } from 'react'
+import {
+  CREATE_MODAL_OVERLAY,
+  createModalShellClass,
+} from '../ui/CreateModalChrome'
 import { createECTProcedure } from '../../services/ectProcedure'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
 import { fetchHealthcarePractitioners, fetchAnaesthesiaTypes, type LinkFieldOption } from '../../services/common'
@@ -334,8 +338,8 @@ export const CreateECTProcedureModal = ({
   }, [])
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[95vh] overflow-hidden flex flex-col">
+    <div className={CREATE_MODAL_OVERLAY}>
+      <div className={createModalShellClass('max-w-4xl w-full max-h-[95vh] overflow-hidden')}>
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-gradient-to-r from-blue-50 to-slate-50 flex-shrink-0">
           <div>

@@ -355,6 +355,8 @@ def get_lab_test(name):
 		'discount': getattr(lab_test, 'discount', None),
 		'discount_amount': getattr(lab_test, 'discount_amount', None),
 		'grand_total': getattr(lab_test, 'grand_total', None),
+		'lab_technician': getattr(lab_test, 'lab_technician', None),
+		'lab_technician_name': getattr(lab_test, 'lab_technician_name', None),
 	}
 	# Include documents child table (Patient Upload Document)
 	documents = getattr(lab_test, 'documents', None) or []
@@ -538,6 +540,7 @@ def save_and_submit_lab_test(
 	discount_margin=None,
 	discount=None,
 	discount_amount=None,
+	lab_technician=None,
 	submit: bool = False,
 ):
 	"""Save custom result/comment/worksheet/documents/normal_test_items/pricing on Lab Test and optionally submit it."""
@@ -547,6 +550,9 @@ def save_and_submit_lab_test(
 		frappe.throw(_("Lab Test name is required"))
 
 	doc = frappe.get_doc("Lab Test", name)
+
+	if lab_technician is not None:
+		doc.lab_technician = lab_technician or None
 
 	if custom_result is not None:
 		doc.custom_result = custom_result
@@ -612,7 +618,6 @@ def save_and_submit_lab_test(
 		doc.grand_total = base - (disc_amt or 0)
 
 	_apply_documents_to_doc(doc, documents)
-	print("Uko wapi")
 	if submit:
 		if doc.docstatus == 0:
 			doc.flags.ignore_permissions = True

@@ -26,7 +26,6 @@ import { CreateHomicideRiskAssessmentModal } from '../components/homicide/Create
 import { HomicideRiskAssessmentList } from '../components/homicide/HomicideRiskAssessmentList'
 import { IOPDayListWithHeader } from '../components/iop/IOPDayList'
 import { IOPEnrollmentListWithHeader } from '../components/iop/IOPEnrollmentList'
-// import { CreateLabTestModal } from '../components/labTests/CreateLabTestModal'
 import { LabTestList } from '../components/labTests/LabTestList'
 import { MedicalHistoryView } from '../components/medicalHistory/MedicalHistoryView'
 import { CreateMedicineGivenModal } from '../components/medication/CreateMedicineGivenModal'
@@ -80,14 +79,46 @@ import { getPatientActiveAdmission } from '../services/inpatientRecords'
 import { AdmissionPage } from './Admission'
 import { PatientVisitPage } from './PatientVisit'
 
+// Dashboard Card Component - makes all cards uniform height with scrollable content
+const DashboardCard = ({ 
+  title, 
+  onAdd, 
+  children, 
+  className = "",
+  addButtonTitle = `Add ${title}`
+}: { 
+  title: string
+  onAdd?: () => void
+  children: React.ReactNode
+  className?: string
+  addButtonTitle?: string
+}) => (
+  <section className={`bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col min-h-[400px] max-h-[400px] ${className}`}>
+    <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
+      <span>{title}</span>
+      {onAdd && (
+        <button
+          onClick={onAdd}
+          className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
+          title={addButtonTitle}
+        >
+          +
+        </button>
+      )}
+    </div>
+    <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
+      {children}
+    </div>
+  </section>
+)
 
 const CreateLabRequestModal = ({ 
   onClose, 
   onSuccess, 
   initialPatient 
 }: { 
-  onClose: () => void; 
-  onSuccess: () => void; 
+  onClose: () => void
+  onSuccess: () => void
   initialPatient?: string 
 }) => {
   return (
@@ -95,7 +126,7 @@ const CreateLabRequestModal = ({
       onClose={onClose}
       onSuccess={onSuccess}
       initialPatient={initialPatient}
-      initialTemplate="Lab Test Template"
+      labTestTemplateOnly
     />
   )
 }
@@ -151,29 +182,28 @@ export const DoctorPage = () => {
   const [patientHistoryRefreshKey, setPatientHistoryRefreshKey] = useState(0)
   const screen = searchParams.get('screen')
   const [showCreateADHDModal, setShowCreateADHDModal] = useState(false)
-const [adhdRefreshKey, setAdhdRefreshKey] = useState(0)
-const [showCreateDepressionModal, setShowCreateDepressionModal] = useState(false)
-const [depressionRefreshKey, setDepressionRefreshKey] = useState(0)
-const [showCreateMoodModal, setShowCreateMoodModal] = useState(false)
-const [moodRefreshKey, setMoodRefreshKey] = useState(0)
-const [showCreateGAD7Modal, setShowCreateGAD7Modal] = useState(false)
-const [gad7RefreshKey, setGad7RefreshKey] = useState(0)
-const [showCreatePHQ9Modal, setShowCreatePHQ9Modal] = useState(false)
-const [phq9RefreshKey, setPhq9RefreshKey] = useState(0)
-const [showCreateSuicideRiskModal, setShowCreateSuicideRiskModal] = useState(false)
-const [suicideRiskRefreshKey, setSuicideRiskRefreshKey] = useState(0)
-const [showCreateHomicideRiskModal, setShowCreateHomicideRiskModal] = useState(false)
-const [homicideRiskRefreshKey, setHomicideRiskRefreshKey] = useState(0)
-const [showCreateYBOCSModal, setShowCreateYBOCSModal] = useState(false)
-const [ybocsRefreshKey, setYbocsRefreshKey] = useState(0)
-const [showCreateYMRSModal, setShowCreateYMRSModal] = useState(false)
-const [ymrsRefreshKey, setYmrsRefreshKey] = useState(0)
-const [showCreatePANSSModal, setShowCreatePANSSModal] = useState(false)
-const [panssRefreshKey, setPanssRefreshKey] = useState(0)
-const [showSuicidalModal, setShowSuicidalModal] = useState(false)
-// const [selectedAssessment, setSelectedAssessment] = useState<SuicidalAssessment | null>(null)
+  const [adhdRefreshKey, setAdhdRefreshKey] = useState(0)
+  const [showCreateDepressionModal, setShowCreateDepressionModal] = useState(false)
+  const [depressionRefreshKey, setDepressionRefreshKey] = useState(0)
+  const [showCreateMoodModal, setShowCreateMoodModal] = useState(false)
+  const [moodRefreshKey, setMoodRefreshKey] = useState(0)
+  const [showCreateGAD7Modal, setShowCreateGAD7Modal] = useState(false)
+  const [gad7RefreshKey, setGad7RefreshKey] = useState(0)
+  const [showCreatePHQ9Modal, setShowCreatePHQ9Modal] = useState(false)
+  const [phq9RefreshKey, setPhq9RefreshKey] = useState(0)
+  const [showCreateSuicideRiskModal, setShowCreateSuicideRiskModal] = useState(false)
+  const [suicideRiskRefreshKey, setSuicideRiskRefreshKey] = useState(0)
+  const [showCreateHomicideRiskModal, setShowCreateHomicideRiskModal] = useState(false)
+  const [homicideRiskRefreshKey, setHomicideRiskRefreshKey] = useState(0)
+  const [showCreateYBOCSModal, setShowCreateYBOCSModal] = useState(false)
+  const [ybocsRefreshKey, setYbocsRefreshKey] = useState(0)
+  const [showCreateYMRSModal, setShowCreateYMRSModal] = useState(false)
+  const [ymrsRefreshKey, setYmrsRefreshKey] = useState(0)
+  const [showCreatePANSSModal, setShowCreatePANSSModal] = useState(false)
+  const [panssRefreshKey, setPanssRefreshKey] = useState(0)
+  const [showSuicidalModal, setShowSuicidalModal] = useState(false)
+  const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
 
-const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
   // Sync selectedPatient with URL on mount and when URL changes
   useEffect(() => {
     const patientParam = searchParams.get('patient')
@@ -250,56 +280,53 @@ const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
     return <PatientVisitPage initialPatient={selectedPatient} />
   }
 
+  if (screen === 'suicide') {
+    return (
+      <div className="flex flex-col">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
 
-   if (screen === 'suicide') {
-  return (
-    <div className="flex flex-col">
-      <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-        <div className="flex-1 min-w-0">
-          <PatientSearch
-            selectedPatient={selectedPatient || ''}
-            onPatientSelect={handlePatientSelect}
-            patients={[]}
-          />
+        <div className="p-4">
+          <DashboardCard 
+            title="Suicidal Assessments" 
+            onAdd={() => setShowSuicidalModal(true)}
+            addButtonTitle="Add Suicidal Assessment"
+          >
+            <SuicidalAssessmentList
+              patient={selectedPatient}
+              admission={activeAdmission}
+              onAddNew={() => setShowSuicidalModal(true)}
+              key={suicidalRefreshKey}
+            />
+          </DashboardCard>
         </div>
-        <div className="flex items-center gap-3 flex-shrink-0">
-          <UserMenu />
-          <NotificationBell />
-        </div>
-      </header>
 
-      <div className="p-4">
-        <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-          <SuicidalAssessmentList
-            patient={selectedPatient}
-            admission={activeAdmission}
-            onAddNew={() => setShowSuicidalModal(true)}
-            // onViewDetails={(assessment) => setSelectedAssessment(assessment)}
-            key={suicidalRefreshKey}
+        {showSuicidalModal && (
+          <SuicidalPatientAssessmentModal
+            admissionNo={activeAdmission || ''}
+            patient={selectedPatient || ''}
+            patientName=''
+            onClose={() => setShowSuicidalModal(false)}
+            onSuccess={() => {
+              setSuicidalRefreshKey(prev => prev + 1)
+              setShowSuicidalModal(false)
+            }}
           />
-        </section>
+        )}
       </div>
-
-      {/* Create New Assessment Modal */}
-      {showSuicidalModal && (
-        <SuicidalPatientAssessmentModal
-          admissionNo={activeAdmission || ''}
-          patient={selectedPatient || ''}
-          patientName=''
-          onClose={() => setShowSuicidalModal(false)}
-          onSuccess={() => {
-            setSuicidalRefreshKey(prev => prev + 1)
-            setShowSuicidalModal(false)
-          }}
-        />
-      )}
-
-      {/* View Details SlideOver */}
-     
-    </div>
-  )
-}
-
+    )
+  }
 
   // Show Sleeping Pattern
   if (screen === 'sleep') {
@@ -319,22 +346,16 @@ const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
           </div>
         </header>
         <div className="p-4">
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4 flex items-center justify-between">
-              <span>Sleeping Pattern</span>
-              <button
-                onClick={() => setShowSleepingPatternModal(true)}
-                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
-                title="Create Sleeping Pattern"
-              >
-                +
-              </button>
-            </div>
+          <DashboardCard 
+            title="Sleeping Pattern" 
+            onAdd={() => setShowSleepingPatternModal(true)}
+            addButtonTitle="Create Sleeping Pattern"
+          >
             <SleepingPatternList
               patient={selectedPatient}
               refreshKey={sleepingPatternRefreshKey}
             />
-          </section>
+          </DashboardCard>
         </div>
         {showSleepingPatternModal && (
           <CreateSleepingPatternModal
@@ -374,7 +395,7 @@ const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
     )
   }
 
-  // Show Doctors Note (Clinical Note with Medical Role = Doctor, Clinical Note Type = Note)
+  // Show Doctors Note
   if (screen === 'dn') {
     return (
       <div className="flex flex-col">
@@ -392,24 +413,18 @@ const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
           </div>
         </header>
         <div className="p-4">
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4 flex items-center justify-between">
-              <span>Doctors Note</span>
-              <button
-                onClick={() => setShowDoctorNoteModal(true)}
-                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
-                title="Add Doctors Note"
-              >
-                +
-              </button>
-            </div>
+          <DashboardCard 
+            title="Doctors Note" 
+            onAdd={() => setShowDoctorNoteModal(true)}
+            addButtonTitle="Add Doctors Note"
+          >
             <ClinicalNotesList 
               patient={selectedPatient} 
               medicalRole="Doctor"
               clinicalNoteType="Doctors Note"
               key={clinicalNotesRefreshKey}
             />
-          </section>
+          </DashboardCard>
         </div>
         {showDoctorNoteModal && (
           <CreateClinicalNoteModal
@@ -427,7 +442,7 @@ const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
     )
   }
 
-  // Show Doctor Progress Note (Clinical Note with Medical Role = Doctor, Clinical Note Type = Progress Note)
+  // Show Doctor Progress Note
   if (screen === 'dpn') {
     return (
       <div className="flex flex-col">
@@ -445,24 +460,18 @@ const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
           </div>
         </header>
         <div className="p-4">
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4 flex items-center justify-between">
-              <span>Doctor Progress Notes</span>
-              <button
-                onClick={() => setShowDoctorProgressNoteModal(true)}
-                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
-                title="Add Doctor Progress Note"
-              >
-                +
-              </button>
-            </div>
+          <DashboardCard 
+            title="Doctor Progress Notes" 
+            onAdd={() => setShowDoctorProgressNoteModal(true)}
+            addButtonTitle="Add Doctor Progress Note"
+          >
             <ClinicalNotesList 
               patient={selectedPatient} 
               medicalRole="Doctor"
               clinicalNoteType="Doctor Progress Note"
               key={clinicalNotesRefreshKey}
             />
-          </section>
+          </DashboardCard>
         </div>
         {showDoctorProgressNoteModal && (
           <CreateClinicalNoteModal
@@ -480,7 +489,7 @@ const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
     )
   }
 
-  // Show Doctors Order (Clinical Note with Clinical Note Type = Order)
+  // Show Doctors Order
   if (screen === 'dos') {
     return (
       <div className="flex flex-col">
@@ -498,23 +507,17 @@ const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
           </div>
         </header>
         <div className="p-4">
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4 flex items-center justify-between">
-              <span>Doctors Order</span>
-              <button
-                onClick={() => setShowDoctorOrderModal(true)}
-                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
-                title="Add Doctors Order"
-              >
-                +
-              </button>
-            </div>
+          <DashboardCard 
+            title="Doctors Order" 
+            onAdd={() => setShowDoctorOrderModal(true)}
+            addButtonTitle="Add Doctors Order"
+          >
             <ClinicalNotesList 
               patient={selectedPatient} 
               clinicalNoteType="Doctors Order"
               key={clinicalNotesRefreshKey}
             />
-          </section>
+          </DashboardCard>
         </div>
         {showDoctorOrderModal && (
           <CreateClinicalNoteModal
@@ -550,25 +553,19 @@ const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
           </div>
         </header>
         <div className="p-4">
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4 flex items-center justify-between">
-              <span>Laboratory</span>
-              <button
-                onClick={() => setShowLabTestModal(true)}
-                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
-                title="Add Lab Test"
-              >
-                +
-              </button>
-            </div>
+          <DashboardCard 
+            title="Laboratory" 
+            onAdd={() => setShowLabTestModal(true)}
+            addButtonTitle="Add Lab Test"
+          >
             <LabTestList patient={selectedPatient} defaultStatus="Pending Review" key={labTestRefreshKey} />
-          </section>
+          </DashboardCard>
         </div>
       </div>
     )
   }
 
-  // Show Psychologist Notes (Clinical Note with Medical Role = Psychologists)
+  // Show Psychologist Notes
   if (screen === 'psy-n') {
     return (
       <div className="flex flex-col">
@@ -586,24 +583,18 @@ const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
           </div>
         </header>
         <div className="p-4">
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4 flex items-center justify-between">
-              <span>Patient Psychologist Notes</span>
-              <button
-                onClick={() => setShowPsychologistNoteModal(true)}
-                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
-                title="Add Psychologist Note"
-              >
-                +
-              </button>
-            </div>
+          <DashboardCard 
+            title="Patient Psychologist Notes" 
+            onAdd={() => setShowPsychologistNoteModal(true)}
+            addButtonTitle="Add Psychologist Note"
+          >
             <ClinicalNotesList 
               patient={selectedPatient} 
               medicalRole="Psychologist"
               clinicalNoteType="Psychologist Note"
               key={clinicalNotesRefreshKey}
             />
-          </section>
+          </DashboardCard>
         </div>
         {showPsychologistNoteModal && (
           <CreateClinicalNoteModal
@@ -621,7 +612,7 @@ const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
     )
   }
 
-  // Show Psychologist Orders (Clinical Note with Medical Role = Psychologists, Note Type = Order)
+  // Show Psychologist Orders
   if (screen === 'psy-o') {
     return (
       <div className="flex flex-col">
@@ -639,23 +630,17 @@ const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
           </div>
         </header>
         <div className="p-4">
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4 flex items-center justify-between">
-              <span>Psychologist Orders</span>
-              <button
-                onClick={() => setShowDiagnosisModal(true)}
-                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
-                title="Add Psychologist Order"
-              >
-                +
-              </button>
-            </div>
+          <DashboardCard 
+            title="Psychologist Orders" 
+            onAdd={() => setShowDiagnosisModal(true)}
+            addButtonTitle="Add Psychologist Order"
+          >
             <ClinicalNotesList
               patient={selectedPatient}
               medicalRole="Psychologist"
               clinicalNoteType="Psychologist Order"
             />
-          </section>
+          </DashboardCard>
         </div>
         {showDiagnosisModal && (
           <CreateClinicalNoteModal
@@ -673,7 +658,7 @@ const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
     )
   }
 
-  // Show Therapist Notes (Clinical Note with Medical Role = Physiotherapist or Therapist)
+  // Show Therapist Notes
   if (screen === 'ther') {
     return (
       <div className="flex flex-col">
@@ -691,23 +676,17 @@ const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
           </div>
         </header>
         <div className="p-4">
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4 flex items-center justify-between">
-              <span>Therapist Note</span>
-              <button
-                onClick={() => setShowTherapistNoteModal(true)}
-                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
-                title="Add Therapist Note"
-              >
-                +
-              </button>
-            </div>
+          <DashboardCard 
+            title="Therapist Note" 
+            onAdd={() => setShowTherapistNoteModal(true)}
+            addButtonTitle="Add Therapist Note"
+          >
             <ClinicalNotesList 
               patient={selectedPatient} 
               medicalRole="Physiotherapist"
               key={clinicalNotesRefreshKey}
             />
-          </section>
+          </DashboardCard>
         </div>
         {showTherapistNoteModal && (
           <CreateClinicalNoteModal
@@ -725,7 +704,7 @@ const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
     )
   }
 
-  // Show Nursing Notes (Clinical Note with Medical Role = Nurse)
+  // Show Nursing Notes
   if (screen === 'nurse') {
     return (
       <div className="flex flex-col">
@@ -743,23 +722,17 @@ const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
           </div>
         </header>
         <div className="p-4">
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4 flex items-center justify-between">
-              <span>Nursing Note</span>
-              <button
-                onClick={() => setShowNursingNoteModal(true)}
-                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
-                title="Add Nursing Note"
-              >
-                +
-              </button>
-            </div>
+          <DashboardCard 
+            title="Nursing Note" 
+            onAdd={() => setShowNursingNoteModal(true)}
+            addButtonTitle="Add Nursing Note"
+          >
             <ClinicalNotesList 
               patient={selectedPatient} 
               medicalRole="Nurse"
               key={clinicalNotesRefreshKey}
             />
-          </section>
+          </DashboardCard>
         </div>
         {showNursingNoteModal && (
           <CreateClinicalNoteModal
@@ -777,7 +750,7 @@ const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
     )
   }
 
-  // Nurse Task Assignment – Doctor view of custom Nurse Tasks for this patient
+  // Nurse Task Assignment
   if (screen === 'nurse-tasks') {
     return (
       <div className="flex flex-col">
@@ -795,25 +768,16 @@ const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
           </div>
         </header>
         <div className="p-4">
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-base font-semibold text-slate-900">Nurse Tasks</h2>
-                <p className="text-xs text-slate-600 mt-1">
-                  Tasks assigned to nurses for this patient — medication administration, vitals, lab support, and more.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowCreateNurseTaskModal(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-white text-sm font-medium hover:bg-primary/90"
-                title="New Nurse Task"
-              >
-                + New Task
-              </button>
+          <DashboardCard 
+            title="Nurse Tasks" 
+            onAdd={() => setShowCreateNurseTaskModal(true)}
+            addButtonTitle="New Nurse Task"
+          >
+            <div className="mb-3 text-xs text-slate-600">
+              Tasks assigned to nurses for this patient — medication administration, vitals, lab support, and more.
             </div>
             <NurseTaskList patient={selectedPatient} />
-          </section>
+          </DashboardCard>
         </div>
         {showCreateNurseTaskModal && (
           <CreateNurseTaskModal
@@ -844,19 +808,13 @@ const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
           </div>
         </header>
         <div className="p-4">
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4 flex items-center justify-between">
-              <span>Observation</span>
-              <button
-                onClick={() => setShowObservationModal(true)}
-                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
-                title="Add Observation"
-              >
-                +
-              </button>
-            </div>
+          <DashboardCard 
+            title="Observation" 
+            onAdd={() => setShowObservationModal(true)}
+            addButtonTitle="Add Observation"
+          >
             <ObservationList patient={selectedPatient} key={observationRefreshKey} />
-          </section>
+          </DashboardCard>
         </div>
         {showObservationModal && (
           <CreateObservationModal
@@ -890,19 +848,13 @@ const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
           </div>
         </header>
         <div className="p-4">
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4 flex items-center justify-between">
-              <span>Vital Signs</span>
-              <button
-                onClick={() => setShowVitalSignModal(true)}
-                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
-                title="Add Vital Signs"
-              >
-                +
-              </button>
-            </div>
+          <DashboardCard 
+            title="Vital Signs" 
+            onAdd={() => setShowVitalSignModal(true)}
+            addButtonTitle="Add Vital Signs"
+          >
             <VitalSignsList patient={selectedPatient} refreshKey={vitalSignsRefreshKey} />
-          </section>
+          </DashboardCard>
         </div>
         {showVitalSignModal && (
           <CreateVitalSignModal
@@ -918,7 +870,7 @@ const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
     )
   }
 
-  // Show Doctors Prescriptions (Patient Medication Orders)
+  // Show Doctors Prescriptions
   if (screen === 'rx') {
     return (
       <div className="flex flex-col">
@@ -936,22 +888,16 @@ const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
           </div>
         </header>
         <div className="p-4">
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4 flex items-center justify-between">
-              <span>Doctors Prescriptions</span>
-              <button
-                onClick={() => setShowPrescriptionModal(true)}
-                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
-                title="Create Prescription"
-              >
-                +
-              </button>
-            </div>
+          <DashboardCard 
+            title="Doctors Prescriptions" 
+            onAdd={() => setShowPrescriptionModal(true)}
+            addButtonTitle="Create Prescription"
+          >
             <PrescriptionList
               patient={selectedPatient}
               refreshKey={prescriptionRefreshKey}
             />
-          </section>
+          </DashboardCard>
         </div>
         {showPrescriptionModal && (
           <CreatePrescriptionModal
@@ -967,7 +913,7 @@ const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
     )
   }
 
-  // Given Medicines – list administrations, not prescriptions
+  // Given Medicines
   if (screen === 'gm') {
     return (
       <div className="flex flex-col">
@@ -985,29 +931,13 @@ const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
           </div>
         </header>
         <div className="p-4">
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4 flex items-center justify-between">
-              <span>Given Medicines</span>
-              <div className="flex items-center gap-2">
-                {/* <button
-                  onClick={handleReconcileGiven}
-                  className="px-3 py-1 rounded-md bg-primary text-white text-xs font-semibold hover:bg-primary/90 disabled:opacity-50"
-                  disabled={reconcileLoading}
-                  title="Create Stock Entry for remaining medicines"
-                >
-                  {reconcileLoading ? 'Reconciling…' : 'Reconcile for Discharge'}
-                </button> */}
-                <button
-                  onClick={() => setShowGivenMedicineModal(true)}
-                  className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
-                  title="Record Given Medicine"
-                >
-                  +
-                </button>
-              </div>
-            </div>
+          <DashboardCard 
+            title="Given Medicines" 
+            onAdd={() => setShowGivenMedicineModal(true)}
+            addButtonTitle="Record Given Medicine"
+          >
             <MedicineGivenList patient={selectedPatient} refreshKey={givenRefreshKey} />
-          </section>
+          </DashboardCard>
         </div>
         {showGivenMedicineModal && (
           <CreateMedicineGivenModal
@@ -1023,7 +953,7 @@ const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
     )
   }
 
-  // Show IP Medication (only inpatient prescriptions)
+  // Show IP Medication
   if (screen === 'ipm') {
     return (
       <div className="flex flex-col">
@@ -1041,23 +971,17 @@ const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
           </div>
         </header>
         <div className="p-4">
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4 flex items-center justify-between">
-              <span>IP Medication (Inpatient Prescriptions)</span>
-              <button
-                onClick={() => setShowPrescriptionModal(true)}
-                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
-                title="Create IP Prescription"
-              >
-                +
-              </button>
-            </div>
+          <DashboardCard 
+            title="IP Medication (Inpatient Prescriptions)" 
+            onAdd={() => setShowPrescriptionModal(true)}
+            addButtonTitle="Create IP Prescription"
+          >
             <PrescriptionList
               patient={selectedPatient}
               refreshKey={prescriptionRefreshKey}
               careContext="Inpatient Admission"
             />
-          </section>
+          </DashboardCard>
         </div>
         {showPrescriptionModal && (
           <CreatePrescriptionModal
@@ -1091,19 +1015,13 @@ const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
           </div>
         </header>
         <div className="p-4">
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4 flex items-center justify-between">
-              <span>Morse Fall Scale</span>
-              <button
-                onClick={() => setShowMorseFallModal(true)}
-                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
-                title="Create Morse Fall Scale"
-              >
-                +
-              </button>
-            </div>
+          <DashboardCard 
+            title="Morse Fall Scale" 
+            onAdd={() => setShowMorseFallModal(true)}
+            addButtonTitle="Create Morse Fall Scale"
+          >
             <MorseFallScaleList patient={selectedPatient} refreshKey={morseFallRefreshKey} />
-          </section>
+          </DashboardCard>
         </div>
         {showMorseFallModal && (
           <CreateMorseFallScaleModal
@@ -1117,7 +1035,7 @@ const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
     )
   }
 
-  // Environmental Checklist (requires patient + Inpatient Admission selection)
+  // Environmental Checklist
   if (screen === 'env') {
     return (
       <div className="flex flex-col">
@@ -1135,16 +1053,15 @@ const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
           </div>
         </header>
         <div className="p-4">
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-3">Environmental Checklist</div>
+          <DashboardCard title="Environmental Checklist">
             <EnvironmentalChecklistList patient={selectedPatient} />
-          </section>
+          </DashboardCard>
         </div>
       </div>
     )
   }
 
-  // IOP Dashboard (reuse Receptionist IOP view)
+  // IOP Dashboard
   if (screen === 'iop') {
     return (
       <div className="flex flex-col">
@@ -1178,9 +1095,13 @@ const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
               Bulk Schedule
             </button>
           </div>
-          <div className="grid gap-6 md:grid-cols-2">
-            <IOPDayListWithHeader refreshKey={appointmentRefreshKey} />
-            <IOPEnrollmentListWithHeader refreshKey={appointmentRefreshKey} />
+          <div className="grid gap-6 md:grid-cols-2 auto-rows-fr">
+            <DashboardCard title="IOP Days">
+              <IOPDayListWithHeader refreshKey={appointmentRefreshKey} />
+            </DashboardCard>
+            <DashboardCard title="IOP Enrollments">
+              <IOPEnrollmentListWithHeader refreshKey={appointmentRefreshKey} />
+            </DashboardCard>
           </div>
         </div>
         {showBulkScheduleModal && (
@@ -1213,7 +1134,7 @@ const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
     )
   }
 
-  // Long Acting Medicine (doctor subtopic)
+  // Physical Examination
   if (screen === 'physical-exam') {
     return (
       <div className="flex flex-col">
@@ -1231,25 +1152,19 @@ const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
           </div>
         </header>
         <div className="p-4">
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4 flex items-center justify-between">
-              <span>Physical Examination</span>
-              <button
-                onClick={() => setShowPhysicalExamModal(true)}
-                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
-                title="New Physical Examination"
-              >
-                +
-              </button>
-            </div>
-            <p className="text-sm text-slate-600 mb-3">
+          <DashboardCard 
+            title="Physical Examination" 
+            onAdd={() => setShowPhysicalExamModal(true)}
+            addButtonTitle="New Physical Examination"
+          >
+            <div className="text-sm text-slate-600 mb-3">
               Record physical examination findings by body system — skin, CVS/Resp, CNC, GIT and others.
-            </p>
+            </div>
             <PhysicalExaminationList
               patient={selectedPatient}
               refreshKey={physicalExamRefreshKey}
             />
-          </section>
+          </DashboardCard>
         </div>
         {showPhysicalExamModal && (
           <PhysicalExaminationModal
@@ -1267,6 +1182,7 @@ const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
     )
   }
 
+  // Patient History
   if (screen === 'patient-history') {
     return (
       <div className="flex flex-col">
@@ -1284,25 +1200,19 @@ const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
           </div>
         </header>
         <div className="p-4">
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4 flex items-center justify-between">
-              <span>Patient History</span>
-              <button
-                onClick={() => setShowPatientHistoryModal(true)}
-                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
-                title="New Patient History"
-              >
-                +
-              </button>
-            </div>
-            <p className="text-sm text-slate-600 mb-3">
+          <DashboardCard 
+            title="Patient History" 
+            onAdd={() => setShowPatientHistoryModal(true)}
+            addButtonTitle="New Patient History"
+          >
+            <div className="text-sm text-slate-600 mb-3">
               Structured patient history records with template-driven attribute items and detailed descriptions.
-            </p>
+            </div>
             <PatientHistoryList
               patient={selectedPatient}
               refreshKey={patientHistoryRefreshKey}
             />
-          </section>
+          </DashboardCard>
         </div>
         {showPatientHistoryModal && (
           <PatientHistoryModal
@@ -1320,6 +1230,7 @@ const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
     )
   }
 
+  // Long Acting Medicine
   if (screen === 'd-long-acting-meds') {
     return (
       <div className="flex flex-col">
@@ -1337,18 +1248,18 @@ const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
           </div>
         </header>
         <div className="p-4">
-          <div className="mb-4 flex items-center justify-between">
-            <div>
-              <h2 className="text-xl font-semibold text-slate-900">Long Acting Medicine</h2>
-              <p className="text-sm text-slate-600 mt-1">
-                View long acting medicines for the selected patient. Filter by start date and frequency. Click a row for details.
-              </p>
-            </div>
+          <div className="mb-4">
+            <h2 className="text-xl font-semibold text-slate-900">Long Acting Medicine</h2>
+            <p className="text-sm text-slate-600 mt-1">
+              View long acting medicines for the selected patient. Filter by start date and frequency. Click a row for details.
+            </p>
           </div>
-          <ReceptionLongActingMedicineList
-            patient={selectedPatient || undefined}
-            refreshKey={longActingRefreshKey}
-          />
+          <DashboardCard title="Long Acting Medicines">
+            <ReceptionLongActingMedicineList
+              patient={selectedPatient || undefined}
+              refreshKey={longActingRefreshKey}
+            />
+          </DashboardCard>
         </div>
       </div>
     )
@@ -1372,10 +1283,9 @@ const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
           </div>
         </header>
         <div className="p-4">
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4">Patient Visit History</div>
+          <DashboardCard title="Patient Visit History">
             <PatientVisitList patient={selectedPatient} />
-          </section>
+          </DashboardCard>
         </div>
       </div>
     )
@@ -1399,21 +1309,13 @@ const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
           </div>
         </header>
         <div className="p-4">
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4 flex items-center justify-between">
-              <span>Warnings & Allergies</span>
-              <button
-                onClick={() => setShowWarningModal(true)}
-                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
-                title="Add Warning Message"
-              >
-                +
-              </button>
-            </div>
-            <div className="overflow-x-auto overflow-y-auto max-h-[600px]" style={{ scrollbarWidth: 'thin' }}>
-              <WarningMessagesList patient={selectedPatient} key={warningRefreshKey} />
-            </div>
-          </section>
+          <DashboardCard 
+            title="Warnings & Allergies" 
+            onAdd={() => setShowWarningModal(true)}
+            addButtonTitle="Add Warning Message"
+          >
+            <WarningMessagesList patient={selectedPatient} key={warningRefreshKey} />
+          </DashboardCard>
         </div>
         {showWarningModal && (
           <CreateWarningMessageModal
@@ -1429,7 +1331,7 @@ const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
     )
   }
 
-  // Show Nutritionist Notes (Clinical Note with Medical Role = Nutritionist)
+  // Show Nutritionist Notes
   if (screen === 'nut') {
     return (
       <div className="flex flex-col">
@@ -1447,24 +1349,18 @@ const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
           </div>
         </header>
         <div className="p-4">
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4 flex items-center justify-between">
-              <span>Nutritionist Notes</span>
-              <button
-                onClick={() => setShowNutritionNoteModal(true)}
-                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
-                title="Add Nutritionist Note"
-              >
-                +
-              </button>
-            </div>
+          <DashboardCard 
+            title="Nutritionist Notes" 
+            onAdd={() => setShowNutritionNoteModal(true)}
+            addButtonTitle="Add Nutritionist Note"
+          >
             <ClinicalNotesList 
               patient={selectedPatient} 
               medicalRole="Nutritionist"
               clinicalNoteType="Nutritionist Note"
               key={clinicalNotesRefreshKey}
             />
-          </section>
+          </DashboardCard>
         </div>
         {showNutritionNoteModal && (
           <CreateClinicalNoteModal
@@ -1500,13 +1396,15 @@ const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
           </div>
         </header>
         <div className="p-4">
-          <MedicalHistoryView patient={selectedPatient} />
+          <DashboardCard title="Medical History">
+            <MedicalHistoryView patient={selectedPatient} />
+          </DashboardCard>
         </div>
       </div>
     )
   }
 
-  // Show Package Details – dashboard: available packages, active admission, assigned package (from Quotation)
+  // Show Package Details
   if (screen === 'pkg') {
     return (
       <div className="flex flex-col">
@@ -1524,54 +1422,63 @@ const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
           </div>
         </header>
         <div className="p-4">
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4 flex items-center justify-between">
-              <span>Package Details</span>
-              <button
-                onClick={async () => {
-                  if (!selectedPatient) {
-                    toast.error('Please select a patient first')
-                    return
-                  }
-                  try {
-                    const admission = await getPatientActiveAdmission(selectedPatient)
-                    if (!admission) {
-                      toast.error('No active admission found for this patient')
-                      return
-                    }
-                    window.open(
-                      `/app/inpatient-record/${encodeURIComponent(admission.name)}`,
-                      '_blank'
-                    )
-                  } catch (err) {
-                    const msg = err instanceof Error ? err.message : 'Failed to open admission'
-                    toast.error(msg)
-                  }
-                }}
-                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
-                title="Manage Packages for Admission"
-              >
-                +
-              </button>
-            </div>
+          <DashboardCard 
+            title="Package Details" 
+            onAdd={async () => {
+              if (!selectedPatient) {
+                toast.error('Please select a patient first')
+                return
+              }
+              try {
+                const admission = await getPatientActiveAdmission(selectedPatient)
+                if (!admission) {
+                  toast.error('No active admission found for this patient')
+                  return
+                }
+                window.open(
+                  `/app/inpatient-record/${encodeURIComponent(admission.name)}`,
+                  '_blank'
+                )
+              } catch (err) {
+                const msg = err instanceof Error ? err.message : 'Failed to open admission'
+                toast.error(msg)
+              }
+            }}
+            addButtonTitle="Manage Packages for Admission"
+          >
             <PackageDetailView patient={selectedPatient} />
-          </section>
+          </DashboardCard>
         </div>
       </div>
     )
   }
 
-  // Show Diagnosis & Symptoms (from left sidebar "Diagnoses" -> screen=dx)
+  // Show Diagnoses (Patient Diagnosis on active OP visit / IP admission)
   if (screen === 'dx') {
     return (
-      <DiagnosisSymptomsScreen
-        selectedPatient={selectedPatient || ''}
-        onPatientSelect={handlePatientSelect}
-      />
+      <div className="flex flex-col">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+        <DiagnosisSymptomsScreen
+          selectedPatient={selectedPatient || ''}
+          onPatientSelect={handlePatientSelect}
+        />
+      </div>
     )
   }
 
-  // Show Discharge Form (list of discharges with + button)
+  // Show Discharge Form
   if (screen === 'df') {
     return (
       <div className="flex flex-col">
@@ -1589,30 +1496,18 @@ const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
           </div>
         </header>
         <div className="p-4">
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4 flex items-center justify-between">
-              <span>Discharge Form</span>
-              <div className="flex items-center gap-2">
-                {dischargeHasDraft && selectedAdmission && (
-                  <span className="text-xs text-amber-700">
-                    Draft — {draftSavedAt(selectedAdmission.name)}
-                  </span>
-                )}
-                <button
-                  onClick={handleCreateDischarge}
-                  className={`inline-flex items-center gap-1 px-2 py-1 rounded text-white text-xs font-medium transition-colors ${
-                    dischargeHasDraft
-                      ? 'bg-amber-500 hover:bg-amber-600'
-                      : 'bg-primary hover:bg-primary/90'
-                  }`}
-                  title={dischargeHasDraft ? 'Continue saved discharge' : 'Start discharge'}
-                >
-                  {dischargeHasDraft ? '▶ Continue' : '+'}
-                </button>
+          <DashboardCard 
+            title="Discharge Form" 
+            onAdd={handleCreateDischarge}
+            addButtonTitle={dischargeHasDraft ? 'Continue saved discharge' : 'Start discharge'}
+          >
+            {dischargeHasDraft && selectedAdmission && (
+              <div className="mb-2 text-xs text-amber-700">
+                Draft — {draftSavedAt(selectedAdmission.name)}
               </div>
-            </div>
+            )}
             <DischargeList patient={selectedPatient} key={dischargeRefreshKey} />
-          </section>
+          </DashboardCard>
         </div>
         {showDischargeModal && selectedAdmission && (
           <DischargeModal
@@ -1631,6 +1526,7 @@ const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
     )
   }
 
+  // Show Patients
   if (screen === 'patients') {
     return (
       <div className="flex flex-col">
@@ -1647,26 +1543,15 @@ const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
             <NotificationBell />
           </div>
         </header>
- 
         <div className="p-4">
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4 flex items-center justify-between">
-              <span>Patients</span>
-              <button
-                onClick={() => setShowCreatePatientModal(true)}
-                className="inline-flex items-center gap-1 px-2 py-1 rounded text-white text-xs font-medium bg-primary hover:bg-primary/90 transition-colors"
-                title="Create new patient"
-              >
-                + New Patient
-              </button>
-            </div>
- 
-            {/* <PatientList refreshKey={patientRefreshKey} /> */}
-                        <PatientList refreshKey={patientRefreshKey} />
-
-          </section>
+          <DashboardCard 
+            title="Patients" 
+            onAdd={() => setShowCreatePatientModal(true)}
+            addButtonTitle="Create new patient"
+          >
+            <PatientList refreshKey={patientRefreshKey} />
+          </DashboardCard>
         </div>
- 
         {showCreatePatientModal && (
           <CreatePatientModal
             onClose={() => setShowCreatePatientModal(false)}
@@ -1681,6 +1566,7 @@ const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
     )
   }
 
+  // Show ADHD Assessments
   if (screen === 'adhd') {
     return (
       <div className="flex flex-col">
@@ -1693,16 +1579,18 @@ const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
             <NotificationBell />
           </div>
         </header>
-
         <div className="p-4">
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+          <DashboardCard 
+            title="ADHD Assessments" 
+            onAdd={() => setShowCreateADHDModal(true)}
+            addButtonTitle="Create ADHD Assessment"
+          >
             <ADHDAssessmentList
               refreshKey={adhdRefreshKey}
               onCreateNew={() => setShowCreateADHDModal(true)}
             />
-          </section>
+          </DashboardCard>
         </div>
-
         {showCreateADHDModal && (
           <CreateADHDAssessmentModal
             onClose={() => setShowCreateADHDModal(false)}
@@ -1716,48 +1604,94 @@ const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
       </div>
     )
   }
- 
-if (screen === 'depression') {
-  return (
-    <div className="flex flex-col">
-      <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-        <div className="flex-1 min-w-0">
-          <h1 className="text-sm font-semibold truncate">Depression Assessments</h1>
+
+  // Show Depression Assessments
+  if (screen === 'depression') {
+    return (
+      <div className="flex flex-col">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-sm font-semibold truncate">Depression Assessments</h1>
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+        <div className="p-4">
+          <DashboardCard 
+            title="Depression Assessments" 
+            onAdd={() => setShowCreateDepressionModal(true)}
+            addButtonTitle="Create Depression Assessment"
+          >
+            <DepressionAssessmentList
+              refreshKey={depressionRefreshKey}
+              onCreateNew={() => setShowCreateDepressionModal(true)}
+            />
+          </DashboardCard>
         </div>
-        <div className="flex items-center gap-3 flex-shrink-0">
-          <UserMenu />
-          <NotificationBell />
+        {showCreateDepressionModal && (
+          <CreateDepressionAssessmentModal
+            onClose={() => setShowCreateDepressionModal(false)}
+            onSuccess={() => {
+              setShowCreateDepressionModal(false)
+              setDepressionRefreshKey((prev) => prev + 1)
+              toast.success('Depression Assessment created successfully')
+            }}
+          />
+        )}
+      </div>
+    )
+  }
+
+  // Show Mood Disorder Assessments
+  if (screen === 'mood') {
+    return (
+      <div className="flex flex-col">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+        <div className="p-4">
+          <DashboardCard 
+            title="Mood Disorder Assessments" 
+            onAdd={() => setShowCreateMoodModal(true)}
+            addButtonTitle="Create Mood Disorder Assessment"
+          >
+            <MoodDisorderAssessmentList
+              refreshKey={moodRefreshKey}
+              onCreateNew={() => setShowCreateMoodModal(true)}
+            />
+          </DashboardCard>
         </div>
-      </header>
-
-      <div className="p-4">
-        <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-          <DepressionAssessmentList
-            refreshKey={depressionRefreshKey}
-            onCreateNew={() => setShowCreateDepressionModal(true)}
+        {showCreateMoodModal && (
+          <CreateMoodDisorderAssessmentModal
+            onClose={() => setShowCreateMoodModal(false)}
+            onSuccess={() => {
+              setShowCreateMoodModal(false)
+              setMoodRefreshKey((prev) => prev + 1)
+              toast.success('Mood Disorder Assessment created successfully')
+            }}
           />
-        </section>
+        )}
       </div>
+    )
+  }
 
-      {showCreateDepressionModal && (
-        <CreateDepressionAssessmentModal
-          onClose={() => setShowCreateDepressionModal(false)}
-          onSuccess={() => {
-            setShowCreateDepressionModal(false)
-            setDepressionRefreshKey((prev) => prev + 1)
-            toast.success('Depression Assessment created successfully')
-          }}
-        />
-      )}
-    </div>
-  )
-}
-
-
-if (screen === 'mood') {
-  return (
-    <div className="flex flex-col">
-       <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+  // Show GAD7 Assessments
+  if (screen === 'gad7') {
+    return (
+      <div className="flex flex-col">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
           <div className="flex-1 min-w-0">
             <PatientSearch
               selectedPatient={selectedPatient || ''}
@@ -1770,784 +1704,628 @@ if (screen === 'mood') {
             <NotificationBell />
           </div>
         </header>
-
-      <div className="p-4">
-        <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-          <MoodDisorderAssessmentList
-            refreshKey={moodRefreshKey}
-            onCreateNew={() => setShowCreateMoodModal(true)}
-          />
-        </section>
-      </div>
-
-      {showCreateMoodModal && (
-        <CreateMoodDisorderAssessmentModal
-          onClose={() => setShowCreateMoodModal(false)}
-          onSuccess={() => {
-            setShowCreateMoodModal(false)
-            setMoodRefreshKey((prev) => prev + 1)
-            toast.success('Mood Disorder Assessment created successfully')
-          }}
-        />
-      )}
-    </div>
-  )
-}
-
-if (screen === 'gad7') {
-  return (
-    <div className="flex flex-col">
-      <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
+        <div className="p-4">
+          <DashboardCard 
+            title="GAD7 Assessments" 
+            onAdd={() => setShowCreateGAD7Modal(true)}
+            addButtonTitle="Create GAD7 Assessment"
+          >
+            <GAD7AssessmentList
+              refreshKey={gad7RefreshKey}
+              onCreateNew={() => setShowCreateGAD7Modal(true)}
             />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
-
-      <div className="p-4">
-        <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-          <GAD7AssessmentList
-            refreshKey={gad7RefreshKey}
-            onCreateNew={() => setShowCreateGAD7Modal(true)}
-          />
-        </section>
-      </div>
-
-      {showCreateGAD7Modal && (
-        <CreateGAD7AssessmentModal
-          onClose={() => setShowCreateGAD7Modal(false)}
-          onSuccess={() => {
-            setShowCreateGAD7Modal(false)
-            setGad7RefreshKey((prev) => prev + 1)
-            toast.success('GAD7 Assessment created successfully')
-          }}
-        />
-      )}
-    </div>
-  )
-}
-
-
-if (screen === 'phq9') {
-  return (
-    <div className="flex flex-col">
-       <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
-
-      <div className="p-4">
-        <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-          <PHQ9AssessmentList
-            refreshKey={phq9RefreshKey}
-            onCreateNew={() => setShowCreatePHQ9Modal(true)}
-          />
-        </section>
-      </div>
-
-      {showCreatePHQ9Modal && (
-        <CreatePHQ9AssessmentModal
-          onClose={() => setShowCreatePHQ9Modal(false)}
-          onSuccess={() => {
-            setShowCreatePHQ9Modal(false)
-            setPhq9RefreshKey((prev) => prev + 1)
-            toast.success('PHQ9 Assessment created successfully')
-          }}
-        />
-      )}
-    </div>
-  )
-}
-
-if (screen === 'clinical-suicide-risk') {
-  return (
-    <div className="flex flex-col">
-      <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
-
-      <div className="p-4">
-        <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-          <SuicideRiskAssessmentList
-            refreshKey={suicideRiskRefreshKey}
-            onCreateNew={() => setShowCreateSuicideRiskModal(true)}
-          />
-        </section>
-      </div>
-
-      {showCreateSuicideRiskModal && (
-        <CreateSuicideRiskAssessmentModal
-          onClose={() => setShowCreateSuicideRiskModal(false)}
-          onSuccess={() => {
-            setShowCreateSuicideRiskModal(false)
-            setSuicideRiskRefreshKey((prev) => prev + 1)
-            toast.success('Suicide Risk Assessment created successfully')
-          }}
-        />
-      )}
-    </div>
-  )
-}
-
-if (screen === 'homicide-risk') {
-  return (
-    <div className="flex flex-col">
-     <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
-
-      <div className="p-4">
-        <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-          <HomicideRiskAssessmentList
-            refreshKey={homicideRiskRefreshKey}
-            onCreateNew={() => setShowCreateHomicideRiskModal(true)}
-          />
-        </section>
-      </div>
-
-      {showCreateHomicideRiskModal && (
-        <CreateHomicideRiskAssessmentModal
-          onClose={() => setShowCreateHomicideRiskModal(false)}
-          onSuccess={() => {
-            setShowCreateHomicideRiskModal(false)
-            setHomicideRiskRefreshKey((prev) => prev + 1)
-            toast.success('Homicide Risk Assessment created successfully')
-          }}
-        />
-      )}
-    </div>
-  )
-}
-
-if (screen === 'ybocs') {
-  return (
-    <div className="flex flex-col">
-       <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
-
-      <div className="p-4">
-        <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-          <YBOCSAssessmentList
-            refreshKey={ybocsRefreshKey}
-            onCreateNew={() => setShowCreateYBOCSModal(true)}
-          />
-        </section>
-      </div>
-
-      {showCreateYBOCSModal && (
-        <CreateYBOCSAssessmentModal
-          onClose={() => setShowCreateYBOCSModal(false)}
-          onSuccess={() => {
-            setShowCreateYBOCSModal(false)
-            setYbocsRefreshKey((prev) => prev + 1)
-            toast.success('YBOCS Assessment created successfully')
-          }}
-        />
-      )}
-    </div>
-  )
-}
-
-if (screen === 'ymrs') {
-  return (
-    <div className="flex flex-col">
-      <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
-
-      <div className="p-4">
-        <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-          <YMRSAssessmentList
-            refreshKey={ymrsRefreshKey}
-            onCreateNew={() => setShowCreateYMRSModal(true)}
-          />
-        </section>
-      </div>
-
-      {showCreateYMRSModal && (
-        <CreateYMRSAssessmentModal
-          onClose={() => setShowCreateYMRSModal(false)}
-          onSuccess={() => {
-            setShowCreateYMRSModal(false)
-            setYmrsRefreshKey((prev) => prev + 1)
-            toast.success('YMRS Assessment created successfully')
-          }}
-        />
-      )}
-    </div>
-  )
-}
-
-if (screen === 'panss') {
-  return (
-    <div className="flex flex-col">
-      <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
-
-      <div className="p-4">
-        <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-          <PANSSAssessmentList
-            refreshKey={panssRefreshKey}
-            onCreateNew={() => setShowCreatePANSSModal(true)}
-          />
-        </section>
-      </div>
-
-      {showCreatePANSSModal && (
-        <CreatePANSSAssessmentModal
-          onClose={() => setShowCreatePANSSModal(false)}
-          onSuccess={() => {
-            setShowCreatePANSSModal(false)
-            setPanssRefreshKey((prev) => prev + 1)
-            toast.success('PANSS Assessment created successfully')
-          }}
-        />
-      )}
-    </div>
-  )
-}
-
-
-if (screen === 'single-prescription') {
-  return (
-    <div className="flex flex-col">
-      <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-        <div className="flex-1 min-w-0">
-          <PatientSearch
-            selectedPatient={selectedPatient || ''}
-            onPatientSelect={handlePatientSelect}
-            patients={[]}
-          />
+          </DashboardCard>
         </div>
-        <div className="flex items-center gap-3 flex-shrink-0">
-          <UserMenu />
-          <NotificationBell />
-        </div>
-      </header>
-
-      <div className="p-4">
-        <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-          <RxPage 
-            // inpatientRecordId={activeInpatientRecordId}  // For IP admissions
-            // patientEncounterId={activePatientEncounterId} // For OP visits
+        {showCreateGAD7Modal && (
+          <CreateGAD7AssessmentModal
+            onClose={() => setShowCreateGAD7Modal(false)}
+            onSuccess={() => {
+              setShowCreateGAD7Modal(false)
+              setGad7RefreshKey((prev) => prev + 1)
+              toast.success('GAD7 Assessment created successfully')
+            }}
           />
-        </section>
+        )}
       </div>
-    </div>
-  )
-}
+    )
+  }
 
-  return (
-    <div className="flex flex-col">
-      <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-        <div className="flex-1 min-w-0">
-          <PatientSearch
-            selectedPatient={selectedPatient || ''}
-            onPatientSelect={handlePatientSelect}
-            patients={[]}
+  // Show PHQ9 Assessments
+  if (screen === 'phq9') {
+    return (
+      <div className="flex flex-col">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+        <div className="p-4">
+          <DashboardCard 
+            title="PHQ9 Assessments" 
+            onAdd={() => setShowCreatePHQ9Modal(true)}
+            addButtonTitle="Create PHQ9 Assessment"
+          >
+            <PHQ9AssessmentList
+              refreshKey={phq9RefreshKey}
+              onCreateNew={() => setShowCreatePHQ9Modal(true)}
+            />
+          </DashboardCard>
+        </div>
+        {showCreatePHQ9Modal && (
+          <CreatePHQ9AssessmentModal
+            onClose={() => setShowCreatePHQ9Modal(false)}
+            onSuccess={() => {
+              setShowCreatePHQ9Modal(false)
+              setPhq9RefreshKey((prev) => prev + 1)
+              toast.success('PHQ9 Assessment created successfully')
+            }}
           />
-        </div>
-        <div className="flex items-center gap-3 flex-shrink-0">
-          <UserMenu />
-          <NotificationBell />
-        </div>
-      </header>
+        )}
+      </div>
+    )
+  }
 
-      {/* OP / IP mode: full-width top row — hidden once a specific visit/admission is selected */}
-      {(mode === 'OP' && !activeVisit) || (mode === 'IP' && !activeAdmission) ? (
-        <div className="px-4 pt-4 pb-0">
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[420px]">
-            <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
-              <span>{mode === 'OP' ? 'Patient Visits (OP)' : 'Inpatient Admissions (IP)'}</span>
-            </div>
-            <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-              {mode === 'OP' ? (
-                <PatientVisitList
-                  patient={selectedPatient || undefined}
-                  onPatientFromVisit={(p) => {
-                    setSelectedPatient(p)
-                    const sp = new URLSearchParams(searchParams)
-                    sp.set('patient', p)
-                    setSearchParams(sp, { replace: true })
-                  }}
-                />
-              ) : (
-                <AdmissionList
-                  patient={selectedPatient || undefined}
-                  onPatientFromAdmission={(p) => {
-                    setSelectedPatient(p)
-                    const sp = new URLSearchParams(searchParams)
-                    sp.set('patient', p)
-                    setSearchParams(sp, { replace: true })
-                  }}
-                />
-              )}
-            </div>
-          </section>
-        </div>
-      ) : null}
-
-      {selectedPatient ? (
-        <>
-          <div className="grid gap-4 md:grid-cols-2 p-4">
-            {/* Card 1: Patient info */}
-            <div className="overflow-auto max-h-[400px]">
-              <PatientSummaryCard patient={selectedPatient} />
-            </div>
-
-            {/* Card 2: Patient Medical History */}
-            <section className="bg-white border border-slate-200 rounded-lg p-0 shadow-sm flex flex-col max-h-[400px] overflow-hidden">
-              <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between flex-shrink-0">
-                <span className="font-semibold">Patient Medical History</span>
-              </div>
-              <div className="flex-1 min-h-0 overflow-auto" style={{ scrollbarWidth: 'thin' }}>
-                <MedicalHistoryView patient={selectedPatient} />
-              </div>
-            </section>
+  // Show Clinical Suicide Risk Assessments
+  if (screen === 'clinical-suicide-risk') {
+    return (
+      <div className="flex flex-col">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
           </div>
-
-          <div className="grid gap-4 md:grid-cols-2 px-4 pb-4">
-            {/* Card: Warnings & Allergies */}
-            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-              <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
-                <span>Warnings & Allergies</span>
-                <button
-                  onClick={() => setShowWarningModal(true)}
-                  className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
-                  title="Add Warning Message"
-                >
-                  +
-                </button>
-              </div>
-              <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                <WarningMessagesList patient={selectedPatient} key={warningRefreshKey} />
-              </div>
-            </section>
-
-            {/* Card: Doctor Progress Notes (just before Lab Test) */}
-            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-              <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
-                <span>Doctor Progress Notes</span>
-                <button
-                  onClick={() => setShowDoctorProgressNoteModal(true)}
-                  className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
-                  title="Add Doctor Progress Note"
-                >
-                  +
-                </button>
-              </div>
-              <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                <ClinicalNotesList
-                  patient={selectedPatient}
-                  medicalRole="Doctor"
-                  clinicalNoteType="Doctor Progress Note"
-                  key={doctorProgressNoteRefreshKey}
-                />
-              </div>
-            </section>
-
-            {mode === 'IP' && activeAdmission && (
-              <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-                <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
-                  <span>ECT Chart</span>
-                </div>
-                <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                  <ECTChart patient={selectedPatient} />
-                </div>
-              </section>
-            )}
-
-            {/* Card 3: Lab Test Reports */}
-            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-              <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
-                <span>Lab Test Reports</span>
-                <button
-                  onClick={() => setShowLabTestModal(true)}
-                  className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
-                  title="Add Lab Test Report"
-                >
-                  +
-                </button>
-              </div>
-              <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                <LabTestList
-                  patient={selectedPatient}
-                  defaultStatus="Pending Review"
-                  key={labTestRefreshKey}
-                />
-              </div>
-            </section>
-
-            {/* Card 4: Diagnosis detail */}
-            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-              <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
-                <span>Diagnosis Detail</span>
-                <button
-                  onClick={() => setShowDiagnosisModal(true)}
-                  className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
-                  title="Add / Edit Diagnosis"
-                >
-                  +
-                </button>
-              </div>
-              <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                <PatientDiagnosisList
-                  patient={selectedPatient}
-                  refreshKey={diagnosisRefreshKey}
-                />
-              </div>
-            </section>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
           </div>
+        </header>
+        <div className="p-4">
+          <DashboardCard 
+            title="Suicide Risk Assessments" 
+            onAdd={() => setShowCreateSuicideRiskModal(true)}
+            addButtonTitle="Create Suicide Risk Assessment"
+          >
+            <SuicideRiskAssessmentList
+              refreshKey={suicideRiskRefreshKey}
+              onCreateNew={() => setShowCreateSuicideRiskModal(true)}
+            />
+          </DashboardCard>
+        </div>
+        {showCreateSuicideRiskModal && (
+          <CreateSuicideRiskAssessmentModal
+            onClose={() => setShowCreateSuicideRiskModal(false)}
+            onSuccess={() => {
+              setShowCreateSuicideRiskModal(false)
+              setSuicideRiskRefreshKey((prev) => prev + 1)
+              toast.success('Suicide Risk Assessment created successfully')
+            }}
+          />
+        )}
+      </div>
+    )
+  }
 
-          <div className="grid gap-4 md:grid-cols-2 px-4 pb-4">
-            {/* Card 5: Service Requests */}
-            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-              <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
-                <span>Service Requests</span>
-                <button
-                  onClick={() => setShowServiceRequestModal(true)}
-                  className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
-                  title="Add Service Request"
-                >
-                  +
-                </button>
-              </div>
-              <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                <ServiceRequestList 
-                  patient={selectedPatient} 
-                  refreshKey={serviceRequestRefreshKey}
-                />
-              </div>
-            </section>
-
-            {/* Card: Prescription (Patient Medication Order) */}
-            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-              <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
-                <span>Prescription</span>
-                <button
-                  onClick={() => setShowPrescriptionModal(true)}
-                  className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
-                  title="Create Prescription"
-                >
-                  +
-                </button>
-              </div>
-              <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                <PrescriptionList patient={selectedPatient} refreshKey={prescriptionRefreshKey} />
-              </div>
-            </section>
-
-            {/* Card: Long Acting Medicine (just after Prescription) */}
-            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-              <div className="font-semibold mb-4 flex-shrink-0">
-                <span>Long Acting Medicine</span>
-              </div>
-              <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                <LongActingMedicineList
-                  patient={selectedPatient}
-                  refreshKey={prescriptionRefreshKey}
-                />
-              </div>
-            </section>
+  // Show Homicide Risk Assessments
+  if (screen === 'homicide-risk') {
+    return (
+      <div className="flex flex-col">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
           </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+        <div className="p-4">
+          <DashboardCard 
+            title="Homicide Risk Assessments" 
+            onAdd={() => setShowCreateHomicideRiskModal(true)}
+            addButtonTitle="Create Homicide Risk Assessment"
+          >
+            <HomicideRiskAssessmentList
+              refreshKey={homicideRiskRefreshKey}
+              onCreateNew={() => setShowCreateHomicideRiskModal(true)}
+            />
+          </DashboardCard>
+        </div>
+        {showCreateHomicideRiskModal && (
+          <CreateHomicideRiskAssessmentModal
+            onClose={() => setShowCreateHomicideRiskModal(false)}
+            onSuccess={() => {
+              setShowCreateHomicideRiskModal(false)
+              setHomicideRiskRefreshKey((prev) => prev + 1)
+              toast.success('Homicide Risk Assessment created successfully')
+            }}
+          />
+        )}
+      </div>
+    )
+  }
 
-          {/* Card: Patient Visits — OP mode only */}
-          {mode === 'OP' && (
-            <div className="px-4 pb-4">
-              <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-                <div className="font-semibold mb-4 flex-shrink-0">
-                  <span>Patient Visits (OP)</span>
-                </div>
-                <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                  <PatientVisitList patient={selectedPatient} />
-                </div>
-              </section>
-            </div>
+  // Show YBOCS Assessments
+  if (screen === 'ybocs') {
+    return (
+      <div className="flex flex-col">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+        <div className="p-4">
+          <DashboardCard 
+            title="YBOCS Assessments" 
+            onAdd={() => setShowCreateYBOCSModal(true)}
+            addButtonTitle="Create YBOCS Assessment"
+          >
+            <YBOCSAssessmentList
+              refreshKey={ybocsRefreshKey}
+              onCreateNew={() => setShowCreateYBOCSModal(true)}
+            />
+          </DashboardCard>
+        </div>
+        {showCreateYBOCSModal && (
+          <CreateYBOCSAssessmentModal
+            onClose={() => setShowCreateYBOCSModal(false)}
+            onSuccess={() => {
+              setShowCreateYBOCSModal(false)
+              setYbocsRefreshKey((prev) => prev + 1)
+              toast.success('YBOCS Assessment created successfully')
+            }}
+          />
+        )}
+      </div>
+    )
+  }
+
+  // Show YMRS Assessments
+  if (screen === 'ymrs') {
+    return (
+      <div className="flex flex-col">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+        <div className="p-4">
+          <DashboardCard 
+            title="YMRS Assessments" 
+            onAdd={() => setShowCreateYMRSModal(true)}
+            addButtonTitle="Create YMRS Assessment"
+          >
+            <YMRSAssessmentList
+              refreshKey={ymrsRefreshKey}
+              onCreateNew={() => setShowCreateYMRSModal(true)}
+            />
+          </DashboardCard>
+        </div>
+        {showCreateYMRSModal && (
+          <CreateYMRSAssessmentModal
+            onClose={() => setShowCreateYMRSModal(false)}
+            onSuccess={() => {
+              setShowCreateYMRSModal(false)
+              setYmrsRefreshKey((prev) => prev + 1)
+              toast.success('YMRS Assessment created successfully')
+            }}
+          />
+        )}
+      </div>
+    )
+  }
+
+  // Show PANSS Assessments
+  if (screen === 'panss') {
+    return (
+      <div className="flex flex-col">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+        <div className="p-4">
+          <DashboardCard 
+            title="PANSS Assessments" 
+            onAdd={() => setShowCreatePANSSModal(true)}
+            addButtonTitle="Create PANSS Assessment"
+          >
+            <PANSSAssessmentList
+              refreshKey={panssRefreshKey}
+              onCreateNew={() => setShowCreatePANSSModal(true)}
+            />
+          </DashboardCard>
+        </div>
+        {showCreatePANSSModal && (
+          <CreatePANSSAssessmentModal
+            onClose={() => setShowCreatePANSSModal(false)}
+            onSuccess={() => {
+              setShowCreatePANSSModal(false)
+              setPanssRefreshKey((prev) => prev + 1)
+              toast.success('PANSS Assessment created successfully')
+            }}
+          />
+        )}
+      </div>
+    )
+  }
+
+  // Show Single Prescription
+  if (screen === 'single-prescription') {
+    return (
+      <div className="flex flex-col">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+        <div className="p-4">
+          <DashboardCard title="Prescription Details">
+            <RxPage />
+          </DashboardCard>
+        </div>
+      </div>
+    )
+  }
+
+  // Main Dashboard View
+  // Main Dashboard View
+return (
+  <div className="flex flex-col">
+    <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+      <div className="flex-1 min-w-0">
+        <PatientSearch
+          selectedPatient={selectedPatient || ''}
+          onPatientSelect={handlePatientSelect}
+          patients={[]}
+        />
+      </div>
+      <div className="flex items-center gap-3 flex-shrink-0">
+        <UserMenu />
+        <NotificationBell />
+      </div>
+    </header>
+
+    {/* OP / IP mode: full-width top row — hidden once a specific visit/admission is selected */}
+    {(mode === 'OP' && !activeVisit) || (mode === 'IP' && !activeAdmission) ? (
+      <div className="px-4 pt-4 pb-0">
+        <DashboardCard title={mode === 'OP' ? 'Patient Visits (OP)' : 'Inpatient Admissions (IP)'}>
+          {mode === 'OP' ? (
+            <PatientVisitList
+              patient={selectedPatient || undefined}
+              onPatientFromVisit={(p) => {
+                setSelectedPatient(p)
+                const sp = new URLSearchParams(searchParams)
+                sp.set('patient', p)
+                setSearchParams(sp, { replace: true })
+              }}
+            />
+          ) : (
+            <AdmissionList
+              patient={selectedPatient || undefined}
+              onPatientFromAdmission={(p) => {
+                setSelectedPatient(p)
+                const sp = new URLSearchParams(searchParams)
+                sp.set('patient', p)
+                setSearchParams(sp, { replace: true })
+              }}
+            />
           )}
+        </DashboardCard>
+      </div>
+    ) : null}
 
-          {/* Card: Admissions + Discharges — IP mode only */}
-          {mode === 'IP' && (
-            <>
-              {/* <div className="px-4 pb-4">
-                <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-                  <div className="font-semibold mb-4 flex-shrink-0">
-                    <span>Admissions (IP)</span>
-                  </div>
-                  <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                    <AdmissionList patient={selectedPatient} />
-                  </div>
-                </section>
-              </div> */}
+    {selectedPatient ? (
+      <>
+        {/* Row 1: Patient info and Medical History */}
+        <div className="grid gap-4 md:grid-cols-2 auto-rows-fr p-4">
+          <DashboardCard title="Patient Information">
+            <PatientSummaryCard patient={selectedPatient} />
+          </DashboardCard>
 
-              <div className="px-4 pb-4">
-                <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-                  <div className="font-semibold mb-4 flex-shrink-0">
-                    <span>Admission & Discharges</span>
-                  </div>
-                  <div
-                    className="overflow-x-auto overflow-y-auto flex-1 min-h-0"
-                    style={{ scrollbarWidth: 'thin' }}
-                  >
-                    <DischargeList patient={selectedPatient} key={dischargeRefreshKey} />
-                  </div>
-                </section>
-              </div>
-            </>
-          )}
+          <DashboardCard title="Patient Medical History">
+            <MedicalHistoryView patient={selectedPatient} />
+          </DashboardCard>
+        </div>
 
-          {/* <div className="px-4 pb-4">
-            <DoctorServiceDetailsTable 
+        {/* Row 2: Warnings & Allergies and Doctor Progress Notes */}
+        <div className="grid gap-4 md:grid-cols-2 auto-rows-fr px-4 pb-4">
+          <DashboardCard 
+            title="Warnings & Allergies" 
+            onAdd={() => setShowWarningModal(true)}
+            addButtonTitle="Add Warning Message"
+          >
+            <WarningMessagesList patient={selectedPatient} key={warningRefreshKey} />
+          </DashboardCard>
+
+          <DashboardCard 
+            title="Doctor Progress Notes" 
+            onAdd={() => setShowDoctorProgressNoteModal(true)}
+            addButtonTitle="Add Doctor Progress Note"
+          >
+            <ClinicalNotesList
+              patient={selectedPatient}
+              medicalRole="Doctor"
+              clinicalNoteType="Doctor Progress Note"
+              key={doctorProgressNoteRefreshKey}
+            />
+          </DashboardCard>
+        </div>
+
+        {/* Row 3: Lab Test Reports and Lab Requests (on same line) */}
+        <div className="grid gap-4 md:grid-cols-2 auto-rows-fr px-4 pb-4">
+          <DashboardCard 
+            title="Lab Test Reports" 
+            onAdd={() => setShowLabTestModal(true)}
+            addButtonTitle="Add Lab Test Report"
+          >
+            <LabTestList
+              patient={selectedPatient}
+              defaultStatus="Pending Review"
+              key={labTestRefreshKey}
+            />
+          </DashboardCard>
+
+          <DashboardCard 
+            title="Lab Requests" 
+            onAdd={() => setShowServiceRequestModal(true)}
+            addButtonTitle="Add Service Request"
+          >
+            <ServiceRequestList 
               patient={selectedPatient} 
-              onAddService={() => setShowServiceModal(true)}
+              refreshKey={serviceRequestRefreshKey}
             />
-          </div> */}
-        </>
-      ) : (
-        <>
-          <div className="grid gap-4 md:grid-cols-2 p-4">
-            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-              <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
-                <span>Warning Messages (Allergies etc.)</span>
-                <button
-                  onClick={() => setShowWarningModal(true)}
-                  className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
-                  title="Add Warning Message"
-                >
-                  +
-                </button>
-              </div>
-              <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                <WarningMessagesList patient={undefined} key={warningRefreshKey} />
-              </div>
-            </section>
+          </DashboardCard>
+        </div>
 
-            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-              <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
-                <span>Lab Test Reports Pending for Review</span>
-                <button
-                  onClick={() => setShowLabTestModal(true)}
-                  className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
-                  title="Add Lab Test Report"
-                >
-                  +
-                </button>
+        {/* Row 4: ECT Chart and Diagnosis Detail (on same line) */}
+        <div className="grid gap-4 md:grid-cols-2 auto-rows-fr px-4 pb-4">
+          {/* ECT Chart - IP mode only, otherwise show empty or hide */}
+          {mode === 'IP' && activeAdmission ? (
+            <DashboardCard title="ECT Chart">
+              <ECTChart patient={selectedPatient} />
+            </DashboardCard>
+          ) : (
+            <DashboardCard title="ECT Chart (IP Only)">
+              <div className="text-center text-slate-500 py-8">
+                ECT Chart is only available for inpatient admissions
               </div>
-              <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                <LabTestList defaultStatus="Pending Review" key={labTestRefreshKey} />
-              </div>
-            </section>
+            </DashboardCard>
+          )}
+
+          <DashboardCard 
+            title="Diagnosis Detail" 
+            onAdd={() => setShowDiagnosisModal(true)}
+            addButtonTitle="Add / Edit Diagnosis"
+          >
+            <PatientDiagnosisList
+              patient={selectedPatient}
+              refreshKey={diagnosisRefreshKey}
+            />
+          </DashboardCard>
+        </div>
+
+        {/* Row 5: Prescription and Long Acting Medicine (on same line) */}
+        <div className="grid gap-4 md:grid-cols-2 auto-rows-fr px-4 pb-4">
+          <DashboardCard 
+            title="Prescription" 
+            onAdd={() => setShowPrescriptionModal(true)}
+            addButtonTitle="Create Prescription"
+          >
+            <PrescriptionList patient={selectedPatient} refreshKey={prescriptionRefreshKey} />
+          </DashboardCard>
+
+          <DashboardCard title="Long Acting Medicine">
+            <LongActingMedicineList
+              patient={selectedPatient}
+              refreshKey={prescriptionRefreshKey}
+            />
+          </DashboardCard>
+        </div>
+
+        {/* Row 6: Patient Visits — OP mode only */}
+        {mode === 'OP' && (
+          <div className="px-4 pb-4">
+            <DashboardCard title="Patient Visits (OP)">
+              <PatientVisitList patient={selectedPatient} />
+            </DashboardCard>
           </div>
+        )}
 
-          <div className="grid gap-4 md:grid-cols-2 px-4 pb-4">
-            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-              <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
-                <span>Appointments</span>
-                <button
-                  onClick={() => setShowAppointmentModal(true)}
-                  className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
-                  title="Add Appointment"
-                >
-                  +
-                </button>
-              </div>
-              <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                <AppointmentList refreshKey={appointmentRefreshKey} />
-              </div>
-            </section>
-
-            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-              <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
-                <span>Prescription</span>
-                <button
-                  onClick={() => setShowPrescriptionModal(true)}
-                  className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
-                  title="Create Prescription"
-                >
-                  +
-                </button>
-              </div>
-              <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                <PrescriptionList refreshKey={prescriptionRefreshKey} />
-              </div>
-            </section>
+        {/* Row 7: Admissions + Discharges — IP mode only */}
+        {mode === 'IP' && (
+          <div className="px-4 pb-4">
+            <DashboardCard title="Admission & Discharges">
+              <DischargeList patient={selectedPatient} key={dischargeRefreshKey} />
+            </DashboardCard>
           </div>
-        </>
-      )}
+        )}
+      </>
+    ) : (
+      // No patient selected view
+      <>
+        <div className="grid gap-4 md:grid-cols-2 auto-rows-fr p-4">
+          <DashboardCard 
+            title="Warning Messages (Allergies etc.)" 
+            onAdd={() => setShowWarningModal(true)}
+            addButtonTitle="Add Warning Message"
+          >
+            <WarningMessagesList patient={undefined} key={warningRefreshKey} />
+          </DashboardCard>
 
-      {showPrescriptionModal && (
-        <CreatePrescriptionModal
-          onClose={() => setShowPrescriptionModal(false)}
-          onSuccess={() => {
-            setPrescriptionRefreshKey((prev) => prev + 1)
-            setShowPrescriptionModal(false)
-          }}
-          initialPatient={selectedPatient}
-        />
-      )}
+          <DashboardCard 
+            title="Lab Test Reports Pending for Review" 
+            onAdd={() => setShowLabTestModal(true)}
+            addButtonTitle="Add Lab Test Report"
+          >
+            <LabTestList defaultStatus="Pending Review" key={labTestRefreshKey} />
+          </DashboardCard>
+        </div>
 
-      {showWarningModal && (
-        <CreateWarningMessageModal
-          onClose={() => setShowWarningModal(false)}
-          onSuccess={() => {
-            setWarningRefreshKey(prev => prev + 1)
-            setShowWarningModal(false)
-          }}
-          initialPatient={selectedPatient}
-        />
-      )}
+        <div className="grid gap-4 md:grid-cols-2 auto-rows-fr px-4 pb-4">
+          <DashboardCard 
+            title="Appointments" 
+            onAdd={() => setShowAppointmentModal(true)}
+            addButtonTitle="Add Appointment"
+          >
+            <AppointmentList refreshKey={appointmentRefreshKey} />
+          </DashboardCard>
+
+          <DashboardCard 
+            title="Prescription" 
+            onAdd={() => setShowPrescriptionModal(true)}
+            addButtonTitle="Create Prescription"
+          >
+            <PrescriptionList refreshKey={prescriptionRefreshKey} />
+          </DashboardCard>
+        </div>
+      </>
+    )}
+
+    {/* Modals */}
+    {showPrescriptionModal && (
+      <CreatePrescriptionModal
+        onClose={() => setShowPrescriptionModal(false)}
+        onSuccess={() => {
+          setPrescriptionRefreshKey((prev) => prev + 1)
+          setShowPrescriptionModal(false)
+        }}
+        initialPatient={selectedPatient}
+      />
+    )}
+
+    {showWarningModal && (
+      <CreateWarningMessageModal
+        onClose={() => setShowWarningModal(false)}
+        onSuccess={() => {
+          setWarningRefreshKey(prev => prev + 1)
+          setShowWarningModal(false)
+        }}
+        initialPatient={selectedPatient}
+      />
+    )}
 
     {showLabTestModal && (
-  <CreateLabRequestModal
-    onClose={() => setShowLabTestModal(false)}
-    onSuccess={() => {
-      setLabTestRefreshKey(prev => prev + 1)
-      setShowLabTestModal(false)
-      toast.success('Lab request created successfully')
-    }}
-    initialPatient={selectedPatient}
-  />
-)}
+      <CreateLabRequestModal
+        onClose={() => setShowLabTestModal(false)}
+        onSuccess={() => {
+          setLabTestRefreshKey(prev => prev + 1)
+          setShowLabTestModal(false)
+          toast.success('Lab request created successfully')
+        }}
+        initialPatient={selectedPatient}
+      />
+    )}
 
-      {showDischargeModal && selectedAdmission && (
-        <DischargeModal
-          admission={selectedAdmission}
-          onClose={handleDischargeModalClose}
-          onSuccess={() => {
-            setShowDischargeModal(false)
-            setSelectedAdmission(null)
-            setDischargeHasDraft(false)
-            toast.success('Discharge completed successfully')
-          }}
-        />
-      )}
-      {showDoctorProgressNoteModal && selectedPatient && (
-        <CreateClinicalNoteModal
-          onClose={() => setShowDoctorProgressNoteModal(false)}
-          onSuccess={() => {
-            setDoctorProgressNoteRefreshKey(prev => prev + 1)
-            setShowDoctorProgressNoteModal(false)
-          }}
-          initialPatient={selectedPatient}
-          defaultClinicalNoteType="Doctor Progress Note"
-          title="Add Doctor Progress Note"
-        />
-      )}
+    {showDischargeModal && selectedAdmission && (
+      <DischargeModal
+        admission={selectedAdmission}
+        onClose={handleDischargeModalClose}
+        onSuccess={() => {
+          setShowDischargeModal(false)
+          setSelectedAdmission(null)
+          setDischargeHasDraft(false)
+          toast.success('Discharge completed successfully')
+        }}
+      />
+    )}
 
-      {showDiagnosisModal && selectedPatient && (
-        <PatientDiagnosisModal
-          parentDoctype={mode === 'IP' ? 'Inpatient Admission' : 'Patient Visit'}
-          parentName={mode === 'IP' ? (activeAdmission ?? undefined) : (activeVisit ?? undefined)}
-          patient={selectedPatient}
-          patientName={undefined}
-          onClose={() => setShowDiagnosisModal(false)}
-          onSuccess={() => {
-            setDiagnosisRefreshKey((prev) => prev + 1)
-            setShowDiagnosisModal(false)
-          }}
-        />
-      )}
+    {showDoctorProgressNoteModal && selectedPatient && (
+      <CreateClinicalNoteModal
+        onClose={() => setShowDoctorProgressNoteModal(false)}
+        onSuccess={() => {
+          setDoctorProgressNoteRefreshKey(prev => prev + 1)
+          setShowDoctorProgressNoteModal(false)
+        }}
+        initialPatient={selectedPatient}
+        defaultClinicalNoteType="Doctor Progress Note"
+        title="Add Doctor Progress Note"
+      />
+    )}
 
-      {/* {showServiceModal && (
-        <CreateDoctorServiceModal
-          onClose={() => setShowServiceModal(false)}
-          onSuccess={() => {
-            setShowServiceModal(false)
-            // TODO: Refresh service details table when backend is wired
-          }}
-          patient={selectedPatient}
-        />
-      )} */}
+    {showDiagnosisModal && selectedPatient && (
+      <PatientDiagnosisModal
+        parentDoctype={mode === 'IP' ? 'Inpatient Admission' : 'Patient Visit'}
+        parentName={mode === 'IP' ? (activeAdmission ?? undefined) : (activeVisit ?? undefined)}
+        patient={selectedPatient}
+        patientName={undefined}
+        onClose={() => setShowDiagnosisModal(false)}
+        onSuccess={() => {
+          setDiagnosisRefreshKey((prev) => prev + 1)
+          setShowDiagnosisModal(false)
+        }}
+      />
+    )}
 
-      {showServiceRequestModal && (
-        <CreateServiceRequestModal
-          onClose={() => setShowServiceRequestModal(false)}
-          onSuccess={() => {
-            setServiceRequestRefreshKey(prev => prev + 1)
-            setShowServiceRequestModal(false)
-            toast.success('Service request created successfully')
-          }}
-          initialPatient={selectedPatient}
-        />
-      )}
+    {showServiceRequestModal && (
+      <CreateServiceRequestModal
+        onClose={() => setShowServiceRequestModal(false)}
+        onSuccess={() => {
+          setServiceRequestRefreshKey(prev => prev + 1)
+          setShowServiceRequestModal(false)
+          toast.success('Service request created successfully')
+        }}
+        initialPatient={selectedPatient}
+        labTestTemplateOnly
+      />
+    )}
 
-      {showAppointmentModal && (
-        <CreateAppointmentModal
-          onClose={() => setShowAppointmentModal(false)}
-          onSuccess={() => {
-            setAppointmentRefreshKey(prev => prev + 1)
-            setShowAppointmentModal(false)
-          }}
-          initialPatient={selectedPatient}
-        />
-      )}
-    </div>
-  )
+    {showAppointmentModal && (
+      <CreateAppointmentModal
+        onClose={() => setShowAppointmentModal(false)}
+        onSuccess={() => {
+          setAppointmentRefreshKey(prev => prev + 1)
+          setShowAppointmentModal(false)
+        }}
+        initialPatient={selectedPatient}
+      />
+    )}
+  </div>
+)
 }

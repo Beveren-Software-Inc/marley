@@ -1,7 +1,17 @@
 import { useState, useEffect } from 'react'
+import {
+  CREATE_MODAL_OVERLAY,
+  createModalShellClass,
+} from '../ui/CreateModalChrome'
 import { toast } from '../../hooks/useToast'
 import { createPaymentEntry } from '../../services/paymentEntry'
-import { fetchModeOfPayments, fetchSalesInvoices, fetchSalesOrders } from '../../services/paymentEntry' 
+import { fetchModeOfPayments, fetchSalesInvoices, fetchSalesOrders } from '../../services/paymentEntry'
+import {
+  linkComboboxDropdownClass,
+  linkComboboxEmptyPanelClass,
+  linkComboboxInputWithClearClass,
+  linkComboboxOptionClassCompact,
+} from '../ui/linkComboboxStyles' 
 
 // ─── Reusable searchable link field ──────────────────────────────────────────
 interface LinkFieldProps {
@@ -33,7 +43,7 @@ const LinkField = ({
         onChange={e => { onQueryChange(e.target.value); onOpen() }}
         onFocus={onOpen}
         placeholder={placeholder ?? `Search ${label}...`}
-        className="w-full rounded-md border border-slate-300 px-3 py-2 pr-7 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+        className={`${linkComboboxInputWithClearClass} pr-7`}
       />
       {value && (
         <button
@@ -49,13 +59,13 @@ const LinkField = ({
       )}
     </div>
     {open && options.length > 0 && (
-      <div className="absolute z-30 w-full mt-1 bg-white border border-slate-200 rounded-md shadow-lg max-h-52 overflow-y-auto">
+      <div className={linkComboboxDropdownClass}>
         {options.map(opt => (
           <button
             key={opt.name}
             type="button"
             onClick={() => onSelect(opt)}
-            className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 focus:bg-slate-100 focus:outline-none"
+            className={linkComboboxOptionClassCompact}
           >
             {opt.label}
           </button>
@@ -63,7 +73,7 @@ const LinkField = ({
       </div>
     )}
     {open && options.length === 0 && query.length > 0 && (
-      <div className="absolute z-30 w-full mt-1 bg-white border border-slate-200 rounded-md shadow py-2 px-3 text-xs text-slate-400">
+      <div className={linkComboboxEmptyPanelClass}>
         No results found
       </div>
     )}
@@ -208,8 +218,8 @@ export const CreatePaymentModal = ({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 flex flex-col">
+    <div className={CREATE_MODAL_OVERLAY}>
+      <div className={createModalShellClass('w-full max-w-md')}>
 
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">

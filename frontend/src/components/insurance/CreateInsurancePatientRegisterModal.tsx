@@ -1,4 +1,10 @@
 import { useState, useCallback } from 'react'
+import {
+  CM_BTN_CANCEL,
+  CM_BTN_PRIMARY,
+  CREATE_MODAL_OVERLAY,
+  createModalShellClass,
+} from '../ui/CreateModalChrome'
 import { apiRequest } from '../../services/apiClient'
 import { fetchHealthcareInsurance, type LinkFieldOption } from '../../services/common'
 
@@ -71,20 +77,20 @@ export const CreateInsurancePatientRegisterModal = ({
 
   return (
     <div
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+      className={CREATE_MODAL_OVERLAY}
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
       <div
-        className="bg-white rounded-xl shadow-2xl w-full max-w-lg flex flex-col h-[85vh]"
+        className={createModalShellClass('w-full max-w-lg flex flex-col h-[85vh]')}
         onClick={e => { e.stopPropagation(); closeDropdowns() }}
       >
         {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between flex-shrink-0">
+        <div className="relative shrink-0 border-b border-emerald-100/60 bg-gradient-to-r from-emerald-100 via-teal-50 to-sky-100 px-6 py-4 flex flex-shrink-0 items-center justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-slate-900">New Insurance Patient Register</h2>
+            <h2 className="text-lg font-semibold tracking-tight text-emerald-950">New Insurance Patient Register</h2>
             <p className="text-xs text-slate-500 mt-0.5">Register a patient's insurance for tracking visits and approvals</p>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+          <button onClick={onClose} className="shrink-0 rounded-lg p-2 text-emerald-800/70 transition hover:bg-emerald-200/50 hover:text-emerald-950">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -197,11 +203,11 @@ export const CreateInsurancePatientRegisterModal = ({
             )}
             <div className="flex justify-end gap-3">
               <button type="button" onClick={onClose}
-                className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50">
+                className={CM_BTN_CANCEL}>
                 Cancel
               </button>
               <button type="submit" disabled={saving}
-                className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-50">
+                className={CM_BTN_PRIMARY}>
                 {saving ? 'Creating…' : 'Create Register'}
               </button>
             </div>

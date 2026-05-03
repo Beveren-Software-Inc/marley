@@ -33,6 +33,15 @@ frappe.ui.form.on('Lab Test', {
 				}
 			};
 		});
+
+		frm.set_query('lab_technician', function () {
+			return {
+				filters: {
+					status: 'Active',
+					medical_role: ['in', ['Lab Technologist', 'Lab Technician']],
+				},
+			};
+		});
 	},
 
 	refresh: function (frm) {

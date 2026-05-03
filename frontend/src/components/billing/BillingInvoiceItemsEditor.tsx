@@ -2,6 +2,11 @@ import { useState, useEffect, useRef } from 'react'
 import { ChevronDown, Loader2 } from 'lucide-react'
 import type { BillingInvoiceItemInput } from '../../services/serviceOrders'
 import { fetchItems, type LinkFieldOption } from '../../services/common'
+import {
+  linkComboboxDropdownClass,
+  linkComboboxInputClassCompact,
+  linkComboboxOptionClassCompact,
+} from '../ui/linkComboboxStyles'
 
 interface BillingInvoiceItemsEditorProps {
   items: BillingInvoiceItemInput[]
@@ -68,7 +73,7 @@ function BillingItemSearch({
         <input
           type="text"
           autoComplete="off"
-          className="w-full rounded-md border border-slate-300 px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+          className={`${linkComboboxInputClassCompact} pr-8`}
           placeholder="Search item code or name…"
           value={display}
           onChange={(e) => {
@@ -87,7 +92,7 @@ function BillingItemSearch({
         </p>
       ) : null}
       {open && (
-        <div className="absolute z-30 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-xl max-h-52 overflow-auto">
+        <div className={linkComboboxDropdownClass}>
           {loading ? (
             <div className="flex items-center gap-2 px-3 py-2 text-xs text-slate-500">
               <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
@@ -98,7 +103,7 @@ function BillingItemSearch({
               <button
                 key={`${rowIndex}-${opt.name}`}
                 type="button"
-                className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 transition-colors border-b border-slate-50 last:border-0"
+                className={`${linkComboboxOptionClassCompact} border-b border-slate-50 last:border-0`}
                 onClick={() => {
                   onPatch({
                     item_code: opt.name,

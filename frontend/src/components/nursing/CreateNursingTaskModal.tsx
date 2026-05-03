@@ -118,8 +118,8 @@
 //   }
 
 //   return (
-//     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-//       <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full max-h-[90vh] flex flex-col">
+//     <div className={CREATE_MODAL_OVERLAY}>
+//       <div className={createModalShellClass('max-w-lg w-full max-h-[90vh]')}>
 //         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
 //           <h2 className="text-sm font-semibold text-slate-900">New Nursing Task</h2>
 //           <button
@@ -259,7 +259,7 @@
 //             <button
 //               type="submit"
 //               disabled={submitting}
-//               className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-50"
+//               className={CM_BTN_PRIMARY}
 //             >
 //               {submitting ? 'Creating…' : 'Create Task'}
 //             </button>
@@ -281,6 +281,11 @@
 // }
 
 import { useEffect, useState } from 'react'
+import {
+  CM_BTN_PRIMARY,
+  CREATE_MODAL_OVERLAY,
+  createModalShellClass,
+} from '../ui/CreateModalChrome'
 import { apiRequest } from '../../services/apiClient'
 import { toast } from '../../hooks/useToast'
 import { CreateHealthcareActivityModal } from '../activities/CreateHealthcareActivityModal'
@@ -526,8 +531,8 @@ export const CreateNursingTaskModal = ({ onClose, onSuccess, patient }: CreateNu
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full max-h-[90vh] flex flex-col">
+    <div className={CREATE_MODAL_OVERLAY}>
+      <div className={createModalShellClass('max-w-lg w-full max-h-[90vh]')}>
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
           <div>
             <h2 className="text-sm font-semibold text-slate-900">New Nursing Task</h2>
@@ -788,7 +793,7 @@ export const CreateNursingTaskModal = ({ onClose, onSuccess, patient }: CreateNu
             <button
               type="submit"
               disabled={submitting || (!isIPMode && !isOPMode) || (isIPMode && !admissionNo) || (isOPMode && !patientVisitNo)}
-              className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-50"
+              className={CM_BTN_PRIMARY}
             >
               {submitting ? 'Creating…' : 'Create Task'}
             </button>

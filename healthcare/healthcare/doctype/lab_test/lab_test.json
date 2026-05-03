@@ -35,6 +35,7 @@
   "expected_result_date",
   "expected_result_time",
   "printed_on",
+  "by_nurse",
   "outsourced_section",
   "is_outsourced",
   "outsource_lab_name",
@@ -60,6 +61,8 @@
   "employee_designation",
   "user",
   "sample",
+  "lab_technician",
+  "lab_technician_name",
   "sb_normal",
   "lab_test_html",
   "normal_test_items",
@@ -993,6 +996,28 @@
    "fieldname": "trans_source",
    "fieldtype": "Data",
    "label": "Trans Source"
+  },
+  {
+   "fieldname": "lab_technician",
+   "fieldtype": "Link",
+   "label": "Lab Technician",
+   "options": "Healthcare Practitioner"
+  },
+  {
+   "allow_on_submit": 1,
+   "fetch_from": "lab_technician.practitioner_name",
+   "fetch_if_empty": 1,
+   "fieldname": "lab_technician_name",
+   "fieldtype": "Data",
+   "label": "Lab Technician Name",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fetch_from": "template.by_nurse",
+   "fieldname": "by_nurse",
+   "fieldtype": "Check",
+   "label": "By Nurse"
   }
  ],
  "is_submittable": 1,
@@ -1002,7 +1027,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2026-04-27 13:19:33.802685",
+ "modified": "2026-05-03 15:10:24.341491",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Lab Test",

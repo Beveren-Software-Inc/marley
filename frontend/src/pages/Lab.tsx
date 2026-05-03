@@ -404,7 +404,7 @@ export const LabPage = () => {
               handleServiceRequestCreated() 
             }}
             initialPatient={selectedPatient}
-            initialTemplate="Lab Test Template"
+            labTestTemplateOnly
           />
         )}
       </div>
@@ -671,7 +671,7 @@ export const LabPage = () => {
             handleServiceRequestCreated() 
           }}
           initialPatient={selectedPatient}
-          initialTemplate="Lab Test Template"
+          labTestTemplateOnly
         />
       )}
       {showCreateTemplateModal && (

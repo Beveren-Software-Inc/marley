@@ -23,6 +23,7 @@ import {
   fetchWarehouses,
   fetchDocumentTypes,
   fetchHealthcarePractitioners,
+  fetchLabTechnicianPractitioners,
   fetchLabTestTemplates,
   type LinkFieldOption,
 } from '../../services/common'
@@ -61,8 +62,10 @@ const makeEmptyFilters = (): Filters => ({
 
 // ─── Filter Bar ─────────────────────────────────────────────────────────────
 
-const FilterBar = ({ filters, onChange, onClear, activeCount }: {
+const FilterBar = ({ filters, onChange, onClear, activeCount, byNurse }: {
   filters: Filters; onChange: (f: Filters) => void; onClear: () => void; activeCount: number
+  /** When true, template search only lists Lab Test Templates with by_nurse set */
+  byNurse?: boolean
 }) => {
   const set = (key: keyof Filters, value: string) => onChange({ ...filters, [key]: value })
   const [templateQuery, setTemplateQuery] = useState('')
@@ -72,11 +75,12 @@ const FilterBar = ({ filters, onChange, onClear, activeCount }: {
   useEffect(() => {
     if (!templateOpen) return
     const t = setTimeout(async () => {
-      try { setTemplateOptions(await fetchLabTestTemplates(templateQuery || undefined)) }
-      catch { setTemplateOptions([]) }
+      try {
+        setTemplateOptions(await fetchLabTestTemplates(templateQuery || undefined, undefined, byNurse))
+      } catch { setTemplateOptions([]) }
     }, templateQuery.trim() === '' ? 0 : 300)
     return () => clearTimeout(t)
-  }, [templateOpen, templateQuery])
+  }, [templateOpen, templateQuery, byNurse])
 
   return (
     <div className="flex flex-wrap items-end gap-3 px-4 py-3 bg-white border-b border-slate-200">
@@ -207,6 +211,11 @@ export const LabTestList = ({
   const handleInlineResultUpdate = async (labTestName: string, newResult: string) => {
     setUpdatingResult(labTestName)
     try {
+      const current = await fetchLabTest(labTestName)
+      if (!current.lab_technician?.trim()) {
+        toast.error('Select a lab technician using Enter Results (Actions) before submitting from the table.')
+        return
+      }
       await saveAndSubmitLabTest(labTestName, { custom_result: newResult, submit: true })
       await refetch()
       toast.success('Result updated')
@@ -242,6 +251,10 @@ export const LabTestList = ({
   const [normalTestItems, setNormalTestItems] = useState<NormalTestResultRow[]>([])
   const [templateDetails, setTemplateDetails] = useState<LabTestTemplateDetails>({})
   const [worksheetExpanded, setWorksheetExpanded] = useState(false)
+  const [labTechnician, setLabTechnician] = useState('')
+  const [labTechnicianQuery, setLabTechnicianQuery] = useState('')
+  const [labTechnicianOptions, setLabTechnicianOptions] = useState<LinkFieldOption[]>([])
+  const [labTechnicianOpen, setLabTechnicianOpen] = useState(false)
 
   // ── Review / actions ───────────────────────────────────────────────────────
   const [openActionRow, setOpenActionRow] = useState<string | null>(null)
@@ -276,6 +289,18 @@ export const LabTestList = ({
     }
     loadPractitioners()
   }, [refPractitionerQuery])
+
+  useEffect(() => {
+    if (!resultDialogOpen) return
+    const t = setTimeout(async () => {
+      try {
+        setLabTechnicianOptions(await fetchLabTechnicianPractitioners(labTechnicianQuery.trim() || undefined))
+      } catch {
+        setLabTechnicianOptions([])
+      }
+    }, labTechnicianQuery.trim() === '' ? 0 : 300)
+    return () => clearTimeout(t)
+  }, [resultDialogOpen, labTechnicianQuery])
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -405,6 +430,9 @@ export const LabTestList = ({
         ? (doc as LabTest).documents!.map((d) => ({ file_name: d.file_name || '', document_type: d.document_type || '', transaction_no: d.transaction_no || '', upload_remarks: d.upload_remarks || '', document: d.document || '' }))
         : [{ file_name: '', document_type: '', transaction_no: '', upload_remarks: '' }]
       setResultDocuments(docs)
+      setLabTechnician(doc.lab_technician || '')
+      setLabTechnicianQuery((doc.lab_technician_name || '').trim() || '')
+      setLabTechnicianOpen(false)
     } catch (e) { setResultDialogError(e instanceof Error ? e.message : 'Failed to load lab test') }
     finally { setResultDialogLoading(false) }
   }
@@ -412,6 +440,7 @@ export const LabTestList = ({
     setResultDialogOpen(false); setActiveLabTest(null); setCustomResult(''); setLabComment('')
     setWorksheetText(''); setResultDialogTab('results'); setResultDocuments([])
     setResultDialogError(null); setResultDialogLoading(false); setNormalTestItems([]); setTemplateDetails({}); setWorksheetExpanded(false)
+    setLabTechnician(''); setLabTechnicianQuery(''); setLabTechnicianOptions([]); setLabTechnicianOpen(false)
   }
   const addResultDocumentRow = () => setResultDocuments(prev => [...prev, { file_name: '', document_type: '', transaction_no: '', upload_remarks: '' }])
   const updateResultDocumentRow = (idx: number, field: keyof PatientDocumentRow, value: string) => {
@@ -430,6 +459,10 @@ export const LabTestList = ({
   }
   const handleSubmitLabTestWithResults = async () => {
     if (!activeLabTest) return
+    if (!labTechnician.trim()) {
+      setResultDialogError('Lab technician is required. Choose an active practitioner with Medical Role Lab Technologist or Lab Technician.')
+      return
+    }
     try {
       setResultDialogLoading(true); setResultDialogError(null)
       const docPayload = resultDocuments.filter((r) => (r.file_name || '').trim() || (r.document || '').trim())
@@ -437,7 +470,9 @@ export const LabTestList = ({
       await saveAndSubmitLabTest(activeLabTest.name, {
         custom_result: customResult, lab_test_comment: labComment, worksheet_instructions: worksheetText,
         documents: docPayload.length ? docPayload : undefined,
-        normal_test_items: normalTestItems.length ? normalTestItems : undefined, submit: true,
+        normal_test_items: normalTestItems.length ? normalTestItems : undefined,
+        lab_technician: labTechnician.trim(),
+        submit: true,
       })
       await refetch(); closeResultDialog()
     } catch (e) { setResultDialogError(e instanceof Error ? e.message : 'Failed to submit lab test with results') }
@@ -597,7 +632,13 @@ export const LabTestList = ({
   // ── Render ───────────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col min-w-full">
-      <FilterBar filters={filters} onChange={setFilters} onClear={() => setFilters(makeEmptyFilters())} activeCount={activeCount} />
+      <FilterBar
+        filters={filters}
+        onChange={setFilters}
+        onClear={() => setFilters(makeEmptyFilters())}
+        activeCount={activeCount}
+        byNurse={byNurse}
+      />
 
       {loading ? (
         <div className="flex items-center justify-center p-8"><div className="text-slate-600">Loading lab tests...</div></div>
@@ -1164,6 +1205,51 @@ export const LabTestList = ({
               {resultDialogLoading ? <div className="text-sm text-slate-600">Loading...</div>
               : resultDialogTab === 'results' ? (
                 <>
+                  <div className="relative rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-3" data-no-row-click onClick={(e) => e.stopPropagation()}>
+                    <label className="block text-sm font-semibold text-slate-800 mb-0.5">
+                      Lab technician <span className="text-red-600" title="Required">*</span>
+                    </label>
+                    <p className="text-xs text-slate-500 mb-2">Only practitioners whose Medical Role is Lab Technologist or Lab Technician.</p>
+                    <div className="relative max-w-md">
+                      <input
+                        type="text"
+                        value={labTechnician ? (labTechnicianQuery || labTechnician) : labTechnicianQuery}
+                        onChange={(e) => {
+                          setLabTechnician('')
+                          setLabTechnicianQuery(e.target.value)
+                          setLabTechnicianOpen(true)
+                        }}
+                        onFocus={() => setLabTechnicianOpen(true)}
+                        placeholder="Search by name…"
+                        className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                      {labTechnicianOpen && (
+                        <div className="absolute z-30 mt-1 w-full max-h-52 overflow-auto rounded-md border border-slate-200 bg-white shadow-lg">
+                          {labTechnicianOptions.length === 0 ? (
+                            <div className="px-3 py-2 text-xs text-slate-500">No matches. Try another search or create practitioners with the correct Medical Role.</div>
+                          ) : (
+                            labTechnicianOptions.map((opt) => (
+                              <button
+                                key={opt.name}
+                                type="button"
+                                className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 border-b border-slate-50 last:border-0"
+                                onClick={() => {
+                                  setLabTechnician(opt.name)
+                                  setLabTechnicianQuery(opt.label || opt.name)
+                                  setLabTechnicianOpen(false)
+                                }}
+                              >
+                                <span className="font-medium text-slate-800">{opt.label || opt.name}</span>
+                                {opt.medical_role && (
+                                  <span className="block text-[11px] text-slate-500 mt-0.5">Role: {opt.medical_role}</span>
+                                )}
+                              </button>
+                            ))
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                   {normalTestItems.length > 0 && (
                     <div>
                       <label className="block text-sm font-semibold text-slate-800 mb-2">Test Results</label>

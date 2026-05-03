@@ -63,7 +63,8 @@ export function useLabTests(
           fromDate,
           toDate,
           template,
-          patientType
+          patientType,
+          byNurse
         )
         setLabTests(response)
       } catch (err) {

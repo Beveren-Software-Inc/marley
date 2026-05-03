@@ -91,7 +91,7 @@ export const GroomingChartList = ({ patient, refreshKey, onCreateNew }: Grooming
         </div>
         {onCreateNew && (
           <div className="flex items-end">
-            <button
+            {/* <button
               onClick={onCreateNew}
               className="px-3 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 transition-colors flex items-center gap-2"
               title="New Grooming Chart"
@@ -100,7 +100,7 @@ export const GroomingChartList = ({ patient, refreshKey, onCreateNew }: Grooming
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
               New Chart
-            </button>
+            </button> */}
           </div>
         )}
       </div>
