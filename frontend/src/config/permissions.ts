@@ -13,6 +13,22 @@ const ADMIN_ROLES = [
   'Website Manager'
 ]
 
+/** Roles allowed to enter or adjust lab test results (must match healthcare.api.lab_test). */
+export const LAB_RESULT_EDIT_ROLES = [
+  'LabTest Approver',
+  'System Manager',
+  'Healthcare Administrator',
+  'Administrator',
+] as const
+
+export function canEditLabTestResults(roles: string[] | undefined): boolean {
+  if (!roles?.length) return false
+  const normalized = roles.map((r) => r.trim().toLowerCase())
+  return LAB_RESULT_EDIT_ROLES.some((allowed) =>
+    normalized.some((r) => r === allowed.toLowerCase())
+  )
+}
+
 /** Paths that every authenticated user can access */
 const PUBLIC_PATHS = ['/patient', '/employee', '/patient-history', '/settings', '/patient-visit/']
 

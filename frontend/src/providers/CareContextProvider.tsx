@@ -89,21 +89,23 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
           setUserCostCenter(data.message.cost_center || undefined)
         }
 
-        // Load user info including roles
-        const userResponse = await fetch('/api/method/frappe.auth.get_logged_user')
+        // Load user info including roles (GET avoids CSRF; POST to frappe user.get_roles fails without X-Frappe-CSRF-Token)
+        const userResponse = await fetch('/api/method/frappe.auth.get_logged_user', {
+          credentials: 'include',
+          headers: { Accept: 'application/json' },
+        })
         if (userResponse.ok) {
           const userData = await userResponse.json()
           if (userData.message) {
             setUser({ name: userData.message })
-            // Get user roles
-            const rolesResponse = await fetch('/api/method/frappe.core.doctype.user.user.get_roles', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ uid: userData.message })
+            const rolesResponse = await fetch('/api/method/healthcare.api.common.get_current_user_roles', {
+              method: 'GET',
+              credentials: 'include',
+              headers: { Accept: 'application/json' },
             })
             if (rolesResponse.ok) {
               const rolesData = await rolesResponse.json()
-              setUserRole(rolesData.message || [])
+              setUserRole(Array.isArray(rolesData.message) ? rolesData.message : [])
             }
           }
         }
