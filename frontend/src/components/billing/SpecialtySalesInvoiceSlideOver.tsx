@@ -7,11 +7,32 @@ import { useFormatMoney } from '../../hooks/useFormatMoney'
 import { PaymentModal } from './PaymentModal'
 import { canRecordPaymentAgainstSalesInvoice } from '../../utils/specialtyInvoiceActions'
 
-function docstatusLabel(ds: number): string {
-  if (ds === 0) return 'Draft'
-  if (ds === 1) return 'Submitted'
-  if (ds === 2) return 'Cancelled'
-  return String(ds)
+/** API / JSON may send docstatus as string; strict === 0 fails in TS otherwise. */
+function normalizeDocstatus(ds: unknown): number | undefined {
+  if (ds === null || ds === undefined) return undefined
+  if (typeof ds === 'string' && ds.trim() === '') return undefined
+  const n = Number(ds)
+  return Number.isFinite(n) ? Math.trunc(n) : undefined
+}
+
+function docstatusLabel(ds: unknown): string {
+  const n = normalizeDocstatus(ds)
+  if (n === 0) return 'Draft'
+  if (n === 1) return 'Submitted'
+  if (n === 2) return 'Cancelled'
+  if (n !== undefined) return String(n)
+  return '—'
+}
+
+function isDraftInvoiceDetail(d: SalesInvoiceDetail): boolean {
+  const n = normalizeDocstatus(d.docstatus)
+  if (n === 0) return true
+  if (n !== undefined) return false
+  return String(d.status || '').toLowerCase() === 'draft'
+}
+
+function isSubmittedInvoiceDetail(d: SalesInvoiceDetail): boolean {
+  return normalizeDocstatus(d.docstatus) === 1
 }
 
 interface SpecialtySalesInvoiceSlideOverProps {
@@ -75,7 +96,7 @@ export function SpecialtySalesInvoiceSlideOver({
   }
 
   const handleCancel = async () => {
-    const isDraft = detail?.docstatus === 0
+    const isDraft = detail ? isDraftInvoiceDetail(detail) : false
     const msg = isDraft
       ? 'Discard this draft invoice? This cannot be undone.'
       : 'Cancel this submitted invoice? ERPNext may block this if payments exist.'
@@ -98,7 +119,7 @@ export function SpecialtySalesInvoiceSlideOver({
     <div className="fixed inset-0 z-[70] flex items-start justify-end" onClick={onClose}>
       <div className="absolute inset-0 bg-black/30" />
       <div
-        className="relative z-10 h-full w-full max-w-2xl bg-white shadow-xl flex flex-col"
+        className="relative z-10 flex h-screen min-h-0 w-full max-w-2xl flex-col bg-white shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -137,7 +158,7 @@ export function SpecialtySalesInvoiceSlideOver({
         </div>
 
         {/* Scrollable Content */}
-        <div className="flex-1 overflow-y-auto p-5">
+        <div className="min-h-0 flex-1 overflow-y-auto p-5">
           {loading && (
             <div className="flex items-center gap-2 text-sm text-slate-500 py-12 justify-center">
               <Loader2 className="w-5 h-5 animate-spin" />
@@ -152,9 +173,9 @@ export function SpecialtySalesInvoiceSlideOver({
               <div className="flex flex-wrap items-center gap-2">
                 <span
                   className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-semibold ${
-                    detail.docstatus === 0
+                    normalizeDocstatus(detail.docstatus) === 0
                       ? 'bg-amber-100 text-amber-900'
-                      : detail.docstatus === 1
+                      : normalizeDocstatus(detail.docstatus) === 1
                         ? 'bg-emerald-100 text-emerald-900'
                         : 'bg-slate-100 text-slate-600'
                   }`}
@@ -257,7 +278,7 @@ export function SpecialtySalesInvoiceSlideOver({
         </div>
 
         {/* Fixed Footer with Buttons */}
-        {(detail && (detail.docstatus === 0 || detail.docstatus === 1)) && (
+        {detail && (isDraftInvoiceDetail(detail) || isSubmittedInvoiceDetail(detail)) && (
           <div className="shrink-0 border-t border-slate-200 bg-white px-5 py-4 shadow-lg">
             <div className="flex flex-wrap gap-2 justify-end">
               <a
@@ -269,7 +290,7 @@ export function SpecialtySalesInvoiceSlideOver({
                 <ExternalLink className="w-4 h-4" />
                 Edit in Desk
               </a>
-              {detail.docstatus === 0 && (
+              {isDraftInvoiceDetail(detail) && (
                 <button
                   type="button"
                   disabled={!!actionBusy}
@@ -280,7 +301,7 @@ export function SpecialtySalesInvoiceSlideOver({
                   Submit invoice
                 </button>
               )}
-              {detail.docstatus === 1 && canRecordPaymentAgainstSalesInvoice(detail) && (
+              {isSubmittedInvoiceDetail(detail) && canRecordPaymentAgainstSalesInvoice(detail) && (
                 <button
                   type="button"
                   disabled={!!actionBusy}
@@ -290,7 +311,7 @@ export function SpecialtySalesInvoiceSlideOver({
                   Record payment
                 </button>
               )}
-              {detail.docstatus === 0 && (
+              {isDraftInvoiceDetail(detail) && (
                 <button
                   type="button"
                   disabled={!!actionBusy}
@@ -301,7 +322,7 @@ export function SpecialtySalesInvoiceSlideOver({
                   Discard draft
                 </button>
               )}
-              {detail.docstatus === 1 && (
+              {isSubmittedInvoiceDetail(detail) && (
                 <button
                   type="button"
                   disabled={!!actionBusy}

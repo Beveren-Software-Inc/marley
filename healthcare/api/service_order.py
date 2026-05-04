@@ -13,11 +13,24 @@ def get_invoices_by_reference(reference_type, reference_name, patient=None):
     if patient:
         filters["patient"] = patient
     
-    invoices = frappe.get_all("Sales Invoice",
+    invoices = frappe.get_all(
+        "Sales Invoice",
         filters=filters,
-        fields=["name", "posting_date", "due_date", "grand_total", 
-                "paid_amount", "outstanding_amount", "status"],
-        order_by="posting_date desc"
+        fields=[
+            "name",
+            "docstatus",
+            "company",
+            "customer",
+            "customer_name",
+            "posting_date",
+            "due_date",
+            "grand_total",
+            "paid_amount",
+            "outstanding_amount",
+            "status",
+            "custom_created_at",
+        ],
+        order_by="posting_date desc",
     )
     
     # Get order count for each invoice

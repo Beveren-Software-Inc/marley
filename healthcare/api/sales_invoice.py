@@ -20,7 +20,14 @@ def get_service_invoices(
     if patient:
         filters['patient'] = patient
     if status:
-        filters['status'] = status
+        if isinstance(status, str) and "," in status:
+            parts = [s.strip() for s in status.split(",") if s.strip()]
+            if len(parts) > 1:
+                filters["status"] = ["in", parts]
+            else:
+                filters["status"] = parts[0] if parts else status
+        else:
+            filters["status"] = status
     # Get permitted cost centers
     from healthcare.api.common import get_permitted_cost_centers
     permitted_cc = get_permitted_cost_centers()
@@ -34,6 +41,8 @@ def get_service_invoices(
         filters=filters,
         fields=[
             'name',
+            'docstatus',
+            'company',
             'customer',
             'customer_name',
             'posting_date',
@@ -45,7 +54,8 @@ def get_service_invoices(
             'custom_reference_type',
             'custom_reference_name',
             'patient',
-            'patient_name'
+            'patient_name',
+            'custom_created_at',
         ],
         limit=limit,
         limit_start=offset,

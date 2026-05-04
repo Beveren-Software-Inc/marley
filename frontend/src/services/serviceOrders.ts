@@ -36,6 +36,9 @@ export interface OutpatientBalance {
 
 export interface ServiceInvoice {
   name: string
+  /** 0 draft, 1 submitted, 2 cancelled */
+  docstatus?: number
+  company?: string
   customer: string
   customer_name: string
   posting_date: string
@@ -49,6 +52,8 @@ export interface ServiceInvoice {
   patient: string
   patient_name: string
   order_count?: number
+  /** Collection / created-at cost center (same convention as specialty billing) */
+  custom_created_at?: string | null
 }
 
 export interface OrderSummary {
