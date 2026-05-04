@@ -107,15 +107,14 @@ const nurseScreenGroups: ScreenGroup[] = [
 // ─── Other role screens ───────────────────────────────────────────────────────
 
 const labScreens = [
-  { id: 'l-pending', title: 'Pending Samples / Tests' },
-  { id: 'l-history', title: 'Patient History (Medical)' },
+  // { id: 'l-pending', title: 'Pending Samples / Tests' },
+  // { id: 'l-history', title: 'Patient History (Medical)' },
   { id: 'l-setup',   title: 'Lab Test Setup' },
   { id: 'l-req',     title: 'Lab Test Requests' },
   { id: 'l-out',     title: 'Outsourced Tests' },
-  { id: 'l-sample',  title: 'Sample Collection' },
+  // { id: 'l-sample',  title: 'Sample Collection' },
   { id: 'l-results', title: 'Lab Test & Result' },
-  { id: 'l-review',  title: 'Lab Test Review' },
-  { id: 'l-report',  title: 'Lab Test Report History' },
+  // { id: 'l-review',  title: 'Lab Test Review' },
 ].sort((a, b) => a.title.localeCompare(b.title))
 
 const receptionScreenGroups: ScreenGroup[] = [
@@ -396,7 +395,7 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
                         onClick={closeSidebar}
                         className={
                           activeScreen === s.id
-                            ? 'px-3 py-1.5 rounded-md bg-white text-primary font-medium'
+                            ? 'px-3 py-1.5 rounded-md bg-green-300 text-primary font-medium'
                             : 'px-3 py-1.5 rounded-md bg-white/10 hover:bg-white/20'
                         }
                       >
