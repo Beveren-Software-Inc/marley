@@ -42,6 +42,7 @@ import { ServiceOrdersList } from './ServiceOrdersList'
 import { ServiceInvoicesList } from './ServiceInvoicesList'
 import { InvoiceItemsModal } from './InvoiceItemsModal'
 import { PaymentModal } from './PaymentModal'
+import { SpecialtySalesInvoiceSlideOver } from './SpecialtySalesInvoiceSlideOver'
 
 type DashboardView = 'overview' | 'orders' | 'invoices' | 'inpatient' | 'outpatient' | 'unpaid' | 'paid'
 
@@ -138,7 +139,9 @@ export const BillingDashboard = ({ patient, admission, visit }: BillingDashboard
     department?:string
   } | null>(null)
   const [loadingInvoices, setLoadingInvoices] = useState<string | null>(null)
-  
+  const [salesInvoiceDetailName, setSalesInvoiceDetailName] = useState<string | null>(null)
+  const [invoiceListRefreshKey, setInvoiceListRefreshKey] = useState(0)
+
   const effectivePatient = patient ?? selectedPatient
   const effectiveReferenceType = mode === 'IP' ? 'Inpatient Admission' : 'Patient Visit'
   const effectiveReferenceName = mode === 'IP' ? (admission ?? activeAdmission) : (visit ?? activeVisit)
@@ -214,6 +217,11 @@ const handleMakePayment = async (referenceId: string, customerName: string, outs
     } else {
       loadDashboardData()
     }
+  }
+
+  const notifyInvoiceDataChanged = () => {
+    setInvoiceListRefreshKey((k) => k + 1)
+    handlePaymentSuccess()
   }
 
   const loadDashboardData = async () => {
@@ -514,7 +522,16 @@ const handleMakePayment = async (referenceId: string, customerName: string, outs
         defaultCompany={selectedPaymentInvoice?.company}
         defaultCostCenter={selectedPaymentInvoice?.cost_center}
         defaultDepartment={selectedPaymentInvoice?.department}
-        onPaymentSuccess={handlePaymentSuccess}
+        onPaymentSuccess={() => {
+          setInvoiceListRefreshKey((k) => k + 1)
+          handlePaymentSuccess()
+        }}
+      />
+
+      <SpecialtySalesInvoiceSlideOver
+        invoiceName={salesInvoiceDetailName}
+        onClose={() => setSalesInvoiceDetailName(null)}
+        onUpdated={notifyInvoiceDataChanged}
       />
     </>
   )
@@ -560,10 +577,13 @@ const handleMakePayment = async (referenceId: string, customerName: string, outs
     return (
       <div className="space-y-4">
         <NavigationRow />
-        <ServiceInvoicesList 
+        <ServiceInvoicesList
           patient={effectivePatient}
           admission={effectiveReferenceName}
           visit={effectiveReferenceType === 'Patient Visit' ? effectiveReferenceName : undefined}
+          onOpenInvoiceDetail={(name) => setSalesInvoiceDetailName(name)}
+          invoiceRefreshKey={invoiceListRefreshKey}
+          onAfterInvoiceMutation={notifyInvoiceDataChanged}
         />
         <SharedModals />
       </div>
@@ -580,11 +600,14 @@ const handleMakePayment = async (referenceId: string, customerName: string, outs
         >
           ← Back to Dashboard
         </button>
-        <ServiceInvoicesList 
+        <ServiceInvoicesList
           patient={effectivePatient}
           admission={effectiveReferenceName}
           visit={effectiveReferenceType === 'Patient Visit' ? effectiveReferenceName : undefined}
           statusFilter="Unpaid,Overdue"
+          onOpenInvoiceDetail={(name) => setSalesInvoiceDetailName(name)}
+          invoiceRefreshKey={invoiceListRefreshKey}
+          onAfterInvoiceMutation={notifyInvoiceDataChanged}
         />
         <SharedModals />
       </div>
@@ -601,11 +624,14 @@ const handleMakePayment = async (referenceId: string, customerName: string, outs
         >
           ← Back to Dashboard
         </button>
-        <ServiceInvoicesList 
+        <ServiceInvoicesList
           patient={effectivePatient}
           admission={effectiveReferenceName}
           visit={effectiveReferenceType === 'Patient Visit' ? effectiveReferenceName : undefined}
           statusFilter="Paid"
+          onOpenInvoiceDetail={(name) => setSalesInvoiceDetailName(name)}
+          invoiceRefreshKey={invoiceListRefreshKey}
+          onAfterInvoiceMutation={notifyInvoiceDataChanged}
         />
         <SharedModals />
       </div>
@@ -928,7 +954,30 @@ const handleMakePayment = async (referenceId: string, customerName: string, outs
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
           <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200"><h3 className="font-semibold text-slate-800">Recent Invoices</h3><button onClick={() => handleViewChange('invoices')} className="text-xs text-primary hover:underline">View All →</button></div>
           {recentInvoices.length === 0 ? <div className="p-8 text-center text-slate-400"><Receipt className="w-10 h-10 mx-auto mb-2 opacity-30" /><p className="text-sm">No recent invoices</p></div> : (
-            <div className="divide-y divide-slate-100">{recentInvoices.map((invoice) => (<div key={invoice.name} className="px-5 py-3 hover:bg-slate-50"><div className="flex items-center justify-between"><div><p className="text-sm font-medium text-primary">{invoice.name}</p><p className="text-xs text-slate-400">{invoice.posting_date}</p></div><div className="text-right"><p className="text-sm font-semibold text-slate-900">{formatCurrency(invoice.grand_total)}</p><span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${getStatusColor(invoice.status)}`}>{invoice.status}</span></div></div></div>))}</div>
+            <div className="divide-y divide-slate-100">
+              {recentInvoices.map((invoice) => (
+                <div key={invoice.name} className="px-5 py-3 hover:bg-slate-50">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <button
+                        type="button"
+                        onClick={() => setSalesInvoiceDetailName(invoice.name)}
+                        className="font-mono text-[11px] font-medium text-primary hover:underline text-left"
+                      >
+                        {invoice.name}
+                      </button>
+                      <p className="text-xs text-slate-400">{invoice.posting_date}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-semibold text-slate-900">{formatCurrency(invoice.grand_total)}</p>
+                      <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${getStatusColor(invoice.status)}`}>
+                        {invoice.status}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
         </div>
       </div>
