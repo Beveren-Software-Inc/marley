@@ -7,6 +7,10 @@ from frappe import _
 from frappe.utils import flt, nowdate, getdate, add_days
 
 from healthcare.api.utils.api_utility import get_next_transaction_number
+from healthcare.api.sales_order_cost_center import (
+	apply_cost_center_to_sales_order,
+	cost_center_from_patient_medication_order,
+)
 
 
 @frappe.whitelist()
@@ -479,13 +483,19 @@ def create_sales_order_from_medication_order(name: str):
     if not pmo.patient:
         frappe.throw(_("Patient is required on Patient Medication Order"))
 
-    # Determine healthcare reference (Patient Visit or Inpatient Admission)
+    # Determine healthcare reference (Patient Visit or Inpatient Admission) — same as Sales Invoice.custom_reference_*
     ref_doctype = None
     ref_name = None
     if pmo.care_context == "Inpatient Admission" and pmo.inpatient_record:
         ref_doctype = "Inpatient Admission"
         ref_name = pmo.inpatient_record
     elif pmo.care_context == "Patient Visit" and pmo.patient_encounter:
+        ref_doctype = "Patient Visit"
+        ref_name = pmo.patient_encounter
+    elif pmo.inpatient_record:
+        ref_doctype = "Inpatient Admission"
+        ref_name = pmo.inpatient_record
+    elif pmo.patient_encounter:
         ref_doctype = "Patient Visit"
         ref_name = pmo.patient_encounter
 
@@ -501,14 +511,15 @@ def create_sales_order_from_medication_order(name: str):
         so.custom_patient_name = pmo.patient_name
     so.custom_patient = pmo.patient
 
-    # Healthcare reference to context (visit/admission)
-    if ref_doctype and ref_name:
-        so.custom_reference_type = ref_doctype
-        so.custom_reference_name = ref_name
-        so.custom_base_reference = "Patient Medication Order"
-        so.custom_base_reference_name = pmo.name
+    if not ref_doctype or not ref_name:
+        frappe.throw(
+            _("Patient Medication Order {0} must be linked to a Patient Visit or Inpatient Admission to create a Sales Order.").format(
+                pmo.name
+            )
+        )
 
-    # Base reference back to the PMO itself
+    so.custom_reference_type = ref_doctype
+    so.custom_reference_name = ref_name
     so.custom_base_reference = "Patient Medication Order"
     so.custom_base_reference_name = pmo.name
 
@@ -552,6 +563,10 @@ def create_sales_order_from_medication_order(name: str):
 
     if not so.items:
         frappe.throw(_("No medication items found to create a Sales Order"))
+
+    apply_cost_center_to_sales_order(
+        so, cost_center_from_patient_medication_order(pmo, ref_doctype, ref_name)
+    )
 
     so.insert(ignore_permissions=True)
     # Keep as Draft – do NOT submit

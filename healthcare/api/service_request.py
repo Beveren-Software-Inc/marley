@@ -6,6 +6,11 @@ import frappe
 from frappe import _
 from frappe.utils import nowdate
 
+from healthcare.api.sales_order_cost_center import (
+	apply_cost_center_to_sales_order,
+	cost_center_from_service_request,
+)
+
 LAB_SERVICE_REQUEST_ALLOWED_ROLES = {
 	"Doctor",
 	"System Manager",
@@ -659,9 +664,43 @@ def update_service_request(name, data):
 	return {"name": doc.name, "status": doc.status}
 
 
-import frappe
-from frappe import _
-from frappe.utils import nowdate
+def _service_request_visit_admission_refs(sr):
+	"""IP/OP context for Sales Order.custom_reference_* (same convention as Sales Invoice)."""
+	if getattr(sr, "inpatient_record", None):
+		return "Inpatient Admission", sr.inpatient_record
+	if getattr(sr, "patient_visit", None):
+		return "Patient Visit", sr.patient_visit
+	return None, None
+
+
+def _service_request_base_doc_refs(sr):
+	"""Underlying clinical/billing doc: Lab Test, IP service, PMO, etc.; else Service Request."""
+	odt = (getattr(sr, "order_reference_doctype", None) or "").strip()
+	odn = (getattr(sr, "order_reference_name", None) or "").strip()
+	if odt and odn:
+		try:
+			if frappe.db.exists(odt, odn):
+				return odt, odn
+		except Exception:
+			pass
+	return "Service Request", sr.name
+
+
+def apply_service_request_refs_to_sales_order(so, sr):
+	"""Set custom_reference_* to Patient Visit / Inpatient Admission; base to lab/service/PMO or SR."""
+	rt, rn = _service_request_visit_admission_refs(sr)
+	if not rt or not rn:
+		frappe.throw(
+			_(
+				"Service Request {0} must be linked to a Patient Visit or Inpatient Admission before billing."
+			).format(sr.name)
+		)
+	so.custom_reference_type = rt
+	so.custom_reference_name = rn
+	bdt, bdn = _service_request_base_doc_refs(sr)
+	so.custom_base_reference = bdt
+	so.custom_base_reference_name = bdn
+
 
 @frappe.whitelist()
 def confirm_payment(service_request_name):
@@ -731,20 +770,22 @@ def confirm_payment(service_request_name):
 	# ------------------------
 	so = frappe.new_doc("Sales Order")
 	so.patient = sr.patient
-	
+	if getattr(sr, "company", None):
+		so.company = sr.company
+
 	# Get customer from patient if not set
 	customer = sr.patient
 	if frappe.db.exists("Patient", sr.patient):
 		customer = frappe.db.get_value("Patient", sr.patient, "customer") or sr.patient
-	
+
 	so.customer = customer
 	so.transaction_date = nowdate()
 	so.delivery_date = delivery_date
 	so.ignore_pricing_rule = 1
-	
+
 	# Use grand_total (post-discount) if set and non-zero; fall back to cost
 	billing_rate = frappe.utils.flt(sr.grand_total) or frappe.utils.flt(sr.cost) or amount or 0
-	
+
 	so.append("items", {
 		"item_code": item_code,
 		"qty": 1,
@@ -752,8 +793,8 @@ def confirm_payment(service_request_name):
 		"price_list_rate": billing_rate,
 		"description": f"Service Request {sr.name}"
 	})
-	so.custom_reference_type = "Service Request"
-	so.custom_reference_name = sr.name
+	apply_service_request_refs_to_sales_order(so, sr)
+	apply_cost_center_to_sales_order(so, cost_center_from_service_request(sr))
 
 	so.insert(ignore_permissions=True)
 	so.submit()
@@ -846,6 +887,8 @@ def confirm_session_payment(service_request_name):
 
 	so = frappe.new_doc("Sales Order")
 	so.patient = sr.patient
+	if getattr(sr, "company", None):
+		so.company = sr.company
 	so.customer = sr.patient
 	so.transaction_date = nowdate()
 	so.delivery_date = delivery_date
@@ -857,8 +900,8 @@ def confirm_session_payment(service_request_name):
 		"price_list_rate": billing_rate,
 		"description": f"Service Request {sr.name}",
 	})
-	so.custom_reference_type = "Service Request"
-	so.custom_reference_name = sr.name
+	apply_service_request_refs_to_sales_order(so, sr)
+	apply_cost_center_to_sales_order(so, cost_center_from_service_request(sr))
 	so.insert(ignore_permissions=True)
 	so.submit()
 

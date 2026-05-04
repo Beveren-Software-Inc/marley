@@ -342,32 +342,78 @@ def get_sales_item_pricing_for_billing(
 		"uom_options": uom_options,
 	}
 
+
+def _sales_invoice_filters_for_reference(reference_type, reference_name, submitted_only=False):
+	"""Match combined / healthcare invoices linked to a visit or admission."""
+	if not reference_name:
+		return None
+	docstatus = 1 if submitted_only else ["in", [0, 1]]
+	filters = {
+		"custom_reference_name": reference_name,
+		"docstatus": docstatus,
+	}
+	if reference_type:
+		filters["custom_reference_type"] = reference_type
+	return filters
+
+
+def _format_stored_date_only(val):
+	"""Return ``YYYY-MM-DD`` from a DB value that may be str, date, or datetime."""
+	if val is None or val == "":
+		return ""
+	if isinstance(val, str):
+		return val.strip().split()[0]
+	try:
+		return frappe.utils.getdate(val).strftime("%Y-%m-%d")
+	except Exception:
+		s = str(val).strip()
+		return s.split()[0][:10] if s else ""
+
+
 @frappe.whitelist()
 def get_inpatient_balances(patient=None):
     """
     Get inpatient balances for all patients or a specific patient
     Returns list of admissions with outstanding balances
     """
-   
-    filters = {"docstatus": 1}
+    adm_filters = {}
     if patient:
-        filters["patient_name"] = patient
-    # Get all inpatient admissions
-    admissions = frappe.get_all("Inpatient Admission",
-        fields=["name", "patient", "patient_name", "admitted_datetime", "cost_center", "status"]
+        adm_filters["patient"] = patient
+
+    admissions = frappe.get_all(
+        "Inpatient Admission",
+        filters=adm_filters or None,
+        fields=[
+            "name",
+            "patient",
+            "patient_name",
+            "admitted_datetime",
+            "discharge_datetime",
+            "cost_center",
+            "status",
+        ],
     )
     balances = []
     today = frappe.utils.today()
     
     for admission in admissions:
-        # Get all invoices for this admission
-        invoices = frappe.get_all("Sales Invoice",
-            filters={
-                "custom_reference_name": admission.name,
-                "docstatus": 1
-            },
-            fields=["name", "grand_total", "outstanding_amount", "posting_date", "status"]
+        inv_filters = _sales_invoice_filters_for_reference(
+            "Inpatient Admission", admission.name, submitted_only=True
         )
+        invoices = frappe.get_all(
+            "Sales Invoice",
+            filters=inv_filters,
+            fields=["name", "grand_total", "outstanding_amount", "posting_date", "status"],
+        )
+        if not invoices:
+            invoices = frappe.get_all(
+                "Sales Invoice",
+                filters={
+                    "custom_reference_name": admission.name,
+                    "docstatus": 1,
+                },
+                fields=["name", "grand_total", "outstanding_amount", "posting_date", "status"],
+            )
         total_amount = sum(inv.grand_total for inv in invoices)
         total_paid = sum(inv.grand_total - inv.outstanding_amount for inv in invoices)
         outstanding = sum(inv.outstanding_amount for inv in invoices)
@@ -382,13 +428,21 @@ def get_inpatient_balances(patient=None):
                 days_overdue = (frappe.utils.date_diff(today, last_invoice.posting_date))
         
         if total_amount > 0:  # Only include admissions with charges
+            latest_invoice_name = None
+            if invoices:
+                latest_invoice_name = max(invoices, key=lambda x: x.posting_date or "").name
+            admitted = admission.get("admitted_datetime")
+            discharge_dt = admission.get("discharge_datetime")
+            admission_date_str = _format_stored_date_only(admitted)
+            discharge_date_str = _format_stored_date_only(discharge_dt) or None
             balances.append({
                 "admission_id": admission.name,
                 "patient_name": admission.patient_name,
                 "patient_id": admission.patient,
-                "admission_date": admission.admission_datetime.split()[0] if admission.admission_datetime else "",
-                "discharge_date": admission.discharge_datetime.split()[0] if admission.discharge_datetime else None,
+                "admission_date": admission_date_str,
+                "discharge_date": discharge_date_str,
                 "cost_center": admission.cost_center,
+                "latest_invoice_name": latest_invoice_name,
                 "total_amount": total_amount,
                 "total_paid": total_paid,
                 "outstanding_amount": outstanding,
@@ -408,27 +462,45 @@ def get_outpatient_balances(patient=None):
     Get outpatient balances for all patients or a specific patient
     Returns list of patient visits with outstanding balances
     """
-    filters = {"docstatus": 1}
+    visit_filters = {}
     if patient:
-        filters["patient"] = patient
-    
-    # Get all patient encounters (visits)
-    visits = frappe.get_all("Patient Visit",
-        fields=["name", "patient", "patient_name", "encounter_date", "practitioner", "status"]
+        visit_filters["patient"] = patient
+
+    visits = frappe.get_all(
+        "Patient Visit",
+        filters=visit_filters or None,
+        fields=[
+            "name",
+            "patient",
+            "patient_name",
+            "encounter_date",
+            "practitioner",
+            "status",
+            "cost_center",
+        ],
     )
     
     balances = []
     today = frappe.utils.today()
     
     for visit in visits:
-        # Get all invoices for this visit
-        invoices = frappe.get_all("Sales Invoice",
-            filters={
-                "custom_reference_name": visit.name,
-                "docstatus": 1
-            },
-            fields=["name", "grand_total", "outstanding_amount", "posting_date", "status"]
+        inv_filters = _sales_invoice_filters_for_reference(
+            "Patient Visit", visit.name, submitted_only=True
         )
+        invoices = frappe.get_all(
+            "Sales Invoice",
+            filters=inv_filters,
+            fields=["name", "grand_total", "outstanding_amount", "posting_date", "status"],
+        )
+        if not invoices:
+            invoices = frappe.get_all(
+                "Sales Invoice",
+                filters={
+                    "custom_reference_name": visit.name,
+                    "docstatus": 1,
+                },
+                fields=["name", "grand_total", "outstanding_amount", "posting_date", "status"],
+            )
         
         total_amount = sum(inv.grand_total for inv in invoices)
         total_paid = sum(inv.grand_total - inv.outstanding_amount for inv in invoices)
@@ -444,12 +516,17 @@ def get_outpatient_balances(patient=None):
                 days_overdue = frappe.utils.date_diff(today, last_invoice.posting_date)
         
         if total_amount > 0:  # Only include visits with charges
+            latest_invoice_name = None
+            if invoices:
+                latest_invoice_name = max(invoices, key=lambda x: x.posting_date or "").name
             balances.append({
                 "visit_id": visit.name,
                 "patient_name": visit.patient_name,
                 "patient_id": visit.patient,
                 "visit_date": visit.encounter_date if visit.encounter_date else "",
                 "practitioner": visit.practitioner,
+                "cost_center": visit.get("cost_center"),
+                "latest_invoice_name": latest_invoice_name,
                 "total_amount": total_amount,
                 "total_paid": total_paid,
                 "outstanding_amount": outstanding,
@@ -505,6 +582,8 @@ def get_invoice_details(invoice_name):
         frappe.db.get_value("Cost Center", cc, "cost_center_name") if cc else None
     ) or cc
 
+    dept = getattr(invoice, "department", None) or getattr(invoice, "custom_department", None)
+
     return {
         "name": invoice.name,
         "docstatus": invoice.docstatus,
@@ -517,6 +596,7 @@ def get_invoice_details(invoice_name):
         "outstanding_amount": invoice.outstanding_amount,
         "status": invoice.status,
         "cost_center": invoice.cost_center,
+        "department": dept,
         "custom_created_at": getattr(invoice, "custom_created_at", None),
         "collection_cost_center_name": cc_label,
         "custom_internal_employee": int(getattr(invoice, "custom_internal_employee", 0) or 0),
@@ -695,23 +775,55 @@ def create_payment_entry(invoice_name, payment_amount, payment_mode, cost_center
             "message": str(e)
         }
 
+
 @frappe.whitelist()
-def get_invoices_by_reference(reference_name, reference_type):
-    """
-    Get all invoices for a specific reference (Inpatient Admission or Patient Visit)
-    """
-    if not reference_name:
-        return []
-    
-    invoices = frappe.get_all("Sales Invoice",
-        filters={
-            "custom_reference_name": reference_name,
-            "docstatus": 1
-        },
-        fields=["name", "grand_total", "outstanding_amount", "posting_date", "status"]
-    )
-    
-    return invoices
+def get_invoices_by_reference(reference_name, reference_type=None, patient=None):
+	"""
+	Get Sales Invoices for a Patient Visit or Inpatient Admission.
+
+	Includes draft and submitted (excludes cancelled). Optionally filters by patient.
+	Legacy rows with empty ``custom_reference_type`` but matching ``custom_reference_name``
+	are included only when a typed query returns nothing.
+	"""
+	if not reference_name:
+		return []
+
+	fields = [
+		"name",
+		"docstatus",
+		"grand_total",
+		"outstanding_amount",
+		"posting_date",
+		"status",
+		"custom_reference_type",
+		"custom_reference_name",
+		"patient",
+	]
+
+	def _fetch(flt):
+		inv = frappe.get_all(
+			"Sales Invoice",
+			filters=flt,
+			fields=fields,
+			order_by="posting_date desc, modified desc",
+		)
+		if patient:
+			inv = [r for r in inv if (r.get("patient") or "") == patient]
+		return inv
+
+	filters = _sales_invoice_filters_for_reference(reference_type, reference_name, submitted_only=False)
+	if not filters:
+		return []
+
+	invoices = _fetch(filters)
+	if not invoices and reference_type:
+		legacy_filters = {
+			"custom_reference_name": reference_name,
+			"docstatus": ["in", [0, 1]],
+		}
+		invoices = _fetch(legacy_filters)
+
+	return invoices
 
 
 def _load_payload_list(payload):
@@ -781,9 +893,14 @@ def _order_kind_label(so_row, sr_by_name):
     """Human-readable order type for reception (labs, drugs, IP services, etc.)."""
     ref_t = (so_row.get("custom_reference_type") or "").strip()
     base_ref = (so_row.get("custom_base_reference") or "").strip()
+    base_name = (so_row.get("custom_base_reference_name") or "").strip()
 
     if base_ref == "Patient Medication Order":
         return _("Medication / pharmacy")
+
+    if base_ref == "Service Request" and base_name:
+        sr = sr_by_name.get(base_name)
+        return _kind_label_for_service_request(sr)
 
     if ref_t == "Service Request":
         sr_name = so_row.get("custom_reference_name")
@@ -806,11 +923,18 @@ def _attach_sales_order_items(rows):
     can read Sales Order but lack explicit Sales Order Item list permission; get_all
     also applies a row limit by default.
     """
-    sr_refs = [
-        r.get("custom_reference_name")
-        for r in rows
-        if r.get("custom_reference_type") == "Service Request" and r.get("custom_reference_name")
-    ]
+    sr_refs = []
+    for r in rows:
+        base_t = (r.get("custom_base_reference") or "").strip()
+        base_n = (r.get("custom_base_reference_name") or "").strip()
+        if base_t == "Service Request" and base_n:
+            sr_refs.append(base_n)
+            continue
+        ref_t = (r.get("custom_reference_type") or "").strip()
+        ref_n = (r.get("custom_reference_name") or "").strip()
+        if ref_t == "Service Request" and ref_n:
+            sr_refs.append(ref_n)
+    sr_refs = list(dict.fromkeys(sr_refs))
     sr_by_name = {}
     if sr_refs:
         uniq_sr = list(dict.fromkeys(sr_refs))
@@ -887,7 +1011,19 @@ def get_related_sales_orders(reference_type, reference_name):
     sr_names = [row.name for row in service_requests]
     sr_orders = []
     if sr_names:
-        sr_orders = frappe.get_all(
+        sr_orders_new = frappe.get_all(
+            "Sales Order",
+            filters={
+                "custom_reference_type": reference_type,
+                "custom_reference_name": reference_name,
+                "custom_base_reference": "Service Request",
+                "custom_base_reference_name": ["in", sr_names],
+                "docstatus": ["!=", 2],
+            },
+            fields=so_fields,
+            order_by="creation desc",
+        )
+        sr_orders_legacy = frappe.get_all(
             "Sales Order",
             filters={
                 "custom_reference_type": "Service Request",
@@ -897,6 +1033,7 @@ def get_related_sales_orders(reference_type, reference_name):
             fields=so_fields,
             order_by="creation desc",
         )
+        sr_orders = list(sr_orders_new) + list(sr_orders_legacy)
 
     out = []
     seen = set()

@@ -189,6 +189,7 @@ export const ServiceOrdersList = ({ patient, admission, visit, onViewOrder }: Se
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Date</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Service</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Amount</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Cost center</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Status</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Invoice Status</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Actions</th>
@@ -199,15 +200,38 @@ export const ServiceOrdersList = ({ patient, admission, visit, onViewOrder }: Se
                   <tr key={order.name} className="hover:bg-slate-50">
                     <td className="px-4 py-3 text-sm font-medium text-primary">{order.name}</td>
                     <td className="px-4 py-3 text-sm text-slate-700">{order.transaction_date}</td>
-                    <td className="px-4 py-3 text-sm text-slate-700">
-                      <div className="font-medium text-slate-800">
-                        {order.custom_base_reference_name || order.custom_base_reference || '-'}
+                    <td className="px-4 py-3 text-sm text-slate-700 max-w-[280px]">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {order.custom_base_reference ? (
+                          <span
+                            className="inline-flex shrink-0 rounded-md bg-teal-50 px-1.5 py-0.5 text-[11px] font-semibold text-teal-900 ring-1 ring-teal-200/90"
+                            title="Source (e.g. lab, pharmacy, IP service)"
+                          >
+                            {order.custom_base_reference}
+                          </span>
+                        ) : null}
+                        {order.custom_base_reference_name ? (
+                          <span
+                            className="min-w-0 truncate font-medium text-slate-800"
+                            title={order.custom_base_reference_name}
+                          >
+                            {order.custom_base_reference_name}
+                          </span>
+                        ) : !order.custom_base_reference ? (
+                          <span className="text-slate-400">—</span>
+                        ) : null}
                       </div>
-                      <div className="text-xs text-slate-400 mt-0.5">
+                      <div className="mt-1 text-xs text-slate-500">
+                        <span className="text-slate-400">Care context · </span>
                         {order.custom_reference_type}: {order.custom_reference_name}
                       </div>
                     </td>
                     <td className="px-4 py-3 text-sm font-medium text-slate-900">{formatCurrency(order.grand_total)}</td>
+                    <td className="px-4 py-3 text-sm text-slate-700 max-w-[200px]">
+                      <span className="truncate block" title={order.cost_center_name || order.cost_center || undefined}>
+                        {order.cost_center_name || order.cost_center || '—'}
+                      </span>
+                    </td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${getStatusColor(order.status)}`}>
                         {order.status}

@@ -8,6 +8,8 @@ import {
   fetchInvoiceSummary,
   fetchInpatientBalances,
   fetchOutpatientBalances,
+  fetchBillingCostCenterScope,
+  fetchPatientBillingCostCenterBreakdown,
   getInvoicesByReference,
   getInvoiceDetails,
   type ServiceOrder,
@@ -16,6 +18,7 @@ import {
   type InvoiceSummary,
   type InpatientBalance,
   type OutpatientBalance,
+  type PatientBillingCcRow,
 } from '../../services/serviceOrders'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { 
@@ -40,9 +43,9 @@ import { useFormatMoney } from '../../hooks/useFormatMoney'
 
 import { ServiceOrdersList } from './ServiceOrdersList'
 import { ServiceInvoicesList } from './ServiceInvoicesList'
-import { InvoiceItemsModal } from './InvoiceItemsModal'
 import { PaymentModal } from './PaymentModal'
 import { SpecialtySalesInvoiceSlideOver } from './SpecialtySalesInvoiceSlideOver'
+import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 
 type DashboardView = 'overview' | 'orders' | 'invoices' | 'inpatient' | 'outpatient' | 'unpaid' | 'paid'
 
@@ -127,8 +130,6 @@ export const BillingDashboard = ({ patient, admission, visit }: BillingDashboard
   const [outpatientFilter, setOutpatientFilter] = useState<'all' | 'paid' | 'unpaid' | 'partial' | 'overdue'>('all')
   
   // Modal states
-  const [selectedInvoice, setSelectedInvoice] = useState<string | null>(null)
-  const [showInvoiceItems, setShowInvoiceItems] = useState(false)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [selectedPaymentInvoice, setSelectedPaymentInvoice] = useState<{
     name: string
@@ -141,6 +142,8 @@ export const BillingDashboard = ({ patient, admission, visit }: BillingDashboard
   const [loadingInvoices, setLoadingInvoices] = useState<string | null>(null)
   const [salesInvoiceDetailName, setSalesInvoiceDetailName] = useState<string | null>(null)
   const [invoiceListRefreshKey, setInvoiceListRefreshKey] = useState(0)
+  const [billingCcRestricted, setBillingCcRestricted] = useState<boolean | null>(null)
+  const [ccBreakdown, setCcBreakdown] = useState<PatientBillingCcRow[]>([])
 
   const effectivePatient = patient ?? selectedPatient
   const effectiveReferenceType = mode === 'IP' ? 'Inpatient Admission' : 'Patient Visit'
@@ -152,34 +155,52 @@ export const BillingDashboard = ({ patient, admission, visit }: BillingDashboard
     localStorage.setItem('billingDashboardView', view)
   }
 
-  // Handle view services - get actual invoices for the reference
-  const handleViewServices = async (referenceId: string, patientName: string, referenceType: string) => {
+  /** Open the Sales Invoice slide-over (latest known invoice or first match for this visit/admission). */
+  const openInvoiceForHealthcareReference = async (
+    referenceId: string,
+    referenceType: 'Inpatient Admission' | 'Patient Visit',
+    preferredInvoiceName?: string | null
+  ) => {
     try {
       setLoadingInvoices(referenceId)
-      const invoices = await getInvoicesByReference(referenceId, referenceType)
-      console.log(patientName)
+      if (preferredInvoiceName) {
+        setSalesInvoiceDetailName(preferredInvoiceName)
+        return
+      }
+      const invoices = await getInvoicesByReference(
+        referenceId,
+        referenceType,
+        effectivePatient || undefined
+      )
       if (invoices.length === 0) {
         toast.error('No invoices found for this admission/visit')
         return
       }
-      
-      setSelectedInvoice(invoices[0].name)
-      setShowInvoiceItems(true)
+      setSalesInvoiceDetailName(invoices[0].name)
     } catch (error) {
       console.error('Error loading invoices:', error)
-      toast.error('Failed to load invoice details')
+      toast.error('Failed to open invoice')
     } finally {
       setLoadingInvoices(null)
     }
   }
 
   // Handle make payment - fetch invoice details for company and cost center
-// Replace the handleMakePayment function with this:
-const handleMakePayment = async (referenceId: string, customerName: string, outstandingAmount: number, referenceType: string) => {
+const handleMakePayment = async (
+  referenceId: string,
+  customerName: string,
+  outstandingAmount: number,
+  referenceType: string,
+  /** Restrict invoice lookup to this patient (row’s patient); avoids empty results when context patient differs. */
+  patientIdForInvoices?: string
+) => {
   try {
     setLoadingInvoices(referenceId)
-    // First, get the actual invoices for this reference
-    const invoices = await getInvoicesByReference(referenceId, referenceType)
+    const invoices = await getInvoicesByReference(
+      referenceId,
+      referenceType,
+      patientIdForInvoices || undefined
+    )
     
     if (!invoices || invoices.length === 0) {
       toast.error('No invoices found for this admission/visit')
@@ -203,7 +224,9 @@ const handleMakePayment = async (referenceId: string, customerName: string, outs
     setShowPaymentModal(true)
   } catch (error) {
     console.error('Error fetching invoice details:', error)
-    toast.error('Failed to load invoice details for payment')
+    toast.error(
+      error instanceof Error ? error.message : 'Failed to load invoice details for payment'
+    )
   } finally {
     setLoadingInvoices(null)
   }
@@ -230,6 +253,8 @@ const handleMakePayment = async (referenceId: string, customerName: string, outs
       setInvoiceSummary(null)
       setRecentOrders([])
       setRecentInvoices([])
+      setBillingCcRestricted(null)
+      setCcBreakdown([])
       setLoading(false)
       return
     }
@@ -240,13 +265,29 @@ const handleMakePayment = async (referenceId: string, customerName: string, outs
         fetchServiceOrderSummary(effectiveReferenceType, effectiveReferenceName, effectivePatient),
         fetchInvoiceSummary(effectiveReferenceType, effectiveReferenceName, effectivePatient),
         fetchServiceOrders(effectiveReferenceType, effectiveReferenceName, effectivePatient, undefined),
-        fetchServiceInvoices(effectiveReferenceType, effectiveReferenceName, effectivePatient, undefined)
+        fetchServiceInvoices(effectiveReferenceType, effectiveReferenceName, effectivePatient, undefined),
       ])
-      
+
       setOrderSummary(ordersSummary)
       setInvoiceSummary(invSummary)
       setRecentOrders(recentOrdersData)
       setRecentInvoices(recentInvoicesData)
+
+      try {
+        const [ccScope, ccBreakdownRes] = await Promise.all([
+          fetchBillingCostCenterScope(),
+          fetchPatientBillingCostCenterBreakdown(
+            effectiveReferenceType,
+            effectiveReferenceName,
+            effectivePatient
+          ),
+        ])
+        setBillingCcRestricted(!!ccScope.restricted)
+        setCcBreakdown(ccBreakdownRes.restricted ? [] : ccBreakdownRes.rows || [])
+      } catch {
+        setBillingCcRestricted(null)
+        setCcBreakdown([])
+      }
     } catch (error) {
       console.error('Failed to load dashboard data:', error)
       toast.error('Failed to load dashboard data')
@@ -439,7 +480,7 @@ const handleMakePayment = async (referenceId: string, customerName: string, outs
         />
         <NavButton
           icon={ListOrdered}
-          label="Services"
+          label="Medication/Services/LabTest"
           isActive={currentView === 'orders'}
           onClick={() => handleViewChange('orders')}
           count={totalOrders}
@@ -472,44 +513,6 @@ const handleMakePayment = async (referenceId: string, customerName: string, outs
   // FIX: Shared modals rendered regardless of current view
   const SharedModals = () => (
     <>
-      <InvoiceItemsModal
-        isOpen={showInvoiceItems}
-        onClose={() => {
-          setShowInvoiceItems(false)
-          setSelectedInvoice(null)
-        }}
-        invoiceName={selectedInvoice || ''}
-        onMakePayment={(invoiceName) => {
-          // Find the invoice details from current balances
-          let invoiceDetails = null
-          if (currentView === 'inpatient') {
-            const balance = inpatientBalances.find(b => b.admission_id === invoiceName)
-            if (balance) {
-              invoiceDetails = {
-                name: invoiceName,
-                customer_name: balance.patient_name,
-                outstanding_amount: balance.outstanding_amount
-              }
-            }
-          } else if (currentView === 'outpatient') {
-            const balance = outpatientBalances.find(b => b.visit_id === invoiceName)
-            if (balance) {
-              invoiceDetails = {
-                name: invoiceName,
-                customer_name: balance.patient_name,
-                outstanding_amount: balance.outstanding_amount
-              }
-            }
-          }
-          
-          if (invoiceDetails) {
-            setShowInvoiceItems(false)
-            setSelectedPaymentInvoice(invoiceDetails)
-            setShowPaymentModal(true)
-          }
-        }}
-      />
-
       <PaymentModal
         isOpen={showPaymentModal}
         onClose={() => {
@@ -703,10 +706,10 @@ const handleMakePayment = async (referenceId: string, customerName: string, outs
                         <h3 className="font-semibold text-slate-900">{balance.patient_name}</h3>
                         <span className={`text-xs px-2 py-0.5 rounded-full ${status.badge}`}>{status.label}</span>
                       </div>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">
                         <div><p className="text-xs text-slate-400">Admission ID</p><p className="text-slate-700 font-mono text-xs">{balance.admission_id}</p></div>
                         <div><p className="text-xs text-slate-400">Admission Date</p><p className="text-slate-700">{balance.admission_date}</p></div>
-                        <div><p className="text-xs text-slate-400">Cost Center</p><p className="text-slate-700">{balance.cost_center || '-'}</p></div>
+                        <div><p className="text-xs text-slate-400">Cost Center</p><p className="text-slate-700">{balance.cost_center || '—'}</p></div>
                         {balance.days_overdue > 0 && <div><p className="text-xs text-slate-400">Days Overdue</p><p className="text-red-600 font-medium">{balance.days_overdue} days</p></div>}
                       </div>
                     </div>
@@ -735,23 +738,47 @@ const handleMakePayment = async (referenceId: string, customerName: string, outs
                       </div>
                     </div>
                   )}
-                  <div className="flex gap-2 mt-4 pt-3 border-t border-slate-100">
-                    <button 
-                      onClick={() => handleViewServices(balance.admission_id, balance.patient_name, 'Inpatient Admission')}
+                  <div className="flex flex-wrap items-center gap-2 mt-4 pt-3 border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void openInvoiceForHealthcareReference(
+                          balance.admission_id,
+                          'Inpatient Admission',
+                          balance.latest_invoice_name
+                        )
+                      }
                       disabled={isLoading}
                       className="text-xs text-primary hover:underline flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
-                      title="View all invoices and services for this admission"
+                      title="Open invoice details (slide-over)"
                     >
                       {isLoading ? (
                         <Loader2 className="w-3 h-3 animate-spin" />
                       ) : (
                         <Receipt className="w-3 h-3" />
                       )}
-                      View Services
+                      View invoice
                     </button>
+                    {balance.latest_invoice_name ? (
+                      <PrintFormatDropdown
+                        doctype="Sales Invoice"
+                        docName={balance.latest_invoice_name}
+                        noLetterhead={0}
+                        triggerPrint={1}
+                        className="inline-flex items-center justify-center rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-600 hover:bg-slate-50"
+                      />
+                    ) : null}
                     {balance.outstanding_amount > 0 && (
   <button 
-    onClick={() => handleMakePayment(balance.admission_id, balance.patient_name, balance.outstanding_amount, 'Inpatient Admission')}
+    onClick={() =>
+      handleMakePayment(
+        balance.admission_id,
+        balance.patient_name,
+        balance.outstanding_amount,
+        'Inpatient Admission',
+        balance.patient_id
+      )
+    }
     className="text-xs text-green-600 hover:underline flex items-center gap-1"
     title={`Pay outstanding amount of ${formatCurrency(balance.outstanding_amount)}`}
   >
@@ -817,10 +844,11 @@ const handleMakePayment = async (referenceId: string, customerName: string, outs
                         <h3 className="font-semibold text-slate-900">{balance.patient_name}</h3>
                         <span className={`text-xs px-2 py-0.5 rounded-full ${status.badge}`}>{status.label}</span>
                       </div>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">
                         <div><p className="text-xs text-slate-400">Visit ID</p><p className="text-slate-700 font-mono text-xs">{balance.visit_id}</p></div>
                         <div><p className="text-xs text-slate-400">Visit Date</p><p className="text-slate-700">{balance.visit_date}</p></div>
-                        <div><p className="text-xs text-slate-400">Practitioner</p><p className="text-slate-700">{balance.practitioner || '-'}</p></div>
+                        <div><p className="text-xs text-slate-400">Practitioner</p><p className="text-slate-700">{balance.practitioner || '—'}</p></div>
+                        <div><p className="text-xs text-slate-400">Cost Center</p><p className="text-slate-700">{balance.cost_center || '—'}</p></div>
                         {balance.days_overdue > 0 && <div><p className="text-xs text-slate-400">Days Overdue</p><p className="text-red-600 font-medium">{balance.days_overdue} days</p></div>}
                       </div>
                     </div>
@@ -849,23 +877,47 @@ const handleMakePayment = async (referenceId: string, customerName: string, outs
                       </div>
                     </div>
                   )}
-                  <div className="flex gap-2 mt-4 pt-3 border-t border-slate-100">
-                    <button 
-                      onClick={() => handleViewServices(balance.visit_id, balance.patient_name, 'Patient Visit')}
+                  <div className="flex flex-wrap items-center gap-2 mt-4 pt-3 border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void openInvoiceForHealthcareReference(
+                          balance.visit_id,
+                          'Patient Visit',
+                          balance.latest_invoice_name
+                        )
+                      }
                       disabled={isLoading}
                       className="text-xs text-primary hover:underline flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
-                      title="View all invoices and services for this visit"
+                      title="Open invoice details (slide-over)"
                     >
                       {isLoading ? (
                         <Loader2 className="w-3 h-3 animate-spin" />
                       ) : (
                         <Receipt className="w-3 h-3" />
                       )}
-                      View Services
+                      View invoice
                     </button>
+                    {balance.latest_invoice_name ? (
+                      <PrintFormatDropdown
+                        doctype="Sales Invoice"
+                        docName={balance.latest_invoice_name}
+                        noLetterhead={0}
+                        triggerPrint={1}
+                        className="inline-flex items-center justify-center rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-600 hover:bg-slate-50"
+                      />
+                    ) : null}
                     {balance.outstanding_amount > 0 && (
   <button 
-    onClick={() => handleMakePayment(balance.visit_id, balance.patient_name, balance.outstanding_amount, 'Patient Visit')}
+    onClick={() =>
+      handleMakePayment(
+        balance.visit_id,
+        balance.patient_name,
+        balance.outstanding_amount,
+        'Patient Visit',
+        balance.patient_id
+      )
+    }
     className="text-xs text-green-600 hover:underline flex items-center gap-1"
     title={`Pay outstanding amount of ${formatCurrency(balance.outstanding_amount)}`}
   >
@@ -885,9 +937,21 @@ const handleMakePayment = async (referenceId: string, customerName: string, outs
   }
 
   // Overview Dashboard
+  const showCcBreakdown =
+    !!(effectivePatient || effectiveReferenceName) &&
+    billingCcRestricted === false &&
+    ccBreakdown.length > 0
+
   return (
     <div className="space-y-6">
       <NavigationRow />
+
+      {billingCcRestricted === true && (effectivePatient || effectiveReferenceName) && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          Billing lists and totals are limited to your assigned cost center (Settings → Cost Center Filter). To see all
+          branches, clear that filter or ask an administrator.
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
         <StatCard title="Total Orders" value={orderSummary?.total_orders || 0} subValue={`${formatCurrency(orderSummary?.total_amount || 0)} total value`} icon={Package} color="bg-blue-50 text-blue-600" onClick={() => handleViewChange('orders')} />
@@ -915,6 +979,43 @@ const handleMakePayment = async (referenceId: string, customerName: string, outs
           </div>
         </div>
       </div>
+
+      {showCcBreakdown && (
+        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+          <div className="px-5 py-4 border-b border-slate-200">
+            <h3 className="font-semibold text-slate-800">Charges by Branch</h3>
+            <p className="text-xs text-slate-500 mt-1">
+              For the selected patient{effectiveReferenceName ? ` · ${effectiveReferenceType}: ${effectiveReferenceName}` : ''}. Shown when your account is not restricted to a single cost center.
+            </p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 border-b border-slate-200">
+                <tr>
+                  <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase">Branch</th>
+                  <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase">Service orders</th>
+                  <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase">Orders amount</th>
+                  <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase">Invoices</th>
+                  <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase">Invoiced total</th>
+                  <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase">Outstanding</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {ccBreakdown.map((row) => (
+                  <tr key={row.cost_center || '__none__'} className="hover:bg-slate-50">
+                    <td className="px-4 py-2.5 text-slate-800 font-medium">{row.cost_center_name}</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums text-slate-700">{row.sales_orders}</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums text-slate-700">{formatCurrency(row.orders_amount)}</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums text-slate-700">{row.invoices}</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums text-slate-700">{formatCurrency(row.invoices_grand_total)}</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums font-medium text-slate-900">{formatCurrency(row.outstanding)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Quick Stats Row */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -947,7 +1048,32 @@ const handleMakePayment = async (referenceId: string, customerName: string, outs
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
           <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200"><h3 className="font-semibold text-slate-800">Recent Orders</h3><button onClick={() => handleViewChange('orders')} className="text-xs text-primary hover:underline">View All →</button></div>
           {recentOrders.length === 0 ? <div className="p-8 text-center text-slate-400"><Package className="w-10 h-10 mx-auto mb-2 opacity-30" /><p className="text-sm">No recent orders</p></div> : (
-            <div className="divide-y divide-slate-100">{recentOrders.map((order) => (<div key={order.name} className="px-5 py-3 hover:bg-slate-50"><div className="flex items-center justify-between"><div><p className="text-sm font-medium text-primary">{order.name}</p><p className="text-xs text-slate-400">{order.transaction_date}</p></div><div className="text-right"><p className="text-sm font-semibold text-slate-900">{formatCurrency(order.grand_total)}</p><p className="text-xs text-slate-500">{order.custom_base_reference_name || order.custom_base_reference}</p></div></div></div>))}</div>
+            <div className="divide-y divide-slate-100">
+              {recentOrders.map((order) => (
+                <div key={order.name} className="px-5 py-3 hover:bg-slate-50">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-primary">{order.name}</p>
+                      <p className="text-xs text-slate-400">{order.transaction_date}</p>
+                      {(order.cost_center_name || order.cost_center) && (
+                        <p
+                          className="text-[11px] text-slate-500 mt-0.5 truncate"
+                          title={order.cost_center_name || order.cost_center || undefined}
+                        >
+                          CC: {order.cost_center_name || order.cost_center}
+                        </p>
+                      )}
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-sm font-semibold text-slate-900">{formatCurrency(order.grand_total)}</p>
+                      <p className="text-xs text-slate-500 truncate max-w-[140px] ml-auto">
+                        {order.custom_base_reference_name || order.custom_base_reference}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
         </div>
 
@@ -967,6 +1093,11 @@ const handleMakePayment = async (referenceId: string, customerName: string, outs
                         {invoice.name}
                       </button>
                       <p className="text-xs text-slate-400">{invoice.posting_date}</p>
+                      {(invoice.cost_center_name || invoice.cost_center || invoice.custom_created_at) && (
+                        <p className="text-[11px] text-slate-500 mt-0.5 truncate" title={invoice.cost_center_name || invoice.cost_center || invoice.custom_created_at || ''}>
+                          CC: {invoice.cost_center_name || invoice.cost_center || invoice.custom_created_at}
+                        </p>
+                      )}
                     </div>
                     <div className="text-right">
                       <p className="text-sm font-semibold text-slate-900">{formatCurrency(invoice.grand_total)}</p>

@@ -214,6 +214,7 @@ export const ServiceInvoicesList = ({
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Invoice ID</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Date</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Due Date</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Cost center</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Orders</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Total</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Paid</th>
@@ -238,6 +239,19 @@ export const ServiceInvoicesList = ({
                     </td>
                     <td className="px-4 py-3 text-sm text-slate-700">{invoice.posting_date}</td>
                     <td className="px-4 py-3 text-sm text-slate-700">{invoice.due_date}</td>
+                    <td className="px-4 py-3 text-sm text-slate-700 max-w-[200px]">
+                      <span
+                        className="truncate block"
+                        title={
+                          invoice.cost_center_name ||
+                          invoice.cost_center ||
+                          invoice.custom_created_at ||
+                          undefined
+                        }
+                      >
+                        {invoice.cost_center_name || invoice.cost_center || invoice.custom_created_at || '—'}
+                      </span>
+                    </td>
                     <td className="px-4 py-3 text-sm text-slate-700">{invoice.order_count || 0}</td>
                     <td className="px-4 py-3 text-sm font-medium text-slate-900">{formatCurrency(invoice.grand_total)}</td>
                     <td className="px-4 py-3 text-sm text-green-600">{formatCurrency(invoice.paid_amount)}</td>

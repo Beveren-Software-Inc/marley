@@ -1091,6 +1091,17 @@ def get_permitted_cost_centers():
 
 
 @frappe.whitelist()
+def get_billing_cost_center_scope():
+	"""Whether the current user is restricted to specific cost centers (User Permission).
+
+	When ``restricted`` is false, reception billing may show a multi–cost center breakdown
+	for a patient. When true, list APIs already filter to permitted cost centers only.
+	"""
+	permitted = get_permitted_cost_centers()
+	return {"restricted": permitted is not None}
+
+
+@frappe.whitelist()
 def get_user_cost_center_permission():
 	"""
 	Return the Cost Center currently restricted to the logged-in user via
