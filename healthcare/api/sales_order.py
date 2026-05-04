@@ -1,6 +1,12 @@
 import frappe
 from frappe.utils import today, getdate
 
+from healthcare.api.sales_order_cost_center import (
+	apply_cost_center_to_sales_order,
+	cost_center_from_base_reference,
+	cost_center_from_visit_or_admission,
+)
+
 @frappe.whitelist()
 def get_service_orders(
     reference_type=None,  # 'Patient Visit' or 'Inpatient Admission'
@@ -13,6 +19,7 @@ def get_service_orders(
     """Get list of Sales Orders for services"""
     filters = {}
     
+    print("Ni hio ndio inakam", reference_type)
     if reference_type:
         filters['custom_reference_type'] = reference_type
     if reference_name:
@@ -21,7 +28,7 @@ def get_service_orders(
         filters['patient'] = patient
     if status:
         filters['status'] = status
-    
+
     # Get permitted cost centers
     from healthcare.api.common import get_permitted_cost_centers
     permitted_cc = get_permitted_cost_centers()
@@ -47,7 +54,8 @@ def get_service_orders(
             'custom_base_reference_name',
             'patient',
             'patient_name',
-            'docstatus'
+            'docstatus',
+            'cost_center',
         ],
         limit=limit,
         limit_start=offset,
@@ -73,7 +81,16 @@ def get_service_orders(
             so.invoice_status = 'Not Created'
             so.invoice_name = None
             so.invoice_amount = 0
-    
+
+    cc_keys = list({so.get('cost_center') for so in sales_orders if so.get('cost_center')})
+    cc_labels = {}
+    if cc_keys:
+        for row in frappe.get_all('Cost Center', filters={'name': ['in', cc_keys]}, fields=['name', 'cost_center_name']):
+            cc_labels[row.name] = row.cost_center_name or row.name
+    for so in sales_orders:
+        cc = so.get('cost_center')
+        so['cost_center_name'] = cc_labels.get(cc) if cc else ''
+
     return sales_orders
 
 
@@ -81,14 +98,30 @@ def get_service_orders(
 def get_service_order_summary(reference_type=None, reference_name=None, patient=None):
     """Get summary of orders for a reference"""
     filters = {}
-    
+
     if reference_type:
         filters['custom_reference_type'] = reference_type
     if reference_name:
         filters['custom_reference_name'] = reference_name
     if patient:
         filters['patient'] = patient
-    
+
+    from healthcare.api.common import get_permitted_cost_centers
+    permitted_cc = get_permitted_cost_centers()
+    if permitted_cc is not None:
+        if not permitted_cc:
+            return {
+                'total_orders': 0,
+                'total_amount': 0,
+                'draft': {'count': 0, 'amount': 0},
+                'submitted': {'count': 0, 'amount': 0},
+                'cancelled': {'count': 0, 'amount': 0},
+                'invoiced': {'count': 0, 'amount': 0},
+                'partially_invoiced': {'count': 0, 'amount': 0},
+                'not_invoiced': {'count': 0, 'amount': 0},
+            }
+        filters['cost_center'] = ['in', permitted_cc]
+
     sales_orders = frappe.get_all(
         'Sales Order',
         filters=filters,
@@ -241,6 +274,8 @@ def create_bulk_invoice(reference_type, reference_name):
     invoice.customer = customer
     invoice.custom_reference_type = reference_type
     invoice.custom_reference_name = reference_name
+    invoice.custom_base_reference = reference_type
+    invoice.custom_base_reference_name = reference_name
     invoice.posting_date = frappe.utils.today()
     invoice.due_date = frappe.utils.add_days(frappe.utils.today(), 30)  # 30 days due date
     
@@ -280,17 +315,27 @@ def create_bulk_invoice(reference_type, reference_name):
 
 @frappe.whitelist()
 def create_service_order(data):
-    """Create a new service sales order"""
+    """Create a new service sales order.
+
+    Expected mapping (same as Sales Invoice):
+    - reference_type / reference_name: ``Patient Visit`` or ``Inpatient Admission`` and the document name.
+    - base_reference / base_reference_name: underlying doc (e.g. ``Lab Test``, ``Service Request``,
+      ``Patient Medication Order``, ``Inpatient Healthcare Service``) and its name.
+    """
     import json
-    
+
     if isinstance(data, str):
         data = json.loads(data)
-    
+
+    ref_type = data.get('reference_type')
+    if ref_type and ref_type not in ('Patient Visit', 'Inpatient Admission'):
+        frappe.throw(frappe._('reference_type must be Patient Visit or Inpatient Admission'))
+
     so = frappe.new_doc('Sales Order')
     so.customer = data.get('customer')
     so.patient = data.get('patient')
     so.patient_name = data.get('patient_name')
-    so.custom_reference_type = data.get('reference_type')
+    so.custom_reference_type = ref_type
     so.custom_reference_name = data.get('reference_name')
     so.custom_base_reference = data.get('base_reference')
     so.custom_base_reference_name = data.get('base_reference_name')
@@ -306,7 +351,16 @@ def create_service_order(data):
             'rate': item.get('rate'),
             'amount': item.get('qty', 1) * item.get('rate', 0)
         })
-    
+
+    cc = data.get('cost_center')
+    if not cc:
+        cc = cost_center_from_base_reference(
+            data.get('base_reference'), data.get('base_reference_name')
+        )
+    if not cc and ref_type:
+        cc = cost_center_from_visit_or_admission(ref_type, data.get('reference_name'))
+    apply_cost_center_to_sales_order(so, cc)
+
     so.save()
     frappe.db.commit()
     

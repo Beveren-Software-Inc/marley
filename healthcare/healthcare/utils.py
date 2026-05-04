@@ -599,13 +599,23 @@ def manage_invoice_submit_cancel(doc, method):
 			"Healthcare Settings", "create_observation_on_si_submit"
 		):
 			create_sample_collection_and_observation(doc)
-   
-		if doc.custom_base_reference=="Patient Visit":
-			update_patient_visit_status(
-				visit_name=doc.custom_base_reference_name,
-				action="invoice_created",
-				doc_name=doc.name,
-			)
+
+		if method == "on_submit":
+			visit_for_status = None
+			if getattr(doc, "custom_reference_type", None) == "Patient Visit" and getattr(
+				doc, "custom_reference_name", None
+			):
+				visit_for_status = doc.custom_reference_name
+			elif getattr(doc, "custom_base_reference", None) == "Patient Visit" and getattr(
+				doc, "custom_base_reference_name", None
+			):
+				visit_for_status = doc.custom_base_reference_name
+			if visit_for_status:
+				update_patient_visit_status(
+					visit_name=visit_for_status,
+					action="invoice_created",
+					doc_name=doc.name,
+				)
 
 	if method == "on_submit":
 		if frappe.db.get_single_value("Healthcare Settings", "create_lab_test_on_si_submit"):

@@ -278,8 +278,14 @@ def get_patient_visits_full(search=None, patient=None, practitioner=None, from_d
 				SUM(COALESCE(so.grand_total, 0)) AS amount
 			FROM `tabService Request` sr
 			INNER JOIN `tabSales Order` so
-				ON so.custom_reference_type = 'Service Request'
-				AND so.custom_reference_name = sr.name
+				ON (
+					(so.custom_reference_type = 'Patient Visit'
+						AND so.custom_reference_name = sr.patient_visit
+						AND so.custom_base_reference = 'Service Request'
+						AND so.custom_base_reference_name = sr.name)
+					OR (so.custom_reference_type = 'Service Request'
+						AND so.custom_reference_name = sr.name)
+				)
 			WHERE
 				sr.patient_visit IN %(visit_names)s
 				AND so.docstatus != 2
@@ -299,8 +305,14 @@ def get_patient_visits_full(search=None, patient=None, practitioner=None, from_d
 				SUM(COALESCE(so.grand_total, 0)) AS amount
 			FROM `tabService Request` sr
 			INNER JOIN `tabSales Order` so
-				ON so.custom_reference_type = 'Service Request'
-				AND so.custom_reference_name = sr.name
+				ON (
+					(so.custom_reference_type = 'Patient Visit'
+						AND so.custom_reference_name = sr.patient_visit
+						AND so.custom_base_reference = 'Service Request'
+						AND so.custom_base_reference_name = sr.name)
+					OR (so.custom_reference_type = 'Service Request'
+						AND so.custom_reference_name = sr.name)
+				)
 			WHERE
 				sr.patient_visit IN %(visit_names)s
 				AND so.docstatus != 2
@@ -320,8 +332,14 @@ def get_patient_visits_full(search=None, patient=None, practitioner=None, from_d
 				SUM(COALESCE(so.grand_total, 0)) AS amount
 			FROM `tabPatient Medication Order` pmo
 			INNER JOIN `tabSales Order` so
-				ON so.custom_base_reference = 'Patient Medication Order'
-				AND so.custom_base_reference_name = pmo.name
+				ON (
+					(so.custom_reference_type = 'Patient Visit'
+						AND so.custom_reference_name = pmo.patient_encounter
+						AND so.custom_base_reference = 'Patient Medication Order'
+						AND so.custom_base_reference_name = pmo.name)
+					OR (so.custom_base_reference = 'Patient Medication Order'
+						AND so.custom_base_reference_name = pmo.name)
+				)
 			WHERE
 				pmo.patient_encounter IN %(visit_names)s
 				AND so.docstatus != 2
@@ -501,10 +519,12 @@ def create_invoice(reference_doctype: str, reference_name: str):
     # Set transaction date
     invoice.posting_date = nowdate()
     
-    # Set healthcare reference
+    # Set healthcare reference (align with Sales Order: IP/OP on custom_reference_*)
+    invoice.custom_reference_type = reference_doctype
+    invoice.custom_reference_name = reference_name
     invoice.custom_base_reference = reference_doctype
     invoice.custom_base_reference_name = reference_name
-    
+
     # Set patient visit specific fields if applicable
     if reference_doctype == "Patient Visit":
         invoice.custom_patient_visit = reference_name
