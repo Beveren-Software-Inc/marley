@@ -14,6 +14,7 @@ import { fetchDischargeTransferPrescriptions, fetchAfterDischargePrescriptions }
 import { fetchMedicineGiven } from '../../services/medicineGiven'
 import { toast } from '../../hooks/useToast'
 import { useCareContext } from '../../providers/CareContextProvider'
+import { useFormatMoney } from '../../hooks/useFormatMoney'
 import { saveDischargeDraft, loadDischargeDraft, clearDischargeDraft, draftSavedAt } from '../../services/dischargeDraft'
 import { X, CheckCircle2, Circle, ChevronDown, ChevronUp, AlertCircle, Receipt, PenLine, Trash2, Check, Save, Clock, Pill, Calendar, DollarSign } from 'lucide-react'
 
@@ -521,6 +522,7 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
   const [activeTab, setActiveTab] = useState<'details' | 'checklist' | 'nursing' | 'transfer' | 'medicine-sales' | 'reconcile' | 'daily-visit' | 'documents' | 'relatives'>('details')
 
   const { userRole } = useCareContext()
+  const formatMedicineMoney = useFormatMoney()
   const canViewMedicineTransfer = (userRole || []).some((role) => TRANSFER_ALLOWED_ROLES.includes(role as typeof TRANSFER_ALLOWED_ROLES[number]))
 
   const [transferRows, setTransferRows] = useState<DischargeReconciliationRow[]>([])
@@ -2088,13 +2090,13 @@ const loadDailyVisitSetup = async () => {
           <div className="bg-green-50 border border-green-200 rounded-lg p-4">
             <div className="text-xs font-medium text-green-600 uppercase tracking-wide">Total Prescription Amount</div>
             <div className="text-2xl font-bold text-green-800 mt-1">
-              {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(medicineSales.prescription_total || 0)}
+              {formatMedicineMoney(medicineSales.prescription_total || 0)}
             </div>
           </div>
           <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
             <div className="text-xs font-medium text-purple-600 uppercase tracking-wide">Total Given Medicines Amount</div>
             <div className="text-2xl font-bold text-purple-800 mt-1">
-              {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(medicineSales.given_total || 0)}
+              {formatMedicineMoney(medicineSales.given_total || 0)}
             </div>
           </div>
         </div>
@@ -2142,10 +2144,10 @@ const loadDailyVisitSetup = async () => {
                   <td className="px-4 py-3 text-sm text-slate-600">{drug.dosage || '-'}</td>
                   <td className="px-4 py-3 text-right text-sm text-slate-700">{drug.quantity || 0}</td>
                   <td className="px-4 py-3 text-right text-sm text-slate-700">
-                    {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(drug.rate || 0)}
+                    {formatMedicineMoney(drug.rate || 0)}
                   </td>
                   <td className="px-4 py-3 text-right text-sm font-medium text-slate-700">
-                    {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(drug.amount || 0)}
+                    {formatMedicineMoney(drug.amount || 0)}
                   </td>
                 </tr>
               ))}
@@ -2158,7 +2160,7 @@ const loadDailyVisitSetup = async () => {
               Prescription Total:
             </td>
             <td className="px-4 py-2 text-right font-bold text-blue-700">
-              {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(medicineSales.prescription_total || 0)}
+              {formatMedicineMoney(medicineSales.prescription_total || 0)}
             </td>
           </tr>
         )}
@@ -2204,10 +2206,10 @@ const loadDailyVisitSetup = async () => {
                       </td>
                       <td className="px-4 py-3 text-right text-sm text-slate-700">{given.qty || 0} {given.unit || ''}</td>
                       <td className="px-4 py-3 text-right text-sm text-slate-700">
-                        {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(given.rate || 0)}
+                        {formatMedicineMoney(given.rate || 0)}
                       </td>
                       <td className="px-4 py-3 text-right text-sm font-medium text-slate-700">
-                        {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(given.amount || 0)}
+                        {formatMedicineMoney(given.amount || 0)}
                       </td>
                     </tr>
                   ))
@@ -2218,7 +2220,7 @@ const loadDailyVisitSetup = async () => {
                       Given Medicines Total:
                     </td>
                     <td className="px-4 py-2 text-right font-bold text-green-700">
-                      {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(medicineSales.given_total || 0)}
+                      {formatMedicineMoney(medicineSales.given_total || 0)}
                     </td>
                   </tr>
                 )}
@@ -2233,20 +2235,20 @@ const loadDailyVisitSetup = async () => {
             <div className="flex justify-between items-center mb-2">
               <span className="text-sm font-medium text-slate-600">Prescription Total:</span>
               <span className="text-sm font-semibold text-blue-700">
-                {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(medicineSales.prescription_total || 0)}
+                {formatMedicineMoney(medicineSales.prescription_total || 0)}
               </span>
             </div>
             <div className="flex justify-between items-center mb-2">
               <span className="text-sm font-medium text-slate-600">Given Medicines Total:</span>
               <span className="text-sm font-semibold text-green-700">
-                {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(medicineSales.given_total || 0)}
+                {formatMedicineMoney(medicineSales.given_total || 0)}
               </span>
             </div>
             <div className="border-t border-slate-200 pt-2 mt-2">
               <div className="flex justify-between items-center">
                 <span className="text-base font-bold text-slate-800">Grand Total:</span>
                 <span className="text-lg font-bold text-primary">
-                  {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(medicineSales.grand_total || 0)}
+                  {formatMedicineMoney(medicineSales.grand_total || 0)}
                 </span>
               </div>
             </div>

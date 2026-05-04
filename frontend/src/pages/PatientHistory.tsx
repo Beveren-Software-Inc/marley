@@ -26,8 +26,10 @@ import {
   AlertCircle,
   DollarSign
 } from 'lucide-react'
+import { useFormatMoney } from '../hooks/useFormatMoney'
 
 export const PatientHistoryPage = () => {
+  const formatCurrency = useFormatMoney()
   const { selectedPatient: globalPatient, setSelectedPatient: setGlobalPatient } = useCareContext()
   const [searchParams, setSearchParams] = useSearchParams()
   const patientFromUrl = searchParams.get('patient')
@@ -74,11 +76,6 @@ export const PatientHistoryPage = () => {
       newSearchParams.delete('patient')
     }
     setSearchParams(newSearchParams, { replace: true })
-  }
-
-  const formatCurrency = (value: number) => {
-    if (value == null || Number.isNaN(value)) return '0.00'
-    return Number(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   }
 
   return (

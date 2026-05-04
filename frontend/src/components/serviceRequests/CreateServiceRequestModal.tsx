@@ -13,6 +13,7 @@ import {
 import { createServiceRequest } from '../../services/serviceRequests'
 import { toast } from '../../hooks/useToast'
 import { useCareContext } from '../../providers/CareContextProvider'
+import { useFormatMoney } from '../../hooks/useFormatMoney'
 import {
   linkComboboxDropdownClass,
   linkComboboxDropdownClassShort,
@@ -60,8 +61,6 @@ interface PricingResponse {
   pricing?: PricingRow[]
   group_templates?: GroupTemplateRow[]
 }
-
-const formatMoney = (value: number) => value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 /** Visual theme for patient category pricing (Military / VIP / Regular / …). */
 function getPatientCategoryTheme(category: string): {
@@ -119,6 +118,7 @@ export const CreateServiceRequestModal = ({
   labTestTemplateOnly = false,
 }: CreateServiceRequestModalProps) => {
   const { mode, activeVisit, activeAdmission, selectedPatient: contextPatient } = useCareContext()
+  const formatMoney = useFormatMoney()
 
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)

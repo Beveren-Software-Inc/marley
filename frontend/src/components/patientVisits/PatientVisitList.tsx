@@ -15,6 +15,7 @@ import { CreateVitalSignModal } from '../vitalSigns/CreateVitalSignModal'
 import { CreateObservationModal } from '../observations/CreateObservationModal'
 import { PatientDiagnosisModal } from '../diagnosis/PatientDiagnosisModal'
 import { useCareContext } from '../../providers/CareContextProvider'
+import { useFormatMoney } from '../../hooks/useFormatMoney'
 
 const statusColors: Record<string, string> = {
   'Open': 'warning',
@@ -41,6 +42,8 @@ export const PatientVisitList = ({
   visitType
 }: PatientVisitListProps = {}) => {
   const { mode, activeVisit, selectedPatient: contextPatient } = useCareContext()
+  const formatMoney = useFormatMoney()
+  const formatAmount = (value?: number) => formatMoney(Number(value ?? 0))
 
   // When OP mode has a specific visit selected globally, lock the list to that visit.
   // Fall back to the patient prop, then context patient, for broader filtering.
@@ -235,8 +238,6 @@ export const PatientVisitList = ({
   const hasActiveFilters = visitIdFilter || practitionerFilter || dateFrom || dateTo || selectedStatus
   const statuses = ['Open', 'Ordered', 'Completed', 'Cancelled']
   const inputClass = 'w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white'
-  const formatAmount = (value?: number) =>
-    new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value ?? 0)
 
   return (
     <>

@@ -4,6 +4,7 @@ import { X, CreditCard, AlertCircle, Loader2, Building2, MapPin, Briefcase } fro
 import { toast } from '../../hooks/useToast'
 import { createPaymentEntry } from '../../services/serviceOrders'
 import { fetchCompanies, fetchCostCenters,fetchDepartments, type LinkFieldOption } from '../../services/common'
+import { useFormatMoney } from '../../hooks/useFormatMoney'
 
 interface PaymentModalProps {
   isOpen: boolean
@@ -20,10 +21,6 @@ interface PaymentModalProps {
 interface Company {
   name: string
   company_name: string
-}
-
-const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES' }).format(amount)
 }
 
 export const PaymentModal = ({ 
@@ -60,6 +57,8 @@ export const PaymentModal = ({
   const [departments, setDepartments] = useState<LinkFieldOption[]>([])
   const [departmentOpen, setDepartmentOpen] = useState(false)
   const [departmentQuery, setDepartmentQuery] = useState('')
+
+  const formatCurrency = useFormatMoney(company || defaultCompany || null)
 
   // Load companies on mount
   useEffect(() => {
@@ -139,6 +138,11 @@ export const PaymentModal = ({
     }
   }, [defaultDepartment, department])
 
+  useEffect(() => {
+    if (!isOpen) return
+    setPaymentAmount(outstandingAmount)
+  }, [isOpen, outstandingAmount])
+
   if (!isOpen) return null
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -216,7 +220,7 @@ export const PaymentModal = ({
   }
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
+    <div className="fixed inset-0 z-[100] overflow-y-auto">
       <div className="flex min-h-screen items-center justify-center p-4">
         <div className="fixed inset-0 bg-black bg-opacity-50 transition-opacity" onClick={onClose} />
         

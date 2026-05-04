@@ -38,6 +38,8 @@ export function InternalEmployeeInvoiceModal({ isOpen, onClose, onSuccess }: Int
   const [createdAtCostCenter, setCreatedAtCostCenter] = useState('')
   const [postingDate, setPostingDate] = useState('')
   const [dueDate, setDueDate] = useState('')
+  /** Optional Patient docname — applies Healthcare Settings category multiplier to service item rates */
+  const [pricingPatient, setPricingPatient] = useState('')
   const [items, setItems] = useState<BillingInvoiceItemInput[]>([emptyItem()])
   const [saving, setSaving] = useState(false)
 
@@ -51,6 +53,7 @@ export function InternalEmployeeInvoiceModal({ isOpen, onClose, onSuccess }: Int
     setCreatedAtCostCenter('')
     setPostingDate('')
     setDueDate('')
+    setPricingPatient('')
     setItems([emptyItem()])
   }, [])
 
@@ -134,6 +137,7 @@ export function InternalEmployeeInvoiceModal({ isOpen, onClose, onSuccess }: Int
         created_at_cost_center: createdAtCostCenter,
         posting_date: postingDate || undefined,
         due_date: dueDate || undefined,
+        patient: pricingPatient.trim() || undefined,
         items,
       })
       toast.success(`Internal invoice ${created.name} created`)
@@ -295,6 +299,21 @@ export function InternalEmployeeInvoiceModal({ isOpen, onClose, onSuccess }: Int
                       ))}
                     </select>
                   </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-medium text-slate-600 mb-1.5">
+                      Patient (optional — service category multiplier)
+                    </label>
+                    <input
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary font-mono"
+                      placeholder="e.g. PAT-00001"
+                      value={pricingPatient}
+                      onChange={(e) => setPricingPatient(e.target.value)}
+                    />
+                    <p className="text-[11px] text-slate-500 mt-1">
+                      For <strong>non-stock</strong> (service) items, rate = template or list price × multiplier from
+                      Healthcare Settings for this patient&apos;s category. Saved on the invoice when set.
+                    </p>
+                  </div>
                 </div>
               </CollapsibleFormSection>
 
@@ -332,6 +351,9 @@ export function InternalEmployeeInvoiceModal({ isOpen, onClose, onSuccess }: Int
                 items={items}
                 onChange={setItems}
                 defaultCostCenter={createdAtCostCenter}
+                company={company}
+                postingDate={postingDate}
+                patient={pricingPatient}
                 addLabel="Add item line"
               />
             </CollapsibleFormSection>

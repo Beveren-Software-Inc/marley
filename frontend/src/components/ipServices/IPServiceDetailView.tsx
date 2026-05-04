@@ -1,6 +1,7 @@
 // IPServiceDetailView.tsx
 import { useState, useEffect } from 'react'
 import { apiRequest } from '../../services/apiClient'
+import { useFormatMoney } from '../../hooks/useFormatMoney'
 
 interface IPServiceDetailViewProps {
   name: string
@@ -32,6 +33,7 @@ interface IPServiceDetail {
 }
 
 export const IPServiceDetailView = ({ name, onUpdate: _onUpdate}: IPServiceDetailViewProps) => {
+  const formatCurrency = useFormatMoney()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [data, setData] = useState<IPServiceDetail | null>(null)
@@ -82,9 +84,9 @@ export const IPServiceDetailView = ({ name, onUpdate: _onUpdate}: IPServiceDetai
     }
   }
 
-  const formatCurrency = (amount?: number) => {
+  const formatAmount = (amount?: number) => {
     if (amount === undefined || amount === null) return '-'
-    return amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    return formatCurrency(amount)
   }
 
   return (
@@ -186,7 +188,7 @@ export const IPServiceDetailView = ({ name, onUpdate: _onUpdate}: IPServiceDetai
                     </td>
                     <td className="px-3 py-2 text-slate-700">{service.service_name || '-'}</td>
                     <td className="px-3 py-2 text-right font-medium text-slate-800">
-                      {formatCurrency(service.amount)}
+                      {formatAmount(service.amount)}
                     </td>
                     <td className="px-3 py-2 text-slate-500 text-xs truncate max-w-[150px]">
                       {service.note || '-'}
@@ -200,7 +202,7 @@ export const IPServiceDetailView = ({ name, onUpdate: _onUpdate}: IPServiceDetai
                     Total:
                   </td>
                   <td className="px-3 py-2 text-right font-bold text-primary">
-                    {formatCurrency(data.total_amount)}
+                    {formatAmount(data.total_amount)}
                   </td>
                   <td></td>
                 </tr>
