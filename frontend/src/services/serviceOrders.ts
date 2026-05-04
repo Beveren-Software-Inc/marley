@@ -1,4 +1,6 @@
 // services/serviceOrders.ts
+import { ensureCSRF } from './apiClient'
+
 export interface ServiceOrder {
   name: string
   customer: string
@@ -444,9 +446,13 @@ export async function createAdditionalCollectionInvoice(payload: {
   sales_orders?: string[]
   additional_items?: BillingInvoiceItemInput[]
 }): Promise<{ name: string; grand_total: number; customer: string }> {
+  const csrf = await ensureCSRF()
   const response = await fetch('/api/method/healthcare.api.billing.create_additional_collection_invoice', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json',
+      ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
+     },
     body: JSON.stringify(payload),
   })
   const data = await response.json()
@@ -462,9 +468,13 @@ export async function createInternalEmployeeInvoice(payload: {
   posting_date?: string
   due_date?: string
 }): Promise<{ name: string; customer: string; grand_total: number }> {
+  const csrf = await ensureCSRF()
   const response = await fetch('/api/method/healthcare.api.billing.create_internal_employee_invoice', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json',
+      ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
+     },
     body: JSON.stringify(payload),
   })
   const data = await response.json()

@@ -680,7 +680,6 @@ def get_related_sales_orders(reference_type, reference_name):
     _attach_sales_order_items(out)
     return out
 
-
 @frappe.whitelist()
 def create_additional_collection_invoice(
     company,
