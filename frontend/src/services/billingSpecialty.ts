@@ -1,3 +1,5 @@
+import { ensureCSRF } from './apiClient'
+
 export interface SpecialtyInvoiceRow {
   name: string
   /** 0 draft, 1 submitted, 2 cancelled */
@@ -45,23 +47,45 @@ export interface SalesInvoiceDetail {
   }>
 }
 
+// export async function fetchSalesInvoiceDetail(invoiceName: string): Promise<SalesInvoiceDetail> {
+//   const res = await fetch('/api/method/healthcare.api.billing.get_invoice_details', {
+//     method: 'POST',
+//     headers: { 'Content-Type': 'application/json' },
+//     body: JSON.stringify({ invoice_name: invoiceName }),
+//   })
+//   const data = await res.json()
+//   if (!res.ok) throw new Error(data?.message || 'Failed to load invoice')
+//   const msg = data.message
+//   if (!msg) throw new Error('Invoice not found')
+//   return msg as SalesInvoiceDetail
+// }
+
 export async function fetchSalesInvoiceDetail(invoiceName: string): Promise<SalesInvoiceDetail> {
-  const res = await fetch('/api/method/healthcare.api.billing.get_invoice_details', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ invoice_name: invoiceName }),
-  })
+  const params = new URLSearchParams()
+  params.append('invoice_name', invoiceName)
+
+  const res = await fetch(
+    `/api/method/healthcare.api.billing.get_invoice_details?${params.toString()}`
+  )
+
   const data = await res.json()
-  if (!res.ok) throw new Error(data?.message || 'Failed to load invoice')
   const msg = data.message
+
+  if (!res.ok) throw new Error(data?.message || 'Failed to load invoice')
   if (!msg) throw new Error('Invoice not found')
+
   return msg as SalesInvoiceDetail
 }
 
 export async function submitSalesInvoiceDoc(invoiceName: string): Promise<void> {
+  const csrf = await ensureCSRF()
   const res = await fetch('/api/method/healthcare.api.billing.submit_sales_invoice_doc', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
+    },
     body: JSON.stringify({ invoice_name: invoiceName }),
   })
   const data = await res.json()
@@ -69,9 +93,14 @@ export async function submitSalesInvoiceDoc(invoiceName: string): Promise<void> 
 }
 
 export async function cancelOrDeleteSalesInvoice(invoiceName: string): Promise<void> {
+  const csrf = await ensureCSRF()
   const res = await fetch('/api/method/healthcare.api.billing.cancel_or_delete_sales_invoice', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
+    },
     body: JSON.stringify({ invoice_name: invoiceName }),
   })
   const data = await res.json()
@@ -84,35 +113,41 @@ export interface InternalBillingSummary {
   total_outstanding: number
 }
 
+
+
 export async function fetchAdditionalCollectionInvoices(): Promise<SpecialtyInvoiceRow[]> {
-  const res = await fetch('/api/method/healthcare.api.billing.list_additional_collection_invoices', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ limit_page_length: 200 }),
-  })
+  const params = new URLSearchParams()
+  params.append('limit_page_length', '200')
+
+  const res = await fetch(
+    `/api/method/healthcare.api.billing.list_additional_collection_invoices?${params.toString()}`
+  )
+
   const data = await res.json()
-  if (!res.ok) throw new Error(data?.message || 'Failed to load invoices')
+  console.log("NOthing at all", data.message)
   return (data.message || []) as SpecialtyInvoiceRow[]
 }
+
+
 
 export async function fetchInternalEmployeeInvoices(): Promise<SpecialtyInvoiceRow[]> {
-  const res = await fetch('/api/method/healthcare.api.billing.list_internal_employee_invoices', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ limit_page_length: 200 }),
-  })
+  const params = new URLSearchParams()
+  params.append('limit_page_length', '200')
+
+  const res = await fetch(
+    `/api/method/healthcare.api.billing.list_internal_employee_invoices?${params.toString()}`
+  )
+
   const data = await res.json()
-  if (!res.ok) throw new Error(data?.message || 'Failed to load invoices')
   return (data.message || []) as SpecialtyInvoiceRow[]
 }
 
+
 export async function fetchInternalEmployeeBillingSummary(): Promise<InternalBillingSummary> {
-  const res = await fetch('/api/method/healthcare.api.billing.get_internal_employee_billing_summary', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({}),
-  })
+  const res = await fetch(
+    '/api/method/healthcare.api.billing.get_internal_employee_billing_summary'
+  )
+
   const data = await res.json()
-  if (!res.ok) throw new Error(data?.message || 'Failed to load summary')
   return data.message as InternalBillingSummary
 }
