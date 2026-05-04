@@ -6,14 +6,22 @@ import frappe
 from frappe import _
 
 
+LAB_RESULT_EDIT_ROLES = frozenset(
+	("LabTest Approver", "System Manager", "Healthcare Administrator", "Administrator")
+)
+
+
 def _ensure_lab_result_edit_permission():
-	"""Only LabTest Approver can enter/adjust lab results."""
+	"""LabTest Approver, System Manager, Healthcare Administrator, or Administrator may enter/adjust results."""
 	roles = set(frappe.get_roles(frappe.session.user))
-	if "LabTest Approver" in roles:
+	if roles & LAB_RESULT_EDIT_ROLES:
 		return
 
 	frappe.throw(
-		_("Only users with LabTest Approver role can enter or adjust Lab Test results."),
+		_(
+			"Only users with LabTest Approver, System Manager, Healthcare Administrator, "
+			"or Administrator role may enter or adjust Lab Test results."
+		),
 		frappe.PermissionError,
 	)
 

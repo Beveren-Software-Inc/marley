@@ -33,6 +33,7 @@ import { EditLabTestModal } from './EditLabTestModal'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { toast } from '../../hooks/useToast'
+import { canEditLabTestResults } from '../../config/permissions'
 import { Search, X, ChevronDown, ChevronRight } from 'lucide-react'
 
 // ─── Constants ─────────────────────────────────────────────────────────────
@@ -182,7 +183,7 @@ export const LabTestList = ({
 }: { patient?: string; isOutsourced?: boolean; defaultStatus?: string; byNurse?: boolean }) => {
   const { mode, selectedPatient: contextPatient, userRole } = useCareContext()
   const effectivePatient = patient ?? (contextPatient || undefined)
-  const canEditResults = (userRole || []).includes('LabTest Approver')
+  const canEditResults = canEditLabTestResults(userRole)
 
   const [filters, setFilters] = useState<Filters>(() => ({
     ...makeEmptyFilters(),
@@ -208,12 +209,18 @@ export const LabTestList = ({
   const [editingValue, setEditingValue] = useState<string>('')
   const [updatingResult, setUpdatingResult] = useState<string | null>(null)
 
+  /** Inline lab technician picker (table column after Results). */
+  const [inlineLabTechLabTestName, setInlineLabTechLabTestName] = useState<string | null>(null)
+  const [inlineLabTechQuery, setInlineLabTechQuery] = useState('')
+  const [inlineLabTechOptions, setInlineLabTechOptions] = useState<LinkFieldOption[]>([])
+  const [updatingInlineLabTech, setUpdatingInlineLabTech] = useState<string | null>(null)
+
   const handleInlineResultUpdate = async (labTestName: string, newResult: string) => {
     setUpdatingResult(labTestName)
     try {
       const current = await fetchLabTest(labTestName)
       if (!current.lab_technician?.trim()) {
-        toast.error('Select a lab technician using Enter Results (Actions) before submitting from the table.')
+        toast.error('Select a lab technician in the Lab technician column before saving the result.')
         return
       }
       await saveAndSubmitLabTest(labTestName, { custom_result: newResult, submit: true })
@@ -223,6 +230,24 @@ export const LabTestList = ({
       toast.error(e instanceof Error ? e.message : 'Failed to update result')
     } finally {
       setUpdatingResult(null); setEditingResult(null); setEditingValue('')
+    }
+  }
+
+  const handleInlineLabTechSave = async (labTestName: string, practitionerId: string) => {
+    const id = practitionerId.trim()
+    if (!id) return
+    setUpdatingInlineLabTech(labTestName)
+    try {
+      await saveAndSubmitLabTest(labTestName, { lab_technician: id, submit: false })
+      await refetch()
+      toast.success('Lab technician saved')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to save lab technician')
+    } finally {
+      setUpdatingInlineLabTech(null)
+      setInlineLabTechLabTestName(null)
+      setInlineLabTechQuery('')
+      setInlineLabTechOptions([])
     }
   }
 
@@ -301,6 +326,31 @@ export const LabTestList = ({
     }, labTechnicianQuery.trim() === '' ? 0 : 300)
     return () => clearTimeout(t)
   }, [resultDialogOpen, labTechnicianQuery])
+
+  useEffect(() => {
+    if (!inlineLabTechLabTestName) return
+    const t = setTimeout(async () => {
+      try {
+        setInlineLabTechOptions(await fetchLabTechnicianPractitioners(inlineLabTechQuery.trim() || undefined))
+      } catch {
+        setInlineLabTechOptions([])
+      }
+    }, inlineLabTechQuery.trim() === '' ? 0 : 300)
+    return () => clearTimeout(t)
+  }, [inlineLabTechLabTestName, inlineLabTechQuery])
+
+  useEffect(() => {
+    if (!inlineLabTechLabTestName) return
+    const close = (e: MouseEvent) => {
+      const el = e.target as HTMLElement
+      if (el.closest('[data-inline-lab-tech-cell]')) return
+      setInlineLabTechLabTestName(null)
+      setInlineLabTechQuery('')
+      setInlineLabTechOptions([])
+    }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [inlineLabTechLabTestName])
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -538,12 +588,89 @@ export const LabTestList = ({
           setEditingValue(labTest.custom_result || '')
         }}
           className={`${canEditResults ? 'cursor-pointer hover:bg-slate-100' : 'cursor-not-allowed bg-slate-50'} rounded-md px-2 py-1 transition-colors ${labTest.custom_result ? 'text-slate-800 font-medium' : 'text-slate-300 italic'}`}
-          title={canEditResults ? 'Click to edit result' : 'Only LabTest Approver can edit results'}>
+          title={canEditResults ? 'Click to edit result' : 'Only LabTest Approver, System Manager, or Healthcare Administrator can edit results'}>
           {labTest.custom_result || 'Click to add result'}
         </div>
       )}
     </td>
   )
+
+  const renderTechnicianCell = (labTest: LabTest) => {
+    const displayName = (labTest.lab_technician_name || '').trim() || labTest.lab_technician || ''
+    const isDraft = labTest.docstatus === 0
+    if (!isDraft) {
+      return (
+        <td className="px-4 py-3 text-sm text-slate-700 max-w-[200px]">
+          <span className="truncate block" title={displayName || undefined}>{displayName || '—'}</span>
+        </td>
+      )
+    }
+    if (!canEditResults) {
+      return (
+        <td className="px-4 py-3 text-sm text-slate-600 max-w-[200px]">
+          <span className="truncate block text-slate-500" title={displayName || undefined}>{displayName || '—'}</span>
+        </td>
+      )
+    }
+    return (
+      <td className="px-4 py-3 text-sm max-w-[220px] align-top" data-inline-lab-tech-cell onClick={(e) => e.stopPropagation()}>
+        {updatingInlineLabTech === labTest.name ? (
+          <div className="flex items-center gap-1 text-xs text-slate-500">
+            <svg className="w-3 h-3 animate-spin shrink-0" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+            </svg>
+            Saving…
+          </div>
+        ) : inlineLabTechLabTestName === labTest.name ? (
+          <div className="relative z-20" data-inline-lab-tech-popover>
+            <input
+              type="text"
+              value={inlineLabTechQuery}
+              onChange={(e) => setInlineLabTechQuery(e.target.value)}
+              className="w-full rounded border border-primary px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-primary"
+              placeholder="Search by name…"
+              autoFocus
+            />
+            <div className="absolute left-0 right-0 mt-1 max-h-40 overflow-auto rounded border border-slate-200 bg-white shadow-lg">
+              {inlineLabTechOptions.length === 0 ? (
+                <div className="px-2 py-1.5 text-[11px] text-slate-500">No matches. Try another name.</div>
+              ) : (
+                inlineLabTechOptions.map((opt) => (
+                  <button
+                    key={opt.name}
+                    type="button"
+                    className="w-full text-left px-2 py-1.5 text-xs hover:bg-slate-100 border-b border-slate-50 last:border-0"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => void handleInlineLabTechSave(labTest.name, opt.name)}
+                  >
+                    <span className="font-medium text-slate-800">{opt.label || opt.name}</span>
+                    {opt.medical_role ? <span className="block text-[10px] text-slate-500">{opt.medical_role}</span> : null}
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            className={`w-full text-left rounded-md px-2 py-1 text-xs transition-colors truncate ${
+              displayName
+                ? 'text-slate-800 font-medium hover:bg-slate-100 border border-transparent'
+                : 'text-amber-700 bg-amber-50 border border-amber-200 hover:bg-amber-100'
+            }`}
+            title={displayName ? 'Change lab technician' : 'Choose lab technician'}
+            onClick={() => {
+              setInlineLabTechLabTestName(labTest.name)
+              setInlineLabTechQuery(displayName)
+            }}
+          >
+            {displayName || 'Choose technician…'}
+          </button>
+        )}
+      </td>
+    )
+  }
 
   // Helper: render range cells
   const renderRangeCells = (labTest: LabTest) => (
@@ -658,7 +785,7 @@ export const LabTestList = ({
         </div>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1000px]">
+          <table className="w-full min-w-[1180px]">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Lab Test ID</th>
@@ -674,6 +801,7 @@ export const LabTestList = ({
                 {rangeHeaders.showMale && <><th className="px-4 py-3 text-center text-xs font-semibold text-slate-600 uppercase">M-Min</th><th className="px-4 py-3 text-center text-xs font-semibold text-slate-600 uppercase">M-Max</th></>}
                 {rangeHeaders.showGeneric && <><th className="px-4 py-3 text-center text-xs font-semibold text-slate-600 uppercase">Min</th><th className="px-4 py-3 text-center text-xs font-semibold text-slate-600 uppercase">Max</th></>}
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Results</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Lab technician</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Inventory</th>
               </tr>
             </thead>
@@ -751,6 +879,7 @@ export const LabTestList = ({
                       {rangeHeaders.showGeneric && <><td /><td /></>}
                       <td className="px-4 py-3 text-xs text-indigo-400 italic">— group —</td>
                       <td className="px-4 py-3"><span className="text-xs text-slate-400">—</span></td>
+                      <td className="px-4 py-3"><span className="text-xs text-slate-400">—</span></td>
                     </tr>
 
                     {isExpanded && children.map((child) => (
@@ -779,6 +908,7 @@ export const LabTestList = ({
                         {renderActionsCell(child)}
                         {renderRangeCells(child)}
                         {renderResultCell(child)}
+                        {renderTechnicianCell(child)}
                         <td className="px-4 py-2.5 text-sm text-slate-700">
                           {child.docstatus === 0 && !child.material_request
                             ? <button type="button" onClick={() => openRequestDialog(child)} className="px-2 py-1 text-xs rounded-md border border-primary text-primary hover:bg-primary/5">Request Consumables</button>
@@ -818,6 +948,7 @@ export const LabTestList = ({
                   {renderActionsCell(labTest)}
                   {renderRangeCells(labTest)}
                   {renderResultCell(labTest)}
+                  {renderTechnicianCell(labTest)}
                   <td className="px-4 py-3 text-sm text-slate-700">
                     {labTest.docstatus === 0 && !labTest.material_request
                       ? <button type="button" onClick={() => openRequestDialog(labTest)} className="px-2 py-1 text-xs rounded-md border border-primary text-primary hover:bg-primary/5">Request Consumables</button>

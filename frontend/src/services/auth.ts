@@ -309,7 +309,7 @@ class HealthcareAuth {
       const userData = await userResponse.json()
       const profile = userData.data as UserProfile
 
-      // Fetch current user's roles from backend (Frappe get_roles)
+      // Roles for UI permissions (GET avoids CSRF vs POST frappe user.get_roles)
       try {
         const rolesRes = await fetch(`${this.baseUrl}/api/method/healthcare.api.common.get_current_user_roles`, {
           method: 'GET',
