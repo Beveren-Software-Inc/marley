@@ -15,8 +15,6 @@ interface PatientSearchProps {
   alertsAutoDismissMs?: number
 }
 
-let _bannerShownForPatient: string | null = null
-
 const STORAGE_KEYS = {
   SELECTED_PATIENT: 'patientSearch_selectedPatient',
   SELECTED_PATIENT_NAME: 'patientSearch_selectedPatientName',
@@ -88,9 +86,13 @@ export const PatientSearch = ({
   const patientContainerRef = useRef<HTMLDivElement>(null)
   const secondaryContainerRef = useRef<HTMLDivElement>(null)
 
-  const [alertsBannerDismissed, setAlertsBannerDismissed] = useState(
-    () => Boolean(selectedPatient && _bannerShownForPatient === selectedPatient)
-  )
+  /** Hidden until the user explicitly picks a patient (not when restoring from localStorage on refresh). */
+  const [alertsBannerDismissed, setAlertsBannerDismissed] = useState(true)
+
+  const showPatientAlertsFromUserAction = () => {
+    if (!showAlertsBanner) return
+    setAlertsBannerDismissed(false)
+  }
 
   // Click outside handler for patient dropdown
   useEffect(() => {
@@ -147,18 +149,10 @@ export const PatientSearch = ({
   }, [])
 
   useEffect(() => {
-    if (selectedPatient && selectedPatient !== _bannerShownForPatient) {
-      setAlertsBannerDismissed(false)
-    } else if (selectedPatient && _bannerShownForPatient === selectedPatient) {
+    if (!selectedPatient) {
       setAlertsBannerDismissed(true)
     }
   }, [selectedPatient])
-
-  useEffect(() => {
-    if (selectedPatient && !alertsBannerDismissed) {
-      _bannerShownForPatient = selectedPatient
-    }
-  }, [selectedPatient, alertsBannerDismissed])
 
   useEffect(() => {
     setStoredValue(STORAGE_KEYS.ACTIVE_MODE, mode)
@@ -296,7 +290,6 @@ export const PatientSearch = ({
               type="button"
               className="fixed inset-0 top-14 left-0 right-0 bottom-0 z-30 md:left-[240px] backdrop-blur-md bg-slate-900/10 cursor-default focus:outline-none"
               onClick={() => {
-                _bannerShownForPatient = selectedPatient || null
                 setAlertsBannerDismissed(true)
               }}
               aria-label="Close patient alerts"
@@ -307,7 +300,6 @@ export const PatientSearch = ({
                 patientName={selectedPatientName || undefined}
                 dismissed={alertsBannerDismissed}
                 onDismiss={() => {
-                  _bannerShownForPatient = selectedPatient || null
                   setAlertsBannerDismissed(true)
                 }}
                 visible={Boolean(selectedPatient)}
@@ -325,6 +317,7 @@ export const PatientSearch = ({
 
   // ✅ Full clear: resets local state, context (patient + visit + admission), and localStorage
   const handleClearPatient = () => {
+    setAlertsBannerDismissed(true)
     onPatientSelect(undefined)
     setGlobalPatient(undefined)
     setSelectedPatientName('')
@@ -438,6 +431,7 @@ export const PatientSearch = ({
                         setSelectedPatientName(patientName)
                         setPatientQuery(patientName)
                         setPatientOpen(false)
+                        showPatientAlertsFromUserAction()
                       }}
                     >
                       <div className="font-medium">{patient.patient_name || patient.name}</div>
@@ -528,6 +522,7 @@ export const PatientSearch = ({
                               const displayName = row.patient_name || row.patient
                               setSelectedPatientName(displayName)
                               setPatientQuery(displayName)
+                              showPatientAlertsFromUserAction()
                             }
                             setSecondaryOpen(false)
                           }}
@@ -563,6 +558,7 @@ export const PatientSearch = ({
           onSuccess={(patientName) => {
             onPatientSelect(patientName)
             setShowCreatePatient(false)
+            showPatientAlertsFromUserAction()
           }}
         />
       )}

@@ -894,6 +894,31 @@ def get_companies(search=None):
 
 
 @frappe.whitelist()
+def get_default_company_currency(company=None):
+	"""Return ``Company.default_currency`` for the named company or the session default company."""
+	comp = (company or "").strip() if company else None
+	if comp:
+		if not frappe.db.exists("Company", comp):
+			frappe.throw(_("Company {0} not found").format(comp))
+		cur = frappe.get_cached_value("Company", comp, "default_currency") or "USD"
+		return {"currency": cur, "company": comp}
+	try:
+		import erpnext
+
+		comp = erpnext.get_default_company()
+		cur = erpnext.get_default_currency() if comp else None
+		return {"currency": (cur or "USD"), "company": comp}
+	except Exception:
+		pass
+	first = frappe.get_all("Company", fields=["name"], order_by="creation asc", limit_page_length=1)
+	if not first:
+		return {"currency": "USD", "company": None}
+	comp = first[0].name
+	cur = frappe.get_cached_value("Company", comp, "default_currency") or "USD"
+	return {"currency": cur, "company": comp}
+
+
+@frappe.whitelist()
 def get_cost_centers(search=None, company=None):
 	"""Get list of Cost Centers. Optionally filter by company (e.g. for transfer admission)."""
 

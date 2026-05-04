@@ -132,7 +132,215 @@ import json
 
 import frappe
 from frappe import _
-from frappe.utils import nowdate
+from frappe.utils import cint, cstr, flt, getdate, nowdate
+
+
+def _billing_item_uom_options(item_code):
+	"""Distinct UOMs from Item (stock, sales, conversion table)."""
+	item = frappe.get_cached_doc("Item", item_code)
+	seen = []
+	for u in (item.stock_uom, item.sales_uom):
+		if u and u not in seen:
+			seen.append(u)
+	for row in item.get("uoms") or []:
+		u = row.uom
+		if u and u not in seen:
+			seen.append(u)
+	return seen
+
+
+def _resolve_healthcare_service_template_for_item(item_code):
+	"""
+	For non-stock (service) Items, find a linked healthcare template (same link pattern as Service Request).
+	Returns (template_doctype, template_name) or (None, None).
+	"""
+	if not item_code or not frappe.db.exists("Item", item_code):
+		return None, None
+	if cint(frappe.db.get_value("Item", item_code, "is_stock_item")):
+		return None, None
+
+	disabled_filter = {"disabled": 0}
+
+	name = frappe.db.get_value("Lab Test Template", {"item": item_code, **disabled_filter}, "name")
+	if name:
+		return "Lab Test Template", name
+
+	name = frappe.db.get_value(
+		"Healthcare Service Template", {"item_code": item_code, **disabled_filter}, "name"
+	)
+	if name:
+		return "Healthcare Service Template", name
+
+	name = frappe.db.get_value(
+		"Clinical Procedure Template", {"item": item_code, **disabled_filter}, "name"
+	)
+	if name:
+		return "Clinical Procedure Template", name
+	name = frappe.db.get_value(
+		"Clinical Procedure Template", {"item_code": item_code, **disabled_filter}, "name"
+	)
+	if name:
+		return "Clinical Procedure Template", name
+
+	name = frappe.db.get_value("Therapy Type", {"item": item_code, **disabled_filter}, "name")
+	if name:
+		return "Therapy Type", name
+
+	name = frappe.db.get_value("Observation Template", {"item": item_code}, "name")
+	if name:
+		return "Observation Template", name
+
+	return None, None
+
+
+@frappe.whitelist()
+def get_sales_item_pricing_for_billing(
+	item_code,
+	company,
+	customer=None,
+	qty=1,
+	posting_date=None,
+	price_list=None,
+	patient=None,
+	uom=None,
+):
+	"""
+	Resolve selling rate and UOMs for billing modals.
+
+	- Stock items: ERPNext get_item_details (Item Price / pricing), then Item.standard_rate, then valuation.
+	- Service items (maintain stock = 0): if linked to Lab / Clinical Procedure / Therapy / Observation /
+	  Healthcare Service template, base rate from template (same fields as service request API);
+	  otherwise same ERPNext chain as above.
+	- When ``patient`` is set and the line is a service item, apply Healthcare Settings patient-category
+	  multiplier (same table as Service Request).
+	"""
+	if not item_code or not company:
+		frappe.throw(_("item_code and company are required"))
+
+	item_code = cstr(item_code).strip()
+	qty = flt(qty) or 1
+	transaction_date = getdate(posting_date) if posting_date else getdate(nowdate())
+	uom = cstr(uom).strip() if uom else None
+
+	selling_price_list = cstr(price_list).strip() if price_list else None
+	if not selling_price_list:
+		selling_price_list = frappe.db.get_single_value("Selling Settings", "selling_price_list")
+	if not selling_price_list and frappe.db.exists("Price List", "Standard Selling"):
+		selling_price_list = "Standard Selling"
+
+	company_currency = frappe.get_cached_value("Company", company, "default_currency")
+	if not company_currency:
+		frappe.throw(_("Company {0} has no default currency").format(company))
+
+	is_stock_item = cint(frappe.db.get_value("Item", item_code, "is_stock_item"))
+	is_service_item = not is_stock_item
+
+	template_dt, template_dn = _resolve_healthcare_service_template_for_item(item_code)
+	template_base = None
+	if template_dt and template_dn:
+		from healthcare.api.service_request import _get_template_base_rate
+
+		template_base = flt(_get_template_base_rate(template_dt, template_dn))
+
+	from erpnext.stock.get_item_details import get_item_details, get_valuation_rate
+
+	out = frappe._dict()
+	try:
+		ctx = frappe._dict(
+			{
+				"item_code": item_code,
+				"company": company,
+				"customer": customer or "",
+				"qty": qty,
+				"doctype": "Sales Invoice",
+				"name": None,
+				"transaction_date": transaction_date,
+				"posting_date": transaction_date,
+				"currency": company_currency,
+				"conversion_rate": 1.0,
+				"price_list": selling_price_list,
+				"selling_price_list": selling_price_list,
+				"plc_conversion_rate": 1.0,
+				"price_list_currency": None,
+				"update_stock": 0,
+				"is_pos": 0,
+				"is_return": 0,
+				"is_subcontracted": 0,
+				"ignore_pricing_rule": 0,
+			}
+		)
+		if uom:
+			ctx["uom"] = uom
+		out = get_item_details(ctx, doc=None, for_validate=False, overwrite_warehouse=True)
+	except Exception:
+		frappe.log_error(frappe.get_traceback(), "get_sales_item_pricing_for_billing")
+
+	erp_rate = flt(out.get("rate")) or flt(out.get("net_rate")) or flt(out.get("price_list_rate"))
+	uom_out = out.get("uom")
+	stock_uom = out.get("stock_uom")
+	item_name = out.get("item_name")
+	warehouse = out.get("warehouse")
+
+	item_meta = frappe.db.get_value(
+		"Item",
+		item_code,
+		["item_name", "stock_uom", "sales_uom", "standard_rate"],
+		as_dict=True,
+	)
+	if item_meta:
+		if not item_name:
+			item_name = item_meta.item_name
+		if not stock_uom:
+			stock_uom = item_meta.stock_uom
+		if not uom_out:
+			uom_out = item_meta.sales_uom or item_meta.stock_uom
+
+	if not erp_rate and item_meta:
+		erp_rate = flt(item_meta.standard_rate)
+
+	if not erp_rate:
+		val = get_valuation_rate(item_code, company, warehouse)
+		erp_rate = flt(val.get("valuation_rate")) if val else 0
+
+	if is_service_item and template_base > 0:
+		base_before_multiplier = template_base
+		pricing_source = "healthcare_template"
+	elif is_service_item:
+		base_before_multiplier = erp_rate
+		pricing_source = "erpnext_service"
+	else:
+		base_before_multiplier = erp_rate
+		pricing_source = "erpnext_stock"
+
+	multiplier = 1.0
+	patient_category = None
+	if patient and is_service_item and frappe.db.exists("Patient", patient):
+		from healthcare.healthcare.doctype.service_request.service_request import (
+			_get_patient_category_multiplier,
+		)
+
+		multiplier, patient_category = _get_patient_category_multiplier(patient)
+
+	final_rate = flt(base_before_multiplier) * flt(multiplier)
+
+	uom_options = _billing_item_uom_options(item_code)
+
+	return {
+		"rate": final_rate,
+		"base_rate": flt(base_before_multiplier),
+		"uom": uom_out,
+		"stock_uom": stock_uom,
+		"item_name": item_name,
+		"price_list": selling_price_list,
+		"is_service_item": int(is_service_item),
+		"is_stock_item": int(is_stock_item),
+		"pricing_source": pricing_source,
+		"service_template_dt": template_dt,
+		"service_template_dn": template_dn,
+		"patient_category": patient_category,
+		"multiplier": multiplier,
+		"uom_options": uom_options,
+	}
 
 @frappe.whitelist()
 def get_inpatient_balances(patient=None):
@@ -380,7 +588,29 @@ def create_payment_entry(invoice_name, payment_amount, payment_mode, cost_center
     try:
         # Get the sales invoice
         invoice = frappe.get_doc("Sales Invoice", invoice_name)
-        
+
+        if invoice.docstatus != 1:
+            return {
+                "success": False,
+                "message": _("Only submitted invoices can receive payments."),
+            }
+
+        outstanding = flt(invoice.outstanding_amount)
+        pay_amt = flt(payment_amount)
+        if outstanding <= 0:
+            return {"success": False, "message": _("This invoice has no outstanding balance.")}
+        if pay_amt <= 0:
+            return {"success": False, "message": _("Payment amount must be greater than zero.")}
+        if pay_amt > outstanding:
+            return {
+                "success": False,
+                "message": _("Payment amount cannot exceed the outstanding amount ({0}).").format(outstanding),
+            }
+
+        if not payment_mode or not cstr(payment_mode).strip():
+            return {"success": False, "message": _("Mode of payment is required.")}
+        payment_mode = cstr(payment_mode).strip()
+
         # Get the company document
         company = frappe.get_doc("Company", invoice.company)
         
@@ -416,8 +646,8 @@ def create_payment_entry(invoice_name, payment_amount, payment_mode, cost_center
         payment_entry.party_type = "Customer"
         payment_entry.party = invoice.customer
         payment_entry.party_name = invoice.customer_name
-        payment_entry.paid_amount = payment_amount
-        payment_entry.received_amount = payment_amount
+        payment_entry.paid_amount = pay_amt
+        payment_entry.received_amount = pay_amt
         payment_entry.reference_date = frappe.utils.today()
         payment_entry.reference_no = reference_number or f"PAY-{invoice_name}"
         payment_entry.mode_of_payment = payment_mode
@@ -442,7 +672,7 @@ def create_payment_entry(invoice_name, payment_amount, payment_mode, cost_center
             "reference_name": invoice_name,
             "total_amount": invoice.outstanding_amount,
             "outstanding_amount": invoice.outstanding_amount,
-            "allocated_amount": payment_amount
+            "allocated_amount": pay_amt
         })
         
         # Insert and submit
@@ -453,7 +683,7 @@ def create_payment_entry(invoice_name, payment_amount, payment_mode, cost_center
         
         return {
             "success": True,
-            "message": f"Payment of {payment_amount} successfully recorded against invoice {invoice_name}",
+            "message": f"Payment of {pay_amt} successfully recorded against invoice {invoice_name}",
             "payment_entry": payment_entry.name
         }
         
@@ -745,17 +975,17 @@ def create_additional_collection_invoice(
         qty = float(row.get("qty") or 0)
         if qty <= 0:
             continue
-        invoice.append(
-            "items",
-            {
-                "item_code": row.get("item_code"),
-                "item_name": row.get("item_name"),
-                "description": row.get("description"),
-                "qty": qty,
-                "rate": float(row.get("rate") or 0),
-                "cost_center": row.get("cost_center") or created_at_cost_center,
-            },
-        )
+        line = {
+            "item_code": row.get("item_code"),
+            "item_name": row.get("item_name"),
+            "description": row.get("description"),
+            "qty": qty,
+            "rate": float(row.get("rate") or 0),
+            "cost_center": row.get("cost_center") or created_at_cost_center,
+        }
+        if row.get("uom"):
+            line["uom"] = row.get("uom")
+        invoice.append("items", line)
 
     if not invoice.items:
         frappe.throw(_("Please add at least one item or sales order"))
@@ -772,6 +1002,7 @@ def create_internal_employee_invoice(
     items,
     posting_date=None,
     due_date=None,
+    patient=None,
 ):
     if not employee_name:
         frappe.throw(_("Employee name is required"))
@@ -793,6 +1024,8 @@ def create_internal_employee_invoice(
     invoice.due_date = due_date or invoice.posting_date
     invoice.custom_created_at = created_at_cost_center
     invoice.custom_internal_employee = 1
+    if patient and frappe.db.exists("Patient", patient):
+        invoice.patient = patient
 
     for row in items:
         if not isinstance(row, dict):
@@ -802,17 +1035,17 @@ def create_internal_employee_invoice(
         qty = float(row.get("qty") or 0)
         if qty <= 0:
             continue
-        invoice.append(
-            "items",
-            {
-                "item_code": row.get("item_code"),
-                "item_name": row.get("item_name"),
-                "description": row.get("description"),
-                "qty": qty,
-                "rate": float(row.get("rate") or 0),
-                "cost_center": row.get("cost_center") or created_at_cost_center,
-            },
-        )
+        line = {
+            "item_code": row.get("item_code"),
+            "item_name": row.get("item_name"),
+            "description": row.get("description"),
+            "qty": qty,
+            "rate": float(row.get("rate") or 0),
+            "cost_center": row.get("cost_center") or created_at_cost_center,
+        }
+        if row.get("uom"):
+            line["uom"] = row.get("uom")
+        invoice.append("items", line)
 
     if not invoice.items:
         frappe.throw(_("Please add at least one valid item"))

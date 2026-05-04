@@ -3,10 +3,9 @@ import { Loader2, ExternalLink } from 'lucide-react'
 import { fetchSalesInvoiceDetail, submitSalesInvoiceDoc, cancelOrDeleteSalesInvoice, type SalesInvoiceDetail } from '../../services/billingSpecialty'
 import { toast } from '../../hooks/useToast'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
-
-function formatMoney(n: number) {
-  return new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES' }).format(n)
-}
+import { useFormatMoney } from '../../hooks/useFormatMoney'
+import { PaymentModal } from './PaymentModal'
+import { canRecordPaymentAgainstSalesInvoice } from '../../utils/specialtyInvoiceActions'
 
 function docstatusLabel(ds: number): string {
   if (ds === 0) return 'Draft'
@@ -30,6 +29,8 @@ export function SpecialtySalesInvoiceSlideOver({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [actionBusy, setActionBusy] = useState<'submit' | 'cancel' | null>(null)
+  const [showPayment, setShowPayment] = useState(false)
+  const formatMoney = useFormatMoney(detail?.company ?? null)
 
   const load = async () => {
     if (!invoiceName) return
@@ -49,6 +50,7 @@ export function SpecialtySalesInvoiceSlideOver({
     if (!invoiceName) {
       setDetail(null)
       setError(null)
+      setShowPayment(false)
       return
     }
     void load()
@@ -92,6 +94,7 @@ export function SpecialtySalesInvoiceSlideOver({
   }
 
   return (
+    <>
     <div className="fixed inset-0 z-[70] flex items-start justify-end" onClick={onClose}>
       <div className="absolute inset-0 bg-black/30" />
       <div
@@ -277,19 +280,59 @@ export function SpecialtySalesInvoiceSlideOver({
                   Submit invoice
                 </button>
               )}
-              <button
-                type="button"
-                disabled={!!actionBusy}
-                onClick={() => void handleCancel()}
-                className="px-4 py-2 rounded-lg border border-red-300 text-red-700 text-sm font-semibold hover:bg-red-50 disabled:opacity-50 inline-flex items-center gap-2 transition-colors"
-              >
-                {actionBusy === 'cancel' && <Loader2 className="w-4 h-4 animate-spin" />}
-                {detail.docstatus === 0 ? 'Discard draft' : 'Cancel invoice'}
-              </button>
+              {detail.docstatus === 1 && canRecordPaymentAgainstSalesInvoice(detail) && (
+                <button
+                  type="button"
+                  disabled={!!actionBusy}
+                  onClick={() => setShowPayment(true)}
+                  className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+                >
+                  Record payment
+                </button>
+              )}
+              {detail.docstatus === 0 && (
+                <button
+                  type="button"
+                  disabled={!!actionBusy}
+                  onClick={() => void handleCancel()}
+                  className="px-4 py-2 rounded-lg border border-red-300 text-red-700 text-sm font-semibold hover:bg-red-50 disabled:opacity-50 inline-flex items-center gap-2 transition-colors"
+                >
+                  {actionBusy === 'cancel' && <Loader2 className="w-4 h-4 animate-spin" />}
+                  Discard draft
+                </button>
+              )}
+              {detail.docstatus === 1 && (
+                <button
+                  type="button"
+                  disabled={!!actionBusy}
+                  onClick={() => void handleCancel()}
+                  className="px-4 py-2 rounded-lg border border-red-300 text-red-700 text-sm font-semibold hover:bg-red-50 disabled:opacity-50 inline-flex items-center gap-2 transition-colors"
+                >
+                  {actionBusy === 'cancel' && <Loader2 className="w-4 h-4 animate-spin" />}
+                  Cancel invoice
+                </button>
+              )}
             </div>
           </div>
         )}
       </div>
+
     </div>
+
+      <PaymentModal
+        isOpen={showPayment}
+        onClose={() => setShowPayment(false)}
+        invoiceName={invoiceName}
+        customerName={detail?.customer_name || detail?.customer || ''}
+        outstandingAmount={detail?.outstanding_amount ?? 0}
+        defaultCompany={detail?.company}
+        defaultCostCenter={detail?.custom_created_at || undefined}
+        onPaymentSuccess={() => {
+          setShowPayment(false)
+          void load()
+          onUpdated?.()
+        }}
+      />
+    </>
   )
 }

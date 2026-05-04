@@ -36,6 +36,7 @@ import {
   Loader2
 } from 'lucide-react'
 import { toast } from '../../hooks/useToast'
+import { useFormatMoney } from '../../hooks/useFormatMoney'
 
 import { ServiceOrdersList } from './ServiceOrdersList'
 import { ServiceInvoicesList } from './ServiceInvoicesList'
@@ -43,11 +44,6 @@ import { InvoiceItemsModal } from './InvoiceItemsModal'
 import { PaymentModal } from './PaymentModal'
 
 type DashboardView = 'overview' | 'orders' | 'invoices' | 'inpatient' | 'outpatient' | 'unpaid' | 'paid'
-
-// Helper function for currency formatting
-const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES' }).format(amount)
-}
 
 // Navigation Button Component
 const NavButton = ({ 
@@ -105,7 +101,8 @@ interface BillingDashboardProps {
 
 export const BillingDashboard = ({ patient, admission, visit }: BillingDashboardProps) => {
   const { mode, activeAdmission, activeVisit, selectedPatient } = useCareContext()
-  
+  const formatCurrency = useFormatMoney()
+
   // Load saved view from localStorage
   const getSavedView = (): DashboardView => {
     const saved = localStorage.getItem('billingDashboardView')

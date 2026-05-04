@@ -1,0 +1,42 @@
+/**
+ * ISO 4217 currencies that use three fraction digits (e.g. BHD fils, KWD).
+ * Others default to two decimals.
+ */
+const THREE_DECIMAL_CURRENCIES = new Set([
+  'BHD',
+  'IQD',
+  'JOD',
+  'KWD',
+  'LYD',
+  'OMR',
+  'TND',
+])
+
+export function currencyFractionDigits(currencyCode: string): number {
+  const c = (currencyCode || 'USD').toUpperCase()
+  return THREE_DECIMAL_CURRENCIES.has(c) ? 3 : 2
+}
+
+/**
+ * Format a monetary amount using the company's ISO currency (from ERPNext Company.default_currency).
+ */
+export function formatMoneyAmount(
+  amount: number,
+  currencyCode: string,
+  locale: string = 'en'
+): string {
+  const currency = (currencyCode || 'USD').toUpperCase()
+  const safe = Number(amount)
+  if (Number.isNaN(safe)) return ''
+  const digits = currencyFractionDigits(currency)
+  try {
+    return new Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency,
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits,
+    }).format(safe)
+  } catch {
+    return `${safe.toFixed(digits)} ${currency}`
+  }
+}

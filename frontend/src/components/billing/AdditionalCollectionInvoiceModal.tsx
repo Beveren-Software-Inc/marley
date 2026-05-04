@@ -16,12 +16,9 @@ import {
 import { toast } from '../../hooks/useToast'
 import { CollapsibleFormSection } from './CollapsibleFormSection'
 import { BillingInvoiceItemsEditor } from './BillingInvoiceItemsEditor'
+import { useFormatMoney } from '../../hooks/useFormatMoney'
 
 type TabId = 'details' | 'items'
-
-function formatCurrency(amount: number) {
-  return new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES' }).format(amount)
-}
 
 const emptyItem = (): BillingInvoiceItemInput => ({
   item_code: '',
@@ -62,6 +59,8 @@ export function AdditionalCollectionInvoiceModal({
   const [saving, setSaving] = useState(false)
   const [encounterOptions, setEncounterOptions] = useState<LinkFieldOption[]>([])
   const [loadingEncounters, setLoadingEncounters] = useState(false)
+
+  const formatCurrency = useFormatMoney(company || null)
 
   const reset = useCallback(() => {
     setActiveTab('details')
@@ -463,6 +462,10 @@ export function AdditionalCollectionInvoiceModal({
                   items={additionalItems}
                   onChange={setAdditionalItems}
                   defaultCostCenter={createdAtCostCenter}
+                  company={company}
+                  customer={customer}
+                  postingDate={postingDate}
+                  patient={patient}
                   addLabel="Add manual line"
                 />
               </CollapsibleFormSection>

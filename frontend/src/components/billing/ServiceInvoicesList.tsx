@@ -4,6 +4,7 @@ import { fetchServiceInvoices, fetchInvoiceSummary, type ServiceInvoice, type In
 import { useCareContext } from '../../providers/CareContextProvider'
 import { RefreshCw, FileText, Eye } from 'lucide-react'
 import { toast } from '../../hooks/useToast'
+import { useFormatMoney } from '../../hooks/useFormatMoney'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 
 interface ServiceInvoicesListProps {
@@ -22,6 +23,7 @@ export const ServiceInvoicesList = ({
   statusFilter: propStatusFilter  // Rename to avoid conflict
 }: ServiceInvoicesListProps) => {
   const { mode, activeAdmission, activeVisit, selectedPatient } = useCareContext()
+  const formatCurrency = useFormatMoney()
   const [invoices, setInvoices] = useState<ServiceInvoice[]>([])
   const [summary, setSummary] = useState<InvoiceSummary | null>(null)
   const [loading, setLoading] = useState(true)
@@ -64,10 +66,6 @@ export const ServiceInvoicesList = ({
   useEffect(() => {
     loadData()
   }, [effectivePatient, effectiveReferenceName, statusFilter])
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES' }).format(amount)
-  }
 
   const getStatusColor = (status: string) => {
     switch (status) {

@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { fetchInvoicesByReference, type ServiceInvoice } from '../../services/serviceOrders'
 import { RefreshCw, FileText, Eye } from 'lucide-react'
 import { toast } from '../../hooks/useToast'
+import { useFormatMoney } from '../../hooks/useFormatMoney'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 
 interface InvoiceListProps {
@@ -22,6 +23,7 @@ export const InvoiceList = ({
   showPrintButton = true,
   onViewInvoice 
 }: InvoiceListProps) => {
+  const formatCurrency = useFormatMoney()
   const [invoices, setInvoices] = useState<ServiceInvoice[]>([])
   const [loading, setLoading] = useState(true)
   const [expandedInvoice, setExpandedInvoice] = useState<string | null>(null)
@@ -48,10 +50,6 @@ export const InvoiceList = ({
   useEffect(() => {
     loadInvoices()
   }, [referenceType, referenceName, patient])
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES' }).format(amount || 0)
-  }
 
   const getStatusColor = (status: string) => {
     switch (status) {

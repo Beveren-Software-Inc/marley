@@ -284,35 +284,38 @@ export const createPaymentEntry = async (
   paymentAmount: number,
   paymentMode: string,
   costCenter?: string,
-  department?:string,
+  department?: string,
   referenceNumber?: string
 ): Promise<PaymentResponse> => {
-  try {
-    const response = await fetch('/api/method/healthcare.api.billing.create_payment_entry', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        // 'X-Frappe-CSRF-Token': frappe.csrf_token
-      },
-      body: JSON.stringify({
-        invoice_name: invoiceName,
-        payment_amount: paymentAmount,
-        payment_mode: paymentMode,
-        cost_center: costCenter,
-        department:department,
-        reference_number: referenceNumber
-      })
-    })
-    
-    const result = await response.json()
-    if (result.message) {
-      return result.message
-    }
-    throw new Error('Failed to create payment entry')
-  } catch (error) {
-    console.error('Error creating payment entry:', error)
-    throw error
+  const { ensureCSRF } = await import('./apiClient')
+  const csrf = await ensureCSRF()
+  const response = await fetch('/api/method/healthcare.api.billing.create_payment_entry', {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
+    },
+    body: JSON.stringify({
+      invoice_name: invoiceName,
+      payment_amount: paymentAmount,
+      payment_mode: paymentMode,
+      cost_center: costCenter,
+      department,
+      reference_number: referenceNumber,
+    }),
+  })
+
+  const result = await response.json()
+  if (!response.ok) {
+    throw new Error(
+      typeof result?.message === 'string' ? result.message : result?.exc || 'Failed to create payment entry'
+    )
   }
+  if (result.message) {
+    return result.message as PaymentResponse
+  }
+  throw new Error('Failed to create payment entry')
 }
 
 export async function fetchOutpatientBalances(patientId?: string): Promise<OutpatientBalance[]> {
@@ -386,6 +389,61 @@ export interface BillingInvoiceItemInput {
   qty: number
   rate: number
   cost_center?: string
+  /** Default sales / line UOM from Item (ERPNext resolution) */
+  uom?: string
+  /** Stock UOM from Item — shown for reference */
+  stock_uom?: string
+  /** UOM choices from Item (stock, sales, conversions) */
+  uom_options?: string[]
+  /** Last server pricing breakdown (service category multiplier, etc.) */
+  billing_price_meta?: {
+    base_rate: number
+    multiplier: number
+    patient_category: string | null
+    pricing_source?: string | null
+  }
+}
+
+export interface SalesItemPricingForBilling {
+  rate: number
+  base_rate?: number
+  uom: string | null
+  stock_uom: string | null
+  item_name?: string | null
+  price_list?: string | null
+  is_service_item?: number
+  is_stock_item?: number
+  pricing_source?: string | null
+  service_template_dt?: string | null
+  service_template_dn?: string | null
+  patient_category?: string | null
+  multiplier?: number
+  uom_options?: string[]
+}
+
+export async function fetchSalesItemPricingForBilling(params: {
+  item_code: string
+  company: string
+  customer?: string
+  patient?: string
+  qty?: number
+  posting_date?: string
+  price_list?: string
+  uom?: string
+}): Promise<SalesItemPricingForBilling> {
+  const csrf = await ensureCSRF()
+  const response = await fetch('/api/method/healthcare.api.billing.get_sales_item_pricing_for_billing', {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
+    },
+    body: JSON.stringify(params),
+  })
+  const data = await response.json()
+  if (!response.ok) throw new Error(data?.message || 'Failed to fetch item price')
+  return data.message as SalesItemPricingForBilling
 }
 
 // services/serviceOrders.ts
@@ -467,6 +525,8 @@ export async function createInternalEmployeeInvoice(payload: {
   items: BillingInvoiceItemInput[]
   posting_date?: string
   due_date?: string
+  /** Optional Patient docname — used for service category multiplier on UI and stored on invoice */
+  patient?: string
 }): Promise<{ name: string; customer: string; grand_total: number }> {
   const csrf = await ensureCSRF()
   const response = await fetch('/api/method/healthcare.api.billing.create_internal_employee_invoice', {

@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { X, Package, TrendingUp, Receipt, Loader2 } from 'lucide-react'
 import { toast } from '../../hooks/useToast'
+import { useFormatMoney } from '../../hooks/useFormatMoney'
 import { getInvoiceDetails, type InvoiceDetails } from '../../services/serviceOrders'
 
 interface InvoiceItemsModalProps {
@@ -11,13 +12,14 @@ interface InvoiceItemsModalProps {
   onMakePayment?: (invoiceName: string) => void
 }
 
-const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES' }).format(amount)
-}
-
 export const InvoiceItemsModal = ({ isOpen, onClose, invoiceName, onMakePayment }: InvoiceItemsModalProps) => {
   const [invoiceDetails, setInvoiceDetails] = useState<InvoiceDetails | null>(null)
   const [loading, setLoading] = useState(false)
+  const formatCurrency = useFormatMoney(invoiceDetails?.company ?? null)
+
+  useEffect(() => {
+    if (!isOpen) setInvoiceDetails(null)
+  }, [isOpen])
 
   useEffect(() => {
     if (isOpen && invoiceName) {

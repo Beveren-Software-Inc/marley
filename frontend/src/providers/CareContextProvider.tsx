@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import { fetchDefaultCompanyCurrency } from '../services/common'
 
 export type CareMode = 'OP' | 'IP'
 
@@ -30,6 +31,8 @@ interface CareContextValue {
   userRole?: string[]
   /** Current user object */
   user?: any
+  /** Default company currency (ISO), from ERPNext Company.default_currency */
+  companyCurrency?: string
 }
 
 const CareContext = createContext<CareContextValue | undefined>(undefined)
@@ -68,6 +71,7 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
   const [userCostCenter, setUserCostCenter] = useState<string | undefined>(undefined)
   const [userRole, setUserRole] = useState<string[] | undefined>(undefined)
   const [user, setUser] = useState<any>(undefined)
+  const [companyCurrency, setCompanyCurrency] = useState<string | undefined>(undefined)
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -111,6 +115,20 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
     loadUserContext()
   }, [])
 
+  useEffect(() => {
+    let cancelled = false
+    fetchDefaultCompanyCurrency()
+      .then((msg) => {
+        if (!cancelled && msg.currency) setCompanyCurrency(msg.currency.toUpperCase())
+      })
+      .catch(() => {
+        if (!cancelled) setCompanyCurrency(undefined)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   const setActiveVisit = (v: string | undefined) => {
     const val = v || undefined
     setActiveVisitState(val)
@@ -137,6 +155,7 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
       userCostCenter,
       userRole,
       user,
+      companyCurrency,
     }}>
       {children}
     </CareContext.Provider>

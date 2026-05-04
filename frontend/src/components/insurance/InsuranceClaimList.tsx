@@ -3,6 +3,8 @@ import { ExternalLink, X } from 'lucide-react'
 import { fetchInsuranceClaims, type InsuranceClaimRow } from '../../services/common'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
+import { useCareContext } from '../../providers/CareContextProvider'
+import { formatMoneyAmount } from '../../utils/currencyFormat'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -14,14 +16,9 @@ const STATUS_COLORS: Record<string, string> = {
   Rejected: 'bg-red-100 text-red-600',
 }
 
-function fmt(amount: number | null | undefined, currency: string = 'BHD'): string {
+function fmt(amount: number | null | undefined, currency: string): string {
   if (amount == null || amount === 0) return '—'
-  return amount.toLocaleString('en-BH', {
-    style: 'currency',
-    currency,
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })
+  return formatMoneyAmount(Number(amount), currency)
 }
 
 function Field({ label, value }: { label: string; value?: string | number | null }) {
@@ -226,8 +223,10 @@ interface InsuranceClaimListProps {
 export const InsuranceClaimList = ({
   refreshKey = 0,
   patient,
-  currency = 'BHD',
+  currency,
 }: InsuranceClaimListProps) => {
+  const { companyCurrency } = useCareContext()
+  const displayCurrency = (currency ?? companyCurrency ?? 'USD').toUpperCase()
   const [rows, setRows] = useState<InsuranceClaimRow[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -337,11 +336,11 @@ export const InsuranceClaimList = ({
           </div>
           <div className="rounded-lg bg-blue-50 border border-blue-100 p-3 text-center">
             <div className="text-xs text-blue-500 mb-0.5">Total Claimed</div>
-            <div className="font-semibold text-blue-800">{fmt(totalClaimed, currency)}</div>
+            <div className="font-semibold text-blue-800">{fmt(totalClaimed, displayCurrency)}</div>
           </div>
           <div className="rounded-lg bg-green-50 border border-green-100 p-3 text-center">
             <div className="text-xs text-green-500 mb-0.5">Total Approved</div>
-            <div className="font-semibold text-green-800">{fmt(totalApproved, currency)}</div>
+            <div className="font-semibold text-green-800">{fmt(totalApproved, displayCurrency)}</div>
           </div>
         </div>
       )}
@@ -397,9 +396,9 @@ export const InsuranceClaimList = ({
                   </td>
                   <td className="px-3 py-2 text-xs text-slate-600">{row.health_insurance || '—'}</td>
                   <td className="px-3 py-2 text-xs text-slate-500">{row.claim_date || '—'}</td>
-                  <td className="px-3 py-2 text-xs text-right font-mono text-slate-700">{fmt(row.total_claimed, currency)}</td>
-                  <td className="px-3 py-2 text-xs text-right font-mono text-green-700">{fmt(row.total_approved, currency)}</td>
-                  <td className="px-3 py-2 text-xs text-right font-mono text-red-600">{fmt(row.total_rejected, currency)}</td>
+                  <td className="px-3 py-2 text-xs text-right font-mono text-slate-700">{fmt(row.total_claimed, displayCurrency)}</td>
+                  <td className="px-3 py-2 text-xs text-right font-mono text-green-700">{fmt(row.total_approved, displayCurrency)}</td>
+                  <td className="px-3 py-2 text-xs text-right font-mono text-red-600">{fmt(row.total_rejected, displayCurrency)}</td>
                   <td className="px-3 py-2 text-xs text-slate-500 font-mono">{row.authorization_no || '—'}</td>
                   <td className="px-3 py-2">
                     <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${STATUS_COLORS[row.status] || 'bg-slate-100 text-slate-600'}`}>
@@ -461,19 +460,19 @@ export const InsuranceClaimList = ({
               {/* Financial summary */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div className="rounded-lg bg-blue-50 border border-blue-100 px-3 py-3 text-center">
-                  <p className="text-base font-bold text-blue-800">{fmt(detailRow.total_claimed, currency)}</p>
+                  <p className="text-base font-bold text-blue-800">{fmt(detailRow.total_claimed, displayCurrency)}</p>
                   <p className="text-xs text-blue-500 mt-0.5">Claimed</p>
                 </div>
                 <div className="rounded-lg bg-green-50 border border-green-100 px-3 py-3 text-center">
-                  <p className="text-base font-bold text-green-800">{fmt(detailRow.total_approved, currency)}</p>
+                  <p className="text-base font-bold text-green-800">{fmt(detailRow.total_approved, displayCurrency)}</p>
                   <p className="text-xs text-green-500 mt-0.5">Approved</p>
                 </div>
                 <div className="rounded-lg bg-red-50 border border-red-100 px-3 py-3 text-center">
-                  <p className="text-base font-bold text-red-700">{fmt(detailRow.total_rejected, currency)}</p>
+                  <p className="text-base font-bold text-red-700">{fmt(detailRow.total_rejected, displayCurrency)}</p>
                   <p className="text-xs text-red-400 mt-0.5">Rejected</p>
                 </div>
                 <div className="rounded-lg bg-amber-50 border border-amber-100 px-3 py-3 text-center">
-                  <p className="text-base font-bold text-amber-800">{fmt(detailRow.total_patient_liability, currency)}</p>
+                  <p className="text-base font-bold text-amber-800">{fmt(detailRow.total_patient_liability, displayCurrency)}</p>
                   <p className="text-xs text-amber-500 mt-0.5">Patient Liability</p>
                 </div>
               </div>
@@ -529,7 +528,7 @@ export const InsuranceClaimList = ({
       {updateTarget && (
         <UpdateClaimModal
           row={updateTarget}
-          currency={currency}
+          currency={displayCurrency}
           onClose={() => setUpdateTarget(null)}
           onSuccess={updates => handleUpdateSuccess(updateTarget.name, updates)}
         />

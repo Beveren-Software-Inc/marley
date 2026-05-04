@@ -236,15 +236,7 @@ export function PatientMedicalHistoryList({ patient, patientName, refreshKey }: 
           className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
         >
           +
-         
-
-          {/* <button
-          onClick={onAdd}
-          className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
-          title={addButtonTitle}
-        >
-          +
-        </button> */}
+       
 
         </button>
       </div>

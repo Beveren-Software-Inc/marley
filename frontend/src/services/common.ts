@@ -468,6 +468,33 @@ export async function fetchCompanies(search?: string): Promise<LinkFieldOption[]
   return []
 }
 
+export interface DefaultCompanyCurrency {
+  currency: string
+  company: string | null
+}
+
+/** ERPNext ``Company.default_currency`` for ``company`` or the user's default company. */
+export async function fetchDefaultCompanyCurrency(company?: string): Promise<DefaultCompanyCurrency> {
+  const params = new URLSearchParams()
+  if (company?.trim()) params.set('company', company.trim())
+  const qs = params.toString()
+  const url = `/api/method/healthcare.api.common.get_default_company_currency${qs ? `?${qs}` : ''}`
+  const response = await fetch(url, { credentials: 'include' })
+  const data = await response.json()
+  if (!response.ok) {
+    throw new Error(
+      typeof data?.message === 'string' ? data.message : data?.exc || 'Failed to load currency'
+    )
+  }
+  const msg = data?.message
+
+  console.log("Where",msg)
+  return {
+    currency: (msg?.currency as string) || 'USD',
+    company: (msg?.company as string) || null,
+  }
+}
+
 export async function fetchCostCenters(company?: string, search?: string): Promise<LinkFieldOption[]> {
   const params = new URLSearchParams()
   if (company) params.append('company', company)

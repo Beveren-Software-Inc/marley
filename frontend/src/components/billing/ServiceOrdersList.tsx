@@ -10,6 +10,7 @@ import {
 import { useCareContext } from '../../providers/CareContextProvider'
 import { RefreshCw, FileText, AlertCircle, CheckCircle, Clock, Package } from 'lucide-react'
 import { toast } from '../../hooks/useToast'
+import { useFormatMoney } from '../../hooks/useFormatMoney'
 
 interface ServiceOrdersListProps {
   patient?: string
@@ -21,6 +22,7 @@ interface ServiceOrdersListProps {
 
 export const ServiceOrdersList = ({ patient, admission, visit, onViewOrder }: ServiceOrdersListProps) => {
   const { mode, activeAdmission, activeVisit, selectedPatient } = useCareContext()
+  const formatCurrency = useFormatMoney()
   const [orders, setOrders] = useState<ServiceOrder[]>([])
   const [summary, setSummary] = useState<OrderSummary | null>(null)
   const [loading, setLoading] = useState(true)
@@ -76,10 +78,6 @@ export const ServiceOrdersList = ({ patient, admission, visit, onViewOrder }: Se
     } finally {
       setCreatingInvoice(false)
     }
-  }
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES' }).format(amount)
   }
 
   const getStatusColor = (status: string) => {
