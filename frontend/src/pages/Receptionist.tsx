@@ -495,7 +495,7 @@ export const ReceptionistPage = () => {
           <div className="p-4">
             <div className="mb-4 flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-semibold text-slate-900">Internal Transfer</h2>
+                <h2 className="text-xl font-semibold text-slate-900">Branch Transfer</h2>
                 <p className="text-sm text-slate-600 mt-1">
                   Transfer admitted patients internally between cost centers.
                 </p>
