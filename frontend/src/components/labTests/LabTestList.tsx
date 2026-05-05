@@ -797,7 +797,6 @@ export const LabTestList = ({
       const issuedOn = new Date().toLocaleString()
       const first = fullTests[0]
       const { content: letterHeadContent, footer: letterHeadFooter } = await fetchCostCenterLetterHead((first as any)?.cost_center)
-      console.log("this is what",letterHeadContent)
       const rowsHtml = fullTests.map((test) => {
         const normalItems = ((test as any).normal_test_items || []) as any[]
         const descriptiveItems = ((test as any).descriptive_test_items || []) as any[]
