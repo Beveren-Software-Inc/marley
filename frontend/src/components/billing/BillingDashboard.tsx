@@ -10,6 +10,8 @@ import {
   fetchOutpatientBalances,
   fetchBillingCostCenterScope,
   fetchPatientBillingCostCenterBreakdown,
+  fetchPaymentEntries,
+  fetchPaymentSummary,
   getInvoicesByReference,
   getInvoiceDetails,
   type ServiceOrder,
@@ -19,6 +21,8 @@ import {
   type InpatientBalance,
   type OutpatientBalance,
   type PatientBillingCcRow,
+  type PaymentEntryRow,
+  type PaymentSummary,
 } from '../../services/serviceOrders'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { 
@@ -36,7 +40,11 @@ import {
   Users,
   User,
   Filter,
-  Loader2
+  Loader2,
+  CalendarRange,
+  Printer,
+  FileDown,
+  X,
 } from 'lucide-react'
 import { toast } from '../../hooks/useToast'
 import { useFormatMoney } from '../../hooks/useFormatMoney'
@@ -47,7 +55,7 @@ import { PaymentModal } from './PaymentModal'
 import { SpecialtySalesInvoiceSlideOver } from './SpecialtySalesInvoiceSlideOver'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 
-type DashboardView = 'overview' | 'orders' | 'invoices' | 'inpatient' | 'outpatient' | 'unpaid' | 'paid'
+type DashboardView = 'overview' | 'orders' | 'invoices' | 'inpatient' | 'outpatient' | 'unpaid' | 'paid' | 'payments'
 
 // Navigation Button Component
 const NavButton = ({ 
@@ -110,7 +118,7 @@ export const BillingDashboard = ({ patient, admission, visit }: BillingDashboard
   // Load saved view from localStorage
   const getSavedView = (): DashboardView => {
     const saved = localStorage.getItem('billingDashboardView')
-    if (saved === 'overview' || saved === 'orders' || saved === 'invoices' || saved === 'inpatient' || saved === 'outpatient' || saved === 'unpaid' || saved === 'paid') {
+    if (saved === 'overview' || saved === 'orders' || saved === 'invoices' || saved === 'inpatient' || saved === 'outpatient' || saved === 'unpaid' || saved === 'paid' || saved === 'payments') {
       return saved as DashboardView
     }
     return 'overview'
@@ -144,6 +152,11 @@ export const BillingDashboard = ({ patient, admission, visit }: BillingDashboard
   const [invoiceListRefreshKey, setInvoiceListRefreshKey] = useState(0)
   const [billingCcRestricted, setBillingCcRestricted] = useState<boolean | null>(null)
   const [ccBreakdown, setCcBreakdown] = useState<PatientBillingCcRow[]>([])
+  const [payments, setPayments] = useState<PaymentEntryRow[]>([])
+  const [paymentSummary, setPaymentSummary] = useState<PaymentSummary | null>(null)
+  const [showDateFilters, setShowDateFilters] = useState(false)
+  const [fromDate, setFromDate] = useState('')
+  const [toDate, setToDate] = useState('')
 
   const effectivePatient = patient ?? selectedPatient
   const effectiveReferenceType = mode === 'IP' ? 'Inpatient Admission' : 'Patient Visit'
@@ -249,23 +262,36 @@ const handleMakePayment = async (
 
   const loadDashboardData = async () => {
     if (!effectivePatient && !effectiveReferenceName) {
-      setOrderSummary(null)
-      setInvoiceSummary(null)
-      setRecentOrders([])
-      setRecentInvoices([])
-      setBillingCcRestricted(null)
-      setCcBreakdown([])
-      setLoading(false)
+      try {
+        setLoading(true)
+        const [paymentRows, paySummary] = await Promise.all([
+          fetchPaymentEntries(undefined, undefined, undefined, fromDate || undefined, toDate || undefined),
+          fetchPaymentSummary(undefined, undefined, undefined, fromDate || undefined, toDate || undefined),
+        ])
+        setPayments(paymentRows)
+        setPaymentSummary(paySummary)
+      } catch {
+        setPayments([])
+        setPaymentSummary(null)
+      } finally {
+        setOrderSummary(null)
+        setInvoiceSummary(null)
+        setRecentOrders([])
+        setRecentInvoices([])
+        setBillingCcRestricted(null)
+        setCcBreakdown([])
+        setLoading(false)
+      }
       return
     }
 
     try {
       setLoading(true)
       const [ordersSummary, invSummary, recentOrdersData, recentInvoicesData] = await Promise.all([
-        fetchServiceOrderSummary(effectiveReferenceType, effectiveReferenceName, effectivePatient),
-        fetchInvoiceSummary(effectiveReferenceType, effectiveReferenceName, effectivePatient),
-        fetchServiceOrders(effectiveReferenceType, effectiveReferenceName, effectivePatient, undefined),
-        fetchServiceInvoices(effectiveReferenceType, effectiveReferenceName, effectivePatient, undefined),
+        fetchServiceOrderSummary(effectiveReferenceType, effectiveReferenceName, effectivePatient, fromDate || undefined, toDate || undefined),
+        fetchInvoiceSummary(effectiveReferenceType, effectiveReferenceName, effectivePatient, fromDate || undefined, toDate || undefined),
+        fetchServiceOrders(effectiveReferenceType, effectiveReferenceName, effectivePatient, undefined, fromDate || undefined, toDate || undefined),
+        fetchServiceInvoices(effectiveReferenceType, effectiveReferenceName, effectivePatient, undefined, fromDate || undefined, toDate || undefined),
       ])
 
       setOrderSummary(ordersSummary)
@@ -274,19 +300,25 @@ const handleMakePayment = async (
       setRecentInvoices(recentInvoicesData)
 
       try {
-        const [ccScope, ccBreakdownRes] = await Promise.all([
+        const [ccScope, ccBreakdownRes, paymentRows, paySummary] = await Promise.all([
           fetchBillingCostCenterScope(),
           fetchPatientBillingCostCenterBreakdown(
             effectiveReferenceType,
             effectiveReferenceName,
             effectivePatient
           ),
+          fetchPaymentEntries(effectiveReferenceType, effectiveReferenceName, effectivePatient, fromDate || undefined, toDate || undefined),
+          fetchPaymentSummary(effectiveReferenceType, effectiveReferenceName, effectivePatient, fromDate || undefined, toDate || undefined),
         ])
         setBillingCcRestricted(!!ccScope.restricted)
         setCcBreakdown(ccBreakdownRes.restricted ? [] : ccBreakdownRes.rows || [])
+        setPayments(paymentRows)
+        setPaymentSummary(paySummary)
       } catch {
         setBillingCcRestricted(null)
         setCcBreakdown([])
+        setPayments([])
+        setPaymentSummary(null)
       }
     } catch (error) {
       console.error('Failed to load dashboard data:', error)
@@ -299,7 +331,7 @@ const handleMakePayment = async (
   const loadInpatientBalances = async () => {
     try {
       setLoading(true)
-      const balances = await fetchInpatientBalances(effectivePatient)
+      const balances = await fetchInpatientBalances(effectivePatient, fromDate || undefined, toDate || undefined)
       setInpatientBalances(balances)
       setFilteredInpatient(balances)
     } catch (error) {
@@ -313,7 +345,7 @@ const handleMakePayment = async (
   const loadOutpatientBalances = async () => {
     try {
       setLoading(true)
-      const balances = await fetchOutpatientBalances(effectivePatient)
+      const balances = await fetchOutpatientBalances(effectivePatient, fromDate || undefined, toDate || undefined)
       setOutpatientBalances(balances)
       setFilteredOutpatient(balances)
     } catch (error) {
@@ -332,7 +364,7 @@ const handleMakePayment = async (
     } else {
       loadDashboardData()
     }
-  }, [currentView, effectivePatient, effectiveReferenceName])
+  }, [currentView, effectivePatient, effectiveReferenceName, fromDate, toDate])
 
   // Filter inpatient balances
   useEffect(() => {
@@ -506,6 +538,21 @@ const handleMakePayment = async (
           onClick={() => handleViewChange('outpatient')}
           count={outpatientBalances.length}
         />
+        <NavButton
+          icon={CreditCard}
+          label="Payments"
+          isActive={currentView === 'payments'}
+          onClick={() => handleViewChange('payments')}
+          count={payments.length}
+        />
+        <button
+          type="button"
+          onClick={() => setShowDateFilters((v) => !v)}
+          className="ml-auto inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200"
+        >
+          <CalendarRange className="w-4 h-4 text-primary" />
+          <span className="text-sm font-medium">Date Filters</span>
+        </button>
       </div>
     )
   }
@@ -543,6 +590,7 @@ const handleMakePayment = async (
     return (
       <div className="space-y-4">
         <NavigationRow />
+        <DateFiltersPanel />
         <div className="flex items-center justify-center h-96">
           <div className="text-slate-500">Loading balances...</div>
         </div>
@@ -565,10 +613,13 @@ const handleMakePayment = async (
     return (
       <div className="space-y-4">
         <NavigationRow />
+        <DateFiltersPanel />
         <ServiceOrdersList 
           patient={effectivePatient}
           admission={effectiveReferenceName}
           visit={effectiveReferenceType === 'Patient Visit' ? effectiveReferenceName : undefined}
+          fromDate={fromDate || undefined}
+          toDate={toDate || undefined}
         />
         <SharedModals />
       </div>
@@ -580,6 +631,7 @@ const handleMakePayment = async (
     return (
       <div className="space-y-4">
         <NavigationRow />
+        <DateFiltersPanel />
         <ServiceInvoicesList
           patient={effectivePatient}
           admission={effectiveReferenceName}
@@ -587,6 +639,8 @@ const handleMakePayment = async (
           onOpenInvoiceDetail={(name) => setSalesInvoiceDetailName(name)}
           invoiceRefreshKey={invoiceListRefreshKey}
           onAfterInvoiceMutation={notifyInvoiceDataChanged}
+          fromDate={fromDate || undefined}
+          toDate={toDate || undefined}
         />
         <SharedModals />
       </div>
@@ -611,6 +665,8 @@ const handleMakePayment = async (
           onOpenInvoiceDetail={(name) => setSalesInvoiceDetailName(name)}
           invoiceRefreshKey={invoiceListRefreshKey}
           onAfterInvoiceMutation={notifyInvoiceDataChanged}
+          fromDate={fromDate || undefined}
+          toDate={toDate || undefined}
         />
         <SharedModals />
       </div>
@@ -635,8 +691,93 @@ const handleMakePayment = async (
           onOpenInvoiceDetail={(name) => setSalesInvoiceDetailName(name)}
           invoiceRefreshKey={invoiceListRefreshKey}
           onAfterInvoiceMutation={notifyInvoiceDataChanged}
+          fromDate={fromDate || undefined}
+          toDate={toDate || undefined}
         />
         <SharedModals />
+      </div>
+    )
+  }
+
+  function DateFiltersPanel() {
+    if (!showDateFilters) return null
+    return (
+      <div className="bg-white rounded-lg border border-slate-200 p-3 flex flex-wrap gap-3 items-end">
+        <div>
+          <label className="block text-xs text-slate-600 mb-1">From</label>
+          <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
+        </div>
+        <div>
+          <label className="block text-xs text-slate-600 mb-1">To</label>
+          <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
+        </div>
+        <button type="button" onClick={() => { setFromDate(''); setToDate('') }} className="inline-flex items-center gap-1 px-3 py-2 text-sm border border-slate-300 rounded-md">
+          <X className="w-3 h-3" /> Clear
+        </button>
+      </div>
+    )
+  }
+
+  const exportPaymentsCsv = () => {
+    const headers = ['Payment Entry', 'Posting Date', 'Mode', 'Amount', 'Party', 'Invoice', 'Reference Type', 'Reference Name']
+    const rows = payments.map((p) => [p.name, p.posting_date || '', p.mode_of_payment || '', String(p.paid_amount ?? 0), p.party_name || '', p.invoice_name || '', p.invoice_reference_type || '', p.invoice_reference_name || ''])
+    const csv = [headers, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `payments-${fromDate || 'all'}-${toDate || 'all'}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const printPayments = () => {
+    const win = window.open('', '_blank', 'width=1200,height=800')
+    if (!win) return
+    const rows = payments.map((p) => `<tr><td>${p.name}</td><td>${p.posting_date || ''}</td><td>${p.mode_of_payment || ''}</td><td>${formatCurrency(p.paid_amount || 0)}</td><td>${p.party_name || ''}</td><td>${p.invoice_name || ''}</td></tr>`).join('')
+    win.document.write(`<html><head><title>Payment Listing</title></head><body><h3>Payment Listing</h3><table border="1" cellspacing="0" cellpadding="6"><thead><tr><th>Payment Entry</th><th>Date</th><th>Mode</th><th>Amount</th><th>Party</th><th>Invoice</th></tr></thead><tbody>${rows}</tbody></table></body></html>`)
+    win.document.close()
+    win.print()
+  }
+
+  if (currentView === 'payments') {
+    return (
+      <div className="space-y-4">
+        <NavigationRow />
+        <DateFiltersPanel />
+        <DateFiltersPanel />
+        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+          <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+            <h3 className="font-semibold text-slate-800">Payments</h3>
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={printPayments} className="inline-flex items-center gap-1 px-3 py-1.5 rounded border border-slate-300 text-xs"><Printer className="w-3 h-3" /> PDF</button>
+              <button type="button" onClick={exportPaymentsCsv} className="inline-flex items-center gap-1 px-3 py-1.5 rounded border border-slate-300 text-xs"><FileDown className="w-3 h-3" /> Excel</button>
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 border-b border-slate-200">
+                <tr>
+                  <th className="px-3 py-2 text-left">Payment</th><th className="px-3 py-2 text-left">Date</th><th className="px-3 py-2 text-left">Mode</th><th className="px-3 py-2 text-right">Amount</th><th className="px-3 py-2 text-left">Invoice</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {payments.map((p) => (
+                  <tr key={p.name}>
+                    <td className="px-3 py-2 font-mono text-xs">{p.name}</td>
+                    <td className="px-3 py-2">{p.posting_date || '-'}</td>
+                    <td className="px-3 py-2">{p.mode_of_payment || '-'}</td>
+                    <td className="px-3 py-2 text-right">{formatCurrency(p.paid_amount || 0)}</td>
+                    <td className="px-3 py-2">{p.invoice_name || '-'}</td>
+                  </tr>
+                ))}
+                {payments.length === 0 && (
+                  <tr><td colSpan={5} className="px-3 py-6 text-center text-slate-500">No payments found for selected filters.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
     )
   }
@@ -650,6 +791,7 @@ const handleMakePayment = async (
     return (
       <div className="space-y-6">
         <NavigationRow />
+        <DateFiltersPanel />
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <StatCard
@@ -806,6 +948,7 @@ const handleMakePayment = async (
     return (
       <div className="space-y-6">
         <NavigationRow />
+        <DateFiltersPanel />
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <StatCard title="Total Outstanding" value={formatCurrency(totalOutstanding)} subValue={`Across ${outpatientBalances.length} visits`} icon={AlertCircle} color="bg-red-50 text-red-600" />
@@ -945,6 +1088,7 @@ const handleMakePayment = async (
   return (
     <div className="space-y-6">
       <NavigationRow />
+      <DateFiltersPanel />
 
       {billingCcRestricted === true && (effectivePatient || effectiveReferenceName) && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
@@ -1114,11 +1258,29 @@ const handleMakePayment = async (
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 p-5">
-        <h3 className="font-semibold text-slate-800 mb-4">Payment Summary</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-green-50 rounded-lg p-4 text-center"><CreditCard className="w-6 h-6 text-green-600 mx-auto mb-2" /><p className="text-2xl font-bold text-green-600">{formatCurrency(invoiceSummary?.total_paid || 0)}</p><p className="text-xs text-green-700">Total Paid</p><p className="text-xs text-green-600 mt-1">{invoiceSummary?.paid.count || 0} invoices</p></div>
-          <div className="bg-yellow-50 rounded-lg p-4 text-center"><Clock className="w-6 h-6 text-yellow-600 mx-auto mb-2" /><p className="text-2xl font-bold text-yellow-600">{formatCurrency(invoiceSummary?.unpaid.amount || 0)}</p><p className="text-xs text-yellow-700">Unpaid</p><p className="text-xs text-yellow-600 mt-1">{invoiceSummary?.unpaid.count || 0} invoices</p></div>
-          <div className="bg-red-50 rounded-lg p-4 text-center"><AlertCircle className="w-6 h-6 text-red-600 mx-auto mb-2" /><p className="text-2xl font-bold text-red-600">{formatCurrency(invoiceSummary?.overdue.amount || 0)}</p><p className="text-xs text-red-700">Overdue</p><p className="text-xs text-red-600 mt-1">{invoiceSummary?.overdue.count || 0} invoices</p></div>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-semibold text-slate-800">Payment Summary</h3>
+          <button type="button" onClick={() => handleViewChange('payments')} className="text-xs text-primary hover:underline">
+            Open payments
+          </button>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-green-50 rounded-lg p-4">
+            <p className="text-xs text-green-700">Total Paid</p>
+            <p className="text-2xl font-bold text-green-600">{formatCurrency(paymentSummary?.total_paid || 0)}</p>
+            <p className="text-xs text-green-600 mt-1">{paymentSummary?.payment_count || 0} payments</p>
+          </div>
+          <div className="bg-slate-50 rounded-lg p-4">
+            <p className="text-xs text-slate-600 mb-2">Mode breakdown</p>
+            <div className="space-y-1">
+              {(paymentSummary?.modes || []).slice(0, 5).map((mode) => (
+                <div key={mode.mode_of_payment} className="flex items-center justify-between text-xs">
+                  <span className="text-slate-700">{mode.mode_of_payment} ({mode.count})</span>
+                  <span className="font-medium text-slate-900">{formatCurrency(mode.amount)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
 

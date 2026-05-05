@@ -239,6 +239,37 @@ export const PatientVisitList = ({
   const statuses = ['Open', 'Ordered', 'Completed', 'Cancelled']
   const inputClass = 'w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white'
 
+  const exportFilteredCsv = () => {
+    const headers = ['Visit No', 'Patient', 'Practitioner', 'Encounter Date', 'Lab Amount', 'Pharmacy Amount', 'Service Amount', 'Status']
+    const rows = visits.map((v) => [
+      v.value,
+      v.patient_name || '',
+      v.practitioner_name || '',
+      v.encounter_date || '',
+      String(v.lab_amount ?? 0),
+      String(v.pharmacy_amount ?? 0),
+      String(v.service_amount ?? 0),
+      v.status || '',
+    ])
+    const csv = [headers, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `patient-visits-${dateFrom || 'all'}-${dateTo || 'all'}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const printFilteredList = () => {
+    const win = window.open('', '_blank', 'width=1200,height=800')
+    if (!win) return
+    const rows = visits.map((v) => `<tr><td>${v.value}</td><td>${v.patient_name || ''}</td><td>${v.practitioner_name || ''}</td><td>${v.encounter_date || ''}</td><td>${formatAmount(v.lab_amount)}</td><td>${formatAmount(v.pharmacy_amount)}</td><td>${formatAmount(v.service_amount)}</td><td>${v.status || ''}</td></tr>`).join('')
+    win.document.write(`<html><head><title>Patient Visit Listing</title></head><body><h3>Patient Visit Listing</h3><table border="1" cellspacing="0" cellpadding="6"><thead><tr><th>Visit No</th><th>Patient</th><th>Practitioner</th><th>Encounter Date</th><th>Lab</th><th>Pharmacy</th><th>Service</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></body></html>`)
+    win.document.close()
+    win.print()
+  }
+
   return (
     <>
       {/* Global-context active visit banner */}
@@ -252,6 +283,11 @@ export const PatientVisitList = ({
       )}
 
       {/* --- Filters (hidden when a specific visit is globally active) --- */}
+      <div className="flex items-center justify-end gap-2 mb-3">
+        <button type="button" onClick={printFilteredList} className="px-3 py-1.5 text-xs border border-slate-300 rounded-md hover:bg-slate-50">PDF</button>
+        <button type="button" onClick={exportFilteredCsv} className="px-3 py-1.5 text-xs border border-slate-300 rounded-md hover:bg-slate-50">Excel</button>
+      </div>
+
       {!effectiveVisitFilter && (
       <div className="flex flex-wrap gap-3 mb-4 items-end">
 

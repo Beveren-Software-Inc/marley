@@ -8,6 +8,8 @@ def get_service_invoices(
     reference_name=None,
     patient=None,
     status=None,
+    from_date=None,
+    to_date=None,
     limit=50,
     offset=0
 ):
@@ -29,6 +31,12 @@ def get_service_invoices(
                 filters["status"] = parts[0] if parts else status
         else:
             filters["status"] = status
+    if from_date and to_date:
+        filters['posting_date'] = ['between', [from_date, to_date]]
+    elif from_date:
+        filters['posting_date'] = ['>=', from_date]
+    elif to_date:
+        filters['posting_date'] = ['<=', to_date]
     # Get permitted cost centers
     from healthcare.api.common import get_permitted_cost_centers
     permitted_cc = get_permitted_cost_centers()
@@ -87,7 +95,7 @@ def get_service_invoices(
 
 
 @frappe.whitelist()
-def get_invoice_summary(reference_type=None, reference_name=None, patient=None):
+def get_invoice_summary(reference_type=None, reference_name=None, patient=None, from_date=None, to_date=None):
     """Get summary of invoices for a reference"""
     filters = {}
 
@@ -97,6 +105,12 @@ def get_invoice_summary(reference_type=None, reference_name=None, patient=None):
         filters['custom_reference_name'] = reference_name
     if patient:
         filters['patient'] = patient
+    if from_date and to_date:
+        filters['posting_date'] = ['between', [from_date, to_date]]
+    elif from_date:
+        filters['posting_date'] = ['>=', from_date]
+    elif to_date:
+        filters['posting_date'] = ['<=', to_date]
 
     from healthcare.api.common import get_permitted_cost_centers
     permitted_cc = get_permitted_cost_centers()
