@@ -52,6 +52,40 @@ const statusColors: Record<string, string> = {
   'Sample Collected': 'info', 'Testing in progress': 'info',
 }
 
+const escapeHtml = (value: unknown): string =>
+  String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+
+const fetchCostCenterLetterHead = async (costCenter?: string): Promise<{ content: string; footer: string }> => {
+  if (!costCenter) return { content: '', footer: '' }
+  try {
+    const ccRes = await fetch(
+      `/api/method/frappe.client.get_value?doctype=Cost+Center&fieldname=custom_letter_head&filters=${encodeURIComponent(JSON.stringify({ name: costCenter }))}`,
+      { credentials: 'include' }
+    )
+    const ccData = await ccRes.json().catch(() => ({}))
+    const letterHeadName = ccData?.message?.custom_letter_head as string | undefined
+    if (!letterHeadName) return { content: '', footer: '' }
+
+    const lhRes = await fetch(
+      `/api/method/frappe.client.get?doctype=Letter+Head&name=${encodeURIComponent(letterHeadName)}`,
+      { credentials: 'include' }
+    )
+    const lhData = await lhRes.json().catch(() => ({}))
+    const doc = lhData?.message || {}
+    return {
+      content: String(doc.content || ''),
+      footer: String(doc.footer || ''),
+    }
+  } catch {
+    return { content: '', footer: '' }
+  }
+}
+
 interface Filters {
   status: string; fromDate: string; toDate: string
   isOutsourced: string; opIp: string; template: string; templateLabel: string
@@ -756,6 +790,127 @@ export const LabTestList = ({
     </td>
   )
 
+  const handlePrintGroup = async (serviceRequest: string, groupLabel: string, children: LabTest[]) => {
+    
+    try {
+      const fullTests = await Promise.all(children.map((c) => fetchLabTest(c.name)))
+      const issuedOn = new Date().toLocaleString()
+      const first = fullTests[0]
+      const { content: letterHeadContent, footer: letterHeadFooter } = await fetchCostCenterLetterHead((first as any)?.cost_center)
+      console.log("this is what",letterHeadContent)
+      const rowsHtml = fullTests.map((test) => {
+        const normalItems = ((test as any).normal_test_items || []) as any[]
+        const descriptiveItems = ((test as any).descriptive_test_items || []) as any[]
+
+        const resultBits: string[] = []
+        normalItems.forEach((item) => {
+          const main = `${item.result_value ?? ''}${item.lab_test_uom ? ` ${item.lab_test_uom}` : ''}`.trim()
+          const range = item.normal_range ? ` (Range: ${item.normal_range})` : ''
+          const flag = item.result_status ? ` [${item.result_status}]` : ''
+          if (main) resultBits.push(`${main}${range}${flag}`)
+        })
+        descriptiveItems.forEach((item) => {
+          if (item.lab_test_comment) resultBits.push(String(item.lab_test_comment))
+        })
+        if (!resultBits.length && (test as any).custom_result) {
+          resultBits.push(String((test as any).custom_result))
+        }
+        const combinedResult = resultBits.length ? resultBits.join(' | ') : 'No result entered'
+
+        return `
+          <tr>
+            <td>${escapeHtml(test.lab_test_name || test.name)}</td>
+            <td>${escapeHtml(combinedResult)}</td>
+            <td>${escapeHtml(test.status || 'Draft')}</td>
+            <td>${escapeHtml(test.result_date || '')}</td>
+          </tr>
+        `
+      }).join('')
+
+      const html = `
+        <html>
+          <head>
+            <title>Group Lab Test Print</title>
+            <style>
+              body { font-family: Arial, sans-serif; padding: 20px 20px 120px; color: #1f2937; }
+              h1 { margin: 0; font-size: 20px; color: #1e3a8a; }
+              .top { margin-bottom: 14px; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; }
+              .meta { font-size: 12px; color: #475569; margin-top: 4px; }
+              .letter-head-top { margin-bottom: 10px; }
+              .letter-head-footer { margin-top: 20px; }
+              .patient-table { width: 100%; border-collapse: collapse; margin: 10px 0 14px; }
+              .patient-table td { border: 1px solid #cbd5e1; padding: 6px 8px; font-size: 12px; }
+              .lbl { font-weight: bold; color: #1e3a8a; width: 16%; }
+              table { width: 100%; border-collapse: collapse; font-size: 12px; }
+              th, td { border: 1px solid #cbd5e1; padding: 6px; text-align: left; vertical-align: top; }
+              th { background: #f1f5f9; }
+              @media print {
+                @page { margin: 16mm 12mm 18mm; }
+                body { padding: 0 0 95px 0; }
+                .letter-head-footer {
+                  position: fixed;
+                  left: 0;
+                  right: 0;
+                  bottom: 0;
+                  margin: 0;
+                  padding: 6px 12px 0;
+                  background: #fff;
+                }
+              }
+            </style>
+          </head>
+          <body>
+            ${letterHeadContent ? `<div class="letter-head-top">${letterHeadContent}</div>` : ''}
+            <div class="top">
+              <h1>${escapeHtml(groupLabel)} - Group Test Report</h1>
+              <div class="meta">Group Reference: ${escapeHtml(serviceRequest)} | Patient: ${escapeHtml(first?.patient_name || first?.patient || '')}</div>
+              <div class="meta">Printed On: ${escapeHtml(issuedOn)} | Total Tests: ${fullTests.length}</div>
+            </div>
+
+            <table class="patient-table">
+              <tr>
+                <td class="lbl">Patient Name</td><td>${escapeHtml(first?.patient_name || first?.patient || '')}</td>
+                <td class="lbl">Request No.</td><td>${escapeHtml(serviceRequest)}</td>
+              </tr>
+              <tr>
+                <td class="lbl">Patient File No.</td><td>${escapeHtml(first?.patient || '')}</td>
+                <td class="lbl">Date</td><td>${escapeHtml(first?.result_date || '')}</td>
+              </tr>
+              <tr>
+                <td class="lbl">Referred Doctor</td><td>${escapeHtml(first?.practitioner_name || first?.practitioner || '')}</td>
+                <td class="lbl">Visit No.</td><td>${escapeHtml(first?.service_request || '')}</td>
+              </tr>
+              <tr>
+                <td class="lbl">IP Admission</td><td>${escapeHtml(first?.inpatient_record || '')}</td>
+                <td class="lbl">User</td><td>${escapeHtml((first as any)?.custom_user || '')}</td>
+              </tr>
+            </table>
+
+            <table>
+              <thead>
+                <tr><th>Test Item</th><th>Result / Observation</th><th>Status</th><th>Result Date</th></tr>
+              </thead>
+              <tbody>
+                ${rowsHtml || '<tr><td colspan="4">No tests found in this group.</td></tr>'}
+              </tbody>
+            </table>
+            ${letterHeadFooter ? `<div class="letter-head-footer">${letterHeadFooter}</div>` : ''}
+          </body>
+        </html>
+      `
+
+      const win = window.open('', '_blank', 'width=1200,height=900')
+      if (!win) return
+      win.document.open()
+      win.document.write(html)
+      win.document.close()
+      win.focus()
+      win.print()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to print group tests')
+    }
+  }
+
   // ── Render ───────────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col min-w-full">
@@ -872,6 +1027,18 @@ export const LabTestList = ({
                             }`}
                             title={groupStatus.status === 'Complete' ? 'Finish this grouped request' : 'All tests must be submitted first'}>
                             {finishingGroupKey === serviceRequest ? 'Finishing…' : 'Finish Group'}
+                          </button>
+                          <button
+                            type="button"
+                            data-no-row-click
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              void handlePrintGroup(serviceRequest, groupLabel, children)
+                            }}
+                            className="px-2 py-1 text-xs rounded-md border border-primary text-primary hover:bg-primary/5"
+                            title="Print all tests under this group"
+                          >
+                            Print Group
                           </button>
                         </div>
                       </td>

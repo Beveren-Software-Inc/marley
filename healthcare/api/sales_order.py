@@ -13,6 +13,8 @@ def get_service_orders(
     reference_name=None,   # specific visit or admission ID
     patient=None,
     status=None,
+    from_date=None,
+    to_date=None,
     limit=50,
     offset=0
 ):
@@ -28,6 +30,12 @@ def get_service_orders(
         filters['patient'] = patient
     if status:
         filters['status'] = status
+    if from_date and to_date:
+        filters['transaction_date'] = ['between', [from_date, to_date]]
+    elif from_date:
+        filters['transaction_date'] = ['>=', from_date]
+    elif to_date:
+        filters['transaction_date'] = ['<=', to_date]
 
     # Get permitted cost centers
     from healthcare.api.common import get_permitted_cost_centers
@@ -95,7 +103,7 @@ def get_service_orders(
 
 
 @frappe.whitelist()
-def get_service_order_summary(reference_type=None, reference_name=None, patient=None):
+def get_service_order_summary(reference_type=None, reference_name=None, patient=None, from_date=None, to_date=None):
     """Get summary of orders for a reference"""
     filters = {}
 
@@ -105,6 +113,12 @@ def get_service_order_summary(reference_type=None, reference_name=None, patient=
         filters['custom_reference_name'] = reference_name
     if patient:
         filters['patient'] = patient
+    if from_date and to_date:
+        filters['transaction_date'] = ['between', [from_date, to_date]]
+    elif from_date:
+        filters['transaction_date'] = ['>=', from_date]
+    elif to_date:
+        filters['transaction_date'] = ['<=', to_date]
 
     from healthcare.api.common import get_permitted_cost_centers
     permitted_cc = get_permitted_cost_centers()

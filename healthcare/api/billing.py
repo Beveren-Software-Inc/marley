@@ -371,7 +371,7 @@ def _format_stored_date_only(val):
 
 
 @frappe.whitelist()
-def get_inpatient_balances(patient=None):
+def get_inpatient_balances(patient=None, from_date=None, to_date=None):
     """
     Get inpatient balances for all patients or a specific patient
     Returns list of admissions with outstanding balances
@@ -379,6 +379,13 @@ def get_inpatient_balances(patient=None):
     adm_filters = {}
     if patient:
         adm_filters["patient"] = patient
+
+    if from_date and to_date:
+        adm_filters["admitted_datetime"] = ["between", [f"{from_date} 00:00:00", f"{to_date} 23:59:59"]]
+    elif from_date:
+        adm_filters["admitted_datetime"] = [">=", f"{from_date} 00:00:00"]
+    elif to_date:
+        adm_filters["admitted_datetime"] = ["<=", f"{to_date} 23:59:59"]
 
     admissions = frappe.get_all(
         "Inpatient Admission",
@@ -457,7 +464,7 @@ def get_inpatient_balances(patient=None):
 
 
 @frappe.whitelist()
-def get_outpatient_balances(patient=None):
+def get_outpatient_balances(patient=None, from_date=None, to_date=None):
     """
     Get outpatient balances for all patients or a specific patient
     Returns list of patient visits with outstanding balances
@@ -465,6 +472,12 @@ def get_outpatient_balances(patient=None):
     visit_filters = {}
     if patient:
         visit_filters["patient"] = patient
+    if from_date and to_date:
+        visit_filters["encounter_date"] = ["between", [from_date, to_date]]
+    elif from_date:
+        visit_filters["encounter_date"] = [">=", from_date]
+    elif to_date:
+        visit_filters["encounter_date"] = ["<=", to_date]
 
     visits = frappe.get_all(
         "Patient Visit",
@@ -538,6 +551,94 @@ def get_outpatient_balances(patient=None):
     balances.sort(key=lambda x: (-x["outstanding_amount"], -x["days_overdue"]))
     
     return balances
+
+
+@frappe.whitelist()
+def get_payment_entries(reference_type=None, reference_name=None, patient=None, from_date=None, to_date=None, mode_of_payment=None):
+    conditions = ["pe.docstatus = 1"]
+    params = {}
+    print("Hapa ndio tuko")
+    if from_date:
+        conditions.append("pe.posting_date >= %(from_date)s")
+        params["from_date"] = from_date
+    if to_date:
+        conditions.append("pe.posting_date <= %(to_date)s")
+        params["to_date"] = to_date
+    if mode_of_payment:
+        conditions.append("pe.mode_of_payment = %(mode_of_payment)s")
+        params["mode_of_payment"] = mode_of_payment
+    if patient:
+        conditions.append("si.patient = %(patient)s")
+        params["patient"] = patient
+    if reference_type:
+        conditions.append("si.custom_reference_type = %(reference_type)s")
+        params["reference_type"] = reference_type
+    if reference_name:
+        conditions.append("si.custom_reference_name = %(reference_name)s")
+        params["reference_name"] = reference_name
+
+    from healthcare.api.common import get_permitted_cost_centers
+    permitted_cc = get_permitted_cost_centers()
+    if permitted_cc is not None:
+        if not permitted_cc:
+            return []
+        conditions.append("IFNULL(pe.cost_center, '') IN %(permitted_cc)s")
+        params["permitted_cc"] = tuple(permitted_cc)
+
+    where_sql = " AND ".join(conditions)
+    rows = frappe.db.sql(
+        f"""
+        SELECT
+            pe.name,
+            pe.posting_date,
+            pe.mode_of_payment,
+            pe.paid_amount,
+            pe.party_name,
+            pe.reference_no,
+            pe.cost_center,
+            per.reference_name AS invoice_name,
+            si.custom_reference_type AS invoice_reference_type,
+            si.custom_reference_name AS invoice_reference_name
+        FROM `tabPayment Entry` pe
+        LEFT JOIN `tabPayment Entry Reference` per
+            ON per.parent = pe.name
+           AND per.reference_doctype = 'Sales Invoice'
+        LEFT JOIN `tabSales Invoice` si
+            ON si.name = per.reference_name
+        WHERE {where_sql}
+        ORDER BY pe.posting_date DESC, pe.creation DESC
+        """,
+        params,
+        as_dict=True,
+    )
+    return rows
+
+
+@frappe.whitelist()
+def get_payment_summary(reference_type=None, reference_name=None, patient=None, from_date=None, to_date=None, mode_of_payment=None):
+    rows = get_payment_entries(
+        reference_type=reference_type,
+        reference_name=reference_name,
+        patient=patient,
+        from_date=from_date,
+        to_date=to_date,
+        mode_of_payment=mode_of_payment,
+    )
+    total_paid = sum(flt(r.get("paid_amount")) for r in rows)
+    by_mode = {}
+    for r in rows:
+        mode = (r.get("mode_of_payment") or "Unknown").strip() or "Unknown"
+        if mode not in by_mode:
+            by_mode[mode] = {"mode_of_payment": mode, "count": 0, "amount": 0.0}
+        by_mode[mode]["count"] += 1
+        by_mode[mode]["amount"] += flt(r.get("paid_amount"))
+
+    modes = sorted(by_mode.values(), key=lambda x: (-x["amount"], x["mode_of_payment"]))
+    return {
+        "payment_count": len(rows),
+        "total_paid": total_paid,
+        "modes": modes,
+    }
 
 
 @frappe.whitelist()

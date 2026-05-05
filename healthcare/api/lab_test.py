@@ -55,6 +55,7 @@ def get_lab_test_template_details(template):
 		'lab_test_uom': doc.get('lab_test_uom') or '',
 		'normal_range': doc.get('lab_test_normal_range') or '',
 		'normal_test_templates': compound_rows,
+		'cost_center': doc.get('cost_center')
 	}
 
 
@@ -255,6 +256,7 @@ def get_lab_tests(
 			"name",
 			"docstatus",
 			"patient",
+   'cost_center',
 			"patient_name",
 			"practitioner",
 			"practitioner_name",
@@ -350,6 +352,7 @@ def get_lab_test(name):
 		'name': lab_test.name,
 		'docstatus': lab_test.docstatus,
 		'patient': lab_test.patient,
+		'cost_center': lab_test.cost_center,
 		'patient_name': lab_test.patient_name,
 		'practitioner': lab_test.practitioner,
 		'practitioner_name': getattr(lab_test, 'practitioner_name', None),

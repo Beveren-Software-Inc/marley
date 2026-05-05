@@ -16,11 +16,13 @@ interface ServiceOrdersListProps {
   patient?: string
   admission?: string
   visit?: string
+  fromDate?: string
+  toDate?: string
   onViewOrder?: (order: ServiceOrder) => void
   limit?: number  // Keep for future use
 }
 
-export const ServiceOrdersList = ({ patient, admission, visit, onViewOrder }: ServiceOrdersListProps) => {
+export const ServiceOrdersList = ({ patient, admission, visit, fromDate, toDate, onViewOrder }: ServiceOrdersListProps) => {
   const { mode, activeAdmission, activeVisit, selectedPatient } = useCareContext()
   const formatCurrency = useFormatMoney()
   const [orders, setOrders] = useState<ServiceOrder[]>([])
@@ -44,8 +46,8 @@ export const ServiceOrdersList = ({ patient, admission, visit, onViewOrder }: Se
     try {
       setLoading(true)
       const [ordersData, summaryData] = await Promise.all([
-        fetchServiceOrders(effectiveReferenceType, effectiveReferenceName, effectivePatient, statusFilter),
-        fetchServiceOrderSummary(effectiveReferenceType, effectiveReferenceName, effectivePatient)
+        fetchServiceOrders(effectiveReferenceType, effectiveReferenceName, effectivePatient, statusFilter, fromDate, toDate),
+        fetchServiceOrderSummary(effectiveReferenceType, effectiveReferenceName, effectivePatient, fromDate, toDate)
       ])
       setOrders(ordersData)
       setSummary(summaryData)
@@ -59,7 +61,7 @@ export const ServiceOrdersList = ({ patient, admission, visit, onViewOrder }: Se
 
   useEffect(() => {
     loadData()
-  }, [effectivePatient, effectiveReferenceName, statusFilter])
+  }, [effectivePatient, effectiveReferenceName, statusFilter, fromDate, toDate])
 
   const handleCreateBulkInvoice = async () => {
     if (!effectiveReferenceName) {

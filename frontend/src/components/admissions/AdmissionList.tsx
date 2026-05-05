@@ -280,6 +280,28 @@ const [diagnosisModalAdmission, setDiagnosisModalAdmission] = useState<Inpatient
   const hasActiveFilters = admissionNoFilter || practitionerFilter || dateFrom || dateTo || selectedStatus
   const inputClass = 'w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white'
 
+  const exportFilteredCsv = () => {
+    const headers = ['Case No', 'Patient', 'Scheduled Date', 'Status']
+    const rows = records.map((r) => [r.name, r.patient_name || r.patient || '', r.scheduled_date || '', r.status || ''])
+    const csv = [headers, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `inpatient-admissions-${dateFrom || 'all'}-${dateTo || 'all'}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const printFilteredList = () => {
+    const win = window.open('', '_blank', 'width=1200,height=800')
+    if (!win) return
+    const rows = records.map((r) => `<tr><td>${r.name}</td><td>${r.patient_name || r.patient || ''}</td><td>${r.scheduled_date || ''}</td><td>${r.status || ''}</td></tr>`).join('')
+    win.document.write(`<html><head><title>Inpatient Admission Listing</title></head><body><h3>Inpatient Admission Listing</h3><table border="1" cellspacing="0" cellpadding="6"><thead><tr><th>Case No</th><th>Patient</th><th>Scheduled Date</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></body></html>`)
+    win.document.close()
+    win.print()
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -308,6 +330,10 @@ const [diagnosisModalAdmission, setDiagnosisModalAdmission] = useState<Inpatient
   return (
     <>
       <div className="space-y-4">
+        <div className="flex items-center justify-end gap-2">
+          <button type="button" onClick={printFilteredList} className="px-3 py-1.5 text-xs border border-slate-300 rounded-md hover:bg-slate-50">PDF</button>
+          <button type="button" onClick={exportFilteredCsv} className="px-3 py-1.5 text-xs border border-slate-300 rounded-md hover:bg-slate-50">Excel</button>
+        </div>
         {/* Global-context active admission banner */}
         {effectiveNameFilter && (
           <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-blue-50 border border-blue-200 text-blue-800 text-xs mb-2">

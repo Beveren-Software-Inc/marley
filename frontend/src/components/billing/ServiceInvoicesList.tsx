@@ -24,6 +24,8 @@ interface ServiceInvoicesListProps {
   patient?: string
   admission?: string
   visit?: string
+  fromDate?: string
+  toDate?: string
   statusFilter?: string
   /** Open Sales Invoice detail slide-over (same as specialty billing). */
   onOpenInvoiceDetail: (invoiceName: string) => void
@@ -37,6 +39,8 @@ export const ServiceInvoicesList = ({
   patient,
   admission,
   visit,
+  fromDate,
+  toDate,
   statusFilter: propStatusFilter,
   onOpenInvoiceDetail,
   invoiceRefreshKey = 0,
@@ -72,8 +76,8 @@ export const ServiceInvoicesList = ({
     try {
       setLoading(true)
       const [invoicesData, summaryData] = await Promise.all([
-        fetchServiceInvoices(effectiveReferenceType, effectiveReferenceName, effectivePatient, statusFilter),
-        fetchInvoiceSummary(effectiveReferenceType, effectiveReferenceName, effectivePatient),
+        fetchServiceInvoices(effectiveReferenceType, effectiveReferenceName, effectivePatient, statusFilter, fromDate, toDate),
+        fetchInvoiceSummary(effectiveReferenceType, effectiveReferenceName, effectivePatient, fromDate, toDate),
       ])
       setInvoices(invoicesData)
       setSummary(summaryData)
@@ -87,7 +91,7 @@ export const ServiceInvoicesList = ({
 
   useEffect(() => {
     void loadData()
-  }, [effectivePatient, effectiveReferenceName, statusFilter, invoiceRefreshKey])
+  }, [effectivePatient, effectiveReferenceName, statusFilter, invoiceRefreshKey, fromDate, toDate])
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
