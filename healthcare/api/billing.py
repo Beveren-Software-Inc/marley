@@ -554,7 +554,7 @@ def get_outpatient_balances(patient=None, from_date=None, to_date=None):
 
 
 @frappe.whitelist()
-def get_payment_entries(reference_type=None, reference_name=None, patient=None, from_date=None, to_date=None):
+def get_payment_entries(reference_type=None, reference_name=None, patient=None, from_date=None, to_date=None, mode_of_payment=None):
     conditions = ["pe.docstatus = 1"]
     params = {}
     print("Hapa ndio tuko")
@@ -564,6 +564,9 @@ def get_payment_entries(reference_type=None, reference_name=None, patient=None, 
     if to_date:
         conditions.append("pe.posting_date <= %(to_date)s")
         params["to_date"] = to_date
+    if mode_of_payment:
+        conditions.append("pe.mode_of_payment = %(mode_of_payment)s")
+        params["mode_of_payment"] = mode_of_payment
     if patient:
         conditions.append("si.patient = %(patient)s")
         params["patient"] = patient
@@ -612,13 +615,14 @@ def get_payment_entries(reference_type=None, reference_name=None, patient=None, 
 
 
 @frappe.whitelist()
-def get_payment_summary(reference_type=None, reference_name=None, patient=None, from_date=None, to_date=None):
+def get_payment_summary(reference_type=None, reference_name=None, patient=None, from_date=None, to_date=None, mode_of_payment=None):
     rows = get_payment_entries(
         reference_type=reference_type,
         reference_name=reference_name,
         patient=patient,
         from_date=from_date,
         to_date=to_date,
+        mode_of_payment=mode_of_payment,
     )
     total_paid = sum(flt(r.get("paid_amount")) for r in rows)
     by_mode = {}

@@ -24,6 +24,7 @@ import {
   type PaymentEntryRow,
   type PaymentSummary,
 } from '../../services/serviceOrders'
+import { fetchModeOfPayments } from '../../services/common'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { 
   Receipt, 
@@ -157,6 +158,8 @@ export const BillingDashboard = ({ patient, admission, visit }: BillingDashboard
   const [showDateFilters, setShowDateFilters] = useState(false)
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
+  const [paymentModeFilter, setPaymentModeFilter] = useState('')
+  const [paymentModes, setPaymentModes] = useState<Array<{ name: string; label: string }>>([])
 
   const effectivePatient = patient ?? selectedPatient
   const effectiveReferenceType = mode === 'IP' ? 'Inpatient Admission' : 'Patient Visit'
@@ -265,8 +268,8 @@ const handleMakePayment = async (
       try {
         setLoading(true)
         const [paymentRows, paySummary] = await Promise.all([
-          fetchPaymentEntries(undefined, undefined, undefined, fromDate || undefined, toDate || undefined),
-          fetchPaymentSummary(undefined, undefined, undefined, fromDate || undefined, toDate || undefined),
+          fetchPaymentEntries(undefined, undefined, undefined, fromDate || undefined, toDate || undefined, paymentModeFilter || undefined),
+          fetchPaymentSummary(undefined, undefined, undefined, fromDate || undefined, toDate || undefined, paymentModeFilter || undefined),
         ])
         setPayments(paymentRows)
         setPaymentSummary(paySummary)
@@ -307,8 +310,8 @@ const handleMakePayment = async (
             effectiveReferenceName,
             effectivePatient
           ),
-          fetchPaymentEntries(effectiveReferenceType, effectiveReferenceName, effectivePatient, fromDate || undefined, toDate || undefined),
-          fetchPaymentSummary(effectiveReferenceType, effectiveReferenceName, effectivePatient, fromDate || undefined, toDate || undefined),
+          fetchPaymentEntries(effectiveReferenceType, effectiveReferenceName, effectivePatient, fromDate || undefined, toDate || undefined, paymentModeFilter || undefined),
+          fetchPaymentSummary(effectiveReferenceType, effectiveReferenceName, effectivePatient, fromDate || undefined, toDate || undefined, paymentModeFilter || undefined),
         ])
         setBillingCcRestricted(!!ccScope.restricted)
         setCcBreakdown(ccBreakdownRes.restricted ? [] : ccBreakdownRes.rows || [])
@@ -364,7 +367,13 @@ const handleMakePayment = async (
     } else {
       loadDashboardData()
     }
-  }, [currentView, effectivePatient, effectiveReferenceName, fromDate, toDate])
+  }, [currentView, effectivePatient, effectiveReferenceName, fromDate, toDate, paymentModeFilter])
+
+  useEffect(() => {
+    fetchModeOfPayments()
+      .then(setPaymentModes)
+      .catch(() => setPaymentModes([]))
+  }, [])
 
   // Filter inpatient balances
   useEffect(() => {
@@ -714,6 +723,21 @@ const handleMakePayment = async (
         <button type="button" onClick={() => { setFromDate(''); setToDate('') }} className="inline-flex items-center gap-1 px-3 py-2 text-sm border border-slate-300 rounded-md">
           <X className="w-3 h-3" /> Clear
         </button>
+        {currentView === 'payments' && (
+          <div>
+            <label className="block text-xs text-slate-600 mb-1">Mode of Payment</label>
+            <select
+              value={paymentModeFilter}
+              onChange={(e) => setPaymentModeFilter(e.target.value)}
+              className="rounded-md border border-slate-300 px-3 py-2 text-sm bg-white"
+            >
+              <option value="">All modes</option>
+              {paymentModes.map((mode) => (
+                <option key={mode.name} value={mode.name}>{mode.label}</option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
     )
   }
@@ -1103,7 +1127,7 @@ const handleMakePayment = async (
         <StatCard title="Outstanding" value={formatCurrency(invoiceSummary?.total_outstanding || 0)} subValue={`${(invoiceSummary?.unpaid.count || 0) + (invoiceSummary?.overdue.count || 0)} invoices pending`} icon={AlertCircle} color="bg-red-50 text-red-600" onClick={() => handleViewChange('unpaid')} />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         <div className="bg-white rounded-xl border border-slate-200 p-5">
           <h3 className="text-md font-semibold text-slate-800 mb-4 flex items-center gap-2"><Package className="w-4 h-4 text-primary" /> Order Summary</h3>
           <div className="space-y-3">
@@ -1119,6 +1143,25 @@ const handleMakePayment = async (
             <QuickActionCard title="Paid Invoices" count={invoiceSummary?.paid.count || 0} amount={invoiceSummary?.paid.amount || 0} icon={CheckCircle} color="bg-green-50 text-green-600" onClick={() => handleViewChange('paid')} />
             <QuickActionCard title="Unpaid/Overdue" count={(invoiceSummary?.unpaid.count || 0) + (invoiceSummary?.overdue.count || 0)} amount={(invoiceSummary?.unpaid.amount || 0) + (invoiceSummary?.overdue.amount || 0)} icon={AlertCircle} color="bg-red-50 text-red-600" onClick={() => handleViewChange('unpaid')} />
             <QuickActionCard title="Partially Paid" count={invoiceSummary?.partially_paid.count || 0} amount={invoiceSummary?.partially_paid.amount || 0} icon={TrendingUp} color="bg-blue-50 text-blue-600" onClick={() => handleViewChange('invoices')} />
+          </div>
+        </div>
+        <div className="bg-white rounded-xl border border-slate-200 p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-md font-semibold text-slate-800 flex items-center gap-2"><CreditCard className="w-4 h-4 text-primary" /> Payment Summary</h3>
+            <button type="button" onClick={() => handleViewChange('payments')} className="text-xs text-primary hover:underline">View payments</button>
+          </div>
+          <div className="space-y-2">
+            <div className="text-xs text-slate-600">Total Paid</div>
+            <div className="text-xl font-bold text-green-600">{formatCurrency(paymentSummary?.total_paid || 0)}</div>
+            <div className="text-xs text-slate-500">{paymentSummary?.payment_count || 0} payments</div>
+            <div className="pt-2 border-t border-slate-100 space-y-1">
+              {(paymentSummary?.modes || []).slice(0, 5).map((mode) => (
+                <div key={mode.mode_of_payment} className="flex items-center justify-between text-xs">
+                  <span className="text-slate-700">{mode.mode_of_payment} ({mode.count})</span>
+                  <span className="font-medium text-slate-900">{formatCurrency(mode.amount)}</span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -1253,33 +1296,6 @@ const handleMakePayment = async (
               ))}
             </div>
           )}
-        </div>
-      </div>
-
-      <div className="bg-white rounded-xl border border-slate-200 p-5">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold text-slate-800">Payment Summary</h3>
-          <button type="button" onClick={() => handleViewChange('payments')} className="text-xs text-primary hover:underline">
-            Open payments
-          </button>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="bg-green-50 rounded-lg p-4">
-            <p className="text-xs text-green-700">Total Paid</p>
-            <p className="text-2xl font-bold text-green-600">{formatCurrency(paymentSummary?.total_paid || 0)}</p>
-            <p className="text-xs text-green-600 mt-1">{paymentSummary?.payment_count || 0} payments</p>
-          </div>
-          <div className="bg-slate-50 rounded-lg p-4">
-            <p className="text-xs text-slate-600 mb-2">Mode breakdown</p>
-            <div className="space-y-1">
-              {(paymentSummary?.modes || []).slice(0, 5).map((mode) => (
-                <div key={mode.mode_of_payment} className="flex items-center justify-between text-xs">
-                  <span className="text-slate-700">{mode.mode_of_payment} ({mode.count})</span>
-                  <span className="font-medium text-slate-900">{formatCurrency(mode.amount)}</span>
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
       </div>
 

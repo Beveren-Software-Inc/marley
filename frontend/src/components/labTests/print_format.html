@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: Arial, sans-serif;
+    font-size: 10pt;
+    color: #1a1a1a;
+    background: #fff;
+  }
+
+  /* ── HEADER DIVIDER ── */
+  .header-divider {
+    border: none;
+    border-top: 2.5px solid #c0392b;
+    margin: 6px 0 8px;
+  }
+
+  .hospital-name {
+    font-size: 13pt;
+    font-weight: bold;
+    color: #1a4a7a;
+    line-height: 1.3;
+  }
+
+  .hospital-address {
+    font-size: 8pt;
+    color: #555;
+    line-height: 1.6;
+    margin-top: 2px;
+  }
+
+  .report-title {
+    font-size: 20pt;
+    font-weight: bold;
+    color: #c0392b;
+    text-align: center;
+  }
+
+  .report-meta {
+    font-size: 8pt;
+    color: #555;
+    text-align: center;
+    margin-top: 3px;
+  }
+
+  /* ── PATIENT INFO ── */
+  .patient-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 8px;
+    border: 1.2px solid #b8860b;
+  }
+
+  .patient-table td {
+    border: 0.8px solid #d4aa50;
+    padding: 3px 7px;
+    font-size: 9pt;
+    vertical-align: middle;
+    background-color: #ffffff;
+  }
+
+  .lbl {
+    color: #c0392b;
+    font-weight: bold;
+    white-space: nowrap;
+    background-color: #ffffff;
+  }
+
+  /* ── SECTION HEADER ── */
+  .section-header {
+    background-color: #1a4a7a;
+    color: #ffffff;
+    font-weight: bold;
+    font-size: 9.5pt;
+    padding: 4px 10px;
+    margin: 10px 0 0;
+  }
+
+  /* ── RESULTS TABLE ── */
+  .results-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 4px;
+  }
+
+  .results-table thead tr {
+    background-color: #2a5f9e;
+  }
+
+  .results-table thead th {
+    color: #ffffff;
+    padding: 5px 8px;
+    font-size: 9pt;
+    font-weight: bold;
+    text-align: left;
+    border: 0.8px solid #1a4a7a;
+  }
+
+  .results-table tbody td {
+    padding: 4px 8px;
+    font-size: 9.5pt;
+    vertical-align: middle;
+    border-bottom: 0.5px solid #d0dce8;
+  }
+
+  .even-row { background-color: #f4f8fc; }
+
+  .flag-normal   { color: #1a6b3a; font-weight: bold; font-size: 8.5pt; }
+  .flag-low      { color: #c0392b; font-weight: bold; font-size: 8.5pt; }
+  .flag-high     { color: #d35400; font-weight: bold; font-size: 8.5pt; }
+  .flag-critical { color: #7b0000; font-weight: bold; font-size: 8.5pt; background-color: #fde8e8; padding: 1px 5px; }
+
+  .result-val      { font-weight: bold; }
+  .result-abnormal { color: #c0392b; font-weight: bold; }
+
+  /* ── REMARKS ── */
+  .remarks-box {
+    border: 0.8px solid #a0b8d0;
+    padding: 6px 10px;
+    margin: 8px 0;
+    background-color: #fafcff;
+    font-size: 9pt;
+    color: #333;
+  }
+
+  .remarks-lbl {
+    font-weight: bold;
+    color: #1a4a7a;
+    font-size: 9pt;
+    margin-bottom: 3px;
+  }
+
+  .auto-note {
+    font-size: 8pt;
+    color: #c0392b;
+    font-style: italic;
+    margin: 4px 0;
+  }
+
+  /* ── SIGNATURE LINE ── */
+  .sig-line {
+    border-top: 1px solid #444;
+    width: 140px;
+    margin: 30px auto 5px;
+  }
+
+  .sig-name  { font-weight: bold; font-size: 9pt; text-align: center; }
+  .sig-title { font-size: 8.5pt; color: #555; text-align: center; }
+
+  /* ── PAGE FOOTER ── */
+  .page-footer {
+    width: 100%;
+    border-top: 1px solid #c0d0e0;
+    margin-top: 18px;
+    padding-top: 4px;
+    font-size: 7.5pt;
+    color: #888;
+  }
+
+  @media print {
+    body { background: #fff; }
+  }
+</style>
+</head>
+<body>
+
+
+<!-- right-aligned page info -->
+<table width="100%" border="0" cellpadding="0" cellspacing="0" style="margin-bottom:4px;">
+  <tr>
+    <td align="right" style="font-size:8pt; color:#555;">
+      Page <span class="page">1</span> of <span class="topage">1</span>
+    </td>
+  </tr>
+</table>
+
+<!-- ══════════════════ PATIENT INFO ══════════════════ -->
+<table class="patient-table">
+  <colgroup>
+    <col width="14%"><!-- label -->
+    <col width="36%"><!-- value -->
+    <col width="14%"><!-- label -->
+    <col width="36%"><!-- value -->
+  </colgroup>
+  <tr>
+    <td class="lbl">Patient Name:</td>
+    <td align="center"><strong>{{ doc.patient_name }}</strong></td>
+    <td class="lbl">Request No.</td>
+    <td align="center">{{ doc.name }}</td>
+  </tr>
+  <tr>
+    <td class="lbl">Patient File No.</td>
+    <td align="center">{{ doc.patient }}</td>
+    <td class="lbl">Date:</td>
+    <td align="center">{{ frappe.utils.formatdate(doc.result_date) }}</td>
+  </tr>
+  <tr>
+    <td class="lbl">CPR / ID No.</td>
+    <td align="center">{{ doc.custom_cpr_id or "" }}</td>
+    <td class="lbl">Visit No.</td>
+    <td align="center">{{ doc.service_request or "" }}</td>
+  </tr>
+  <tr>
+    <td class="lbl">Sex / Age</td>
+    <td align="center">{{ doc.patient_sex }} &nbsp;/&nbsp; {{ doc.patient_age }}</td>
+    <td class="lbl">IP Case No.</td>
+    <td align="center">{{ doc.inpatient_record or "" }}</td>
+  </tr>
+  <tr>
+    <td class="lbl">Referred Doctor:</td>
+    <td align="center">{{ doc.practitioner_name }}</td>
+    <td class="lbl">User:</td>
+    <td align="center">{{ doc.custom_user or "" }}</td>
+  </tr>
+</table>
+
+<!-- ══════════════════ NORMAL TEST ITEMS ══════════════════ -->
+{% if doc.normal_test_items %}
+<div class="section-header">{{ doc.lab_test_name }} &mdash; Test Results Detail</div>
+<table class="results-table">
+  <thead>
+    <tr>
+      <th width="38%" align="left">Test Name</th>
+      <th width="14%" align="center">Result</th>
+      <th width="14%" align="center">Unit</th>
+      <th width="12%" align="center">Flag</th>
+      <th width="22%" align="center">Normal Range</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for item in doc.normal_test_items %}
+    {% set sample_uom = frappe.db.get_value("Lab Test Sample", doc.sample_instances[0].sample, "sample_uom") if doc.sample_instances and doc.sample_instances[0].sample else "" %}
+    <tr class="{{ 'even-row' if loop.index is even else '' }}">
+      <td>{{ item.lab_test_name }}</td>
+      <td align="center" class="result-val {% if item.result_status in ['Low','High','Critical'] %}result-abnormal{% endif %}">
+        {{ item.result_value }}
+      </td>
+      <td align="center">
+        {% if doc.sample_instances %}
+            {{ frappe.db.get_value("Lab Test Sample", doc.sample_instances[0].sample, "sample_uom") if doc.sample_instances and doc.sample_instances[0].sample else (item.lab_test_uom or "") }}</td>
+        {% else %}
+            {{ '' }}
+        {% endif %}
+      <td align="center">
+        {% if item.result_status == "Normal" %}<span class="flag-normal">Normal</span>
+        {% elif item.result_status == "Low" %}<span class="flag-low">Low</span>
+        {% elif item.result_status == "High" %}<span class="flag-high">High</span>
+        {% elif item.result_status == "Critical" %}<span class="flag-critical">Critical</span>
+        {% else %}<span style="color:#999">&#8212;</span>{% endif %}
+      </td>
+      <td align="center">{{ item.normal_range or "" }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+<!-- ══════════════════ DESCRIPTIVE TEST ITEMS ══════════════════ -->
+{% if doc.descriptive_test_items %}
+<div class="section-header">{{ doc.lab_test_name }} &mdash; Descriptive Results</div>
+<table class="results-table">
+  <thead>
+    <tr>
+      <th width="35%" align="left">Test Name</th>
+      <th width="65%" align="left">Result / Observation</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for item in doc.descriptive_test_items %}
+    <tr class="{{ 'even-row' if loop.index is even else '' }}">
+      <td>{{ item.lab_test_particulars }}</td>
+      <td>{{ item.lab_test_comment or "" }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+<!-- ══════════════════ SINGLE-VALUE FALLBACK ══════════════════ -->
+{% if not doc.normal_test_items and not doc.descriptive_test_items and doc.custom_result %}
+<div class="section-header">{{ doc.lab_test_name }} &mdash; Result</div>
+<table class="results-table">
+  <thead>
+    <tr>
+      <th width="40%" align="left">Test Name</th>
+      <th width="18%" align="center">Result</th>
+      <th width="15%" align="center">Unit</th>
+      <th width="12%" align="center">Flag</th>
+      <th width="15%" align="center">Normal Range</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>{{ doc.lab_test_name }}</td>
+      <td align="center" class="result-val">{{ doc.custom_result }}</td>
+      <td align="center">{{ doc.lab_test_uom or "" }}</td>
+      <td align="center"><span class="flag-normal">Normal</span></td>
+      <td align="center">
+        {% if doc.min_range and doc.max_range %}{{ doc.min_range }} &ndash; {{ doc.max_range }}{% endif %}
+      </td>
+    </tr>
+  </tbody>
+</table>
+{% endif %}
+
+<!-- ══════════════════ SENSITIVITY ══════════════════ -->
+{% if doc.sensitivity_test_items %}
+<div class="section-header">Sensitivity / Culture Results</div>
+<table class="results-table">
+  <thead>
+    <tr>
+      <th width="50%" align="left">Antibiotic</th>
+      <th width="25%" align="center">Sensitivity</th>
+      <th width="25%" align="center">MIC / Notes</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for item in doc.sensitivity_test_items %}
+    <tr class="{{ 'even-row' if loop.index is even else '' }}">
+      <td>{{ item.antibiotic }}</td>
+      <td align="center">
+        {% if item.sensitivity == "Sensitive" %}<span class="flag-normal">Sensitive</span>
+        {% elif item.sensitivity == "Resistant" %}<span class="flag-low">Resistant</span>
+        {% elif item.sensitivity == "Intermediate" %}<span class="flag-high">Intermediate</span>
+        {% else %}{{ item.sensitivity }}{% endif %}
+      </td>
+      <td align="center">{{ item.mic or "" }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+<!-- ══════════════════ REMARKS ══════════════════ -->
+{% if doc.lab_test_comment %}
+<div class="remarks-box">
+  <div class="remarks-lbl">General Comment</div>
+  {{ doc.lab_test_comment }}
+</div>
+{% endif %}
+
+{% if doc.remarks %}{% for remark in doc.remarks %}{% if remark.remark %}
+<div class="remarks-box">
+  <div class="remarks-lbl">Remarks</div>
+  {{ remark.remark }}
+</div>
+{% endif %}{% endfor %}{% endif %}
+
+{% if doc.worksheet_instructions %}
+<div class="remarks-box">
+  <div class="remarks-lbl">Worksheet / Instructions</div>
+  {{ doc.worksheet_instructions }}
+</div>
+{% endif %}
+
+{% if doc.status == "Approved" or doc.sta_flg %}
+<div class="auto-note">Note: Auto Entry From Visit</div>
+{% endif %}
+
+<!-- ══════════════════ SIGNATURES ══════════════════ -->
+<table width="100%" border="0" cellpadding="0" cellspacing="0"
+       style="border-top: 1px solid #c0d0e0; margin-top: 24px;">
+  <tr>
+    <td width="33%" valign="bottom" align="center" style="padding-top:8px;">
+      <div class="sig-line"></div>
+      <div class="sig-name">MRS. MARIAN MAMDOUH</div>
+      <div class="sig-title">LAB TECHNOLOGIST</div>
+    </td>
+    <td width="34%" valign="middle" align="center"
+        style="font-size:8pt; color:#666; line-height:1.8; padding-top:8px;">
+      Reviewed by: {{ doc.reviewed_by or "" }}<br>
+      Result Date: {{ frappe.utils.formatdate(doc.result_date) }}<br>
+      Approved: {{ frappe.utils.formatdate(doc.approved_date) if doc.approved_date else "&mdash;" }}
+    </td>
+    <td width="33%" valign="bottom" align="center" style="padding-top:8px;">
+      <div class="sig-line"></div>
+      <div class="sig-name">DR. LEENA PAUL</div>
+      <div class="sig-title">PATHOLOGIST</div>
+    </td>
+  </tr>
+</table>
+
+<!-- ══════════════════ PAGE FOOTER ══════════════════ -->
+<div class="page-footer">
+  <table width="100%" border="0" cellpadding="0" cellspacing="0">
+    <tr>
+      <td align="left">{{ doc.company }}</td>
+      <td align="center">Request No: {{ doc.name }} &nbsp;|&nbsp; Trans No: {{ doc.trans_num or doc.name }}</td>
+      <td align="right">Confidential &mdash; Authorized use only</td>
+    </tr>
+  </table>
+</div>
+
+</body>
+</html>

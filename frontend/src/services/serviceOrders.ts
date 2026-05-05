@@ -455,7 +455,8 @@ export async function fetchPaymentEntries(
   referenceName?: string,
   patient?: string,
   fromDate?: string,
-  toDate?: string
+  toDate?: string,
+  modeOfPayment?: string
 ): Promise<PaymentEntryRow[]> {
   const params = new URLSearchParams()
   if (referenceType) params.append('reference_type', referenceType)
@@ -463,6 +464,7 @@ export async function fetchPaymentEntries(
   if (patient) params.append('patient', patient)
   if (fromDate) params.append('from_date', fromDate)
   if (toDate) params.append('to_date', toDate)
+  if (modeOfPayment) params.append('mode_of_payment', modeOfPayment)
   const response = await fetch(`/api/method/healthcare.api.billing.get_payment_entries?${params.toString()}`)
   const data = await response.json()
   return data.message || []
@@ -473,7 +475,8 @@ export async function fetchPaymentSummary(
   referenceName?: string,
   patient?: string,
   fromDate?: string,
-  toDate?: string
+  toDate?: string,
+  modeOfPayment?: string
 ): Promise<PaymentSummary> {
   const params = new URLSearchParams()
   if (referenceType) params.append('reference_type', referenceType)
@@ -481,6 +484,7 @@ export async function fetchPaymentSummary(
   if (patient) params.append('patient', patient)
   if (fromDate) params.append('from_date', fromDate)
   if (toDate) params.append('to_date', toDate)
+  if (modeOfPayment) params.append('mode_of_payment', modeOfPayment)
   const response = await fetch(`/api/method/healthcare.api.billing.get_payment_summary?${params.toString()}`)
   const data = await response.json()
   return data.message || { payment_count: 0, total_paid: 0, modes: [] }
