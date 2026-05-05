@@ -27,6 +27,8 @@ import { InsurancePatientRegisterList } from '../components/insurance/InsuranceP
 import { CreateInsurancePatientRegisterModal } from '../components/insurance/CreateInsurancePatientRegisterModal'
 import { PatientReferralList } from '../components/referrals/PatientReferralList'
 import { CreatePatientReferralModal } from '../components/referrals/CreatePatientReferralModal'
+import { InternalTransferList } from '../components/transfers/InternalTransferList'
+import { CreateInternalTransferModal } from '../components/transfers/CreateInternalTransferModal'
 import { BillingDashboard } from '../components/billing/BillingDashboard'
 import { DailyAutoVisitView } from '../components/patientVisits/DailyAutoVisitView'
 import { AdditionalCollectionBillingPage } from './billing/AdditionalCollectionBillingPage'
@@ -49,6 +51,7 @@ type View =
   | 'long-acting-medicine'
   | 'insurance'
   | 'referral'
+  | 'internal-transfer'
   | 'patients'
   | 'billing'
   | 'billing-additional-collection'
@@ -86,6 +89,8 @@ export const ReceptionistPage = () => {
   const [insuranceRegisterRefreshKey, setInsuranceRegisterRefreshKey] = useState(0)
   const [showCreateReferral, setShowCreateReferral] = useState(false)
   const [referralRefreshKey, setReferralRefreshKey] = useState(0)
+  const [showCreateInternalTransfer, setShowCreateInternalTransfer] = useState(false)
+  const [internalTransferRefreshKey, setInternalTransferRefreshKey] = useState(0)
     const [showCreatePatientModal , setShowCreatePatientModal] = useState(false)
 
 
@@ -146,6 +151,8 @@ export const ReceptionistPage = () => {
       setCurrentView('insurance')
     } else if (screen === 'r-referral') {
       setCurrentView('referral')
+    } else if (screen === 'r-internal-transfer') {
+      setCurrentView('internal-transfer')
       } else if (screen === 'billing') {
       setCurrentView('billing')
     } else if (screen === 'billing-additional-collection') {
@@ -484,6 +491,33 @@ export const ReceptionistPage = () => {
           </div>
         )}
 
+        {currentView === 'internal-transfer' && (
+          <div className="p-4">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-semibold text-slate-900">Branch Transfer</h2>
+                <p className="text-sm text-slate-600 mt-1">
+                  Transfer admitted patients internally between cost centers.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCreateInternalTransfer(true)}
+                className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
+                title="New Internal Transfer"
+              >
+                +
+              </button>
+            </div>
+            <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+              <InternalTransferList
+                patient={selectedPatient || undefined}
+                refreshKey={internalTransferRefreshKey}
+              />
+            </div>
+          </div>
+        )}
+
         {currentView === 'appointments-freeze' && (
           <div className="p-4">
             <div className="mb-4 flex items-start justify-between gap-4">
@@ -761,6 +795,27 @@ export const ReceptionistPage = () => {
                   />
                 </div>
               </section>
+
+              {/* Internal Transfer card */}
+              <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
+                <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
+                  <span>Internal Transfer</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateInternalTransfer(true)}
+                    className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
+                    title="New Internal Transfer"
+                  >
+                    +
+                  </button>
+                </div>
+                <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
+                  <InternalTransferList
+                    patient={selectedPatient || undefined}
+                    refreshKey={internalTransferRefreshKey}
+                  />
+                </div>
+              </section>
             </div>
           </>
         )}
@@ -829,6 +884,17 @@ export const ReceptionistPage = () => {
           onSuccess={() => {
             setShowCreateReferral(false)
             setReferralRefreshKey(k => k + 1)
+          }}
+        />
+      )}
+
+      {showCreateInternalTransfer && (
+        <CreateInternalTransferModal
+          initialPatient={selectedPatient || undefined}
+          onClose={() => setShowCreateInternalTransfer(false)}
+          onSuccess={() => {
+            setShowCreateInternalTransfer(false)
+            setInternalTransferRefreshKey(k => k + 1)
           }}
         />
       )}
