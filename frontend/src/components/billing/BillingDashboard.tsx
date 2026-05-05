@@ -745,7 +745,6 @@ const handleMakePayment = async (
       <div className="space-y-4">
         <NavigationRow />
         <DateFiltersPanel />
-        <DateFiltersPanel />
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
           <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
             <h3 className="font-semibold text-slate-800">Payments</h3>
