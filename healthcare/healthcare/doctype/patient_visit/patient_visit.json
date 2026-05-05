@@ -23,6 +23,7 @@
   "patient_mobile_no",
   "previous_visit_no",
   "is_blacklist",
+  "during_discharge",
   "column_break_6",
   "company",
   "cost_center",
@@ -706,6 +707,12 @@
    "fieldtype": "Table",
    "label": "Visit Complain",
    "options": "Visit Complain"
+  },
+  {
+   "default": "0",
+   "fieldname": "during_discharge",
+   "fieldtype": "Check",
+   "label": "During Discharge"
   }
  ],
  "is_submittable": 1,
@@ -751,7 +758,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2026-04-27 11:36:57.658372",
+ "modified": "2026-05-05 11:49:31.895164",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Visit",

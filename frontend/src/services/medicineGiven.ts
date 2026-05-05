@@ -217,6 +217,44 @@ export async function getDischargeReconciliationRows(
   return Array.isArray(data?.message) ? (data.message as DischargeReconciliationRow[]) : []
 }
 
+/** Rows for medicine transfer on discharge (all prescribed entries, not based on given qty). */
+export interface DischargeTransferRow {
+  name: string
+  parent: string
+  drug: string
+  drug_name?: string
+  quantity: number
+  reason_stopped?: string
+  dosage?: string
+  no_of_days?: number
+  dosage_form?: string
+  instructions?: string
+  date?: string
+  time?: string
+  patient_frequency?: string
+  is_pink?: boolean
+  reference_no?: string
+  route_of_administration?: string
+  is_long_acting_medicine?: boolean
+  end_date?: string
+  medication_type?: string
+}
+
+export async function getDischargeTransferRows(
+  admission: string
+): Promise<DischargeTransferRow[]> {
+  const params = new URLSearchParams()
+  params.set('admission', admission)
+  const res = await fetch(
+    `/api/method/healthcare.api.medicine_given.get_discharge_transfer_rows?${params.toString()}`
+  )
+  const data = await res.json()
+  if (data?.exc || !res.ok) {
+    throw new Error(data?.exc || data?.message || 'Failed to load transfer rows')
+  }
+  return Array.isArray(data?.message) ? (data.message as DischargeTransferRow[]) : []
+}
+
 /** Saves reason_stopped on the prescription child table only. Use returnStoppedMedicationsToStore to create the stock entry. */
 export async function stopMedicationOnDischarge(
   admission: string,

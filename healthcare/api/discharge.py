@@ -9,7 +9,7 @@ from frappe import _
 
 
 @frappe.whitelist()
-def get_discharges(limit=50, offset=0, patient=None, admission=None, search=None):
+def get_discharges(limit=50, offset=0, patient=None, admission=None, search=None, from_date=None, to_date=None):
 	"""Get list of Discharge documents"""
 	from healthcare.api.common import get_permitted_cost_centers
 	filters = {}
@@ -22,6 +22,13 @@ def get_discharges(limit=50, offset=0, patient=None, admission=None, search=None
 
 	if search and search.strip():
 		filters['name'] = ['like', f'%{search.strip()}%']
+
+	if from_date and to_date:
+		filters['discharge_date'] = ['between', [from_date, to_date]]
+	elif from_date:
+		filters['discharge_date'] = ['>=', from_date]
+	elif to_date:
+		filters['discharge_date'] = ['<=', to_date]
 
 	# ── Cost-centre User Permission enforcement ──────────────────────────────
 	permitted_cc = get_permitted_cost_centers()

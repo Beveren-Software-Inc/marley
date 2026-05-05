@@ -116,12 +116,12 @@
   },
   {
    "depends_on": "eval:doc.care_context=='Inpatient Admission'",
-   "fetch_from": "patient.inpatient_record",
    "fieldname": "inpatient_record",
    "fieldtype": "Link",
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Inpatient Admission",
+   "no_copy": 1,
    "options": "Inpatient Admission"
   },
   {
@@ -382,7 +382,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-04-27 18:32:48.607044",
+ "modified": "2026-05-05 11:12:45.089868",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Medication Order",

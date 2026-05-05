@@ -2,6 +2,8 @@
 # Copyright (c) 2025, Healthcare and contributors
 # For license information, please see license.txt
 
+import json
+
 import frappe
 from frappe import _
 from frappe.utils import nowdate
@@ -367,6 +369,7 @@ def get_service_requests(limit=50, offset=0, patient=None, template_dt=None, sta
 				sr['template_name'] = sr.template_dn
 	
 	return service_requests
+
 
 def generate_lab_test_trans_num(format_type="integer", prefix="", suffix="", padding=6):
     """

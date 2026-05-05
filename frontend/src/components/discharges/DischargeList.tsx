@@ -34,6 +34,8 @@ export const DischargeList = ({ patient, admission }: DischargeListProps) => {
   const [typeFilter, setTypeFilter] = useState<string>('')
   const [admissionFilter, setAdmissionFilter] = useState<string>('')
   const [dischargeIdFilter, setDischargeIdFilter] = useState<string>('')
+  const [fromDate, setFromDate] = useState<string>('')
+  const [toDate, setToDate] = useState<string>('')
 
   // Discharge ID — searchable dropdown (link to Discharge)
   const [dischargeIdQuery, setDischargeIdQuery] = useState('')
@@ -54,7 +56,15 @@ export const DischargeList = ({ patient, admission }: DischargeListProps) => {
         setError(null)
         const resolvedAdmission = dischargeIdFilter ? undefined : (admissionFilter || effectiveAdmission)
         const search = dischargeIdFilter || undefined
-        const response = await fetchDischarges(50, 0, effectivePatient, resolvedAdmission, search)
+        const response = await fetchDischarges(
+          50,
+          0,
+          effectivePatient,
+          resolvedAdmission,
+          search,
+          fromDate || undefined,
+          toDate || undefined
+        )
         setDischarges(response)
       } catch (err) {
         setError(err instanceof Error ? err : new Error('Failed to fetch discharges'))
@@ -64,7 +74,7 @@ export const DischargeList = ({ patient, admission }: DischargeListProps) => {
     }
 
     loadDischarges()
-  }, [effectivePatient, effectiveAdmission, admissionFilter, dischargeIdFilter])
+  }, [effectivePatient, effectiveAdmission, admissionFilter, dischargeIdFilter, fromDate, toDate])
 
   // Load discharge ID options when dropdown is open (searchable list of discharges)
   useEffect(() => {
@@ -147,6 +157,8 @@ export const DischargeList = ({ patient, admission }: DischargeListProps) => {
     setSelectedAdmissionOpt(null)
     setStatusFilter('')
     setTypeFilter('')
+    setFromDate('')
+    setToDate('')
     setAdmissionOpen(false)
   }
 
@@ -154,33 +166,6 @@ export const DischargeList = ({ patient, admission }: DischargeListProps) => {
   const formatDate = (dateStr?: string) => {
     if (!dateStr) return '-'
     return new Date(dateStr).toLocaleString()
-  }
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center p-8">
-        <div className="text-slate-600">Loading discharges...</div>
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className="flex flex-col items-center justify-center p-8">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 max-w-2xl w-full">
-          <h3 className="text-red-800 font-semibold mb-2">Error Loading Discharges</h3>
-          <p className="text-red-700 text-sm mb-2">{error.message}</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (discharges.length === 0) {
-    return (
-      <div className="flex items-center justify-center p-8">
-        <div className="text-slate-500">No discharges found</div>
-      </div>
-    )
   }
 
   const getDocStatus = (docstatus?: number): string => {
@@ -202,6 +187,25 @@ export const DischargeList = ({ patient, admission }: DischargeListProps) => {
   const dischargeTypeOptions = ['Home', 'Dama', 'Refer To Another Hospital']
   const inputClass = 'w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white'
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <div className="text-slate-600">Loading discharges...</div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center p-8">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 max-w-2xl w-full">
+          <h3 className="text-red-800 font-semibold mb-2">Error Loading Discharges</h3>
+          <p className="text-red-700 text-sm mb-2">{error.message}</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="bg-white border border-slate-200 rounded-lg">
       {/* Global-context active admission banner */}
@@ -214,7 +218,7 @@ export const DischargeList = ({ patient, admission }: DischargeListProps) => {
         </div>
       )}
 
-      {/* Filters — same layout and styling as Admission page */}
+      {/* Filters — always visible */}
       <div className="flex flex-wrap gap-3 mb-4 items-end px-4 pt-3 pb-2 border-b border-slate-200">
         {/* Discharge ID — searchable dropdown (link to Discharge) */}
         <div data-discharge-filter-dropdown className="relative">
@@ -250,6 +254,7 @@ export const DischargeList = ({ patient, admission }: DischargeListProps) => {
             </div>
           )}
         </div>
+
         {/* IP Admission — searchable dropdown */}
         <div data-discharge-filter-dropdown className="relative">
           <label className="block text-xs font-medium text-slate-600 mb-1">IP Admission</label>
@@ -284,6 +289,27 @@ export const DischargeList = ({ patient, admission }: DischargeListProps) => {
             </div>
           )}
         </div>
+
+        <div>
+          <label className="block text-xs font-medium text-slate-600 mb-1">From Date</label>
+          <input
+            type="date"
+            value={fromDate}
+            onChange={(e) => setFromDate(e.target.value)}
+            className={inputClass}
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-slate-600 mb-1">To Date</label>
+          <input
+            type="date"
+            value={toDate}
+            onChange={(e) => setToDate(e.target.value)}
+            className={inputClass}
+          />
+        </div>
+
         <div>
           <label className="block text-xs font-medium text-slate-600 mb-1">Status</label>
           <select
@@ -299,6 +325,7 @@ export const DischargeList = ({ patient, admission }: DischargeListProps) => {
             ))}
           </select>
         </div>
+
         <div>
           <label className="block text-xs font-medium text-slate-600 mb-1">Discharge Type</label>
           <select
@@ -314,7 +341,8 @@ export const DischargeList = ({ patient, admission }: DischargeListProps) => {
             ))}
           </select>
         </div>
-        {(dischargeIdFilter || admissionFilter || statusFilter || typeFilter) && (
+
+        {(dischargeIdFilter || admissionFilter || statusFilter || typeFilter || fromDate || toDate) && (
           <div className="flex items-end">
             <button
               type="button"
@@ -327,94 +355,109 @@ export const DischargeList = ({ patient, admission }: DischargeListProps) => {
         )}
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full">
-        <thead className="bg-slate-50 border-b border-slate-200">
-          <tr>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-              Discharge ID
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-              Patient
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-              Admission No
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-              Admission Date
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-              Discharge Date
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-              Discharge Type
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-              Discharged By
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-              Status
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase w-[100px]">
-              Actions
-            </th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-slate-200">
-          {filtered.map((discharge) => (
-            <tr key={discharge.name} className="hover:bg-slate-50">
-              <td
-                className="px-4 py-3 text-sm font-medium text-primary cursor-pointer hover:underline"
-                onClick={() => setDetailName(discharge.name)}
-              >
-                {discharge.name}
-              </td>
-              <td className="px-4 py-3 text-sm text-slate-700">
-                {discharge.patient_name || discharge.file_no || '-'}
-              </td>
-              <td className="px-4 py-3 text-sm text-slate-700">
-                {discharge.admission || '-'}
-              </td>
-              <td className="px-4 py-3 text-sm text-slate-700">
-                {formatDate(discharge.admission_date)}
-              </td>
-              <td className="px-4 py-3 text-sm text-slate-700">
-                {formatDate(discharge.discharge_date)}
-              </td>
-              <td className="px-4 py-3 text-sm text-slate-700">
-                {discharge.discharge_type || '-'}
-              </td>
-              <td className="px-4 py-3 text-sm text-slate-700">
-                {discharge.discharged_by_user_name || discharge.discharged_by_user || '-'}
-              </td>
-              <td className="px-4 py-3">
-                <StatusPill
-                  status={getDocStatus(discharge.docstatus)}
-                  color={statusColors[getDocStatus(discharge.docstatus)] || 'default'}
-                />
-              </td>
-              <td className="px-4 py-2 align-middle">
-                <PrintFormatDropdown
-                  doctype="Discharge"
-                  docName={discharge.name}
-                  noLetterhead={0}
-                  triggerPrint={1}
-                />
-              </td>
-            </tr>
-          ))}
-        </tbody>
-        </table>
-      </div>
+      {/* Empty or Table Data */}
+      {filtered.length === 0 ? (
+        <div className="flex items-center justify-center p-8">
+          <div className="text-slate-500 text-center">
+            <svg className="w-12 h-12 mx-auto mb-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            <p className="text-sm font-medium">No discharges found</p>
+            <p className="text-xs mt-1">Try adjusting your filters to see more results</p>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-slate-50 border-b border-slate-200">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+                    Discharge ID
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+                    Patient
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+                    Admission No
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+                    Admission Date
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+                    Discharge Date
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+                    Discharge Type
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+                    Discharged By
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+                    Status
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase w-[100px]">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200">
+                {filtered.map((discharge) => (
+                  <tr key={discharge.name} className="hover:bg-slate-50">
+                    <td
+                      className="px-4 py-3 text-sm font-medium text-primary cursor-pointer hover:underline"
+                      onClick={() => setDetailName(discharge.name)}
+                    >
+                      {discharge.name}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-slate-700">
+                      {discharge.patient_name || discharge.file_no || '-'}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-slate-700">
+                      {discharge.admission || '-'}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-slate-700">
+                      {formatDate(discharge.admission_date)}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-slate-700">
+                      {formatDate(discharge.discharge_date)}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-slate-700">
+                      {discharge.discharge_type || '-'}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-slate-700">
+                      {discharge.discharged_by_user_name || discharge.discharged_by_user || '-'}
+                    </td>
+                    <td className="px-4 py-3">
+                      <StatusPill
+                        status={getDocStatus(discharge.docstatus)}
+                        color={statusColors[getDocStatus(discharge.docstatus)] || 'default'}
+                      />
+                    </td>
+                    <td className="px-4 py-2 align-middle">
+                      <PrintFormatDropdown
+                        doctype="Discharge"
+                        docName={discharge.name}
+                        noLetterhead={0}
+                        triggerPrint={1}
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
 
-      {detailName && (
-        <DetailSlideOver
-          title="Discharge"
-          subtitle={detailName}
-          onClose={() => setDetailName(null)}
-        >
-          <DocDetailView doctype="Discharge" name={detailName} />
-        </DetailSlideOver>
+          {detailName && (
+            <DetailSlideOver
+              title="Discharge"
+              subtitle={detailName}
+              onClose={() => setDetailName(null)}
+            >
+              <DocDetailView doctype="Discharge" name={detailName} />
+            </DetailSlideOver>
+          )}
+        </>
       )}
     </div>
   )
