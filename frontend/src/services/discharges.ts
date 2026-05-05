@@ -25,7 +25,9 @@ export async function fetchDischarges(
   offset: number = 0,
   patient?: string,
   admission?: string,
-  search?: string
+  search?: string,
+  fromDate?: string,
+  toDate?: string
 ): Promise<Discharge[]> {
   const params = new URLSearchParams()
   params.append('limit', limit.toString())
@@ -33,6 +35,8 @@ export async function fetchDischarges(
   if (patient) params.append('patient', patient)
   if (admission) params.append('admission', admission)
   if (search && search.trim()) params.append('search', search.trim())
+  if (fromDate) params.append('from_date', fromDate)
+  if (toDate) params.append('to_date', toDate)
 
   const result = await apiRequest<Discharge[]>(
     `/api/method/healthcare.api.discharge.get_discharges?${params.toString()}`

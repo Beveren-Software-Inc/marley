@@ -36,6 +36,23 @@ const SectionTitle = ({ title }: { title: string }) => (
   <h3 className="text-sm font-semibold text-slate-700 mb-2 pb-1 border-b border-slate-100">{title}</h3>
 )
 
+/** Rich-text / Quill HTML stored in a text field → readable plain text for the details panel */
+function stripHtmlToPlainText(raw: string | null | undefined): string {
+  if (raw == null || typeof raw !== 'string') return ''
+  const s = raw.trim()
+  if (!s) return ''
+  if (typeof document !== 'undefined') {
+    try {
+      const doc = new DOMParser().parseFromString(s, 'text/html')
+      const text = doc.body.textContent || ''
+      return text.replace(/\s+/g, ' ').trim()
+    } catch {
+      /* ignore */
+    }
+  }
+  return s.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+}
+
 export const LabTestDetails = ({ labTestName, onUpdate }: LabTestDetailsProps) => {
   const [labTest, setLabTest] = useState<LabTest | null>(null)
   const [loading, setLoading] = useState(true)
@@ -227,8 +244,14 @@ export const LabTestDetails = ({ labTestName, onUpdate }: LabTestDetailsProps) =
                     <td className="px-3 py-2 text-slate-800">
                       {row.sample_qty ?? '-'}
                     </td>
-                    <td className="px-3 py-2 text-slate-700 whitespace-pre-wrap">
-                      {row.sample_details || <span className="text-slate-400 italic">No details</span>}
+                    <td className="px-3 py-2 text-slate-700 max-w-md align-top">
+                      {row.sample_details ? (
+                        <span className="block text-[13px] leading-snug" title={stripHtmlToPlainText(row.sample_details)}>
+                          {stripHtmlToPlainText(row.sample_details)}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400 italic">No details</span>
+                      )}
                     </td>
                     <td className="px-3 py-2 text-slate-800">
                       {row.sample_collection ? (

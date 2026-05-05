@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, Fragment } from 'react'
 import { useLabTests } from '../../hooks/useLabTests'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { StatusPill } from '../ui/StatusPill'
@@ -822,8 +822,9 @@ export const LabTestList = ({
                 const groupStatus = getGroupCompletionStatus(children)
 
                 return (
-                  <>
-                    <tr key={`group-${serviceRequest}`} className="bg-indigo-50 hover:bg-indigo-100 cursor-pointer border-l-4 border-indigo-400">
+                  <Fragment key={`group-${serviceRequest}`}>
+                    <tr className="bg-indigo-50 hover:bg-indigo-100 border-l-4 border-indigo-400">
+                      {/* Lab Test ID - clickable to open group details? For now, keep non-clickable for group row */}
                       <td className="px-4 py-3 text-sm font-medium text-indigo-800">
                         <div className="flex items-center gap-1.5">
                           <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-200 text-indigo-700">GROUP</span>
@@ -883,13 +884,17 @@ export const LabTestList = ({
                     </tr>
 
                     {isExpanded && children.map((child) => (
-                      <tr key={child.name} className="bg-indigo-50/30 hover:bg-indigo-50 cursor-pointer border-l-4 border-indigo-200"
-                        onClick={(e) => {
-                          const target = e.target as HTMLElement
-                          if (target.closest('button') || target.closest('a') || target.closest('[data-no-row-click]')) return
-                          setSelectedLabTestForDetails(child.name)
-                        }}>
-                        <td className="px-4 py-2.5 text-sm font-medium text-slate-700 pl-8">↳ {child.name}</td>
+                      <tr key={child.name} className="bg-indigo-50/30 hover:bg-indigo-50">
+                        {/* Lab Test ID - clickable to open details modal */}
+                        <td 
+                          className="px-4 py-2.5 text-sm font-medium text-slate-700 pl-8 cursor-pointer hover:text-indigo-600"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedLabTestForDetails(child.name);
+                          }}
+                        >
+                          ↳ {child.name}
+                        </td>
                         <td className="px-4 py-2.5 text-sm text-slate-500">{child.patient_name || child.patient}</td>
                         <td className="px-4 py-2.5 text-sm text-slate-700 pl-6">{child.lab_test_name || child.template || '-'}</td>
                         <td className="px-4 py-2.5 text-sm text-slate-700">{child.practitioner_name || child.practitioner || '-'}</td>
@@ -917,19 +922,23 @@ export const LabTestList = ({
                         </td>
                       </tr>
                     ))}
-                  </>
+                  </Fragment>
                 )
               })}
 
               {/* ── STANDALONE (non-grouped) ROWS ── */}
               {standaloneTests.map((labTest) => (
-                <tr key={labTest.name} className="hover:bg-slate-50 cursor-pointer"
-                  onClick={(e) => {
-                    const target = e.target as HTMLElement
-                    if (target.closest('button') || target.closest('a') || target.closest('[data-no-row-click]')) return
-                    setSelectedLabTestForDetails(labTest.name)
-                  }}>
-                  <td className="px-4 py-3 text-sm font-medium text-slate-900">{labTest.name}</td>
+                <tr key={labTest.name} className="hover:bg-slate-50">
+                  {/* Lab Test ID - clickable to open details modal */}
+                  <td 
+                    className="px-4 py-3 text-sm font-medium text-slate-900 cursor-pointer hover:text-primary"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedLabTestForDetails(labTest.name);
+                    }}
+                  >
+                    {labTest.name}
+                  </td>
                   <td className="px-4 py-3 text-sm text-slate-700">{labTest.patient_name || labTest.patient}</td>
                   <td className="px-4 py-3 text-sm text-slate-700">{labTest.lab_test_name || labTest.template || '-'}</td>
                   <td className="px-4 py-3 text-sm text-slate-700">{labTest.practitioner_name || labTest.practitioner || '-'}</td>

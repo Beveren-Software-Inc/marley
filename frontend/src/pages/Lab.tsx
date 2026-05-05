@@ -80,16 +80,22 @@ export const LabPage = () => {
   const [searchParams, setSearchParams] = useSearchParams()
   const patientFromUrl = searchParams.get('patient')
   const screen = searchParams.get('screen')
-  const tabFromUrl = (searchParams.get('tab') || 'service-requests') as LabTab
   const roles = userRole || []
+  /** Lab home "Service Requests" tab: admins only (not Doctor / lab staff). */
+  const canSeeServiceRequestsTab = roles.some((role) =>
+    ['System Manager', 'Healthcare Administrator', 'Administrator'].includes(role)
+  )
   const canCreateLabServiceRequests = roles.some((role) =>
     ['Doctor', 'System Manager', 'Healthcare Administrator', 'Administrator'].includes(role)
   )
-  
+
+  const rawTab = (searchParams.get('tab') ||
+    (canSeeServiceRequestsTab ? 'service-requests' : 'lab-tests')) as LabTab
+  const tabFromUrl =
+    !canSeeServiceRequestsTab && rawTab === 'service-requests' ? 'lab-tests' : rawTab
+
   const [selectedPatient, setSelectedPatient] = useState<string | undefined>(() => patientFromUrl || globalPatient || undefined)
-  const [activeTab, setActiveTab] = useState<LabTab>(
-    canCreateLabServiceRequests || tabFromUrl !== 'service-requests' ? tabFromUrl : 'lab-tests'
-  )
+  const [activeTab, setActiveTab] = useState<LabTab>(tabFromUrl)
   const [labTestRefreshKey, setLabTestRefreshKey] = useState(0)
   const [showLabTestModal, setShowLabTestModal] = useState(false)
   const [showServiceRequestModal, setShowServiceRequestModal] = useState(false)
@@ -158,7 +164,7 @@ export const LabPage = () => {
   }
 
   const handleTabChange = (newTab: LabTab) => {
-    if (newTab === 'service-requests' && !canCreateLabServiceRequests) return
+    if (newTab === 'service-requests' && !canSeeServiceRequestsTab) return
     setActiveTab(newTab)
     const newSearchParams = new URLSearchParams(searchParams)
     newSearchParams.set('tab', newTab)
@@ -166,10 +172,10 @@ export const LabPage = () => {
   }
 
   useEffect(() => {
-    if (!canCreateLabServiceRequests && activeTab === 'service-requests') {
+    if (!canSeeServiceRequestsTab && activeTab === 'service-requests') {
       handleTabChange('lab-tests')
     }
-  }, [canCreateLabServiceRequests, activeTab])
+  }, [canSeeServiceRequestsTab, activeTab])
 
   const handleLabTestCreated = () => {
     setLabTestRefreshKey(prev => prev + 1)
@@ -510,8 +516,16 @@ export const LabPage = () => {
   }
 
   // Default view — card-based navigation
-  const activeCard = NAV_CARDS.find(c => c.id === activeTab)!
-  const needsPatient = activeTab === 'medical-history' || activeTab === 'warnings'
+  const labNavCards = NAV_CARDS.filter(
+    (card) => canSeeServiceRequestsTab || card.id !== 'service-requests'
+  )
+  const resolvedTab: LabTab =
+    !canSeeServiceRequestsTab && activeTab === 'service-requests' ? 'lab-tests' : activeTab
+  const activeCard =
+    labNavCards.find((c) => c.id === resolvedTab) ??
+    labNavCards.find((c) => c.id === 'lab-tests') ??
+    labNavCards[0]
+  const needsPatient = resolvedTab === 'medical-history' || resolvedTab === 'warnings'
 
   return (
     <div className="flex flex-col h-full min-w-0">
@@ -533,9 +547,9 @@ export const LabPage = () => {
 
         {/* Navigation cards */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          {NAV_CARDS.filter(card => canCreateLabServiceRequests || card.id !== 'service-requests').map(card => {
+          {labNavCards.map((card) => {
             const Icon = card.icon
-            const isActive = activeTab === card.id
+            const isActive = resolvedTab === card.id
             return (
               <button
                 key={card.id}
@@ -566,7 +580,7 @@ export const LabPage = () => {
               <h2 className="text-sm font-semibold text-slate-800">{activeCard.title}</h2>
               <p className="text-xs text-slate-500 mt-0.5">{activeCard.desc}</p>
             </div>
-            {activeTab === 'service-requests' && canCreateLabServiceRequests && (
+            {resolvedTab === 'service-requests' && canSeeServiceRequestsTab && (
               <button
                 type="button"
                 onClick={() => setShowServiceRequestModal(true)}
@@ -576,7 +590,7 @@ export const LabPage = () => {
                 +
               </button>
             )}
-            {activeTab === 'lab-tests' && (
+            {resolvedTab === 'lab-tests' && (
               <button
                 type="button"
                 onClick={() => setShowLabTestModal(true)}
@@ -586,7 +600,7 @@ export const LabPage = () => {
                 +
               </button>
             )}
-            {activeTab === 'lab-templates' && (
+            {resolvedTab === 'lab-templates' && (
               <button
                 type="button"
                 onClick={() => { setEditTemplateName(undefined); setShowCreateTemplateModal(true) }}
@@ -599,7 +613,7 @@ export const LabPage = () => {
           </div>
 
           <div className="overflow-x-auto overflow-y-auto max-h-[480px] p-1" style={{ scrollbarWidth: 'thin' }}>
-            {activeTab === 'service-requests' && canCreateLabServiceRequests && (
+            {resolvedTab === 'service-requests' && canSeeServiceRequestsTab && (
               <ServiceRequestList
                 patient={selectedPatient}
                 onLabTestCreated={handleLabTestCreated}
@@ -607,10 +621,10 @@ export const LabPage = () => {
                 template_dt="Lab Test Template"
               />
             )}
-            {activeTab === 'lab-tests' && (
+            {resolvedTab === 'lab-tests' && (
               <LabTestList patient={selectedPatient} key={labTestRefreshKey} />
             )}
-            {activeTab === 'sample-collection' && (
+            {resolvedTab === 'sample-collection' && (
               <div className="p-3">
                 <SampleCollectionList
                   patient={selectedPatient}
@@ -618,7 +632,7 @@ export const LabPage = () => {
                 />
               </div>
             )}
-            {activeTab === 'lab-templates' && (
+            {resolvedTab === 'lab-templates' && (
               <div className="p-3">
                 <LabTestTemplateList
                   refreshKey={templateRefreshKey}
@@ -627,7 +641,7 @@ export const LabPage = () => {
                 />
               </div>
             )}
-            {activeTab === 'medical-history' && (
+            {resolvedTab === 'medical-history' && (
               needsPatient && !selectedPatient ? (
                 <div className="flex flex-col items-center justify-center py-12 text-slate-400">
                   <BookOpen className="w-10 h-10 mb-3 opacity-40" />
@@ -639,7 +653,7 @@ export const LabPage = () => {
                 </div>
               )
             )}
-            {activeTab === 'warnings' && (
+            {resolvedTab === 'warnings' && (
               needsPatient && !selectedPatient ? (
                 <div className="flex flex-col items-center justify-center py-12 text-slate-400">
                   <AlertTriangle className="w-10 h-10 mb-3 opacity-40" />
@@ -663,7 +677,7 @@ export const LabPage = () => {
           initialPatient={selectedPatient}
         />
       )}
-      {showServiceRequestModal && canCreateLabServiceRequests && (
+      {showServiceRequestModal && canSeeServiceRequestsTab && (
         <CreateServiceRequestModal
           onClose={() => setShowServiceRequestModal(false)}
           onSuccess={() => { 

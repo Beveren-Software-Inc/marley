@@ -2,6 +2,7 @@ import json
 import frappe
 from frappe import _
 from frappe.utils import nowdate, nowtime, now_datetime, cint, flt, getdate
+from healthcare.api.utils.api_utility import get_next_transaction_number
 
 
 def _get_or_create_admission_detail(admission: str):
@@ -381,6 +382,7 @@ def _get_reconciliation_remaining_per_entry(admission: str) -> list[dict]:
 		filters={"inpatient_record": admission, "docstatus": 1, "patient_encounter": ["is", "not set"]},
 		pluck="name",
 	)
+	
 	if not order_names:
 		return []
 
@@ -456,8 +458,71 @@ def get_discharge_reconciliation_rows(admission: str) -> list[dict]:
 	"""Return list of Inpatient Medication Order Entry rows that have remaining (not yet given) quantity for medicine reconciliation on discharge."""
 	if not admission:
 		frappe.throw(_("Admission (Inpatient Admission) is required"))
+	
 	rows = _get_reconciliation_remaining_per_entry(admission)
 	return rows
+
+
+@frappe.whitelist()
+def get_discharge_transfer_rows(admission: str) -> list[dict]:
+	"""Return prescribed medication order entries for transfer on discharge.
+
+	Unlike reconciliation, this does not compare against Medicine Given.
+	It returns original inpatient prescription rows that are not yet transferred.
+	"""
+	if not admission:
+		frappe.throw(_("Admission (Inpatient Admission) is required"))
+
+	order_names = frappe.get_all(
+		"Patient Medication Order",
+		filters={"inpatient_record": admission, "docstatus": 1, "patient_encounter": ["is", "not set"]},
+		pluck="name",
+	)
+	if not order_names:
+		return []
+	
+	filters = {"parent": ["in", order_names]}
+	if frappe.db.has_column("Inpatient Medication Order Entry", "transferred_to_visit"):
+		filters["transferred_to_visit"] = ["is", "not set"]
+
+	fields = [
+		"name",
+		"parent",
+		"drug",
+		"drug_name",
+		"quantity",
+		"reason_stopped",
+		"dosage",
+		"no_of_days",
+		"dosage_form",
+		"instructions",
+		"date",
+		"time",
+		"patient_frequency",
+		"is_pink",
+		"reference_no",
+		"route_of_administration",
+		"is_long_acting_medicine",
+		"end_date",
+		"creation",
+	]
+	if frappe.db.has_column("Inpatient Medication Order Entry", "medication_type"):
+		fields.append("medication_type")
+
+	rows = frappe.get_all(
+		"Inpatient Medication Order Entry",
+		filters=filters,
+		fields=fields,
+		order_by="date asc, creation asc",
+	)
+	print("Rows rows", str(rows))
+	result = []
+	for row in rows:
+		# if flt(row.get("quantity"), 0) <= 0:
+		# 	continue
+		result.append(row)
+
+	return result
 
 
 def _get_warehouse_for_admission(admission: str):
@@ -771,6 +836,7 @@ def create_visit_and_prescription_on_discharge(
 	else:
 		visit_type = "Follow-up for the Psychiatrist"
 		pv = frappe.new_doc("Patient Visit")
+		pv.case_no = get_next_transaction_number('Patient Visit', fieldname='case_no')
 		pv.patient = patient
 		pv.patient_name = patient_name
 		pv.visit_type = visit_type
@@ -780,7 +846,10 @@ def create_visit_and_prescription_on_discharge(
 		if practitioner:
 			pv.practitioner = practitioner
 		pv.company = company
+		pv.during_discharge = 1
+		pv.status='Completed'
 		pv.insert(ignore_permissions=True)
+		pv.submit()
 		frappe.db.commit()
 
 	from healthcare.api.patient_medication_order import create_patient_medication_order

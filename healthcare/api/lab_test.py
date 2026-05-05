@@ -275,6 +275,8 @@ def get_lab_tests(
 			"service_request",
 			"lab_test_group",
 			"is_group_lab_test",
+			"lab_technician",
+			"lab_technician_name",
 			# "min_range",
 			# "max_range",
 			"results",
@@ -329,6 +331,11 @@ def get_lab_tests(
 			lab_test["practitioner_name"] = (
 				frappe.db.get_value("Healthcare Practitioner", lab_test.practitioner, "practitioner_name")
 				or lab_test.practitioner
+			)
+		if lab_test.get("lab_technician") and not (lab_test.get("lab_technician_name") or "").strip():
+			lab_test["lab_technician_name"] = (
+				frappe.db.get_value("Healthcare Practitioner", lab_test.lab_technician, "practitioner_name")
+				or lab_test.lab_technician
 			)
 	return lab_tests
 

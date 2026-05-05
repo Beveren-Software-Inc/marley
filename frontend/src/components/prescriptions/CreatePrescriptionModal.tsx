@@ -42,6 +42,7 @@ interface CreatePrescriptionModalProps {
   initialMedications?: MedicationOrderRow[]
   initialCareContext?: 'Patient Visit' | 'Inpatient Admission'
   initialPatientEncounter?: string
+  initialInpatientRecord?: string
   initialStartDate?: string
   transferAdmission?: string
   editMode?: boolean
@@ -242,6 +243,7 @@ export const CreatePrescriptionModal = ({
   initialMedications,
   initialCareContext,
   initialPatientEncounter,
+  initialInpatientRecord,
   initialStartDate,
   transferAdmission,
   editMode = false,
@@ -468,11 +470,14 @@ export const CreatePrescriptionModal = ({
         ...prev,
         care_context: initialCareContext,
         patient_encounter: initialPatientEncounter || '',
-        inpatient_record: initialCareContext === 'Patient Visit' ? '' : prev.inpatient_record,
+        inpatient_record:
+          initialCareContext === 'Patient Visit'
+            ? ''
+            : (initialInpatientRecord || prev.inpatient_record),
         start_date: initialStartDate || prev.start_date,
       }))
     }
-  }, [initialCareContext, initialPatientEncounter, initialStartDate])
+  }, [initialCareContext, initialPatientEncounter, initialInpatientRecord, initialStartDate])
 
   useEffect(() => {
     if (!selectedPatient) {

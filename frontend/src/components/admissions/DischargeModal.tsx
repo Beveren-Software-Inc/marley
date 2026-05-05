@@ -6,7 +6,10 @@ import { createDischarge, UnbilledServicesError } from '../../services/inpatient
 import { uploadPatientFile, type PatientDocumentRow } from '../../services/patients'
 import { MedicineGivenList } from '../medication/MedicineGivenList'
 import { MedicineReconciliationList } from '../medication/MedicineReconciliationList'
-import { getDischargeReconciliationRows, type DischargeReconciliationRow } from '../../services/medicineGiven'
+import {
+  getDischargeTransferRows,
+  type DischargeTransferRow,
+} from '../../services/medicineGiven'
 import { fetchHealthcarePractitioners, fetchUsers, fetchDischargeTemplates, fetchDischargeChecklist, fetchDepartments, fetchDocumentTypes, fetchNursingDischargeTemplates, type LinkFieldOption, fetchNursingDischargeChecklist } from '../../services/common'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { CreatePrescriptionModal } from '../prescriptions/CreatePrescriptionModal'
@@ -525,7 +528,7 @@ export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModal
   const formatMedicineMoney = useFormatMoney()
   const canViewMedicineTransfer = (userRole || []).some((role) => TRANSFER_ALLOWED_ROLES.includes(role as typeof TRANSFER_ALLOWED_ROLES[number]))
 
-  const [transferRows, setTransferRows] = useState<DischargeReconciliationRow[]>([])
+  const [transferRows, setTransferRows] = useState<DischargeTransferRow[]>([])
   const [transferLoading, setTransferLoading] = useState(false)
   const [transferError, setTransferError] = useState<string | null>(null)
   const [transferModalOpen, setTransferModalOpen] = useState(false)
@@ -1042,11 +1045,11 @@ const loadDailyVisitSetup = async () => {
       setTransferLoading(true)
       setTransferError(null)
       try {
-        const rows = await getDischargeReconciliationRows(admission.name)
+        const rows = await getDischargeTransferRows(admission.name)
         setTransferRows(rows)
         setTransferSelected(new Set(rows.map((row) => row.name)))
       } catch (err) {
-        setTransferError(err instanceof Error ? err.message : 'Failed to load remaining medicines')
+        setTransferError(err instanceof Error ? err.message : 'Failed to load prescribed medicines')
         setTransferRows([])
         setTransferSelected(new Set())
       } finally {
@@ -1071,7 +1074,7 @@ const loadDailyVisitSetup = async () => {
 
   const refreshTransferRows = async () => {
     try {
-      const rows = await getDischargeReconciliationRows(admission.name)
+      const rows = await getDischargeTransferRows(admission.name)
       setTransferRows(rows)
       setTransferSelected(new Set(rows.map((row) => row.name)))
     } catch {
@@ -1326,12 +1329,13 @@ const loadDailyVisitSetup = async () => {
 
         <form
           onSubmit={handleSubmit}
-          className="flex-1 overflow-y-auto"
+          className="flex-1 flex flex-col min-h-0"
           onClick={(e) => {
             const target = e.target as HTMLElement
             if (!target.closest('.dropdown-container')) closeAllDropdowns()
           }}
         >
+          <div className="flex-1 overflow-y-auto">
           {error && !unbilledServices && (
             <div className="mx-6 mt-4 p-3 bg-red-50 border border-red-200 rounded-md flex items-start gap-2 text-red-700 text-sm">
               <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
@@ -1998,7 +2002,7 @@ const loadDailyVisitSetup = async () => {
             <div className="p-6 space-y-6">
               <h3 className="text-sm font-semibold text-slate-700 mb-1">Medicine Transfer</h3>
               <p className="text-xs text-slate-600 mb-2">
-                Transfer remaining discharge medicines into a follow-up prescription. This creates a Patient Visit and a new prescription for the patient to continue at home.
+                Transfer prescribed medicines into a follow-up prescription. This creates a Patient Visit and a new prescription for the patient to continue at home.
               </p>
 
               {transferError && (
@@ -2008,9 +2012,9 @@ const loadDailyVisitSetup = async () => {
               )}
 
               {transferLoading ? (
-                <div className="text-sm text-slate-600">Loading remaining discharge medicines…</div>
+                <div className="text-sm text-slate-600">Loading prescribed discharge medicines…</div>
               ) : transferRows.length === 0 ? (
-                <div className="text-sm text-slate-500">No remaining discharge medicines are available for transfer.</div>
+                <div className="text-sm text-slate-500">No prescribed discharge medicines are available for transfer.</div>
               ) : (
                 <div className="space-y-4">
                   {transferPrescription && (
@@ -2021,7 +2025,7 @@ const loadDailyVisitSetup = async () => {
                   )}
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                     <div className="text-sm text-slate-600">
-                      Select which remaining medicines to transfer into the follow-up prescription.
+                      Select which prescribed medicines to transfer into the follow-up prescription.
                     </div>
                     <button
                       type="button"
@@ -2039,7 +2043,8 @@ const loadDailyVisitSetup = async () => {
                         <tr>
                           <th className="px-3 py-2 text-left w-10"></th>
                           <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-600">Drug</th>
-                          <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-600">Remaining</th>
+                          <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-600">Prescribed</th>
+                          <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-600">Stopped Reason</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-200">
@@ -2055,7 +2060,16 @@ const loadDailyVisitSetup = async () => {
                               </button>
                             </td>
                             <td className="px-3 py-2 text-slate-800">{row.drug_name || row.drug}</td>
-                            <td className="px-3 py-2 text-slate-700">{row.remaining}</td>
+                            <td className="px-3 py-2 text-slate-700">{row.quantity}</td>
+                            <td className="px-3 py-2 text-slate-700">
+                              {row.reason_stopped ? (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">
+                                  {row.reason_stopped}
+                                </span>
+                              ) : (
+                                <span className="text-slate-400">-</span>
+                              )}
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -2641,9 +2655,10 @@ const loadDailyVisitSetup = async () => {
               </div>
             </div>
           )}
+          </div>
 
           {/* Footer */}
-          <div className="px-6 py-4 border-t border-slate-200 flex items-center justify-between bg-slate-50 sticky bottom-0">
+          <div className="px-6 py-4 border-t border-slate-200 flex items-center justify-between bg-slate-50 shrink-0">
             <div className="text-xs text-slate-500">
               {totalItems > 0 && !allCompleted && (
                 <span className="flex items-center gap-1 text-amber-600">
@@ -2698,21 +2713,21 @@ const loadDailyVisitSetup = async () => {
               .map((row) => ({
                 drug: row.drug,
                 drug_name: row.drug_name,
-                dosage: '',
-                no_of_days: 1,
-                dosage_form: '',
-                instructions: '',
-                date: new Date().toISOString().split('T')[0],
-                end_date: addDaysToIsoDate(new Date().toISOString().split('T')[0], 1),
-                time: '08:00:00',
-                patient_frequency: '',
-                is_pink: false,
+                dosage: row.dosage || '',
+                no_of_days: row.no_of_days || 1,
+                dosage_form: row.dosage_form || '',
+                instructions: row.instructions || '',
+                date: row.date || new Date().toISOString().split('T')[0],
+                end_date: row.end_date || addDaysToIsoDate(row.date || new Date().toISOString().split('T')[0], row.no_of_days || 1),
+                time: row.time || '08:00:00',
+                patient_frequency: row.patient_frequency || '',
+                is_pink: Boolean(row.is_pink),
                 is_prn: false,
-                reference_no: '',
-                route_of_administration: '',
-                is_long_acting: false,
+                reference_no: row.reference_no || '',
+                route_of_administration: row.route_of_administration || '',
+                is_long_acting: Boolean(row.is_long_acting_medicine),
                 long_acting_frequency: 'Weekly',
-                medication_type: '',
+                medication_type: row.medication_type || '',
               }))}
             transferAdmission={admission.name}
           />
