@@ -381,7 +381,7 @@ export const LabPage = () => {
         </header>
 
         <div className="p-4">
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col">
             <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
               <span>Lab Test Requests</span>
               <button
@@ -392,7 +392,7 @@ export const LabPage = () => {
                 +
               </button>
             </div>
-            <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
+            <div className="overflow-x-auto overflow-visible" style={{ scrollbarWidth: 'thin' }}>
               <ServiceRequestList 
                 patient={selectedPatient} 
                 onLabTestCreated={handleLabTestCreated}
@@ -436,7 +436,7 @@ export const LabPage = () => {
         </header>
 
         <div className="p-4">
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col">
             <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
               <span>Outsourced Tests</span>
               <button
@@ -447,7 +447,7 @@ export const LabPage = () => {
                 +
               </button>
             </div>
-            <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
+            <div className="overflow-x-auto overflow-visible" style={{ scrollbarWidth: 'thin' }}>
               <LabTestList patient={selectedPatient} isOutsourced={true} key={labTestRefreshKey} />
             </div>
           </section>
@@ -485,7 +485,7 @@ export const LabPage = () => {
         </header>
 
         <div className="p-4">
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col">
             <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
               <span>Lab Test & Result</span>
               <button
@@ -496,7 +496,7 @@ export const LabPage = () => {
                 +
               </button>
             </div>
-            <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
+            <div className="overflow-x-auto overflow-visible" style={{ scrollbarWidth: 'thin' }}>
               <LabTestList patient={selectedPatient} key={labTestRefreshKey} />
             </div>
           </section>

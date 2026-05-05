@@ -85,15 +85,19 @@ const DashboardCard = ({
   onAdd, 
   children, 
   className = "",
-  addButtonTitle = `Add ${title}`
+  addButtonTitle = `Add ${title}`,
+  noHeightLimit = false,
+  fixedHeight = false,
 }: { 
   title: string
   onAdd?: () => void
   children: React.ReactNode
   className?: string
   addButtonTitle?: string
+  noHeightLimit?: boolean
+  fixedHeight?: boolean
 }) => (
-  <section className={`bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col min-h-[400px] max-h-[400px] ${className}`}>
+  <section className={`bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col ${fixedHeight && !noHeightLimit ? 'min-h-[400px] max-h-[400px]' : ''} ${className}`}>
     <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
       <span>{title}</span>
       {onAdd && (
@@ -106,7 +110,7 @@ const DashboardCard = ({
         </button>
       )}
     </div>
-    <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
+    <div className={`overflow-x-auto ${fixedHeight && !noHeightLimit ? 'overflow-y-auto flex-1 min-h-0' : 'overflow-visible'}`} style={{ scrollbarWidth: 'thin' }}>
       {children}
     </div>
   </section>
@@ -557,6 +561,7 @@ export const DoctorPage = () => {
             title="Laboratory" 
             onAdd={() => setShowLabTestModal(true)}
             addButtonTitle="Add Lab Test"
+            noHeightLimit
           >
             <LabTestList patient={selectedPatient} defaultStatus="Pending Review" key={labTestRefreshKey} />
           </DashboardCard>
@@ -892,6 +897,7 @@ export const DoctorPage = () => {
             title="Doctors Prescriptions" 
             onAdd={() => setShowPrescriptionModal(true)}
             addButtonTitle="Create Prescription"
+            noHeightLimit
           >
             <PrescriptionList
               patient={selectedPatient}
@@ -935,6 +941,7 @@ export const DoctorPage = () => {
             title="Given Medicines" 
             onAdd={() => setShowGivenMedicineModal(true)}
             addButtonTitle="Record Given Medicine"
+            noHeightLimit
           >
             <MedicineGivenList patient={selectedPatient} refreshKey={givenRefreshKey} />
           </DashboardCard>
@@ -975,6 +982,7 @@ export const DoctorPage = () => {
             title="IP Medication (Inpatient Prescriptions)" 
             onAdd={() => setShowPrescriptionModal(true)}
             addButtonTitle="Create IP Prescription"
+            noHeightLimit
           >
             <PrescriptionList
               patient={selectedPatient}
@@ -2035,7 +2043,7 @@ return (
     {/* OP / IP mode: full-width top row — hidden once a specific visit/admission is selected */}
     {(mode === 'OP' && !activeVisit) || (mode === 'IP' && !activeAdmission) ? (
       <div className="px-4 pt-4 pb-0">
-        <DashboardCard title={mode === 'OP' ? 'Patient Visits (OP)' : 'Inpatient Admissions (IP)'}>
+        <DashboardCard fixedHeight title={mode === 'OP' ? 'Patient Visits (OP)' : 'Inpatient Admissions (IP)'}>
           {mode === 'OP' ? (
             <PatientVisitList
               patient={selectedPatient || undefined}
@@ -2065,11 +2073,11 @@ return (
       <>
         {/* Row 1: Patient info and Medical History */}
         <div className="grid gap-4 md:grid-cols-2 auto-rows-fr p-4">
-          <DashboardCard title="Patient Information">
+          <DashboardCard fixedHeight title="Patient Information">
             <PatientSummaryCard patient={selectedPatient} />
           </DashboardCard>
 
-          <DashboardCard title="Patient Medical History">
+          <DashboardCard fixedHeight title="Patient Medical History">
             <MedicalHistoryView patient={selectedPatient} />
           </DashboardCard>
         </div>
@@ -2077,6 +2085,7 @@ return (
         {/* Row 2: Warnings & Allergies and Doctor Progress Notes */}
         <div className="grid gap-4 md:grid-cols-2 auto-rows-fr px-4 pb-4">
           <DashboardCard 
+            fixedHeight
             title="Warnings & Allergies" 
             onAdd={() => setShowWarningModal(true)}
             addButtonTitle="Add Warning Message"
@@ -2085,6 +2094,7 @@ return (
           </DashboardCard>
 
           <DashboardCard 
+            fixedHeight
             title="Doctor Progress Notes" 
             onAdd={() => setShowDoctorProgressNoteModal(true)}
             addButtonTitle="Add Doctor Progress Note"
@@ -2101,6 +2111,7 @@ return (
         {/* Row 3: Lab Test Reports and Lab Requests (on same line) */}
         <div className="grid gap-4 md:grid-cols-2 auto-rows-fr px-4 pb-4">
           <DashboardCard 
+            fixedHeight
             title="Lab Test Reports" 
             onAdd={() => setShowLabTestModal(true)}
             addButtonTitle="Add Lab Test Report"
@@ -2113,6 +2124,7 @@ return (
           </DashboardCard>
 
           <DashboardCard 
+            fixedHeight
             title="Lab Requests" 
             onAdd={() => setShowServiceRequestModal(true)}
             addButtonTitle="Add Service Request"
@@ -2128,11 +2140,11 @@ return (
         <div className="grid gap-4 md:grid-cols-2 auto-rows-fr px-4 pb-4">
           {/* ECT Chart - IP mode only, otherwise show empty or hide */}
           {mode === 'IP' && activeAdmission ? (
-            <DashboardCard title="ECT Chart">
+            <DashboardCard fixedHeight title="ECT Chart">
               <ECTChart patient={selectedPatient} />
             </DashboardCard>
           ) : (
-            <DashboardCard title="ECT Chart (IP Only)">
+            <DashboardCard fixedHeight title="ECT Chart (IP Only)">
               <div className="text-center text-slate-500 py-8">
                 ECT Chart is only available for inpatient admissions
               </div>
@@ -2140,6 +2152,7 @@ return (
           )}
 
           <DashboardCard 
+            fixedHeight
             title="Diagnosis Detail" 
             onAdd={() => setShowDiagnosisModal(true)}
             addButtonTitle="Add / Edit Diagnosis"
@@ -2154,6 +2167,7 @@ return (
         {/* Row 5: Prescription and Long Acting Medicine (on same line) */}
         <div className="grid gap-4 md:grid-cols-2 auto-rows-fr px-4 pb-4">
           <DashboardCard 
+            fixedHeight
             title="Prescription" 
             onAdd={() => setShowPrescriptionModal(true)}
             addButtonTitle="Create Prescription"
@@ -2161,7 +2175,7 @@ return (
             <PrescriptionList patient={selectedPatient} refreshKey={prescriptionRefreshKey} />
           </DashboardCard>
 
-          <DashboardCard title="Long Acting Medicine">
+          <DashboardCard fixedHeight title="Long Acting Medicine">
             <LongActingMedicineList
               patient={selectedPatient}
               refreshKey={prescriptionRefreshKey}
@@ -2172,7 +2186,7 @@ return (
         {/* Row 6: Patient Visits — OP mode only */}
         {mode === 'OP' && (
           <div className="px-4 pb-4">
-            <DashboardCard title="Patient Visits (OP)">
+            <DashboardCard fixedHeight title="Patient Visits (OP)">
               <PatientVisitList patient={selectedPatient} />
             </DashboardCard>
           </div>
@@ -2181,7 +2195,7 @@ return (
         {/* Row 7: Admissions + Discharges — IP mode only */}
         {mode === 'IP' && (
           <div className="px-4 pb-4">
-            <DashboardCard title="Admission & Discharges">
+            <DashboardCard fixedHeight title="Admission & Discharges">
               <DischargeList patient={selectedPatient} key={dischargeRefreshKey} />
             </DashboardCard>
           </div>
@@ -2192,6 +2206,7 @@ return (
       <>
         <div className="grid gap-4 md:grid-cols-2 auto-rows-fr p-4">
           <DashboardCard 
+            fixedHeight
             title="Warning Messages (Allergies etc.)" 
             onAdd={() => setShowWarningModal(true)}
             addButtonTitle="Add Warning Message"
@@ -2200,6 +2215,7 @@ return (
           </DashboardCard>
 
           <DashboardCard 
+            fixedHeight
             title="Lab Test Reports Pending for Review" 
             onAdd={() => setShowLabTestModal(true)}
             addButtonTitle="Add Lab Test Report"
@@ -2210,6 +2226,7 @@ return (
 
         <div className="grid gap-4 md:grid-cols-2 auto-rows-fr px-4 pb-4">
           <DashboardCard 
+            fixedHeight
             title="Appointments" 
             onAdd={() => setShowAppointmentModal(true)}
             addButtonTitle="Add Appointment"
@@ -2218,6 +2235,7 @@ return (
           </DashboardCard>
 
           <DashboardCard 
+            fixedHeight
             title="Prescription" 
             onAdd={() => setShowPrescriptionModal(true)}
             addButtonTitle="Create Prescription"
