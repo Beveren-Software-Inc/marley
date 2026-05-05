@@ -156,6 +156,7 @@ const receptionScreenGroups: ScreenGroup[] = [
     screens: [
       { id: 'r-service-requests', title: 'Service Requests / Booked Lab' },
       { id: 'r-referral',         title: 'Patient Referral' },
+      { id: 'r-internal-transfer', title: 'Internal Transfer' },
       { id: 'r-long-acting-meds', title: 'Long Acting Medicine' },
     ],
   },

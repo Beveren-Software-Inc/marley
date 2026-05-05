@@ -1,10 +1,16 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { X, Loader2, User, Building2, Briefcase } from 'lucide-react'
+import { Loader2, User, Building2, Briefcase } from 'lucide-react'
 import { createInternalEmployeeInvoice, type BillingInvoiceItemInput } from '../../services/serviceOrders'
 import { fetchCompanies, fetchCostCenters, fetchEmployees, type EmployeeOption } from '../../services/common'
 import { toast } from '../../hooks/useToast'
 import { CollapsibleFormSection } from './CollapsibleFormSection'
 import { BillingInvoiceItemsEditor } from './BillingInvoiceItemsEditor'
+import {
+  CM_BTN_CANCEL,
+  CM_BTN_PRIMARY,
+  CREATE_MODAL_OVERLAY,
+  createModalShellClass,
+} from '../ui/CreateModalChrome'
 
 type TabId = 'details' | 'items'
 
@@ -155,23 +161,25 @@ export function InternalEmployeeInvoiceModal({ isOpen, onClose, onSuccess }: Int
   const employeeInputDisplay = selectedEmployee ? selectedEmployee.label || selectedEmployee.name : employeeQuery
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
-      <div className="bg-white rounded-xl shadow-xl max-w-3xl w-full max-h-[90vh] min-h-[260px] flex flex-col border border-slate-200">
-        <div className="sticky top-0 z-10 bg-white border-b border-slate-200 px-4 py-3 shrink-0 rounded-t-xl flex items-start justify-between gap-3">
+    <div className={CREATE_MODAL_OVERLAY}>
+      <div className={createModalShellClass('max-w-3xl w-full max-h-[90vh] min-h-[260px] flex flex-col')}>
+        <div className="relative shrink-0 border-b border-emerald-100/60 bg-gradient-to-r from-emerald-100 via-teal-50 to-sky-100 p-4 sm:px-5 flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h2 className="text-lg font-semibold text-slate-900">Internal employee invoice</h2>
-            <p className="text-xs text-slate-600 mt-0.5">
+            <h2 className="text-lg font-semibold tracking-tight text-emerald-950">Internal employee invoice</h2>
+            <p className="text-xs text-emerald-900/80 mt-0.5">
               Creates Customer from employee name if needed; sets{' '}
-              <strong className="font-medium text-slate-700">Internal Employee</strong>.
+              <strong className="font-medium text-emerald-900">Internal Employee</strong>.
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-100 transition-colors shrink-0"
+            className="shrink-0 rounded-lg p-2 text-emerald-800/70 transition hover:bg-emerald-200/50 hover:text-emerald-950"
             aria-label="Close"
           >
-            <X className="w-5 h-5" />
+            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
           </button>
         </div>
 
@@ -360,11 +368,11 @@ export function InternalEmployeeInvoiceModal({ isOpen, onClose, onSuccess }: Int
           )}
         </div>
 
-        <div className="flex gap-2 px-4 py-3 border-t border-slate-200 shrink-0 bg-white rounded-b-xl">
+        <div className="flex justify-end gap-3 px-4 py-3 border-t border-slate-200 shrink-0 bg-white rounded-b-xl">
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50 text-sm font-medium"
+            className={CM_BTN_CANCEL}
           >
             Cancel
           </button>
@@ -372,9 +380,9 @@ export function InternalEmployeeInvoiceModal({ isOpen, onClose, onSuccess }: Int
             type="button"
             onClick={() => void handleSubmit()}
             disabled={saving}
-            className="flex-1 px-3 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50 text-sm font-semibold"
+            className={CM_BTN_PRIMARY}
           >
-            {saving ? 'Creating…' : 'Create internal invoice'}
+            {saving ? 'Creating...' : 'Create internal invoice'}
           </button>
         </div>
       </div>

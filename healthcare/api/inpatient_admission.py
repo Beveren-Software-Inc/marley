@@ -156,6 +156,71 @@ def get_inpatient_records(status=None, search=None, patient=None, practitioner=N
 
 
 @frappe.whitelist()
+def get_internal_transfers(limit=50, offset=0, patient=None, admission=None, search=None):
+	"""Get Transfer Admission Event rows for internal transfer listing."""
+	from healthcare.api.common import get_permitted_cost_centers
+	permitted_cc = get_permitted_cost_centers()
+
+	conditions = ["1=1"]
+	params = {
+		"limit": cint(limit or 50),
+		"offset": cint(offset or 0),
+	}
+
+	if patient:
+		conditions.append("tae.patient = %(patient)s")
+		params["patient"] = patient
+
+	if admission:
+		conditions.append("tae.inpatient_admission = %(admission)s")
+		params["admission"] = admission
+
+	if search:
+		conditions.append(
+			"(tae.name LIKE %(search)s OR tae.patient_name LIKE %(search)s OR tae.inpatient_admission LIKE %(search)s)"
+		)
+		params["search"] = f"%{search}%"
+
+	if permitted_cc is not None:
+		if not permitted_cc:
+			return []
+		placeholders = ", ".join(f"%(cc_{i})s" for i in range(len(permitted_cc)))
+		conditions.append(f"(tae.from_cost_center IN ({placeholders}) OR tae.to_cost_center IN ({placeholders}))")
+		for i, cc in enumerate(permitted_cc):
+			params[f"cc_{i}"] = cc
+
+	where_sql = " AND ".join(conditions)
+
+	rows = frappe.db.sql(
+		"""
+		SELECT
+			tae.name,
+			tae.inpatient_admission,
+			tae.patient,
+			tae.patient_name,
+			tae.transfer_datetime,
+			tae.from_cost_center,
+			tae.to_cost_center,
+			tae.from_service_unit,
+			tae.to_service_unit,
+			tae.transferred_by,
+			tae.reason,
+			tae.company
+		FROM `tabTransfer Admission Event` tae
+		WHERE """
+		+ where_sql
+		+ """
+		ORDER BY tae.transfer_datetime DESC, tae.modified DESC
+		LIMIT %(limit)s OFFSET %(offset)s
+		""",
+		params,
+		as_dict=True,
+	)
+
+	return rows
+
+
+@frappe.whitelist()
 def get_inpatient_record(name):
 	"""Get single Inpatient Admission by name"""
 	if not name:
