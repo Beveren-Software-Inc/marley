@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useLayoutEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useCareContext } from '../providers/CareContextProvider'
+import { isNurseScreenBlocked } from '../config/costCenterCareScope'
 import { PatientSearch } from '../components/patients/PatientSearch'
 import { WarningMessagesList } from '../components/warnings/WarningMessagesList'
 import { LabTestList } from '../components/labTests/LabTestList'
@@ -77,7 +78,13 @@ const gmIconBtnPrimary =
 
 export const NursePage = () => {
   const [searchParams, setSearchParams] = useSearchParams()
-  const { mode, selectedPatient: globalPatient, setSelectedPatient: setGlobalPatient, activeAdmission } = useCareContext()
+  const {
+    mode,
+    selectedPatient: globalPatient,
+    setSelectedPatient: setGlobalPatient,
+    activeAdmission,
+    costCenterCareScope,
+  } = useCareContext()
   const patientFromUrl = searchParams.get('patient')
   const [selectedPatient, setSelectedPatient] = useState<string | undefined>(() => patientFromUrl || globalPatient || undefined)
   const [showWarningModal, setShowWarningModal] = useState(false)
@@ -134,8 +141,9 @@ export const NursePage = () => {
   const [nurseTaskRefreshKey, setNurseTaskRefreshKey] = useState(0)
   const [showPatientHistoryModal, setShowPatientHistoryModal] = useState(false)
   const [patientHistoryRefreshKey, setPatientHistoryRefreshKey] = useState(0)
-  const screen = searchParams.get('screen')
-
+  const rawScreen = searchParams.get('screen')
+  const screen =
+    rawScreen && !isNurseScreenBlocked(rawScreen, costCenterCareScope) ? rawScreen : null
 
   // Sync selectedPatient with URL on mount and when URL changes
   useEffect(() => {
@@ -147,6 +155,13 @@ export const NursePage = () => {
       // Don't clear if we're just initializing
     }
   }, [searchParams])
+
+  useLayoutEffect(() => {
+    if (!rawScreen || !isNurseScreenBlocked(rawScreen, costCenterCareScope)) return
+    const np = new URLSearchParams(searchParams)
+    np.delete('screen')
+    setSearchParams(np, { replace: true })
+  }, [rawScreen, costCenterCareScope, searchParams, setSearchParams])
 
   const handlePatientSelect = (patient: string | undefined) => {
     setSelectedPatient(patient)
@@ -1972,7 +1987,8 @@ export const NursePage = () => {
       </header>
 
       {/* OP / IP mode: list at top — hides once a patient is selected */}
-      {(mode === 'OP' || mode === 'IP') && !selectedPatient ? (
+      {((mode === 'OP') || (costCenterCareScope !== 'op_only' && mode === 'IP')) &&
+      !selectedPatient ? (
         <div className="px-4 pt-4 pb-0">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[420px]">
             <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
@@ -2007,44 +2023,46 @@ export const NursePage = () => {
 
       {selectedPatient ? (
         <>
-          {/* Row 1: Given Medicines + Long Acting Med Reminder (primary nursing focus) */}
-          <div className="grid gap-4 md:grid-cols-2 p-4">
-            {/* Given Medicines */}
-            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-              <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0 gap-2">
-                <span>Given Medicines</span>
-                <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50/90 p-1">
-                  <button
-                    type="button"
-                    onClick={handleReconcileGiven}
-                    disabled={reconcileLoading}
-                    className={`${gmIconBtn} text-emerald-800 border-emerald-200/80 hover:bg-emerald-50`}
-                    title="Reconcile for discharge — create stock entry for remaining medicines to return"
-                  >
-                    {reconcileLoading ? (
-                      <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                    ) : (
-                      <PackageSearch className="h-4 w-4" aria-hidden />
-                    )}
-                    <span className="sr-only">Reconcile for discharge</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowGivenMedicineModal(true)}
-                    className={gmIconBtnPrimary}
-                    title="Record given medicine"
-                  >
-                    <Plus className="h-4 w-4" strokeWidth={2.5} aria-hidden />
-                    <span className="sr-only">Add given medicine</span>
-                  </button>
+          {/* Row 1: Given Medicines + Long Acting Med Reminder — Given Medicines hidden for OP-only cost centers */}
+          <div
+            className={`grid gap-4 p-4 ${costCenterCareScope === 'op_only' ? 'md:grid-cols-1' : 'md:grid-cols-2'}`}
+          >
+            {costCenterCareScope !== 'op_only' && (
+              <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
+                <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0 gap-2">
+                  <span>Given Medicines</span>
+                  <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50/90 p-1">
+                    <button
+                      type="button"
+                      onClick={handleReconcileGiven}
+                      disabled={reconcileLoading}
+                      className={`${gmIconBtn} text-emerald-800 border-emerald-200/80 hover:bg-emerald-50`}
+                      title="Reconcile for discharge — create stock entry for remaining medicines to return"
+                    >
+                      {reconcileLoading ? (
+                        <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                      ) : (
+                        <PackageSearch className="h-4 w-4" aria-hidden />
+                      )}
+                      <span className="sr-only">Reconcile for discharge</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowGivenMedicineModal(true)}
+                      className={gmIconBtnPrimary}
+                      title="Record given medicine"
+                    >
+                      <Plus className="h-4 w-4" strokeWidth={2.5} aria-hidden />
+                      <span className="sr-only">Add given medicine</span>
+                    </button>
+                  </div>
                 </div>
-              </div>
-              <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                <MedicineGivenList patient={selectedPatient} refreshKey={givenRefreshKey} />
-              </div>
-            </section>
+                <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
+                  <MedicineGivenList patient={selectedPatient} refreshKey={givenRefreshKey} />
+                </div>
+              </section>
+            )}
 
-            {/* Long Acting Med Reminder */}
             <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
               <div className="font-semibold mb-4 flex-shrink-0">
                 <span>Long Acting Med Reminder</span>
@@ -2096,24 +2114,27 @@ export const NursePage = () => {
             </section>
           </div>
 
-          {/* Row 3: Prescription + Doctors Notes */}
-          <div className="grid gap-4 md:grid-cols-2 px-4 pb-4">
-            {/* Prescription */}
-            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-              <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
-                <span>Prescription</span>
-                {/* <button
+          {/* Row 3: Prescription + Doctors Notes — OP-only sites omit inpatient-style prescription grid */}
+          <div
+            className={`grid gap-4 px-4 pb-4 ${costCenterCareScope === 'op_only' ? 'md:grid-cols-1' : 'md:grid-cols-2'}`}
+          >
+            {costCenterCareScope !== 'op_only' && (
+              <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
+                <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
+                  <span>Prescription</span>
+                  {/* <button
                   onClick={() => setShowPrescriptionModal(true)}
                   className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
                   title="Create Prescription"
                 >
                   +
                 </button> */}
-              </div>
-              <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                <PrescriptionList patient={selectedPatient} refreshKey={prescriptionRefreshKey} />
-              </div>
-            </section>
+                </div>
+                <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
+                  <PrescriptionList patient={selectedPatient} refreshKey={prescriptionRefreshKey} />
+                </div>
+              </section>
+            )}
 
             {/* Doctors Notes — read-only for nurses */}
             <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
@@ -2158,7 +2179,7 @@ export const NursePage = () => {
           </div>
 
           {/* Card: Discharges — IP mode only */}
-          {mode === 'IP' && (
+          {costCenterCareScope !== 'op_only' && mode === 'IP' && (
             <div className="px-4 pb-4">
               <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
                 <div className="font-semibold mb-4 flex-shrink-0">

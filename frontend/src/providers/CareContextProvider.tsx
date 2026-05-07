@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import { careScopeFromCostCenterField, type CostCenterCareScope } from '../config/costCenterCareScope'
 import { fetchDefaultCompanyCurrency } from '../services/common'
 
 export type CareMode = 'OP' | 'IP'
@@ -27,6 +28,13 @@ interface CareContextValue {
   setSelectedPatient: (patient: string | undefined) => void
   /** Current user's cost center */
   userCostCenter?: string
+  /**
+   * Cost Center.custom_patient_care_type — "IP Only" | "OP Only" | "Both IP & OP" or empty when unset / N/A.
+   * Drives OP vs IP UI (sidebar, header toggles). Exempt users with no mapped cost center get "" (both).
+   */
+  costCenterPatientCareType?: string
+  /** Normalized scope derived from {@link costCenterPatientCareType} */
+  costCenterCareScope: CostCenterCareScope
   /** Current user's roles */
   userRole?: string[]
   /** Current user object */
@@ -69,6 +77,9 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
 
   // User context state
   const [userCostCenter, setUserCostCenter] = useState<string | undefined>(undefined)
+  const [costCenterPatientCareType, setCostCenterPatientCareType] = useState<string | undefined>(undefined)
+
+  const costCenterCareScope = careScopeFromCostCenterField(costCenterPatientCareType)
   const [userRole, setUserRole] = useState<string[] | undefined>(undefined)
   const [user, setUser] = useState<any>(undefined)
   const [companyCurrency, setCompanyCurrency] = useState<string | undefined>(undefined)
@@ -86,7 +97,13 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
         const response = await fetch('/api/method/healthcare.api.nursing_inventory.get_default_warehouse_and_cost_center')
         if (response.ok) {
           const data = await response.json()
-          setUserCostCenter(data.message.cost_center || undefined)
+          const msg = data.message || {}
+          setUserCostCenter(msg.cost_center || undefined)
+          setCostCenterPatientCareType(
+            typeof msg.cost_center_patient_care_type === 'string'
+              ? msg.cost_center_patient_care_type
+              : ''
+          )
         }
 
         // Load user info including roles (GET avoids CSRF; POST to frappe user.get_roles fails without X-Frappe-CSRF-Token)
@@ -148,6 +165,26 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
     writeStorage(PATIENT_STORAGE_KEY, patient)
   }
 
+  useEffect(() => {
+    if (costCenterCareScope === 'op_only') {
+      setMode('OP')
+      setActiveAdmission(undefined)
+      try {
+        localStorage.removeItem('patientSearch_activeAdmissionLabel')
+      } catch {
+        /* ignore */
+      }
+    } else if (costCenterCareScope === 'ip_only') {
+      setMode('IP')
+      setActiveVisit(undefined)
+      try {
+        localStorage.removeItem('patientSearch_activeVisitLabel')
+      } catch {
+        /* ignore */
+      }
+    }
+  }, [costCenterCareScope])
+
   return (
     <CareContext.Provider value={{
       mode, setMode,
@@ -155,6 +192,8 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
       activeAdmission, setActiveAdmission,
       selectedPatient, setSelectedPatient,
       userCostCenter,
+      costCenterPatientCareType,
+      costCenterCareScope,
       userRole,
       user,
       companyCurrency,

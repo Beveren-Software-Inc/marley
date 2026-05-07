@@ -173,18 +173,37 @@ def get_default_warehouse_and_cost_center():
             warehouse = get_warehouse_for_cost_center(cost_center)
         
         can_change = _user_is_exempt(user)
-        
+
+        patient_care_type = ""
+        if cost_center:
+            try:
+                cc_meta = frappe.get_meta("Cost Center")
+                if cc_meta.has_field("custom_patient_care_type"):
+                    # Use get_all(ignore_permissions=True) so UI scope is still resolved
+                    # even for users with restricted Cost Center read permissions.
+                    rows = frappe.get_all(
+                        "Cost Center",
+                        filters={"name": cost_center},
+                        fields=["custom_patient_care_type"],
+                        limit=1,
+                        ignore_permissions=True,
+                    )
+                    patient_care_type = ((rows[0].get("custom_patient_care_type") if rows else "") or "").strip()
+            except Exception:
+                patient_care_type = ""
         return {
             "warehouse": warehouse or "",
             "cost_center": cost_center or "",
-            "can_change_warehouse": can_change
+            "can_change_warehouse": can_change,
+            "cost_center_patient_care_type": patient_care_type,
         }
     except Exception as e:
         frappe.log_error(f"Error getting default warehouse and cost center: {str(e)}")
         return {
             "warehouse": "",
             "cost_center": "",
-            "can_change_warehouse": False
+            "can_change_warehouse": False,
+            "cost_center_patient_care_type": "",
         }
 
 
