@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useLayoutEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useCareContext } from '../providers/CareContextProvider'
 import { dummyPatients } from '../config/patients'
@@ -33,6 +33,7 @@ import { BillingDashboard } from '../components/billing/BillingDashboard'
 import { DailyAutoVisitView } from '../components/patientVisits/DailyAutoVisitView'
 import { AdditionalCollectionBillingPage } from './billing/AdditionalCollectionBillingPage'
 import { InternalEmployeeBillingPage } from './billing/InternalEmployeeBillingPage'
+import { isReceptionScreenBlocked } from '../config/costCenterCareScope'
 
 type View =
   | 'default'
@@ -60,11 +61,12 @@ type View =
 
 export const ReceptionistPage = () => {
 
-  const { 
-    selectedPatient: globalPatient, 
-    setSelectedPatient: setGlobalPatient,         // Add this
-    activeAdmission, // Add this
-    activeVisit     // Add this
+  const {
+    selectedPatient: globalPatient,
+    setSelectedPatient: setGlobalPatient,
+    activeAdmission,
+    activeVisit,
+    costCenterCareScope,
   } = useCareContext()
 
   // const { selectedPatient: globalPatient, setSelectedPatient: setGlobalPatient } = useCareContext()
@@ -99,8 +101,35 @@ export const ReceptionistPage = () => {
     setGlobalPatient(patient)
   }
 
+  useLayoutEffect(() => {
+    if (!screen || !isReceptionScreenBlocked(screen, costCenterCareScope)) return
+    const np = new URLSearchParams(searchParams)
+    np.delete('screen')
+    setSearchParams(np, { replace: true })
+  }, [screen, costCenterCareScope, searchParams, setSearchParams])
+
+  useEffect(() => {
+    if (costCenterCareScope === 'op_only') {
+      if (currentView === 'admission' || currentView === 'discharge' || currentView === 'ip-dashboard') {
+        setCurrentView('default')
+      }
+    }
+    if (costCenterCareScope === 'ip_only') {
+      if (
+        currentView === 'visit' ||
+        currentView === 'daily-auto-visit' ||
+        currentView === 'op-dashboard'
+      ) {
+        setCurrentView('default')
+      }
+    }
+  }, [costCenterCareScope, currentView])
+
   // Sync view with URL: when screen param is missing or unknown, show reception homepage
   useEffect(() => {
+    if (screen && isReceptionScreenBlocked(screen, costCenterCareScope)) {
+      return
+    }
     if (screen === 'r-reg') {
       setCurrentView('admission')
     } else if (screen === 'r-visit') {
@@ -221,7 +250,7 @@ export const ReceptionistPage = () => {
           </div>
         )}
 
-        {currentView === 'admission' && (
+        {costCenterCareScope !== 'op_only' && currentView === 'admission' && (
           <div className="p-4">
             <div className="mb-4 flex items-center justify-between">
               <div>
@@ -245,7 +274,7 @@ export const ReceptionistPage = () => {
           </div>
         )}
 
-        {currentView === 'discharge' && (
+        {costCenterCareScope !== 'op_only' && currentView === 'discharge' && (
           <div className="p-4">
             <div className="mb-4 flex items-center justify-between">
               <div>
@@ -262,7 +291,7 @@ export const ReceptionistPage = () => {
           </div>
         )}
 
-        {currentView === 'visit' && (
+        {costCenterCareScope !== 'ip_only' && currentView === 'visit' && (
           <div className="p-4">
             <div className="mb-4 flex items-center justify-between">
               <div>
@@ -286,7 +315,7 @@ export const ReceptionistPage = () => {
           </div>
         )}
 
-        {currentView === 'daily-auto-visit' && (
+        {costCenterCareScope !== 'ip_only' && currentView === 'daily-auto-visit' && (
           <div className="p-4">
             <div className="mb-4">
               <h2 className="text-xl font-semibold text-slate-900">Daily Auto Visit</h2>
@@ -605,7 +634,8 @@ export const ReceptionistPage = () => {
           </div>
         )}
 
-        {(currentView === 'op-dashboard' || currentView === 'ip-dashboard') && (
+        {((costCenterCareScope !== 'ip_only' && currentView === 'op-dashboard') ||
+          (costCenterCareScope !== 'op_only' && currentView === 'ip-dashboard')) && (
           <div className="p-4">
             <div className="mb-4">
               <h2 className="text-xl font-semibold text-slate-900">
@@ -694,44 +724,48 @@ export const ReceptionistPage = () => {
             </div>
 
             <div className="grid gap-4 md:grid-cols-2 px-4 pb-4">
-              <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-                <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
-                  <span>Patient Visits</span>
-                  <button
-                    onClick={() => setShowPatientVisitModal(true)}
-                    className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
-                    title="Add Patient Visit"
-                  >
-                    +
-                  </button>
-                </div>
-                <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                  <PatientVisitList 
-                    patient={selectedPatient || undefined}
-                    refreshKey={patientVisitRefreshKey}
-                  />
-                </div>
-              </section>
+              {costCenterCareScope !== 'ip_only' && (
+                <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
+                  <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
+                    <span>Patient Visits</span>
+                    <button
+                      onClick={() => setShowPatientVisitModal(true)}
+                      className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
+                      title="Add Patient Visit"
+                    >
+                      +
+                    </button>
+                  </div>
+                  <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
+                    <PatientVisitList 
+                      patient={selectedPatient || undefined}
+                      refreshKey={patientVisitRefreshKey}
+                    />
+                  </div>
+                </section>
+              )}
 
-              <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-                <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
-                  <span>IP Admission List</span>
-                  <button
-                    onClick={() => setShowAdmissionModal(true)}
-                    className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
-                    title="Add Admission"
-                  >
-                    +
-                  </button>
-                </div>
-                <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                  <AdmissionList 
-                    patient={selectedPatient || undefined}
-                    refreshKey={admissionRefreshKey}
-                    onAdmissionSelect={() => {}} 
-                  />
-                </div>
-              </section>
+              {costCenterCareScope !== 'op_only' && (
+                <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
+                  <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
+                    <span>IP Admission List</span>
+                    <button
+                      onClick={() => setShowAdmissionModal(true)}
+                      className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
+                      title="Add Admission"
+                    >
+                      +
+                    </button>
+                  </div>
+                  <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
+                    <AdmissionList 
+                      patient={selectedPatient || undefined}
+                      refreshKey={admissionRefreshKey}
+                      onAdmissionSelect={() => {}} 
+                    />
+                  </div>
+                </section>
+              )}
 
               {/* Insurance Patient Register card */}
               <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
@@ -751,29 +785,31 @@ export const ReceptionistPage = () => {
                 </div>
               </section>
 
-              {/* Discharge card - last on landing, same size as others */}
-              <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-                <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
-                  <span>Discharge List</span>
-                  <button
-                    type="button"
-                    onClick={() => window.open('/app/discharge/new-discharge', '_blank')}
-                    className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
-                    title="Add Discharge"
+              {/* Discharge card — hidden for OP-only cost centers */}
+              {costCenterCareScope !== 'op_only' && (
+                <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
+                  <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
+                    <span>Discharge List</span>
+                    <button
+                      type="button"
+                      onClick={() => window.open('/app/discharge/new-discharge', '_blank')}
+                      className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
+                      title="Add Discharge"
+                    >
+                      +
+                    </button>
+                  </div>
+                  <div
+                    className="overflow-x-auto overflow-y-auto flex-1 min-h-0"
+                    style={{ scrollbarWidth: 'thin' }}
                   >
-                    +
-                  </button>
-                </div>
-                <div
-                  className="overflow-x-auto overflow-y-auto flex-1 min-h-0"
-                  style={{ scrollbarWidth: 'thin' }}
-                >
-                  <DischargeList
-                    patient={selectedPatient || undefined}
-                    admission={undefined}
-                  />
-                </div>
-              </section>
+                    <DischargeList
+                      patient={selectedPatient || undefined}
+                      admission={undefined}
+                    />
+                  </div>
+                </section>
+              )}
 
               {/* Patient Referral card */}
               <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">

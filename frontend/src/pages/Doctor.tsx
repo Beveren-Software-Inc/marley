@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { ADHDAssessmentList } from '../components/adhd/AdhdAssessmentList'
 import { CreateADHDAssessmentModal } from '../components/adhd/CreateADHDAssessmentModal'
@@ -74,6 +74,7 @@ import { CreateYMRSAssessmentModal } from '../components/ymrs/CreateYMRSAssessme
 import { YMRSAssessmentList } from '../components/ymrs/YMRSAssessmentList'
 import { toast } from '../hooks/useToast'
 import { useCareContext } from '../providers/CareContextProvider'
+import { isDoctorScreenBlocked } from '../config/costCenterCareScope'
 import { draftSavedAt, hasDischargeDraft } from '../services/dischargeDraft'
 import { getPatientActiveAdmission } from '../services/inpatientRecords'
 import { AdmissionPage } from './Admission'
@@ -136,7 +137,14 @@ const CreateLabRequestModal = ({
 }
 
 export const DoctorPage = () => {
-  const { mode, activeVisit, activeAdmission, selectedPatient: globalPatient, setSelectedPatient: setGlobalPatient } = useCareContext()
+  const {
+    mode,
+    activeVisit,
+    activeAdmission,
+    selectedPatient: globalPatient,
+    setSelectedPatient: setGlobalPatient,
+    costCenterCareScope,
+  } = useCareContext()
   const [searchParams, setSearchParams] = useSearchParams()
   const patientFromUrl = searchParams.get('patient')
   const [selectedPatient, setSelectedPatient] = useState<string | undefined>(() => patientFromUrl || globalPatient || undefined)
@@ -184,7 +192,9 @@ export const DoctorPage = () => {
   const [physicalExamRefreshKey, setPhysicalExamRefreshKey] = useState(0)
   const [showPatientHistoryModal, setShowPatientHistoryModal] = useState(false)
   const [patientHistoryRefreshKey, setPatientHistoryRefreshKey] = useState(0)
-  const screen = searchParams.get('screen')
+  const rawScreen = searchParams.get('screen')
+  const screenBlocked = !!(rawScreen && isDoctorScreenBlocked(rawScreen, costCenterCareScope))
+  const screen = screenBlocked ? null : rawScreen
   const [showCreateADHDModal, setShowCreateADHDModal] = useState(false)
   const [adhdRefreshKey, setAdhdRefreshKey] = useState(0)
   const [showCreateDepressionModal, setShowCreateDepressionModal] = useState(false)
@@ -231,6 +241,13 @@ export const DoctorPage = () => {
       }
     }
   }, [screen, selectedPatient, searchParams, setSearchParams])
+
+  useLayoutEffect(() => {
+    if (!rawScreen || !isDoctorScreenBlocked(rawScreen, costCenterCareScope)) return
+    const np = new URLSearchParams(searchParams)
+    np.delete('screen')
+    setSearchParams(np, { replace: true })
+  }, [rawScreen, costCenterCareScope, searchParams, setSearchParams])
 
   const handleCreateDischarge = async () => {
     if (!selectedPatient) {
@@ -2041,7 +2058,8 @@ return (
     </header>
 
     {/* OP / IP mode: full-width top row — hidden once a specific visit/admission is selected */}
-    {(mode === 'OP' && !activeVisit) || (mode === 'IP' && !activeAdmission) ? (
+    {(mode === 'OP' && !activeVisit) ||
+    (costCenterCareScope !== 'op_only' && mode === 'IP' && !activeAdmission) ? (
       <div className="px-4 pt-4 pb-0">
         <DashboardCard fixedHeight title={mode === 'OP' ? 'Patient Visits (OP)' : 'Inpatient Admissions (IP)'}>
           {mode === 'OP' ? (
@@ -2136,31 +2154,30 @@ return (
           </DashboardCard>
         </div>
 
-        {/* Row 4: ECT Chart and Diagnosis Detail (on same line) */}
-        <div className="grid gap-4 md:grid-cols-2 auto-rows-fr px-4 pb-4">
-          {/* ECT Chart - IP mode only, otherwise show empty or hide */}
-          {mode === 'IP' && activeAdmission ? (
-            <DashboardCard fixedHeight title="ECT Chart">
-              <ECTChart patient={selectedPatient} />
-            </DashboardCard>
-          ) : (
-            <DashboardCard fixedHeight title="ECT Chart (IP Only)">
-              <div className="text-center text-slate-500 py-8">
-                ECT Chart is only available for inpatient admissions
-              </div>
-            </DashboardCard>
-          )}
+        {/* Row 4: ECT Chart and Diagnosis Detail (on same line) — hide ECT column entirely on OP-only cost centers */}
+        <div
+          className={`grid gap-4 px-4 pb-4 auto-rows-fr ${costCenterCareScope === 'op_only' ? 'md:grid-cols-1' : 'md:grid-cols-2'}`}
+        >
+          {costCenterCareScope !== 'op_only' &&
+            (mode === 'IP' && activeAdmission ? (
+              <DashboardCard fixedHeight title="ECT Chart">
+                <ECTChart patient={selectedPatient} />
+              </DashboardCard>
+            ) : (
+              <DashboardCard fixedHeight title="ECT Chart (IP Only)">
+                <div className="text-center text-slate-500 py-8">
+                  ECT Chart is only available for inpatient admissions
+                </div>
+              </DashboardCard>
+            ))}
 
-          <DashboardCard 
+          <DashboardCard
             fixedHeight
-            title="Diagnosis Detail" 
+            title="Diagnosis Detail"
             onAdd={() => setShowDiagnosisModal(true)}
             addButtonTitle="Add / Edit Diagnosis"
           >
-            <PatientDiagnosisList
-              patient={selectedPatient}
-              refreshKey={diagnosisRefreshKey}
-            />
+            <PatientDiagnosisList patient={selectedPatient} refreshKey={diagnosisRefreshKey} />
           </DashboardCard>
         </div>
 
@@ -2184,7 +2201,7 @@ return (
         </div>
 
         {/* Row 6: Patient Visits — OP mode only */}
-        {mode === 'OP' && (
+        {costCenterCareScope !== 'ip_only' && mode === 'OP' && (
           <div className="px-4 pb-4">
             <DashboardCard fixedHeight title="Patient Visits (OP)">
               <PatientVisitList patient={selectedPatient} />
@@ -2193,7 +2210,7 @@ return (
         )}
 
         {/* Row 7: Admissions + Discharges — IP mode only */}
-        {mode === 'IP' && (
+        {costCenterCareScope !== 'op_only' && mode === 'IP' && (
           <div className="px-4 pb-4">
             <DashboardCard fixedHeight title="Admission & Discharges">
               <DischargeList patient={selectedPatient} key={dischargeRefreshKey} />

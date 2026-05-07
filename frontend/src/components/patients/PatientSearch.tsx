@@ -67,7 +67,14 @@ export const PatientSearch = ({
   showAlertsBanner = true,
   alertsAutoDismissMs = 10000,
 }: PatientSearchProps) => {
-  const { mode, setMode, setActiveVisit, setActiveAdmission, setSelectedPatient: setGlobalPatient } = useCareContext()
+  const {
+    mode,
+    setMode,
+    setActiveVisit,
+    setActiveAdmission,
+    setSelectedPatient: setGlobalPatient,
+    costCenterCareScope,
+  } = useCareContext()
   const [patientQuery, setPatientQuery] = useState('')
   const [patientOpen, setPatientOpen] = useState(false)
   const [showCreatePatient, setShowCreatePatient] = useState(false)
@@ -147,6 +154,31 @@ export const PatientSearch = ({
 
     setIsHydrated(true)
   }, [])
+
+  /** Align with Cost Center care type after server load — also clears secondary OP/IP picker state. */
+  useEffect(() => {
+    if (costCenterCareScope === 'op_only') {
+      setMode('OP')
+      setActiveAdmission(undefined)
+      setSecondaryQuery('')
+      try {
+        localStorage.removeItem(STORAGE_KEYS.ACTIVE_ADMISSION)
+        localStorage.removeItem(STORAGE_KEYS.ACTIVE_ADMISSION_LABEL)
+      } catch {
+        /* ignore */
+      }
+    } else if (costCenterCareScope === 'ip_only') {
+      setMode('IP')
+      setActiveVisit(undefined)
+      setSecondaryQuery('')
+      try {
+        localStorage.removeItem(STORAGE_KEYS.ACTIVE_VISIT)
+        localStorage.removeItem(STORAGE_KEYS.ACTIVE_VISIT_LABEL)
+      } catch {
+        /* ignore */
+      }
+    }
+  }, [costCenterCareScope, setMode, setActiveAdmission, setActiveVisit])
 
   useEffect(() => {
     if (!selectedPatient) {
@@ -451,30 +483,34 @@ export const PatientSearch = ({
             )}
           </div>
 
-          {/* OP/IP Buttons and Secondary Search */}
+          {/* OP/IP Buttons and Secondary Search — hidden single toggle when Cost Center restricts to one flow */}
           <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => setMode('OP')}
-              className={`px-2 md:px-3 py-1 rounded-full text-[10px] md:text-xs font-semibold border transition-colors ${
-                mode === 'OP'
-                  ? 'bg-white text-primary border-white shadow-sm'
-                  : 'bg-white/10 text-white/90 border-white/40 hover:bg-white/20'
-              }`}
-            >
-              OP
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode('IP')}
-              className={`px-2 md:px-3 py-1 rounded-full text-[10px] md:text-xs font-semibold border transition-colors ${
-                mode === 'IP'
-                  ? 'bg-white text-primary border-white shadow-sm'
-                  : 'bg-white/10 text-white/90 border-white/40 hover:bg-white/20'
-              }`}
-            >
-              IP
-            </button>
+            {costCenterCareScope !== 'ip_only' && (
+              <button
+                type="button"
+                onClick={() => setMode('OP')}
+                className={`px-2 md:px-3 py-1 rounded-full text-[10px] md:text-xs font-semibold border transition-colors ${
+                  mode === 'OP'
+                    ? 'bg-white text-primary border-white shadow-sm'
+                    : 'bg-white/10 text-white/90 border-white/40 hover:bg-white/20'
+                }`}
+              >
+                OP
+              </button>
+            )}
+            {costCenterCareScope !== 'op_only' && (
+              <button
+                type="button"
+                onClick={() => setMode('IP')}
+                className={`px-2 md:px-3 py-1 rounded-full text-[10px] md:text-xs font-semibold border transition-colors ${
+                  mode === 'IP'
+                    ? 'bg-white text-primary border-white shadow-sm'
+                    : 'bg-white/10 text-white/90 border-white/40 hover:bg-white/20'
+                }`}
+              >
+                IP
+              </button>
+            )}
             {(mode === 'OP' || mode === 'IP') && (
               <div className="relative ml-1 w-full max-w-xs" ref={secondaryContainerRef}>
                 <input

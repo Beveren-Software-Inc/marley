@@ -113,7 +113,7 @@ interface BillingDashboardProps {
 }
 
 export const BillingDashboard = ({ patient, admission, visit }: BillingDashboardProps) => {
-  const { mode, activeAdmission, activeVisit, selectedPatient } = useCareContext()
+  const { mode, activeAdmission, activeVisit, selectedPatient, costCenterCareScope } = useCareContext()
   const formatCurrency = useFormatMoney()
 
   // Load saved view from localStorage
@@ -170,6 +170,17 @@ export const BillingDashboard = ({ patient, admission, visit }: BillingDashboard
     setCurrentView(view)
     localStorage.setItem('billingDashboardView', view)
   }
+
+  useEffect(() => {
+    if (costCenterCareScope === 'op_only' && currentView === 'inpatient') {
+      setCurrentView('overview')
+      localStorage.setItem('billingDashboardView', 'overview')
+    }
+    if (costCenterCareScope === 'ip_only' && currentView === 'outpatient') {
+      setCurrentView('overview')
+      localStorage.setItem('billingDashboardView', 'overview')
+    }
+  }, [costCenterCareScope, currentView])
 
   /** Open the Sales Invoice slide-over (latest known invoice or first match for this visit/admission). */
   const openInvoiceForHealthcareReference = async (
@@ -533,20 +544,24 @@ const handleMakePayment = async (
           onClick={() => handleViewChange('invoices')}
           count={totalInvoices}
         />
-        <NavButton
-          icon={Users}
-          label="All IP"
-          isActive={currentView === 'inpatient'}
-          onClick={() => handleViewChange('inpatient')}
-          count={inpatientBalances.length}
-        />
-        <NavButton
-          icon={User}
-          label="All OP"
-          isActive={currentView === 'outpatient'}
-          onClick={() => handleViewChange('outpatient')}
-          count={outpatientBalances.length}
-        />
+        {costCenterCareScope !== 'op_only' && (
+          <NavButton
+            icon={Users}
+            label="All IP"
+            isActive={currentView === 'inpatient'}
+            onClick={() => handleViewChange('inpatient')}
+            count={inpatientBalances.length}
+          />
+        )}
+        {costCenterCareScope !== 'ip_only' && (
+          <NavButton
+            icon={User}
+            label="All OP"
+            isActive={currentView === 'outpatient'}
+            onClick={() => handleViewChange('outpatient')}
+            count={outpatientBalances.length}
+          />
+        )}
         <NavButton
           icon={CreditCard}
           label="Payments"

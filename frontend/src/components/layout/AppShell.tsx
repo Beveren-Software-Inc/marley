@@ -6,6 +6,7 @@ import { doctorScreenGroups } from '../../config/doctorScreens'
 import { useAuth } from '../../providers/AuthProvider'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { getVisibleMainLinks, type MainLinkItem, type ScreenGroup } from '../../config/permissions'
+import { careScopeFromCostCenterField, filterDoctorScreenGroups, filterNurseScreenGroups, filterReceptionScreenGroups } from '../../config/costCenterCareScope'
 
 // ─── Nurse screens ────────────────────────────────────────────────────────────
 
@@ -222,7 +223,8 @@ const ALL_MAIN_LINKS: MainLinkItem[] = [
 
 export const AppShell = ({ children }: { children: ReactNode }) => {
   const { user } = useAuth()
-  const { selectedPatient } = useCareContext()
+  const { selectedPatient, costCenterPatientCareType } = useCareContext()
+  const ccScope = careScopeFromCostCenterField(costCenterPatientCareType)
   const location = useLocation()
 
   // Derive the active screen id from the current URL query param
@@ -258,18 +260,27 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
 
   const mainLinks = useMemo(() => {
     const links = ALL_MAIN_LINKS.map((link) => {
-      if (link.to !== '/doctor') return link
-      return {
-        ...link,
-        screenGroups: selectedPatient
+      if (link.to === '/doctor') {
+        const base = selectedPatient
           ? doctorScreenGroups
               .map((g) => ({
                 ...g,
                 screens: g.screens.filter((s) => s.id !== 'patients'),
               }))
               .filter((g) => g.screens.length > 0)
-          : doctorScreenGroups,
+          : doctorScreenGroups
+        return {
+          ...link,
+          screenGroups: filterDoctorScreenGroups(base, ccScope),
+        }
       }
+      if (link.to === '/nurse') {
+        return { ...link, screenGroups: filterNurseScreenGroups(nurseScreenGroups, ccScope) }
+      }
+      if (link.to === '/reception') {
+        return { ...link, screenGroups: filterReceptionScreenGroups(receptionScreenGroups, ccScope) }
+      }
+      return link
     })
     return getVisibleMainLinks(links, roles)
   }, [
@@ -277,6 +288,8 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
     (user?.roles || []).join(','),
     (user?.role || '') + (user?.role_profile_name || ''),
     selectedPatient,
+    ccScope,
+    costCenterPatientCareType,
   ])
 
   return (
