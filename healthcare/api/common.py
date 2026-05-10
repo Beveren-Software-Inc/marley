@@ -822,20 +822,85 @@ def send_long_acting_medicine_reminder(name: str, channel: str = "email"):
 	return {"sent": True, "channel": channel, "patient": patient_name}
 
 
+def _enrich_diagnosis_display(diagnosis_link_name):
+	"""Return display fields from Diagnosis master (by doc name / link)."""
+	empty = {
+		"diagnosis_label": "",
+		"diagnosis_group_name": "",
+		"disease_no": "",
+		"diagnosis_name": "",
+	}
+	if not diagnosis_link_name:
+		return empty
+	if not frappe.db.exists("Diagnosis", diagnosis_link_name):
+		empty["diagnosis_label"] = diagnosis_link_name
+		return empty
+	d = frappe.db.get_value(
+		"Diagnosis",
+		diagnosis_link_name,
+		["disease_no", "diagnosis", "diagnosis_group_name"],
+		as_dict=True,
+	)
+	if not d:
+		empty["diagnosis_label"] = diagnosis_link_name
+		return empty
+	no = (d.get("disease_no") or "").strip() or (diagnosis_link_name or "")
+	nm = (d.get("diagnosis") or "").strip()
+	gn = (d.get("diagnosis_group_name") or "").strip()
+	if nm and no:
+		label = f"[{no}] {nm}"
+	elif nm:
+		label = nm
+	else:
+		label = no or diagnosis_link_name
+	return {
+		"diagnosis_label": label,
+		"diagnosis_group_name": gn,
+		"disease_no": no,
+		"diagnosis_name": nm,
+	}
+
+
 @frappe.whitelist()
 def get_diagnosis(search=None):
-	"""Get list of Diagnosis (doctype) for encounter diagnosis selection."""
+	"""Get list of Diagnosis for encounter selection. Search matches Disease No (id) or Diagnosis name."""
 	filters = {}
-	if search:
-		filters["diagnosis"] = ["like", f"%{search}%"]
+	or_filters = None
+	if search and str(search).strip():
+		s = str(search).strip()
+		or_filters = [
+			["disease_no", "like", f"%{s}%"],
+			["diagnosis", "like", f"%{s}%"],
+		]
 	items = frappe.get_all(
 		"Diagnosis",
 		filters=filters,
-		fields=["name", "diagnosis"],
-		order_by="diagnosis asc",
+		or_filters=or_filters,
+		fields=["name", "disease_no", "diagnosis", "diagnosis_group_name"],
+		order_by="disease_no asc, diagnosis asc",
 		limit=50,
 	)
-	return [{"name": d.name, "label": d.diagnosis or d.name} for d in items]
+	out = []
+	for d in items:
+		no = (d.get("disease_no") or d.get("name") or "").strip()
+		nm = (d.get("diagnosis") or "").strip()
+		gn = (d.get("diagnosis_group_name") or "").strip()
+		if nm and no:
+			label = f"[{no}] {nm}"
+		elif nm:
+			label = nm
+		else:
+			label = no
+		out.append(
+			{
+				"name": d.name,
+				"label": label,
+				"disease_no": no,
+				"diagnosis_name": nm,
+				"diagnosis_group_name": gn,
+			}
+		)
+	return out
 
 
 @frappe.whitelist()
@@ -856,13 +921,21 @@ def get_complaints(search=None):
 
 @frappe.whitelist()
 def create_diagnosis(diagnosis):
-	"""Create a new Diagnosis master record. Returns the new doc name."""
+	"""Create a new Diagnosis master record. Naming uses ``disease_no`` (autoname); returns new doc name."""
 	if not diagnosis or not str(diagnosis).strip():
 		frappe.throw(_("Diagnosis text is required"))
-	name = str(diagnosis).strip()
-	if frappe.db.exists("Diagnosis", name):
-		return name
-	doc = frappe.get_doc({"doctype": "Diagnosis", "diagnosis": name})
+	text = str(diagnosis).strip()
+	existing = frappe.db.get_value("Diagnosis", {"diagnosis": text}, "name")
+	if existing:
+		return existing
+	base = frappe.scrub(text)[:120] or "diag"
+	code = base
+	idx = 1
+	while frappe.db.exists("Diagnosis", code):
+		idx += 1
+		suffix = f"-{idx}"
+		code = f"{base[: 140 - len(suffix)]}{suffix}"
+	doc = frappe.get_doc({"doctype": "Diagnosis", "disease_no": code, "diagnosis": text})
 	doc.insert(ignore_permissions=False)
 	return doc.name
 
@@ -2534,9 +2607,11 @@ def get_all_patient_diagnoses(patient):
 			order_by="posting_date desc",
 		)
 		for row in rows:
+			meta = _enrich_diagnosis_display(row.diagnosis)
 			results.append({
 				"name": row.name,
 				"diagnosis": row.diagnosis,
+				**meta,
 				"details": row.details or "",
 				"posting_date": str(row.posting_date) if row.posting_date else "",
 				"parent": visit.name,
@@ -2553,9 +2628,11 @@ def get_all_patient_diagnoses(patient):
 			order_by="posting_date desc",
 		)
 		for row in rows:
+			meta = _enrich_diagnosis_display(row.diagnosis)
 			results.append({
 				"name": row.name,
 				"diagnosis": row.diagnosis,
+				**meta,
 				"details": row.details or "",
 				"posting_date": str(row.posting_date) if row.posting_date else "",
 				"parent": admission.name,
@@ -2578,9 +2655,12 @@ def get_patient_diagnosis(parent_doctype, parent_name):
 	doc = frappe.get_doc(parent_doctype, parent_name)
 	rows = []
 	for row in (doc.get("patient_diagnosis") or []):
+		dlink = row.diagnosis or ""
+		meta = _enrich_diagnosis_display(dlink)
 		rows.append({
 			"name": row.name,
-			"diagnosis": row.diagnosis,
+			"diagnosis": dlink,
+			**meta,
 			"details": row.details or "",
 			"posting_date": str(row.posting_date) if row.posting_date else "",
 		})

@@ -171,8 +171,14 @@ export function DiagnosisSymptomsScreen({
                       <table className="min-w-full text-sm">
                         <thead>
                           <tr className="bg-slate-50 border-b border-slate-200">
+                            <th className="text-left px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-600 whitespace-nowrap">
+                              Diagnosis no.
+                            </th>
                             <th className="text-left px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-600">
-                              Diagnosis
+                              Name
+                            </th>
+                            <th className="text-left px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-600">
+                              Group
                             </th>
                             <th className="text-left px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-600">
                               Details
@@ -185,7 +191,15 @@ export function DiagnosisSymptomsScreen({
                         <tbody className="divide-y divide-slate-100">
                           {rows.map((row, idx) => (
                             <tr key={row.name || `${row.diagnosis}-${idx}`} className="hover:bg-slate-50/80">
-                              <td className="px-3 py-2.5 font-medium text-slate-900 align-top">{row.diagnosis || '—'}</td>
+                              <td className="px-3 py-2.5 align-top font-mono text-sm text-slate-800 whitespace-nowrap">
+                                {row.disease_no || row.diagnosis || '—'}
+                              </td>
+                              <td className="px-3 py-2.5 align-top font-medium text-slate-900">
+                                {row.diagnosis_name?.trim() || row.diagnosis || '—'}
+                              </td>
+                              <td className="px-3 py-2.5 align-top text-sm text-slate-600">
+                                {row.diagnosis_group_name || '—'}
+                              </td>
                               <td
                                 className="px-3 py-2.5 text-slate-600 max-w-md align-top"
                                 title={stripHtml(row.details || '')}

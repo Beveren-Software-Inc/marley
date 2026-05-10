@@ -133,6 +133,9 @@
 import frappe
 from frappe import _
 
+from healthcare.api.common import _enrich_diagnosis_display
+
+
 @frappe.whitelist()
 def update_inpatient_diagnoses(admission: str, diagnoses: list):
     """
@@ -275,19 +278,20 @@ def get_inpatient_diagnoses(admission: str):
     
     diagnoses = []
     for diag in doc.get("patient_diagnosis", []):
+        meta = _enrich_diagnosis_display(diag.diagnosis)
         diagnoses.append({
             "name": diag.name,
             "diagnosis": diag.diagnosis,
-            "diagnosis_label": frappe.get_cached_value("Diagnosis", diag.diagnosis, "diagnosis") if diag.diagnosis else "",
+            **meta,
             "details": diag.details,
             "posting_date": diag.posting_date,
             "diagnoses_time": diag.diagnoses_time,
             "practitioner": diag.practitioner,
             "practitioner_name": diag.practitioner_name,
             "diagnoses_flag": diag.diagnoses_flag,
-            "trans_num": diag.trans_num
+            "trans_num": diag.trans_num,
         })
-    
+
     return diagnoses
 
 
