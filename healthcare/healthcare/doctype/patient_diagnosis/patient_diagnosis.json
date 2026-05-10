@@ -16,6 +16,7 @@
   "column_break_qhej",
   "diagnoses_time",
   "written_diagnosis_time",
+  "written_diagnosis_time_to",
   "diagnosis_flag",
   "section_break_uwrg",
   "practitioner",
@@ -29,6 +30,7 @@
   "section_break_ppsm",
   "cr_id",
   "cr_date",
+  "old_admission_no",
   "column_break_jguo",
   "up_id",
   "up_date"
@@ -173,11 +175,21 @@
    "fieldname": "up_date",
    "fieldtype": "Data",
    "label": "UP Date"
+  },
+  {
+   "fieldname": "written_diagnosis_time_to",
+   "fieldtype": "Data",
+   "label": "Written Diagnosis Time To"
+  },
+  {
+   "fieldname": "old_admission_no",
+   "fieldtype": "Data",
+   "label": "Old Admission No"
   }
  ],
  "istable": 1,
  "links": [],
- "modified": "2026-05-10 16:57:10.182699",
+ "modified": "2026-05-10 17:38:08.529705",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Diagnosis",
