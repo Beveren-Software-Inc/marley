@@ -15,9 +15,10 @@
   "section_break_bttg",
   "posting_date",
   "diagnosis_date",
-  "column_break_qhej",
   "diagnoses_time",
+  "column_break_qhej",
   "written_diagnosis_time",
+  "written_diagnosis_time_to",
   "diagnosis_flag",
   "section_break_uwrg",
   "practitioner",
@@ -28,6 +29,7 @@
   "admission",
   "column_break_ibuw",
   "username",
+  "old_admission_no",
   "section_break_ppsm",
   "cr_id",
   "cr_date",
@@ -176,10 +178,20 @@
    "fieldname": "up_date",
    "fieldtype": "Data",
    "label": "UP Date"
+  },
+  {
+   "fieldname": "old_admission_no",
+   "fieldtype": "Data",
+   "label": "Old Admission No"
+  },
+  {
+   "fieldname": "written_diagnosis_time_to",
+   "fieldtype": "Data",
+   "label": "Written Diagnosis Time To"
   }
  ],
  "links": [],
- "modified": "2026-05-10 16:59:49.939622",
+ "modified": "2026-05-10 17:36:46.630616",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Diagnosis Import",
