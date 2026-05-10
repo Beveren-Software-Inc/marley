@@ -1,0 +1,210 @@
+{
+ "actions": [],
+ "allow_import": 1,
+ "creation": "2026-05-10 15:50:31.020883",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "patient",
+  "diagnosis",
+  "column_break_iqwe",
+  "diagnosis_name",
+  "cost_center",
+  "section_break_xntv",
+  "details",
+  "diagnoses_flag",
+  "section_break_bttg",
+  "posting_date",
+  "trans_num",
+  "column_break_qhej",
+  "diagnoses_time",
+  "section_break_uwrg",
+  "practitioner",
+  "column_break_cgwt",
+  "practitioner_name",
+  "section_break_ioky",
+  "visit_num",
+  "sr_no",
+  "column_break_qljg",
+  "inpatient_admission",
+  "section_break_bjmi",
+  "cr_id",
+  "cd_date",
+  "column_break_uaib",
+  "up_id",
+  "up_date"
+ ],
+ "fields": [
+  {
+   "allow_on_submit": 1,
+   "fieldname": "diagnosis",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Diagnosis",
+   "options": "Diagnosis"
+  },
+  {
+   "fieldname": "details",
+   "fieldtype": "Text Editor",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Details"
+  },
+  {
+   "default": "0",
+   "fieldname": "diagnoses_flag",
+   "fieldtype": "Check",
+   "label": "Diagnoses Flag"
+  },
+  {
+   "fieldname": "section_break_bttg",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "posting_date",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Posting Date"
+  },
+  {
+   "fieldname": "trans_num",
+   "fieldtype": "Data",
+   "label": "Trans Num"
+  },
+  {
+   "fieldname": "column_break_qhej",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "diagnoses_time",
+   "fieldtype": "Datetime",
+   "label": "Diagnoses Time"
+  },
+  {
+   "fieldname": "section_break_uwrg",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "practitioner",
+   "fieldtype": "Link",
+   "label": "Practitioner",
+   "options": "Healthcare Practitioner"
+  },
+  {
+   "fieldname": "column_break_cgwt",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "practitioner.practitioner_name",
+   "fieldname": "practitioner_name",
+   "fieldtype": "Data",
+   "label": "Practitioner Name"
+  },
+  {
+   "fieldname": "patient",
+   "fieldtype": "Link",
+   "label": "Patient",
+   "options": "Patient"
+  },
+  {
+   "fetch_from": "diagnosis.diagnosis",
+   "fieldname": "diagnosis_name",
+   "fieldtype": "Data",
+   "label": "Diagnosis Name"
+  },
+  {
+   "fieldname": "section_break_ioky",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "visit_num",
+   "fieldtype": "Data",
+   "label": "Visit Num"
+  },
+  {
+   "fieldname": "column_break_qljg",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "inpatient_admission",
+   "fieldtype": "Data",
+   "label": "Inpatient Admission"
+  },
+  {
+   "fieldname": "section_break_bjmi",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "cr_id",
+   "fieldtype": "Data",
+   "label": "CR ID"
+  },
+  {
+   "fieldname": "cd_date",
+   "fieldtype": "Data",
+   "label": "CD Date"
+  },
+  {
+   "fieldname": "column_break_uaib",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "up_id",
+   "fieldtype": "Data",
+   "label": "UP ID"
+  },
+  {
+   "fieldname": "up_date",
+   "fieldtype": "Data",
+   "label": "UP Date"
+  },
+  {
+   "fieldname": "column_break_iqwe",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "cost_center",
+   "fieldtype": "Link",
+   "label": "Cost Center",
+   "options": "Cost Center"
+  },
+  {
+   "fieldname": "section_break_xntv",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "sr_no",
+   "fieldtype": "Data",
+   "label": "SR No"
+  }
+ ],
+ "links": [],
+ "modified": "2026-05-10 15:55:06.370863",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Visit Diagnosis",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "import": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "quick_entry": 1,
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}
