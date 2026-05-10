@@ -3,6 +3,10 @@ import { apiRequest } from './apiClient'
 export interface LinkFieldOption {
   name: string
   label: string
+  /** Diagnosis master (get_diagnosis): ICD-style no / group for display */
+  disease_no?: string
+  diagnosis_name?: string
+  diagnosis_group_name?: string
   department?: string
   /** Lab Test Template: 1 = group template, 0 = single test */
   is_group?: number | boolean
@@ -690,6 +694,13 @@ export async function updateEncounterDiagnosisSymptoms(
 export interface PatientDiagnosisRow {
   name?: string
   diagnosis: string
+  /** Master disease number (id) */
+  disease_no?: string
+  /** Master diagnosis name (text field) */
+  diagnosis_name?: string
+  /** Convenience: [disease_no] name — prefer disease_no + diagnosis_name in listings */
+  diagnosis_label?: string
+  diagnosis_group_name?: string
   details?: string
   posting_date?: string
 }

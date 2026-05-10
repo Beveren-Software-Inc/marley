@@ -24,6 +24,7 @@ interface RowDraft {
   _id: string
   diagnosis: string
   diagnosisLabel: string
+  diagnosisGroupName: string
   details: string
   posting_date: string
 }
@@ -33,6 +34,7 @@ function newDraft(): RowDraft {
     _id: Math.random().toString(36).slice(2),
     diagnosis: '',
     diagnosisLabel: '',
+    diagnosisGroupName: '',
     details: '',
     posting_date: new Date().toISOString().slice(0, 16),
   }
@@ -97,7 +99,8 @@ export function PatientDiagnosisModal({
           data.map((r) => ({
             _id: Math.random().toString(36).slice(2),
             diagnosis: r.diagnosis || '',
-            diagnosisLabel: r.diagnosis || '',
+            diagnosisLabel: r.diagnosis_label || r.diagnosis || '',
+            diagnosisGroupName: r.diagnosis_group_name || '',
             details: r.details || '',
             posting_date: r.posting_date ? r.posting_date.slice(0, 16) : new Date().toISOString().slice(0, 16),
           }))
@@ -146,7 +149,16 @@ export function PatientDiagnosisModal({
 
   const selectDiagnosis = (id: string, opt: LinkFieldOption) => {
     setRows((prev) =>
-      prev.map((r) => r._id === id ? { ...r, diagnosis: opt.name, diagnosisLabel: opt.label || opt.name } : r)
+      prev.map((r) =>
+        r._id === id
+          ? {
+              ...r,
+              diagnosis: opt.name,
+              diagnosisLabel: opt.label || opt.name,
+              diagnosisGroupName: opt.diagnosis_group_name?.trim() || '',
+            }
+          : r
+      )
     )
     setSearchOpen((prev) => ({ ...prev, [id]: false }))
     setSearchQuery((prev) => ({ ...prev, [id]: '' }))
@@ -158,7 +170,7 @@ export function PatientDiagnosisModal({
     setCreatingFor(id)
     try {
       const name = await createDiagnosis(val)
-      selectDiagnosis(id, { name, label: val })
+      selectDiagnosis(id, { name, label: val, diagnosis_group_name: '' })
       setCreatingFor(null)
       setNewDiagnosisValue('')
       toast.success('Diagnosis created')
@@ -324,9 +336,12 @@ export function PatientDiagnosisModal({
                         setSearchQuery((p) => ({ ...p, [row._id]: e.target.value }))
                         setSearchOpen((p) => ({ ...p, [row._id]: true }))
                       }}
-                      placeholder="Search diagnosis…"
+                      placeholder="Search by disease no or diagnosis name…"
                       className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
                     />
+                    {!searchOpen[row._id] && row.diagnosisGroupName ? (
+                      <p className="text-xs text-slate-500 mt-1">{row.diagnosisGroupName}</p>
+                    ) : null}
                     {searchOpen[row._id] && (
                       <div className="absolute z-30 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg max-h-52 overflow-y-auto">
                         {(searchOptions[row._id] || []).length === 0 ? (
@@ -352,7 +367,10 @@ export function PatientDiagnosisModal({
                                 onMouseDown={() => selectDiagnosis(row._id, opt)}
                                 className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-primary/5"
                               >
-                                {opt.label || opt.name}
+                                <div className="font-medium text-slate-800">{opt.label || opt.name}</div>
+                                {opt.diagnosis_group_name ? (
+                                  <div className="text-xs text-slate-500 mt-0.5">{opt.diagnosis_group_name}</div>
+                                ) : null}
                               </button>
                             ))}
                             <button

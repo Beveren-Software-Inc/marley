@@ -603,11 +603,24 @@ const DiagnosesTab = ({
           {diagnoses.map((diag) => (
             <div key={diag.name} className="bg-slate-50 rounded-lg p-4 border border-slate-200">
               <div className="flex justify-between items-start mb-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold text-primary">{diag.diagnosis_label || diag.diagnosis}</span>
-                  {diag.diagnoses_flag && (
-                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">Primary</span>
-                  )}
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <span className="text-sm">
+                      <span className="text-slate-500 font-normal mr-1">Diagnosis no.</span>
+                      <span className="font-mono font-semibold text-primary">{diag.disease_no || diag.diagnosis || '—'}</span>
+                    </span>
+                    <span className="text-sm text-slate-800">
+                      <span className="text-slate-500 font-normal mr-1">Name</span>
+                      {diag.diagnosis_name?.trim() || '—'}
+                    </span>
+                    {diag.diagnoses_flag && (
+                      <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">Primary</span>
+                    )}
+                  </div>
+                  <div className="text-xs text-slate-600">
+                    <span className="text-slate-500">Group</span>{' '}
+                    {diag.diagnosis_group_name?.trim() || '—'}
+                  </div>
                 </div>
                 <span className="text-xs text-slate-400">
                   <SafeDate date={diag.posting_date} format="datetime" />

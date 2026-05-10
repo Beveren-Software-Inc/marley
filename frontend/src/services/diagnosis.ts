@@ -100,6 +100,8 @@ import { apiRequest } from './apiClient'
 export interface DiagnosisData {
   name?: string  // For existing rows
   diagnosis: string
+  diagnosis_label?: string
+  diagnosis_group_name?: string
   details: string
   posting_date: string
   diagnoses_time: string
@@ -127,6 +129,9 @@ export interface DiagnosisRow {
   name: string
   diagnosis: string
   diagnosis_label: string
+  disease_no?: string
+  diagnosis_name?: string
+  diagnosis_group_name?: string
   details: string
   posting_date: string
   diagnoses_time: string

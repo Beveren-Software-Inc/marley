@@ -60,7 +60,9 @@ export function PatientDiagnosisList({ patient, refreshKey }: PatientDiagnosisLi
     <table className="w-full text-sm">
       <thead>
         <tr className="border-b border-slate-100">
-          <th className="text-left px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">Diagnosis</th>
+          <th className="text-left px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400 whitespace-nowrap">No.</th>
+          <th className="text-left px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">Name</th>
+          <th className="text-left px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">Group</th>
           <th className="text-left px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">Details</th>
           <th className="text-left px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400 whitespace-nowrap">Date</th>
           <th className="text-left px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">Source</th>
@@ -69,7 +71,13 @@ export function PatientDiagnosisList({ patient, refreshKey }: PatientDiagnosisLi
       <tbody>
         {rows.map((row, idx) => (
           <tr key={row.name || idx} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
-            <td className="px-2 py-2 font-medium text-slate-800">{row.diagnosis || '—'}</td>
+            <td className="px-2 py-2 font-mono text-sm text-slate-800 whitespace-nowrap">
+              {row.disease_no || row.diagnosis || '—'}
+            </td>
+            <td className="px-2 py-2 font-medium text-slate-800">
+              {row.diagnosis_name?.trim() || row.diagnosis || '—'}
+            </td>
+            <td className="px-2 py-2 text-sm text-slate-600">{row.diagnosis_group_name || '—'}</td>
             <td className="px-2 py-2 text-slate-600 max-w-[180px] truncate" title={row.details || ''}>
               {row.details || <span className="text-slate-300">—</span>}
             </td>

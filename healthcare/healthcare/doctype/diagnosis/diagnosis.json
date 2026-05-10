@@ -173,7 +173,7 @@
  "restrict_to_domain": "Healthcare",
  "row_format": "Dynamic",
  "rows_threshold_for_grid_search": 20,
- "search_fields": "diagnosis",
+ "search_fields": "disease_no,diagnosis,diagnosis_group_name",
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": [],

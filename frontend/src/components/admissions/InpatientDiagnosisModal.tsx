@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react'
 import { X, Plus, Trash2, Stethoscope, Calendar, FileText, Clock, Save } from 'lucide-react'
 import { toast } from '../../hooks/useToast'
-import { fetchHealthcarePractitioners, type LinkFieldOption } from '../../services/common'
+import { fetchHealthcarePractitioners, fetchDiagnosis, type LinkFieldOption } from '../../services/common'
 import { getInpatientDiagnoses, updateInpatientDiagnoses, type DiagnosisData } from '../../services/diagnosis'
 
 interface InpatientDiagnosisModalProps {
@@ -45,7 +45,6 @@ export const InpatientDiagnosisModal = ({
     loadExistingDiagnoses()
   }, [parentName])
 
-  console.log('Loaded diagnoses:', parentDoctype) // Debug log
   const loadExistingDiagnoses = async () => {
     try {
       setLoading(true)
@@ -54,6 +53,8 @@ export const InpatientDiagnosisModal = ({
         setDiagnoses(diagnosesList.map(d => ({
           name: d.name,
           diagnosis: d.diagnosis,
+          diagnosis_label: d.diagnosis_label,
+          diagnosis_group_name: d.diagnosis_group_name,
           details: d.details,
           posting_date: d.posting_date,
           diagnoses_time: d.diagnoses_time,
@@ -83,22 +84,10 @@ export const InpatientDiagnosisModal = ({
     }
   }
 
-  // Search diagnosis options
   const searchDiagnoses = async (query: string) => {
-    if (!query || query.length < 2) {
-      setDiagnosisOptions([])
-      return
-    }
-    
     try {
-      const response = await fetch(`/api/method/frappe.client.get_list?doctype=Diagnosis&fields=["name","diagnosis"]&filters=${JSON.stringify([["diagnosis", "like", `%${query}%`]])}&limit=20`)
-      const result = await response.json()
-      if (result.message) {
-        setDiagnosisOptions(result.message.map((d: any) => ({
-          name: d.name,
-          label: d.diagnosis || d.name
-        })))
-      }
+      const options = await fetchDiagnosis(query?.trim() || undefined)
+      setDiagnosisOptions(options)
     } catch (error) {
       console.error('Failed to search diagnoses:', error)
     }
@@ -114,13 +103,11 @@ export const InpatientDiagnosisModal = ({
     }
   }
 
-  // Debounced search for diagnosis
+  // Debounced search for diagnosis (disease no or name)
   useEffect(() => {
     const timeout = setTimeout(() => {
-      const activeQuery = Object.values(diagnosisQuery)[0]
-      if (activeQuery && activeQuery.length >= 2) {
-        searchDiagnoses(activeQuery)
-      }
+      const activeQuery = Object.values(diagnosisQuery).find((q) => q && String(q).trim().length >= 1)
+      void searchDiagnoses(activeQuery ? String(activeQuery).trim() : '')
     }, 300)
     return () => clearTimeout(timeout)
   }, [diagnosisQuery])
@@ -255,7 +242,7 @@ export const InpatientDiagnosisModal = ({
               <div>
                 <h2 className="text-xl font-semibold text-slate-900">Manage Patient Diagnoses</h2>
                 <p className="text-sm text-slate-500 mt-1">
-                  {patientName} ({patient}) - {parentName}
+                  {patientName} ({patient}) · {parentDoctype} · {parentName}
                 </p>
               </div>
             </div>
@@ -305,18 +292,21 @@ export const InpatientDiagnosisModal = ({
                       <div className="relative">
                         <input
                           type="text"
-                          value={diagnosis.diagnosis ? (diagnosisOptions.find(d => d.name === diagnosis.diagnosis)?.label || diagnosis.diagnosis) : (diagnosisQuery[index] || '')}
+                          value={diagnosis.diagnosis ? (diagnosisOptions.find(d => d.name === diagnosis.diagnosis)?.label || diagnosis.diagnosis_label || diagnosis.diagnosis) : (diagnosisQuery[index] || '')}
                           onChange={(e) => {
                             setDiagnosisQuery(prev => ({ ...prev, [index]: e.target.value }))
                             setDiagnosisOpen(prev => ({ ...prev, [index]: true }))
                             updateDiagnosis(index, 'diagnosis', '')
                           }}
-                          onFocus={() => setDiagnosisOpen(prev => ({ ...prev, [index]: true }))}
-                          placeholder="Search diagnosis..."
+                          onFocus={() => {
+                            setDiagnosisOpen((prev) => ({ ...prev, [index]: true }))
+                            void fetchDiagnosis(undefined).then(setDiagnosisOptions)
+                          }}
+                          placeholder="Search by disease no or diagnosis name…"
                           className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                           required
                         />
-                        {diagnosisOpen[index] && (diagnosisQuery[index]?.length >= 2 || diagnosis.diagnosis) && (
+                        {diagnosisOpen[index] && (
                           <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-auto">
                             {diagnosisOptions.length > 0 ? (
                               diagnosisOptions.map((diag) => (
@@ -325,22 +315,35 @@ export const InpatientDiagnosisModal = ({
                                   type="button"
                                   className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50"
                                   onClick={() => {
-                                    updateDiagnosis(index, 'diagnosis', diag.name)
-                                    setDiagnosisQuery(prev => ({ ...prev, [index]: diag.label }))
-                                    setDiagnosisOpen(prev => ({ ...prev, [index]: false }))
+                                    setDiagnoses((prev) => {
+                                      const next = [...prev]
+                                      next[index] = {
+                                        ...next[index],
+                                        diagnosis: diag.name,
+                                        diagnosis_label: diag.label,
+                                        diagnosis_group_name: diag.diagnosis_group_name?.trim() || '',
+                                      }
+                                      return next
+                                    })
+                                    setDiagnosisQuery((prev) => ({ ...prev, [index]: diag.label }))
+                                    setDiagnosisOpen((prev) => ({ ...prev, [index]: false }))
                                   }}
                                 >
-                                  {diag.label}
+                                  <div className="font-medium text-slate-800">{diag.label}</div>
+                                  {diag.diagnosis_group_name ? (
+                                    <div className="text-xs text-slate-500 mt-0.5">{diag.diagnosis_group_name}</div>
+                                  ) : null}
                                 </button>
                               ))
                             ) : (
-                              <div className="px-3 py-2 text-xs text-slate-500">
-                                {diagnosisQuery[index]?.length >= 2 ? 'No diagnoses found' : 'Type at least 2 characters to search'}
-                              </div>
+                              <div className="px-3 py-2 text-xs text-slate-500">No diagnoses found</div>
                             )}
                           </div>
                         )}
                       </div>
+                      {diagnosis.diagnosis && diagnosis.diagnosis_group_name && !diagnosisOpen[index] ? (
+                        <p className="text-xs text-slate-500 mt-1">{diagnosis.diagnosis_group_name}</p>
+                      ) : null}
                     </div>
 
                     {/* Practitioner Selection */}
