@@ -3,20 +3,31 @@
  "allow_copy": 1,
  "allow_import": 1,
  "allow_rename": 1,
- "autoname": "field:diagnosis",
+ "autoname": "field:disease_no",
  "beta": 1,
  "creation": "2017-02-15 12:23:59.341108",
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
+  "disease_no",
   "diagnosis",
-  "column_break_2",
   "estimated_duration",
+  "column_break_2",
+  "diagnosis_group",
+  "diagnosis_group_name",
   "section_break_zlos",
   "description",
   "codification",
-  "codification_table"
+  "codification_table",
+  "section_break_eyrl",
+  "sta_flg",
+  "cr_id",
+  "cr_date",
+  "up_id",
+  "column_break_jiqe",
+  "up_date",
+  "old_no"
  ],
  "fields": [
   {
@@ -24,6 +35,7 @@
    "fieldtype": "Data",
    "ignore_xss_filter": 1,
    "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Diagnosis",
    "reqd": 1,
    "unique": 1
@@ -59,10 +71,73 @@
    "fieldname": "description",
    "fieldtype": "Text Editor",
    "label": "Description"
+  },
+  {
+   "fieldname": "disease_no",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Disease No",
+   "unique": 1
+  },
+  {
+   "fieldname": "diagnosis_group",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Diagnosis Group",
+   "options": "Diagnosis Group"
+  },
+  {
+   "fetch_from": "diagnosis_group.disease_name",
+   "fieldname": "diagnosis_group_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Diagnosis Group Name"
+  },
+  {
+   "fieldname": "section_break_eyrl",
+   "fieldtype": "Section Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "sta_flg",
+   "fieldtype": "Check",
+   "label": "STA FLG"
+  },
+  {
+   "fieldname": "cr_id",
+   "fieldtype": "Data",
+   "label": "CR ID"
+  },
+  {
+   "fieldname": "cr_date",
+   "fieldtype": "Data",
+   "label": "CR Date"
+  },
+  {
+   "fieldname": "up_id",
+   "fieldtype": "Data",
+   "label": "UP ID"
+  },
+  {
+   "fieldname": "column_break_jiqe",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "up_date",
+   "fieldtype": "Data",
+   "label": "UP Date"
+  },
+  {
+   "fieldname": "old_no",
+   "fieldtype": "Data",
+   "label": "Old No"
   }
  ],
  "links": [],
- "modified": "2025-11-30 13:27:27.771734",
+ "modified": "2026-05-10 13:26:58.465585",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Diagnosis",
