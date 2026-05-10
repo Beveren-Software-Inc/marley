@@ -5,6 +5,20 @@ import frappe
 from frappe import _
 from frappe.utils import cint
 
+# Patient History page: invoice / billing figures only for these roles
+PATIENT_HISTORY_BILLING_ROLES = frozenset(
+	{
+		"Healthcare Administrator",
+		"Administrator",
+		"System Manager",
+		"Receptionist",
+	}
+)
+
+
+def user_can_view_patient_history_billing() -> bool:
+	return bool(PATIENT_HISTORY_BILLING_ROLES & set(frappe.get_roles(frappe.session.user)))
+
 
 @frappe.whitelist()
 def search_patients(search=None, limit=20):
@@ -515,45 +529,55 @@ def get_patient_history_summary(patient):
 		filters={"patient": patient}
 	)
 
-	# Invoice stats: Sales Invoice may have custom field "patient" in healthcare
+	billing_allowed = user_can_view_patient_history_billing()
+
+	# Invoice / unbilled stats (only for authorised roles — not computed otherwise)
 	paid_invoice_count = 0
 	paid_invoice_total = 0.0
 	amount_to_pay = 0.0
 	unbilled_count = 0
 
-	try:
-		if "patient" in (frappe.db.get_table_columns("Sales Invoice") or []):
-			invoices = frappe.get_all(
-				"Sales Invoice",
-				filters={"patient": patient, "docstatus": 1},
-				fields=["name", "grand_total", "outstanding_amount"]
-			)
-			paid_invoice_count = len(invoices)
-			paid_invoice_total = sum((float(inv.grand_total or 0) for inv in invoices))
-			amount_to_pay = sum((float(inv.outstanding_amount or 0) for inv in invoices))
-	except Exception:
-		pass
+	if billing_allowed:
+		try:
+			if "patient" in (frappe.db.get_table_columns("Sales Invoice") or []):
+				invoices = frappe.get_all(
+					"Sales Invoice",
+					filters={"patient": patient, "docstatus": 1},
+					fields=["name", "grand_total", "outstanding_amount"]
+				)
+				paid_invoice_count = len(invoices)
+				paid_invoice_total = sum((float(inv.grand_total or 0) for inv in invoices))
+				amount_to_pay = sum((float(inv.outstanding_amount or 0) for inv in invoices))
+		except Exception:
+			pass
 
-	try:
-		pv_columns = frappe.db.get_table_columns("Patient Visit") or []
-		if "invoice_created" in pv_columns:
-			unbilled_count = frappe.db.count(
-				"Patient Visit",
-				filters={"patient": patient, "docstatus": 1, "invoice_created": 0}
-			)
-		elif "invoiced" in pv_columns:
-			unbilled_count = frappe.db.count(
-				"Patient Visit",
-				filters={"patient": patient, "docstatus": 1, "invoiced": 0}
-			)
-	except Exception:
-		pass
+		try:
+			pv_columns = frappe.db.get_table_columns("Patient Visit") or []
+			if "invoice_created" in pv_columns:
+				unbilled_count = frappe.db.count(
+					"Patient Visit",
+					filters={"patient": patient, "docstatus": 1, "invoice_created": 0}
+				)
+			elif "invoiced" in pv_columns:
+				unbilled_count = frappe.db.count(
+					"Patient Visit",
+					filters={"patient": patient, "docstatus": 1, "invoiced": 0}
+				)
+		except Exception:
+			pass
 
-	return {
+	out = {
 		"visit_count": cint(visit_count),
 		"admission_count": cint(admission_count),
-		"paid_invoice_count": cint(paid_invoice_count),
-		"paid_invoice_total": float(paid_invoice_total),
-		"unbilled_count": cint(unbilled_count),
-		"amount_to_pay": float(amount_to_pay),
+		"billing_summary_allowed": billing_allowed,
 	}
+	if billing_allowed:
+		out.update(
+			{
+				"paid_invoice_count": cint(paid_invoice_count),
+				"paid_invoice_total": float(paid_invoice_total),
+				"unbilled_count": cint(unbilled_count),
+				"amount_to_pay": float(amount_to_pay),
+			}
+		)
+	return out

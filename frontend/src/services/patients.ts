@@ -372,10 +372,12 @@ export async function fetchPatientSummary(patient: string): Promise<PatientSumma
 export interface PatientHistorySummary {
   visit_count: number
   admission_count: number
-  paid_invoice_count: number
-  paid_invoice_total: number
-  unbilled_count: number
-  amount_to_pay: number
+  /** When false, billing figures are omitted (user lacks billing roles). */
+  billing_summary_allowed?: boolean
+  paid_invoice_count?: number
+  paid_invoice_total?: number
+  unbilled_count?: number
+  amount_to_pay?: number
 }
 
 export async function fetchPatientHistorySummary(patient: string): Promise<PatientHistorySummary> {

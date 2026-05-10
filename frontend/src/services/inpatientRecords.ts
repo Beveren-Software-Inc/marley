@@ -291,6 +291,8 @@ export async function fetchHospitalBeds(
     roomCategory?: string
     company?: string
     costCenter?: string
+    /** Only beds linked to one of these Healthcare Service Unit names (vacant + in list). */
+    serviceUnitNames?: string[]
   }
 ) {
   const params = new URLSearchParams()
@@ -299,6 +301,9 @@ export async function fetchHospitalBeds(
   if (options?.roomCategory) params.append('room_category', options.roomCategory)
   if (options?.company) params.append('company', options.company)
   if (options?.costCenter) params.append('cost_center', options.costCenter)
+  if (options?.serviceUnitNames !== undefined) {
+    params.append('service_units', JSON.stringify(options.serviceUnitNames))
+  }
 
   const url = `/api/method/healthcare.api.inpatient_admission.get_hospital_beds${params.toString() ? `?${params.toString()}` : ''}`
   const response = await fetch(url)
