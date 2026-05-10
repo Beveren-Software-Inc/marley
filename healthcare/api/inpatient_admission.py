@@ -592,8 +592,41 @@ def get_hospital_beds(
 	room_category=None,
 	company=None,
 	cost_center=None,
+	service_units=None,
 ):
-	"""Vacant hospital beds for admission UI (each bed links to a Healthcare Service Unit)."""
+	"""Vacant hospital beds for admission UI (each bed links to a Healthcare Service Unit).
+
+	If ``service_units`` is provided (list or JSON array string), only beds whose ``service_unit``
+	is in that list are returned — use this after the user selects wards/units in the admit UI.
+	Pass an empty list to get no beds.
+	"""
+	# Resolve allowed Healthcare Service Unit names (intersection of optional filters)
+	allowed_su = None
+
+	if service_units is not None:
+		if isinstance(service_units, str):
+			service_units = frappe.parse_json(service_units)
+		if not isinstance(service_units, (list, tuple)):
+			service_units = []
+		allowed_su = [str(s).strip() for s in service_units if s]
+		if not allowed_su:
+			return []
+
+	if cost_center:
+		su_with_cc = frappe.get_all(
+			"Healthcare Service Unit",
+			filters={"cost_center": cost_center},
+			pluck="name",
+		)
+		if not su_with_cc:
+			return []
+		if allowed_su is not None:
+			allowed_su = list(set(allowed_su) & set(su_with_cc))
+			if not allowed_su:
+				return []
+		else:
+			allowed_su = su_with_cc
+
 	filters = {"is_group": 0}
 	if occupancy_status:
 		filters["occupancy_status"] = occupancy_status
@@ -604,15 +637,8 @@ def get_hospital_beds(
 	if company:
 		filters["company"] = company
 
-	if cost_center:
-		su_with_cc = frappe.get_all(
-			"Healthcare Service Unit",
-			filters={"cost_center": cost_center},
-			pluck="name",
-		)
-		if not su_with_cc:
-			return []
-		filters["service_unit"] = ["in", su_with_cc]
+	if allowed_su is not None:
+		filters["service_unit"] = ["in", allowed_su]
 
 	out_fields = ["name", "bed_no", "service_unit", "occupancy_status", "room_category", "company"]
 

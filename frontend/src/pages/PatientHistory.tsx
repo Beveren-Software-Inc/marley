@@ -78,6 +78,12 @@ export const PatientHistoryPage = () => {
     setSearchParams(newSearchParams, { replace: true })
   }
 
+  /** Backend omits invoice figures unless user has billing roles; missing flag = legacy API (show billing). */
+  const showBillingSummary =
+    !summaryLoading &&
+    summary != null &&
+    summary.billing_summary_allowed !== false
+
   return (
     <div className="flex flex-col min-h-full">
       <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
@@ -112,7 +118,13 @@ export const PatientHistoryPage = () => {
           {/* Summary cards - show both visits AND admissions always */}
           <section>
             <h2 className="font-semibold text-slate-900 mb-3">Summary</h2>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            <div
+              className={`grid gap-3 ${
+                showBillingSummary
+                  ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-6'
+                  : 'grid-cols-2 sm:grid-cols-2 lg:grid-cols-2 max-w-md'
+              }`}
+            >
               <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-sky-100 text-sky-600">
                   <CalendarCheck className="w-5 h-5" />
@@ -135,50 +147,54 @@ export const PatientHistoryPage = () => {
                   </div>
                 </div>
               </div>
-              <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-violet-100 text-violet-600">
-                  <FileText className="w-5 h-5" />
-                </div>
-                <div>
-                  <div className="text-xs font-medium text-slate-500">Paid Invoices</div>
-                  <div className="text-lg font-semibold text-slate-900">
-                    {summaryLoading ? '…' : (summary?.paid_invoice_count ?? 0)}
+              {showBillingSummary && (
+                <>
+                  <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-violet-100 text-violet-600">
+                      <FileText className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-medium text-slate-500">Paid Invoices</div>
+                      <div className="text-lg font-semibold text-slate-900">
+                        {summaryLoading ? '…' : (summary?.paid_invoice_count ?? 0)}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
-              <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-amber-100 text-amber-600">
-                  <Receipt className="w-5 h-5" />
-                </div>
-                <div>
-                  <div className="text-xs font-medium text-slate-500">Paid Total</div>
-                  <div className="text-lg font-semibold text-slate-900">
-                    {summaryLoading ? '…' : formatCurrency(summary?.paid_invoice_total ?? 0)}
+                  <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-amber-100 text-amber-600">
+                      <Receipt className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-medium text-slate-500">Paid Total</div>
+                      <div className="text-lg font-semibold text-slate-900">
+                        {summaryLoading ? '…' : formatCurrency(summary?.paid_invoice_total ?? 0)}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
-              <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-orange-100 text-orange-600">
-                  <AlertCircle className="w-5 h-5" />
-                </div>
-                <div>
-                  <div className="text-xs font-medium text-slate-500">Unbilled</div>
-                  <div className="text-lg font-semibold text-slate-900">
-                    {summaryLoading ? '…' : (summary?.unbilled_count ?? 0)}
+                  <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-orange-100 text-orange-600">
+                      <AlertCircle className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-medium text-slate-500">Unbilled</div>
+                      <div className="text-lg font-semibold text-slate-900">
+                        {summaryLoading ? '…' : (summary?.unbilled_count ?? 0)}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
-              <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-rose-100 text-rose-600">
-                  <DollarSign className="w-5 h-5" />
-                </div>
-                <div>
-                  <div className="text-xs font-medium text-slate-500">To Pay</div>
-                  <div className="text-lg font-semibold text-slate-900">
-                    {summaryLoading ? '…' : formatCurrency(summary?.amount_to_pay ?? 0)}
+                  <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-rose-100 text-rose-600">
+                      <DollarSign className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-medium text-slate-500">To Pay</div>
+                      <div className="text-lg font-semibold text-slate-900">
+                        {summaryLoading ? '…' : formatCurrency(summary?.amount_to_pay ?? 0)}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
+                </>
+              )}
             </div>
           </section>
 
