@@ -6,7 +6,15 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "observation_level"
+  "observation_level",
+  "section_break_hhoj",
+  "is_billable",
+  "link_existing_item",
+  "item",
+  "item_code",
+  "column_break_lswo",
+  "item_group",
+  "rate"
  ],
  "fields": [
   {
@@ -16,12 +24,61 @@
    "in_standard_filter": 1,
    "label": "Observation Level",
    "unique": 1
+  },
+  {
+   "fieldname": "section_break_hhoj",
+   "fieldtype": "Section Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_billable",
+   "fieldtype": "Check",
+   "label": "Is Billable"
+  },
+  {
+   "default": "0",
+   "fieldname": "link_existing_item",
+   "fieldtype": "Check",
+   "label": "Link Existing Item"
+  },
+  {
+   "depends_on": "eval: (doc.link_existing_item) && doc.is_billable;",
+   "fieldname": "item",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Item",
+   "options": "Item"
+  },
+  {
+   "fieldname": "item_code",
+   "fieldtype": "Data",
+   "label": "Item Code"
+  },
+  {
+   "fieldname": "column_break_lswo",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:doc.is_billable;",
+   "fieldname": "item_group",
+   "fieldtype": "Link",
+   "label": "Item Group",
+   "options": "Item Group"
+  },
+  {
+   "depends_on": "eval:doc.is_billable && (!doc.link_existing_item || !doc.__islocal)",
+   "fieldname": "rate",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Rate"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-04-14 16:54:53.680072",
+ "modified": "2026-05-10 12:18:02.559039",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Observation Level",

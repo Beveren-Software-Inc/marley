@@ -1,9 +1,12 @@
-import { useState, useEffect } from 'react'
-import { fetchObservations, type Observation } from '../../services/observations'
+import { useState, useEffect, useRef } from 'react'
+import { fetchObservations, createObservationSalesOrder, type Observation } from '../../services/observations'
+import { useFormatMoney } from '../../hooks/useFormatMoney'
+import { toast } from '../../hooks/useToast'
 import { StatusPill } from '../ui/StatusPill'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { DetailSlideOver } from '../ui/DetailSlideOver'
 import { DocDetailView } from '../ui/DocDetailView'
+import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 
 const statusColors: Record<string, string> = {
   'Registered': 'default',
@@ -21,27 +24,74 @@ interface ObservationListProps {
 }
 
 export const ObservationList = ({ patient }: ObservationListProps) => {
+  const formatCurrency = useFormatMoney()
   const [observations, setObservations] = useState<Observation[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
   const [detailName, setDetailName] = useState<string | null>(null)
+  const [openActionRow, setOpenActionRow] = useState<string | null>(null)
+  const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const actionMenuRef = useRef<HTMLDivElement>(null)
+
+  const loadObservations = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const response = await fetchObservations(50, 0, patient)
+      setObservations(response)
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error('Failed to fetch observations'))
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
-    const loadObservations = async () => {
-      try {
-        setLoading(true)
-        setError(null)
-        const response = await fetchObservations(50, 0, patient)
-        setObservations(response)
-      } catch (err) {
-        setError(err instanceof Error ? err : new Error('Failed to fetch observations'))
-      } finally {
-        setLoading(false)
-      }
-    }
-
     loadObservations()
   }, [patient])
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      const el = e.target as HTMLElement
+      if (el.closest('[data-portal-actions-menu]')) return
+      if (el.closest('button[aria-label="Actions"]')) return
+      if (actionMenuRef.current && !actionMenuRef.current.contains(e.target as Node)) {
+        setOpenActionRow(null)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const handleOpenSalesOrder = (soName: string) => {
+    setOpenActionRow(null)
+    window.open(`/app/sales-order/${encodeURIComponent(soName)}`, '_blank')
+  }
+
+  const handleCreateSalesOrder = async (row: Observation) => {
+    setActionLoading(row.name)
+    try {
+      const res = await createObservationSalesOrder(row.name)
+      toast.success(
+        res.existing
+          ? `Sales Order ${res.sales_order} already linked`
+          : `Sales Order ${res.sales_order} created (Draft)`,
+      )
+      setOpenActionRow(null)
+      await loadObservations()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to create Sales Order')
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  /** User can bill when IP/OP context exists and an Observation Level is set (server uses level for item/rate). */
+  const canBillObservation = (obs: Observation): boolean =>
+    !!(
+      obs.observation_level &&
+      (obs.admission_no || (obs.reference_doctype === 'Patient Visit' && obs.reference_docname))
+    )
 
   if (loading) {
     return (
@@ -119,7 +169,7 @@ export const ObservationList = ({ patient }: ObservationListProps) => {
             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
               Practitioner
             </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase w-[100px]">
+            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase w-[140px]">
               Actions
             </th>
           </tr>
@@ -158,7 +208,9 @@ export const ObservationList = ({ patient }: ObservationListProps) => {
                 {getResultDisplay(obs)}
               </td>
               <td className="px-4 py-3 text-sm text-slate-700">
-                {obs.amount !== undefined && obs.amount !== null ? `$${obs.amount.toFixed(2)}` : '-'}
+                {obs.amount !== undefined && obs.amount !== null
+                  ? formatCurrency(Number(obs.amount))
+                  : '-'}
               </td>
               <td className="px-4 py-3 text-sm text-slate-700">
                 {obs.duration || '-'}
@@ -166,13 +218,67 @@ export const ObservationList = ({ patient }: ObservationListProps) => {
               <td className="px-4 py-3 text-sm text-slate-700">
                 {obs.practitioner_name || obs.healthcare_practitioner || '-'}
               </td>
-              <td className="px-4 py-2 align-middle">
-                <PrintFormatDropdown
-                  doctype="Observation"
-                  docName={obs.name}
-                  noLetterhead={0}
-                  triggerPrint={1}
-                />
+              <td className="px-4 py-2 align-middle" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                  <div className="relative inline-block" ref={openActionRow === obs.name ? actionMenuRef : undefined}>
+                    <button
+                      type="button"
+                      onClick={() => setOpenActionRow((prev) => (prev === obs.name ? null : obs.name))}
+                      disabled={actionLoading === obs.name}
+                      className="inline-flex items-center justify-center w-8 h-8 rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                      aria-label="Actions"
+                    >
+                      {actionLoading === obs.name ? (
+                        <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                        </svg>
+                      ) : (
+                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+                        </svg>
+                      )}
+                    </button>
+                    <PortalActionsMenu
+                      open={openActionRow === obs.name}
+                      onClose={() => setOpenActionRow(null)}
+                      triggerRef={actionMenuRef}
+                      minWidth={200}
+                    >
+                      {obs.order_created ? (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenSalesOrder(obs.order_created!)}
+                          className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                        >
+                          Open Sales Order
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={!canBillObservation(obs)}
+                          title={
+                            !canBillObservation(obs)
+                              ? !obs.observation_level
+                                ? 'Select an Observation Level (billable) on the observation before creating a Sales Order'
+                                : 'Link an admission (IP) or visit (OP) before creating a Sales Order'
+                              : undefined
+                          }
+                          onClick={() => handleCreateSalesOrder(obs)}
+                          className="block w-full text-left px-3 py-2 text-sm text-primary hover:bg-primary/5 disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          Create Sales Order
+                        </button>
+                      )}
+                    </PortalActionsMenu>
+                  </div>
+                  <PrintFormatDropdown
+                    doctype="Observation"
+                    docName={obs.name}
+                    noLetterhead={0}
+                    triggerPrint={1}
+                  />
+                </div>
               </td>
             </tr>
           ))}
@@ -185,7 +291,7 @@ export const ObservationList = ({ patient }: ObservationListProps) => {
           subtitle={detailName}
           onClose={() => setDetailName(null)}
         >
-          <DocDetailView doctype="Observation" name={detailName} />
+          <DocDetailView doctype="Observation" name={detailName} onUpdate={loadObservations} />
         </DetailSlideOver>
       )}
     </div>

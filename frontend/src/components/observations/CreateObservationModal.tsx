@@ -5,7 +5,7 @@ import {
   CREATE_MODAL_OVERLAY,
   createModalShellClass,
 } from '../ui/CreateModalChrome'
-import { createObservation } from '../../services/observations'
+import { createObservation, fetchObservationLevelDetails } from '../../services/observations'
 import { fetchHealthcarePractitioners, getCurrentUserPractitioner, fetchObservationTemplates, fetchMedicalDepartments, type LinkFieldOption, fetchPatientVisits, fetchObservationLevels } from '../../services/common'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
 import { toast } from '../../hooks/useToast'
@@ -443,11 +443,31 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
     setDepartmentOpen(false)
   }
 
-  const handleObservationLevelSelect = (obsLevel: LinkFieldOption) => {
+  const handleObservationLevelSelect = async (obsLevel: LinkFieldOption) => {
     setSelectedObservationLevel(obsLevel)
-    setFormData(prev => ({ ...prev, observation_level: obsLevel.name }))
     setObservationLevelQuery(obsLevel.label)
     setObservationLevelOpen(false)
+
+    let rateFromLevel: number | undefined
+    try {
+      const details = await fetchObservationLevelDetails(obsLevel.name)
+      if (details?.rate != null && Number(details.rate) > 0) {
+        rateFromLevel = Number(details.rate)
+      }
+    } catch {
+      // amount stays as entered
+    }
+
+    setFormData(prev => {
+      const next = { ...prev, observation_level: obsLevel.name }
+      if (
+        rateFromLevel != null &&
+        (!prev.amount || Number(prev.amount) === 0)
+      ) {
+        next.amount = rateFromLevel
+      }
+      return next
+    })
   }
 
   const handleAdmissionSelect = (value: string, label: string) => {
