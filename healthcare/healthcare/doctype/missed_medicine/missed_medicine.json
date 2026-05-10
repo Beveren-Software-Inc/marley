@@ -1,7 +1,7 @@
 {
  "actions": [],
  "allow_rename": 1,
- "creation": "2025-09-21 01:28:32.757764",
+ "creation": "2026-05-07 06:19:21.721005",
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
@@ -37,6 +37,12 @@
    "reqd": 1
   },
   {
+   "default": "Now",
+   "fieldname": "time",
+   "fieldtype": "Time",
+   "label": "Time"
+  },
+  {
    "fieldname": "medicine_code",
    "fieldtype": "Link",
    "in_list_view": 1,
@@ -64,10 +70,6 @@
    "label": "Qty"
   },
   {
-   "fieldname": "column_break_wakz",
-   "fieldtype": "Column Break"
-  },
-  {
    "fetch_from": "medicine_code.stock_uom",
    "fieldname": "unit",
    "fieldtype": "Link",
@@ -76,25 +78,29 @@
    "options": "UOM"
   },
   {
+   "fieldname": "state_date",
+   "fieldtype": "Date",
+   "label": "State Date"
+  },
+  {
    "fieldname": "medicine_given_timing",
    "fieldtype": "Data",
    "label": "Medicine Given Timing"
+  },
+  {
+   "fieldname": "column_break_wakz",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "frequency",
+   "fieldtype": "Int",
+   "label": "Frequency"
   },
   {
    "default": "0",
    "fieldname": "is_active",
    "fieldtype": "Check",
    "label": "Discontinue"
-  },
-  {
-   "fieldname": "state_date",
-   "fieldtype": "Date",
-   "label": "State Date"
-  },
-  {
-   "fieldname": "frequency",
-   "fieldtype": "Int",
-   "label": "Frequency"
   },
   {
    "fieldname": "dose_notes",
@@ -108,10 +114,10 @@
    "options": "User"
   },
   {
-   "default": "Now",
-   "fieldname": "time",
-   "fieldtype": "Time",
-   "label": "Time"
+   "default": "0",
+   "fieldname": "is_prn",
+   "fieldtype": "Check",
+   "label": "Is PRN"
   },
   {
    "fieldname": "override_section",
@@ -139,22 +145,16 @@
    "fieldname": "override_timestamp",
    "fieldtype": "Datetime",
    "label": "Override Timestamp"
-  },
-  {
-   "default": "0",
-   "fieldname": "is_prn",
-   "fieldtype": "Check",
-   "label": "Is PRN"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-05-07 06:18:54.436757",
+ "modified": "2026-05-07 06:19:21.721005",
  "modified_by": "Administrator",
  "module": "Healthcare",
- "name": "Medicine Given",
+ "name": "Missed Medicine",
  "owner": "Administrator",
  "permissions": [],
  "row_format": "Dynamic",

@@ -1133,7 +1133,7 @@
    "fieldname": "bed_no",
    "fieldtype": "Link",
    "label": "Bed No",
-   "options": "Bed No"
+   "options": "Hospital Bed"
   },
   {
    "fieldname": "old_bed_no",
@@ -1172,7 +1172,7 @@
    "link_fieldname": "admission"
   }
  ],
- "modified": "2026-04-21 17:27:24.492133",
+ "modified": "2026-05-10 10:25:22.345692",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Inpatient Admission",

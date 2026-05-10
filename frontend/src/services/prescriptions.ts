@@ -249,6 +249,7 @@ export interface MedicationOrderRow {
   drug: string
   drug_name?: string
   dosage: string
+  uom?: string
   no_of_days?: number
   dosage_form: string
   instructions?: string
@@ -272,6 +273,7 @@ export interface MedicationOrderEntry {
   drug: string
   drug_name?: string
   dosage: string
+  uom?: string
   dosage_form: string
   /** 1 if this is a PRN (as-needed) medication */
   is_prn?: 0 | 1
@@ -302,6 +304,7 @@ export async function createPrescription(
     body.medication_orders = data.medication_orders.map((row) => ({
       drug: row.drug,
       dosage: row.dosage,
+      uom: row.uom,
       no_of_days: row.no_of_days,
       dosage_form: row.dosage_form,
       instructions: row.instructions,

@@ -11,7 +11,7 @@ from frappe import _
 from frappe.desk.reportview import get_match_cond
 from frappe.model.document import Document
 from frappe.model.mapper import get_mapped_doc
-from frappe.utils import get_datetime, get_link_to_form, getdate, now_datetime, today
+from frappe.utils import cint, get_datetime, get_link_to_form, getdate, now_datetime, today
 
 from healthcare.api.utils.api_utility import get_next_transaction_number
 from healthcare.healthcare.doctype.nursing_task.nursing_task import NursingTask
@@ -57,6 +57,7 @@ class InpatientAdmission(Document):
 	def validate(self):
 		self.validate_dates()
 		self.validate_already_scheduled_or_admitted()
+		self.validate_bed_and_service_units()
 		# Generate file number if this is the first encounter/inpatient record for the patient
 		if self.patient and self.is_new():
 			self.generate_file_number_for_patient()
@@ -147,6 +148,25 @@ class InpatientAdmission(Document):
 					_("Row #{0}: Check Out datetime cannot be less than Check In datetime").format(entry.idx)
 				)
 
+	def validate_bed_and_service_units(self):
+		"""If a hospital bed is selected, it must belong to one of the chosen service units when units are set."""
+		if not self.bed_no:
+			return
+		bed_meta = frappe.db.get_value(
+			"Hospital Bed", self.bed_no, ["service_unit", "is_group", "occupancy_status"], as_dict=True
+		)
+		if not bed_meta:
+			frappe.throw(_("Hospital Bed {0} does not exist").format(self.bed_no))
+		if cint(bed_meta.is_group):
+			frappe.throw(_("Please select a bed (leaf row), not a bed group for {0}").format(self.bed_no))
+		unit_rows = [r.service_unit for r in (self.service_unit or []) if getattr(r, "service_unit", None)]
+		if unit_rows and bed_meta.service_unit and bed_meta.service_unit not in unit_rows:
+			frappe.throw(
+				_("Hospital Bed {0} is linked to service unit {1}, which is not in the selected service units.").format(
+					frappe.bold(self.bed_no), frappe.bold(bed_meta.service_unit)
+				)
+			)
+
 	def validate_already_scheduled_or_admitted(self):
 		pass
 		#Uncomment when done
@@ -167,7 +187,9 @@ class InpatientAdmission(Document):
 		# 	frappe.throw(msg)
 
 	@frappe.whitelist()
-	def admit(self, service_unit, check_in, expected_discharge=None):
+	def admit(self, service_unit=None, check_in=None, expected_discharge=None, hospital_bed=None):
+		if hospital_bed:
+			self.bed_no = hospital_bed
 		admit_patient(self, service_unit, check_in, expected_discharge)
 
 	@frappe.whitelist()
@@ -348,15 +370,44 @@ def set_ip_child_records(inpatient_record, inpatient_record_child, encounter_chi
 			table.set(df.fieldname, item.get(df.fieldname))
 
 
+def vacate_hospital_bed(bed_name):
+	if bed_name and frappe.db.exists("Hospital Bed", bed_name):
+		frappe.db.set_value("Hospital Bed", bed_name, "occupancy_status", "Vacant")
+
+
+def occupy_hospital_bed(bed_name):
+	if bed_name and frappe.db.exists("Hospital Bed", bed_name):
+		frappe.db.set_value("Hospital Bed", bed_name, "occupancy_status", "Occupied")
+
+
+def validate_hospital_bed_for_admission(bed_name):
+	if not bed_name:
+		return
+	row = frappe.db.get_value(
+		"Hospital Bed", bed_name, ["occupancy_status", "is_group"], as_dict=True
+	)
+	if not row:
+		frappe.throw(_("Hospital Bed {0} does not exist").format(bed_name))
+	if cint(row.is_group):
+		frappe.throw(_("Please select a bed (leaf row), not a bed group."))
+	if row.occupancy_status == "Occupied":
+		frappe.throw(_("Hospital Bed {0} is already occupied.").format(bed_name))
+
+
 def check_out_inpatient(inpatient_record):
 	if inpatient_record.inpatient_occupancies:
 		for inpatient_occupancy in inpatient_record.inpatient_occupancies:
 			if inpatient_occupancy.left != 1:
 				inpatient_occupancy.left = True
 				inpatient_occupancy.check_out = now_datetime()
-				frappe.db.set_value(
-					"Healthcare Service Unit", inpatient_occupancy.service_unit, "occupancy_status", "Vacant"
-				)
+				if inpatient_occupancy.service_unit:
+					frappe.db.set_value(
+						"Healthcare Service Unit",
+						inpatient_occupancy.service_unit,
+						"occupancy_status",
+						"Vacant",
+					)
+	vacate_hospital_bed(getattr(inpatient_record, "bed_no", None))
 
 
 def discharge_patient(inpatient_record):
@@ -365,6 +416,8 @@ def discharge_patient(inpatient_record):
 	validate_inpatient_invoicing(inpatient_record)
 
 	validate_incompleted_service_requests(inpatient_record)
+
+	check_out_inpatient(inpatient_record)
 
 	inpatient_record.discharge_datetime = now_datetime()
 	inpatient_record.status = "Discharged"
@@ -489,19 +542,52 @@ def get_unbilled_inpatient_docs(doc, inpatient_record):
 	)
 
 
+def _collect_admission_service_units(inpatient_record, legacy_service_unit=None):
+	"""Service units from the multiselect child table, plus the bed's unit and optional legacy link."""
+	units = []
+	for row in inpatient_record.get("service_unit") or []:
+		su = getattr(row, "service_unit", None)
+		if su and su not in units:
+			units.append(su)
+	if getattr(inpatient_record, "bed_no", None):
+		bed_su = frappe.db.get_value("Hospital Bed", inpatient_record.bed_no, "service_unit")
+		if bed_su and bed_su not in units:
+			units.append(bed_su)
+	if legacy_service_unit and legacy_service_unit not in units:
+		units.append(legacy_service_unit)
+	return units
+
+
 def admit_patient(inpatient_record, service_unit, check_in, expected_discharge=None):
 	validate_nursing_tasks(inpatient_record)
+
+	if getattr(inpatient_record, "bed_no", None):
+		validate_hospital_bed_for_admission(inpatient_record.bed_no)
+
+	service_units = _collect_admission_service_units(inpatient_record, legacy_service_unit=service_unit)
 
 	inpatient_record.admitted_datetime = check_in
 	inpatient_record.status = "Admitted"
 	inpatient_record.expected_discharge = expected_discharge
-	# Set cost center from the service unit (hospital) so future charges use it
-	service_unit_cost_center = frappe.db.get_value("Healthcare Service Unit", service_unit, "cost_center")
-	if service_unit_cost_center:
-		inpatient_record.cost_center = service_unit_cost_center
+
+	for su in service_units:
+		cc = frappe.db.get_value("Healthcare Service Unit", su, "cost_center")
+		if cc:
+			inpatient_record.cost_center = cc
+			break
 
 	inpatient_record.set("inpatient_occupancies", [])
-	transfer_patient(inpatient_record, service_unit, check_in)
+	for su in service_units:
+		row = inpatient_record.append("inpatient_occupancies", {})
+		row.service_unit = su
+		row.check_in = check_in
+
+	inpatient_record.save(ignore_permissions=True)
+
+	for su in service_units:
+		frappe.db.set_value("Healthcare Service Unit", su, "occupancy_status", "Occupied")
+	if getattr(inpatient_record, "bed_no", None):
+		occupy_hospital_bed(inpatient_record.bed_no)
 
 	frappe.db.set_value(
 		"Patient",
@@ -612,6 +698,10 @@ def transfer_to_another_cost_center(
 				frappe.db.set_value(
 					"Healthcare Service Unit", occ.service_unit, "occupancy_status", "Vacant"
 				)
+	bed_before = getattr(inpatient_record, "bed_no", None)
+	vacate_hospital_bed(bed_before)
+	if bed_before:
+		inpatient_record.bed_no = None
 
 	# 2) Update admission cost center
 	inpatient_record.cost_center = to_cost_center

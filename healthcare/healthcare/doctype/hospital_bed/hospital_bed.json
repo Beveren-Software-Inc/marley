@@ -1,0 +1,243 @@
+{
+ "actions": [],
+ "allow_import": 1,
+ "allow_rename": 1,
+ "autoname": "field:bed_no",
+ "creation": "2026-05-10 10:16:19.015517",
+ "description": "Healthcare Service Unit",
+ "doctype": "DocType",
+ "document_type": "Setup",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "service_unit",
+  "bed_no",
+  "service_unit_capacity",
+  "occupancy_status",
+  "column_break_9",
+  "company",
+  "room_category",
+  "cost_center",
+  "contact_and_address_tab",
+  "address_and_contact_section",
+  "address_html",
+  "column_break_10",
+  "contact_html",
+  "connections_tab",
+  "lft",
+  "rgt",
+  "is_group",
+  "old_parent",
+  "parent_hospital_bed"
+ ],
+ "fields": [
+  {
+   "default": "0",
+   "fieldname": "is_group",
+   "fieldtype": "Check",
+   "label": "Is Group"
+  },
+  {
+   "allow_in_quick_entry": 1,
+   "depends_on": "eval:doc.overlap_appointments == 1",
+   "fieldname": "service_unit_capacity",
+   "fieldtype": "Int",
+   "label": "Service Unit Capacity",
+   "mandatory_depends_on": "eval:doc.overlap_appointments == 1",
+   "non_negative": 1
+  },
+  {
+   "default": "Vacant",
+   "fieldname": "occupancy_status",
+   "fieldtype": "Select",
+   "hide_days": 1,
+   "hide_seconds": 1,
+   "label": "Occupancy Status",
+   "no_copy": 1,
+   "options": "Vacant\nOccupied",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_9",
+   "fieldtype": "Column Break",
+   "hide_days": 1,
+   "hide_seconds": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "hide_days": 1,
+   "hide_seconds": 1,
+   "ignore_user_permissions": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Company",
+   "options": "Company",
+   "remember_last_selected_value": 1,
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "room_category",
+   "fieldtype": "Link",
+   "label": "Room Category",
+   "options": "Room Category"
+  },
+  {
+   "fieldname": "cost_center",
+   "fieldtype": "Link",
+   "label": "Cost Center",
+   "options": "Cost Center"
+  },
+  {
+   "fieldname": "lft",
+   "fieldtype": "Int",
+   "hidden": 1,
+   "label": "Left",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "rgt",
+   "fieldtype": "Int",
+   "hidden": 1,
+   "label": "Right",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "old_parent",
+   "fieldtype": "Link",
+   "hidden": 1,
+   "label": "Old Parent",
+   "options": "Hospital Bed"
+  },
+  {
+   "fieldname": "contact_and_address_tab",
+   "fieldtype": "Tab Break",
+   "label": "Contact & Address"
+  },
+  {
+   "depends_on": "eval:!doc.__islocal",
+   "fieldname": "address_and_contact_section",
+   "fieldtype": "Section Break",
+   "label": "Address and Contact"
+  },
+  {
+   "fieldname": "address_html",
+   "fieldtype": "HTML",
+   "label": "Address HTML"
+  },
+  {
+   "fieldname": "column_break_10",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "contact_html",
+   "fieldtype": "HTML",
+   "label": "Contact HTML"
+  },
+  {
+   "fieldname": "connections_tab",
+   "fieldtype": "Tab Break",
+   "label": "Connections",
+   "show_dashboard": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "is_group",
+   "fieldtype": "Check",
+   "label": "Is Group"
+  },
+  {
+   "fieldname": "parent_hospital_bed",
+   "fieldtype": "Link",
+   "ignore_user_permissions": 1,
+   "label": "Parent Hospital Bed",
+   "options": "Hospital Bed"
+  },
+  {
+   "fieldname": "bed_no",
+   "fieldtype": "Data",
+   "hide_days": 1,
+   "hide_seconds": 1,
+   "in_global_search": 1,
+   "in_list_view": 1,
+   "label": "Bed No",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "service_unit",
+   "fieldtype": "Link",
+   "label": "Service Unit",
+   "options": "Healthcare Service Unit"
+  }
+ ],
+ "links": [
+  {
+   "is_child_table": 1,
+   "link_doctype": "Inpatient Occupancy",
+   "link_fieldname": "service_unit",
+   "parent_doctype": "Inpatient Admission",
+   "table_fieldname": "inpatient_occupancies"
+  },
+  {
+   "is_child_table": 1,
+   "link_doctype": "Practitioner Service Unit Schedule",
+   "link_fieldname": "service_unit",
+   "parent_doctype": "Healthcare Practitioner",
+   "table_fieldname": "practitioner_schedules"
+  }
+ ],
+ "modified": "2026-05-10 10:24:54.895930",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Hospital Bed",
+ "naming_rule": "By fieldname",
+ "nsm_parent_field": "parent_hospital_bed",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Nursing User",
+   "share": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Healthcare Administrator",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Physician",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "quick_entry": 1,
+ "restrict_to_domain": "Healthcare",
+ "row_format": "Dynamic",
+ "search_fields": "bed_no",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "bed_no",
+ "track_changes": 1
+}

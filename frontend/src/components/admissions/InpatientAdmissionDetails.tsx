@@ -283,6 +283,13 @@ const AdmissionDetailsSection = ({ record }: { record: InpatientRecord }) => {
         <Field label="Admission Ordered For" value={formatDate(record.admission_ordered_for)} />
         <Field label="Company" value={record.company} />
         <Field label="Cost Center" value={record.cost_center} />
+        <Field
+          label="Service Units"
+          value={record.service_unit_selections?.length
+            ? record.service_unit_selections.map((r) => r.service_unit).filter(Boolean).join(', ')
+            : undefined}
+        />
+        <Field label="Hospital Bed" value={record.bed_no} />
         <Field label="Admission By CPR" value={record.admission_by_cpr} />
         <Field label="Reference By" value={record.reference_by} />
       </div>
@@ -411,7 +418,7 @@ const OccupancyHistory = ({ occupancies }: { occupancies: any[] | undefined }) =
           <tbody className="divide-y divide-slate-200">
             {occupancies.map((occ, i) => (
               <tr key={i} className="hover:bg-slate-50">
-                <td className="px-3 py-2 text-slate-800">{occ.service_unit}</td>
+                <td className="px-3 py-2 text-slate-800">{occ.service_unit_name || occ.service_unit}</td>
                 <td className="px-3 py-2 text-slate-600">
                   <SafeDate date={occ.check_in} format="datetime" />
                 </td>

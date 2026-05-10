@@ -245,6 +245,29 @@ def get_inpatient_record(name):
 					'invoiced': occupancy.invoiced
 				}
 				break
+
+	service_unit_selections = [
+		{"service_unit": row.service_unit}
+		for row in (getattr(record, "service_unit", None) or [])
+		if getattr(row, "service_unit", None)
+	]
+
+	inpatient_occupancies_out = []
+	for occ in record.inpatient_occupancies or []:
+		su_label = None
+		if occ.service_unit:
+			su_label = frappe.db.get_value(
+				"Healthcare Service Unit", occ.service_unit, "healthcare_service_unit_name"
+			)
+		inpatient_occupancies_out.append({
+			"name": occ.name,
+			"service_unit": occ.service_unit,
+			"service_unit_name": su_label,
+			"check_in": occ.check_in,
+			"check_out": occ.check_out,
+			"left": occ.left,
+			"invoiced": occ.invoiced,
+		})
 	
 	# Get charges information
 	charges_info = {
@@ -278,9 +301,62 @@ def get_inpatient_record(name):
 		'admission_encounter': record.admission_encounter,
 		'expected_length_of_stay': record.expected_length_of_stay,
 		'patient_ip_category': getattr(record, "patient_ip_category", None),
+		'bed_no': getattr(record, "bed_no", None),
+		'service_unit_selections': service_unit_selections,
+		'inpatient_occupancies': inpatient_occupancies_out,
 		'current_occupancy': current_occupancy,
 		'charges': charges_info,
 		'patient_relatives': relatives,
+		'gender': getattr(record, "gender", None),
+		'blood_group': getattr(record, "blood_group", None),
+		'dob': getattr(record, "dob", None),
+		'mobile': getattr(record, "mobile", None),
+		'email': getattr(record, "email", None),
+		'phone': getattr(record, "phone", None),
+		'company': getattr(record, "company", None),
+		'cost_center': getattr(record, "cost_center", None),
+		'admission_ordered_for': getattr(record, "admission_ordered_for", None),
+		'admission_by_cpr': getattr(record, "admission_by_cpr", None),
+		'reference_by': getattr(record, "reference_by", None),
+		'admission_practitioner': getattr(record, "admission_practitioner", None),
+		'admission_instruction': getattr(record, "admission_instruction", None),
+		'admission_doctor_name': getattr(record, "admission_doctor_name", None),
+		'admission_by_doctor': getattr(record, "admission_by_doctor", None),
+		'admission_by_nm': getattr(record, "admission_by_nm", None),
+		'psychologist_doctor_name': getattr(record, "psychologist_doctor_name", None),
+		'psychologist_doctor': getattr(record, "psychologist_doctor", None),
+		'resident_doctor_name': getattr(record, "resident_doctor_name", None),
+		'residents_doctor_no': getattr(record, "residents_doctor_no", None),
+		'escort': getattr(record, "escort", None),
+		'guardian_name': getattr(record, "guardian_name", None),
+		'contact_relationship': getattr(record, "contact_relationship", None),
+		'contact_mobile': getattr(record, "contact_mobile", None),
+		'contact_phone': getattr(record, "contact_phone", None),
+		'contact_email': getattr(record, "contact_email", None),
+		'admission_cost': getattr(record, "admission_cost", None),
+		'case_management_fee': getattr(record, "case_management_fee", None),
+		'room_charges': getattr(record, "room_charges", None),
+		'weight': getattr(record, "weight", None),
+		'height': getattr(record, "height", None),
+		'blood_pressure': getattr(record, "blood_pressure", None),
+		'pulse': getattr(record, "pulse", None),
+		'temp': getattr(record, "temp", None),
+		'resp_rate': getattr(record, "resp_rate", None),
+		'general_condition': getattr(record, "general_condition", None),
+		'cns': getattr(record, "cns", None),
+		'cvs_resp': getattr(record, "cvs_resp", None),
+		'git': getattr(record, "git", None),
+		'others': getattr(record, "others", None),
+		'allergies': getattr(record, "allergies", None),
+		'medication_history': getattr(record, "medication_history", None),
+		'medical_history': getattr(record, "medical_history", None),
+		'surgical_history': getattr(record, "surgical_history", None),
+		'discharge_ordered_date': getattr(record, "discharge_ordered_date", None),
+		'discharge_datetime': getattr(record, "discharge_datetime", None),
+		'discharge_instructions': getattr(record, "discharge_instructions", None),
+		'discharge_note': getattr(record, "discharge_note", None),
+		'followup_date': getattr(record, "followup_date", None),
+		'discharge_practitioner': getattr(record, "discharge_practitioner", None),
 	}
 
 
@@ -489,6 +565,98 @@ def get_service_units(service_unit_type=None, occupancy_status=None, search=None
 	return units
 
 
+def _resolve_quotation_service_unit(admission_name, explicit_service_unit=None):
+	"""Pick a Healthcare Service Unit for quotation line item: explicit, then admission multiselect, then bed."""
+	if explicit_service_unit:
+		return explicit_service_unit
+	if not admission_name:
+		return None
+	bed = frappe.db.get_value("Inpatient Admission", admission_name, "bed_no")
+	if bed:
+		su = frappe.db.get_value("Hospital Bed", bed, "service_unit")
+		if su:
+			return su
+	rows = frappe.get_all(
+		"Service Unit Multiselect",
+		filters={"parent": admission_name, "parenttype": "Inpatient Admission"},
+		pluck="service_unit",
+		limit=1,
+	)
+	return rows[0] if rows else None
+
+
+@frappe.whitelist()
+def get_hospital_beds(
+	occupancy_status=None,
+	search=None,
+	room_category=None,
+	company=None,
+	cost_center=None,
+):
+	"""Vacant hospital beds for admission UI (each bed links to a Healthcare Service Unit)."""
+	filters = {"is_group": 0}
+	if occupancy_status:
+		filters["occupancy_status"] = occupancy_status
+	else:
+		filters["occupancy_status"] = "Vacant"
+	if room_category:
+		filters["room_category"] = room_category
+	if company:
+		filters["company"] = company
+
+	if cost_center:
+		su_with_cc = frappe.get_all(
+			"Healthcare Service Unit",
+			filters={"cost_center": cost_center},
+			pluck="name",
+		)
+		if not su_with_cc:
+			return []
+		filters["service_unit"] = ["in", su_with_cc]
+
+	out_fields = ["name", "bed_no", "service_unit", "occupancy_status", "room_category", "company"]
+
+	if search:
+		txt = f"%{search}%"
+		occ = filters.get("occupancy_status", "Vacant")
+		conditions = ["is_group = 0", "occupancy_status = %(occ)s", "(bed_no LIKE %(txt)s OR name LIKE %(txt)s)"]
+		params = {"occ": occ, "txt": txt}
+		if room_category:
+			conditions.append("room_category = %(room_category)s")
+			params["room_category"] = room_category
+		if company:
+			conditions.append("company = %(company)s")
+			params["company"] = company
+		if filters.get("service_unit"):
+			su_list = filters["service_unit"][1]
+			if not su_list:
+				return []
+			placeholders = ", ".join(f"%(su{i})s" for i in range(len(su_list)))
+			conditions.append(f"service_unit in ({placeholders})")
+			for i, n in enumerate(su_list):
+				params[f"su{i}"] = n
+		where_sql = " AND ".join(conditions)
+		return frappe.db.sql(
+			f"""
+			select name, bed_no, service_unit, occupancy_status, room_category, company
+			from `tabHospital Bed`
+			where {where_sql}
+			order by bed_no asc
+			limit 50
+			""",
+			params,
+			as_dict=True,
+		)
+
+	return frappe.get_all(
+		"Hospital Bed",
+		filters=filters,
+		fields=out_fields,
+		order_by="bed_no asc",
+		limit=50,
+	)
+
+
 @frappe.whitelist()
 def add_patient_visitor(admission: str, visitors_name: str, relationship_with_patient: str, cpr__id_no: str | None = None, any_remarks: str | None = None):
 	"""Append a Patient Visitor row to an Inpatient Admission and return the created row."""
@@ -656,13 +824,14 @@ def create_and_submit_discharge(admission_name, discharge_data):
 @frappe.whitelist()
 def admit_patient(
 	name,
-	service_unit,
-	check_in,
+	service_unit=None,
+	check_in=None,
 	expected_discharge=None,
 	patient_ip_category=None,
 	patient_documents=None,
 	patient_relatives=None,
 	service_units=None,
+	hospital_bed=None,
 	inpatient_package=None,
 	rate_per_day=None,
 	standard_package=None,
@@ -670,8 +839,6 @@ def admit_patient(
 	"""Admit a patient - wrapper for the DocType method"""
 	if not name:
 		frappe.throw(_("Inpatient Admission name is required"))
-	if not service_unit:
-		frappe.throw(_("Service Unit is required"))
 	if not check_in:
 		frappe.throw(_("Check In datetime is required"))
 
@@ -689,7 +856,18 @@ def admit_patient(
 	if standard_package is not None:
 		record.standard_package = cint(standard_package)
 
-	# Perform admit (sets status, occupancy, etc.)
+	# Table MultiSelect: apply before admit so occupancy rows are built correctly
+	service_unit_list = frappe.parse_json(service_units or [])
+	if isinstance(service_unit_list, list) and service_unit_list:
+		record.set("service_unit", [])
+		for su_name in service_unit_list:
+			if su_name:
+				record.append("service_unit", {"service_unit": su_name})
+
+	if hospital_bed:
+		record.bed_no = hospital_bed
+
+	# Perform admit (sets status, occupancy, hospital bed, service units)
 	record.admit(service_unit, check_in, expected_discharge)
 
 	# Save patient documents if provided (stored as e-signatures)
@@ -746,15 +924,6 @@ def admit_patient(
 			if relative_alternative_phone_no_2:
 				child.relative_alternative_phone_no_2 = relative_alternative_phone_no_2
 
-	# Save all selected service units into the Service Unit (Table MultiSelect) field
-	service_unit_list = frappe.parse_json(service_units or [])
-	if isinstance(service_unit_list, list) and service_unit_list:
-		record.set("service_unit", [])
-		for su_name in service_unit_list:
-			if not su_name:
-				continue
-			record.append("service_unit", {"service_unit": su_name})
-
 	record.save(ignore_permissions=True)
 	frappe.db.commit()
 
@@ -778,9 +947,15 @@ def create_admission_quotation(admission_name, package_name, days, total_amount,
 		frappe.throw(_("Number of days must be greater than 0"))
 	if not total_amount or total_amount <= 0:
 		frappe.throw(_("Total amount must be greater than 0"))
+
+	service_unit = _resolve_quotation_service_unit(admission_name, explicit_service_unit=service_unit)
 	if not service_unit:
-		frappe.throw(_("Service Unit (room) is required"))
-	
+		frappe.throw(
+			_(
+				"Could not determine a service unit for the quotation. Select at least one service unit or a hospital bed with a unit."
+			)
+		)
+
 	# Get admission record
 	admission = frappe.get_doc('Inpatient Admission', admission_name)
 	patient = admission.patient

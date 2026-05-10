@@ -414,7 +414,7 @@ def get_items(search=None):
 		filters['item_name'] = ['like', f'%{search}%']
 		# Also search by item_code
 		items = frappe.db.sql("""
-			SELECT name, item_code, item_name, item_group
+			SELECT name, item_code, item_name, item_group, stock_uom
 			FROM `tabItem`
 			WHERE 
 				disabled = 0
@@ -428,12 +428,18 @@ def get_items(search=None):
 		items = frappe.get_all(
 			'Item',
 			filters={**filters, 'disabled': 0},
-			fields=['name', 'item_code', 'item_name', 'item_group'],
+			fields=['name', 'item_code', 'item_name', 'item_group', 'stock_uom'],
 			limit=50,
 			order_by='item_name'
 		)
 	
-	return [{'name': i.name, 'label': i.item_name or i.item_code or i.name, 'item_code': i.item_code, 'item_group': i.item_group} for i in items]
+	return [{
+		'name': i.name,
+		'label': i.item_name or i.item_code or i.name,
+		'item_code': i.item_code,
+		'item_group': i.item_group,
+		'stock_uom': i.stock_uom,
+	} for i in items]
 
 
 @frappe.whitelist()
@@ -1446,6 +1452,22 @@ def get_uoms(search=None):
 		filters.append(["name", "like", f"%{search}%"])
 	uoms = frappe.get_all(
 		"Lab Test UOM",
+		filters=filters,
+		fields=["name"],
+		order_by="name asc",
+		limit=50,
+	)
+	return [{"name": u.name, "label": u.name} for u in uoms]
+
+
+@frappe.whitelist()
+def get_standard_uoms(search=None):
+	"""Fetch standard UOM records (Item UOM) for medication and inventory use."""
+	filters = []
+	if search:
+		filters.append(["name", "like", f"%{search}%"])
+	uoms = frappe.get_all(
+		"UOM",
 		filters=filters,
 		fields=["name"],
 		order_by="name asc",

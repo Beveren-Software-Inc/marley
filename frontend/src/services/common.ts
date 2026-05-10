@@ -9,6 +9,7 @@ export interface LinkFieldOption {
   medical_role?: string
   item_code?: string
   item_group?: string
+  stock_uom?: string
   code_value?: string
   country?: string
 }
@@ -41,6 +42,17 @@ export async function fetchUoms(search?: string): Promise<LinkFieldOption[]> {
   const params = new URLSearchParams()
   if (search) params.append('search', search)
   const url = `/api/method/healthcare.api.common.get_uoms${params.toString() ? `?${params.toString()}` : ''}`
+  try {
+    const response = await fetch(url, { credentials: 'include' })
+    const resData = await response.json()
+    return Array.isArray(resData?.message) ? resData.message : []
+  } catch { return [] }
+}
+
+export async function fetchStandardUoms(search?: string): Promise<LinkFieldOption[]> {
+  const params = new URLSearchParams()
+  if (search) params.append('search', search)
+  const url = `/api/method/healthcare.api.common.get_standard_uoms${params.toString() ? `?${params.toString()}` : ''}`
   try {
     const response = await fetch(url, { credentials: 'include' })
     const resData = await response.json()
