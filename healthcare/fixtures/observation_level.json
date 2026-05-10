@@ -2,29 +2,53 @@
  {
   "docstatus": 0,
   "doctype": "Observation Level",
-  "modified": "2026-05-10 11:37:11.355684",
+  "is_billable": 0,
+  "item": "General Observation",
+  "item_code": "",
+  "item_group": "Services",
+  "link_existing_item": 0,
+  "modified": "2026-05-10 12:15:55.933644",
   "name": "General Observation",
-  "observation_level": "General Observation"
+  "observation_level": "General Observation",
+  "rate": 30.0
  },
  {
   "docstatus": 0,
   "doctype": "Observation Level",
-  "modified": "2026-05-10 11:38:31.598644",
+  "is_billable": 1,
+  "item": "DRN-00631/91",
+  "item_code": null,
+  "item_group": null,
+  "link_existing_item": 1,
+  "modified": "2026-05-10 12:06:32.073333",
   "name": "One to One (Within Eye Sight)",
-  "observation_level": "One to One (Within Eye Sight)"
+  "observation_level": "One to One (Within Eye Sight)",
+  "rate": 50.0
  },
  {
   "docstatus": 0,
   "doctype": "Observation Level",
-  "modified": "2026-05-10 11:39:01.919093",
+  "is_billable": 1,
+  "item": "DRN-00615/91",
+  "item_code": null,
+  "item_group": null,
+  "link_existing_item": 1,
+  "modified": "2026-05-10 12:06:07.473823",
   "name": "Intermittent Observation",
-  "observation_level": "Intermittent Observation"
+  "observation_level": "Intermittent Observation",
+  "rate": 40.0
  },
  {
   "docstatus": 0,
   "doctype": "Observation Level",
+  "is_billable": 0,
+  "item": null,
+  "item_code": null,
+  "item_group": null,
+  "link_existing_item": 0,
   "modified": "2026-05-10 11:39:44.754304",
   "name": "One to One (Within In Arm's Length)",
-  "observation_level": "One to One (Within In Arm's Length)"
+  "observation_level": "One to One (Within In Arm's Length)",
+  "rate": 0.0
  }
 ]
