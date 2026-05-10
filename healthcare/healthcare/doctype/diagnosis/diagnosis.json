@@ -37,8 +37,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Diagnosis",
-   "reqd": 1,
-   "unique": 1
+   "reqd": 1
   },
   {
    "allow_in_quick_entry": 1,
@@ -137,7 +136,7 @@
   }
  ],
  "links": [],
- "modified": "2026-05-10 13:26:58.465585",
+ "modified": "2026-05-10 17:19:48.776140",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Diagnosis",
