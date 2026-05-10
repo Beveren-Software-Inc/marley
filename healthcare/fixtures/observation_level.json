@@ -1,1 +1,30 @@
-[]
+[
+ {
+  "docstatus": 0,
+  "doctype": "Observation Level",
+  "modified": "2026-05-10 11:37:11.355684",
+  "name": "General Observation",
+  "observation_level": "General Observation"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Observation Level",
+  "modified": "2026-05-10 11:38:31.598644",
+  "name": "One to One (Within Eye Sight)",
+  "observation_level": "One to One (Within Eye Sight)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Observation Level",
+  "modified": "2026-05-10 11:39:01.919093",
+  "name": "Intermittent Observation",
+  "observation_level": "Intermittent Observation"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Observation Level",
+  "modified": "2026-05-10 11:39:44.754304",
+  "name": "One to One (Within In Arm's Length)",
+  "observation_level": "One to One (Within In Arm's Length)"
+ }
+]

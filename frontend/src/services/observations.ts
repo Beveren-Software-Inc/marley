@@ -25,6 +25,10 @@ export interface Observation {
   note?: string
   amount?: number
   duration?: string
+  order_created?: string
+  reference_doctype?: string
+  reference_docname?: string
+  company?: string
 }
 
 export interface CreateObservationData {
@@ -36,10 +40,34 @@ export interface CreateObservationData {
   practitioner?: string
   department?: string
   admission_no?: string
+  patient_visit?: string
   observation_level?: string
   note?: string
   amount?: number
   duration?: string
+}
+
+export interface ObservationLevelDetails {
+  observation_level?: string
+  is_billable?: number
+  rate?: number
+  item?: string
+  item_code?: string
+  link_existing_item?: number
+}
+
+export async function fetchObservationLevelDetails(name: string): Promise<ObservationLevelDetails | null> {
+  if (!name) return null
+  const params = new URLSearchParams({ name })
+  const response = await fetch(
+    `/api/method/healthcare.api.observation.get_observation_level_details?${params.toString()}`
+  )
+  const resData = await response.json()
+  const msg = resData?.message
+  if (msg && typeof msg === 'object') {
+    return msg as ObservationLevelDetails
+  }
+  return null
 }
 
 export async function fetchObservations(
@@ -62,6 +90,19 @@ export async function fetchObservations(
   } else {
     return []
   }
+}
+
+export async function createObservationSalesOrder(
+  observationName: string
+): Promise<{ sales_order: string; status: string; existing?: boolean }> {
+  const { apiRequest } = await import('./apiClient')
+  return apiRequest<{ sales_order: string; status: string; existing?: boolean }>(
+    '/api/method/healthcare.api.observation.create_sales_order_from_observation',
+    {
+      method: 'POST',
+      body: JSON.stringify({ observation_name: observationName }),
+    }
+  )
 }
 
 export async function createObservation(data: CreateObservationData): Promise<Observation> {

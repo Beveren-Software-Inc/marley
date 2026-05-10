@@ -179,6 +179,9 @@ fixtures = [
 	},
     {
 		"doctype":"Service Template Group"
+	},
+    {
+		"doctype": "Observation Level"
 	}
 ]
 
