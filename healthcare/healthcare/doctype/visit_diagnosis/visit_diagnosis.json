@@ -1,6 +1,7 @@
 {
  "actions": [],
  "allow_import": 1,
+ "autoname": "VD-.#####",
  "creation": "2026-05-10 15:50:31.020883",
  "doctype": "DocType",
  "editable_grid": 1,
@@ -19,15 +20,18 @@
   "trans_num",
   "column_break_qhej",
   "diagnoses_time",
+  "writing_diagnosis_time",
   "section_break_uwrg",
   "practitioner",
   "column_break_cgwt",
   "practitioner_name",
   "section_break_ioky",
   "visit_num",
+  "inpatient_admission",
   "sr_no",
   "column_break_qljg",
-  "inpatient_admission",
+  "source",
+  "group_code",
   "section_break_bjmi",
   "cr_id",
   "cd_date",
@@ -178,13 +182,29 @@
    "fieldname": "sr_no",
    "fieldtype": "Data",
    "label": "SR No"
+  },
+  {
+   "fieldname": "writing_diagnosis_time",
+   "fieldtype": "Data",
+   "label": "Writing Diagnosis Time"
+  },
+  {
+   "fieldname": "source",
+   "fieldtype": "Data",
+   "label": "Source"
+  },
+  {
+   "fieldname": "group_code",
+   "fieldtype": "Data",
+   "label": "Group Code"
   }
  ],
  "links": [],
- "modified": "2026-05-10 15:55:06.370863",
+ "modified": "2026-05-10 16:46:32.239353",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Visit Diagnosis",
+ "naming_rule": "Expression",
  "owner": "Administrator",
  "permissions": [
   {
