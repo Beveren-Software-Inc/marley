@@ -25,6 +25,8 @@
   "ip_medication",
   "given_medication_tab",
   "table_yrwe",
+  "section_break_rrpr",
+  "missed_medicine",
   "nutritionist_tab",
   "table_nfve",
   "therapies_services_tab",
@@ -276,12 +278,22 @@
    "fieldtype": "Table",
    "label": "Sleeping Pattern",
    "options": "Sleeping Pattern Detail"
+  },
+  {
+   "fieldname": "section_break_rrpr",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "missed_medicine",
+   "fieldtype": "Table",
+   "label": "Missed Medicine",
+   "options": "Missed Medicine"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-03-23 03:17:54.376579",
+ "modified": "2026-05-07 06:20:23.492514",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Admission Detail",

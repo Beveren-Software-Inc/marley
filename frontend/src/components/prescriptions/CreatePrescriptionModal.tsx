@@ -11,6 +11,7 @@ import {
   fetchPatientVisits,
   fetchInpatientAdmissions,
   fetchItems,
+  fetchStandardUoms,
   fetchDosageForms,
   fetchPrescriptionFrequencies,
   fetchRouteOfAdministrationList,
@@ -79,6 +80,7 @@ const emptyMedicationRow = (startDate: string): MedicationOrderRow => ({
   drug: '',
   drug_name: '',
   dosage: '',
+  uom: '',
   no_of_days: 1,
   dosage_form: '',
   instructions: '',
@@ -283,12 +285,15 @@ export const CreatePrescriptionModal = ({
 
   const [frequencyQueries, setFrequencyQueries] = useState<Record<number, string>>({})
   const [routeQueries, setRouteQueries] = useState<Record<number, string>>({})
+  const [uomQueries, setUomQueries] = useState<Record<number, string>>({})
 
   const [dosageForms, setDosageForms] = useState<LinkFieldOption[]>([])
   const [frequencyOptions, setFrequencyOptions] = useState<LinkFieldOption[]>([])
   const [routeOptions, setRouteOptions] = useState<LinkFieldOption[]>([])
+  const [uomOptions, setUomOptions] = useState<LinkFieldOption[]>([])
   const [loadingFrequency, setLoadingFrequency] = useState(false)
   const [loadingRoute, setLoadingRoute] = useState(false)
+  const [loadingUom, setLoadingUom] = useState(false)
 
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -340,10 +345,24 @@ export const CreatePrescriptionModal = ({
     }
   }
 
+  const searchUoms = async (query: string) => {
+    setLoadingUom(true)
+    try {
+      const allUoms = await fetchStandardUoms(query || undefined)
+      setUomOptions(allUoms)
+    } catch (error) {
+      console.error('Failed to search UOMs:', error)
+      setUomOptions([])
+    } finally {
+      setLoadingUom(false)
+    }
+  }
+
   // Load initial data
   useEffect(() => {
     fetchPrescriptionFrequencies().then(setFrequencyOptions).catch(() => setFrequencyOptions([]))
     fetchRouteOfAdministrationList().then(setRouteOptions).catch(() => setRouteOptions([]))
+    fetchStandardUoms().then(setUomOptions).catch(() => setUomOptions([]))
   }, [])
 
   useEffect(() => {
@@ -370,6 +389,7 @@ export const CreatePrescriptionModal = ({
           drug: med.drug || '',
           drug_name: med.drug_name || med.drug || '',
           dosage: med.dosage || '',
+          uom: med.uom || '',
           no_of_days: med.no_of_days || 1,
           dosage_form: med.dosage_form || '',
           instructions: med.instructions || '',
@@ -388,10 +408,13 @@ export const CreatePrescriptionModal = ({
         setMedications(loadedMedications)
         
         const queries: Record<number, string> = {}
+        const nextUomQueries: Record<number, string> = {}
         loadedMedications.forEach((med, idx) => {
           if (med.drug) queries[idx] = med.drug_name || med.drug
+          if (med.uom) nextUomQueries[idx] = med.uom
         })
         setDrugQueries(queries)
+        setUomQueries(nextUomQueries)
       }
     }
   }, [editMode, prescriptionData, formData.start_date])
@@ -537,6 +560,7 @@ export const CreatePrescriptionModal = ({
     setDrugOptions((prev) => { const n = { ...prev }; delete n[index]; return n })
     setFrequencyQueries((prev) => { const n = { ...prev }; delete n[index]; return n })
     setRouteQueries((prev) => { const n = { ...prev }; delete n[index]; return n })
+    setUomQueries((prev) => { const n = { ...prev }; delete n[index]; return n })
     setExpandedMedications((prev) => {
       const next = new Set(prev)
       next.delete(index)
@@ -1002,7 +1026,7 @@ export const CreatePrescriptionModal = ({
 
                       {(isExpanded(index) || !shouldShowCollapse) && (
                         <div className="p-4 space-y-3 animate-in fade-in duration-200">
-                          <div className="grid grid-cols-3 gap-3">
+                          <div className="grid grid-cols-4 gap-3">
                             <div>
                               <label className="block text-xs font-medium text-slate-600 mb-1">
                                 Drug <span className="text-red-500">*</span>
@@ -1021,6 +1045,8 @@ export const CreatePrescriptionModal = ({
                                 onSelect={(opt) => {
                                   updateMedicationRow(index, 'drug', opt.name)
                                   updateMedicationRow(index, 'drug_name', opt.label || opt.name)
+                                  updateMedicationRow(index, 'uom', (opt.stock_uom || '').trim())
+                                  setUomQueries((prev) => ({ ...prev, [index]: (opt.stock_uom || '').trim() }))
                                   setDrugQueries((prev) => ({ ...prev, [index]: opt.label || opt.name }))
                                   setDrugOptions((prev) => ({ ...prev, [index]: [] }))
                                 }}
@@ -1050,6 +1076,36 @@ export const CreatePrescriptionModal = ({
                                 <option value="">Select...</option>
                                 {dosageForms.map((df) => <option key={df.name} value={df.name}>{df.label || df.name}</option>)}
                               </select>
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-slate-600 mb-1">
+                                UOM
+                              </label>
+                              <Combobox
+                                value={row.uom ?? ''}
+                                displayValue={uomQueries[index] ?? row.uom ?? ''}
+                                placeholder="Type or select UOM..."
+                                options={uomOptions}
+                                loading={loadingUom}
+                                allowCustom={true}
+                                onQueryChange={(q) => {
+                                  setUomQueries((prev) => ({ ...prev, [index]: q }))
+                                  searchUoms(q)
+                                }}
+                                onOpen={() => {
+                                  if (uomOptions.length === 0) {
+                                    searchUoms('')
+                                  }
+                                }}
+                                onSelect={(opt) => {
+                                  updateMedicationRow(index, 'uom', opt.name)
+                                  setUomQueries((prev) => ({ ...prev, [index]: opt.label || opt.name }))
+                                }}
+                                onClear={() => {
+                                  updateMedicationRow(index, 'uom', '')
+                                  setUomQueries((prev) => ({ ...prev, [index]: '' }))
+                                }}
+                              />
                             </div>
                           </div>
 

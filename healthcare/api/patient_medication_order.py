@@ -171,7 +171,7 @@ def _set_medication_row(doc, row):
 	# Fetched / computed
 	if entry.drug:
 		entry.drug_name = frappe.db.get_value('Item', entry.drug, 'item_name') or entry.drug
-		entry.uom = frappe.db.get_value('Item', entry.drug, 'stock_uom')
+		entry.uom = (row.get('uom') or '').strip() or frappe.db.get_value('Item', entry.drug, 'stock_uom')
 	if entry.patient_frequency:
 		entry.frequency_in_a_day = frappe.db.get_value(
 			'Prescription Frequency', entry.patient_frequency, 'frequency_in_a_day'
@@ -808,6 +808,7 @@ def update_medication_order():
         doc.append('medication_orders', {
             'drug': med.get('drug'),
             'dosage': med.get('dosage'),
+            'uom': med.get('uom'),
             'dosage_form': med.get('dosage_form'),
             'date': med.get('date'),
             'end_date': med.get('end_date'),

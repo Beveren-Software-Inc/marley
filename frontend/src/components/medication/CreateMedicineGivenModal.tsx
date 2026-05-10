@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   CREATE_MODAL_OVERLAY,
   createModalShellClass,
@@ -8,12 +8,115 @@ import { fetchPrescriptions, fetchMedicationOrders } from '../../services/prescr
 import { getPatientActiveAdmission, type InpatientRecord } from '../../services/inpatientRecords'
 import { createMedicineGiven } from '../../services/medicineGiven'
 import { toast } from '../../hooks/useToast'
-import { fetchItems, type LinkFieldOption } from '../../services/common'
+import { fetchItems, fetchStandardUoms, type LinkFieldOption } from '../../services/common'
+import {
+  linkComboboxDropdownClass,
+  linkComboboxInputWithClearClass,
+  linkComboboxOptionClassCompact,
+} from '../ui/linkComboboxStyles'
+import { ChevronDown, X } from 'lucide-react'
 
 interface CreateMedicineGivenModalProps {
   initialPatient?: string
   onClose: () => void
   onSuccess: () => void
+}
+
+interface ComboboxProps {
+  value: string
+  displayValue: string
+  placeholder: string
+  options: LinkFieldOption[]
+  loading?: boolean
+  onQueryChange: (q: string) => void
+  onSelect: (opt: LinkFieldOption) => void
+  onOpen: () => void
+  onClear?: () => void
+}
+
+const Combobox = ({
+  displayValue,
+  placeholder,
+  options,
+  loading,
+  onQueryChange,
+  onSelect,
+  onOpen,
+  onClear,
+}: ComboboxProps) => {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  return (
+    <div className="relative" ref={ref}>
+      <div className="relative">
+        <input
+          type="text"
+          value={displayValue}
+          onChange={(e) => {
+            onQueryChange(e.target.value)
+            setOpen(true)
+          }}
+          onFocus={() => {
+            setOpen(true)
+            onOpen()
+          }}
+          placeholder={placeholder}
+          className={linkComboboxInputWithClearClass}
+        />
+        <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
+          {displayValue && onClear && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                onClear()
+                setOpen(false)
+              }}
+              className="text-slate-400 hover:text-slate-600 transition-colors p-0.5"
+              title="Clear"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+          <ChevronDown className="w-4 h-4 text-slate-400 pointer-events-none" />
+        </div>
+      </div>
+
+      {open && (
+        <div className={linkComboboxDropdownClass}>
+          {loading ? (
+            <div className="px-3 py-2 text-xs text-slate-500">Loading...</div>
+          ) : options.length ? (
+            options.map((opt) => (
+              <button
+                key={opt.name}
+                type="button"
+                className={linkComboboxOptionClassCompact}
+                onClick={() => {
+                  onSelect(opt)
+                  setOpen(false)
+                }}
+              >
+                {opt.label || opt.name}
+              </button>
+            ))
+          ) : (
+            <div className="px-3 py-2 text-xs text-slate-500">No results found</div>
+          )}
+        </div>
+      )}
+    </div>
+  )
 }
 
 export const CreateMedicineGivenModal = ({
@@ -27,9 +130,15 @@ export const CreateMedicineGivenModal = ({
   const [orders, setOrders] = useState<MedicationOrderEntry[]>([])
   const [selectedOrder, setSelectedOrder] = useState<string>('')
   const [items, setItems] = useState<LinkFieldOption[]>([])
+  const [uoms, setUoms] = useState<LinkFieldOption[]>([])
+  const [itemQuery, setItemQuery] = useState('')
+  const [uomQuery, setUomQuery] = useState('')
+  const [loadingItems, setLoadingItems] = useState(false)
+  const [loadingUoms, setLoadingUoms] = useState(false)
   const [selectedItem, setSelectedItem] = useState<string>('')
   const [mode, setMode] = useState<'prescription' | 'direct'>('prescription')
   const [qty, setQty] = useState<number>(1)
+  const [uom, setUom] = useState<string>('')
   const [date, setDate] = useState<string>('')
   const [time, setTime] = useState<string>('')
   const [notes, setNotes] = useState<string>('')
@@ -38,6 +147,10 @@ export const CreateMedicineGivenModal = ({
   const [overrideChecked, setOverrideChecked] = useState(false)
   const [overrideReason, setOverrideReason] = useState('')
   const [isPrn, setIsPrn] = useState(false)
+
+  const prescriptionOrders = isPrn
+    ? orders.filter((o) => o.is_prn === 1 || o.medication_type === 'PRN')
+    : orders
 
   useEffect(() => {
     const now = new Date()
@@ -61,6 +174,10 @@ export const CreateMedicineGivenModal = ({
           return
         }
         setAdmission(adm)
+        setLoadingUoms(true)
+        const uomOptions = await fetchStandardUoms()
+        setUoms(uomOptions)
+        setLoadingUoms(false)
 
         if (mode === 'prescription') {
           // Only PMOs for *this* admission — otherwise the first match can be an old IP (wrong inpatient_record).
@@ -93,6 +210,7 @@ export const CreateMedicineGivenModal = ({
           setItems(opts)
           if (opts.length > 0) {
             setSelectedItem(opts[0].name)
+            setItemQuery(opts[0].label || opts[0].name)
           }
         }
       } catch (e) {
@@ -105,6 +223,38 @@ export const CreateMedicineGivenModal = ({
 
     load()
   }, [initialPatient, mode])
+
+  useEffect(() => {
+    if (mode === 'prescription') {
+      const selected = prescriptionOrders.find((o) => o.name === selectedOrder)
+      setUom((selected?.uom || '').trim())
+      setUomQuery((selected?.uom || '').trim())
+      return
+    }
+    const selected = items.find((it) => it.name === selectedItem)
+    setUom((selected?.stock_uom || '').trim())
+    setUomQuery((selected?.stock_uom || '').trim())
+  }, [mode, selectedOrder, selectedItem, prescriptionOrders, items])
+
+  const searchItems = async (query: string) => {
+    setLoadingItems(true)
+    try {
+      const opts = await fetchItems(query || undefined)
+      setItems(opts)
+    } finally {
+      setLoadingItems(false)
+    }
+  }
+
+  const searchUomOptions = async (query: string) => {
+    setLoadingUoms(true)
+    try {
+      const opts = await fetchStandardUoms(query || undefined)
+      setUoms(opts)
+    } finally {
+      setLoadingUoms(false)
+    }
+  }
 
   const handleChangePrescription = async (name: string) => {
     setSelectedPrescription(name)
@@ -164,6 +314,7 @@ export const CreateMedicineGivenModal = ({
         medication_order: mode === 'prescription' ? selectedPrescription : '',
         order_entry: mode === 'prescription' ? selectedOrder : undefined,
         item_code: mode === 'direct' ? selectedItem : undefined,
+        unit: uom || undefined,
         allow_override: overrideChecked || undefined,
         override_reason: overrideChecked ? overrideReason.trim() : undefined,
         qty: qty || 1,
@@ -347,7 +498,7 @@ export const CreateMedicineGivenModal = ({
                       ? 'No PRN medicines on this prescription'
                       : 'Select medicine...'}
                   </option>
-                  {(isPrn ? orders.filter((o) => o.is_prn === 1 || o.medication_type === 'PRN') : orders).map((o) => (
+                  {prescriptionOrders.map((o) => (
                     <option key={o.name} value={o.name}>
                       {o.drug_name || o.drug} – {o.dosage}
                       {o.is_prn === 1 ? ' (PRN)' : ''}
@@ -363,18 +514,34 @@ export const CreateMedicineGivenModal = ({
               <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">
                 Medicine Item
               </label>
-              <select
+              <Combobox
                 value={selectedItem}
-                onChange={(e) => setSelectedItem(e.target.value)}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-                disabled={loading || !items.length}
-              >
-                {items.map((it) => (
-                  <option key={it.name} value={it.name}>
-                    {it.label || it.name}
-                  </option>
-                ))}
-              </select>
+                displayValue={itemQuery}
+                placeholder="Search medicine item..."
+                options={items}
+                loading={loadingItems}
+                onQueryChange={(q) => {
+                  setItemQuery(q)
+                  setSelectedItem('')
+                  searchItems(q)
+                }}
+                onOpen={() => {
+                  if (items.length === 0) {
+                    searchItems('')
+                  }
+                }}
+                onSelect={(opt) => {
+                  setSelectedItem(opt.name)
+                  setItemQuery(opt.label || opt.name)
+                  const nextUom = (opt.stock_uom || '').trim()
+                  setUom(nextUom)
+                  setUomQuery(nextUom)
+                }}
+                onClear={() => {
+                  setSelectedItem('')
+                  setItemQuery('')
+                }}
+              />
             </div>
           )}
 
@@ -408,6 +575,35 @@ export const CreateMedicineGivenModal = ({
               value={qty}
               onChange={(e) => setQty(parseFloat(e.target.value) || 0)}
               className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">UOM</label>
+            <Combobox
+              value={uom}
+              displayValue={uomQuery}
+              placeholder="Search UOM..."
+              options={uoms}
+              loading={loadingUoms}
+              onQueryChange={(q) => {
+                setUomQuery(q)
+                setUom('')
+                searchUomOptions(q)
+              }}
+              onOpen={() => {
+                if (uoms.length === 0) {
+                  searchUomOptions('')
+                }
+              }}
+              onSelect={(opt) => {
+                setUom(opt.name)
+                setUomQuery(opt.label || opt.name)
+              }}
+              onClear={() => {
+                setUom('')
+                setUomQuery('')
+              }}
             />
           </div>
 

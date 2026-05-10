@@ -456,7 +456,7 @@ def send_test_message(phone_number, body=None, preview_url=1, template_name=None
 	if template_parameters:
 		chat_doc.template_parameters = template_parameters
 	chat_doc.insert(ignore_permissions=True)
-
+	# frappe.throw(str(json.dumps(headers)))
 	try:
 		response = requests.post(
 			url,

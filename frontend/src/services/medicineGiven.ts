@@ -5,6 +5,7 @@ export interface CreateMedicineGivenData {
   admission: string
   medication_order: string
   order_entry?: string
+  unit?: string
   allow_override?: boolean
   override_reason?: string
   item_code?: string
@@ -48,6 +49,21 @@ export interface MedicineGivenRow {
   modified?: string
 }
 
+export interface MissedMedicineRow {
+  name: string
+  date?: string
+  time?: string
+  medicine_code?: string
+  medicine_name?: string
+  medication_order?: string
+  qty?: number
+  unit?: string
+  medicine_given_timing?: string
+  dose_notes?: string
+  user?: string
+  modified?: string
+}
+
 export async function fetchMedicineGiven(
   admission: string,
   limit: number = 50,
@@ -82,6 +98,58 @@ export async function deleteMedicineGiven(name: string): Promise<void> {
       body: JSON.stringify({ name }),
     }
   )
+}
+
+export async function fetchMissedMedicine(
+  admission: string,
+  limit: number = 50,
+  offset: number = 0
+): Promise<MissedMedicineRow[]> {
+  const params = new URLSearchParams()
+  params.append('admission', admission)
+  params.append('limit', String(limit))
+  params.append('offset', String(offset))
+
+  const response = await fetch(
+    `/api/method/healthcare.api.medicine_given.get_missed_medicine?${params.toString()}`
+  )
+  const resData = await response.json()
+
+  if (resData?.message && Array.isArray(resData.message)) {
+    return resData.message as MissedMedicineRow[]
+  }
+
+  if (resData?.exc || !response.ok) {
+    throw new Error(resData.exc || resData.message || 'Failed to load missed medicines')
+  }
+
+  return []
+}
+
+export async function convertMissedMedicineToGiven(
+  name: string,
+  givenLateReason?: string
+): Promise<{ admission_detail: string; given_row_name: string; removed_missed_row_name: string }> {
+  return apiRequest('/api/method/healthcare.api.medicine_given.convert_missed_medicine_to_given', {
+    method: 'POST',
+    body: JSON.stringify({
+      name,
+      given_late_reason: givenLateReason || '',
+    }),
+  })
+}
+
+export async function checkMissedMedicineNow(
+  admission: string,
+  graceMinutes: number = 60
+): Promise<{ admission: string; created_rows: number }> {
+  return apiRequest('/api/method/healthcare.api.medicine_given.check_missed_medicine_now', {
+    method: 'POST',
+    body: JSON.stringify({
+      admission,
+      grace_minutes: graceMinutes,
+    }),
+  })
 }
 
 export interface ReconcileResponse {

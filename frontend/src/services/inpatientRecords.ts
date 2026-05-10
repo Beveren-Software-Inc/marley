@@ -5,6 +5,7 @@ export interface InpatientOccupancy {
   service_unit_name?: string
   check_in?: string
   check_out?: string
+  left?: boolean | number
   invoiced?: number
 }
 
@@ -81,6 +82,8 @@ export interface InpatientRecord {
   followup_date?: string
   discharge_practitioner?: string
   inpatient_occupancies?: InpatientOccupancy[]
+  bed_no?: string
+  service_unit_selections?: { service_unit?: string }[]
   patient_ip_category?: string
   patient_relatives?: {
     relative_relation?: string
@@ -115,6 +118,15 @@ export interface ServiceUnit {
   company: string
   room_category?: string
   cost_center?: string
+}
+
+export interface HospitalBed {
+  name: string
+  bed_no: string
+  service_unit?: string
+  occupancy_status?: string
+  room_category?: string
+  company?: string
 }
 
 export interface ChecklistItem {
@@ -272,6 +284,32 @@ export async function fetchServiceUnits(
   }
 }
 
+export async function fetchHospitalBeds(
+  options?: {
+    occupancyStatus?: string
+    search?: string
+    roomCategory?: string
+    company?: string
+    costCenter?: string
+  }
+) {
+  const params = new URLSearchParams()
+  if (options?.occupancyStatus) params.append('occupancy_status', options.occupancyStatus)
+  if (options?.search) params.append('search', options.search)
+  if (options?.roomCategory) params.append('room_category', options.roomCategory)
+  if (options?.company) params.append('company', options.company)
+  if (options?.costCenter) params.append('cost_center', options.costCenter)
+
+  const url = `/api/method/healthcare.api.inpatient_admission.get_hospital_beds${params.toString() ? `?${params.toString()}` : ''}`
+  const response = await fetch(url)
+  const resData = await response.json()
+
+  if (resData?.message && Array.isArray(resData.message)) {
+    return resData.message as HospitalBed[]
+  }
+  return []
+}
+
 export interface TransferToCostCenterResult {
   transfer_admission_event: string
   inpatient_admission: string
@@ -424,7 +462,7 @@ export async function checkAdmissionQuotation(
 
 export async function admitPatient(
   inpatientRecordName: string,
-  serviceUnit: string,
+  serviceUnit: string | undefined,
   checkIn: string,
   expectedDischarge?: string,
   patientIpCategory?: string,
@@ -448,6 +486,7 @@ export async function admitPatient(
   inpatientPackage?: string,
   ratePerDay?: number,
   standardPackage?: 0 | 1,
+  hospitalBed?: string | null,
 ) {
   const { ensureCSRF } = await import('./apiClient')
   const csrf = await ensureCSRF()
@@ -463,11 +502,12 @@ export async function admitPatient(
       },
       body: JSON.stringify({
         name: inpatientRecordName,
-        service_unit: serviceUnit,
+        service_unit: serviceUnit || null,
         check_in: checkIn,
         expected_discharge: expectedDischarge || null,
         patient_ip_category: patientIpCategory || null,
         service_units: allServiceUnits && allServiceUnits.length > 0 ? allServiceUnits : null,
+        hospital_bed: hospitalBed || null,
         patient_documents: patientDocuments && patientDocuments.length > 0
           ? patientDocuments
           : null,

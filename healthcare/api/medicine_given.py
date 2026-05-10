@@ -29,12 +29,265 @@ def _get_or_create_admission_detail(admission: str):
 	return doc
 
 
+def _safe_time_text(value) -> str:
+	if not value:
+		return ""
+	return str(value).strip()
+
+
+def _time_to_minutes(value) -> int:
+	t = _safe_time_text(value)
+	if not t:
+		return -1
+	parts = t.split(":")
+	if len(parts) < 2:
+		return -1
+	try:
+		hh = int(parts[0])
+		mm = int(parts[1])
+	except Exception:
+		return -1
+	return hh * 60 + mm
+
+
+def _date_in_range(target_date, start_date=None, end_date=None) -> bool:
+	if not target_date:
+		return False
+	d = getdate(target_date)
+	if start_date and d < getdate(start_date):
+		return False
+	if end_date and d > getdate(end_date):
+		return False
+	return True
+
+
+def _has_given_for_scheduled_slot(admission_detail_name: str, date_value, medicine_code: str, medication_order: str, scheduled_time: str) -> bool:
+	"""Return True if there is already a given row for this medicine slot.
+
+	Primary match: medicine_given_timing == scheduled_time.
+	Fallback match: same hour in `time` when medicine_given_timing is empty.
+	"""
+	if not admission_detail_name or not medicine_code:
+		return False
+
+	filters = {
+		"parent": admission_detail_name,
+		"parenttype": "Admission Detail",
+		"date": getdate(date_value),
+		"medicine_code": medicine_code,
+	}
+	if medication_order:
+		filters["medication_order"] = medication_order
+
+	given_rows = frappe.get_all(
+		"Medicine Given",
+		filters=filters,
+		fields=["name", "time", "medicine_given_timing"],
+		ignore_permissions=True,
+	)
+	if not given_rows:
+		return False
+
+	scheduled_minutes = _time_to_minutes(scheduled_time)
+	for row in given_rows:
+		given_timing = _safe_time_text(row.get("medicine_given_timing"))
+		if given_timing and scheduled_time and given_timing == scheduled_time:
+			return True
+
+		# Backward compatibility: legacy rows did not set medicine_given_timing.
+		row_minutes = _time_to_minutes(row.get("time"))
+		if row_minutes >= 0 and scheduled_minutes >= 0 and (row_minutes // 60) == (scheduled_minutes // 60):
+			return True
+
+	return False
+
+
+def _has_missed_row_for_slot(admission_detail_name: str, date_value, medicine_code: str, medication_order: str, scheduled_time: str) -> bool:
+	filters = {
+		"parent": admission_detail_name,
+		"parenttype": "Admission Detail",
+		"date": getdate(date_value),
+		"medicine_code": medicine_code,
+		"medicine_given_timing": scheduled_time,
+	}
+	if medication_order:
+		filters["medication_order"] = medication_order
+	return bool(frappe.db.exists("Missed Medicine", filters))
+
+
+def _create_missed_row(
+	admission_detail,
+	*,
+	date_value,
+	scheduled_time: str,
+	medicine_code: str,
+	medicine_name: str | None,
+	medication_order: str | None,
+	qty,
+	unit,
+	frequency,
+	is_prn,
+):
+	row = admission_detail.append("missed_medicine", {})
+	row.date = getdate(date_value)
+	row.time = nowtime()
+	row.medicine_code = medicine_code
+	if hasattr(row, "medicine_name"):
+		row.medicine_name = medicine_name or frappe.db.get_value("Item", medicine_code, "item_name")
+	row.medication_order = medication_order
+	row.qty = qty or 1
+	row.unit = unit or frappe.db.get_value("Item", medicine_code, "stock_uom")
+	row.frequency = frequency
+	row.medicine_given_timing = scheduled_time
+	row.user = frappe.session.user
+	if hasattr(row, "is_prn"):
+		row.is_prn = cint(is_prn)
+	row.dose_notes = (
+		f"Missed auto-detected by scheduler. Scheduled at {scheduled_time}. "
+		f"Created on {now_datetime().strftime('%Y-%m-%d %H:%M:%S')}."
+	)
+
+
+def _get_latest_active_inpatient_medication_order(admission: str) -> str | None:
+	"""Return latest submitted inpatient PMO for this admission."""
+	rows = frappe.get_all(
+		"Patient Medication Order",
+		filters={"inpatient_record": admission, "docstatus": 1},
+		fields=["name"],
+		order_by="modified desc, creation desc",
+		limit=1,
+		ignore_permissions=True,
+	)
+	return rows[0].name if rows else None
+
+
+def _create_missed_medicine_for_admission(admission_name: str, grace_minutes: int = 60) -> int:
+	"""Create missed rows for one admission. Returns number of created rows."""
+	today = getdate(nowdate())
+	now_minutes = _time_to_minutes(nowtime())
+	if now_minutes < 0:
+		return 0
+
+	admission_detail = _get_or_create_admission_detail(admission_name)
+
+	# Ensure we only check the latest prescription linked to the current inpatient admission.
+	latest_pmo = _get_latest_active_inpatient_medication_order(admission_name)
+	if not latest_pmo:
+		return 0
+
+	entry_filters = {"parent": latest_pmo}
+	# Do not create missed entries for stopped medicines.
+	if frappe.db.has_column("Inpatient Medication Order Entry", "stopped"):
+		entry_filters["stopped"] = ["in", [0, ""]]
+	if frappe.db.has_column("Inpatient Medication Order Entry", "reason_stopped"):
+		entry_filters["reason_stopped"] = ["in", ["", None]]
+	if frappe.db.has_column("Inpatient Medication Order Entry", "transferred_to_visit"):
+		entry_filters["transferred_to_visit"] = ["is", "not set"]
+	if frappe.db.has_column("Inpatient Medication Order Entry", "returned_to_store"):
+		entry_filters["returned_to_store"] = ["in", [0, ""]]
+
+	entries = frappe.get_all(
+		"Inpatient Medication Order Entry",
+		filters=entry_filters,
+		fields=[
+			"name",
+			"parent",
+			"drug",
+			"drug_name",
+			"quantity",
+			"uom",
+			"date",
+			"end_date",
+			"time",
+			"patient_frequency",
+			"is_prn",
+		],
+		ignore_permissions=True,
+	)
+
+	created_rows = 0
+	for e in entries:
+		drug = e.get("drug")
+		scheduled_time = _safe_time_text(e.get("time"))
+		if not drug or not scheduled_time:
+			continue
+		if cint(e.get("is_prn")):
+			continue
+		if not _date_in_range(today, e.get("date"), e.get("end_date")):
+			continue
+
+		scheduled_minutes = _time_to_minutes(scheduled_time)
+		if scheduled_minutes < 0:
+			continue
+		if now_minutes < (scheduled_minutes + cint(grace_minutes)):
+			continue
+
+		if _has_given_for_scheduled_slot(
+			admission_detail.name, today, drug, e.get("parent"), scheduled_time
+		):
+			continue
+		if _has_missed_row_for_slot(
+			admission_detail.name, today, drug, e.get("parent"), scheduled_time
+		):
+			continue
+
+		_create_missed_row(
+			admission_detail,
+			date_value=today,
+			scheduled_time=scheduled_time,
+			medicine_code=drug,
+			medicine_name=e.get("drug_name"),
+			medication_order=e.get("parent"),
+			qty=flt(e.get("quantity") or 1),
+			unit=e.get("uom"),
+			frequency=None,
+			is_prn=e.get("is_prn"),
+		)
+		created_rows += 1
+
+	if created_rows > 0:
+		admission_detail.save(ignore_permissions=True)
+
+	return created_rows
+
+
+def create_missed_medicine_for_active_admissions(grace_minutes: int = 60) -> dict:
+	"""Scheduler job: find missed due doses and write them to Admission Detail.missed_medicine.
+
+	Run this every 2 hours via scheduler.
+	"""
+	active_admissions = frappe.get_all(
+		"Inpatient Admission",
+		filters={"status": ["in", ["Admitted", "Discharge Scheduled"]]},
+		fields=["name"],
+		ignore_permissions=True,
+	)
+	if not active_admissions:
+		return {"processed_admissions": 0, "created_rows": 0}
+
+	created_rows = 0
+	for adm in active_admissions:
+		created_rows += _create_missed_medicine_for_admission(adm.name, grace_minutes=cint(grace_minutes))
+
+	return {"processed_admissions": len(active_admissions), "created_rows": created_rows}
+
+
+@frappe.whitelist()
+def check_missed_medicine_now(admission: str, grace_minutes: int = 60) -> dict:
+	"""Manual trigger from UI for one admission."""
+	if not admission:
+		frappe.throw(_("Admission (Inpatient Admission) is required"))
+	created_rows = _create_missed_medicine_for_admission(admission, grace_minutes=cint(grace_minutes))
+	return {"admission": admission, "created_rows": created_rows}
+
+
 @frappe.whitelist()
 def create_medicine_given(
 	admission: str,
 	medication_order: str | None = None,
 	order_entry: str | None = None,
 	item_code: str | None = None,
+	unit: str | None = None,
 	qty: float | int | None = None,
 	date: str | None = None,
 	time: str | None = None,
@@ -90,7 +343,7 @@ def create_medicine_given(
 	row.date = date
 	row.time = time
 	row.qty = qty
-	row.unit = None
+	row.unit = (unit or "").strip() or None
 	row.frequency = frequency
 	row.dose_notes = dose_notes
 	row.medicine_given_timing = None
@@ -124,6 +377,8 @@ def create_medicine_given(
 			drug_code = child.drug
 			drug_name = child.drug_name
 			prescription_frequency = child.patient_frequency
+			if hasattr(child, "uom") and not row.unit:
+				row.unit = child.uom
 		elif pmo and getattr(pmo, "medication_orders", None):
 			first = pmo.medication_orders[0]
 			drug_code = getattr(first, "drug", None)
@@ -235,6 +490,105 @@ def get_medicine_given(admission: str, limit: int | None = 50, offset: int | Non
 	)
 
 	return rows
+
+
+@frappe.whitelist()
+def get_missed_medicine(admission: str, limit: int | None = 50, offset: int | None = 0) -> list[dict]:
+	"""Return Missed Medicine rows for a specific Inpatient Admission (via Admission Detail)."""
+	if not admission:
+		frappe.throw(_("Admission (Inpatient Admission) is required"))
+
+	admission_detail_name = frappe.db.get_value("Admission Detail", {"admission": admission}, "name")
+	if not admission_detail_name:
+		return []
+
+	limit = cint(limit or 50)
+	offset = cint(offset or 0)
+
+	rows = frappe.get_all(
+		"Missed Medicine",
+		filters={"parent": admission_detail_name, "parenttype": "Admission Detail"},
+		fields=[
+			"name",
+			"date",
+			"time",
+			"medicine_code",
+			"medicine_name",
+			"medication_order",
+			"qty",
+			"unit",
+			"medicine_given_timing",
+			"dose_notes",
+			"user",
+			"modified",
+		],
+		order_by="date desc, medicine_given_timing desc, modified desc",
+		limit=limit,
+		start=offset,
+	)
+	return rows
+
+
+@frappe.whitelist()
+def convert_missed_medicine_to_given(name: str, given_late_reason: str | None = None) -> dict:
+	"""Move one Missed Medicine row to Medicine Given and remove it from missed_medicine."""
+	if not name:
+		frappe.throw(_("Missed medicine row name is required"))
+
+	missed = frappe.db.get_value(
+		"Missed Medicine",
+		name,
+		["parenttype", "parent"],
+		as_dict=True,
+	)
+	if not missed or not missed.get("parent"):
+		frappe.throw(_("Missed medicine row not found"))
+	if missed.get("parenttype") != "Admission Detail":
+		frappe.throw(_("Missed medicine row is not linked to Admission Detail"))
+
+	admission_detail = frappe.get_doc("Admission Detail", missed.parent)
+	source = None
+	for row in admission_detail.get("missed_medicine") or []:
+		if row.name == name:
+			source = row
+			break
+	if not source:
+		frappe.throw(_("Missed medicine row not found in parent Admission Detail"))
+
+	given = admission_detail.append("table_yrwe", {})
+	given.date = source.date or getdate(nowdate())
+	given.time = nowtime()
+	given.medicine_code = source.medicine_code
+	if hasattr(given, "medicine_name"):
+		given.medicine_name = source.medicine_name
+	if hasattr(given, "medication_order"):
+		given.medication_order = source.medication_order
+	given.qty = source.qty
+	given.unit = source.unit
+	given.frequency = source.frequency
+	given.user = frappe.session.user
+	given.medicine_given_timing = source.medicine_given_timing
+	if hasattr(given, "is_prn"):
+		given.is_prn = source.is_prn
+
+	notes = []
+	if source.dose_notes:
+		notes.append(f"Missed reason: {source.dose_notes}")
+	if given_late_reason:
+		notes.append(f"Given late reason: {given_late_reason}")
+	notes.append(f"Converted from missed on {now_datetime().strftime('%Y-%m-%d %H:%M:%S')}")
+	given.dose_notes = " | ".join(notes)
+
+	# Remove from missed table in the same parent document transaction.
+	remaining = [r for r in (admission_detail.get("missed_medicine") or []) if r.name != name]
+	admission_detail.set("missed_medicine", remaining)
+	admission_detail.save(ignore_permissions=True)
+
+	return {
+		"admission_detail": admission_detail.name,
+		"given_row_name": given.name,
+		"removed_missed_row_name": name,
+	}
 
 
 @frappe.whitelist()

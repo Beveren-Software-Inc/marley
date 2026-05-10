@@ -1,7 +1,15 @@
 import { useEffect, useState } from 'react'
 import { Loader2, ShoppingCart, Trash2 } from 'lucide-react'
 import { getPatientActiveAdmission, type InpatientRecord } from '../../services/inpatientRecords'
-import { fetchMedicineGiven, deleteMedicineGiven, type MedicineGivenRow } from '../../services/medicineGiven'
+import {
+  fetchMedicineGiven,
+  fetchMissedMedicine,
+  deleteMedicineGiven,
+  convertMissedMedicineToGiven,
+  checkMissedMedicineNow,
+  type MedicineGivenRow,
+  type MissedMedicineRow,
+} from '../../services/medicineGiven'
 import { toast } from '../../hooks/useToast'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { useCareContext } from '../../providers/CareContextProvider'
@@ -18,9 +26,11 @@ export const MedicineGivenList = ({ patient, refreshKey }: MedicineGivenListProp
   const { userCostCenter } = useCareContext()
   const [admission, setAdmission] = useState<InpatientRecord | null>(null)
   const [rows, setRows] = useState<MedicineGivenRow[]>([])
+  const [missedRows, setMissedRows] = useState<MissedMedicineRow[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [creatingSalesOrder, setCreatingSalesOrder] = useState(false)
+  const [checkingMissedNow, setCheckingMissedNow] = useState(false)
 
   useEffect(() => {
     const load = async () => {
@@ -37,16 +47,22 @@ export const MedicineGivenList = ({ patient, refreshKey }: MedicineGivenListProp
         if (!adm) {
           setAdmission(null)
           setRows([])
+          setMissedRows([])
           setError('No active inpatient admission found for this patient')
           return
         }
         setAdmission(adm)
-        const data = await fetchMedicineGiven(adm.name, 100, 0)
+        const [data, missed] = await Promise.all([
+          fetchMedicineGiven(adm.name, 100, 0),
+          fetchMissedMedicine(adm.name, 100, 0),
+        ])
         setRows(data)
+        setMissedRows(missed)
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Failed to load given medicines'
         setError(msg)
         setRows([])
+        setMissedRows([])
       } finally {
         setLoading(false)
       }
@@ -106,6 +122,45 @@ export const MedicineGivenList = ({ patient, refreshKey }: MedicineGivenListProp
     }
   }
 
+  const handleConvertMissedToGiven = async (row: MissedMedicineRow) => {
+    const lateReason = window.prompt(
+      'Reason for giving this missed dose late (optional):',
+      ''
+    )
+    try {
+      await convertMissedMedicineToGiven(row.name, lateReason || '')
+      setMissedRows((prev) => prev.filter((r) => r.name !== row.name))
+      if (admission) {
+        const refreshed = await fetchMedicineGiven(admission.name, 100, 0)
+        setRows(refreshed)
+      }
+      toast.success('Missed medicine converted to given')
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed to convert missed medicine'
+      toast.error(msg)
+    }
+  }
+
+  const handleCheckMissedNow = async () => {
+    if (!admission) return
+    try {
+      setCheckingMissedNow(true)
+      const result = await checkMissedMedicineNow(admission.name, 60)
+      const missed = await fetchMissedMedicine(admission.name, 100, 0)
+      setMissedRows(missed)
+      toast.success(
+        result.created_rows > 0
+          ? `Detected ${result.created_rows} missed medicine entr${result.created_rows === 1 ? 'y' : 'ies'}`
+          : 'No new missed medicine detected'
+      )
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed to check missed medicine now'
+      toast.error(msg)
+    } finally {
+      setCheckingMissedNow(false)
+    }
+  }
+
   if (!patient) {
     return (
       <div className="text-sm text-slate-600">
@@ -134,10 +189,10 @@ export const MedicineGivenList = ({ patient, refreshKey }: MedicineGivenListProp
     )
   }
 
-  if (!rows.length) {
+  if (!rows.length && !missedRows.length) {
     return (
       <div className="text-sm text-slate-500">
-        No given medicines recorded yet for admission {admission.name}.
+        No given or missed medicines recorded yet for admission {admission.name}.
       </div>
     )
   }
@@ -227,6 +282,76 @@ export const MedicineGivenList = ({ patient, refreshKey }: MedicineGivenListProp
             ))}
           </tbody>
         </table>
+      </div>
+
+      <div className="bg-amber-50 border border-amber-200 rounded-lg overflow-auto max-h-[280px]">
+        <div className="px-3 py-2 border-b border-amber-200 flex items-center justify-between gap-2">
+          <div className="text-xs font-semibold text-amber-800 uppercase tracking-wide">
+            Missed Medicines
+          </div>
+          <button
+            type="button"
+            onClick={handleCheckMissedNow}
+            disabled={checkingMissedNow}
+            className="inline-flex items-center rounded-md border border-amber-300 bg-white px-2 py-1 text-[11px] font-medium text-amber-800 hover:bg-amber-100 disabled:opacity-60"
+            title="Compare prescriptions with current time and fetch missed medicines now"
+          >
+            {checkingMissedNow ? 'Checking…' : 'Check Missed Now'}
+          </button>
+        </div>
+        {missedRows.length === 0 ? (
+          <div className="px-3 py-3 text-xs text-amber-900/80">No missed medicines detected.</div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead className="bg-amber-100/70 border-b border-amber-200">
+              <tr>
+                <th className="px-3 py-2 text-left text-xs font-semibold text-amber-900 uppercase">
+                  Scheduled
+                </th>
+                <th className="px-3 py-2 text-left text-xs font-semibold text-amber-900 uppercase">
+                  Medicine
+                </th>
+                <th className="px-3 py-2 text-left text-xs font-semibold text-amber-900 uppercase">
+                  Qty
+                </th>
+                <th className="px-3 py-2 text-left text-xs font-semibold text-amber-900 uppercase">
+                  Notes
+                </th>
+                <th className="px-3 py-2 text-right text-xs font-semibold text-amber-900 uppercase">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-amber-200">
+              {missedRows.map((row) => (
+                <tr key={row.name} className="hover:bg-amber-100/50">
+                  <td className="px-3 py-2 text-xs text-slate-700">
+                    {row.date || '-'} {row.medicine_given_timing || row.time || ''}
+                  </td>
+                  <td className="px-3 py-2 text-xs text-slate-700">
+                    {row.medicine_name || row.medicine_code || '-'}
+                  </td>
+                  <td className="px-3 py-2 text-xs text-slate-700">
+                    {row.qty ?? '-'} {row.unit || ''}
+                  </td>
+                  <td className="px-3 py-2 text-xs text-slate-700 max-w-[260px] truncate" title={row.dose_notes || ''}>
+                    {row.dose_notes || '-'}
+                  </td>
+                  <td className="px-3 py-2 text-xs text-right">
+                    <button
+                      type="button"
+                      onClick={() => handleConvertMissedToGiven(row)}
+                      className="inline-flex items-center rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-medium text-emerald-700 hover:bg-emerald-100"
+                      title="Convert to given medicine"
+                    >
+                      Mark Given
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   )
