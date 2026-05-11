@@ -286,7 +286,7 @@ def get_lab_tests(
 		],
 		limit=limit,
 		limit_start=offset,
-		order_by="submitted_date desc, result_date desc",
+		order_by="creation desc",
 	)
 
 	# Fetch template details for each lab test to get gender-specific ranges
@@ -793,7 +793,7 @@ def create_lab_test(data):
 		'practitioner': data.get('practitioner'),
 		'date': data.get('date') or frappe.utils.today(),
 		'time': data.get('time') or frappe.utils.now_time(),
-		'department': data.get('department'),
+		# 'department': data.get('department'),
 		'service_unit': data.get('service_unit'),
 		'status': data.get('status') or 'Draft',
 		'naming_series': naming_series
