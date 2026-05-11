@@ -9,6 +9,10 @@ interface LabTestHistoryProps {
   patientId?: string
   /** Custom className for styling */
   className?: string
+  /** Max lab tests to fetch from API */
+  limit?: number
+  /** When true, only rows with status Completed are shown */
+  showOnlyCompleted?: boolean
 }
 
 interface Filters {
@@ -133,9 +137,11 @@ const formatDate = (dateStr?: string) => {
   }
 }
 
-export const LabTestHistory = ({ 
-  patientId, 
-  className = ''
+export const LabTestHistory = ({
+  patientId,
+  className = '',
+  limit = 100,
+  showOnlyCompleted = false,
 }: LabTestHistoryProps) => {
   const [labTests, setLabTests] = useState<LabTest[]>([])
   const [filteredTests, setFilteredTests] = useState<LabTest[]>([])
@@ -156,26 +162,29 @@ export const LabTestHistory = ({
         setError(null)
         
         const tests = await fetchLabTests(
-          100,             // limit - get more for history
-          0,               // offset
-          patientId,       // patient
-          undefined,       // status (all)
-          false,           // pending_review
-          undefined,       // is_outsourced
-          undefined,       // from_date
-          undefined,       // to_date
-          undefined,       // template
-          undefined,       // patient_type
-          false            // by_nurse
+          limit,
+          0,
+          patientId,
+          undefined,
+          false,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          false
         )
-        
-        // Sort by date (most recent first)
-        const sortedTests = [...tests].sort((a, b) => {
+
+        let sortedTests = [...tests].sort((a, b) => {
           const dateA = a.result_date || a.submitted_date || a.date || ''
           const dateB = b.result_date || b.submitted_date || b.date || ''
           return dateB.localeCompare(dateA)
         })
-        
+
+        if (showOnlyCompleted) {
+          sortedTests = sortedTests.filter((t) => t.status === 'Completed')
+        }
+
         setLabTests(sortedTests)
         setFilteredTests(sortedTests)
       } catch (err) {
@@ -187,7 +196,7 @@ export const LabTestHistory = ({
     }
 
     loadLabTests()
-  }, [patientId])
+  }, [patientId, limit, showOnlyCompleted])
 
   // Apply filters
   useEffect(() => {
