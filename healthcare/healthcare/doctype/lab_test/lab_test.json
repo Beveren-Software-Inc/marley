@@ -246,7 +246,6 @@
    "print_hide": 1
   },
   {
-   "fetch_from": "template.department",
    "fieldname": "department",
    "fieldtype": "Link",
    "ignore_user_permissions": 1,
@@ -1027,7 +1026,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2026-05-11 10:38:00.497433",
+ "modified": "2026-05-11 10:50:56.635781",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Lab Test",
