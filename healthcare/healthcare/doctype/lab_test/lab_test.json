@@ -78,6 +78,7 @@
   "lab_test_comment",
   "sb_customresult",
   "custom_result",
+  "result_flag",
   "payment_section",
   "amount",
   "discount_margin",
@@ -1017,6 +1018,12 @@
    "fieldname": "by_nurse",
    "fieldtype": "Check",
    "label": "By Nurse"
+  },
+  {
+   "fieldname": "result_flag",
+   "fieldtype": "Select",
+   "label": "Result Flag",
+   "options": "\nHigh\nLow\nNormal\nCritically High\nCritically Low"
   }
  ],
  "is_submittable": 1,
@@ -1026,7 +1033,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2026-05-11 10:50:56.635781",
+ "modified": "2026-05-11 16:50:47.263384",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Lab Test",

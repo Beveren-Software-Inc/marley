@@ -56,6 +56,7 @@ export interface LabTest {
   descriptive_result?: string
   custom_result?: string
   lab_test_comment?: string
+  result_flag?: string
   /** Remarks table (Remark child): list of { rrmark } */
   remarks?: Array<{ rrmark?: string }>
   worksheet_instructions?: string

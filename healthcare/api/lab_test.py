@@ -283,6 +283,7 @@ def get_lab_tests(
 			# "max_range",
 			"results",
 			"gender",
+			"result_flag"
 		],
 		limit=limit,
 		limit_start=offset,
@@ -340,6 +341,100 @@ def get_lab_tests(
 				or lab_test.lab_technician
 			)
 	return lab_tests
+
+# def _calculate_result_flag(result_value, patient_gender, female_min_range=None, female_max_range=None, 
+#                            male_min_range=None, male_max_range=None, min_range=None, max_range=None):
+#     """Calculate result flag based on value and reference ranges.
+    
+#     Returns:
+#         str: One of 'Normal', 'High', 'Low', 'Critically High', 'Critically Low', or empty string
+#     """
+#     if not result_value:
+#         return ""
+    
+#     # Try to convert result value to float
+#     try:
+#         val = float(result_value)
+#     except (TypeError, ValueError):
+#         # If it's not a numeric value, return empty (qualitative results handled separately)
+#         return ""
+    
+#     # Select appropriate ranges based on patient gender
+#     if patient_gender == "Female":
+#         min_range = female_min_range if female_min_range is not None else min_range
+#         max_range = female_max_range if female_max_range is not None else max_range
+#     elif patient_gender == "Male":
+#         min_range = male_min_range if male_min_range is not None else min_range
+#         max_range = male_max_range if male_max_range is not None else max_range
+    
+#     # Check if we have valid ranges to compare against
+#     if min_range is not None and max_range is not None:
+#         # Check for critical values (2x normal range or 0.5x normal range)
+#         if val > max_range * 2:
+#             return "Critically High"
+#         if val < min_range * 0.5:
+#             return "Critically Low"
+        
+#         # Check normal range
+#         if val > max_range:
+#             return "High"
+#         if val < min_range:
+#             return "Low"
+        
+#         return "Normal"
+    
+#     # No valid ranges available
+#     return ""
+
+def _calculate_result_flag(result_value, patient_gender, female_min_range=None, female_max_range=None, 
+                           male_min_range=None, male_max_range=None, min_range=None, max_range=None):
+    """Calculate result flag based on value and reference ranges."""
+    if not result_value:
+        return ""
+    
+    # Try to convert result value to float
+    try:
+        val = float(result_value)
+    except (TypeError, ValueError):
+        return ""
+    
+    # Convert ranges to float, handling None and string values
+    def to_float(val):
+        if val is None:
+            return None
+        try:
+            return float(val)
+        except (TypeError, ValueError):
+            return None
+    
+    # Select ranges based on patient gender
+    if patient_gender == "Female":
+        min_val = to_float(female_min_range) or to_float(min_range)
+        max_val = to_float(female_max_range) or to_float(max_range)
+    elif patient_gender == "Male":
+        min_val = to_float(male_min_range) or to_float(min_range)
+        max_val = to_float(male_max_range) or to_float(max_range)
+    else:
+        min_val = to_float(min_range)
+        max_val = to_float(max_range)
+    
+    # Check if we have valid ranges
+    if min_val is not None and max_val is not None:
+        # Critical values (2x normal range or 0.5x normal range)
+        if val > max_val * 2:
+            return "Critically High"
+        if val < min_val * 0.5:
+            return "Critically Low"
+        
+        # Normal range check
+        if val > max_val:
+            return "High"
+        if val < min_val:
+            return "Low"
+        
+        return "Normal"
+    
+    return ""
 
 @frappe.whitelist()
 def get_lab_test(name):
@@ -546,122 +641,333 @@ def _apply_documents_to_doc(doc, documents):
 		})
 
 
+# @frappe.whitelist()
+# def save_and_submit_lab_test(
+# 	name,
+# 	custom_result=None,
+# 	lab_test_comment=None,
+# 	worksheet_instructions=None,
+# 	documents=None,
+# 	normal_test_items=None,
+# 	amount=None,
+# 	discount_margin=None,
+# 	discount=None,
+# 	discount_amount=None,
+# 	lab_technician=None,
+# 	submit: bool = False,
+# ):
+# 	"""Save custom result/comment/worksheet/documents/normal_test_items/pricing on Lab Test and optionally submit it."""
+# 	_ensure_lab_result_edit_permission()
+
+# 	if not name:
+# 		frappe.throw(_("Lab Test name is required"))
+
+# 	doc = frappe.get_doc("Lab Test", name)
+
+# 	if lab_technician is not None:
+# 		doc.lab_technician = lab_technician or None
+
+# 	if custom_result is not None:
+# 		doc.custom_result = custom_result
+# 	if lab_test_comment is not None:
+# 		doc.lab_test_comment = lab_test_comment
+# 	if worksheet_instructions is not None:
+# 		doc.worksheet_instructions = worksheet_instructions
+
+# 	# Save editable normal test result rows (result_value + lab_test_comment per row)
+# 	if normal_test_items is not None:
+# 		if isinstance(normal_test_items, str):
+# 			import json
+# 			normal_test_items = json.loads(normal_test_items)
+# 		# Build a lookup by lab_test_event so we can update existing rows in-place
+# 		existing = {(r.get('lab_test_event') or r.get('lab_test_name') or ''): r for r in doc.normal_test_items or []}
+# 		for item in (normal_test_items or []):
+# 			event_key = item.get('lab_test_event') or item.get('lab_test_name') or ''
+# 			if event_key in existing:
+# 				row = existing[event_key]
+# 				if item.get('result_value') is not None:
+# 					row.result_value = item['result_value']
+# 				if item.get('lab_test_comment') is not None:
+# 					row.lab_test_comment = item['lab_test_comment']
+# 			else:
+# 				# New row (shouldn't happen normally but handle gracefully)
+# 				doc.append('normal_test_items', {
+# 					'lab_test_name': item.get('lab_test_name') or event_key,
+# 					'lab_test_event': event_key,
+# 					'result_value': item.get('result_value') or '',
+# 					'lab_test_uom': item.get('lab_test_uom') or '',
+# 					'normal_range': item.get('normal_range') or '',
+# 					'lab_test_comment': item.get('lab_test_comment') or '',
+# 					'template': item.get('template') or '',
+# 				})
+
+# 	# Pricing updates
+# 	if amount is not None:
+# 		doc.amount = amount
+# 	if discount_margin is not None:
+# 		doc.discount_margin = discount_margin
+# 	if discount is not None:
+# 		doc.discount = discount
+# 	if discount_amount is not None:
+# 		doc.discount_amount = discount_amount
+
+# 	# Auto-populate doc.results from the result_value entries in normal_test_items
+# 	if doc.normal_test_items:
+# 		values = [
+# 			str(r.result_value).strip()
+# 			for r in doc.normal_test_items
+# 			if r.result_value is not None and str(r.result_value).strip()
+# 		]
+# 		if values:
+# 			doc.results = ", ".join(values)
+
+# 	# Recompute grand_total whenever we have an amount
+# 	if getattr(doc, "amount", None) is not None:
+# 		base = doc.amount or 0
+# 		disc_amt = doc.discount_amount or 0
+# 		if doc.discount_margin == "Percentage" and doc.discount:
+# 			disc_amt = (base * doc.discount) / 100.0
+# 			doc.discount_amount = disc_amt
+# 		doc.grand_total = base - (disc_amt or 0)
+
+# 	_apply_documents_to_doc(doc, documents)
+# 	if submit:
+# 		if doc.docstatus == 0:
+# 			doc.flags.ignore_permissions = True
+# 			doc.save(ignore_permissions=True)
+# 			doc.flags.ignore_permissions = True
+# 			doc.submit()
+# 		else:
+# 			# If already submitted, just save changes
+# 			doc.save(ignore_permissions=True)
+# 	else:
+# 		doc.save(ignore_permissions=True)
+
+# 	return {
+# 		"name": doc.name,
+# 		"docstatus": doc.docstatus,
+# 		"status": doc.status,
+# 		"custom_result": getattr(doc, "custom_result", None),
+# 		"lab_test_comment": getattr(doc, "lab_test_comment", None),
+# 		"worksheet_instructions": getattr(doc, "worksheet_instructions", None),
+# 		"amount": getattr(doc, "amount", None),
+# 		"discount_margin": getattr(doc, "discount_margin", None),
+# 		"discount": getattr(doc, "discount", None),
+# 		"discount_amount": getattr(doc, "discount_amount", None),
+# 		"grand_total": getattr(doc, "grand_total", None),
+# 	}
 @frappe.whitelist()
 def save_and_submit_lab_test(
-	name,
-	custom_result=None,
-	lab_test_comment=None,
-	worksheet_instructions=None,
-	documents=None,
-	normal_test_items=None,
-	amount=None,
-	discount_margin=None,
-	discount=None,
-	discount_amount=None,
-	lab_technician=None,
-	submit: bool = False,
+    name,
+    custom_result=None,
+    lab_test_comment=None,
+    worksheet_instructions=None,
+    documents=None,
+    normal_test_items=None,
+    amount=None,
+    discount_margin=None,
+    discount=None,
+    discount_amount=None,
+    lab_technician=None,
+    submit: bool = False,
 ):
-	"""Save custom result/comment/worksheet/documents/normal_test_items/pricing on Lab Test and optionally submit it."""
-	_ensure_lab_result_edit_permission()
+    """Save custom result/comment/worksheet/documents/normal_test_items/pricing on Lab Test and optionally submit it."""
+    _ensure_lab_result_edit_permission()
 
-	if not name:
-		frappe.throw(_("Lab Test name is required"))
+    if not name:
+        frappe.throw(_("Lab Test name is required"))
 
-	doc = frappe.get_doc("Lab Test", name)
+    doc = frappe.get_doc("Lab Test", name)
 
-	if lab_technician is not None:
-		doc.lab_technician = lab_technician or None
+    if lab_technician is not None:
+        doc.lab_technician = lab_technician or None
 
-	if custom_result is not None:
-		doc.custom_result = custom_result
-	if lab_test_comment is not None:
-		doc.lab_test_comment = lab_test_comment
-	if worksheet_instructions is not None:
-		doc.worksheet_instructions = worksheet_instructions
+    if custom_result is not None:
+        doc.custom_result = custom_result
+    if lab_test_comment is not None:
+        doc.lab_test_comment = lab_test_comment
+    if worksheet_instructions is not None:
+        doc.worksheet_instructions = worksheet_instructions
 
-	# Save editable normal test result rows (result_value + lab_test_comment per row)
-	if normal_test_items is not None:
-		if isinstance(normal_test_items, str):
-			import json
-			normal_test_items = json.loads(normal_test_items)
-		# Build a lookup by lab_test_event so we can update existing rows in-place
-		existing = {(r.get('lab_test_event') or r.get('lab_test_name') or ''): r for r in doc.normal_test_items or []}
-		for item in (normal_test_items or []):
-			event_key = item.get('lab_test_event') or item.get('lab_test_name') or ''
-			if event_key in existing:
-				row = existing[event_key]
-				if item.get('result_value') is not None:
-					row.result_value = item['result_value']
-				if item.get('lab_test_comment') is not None:
-					row.lab_test_comment = item['lab_test_comment']
-			else:
-				# New row (shouldn't happen normally but handle gracefully)
-				doc.append('normal_test_items', {
-					'lab_test_name': item.get('lab_test_name') or event_key,
-					'lab_test_event': event_key,
-					'result_value': item.get('result_value') or '',
-					'lab_test_uom': item.get('lab_test_uom') or '',
-					'normal_range': item.get('normal_range') or '',
-					'lab_test_comment': item.get('lab_test_comment') or '',
-					'template': item.get('template') or '',
-				})
+    # Save editable normal test result rows (result_value + lab_test_comment per row)
+    if normal_test_items is not None:
+        if isinstance(normal_test_items, str):
+            import json
+            normal_test_items = json.loads(normal_test_items)
+        # Build a lookup by lab_test_event so we can update existing rows in-place
+        existing = {(r.get('lab_test_event') or r.get('lab_test_name') or ''): r for r in doc.normal_test_items or []}
+        for item in (normal_test_items or []):
+            event_key = item.get('lab_test_event') or item.get('lab_test_name') or ''
+            if event_key in existing:
+                row = existing[event_key]
+                if item.get('result_value') is not None:
+                    row.result_value = item['result_value']
+                if item.get('lab_test_comment') is not None:
+                    row.lab_test_comment = item['lab_test_comment']
+            else:
+                # New row (shouldn't happen normally but handle gracefully)
+                doc.append('normal_test_items', {
+                    'lab_test_name': item.get('lab_test_name') or event_key,
+                    'lab_test_event': event_key,
+                    'result_value': item.get('result_value') or '',
+                    'lab_test_uom': item.get('lab_test_uom') or '',
+                    'normal_range': item.get('normal_range') or '',
+                    'lab_test_comment': item.get('lab_test_comment') or '',
+                    'template': item.get('template') or '',
+                })
 
-	# Pricing updates
-	if amount is not None:
-		doc.amount = amount
-	if discount_margin is not None:
-		doc.discount_margin = discount_margin
-	if discount is not None:
-		doc.discount = discount
-	if discount_amount is not None:
-		doc.discount_amount = discount_amount
+    # ========== ADD RESULT FLAG CALCULATION HERE ==========
+    # Get patient gender
+    patient_gender = None
+    if doc.patient:
+        patient_gender = frappe.db.get_value("Patient", doc.patient, "sex")
+    
+    # Get ranges from template if available
+    female_min = female_max = male_min = male_max = template_min = template_max = None
+    if doc.template:
+        template_doc = frappe.get_doc("Lab Test Template", doc.template)
+        female_min = template_doc.get("female_min_range")
+        female_max = template_doc.get("female_max_range")
+        male_min = template_doc.get("male_min_range")
+        male_max = template_doc.get("male_max_range")
+        template_min = template_doc.get("min_range")
+        template_max = template_doc.get("max_range")
+    
+    # Determine which result value to use for flag calculation
+    result_to_evaluate = custom_result
+    
+    # If no custom_result, try to get from normal_test_items
+    if not result_to_evaluate and normal_test_items:
+        for item in (normal_test_items or []):
+            if item.get('result_value'):
+                result_to_evaluate = item.get('result_value')
+                break
+    
+    # If still no result, check doc's normal_test_items
+    if not result_to_evaluate and doc.normal_test_items:
+        for item in doc.normal_test_items:
+            if item.result_value:
+                result_to_evaluate = item.result_value
+                break
+    
+    # Calculate and set result flag
+    if result_to_evaluate:
+        doc.result_flag = _calculate_result_flag(
+            result_to_evaluate, patient_gender,
+            female_min, female_max,
+            male_min, male_max,
+            template_min, template_max
+        )
+    else:
+        doc.result_flag = ""
+    # ========== END RESULT FLAG CALCULATION ==========
 
-	# Auto-populate doc.results from the result_value entries in normal_test_items
-	if doc.normal_test_items:
-		values = [
-			str(r.result_value).strip()
-			for r in doc.normal_test_items
-			if r.result_value is not None and str(r.result_value).strip()
-		]
-		if values:
-			doc.results = ", ".join(values)
+    # Pricing updates
+    if amount is not None:
+        doc.amount = amount
+    if discount_margin is not None:
+        doc.discount_margin = discount_margin
+    if discount is not None:
+        doc.discount = discount
+    if discount_amount is not None:
+        doc.discount_amount = discount_amount
 
-	# Recompute grand_total whenever we have an amount
-	if getattr(doc, "amount", None) is not None:
-		base = doc.amount or 0
-		disc_amt = doc.discount_amount or 0
-		if doc.discount_margin == "Percentage" and doc.discount:
-			disc_amt = (base * doc.discount) / 100.0
-			doc.discount_amount = disc_amt
-		doc.grand_total = base - (disc_amt or 0)
+    # Auto-populate doc.results from the result_value entries in normal_test_items
+    if doc.normal_test_items:
+        values = [
+            str(r.result_value).strip()
+            for r in doc.normal_test_items
+            if r.result_value is not None and str(r.result_value).strip()
+        ]
+        if values:
+            doc.results = ", ".join(values)
 
-	_apply_documents_to_doc(doc, documents)
-	if submit:
-		if doc.docstatus == 0:
-			doc.flags.ignore_permissions = True
-			doc.save(ignore_permissions=True)
-			doc.flags.ignore_permissions = True
-			doc.submit()
-		else:
-			# If already submitted, just save changes
-			doc.save(ignore_permissions=True)
-	else:
-		doc.save(ignore_permissions=True)
+    # Recompute grand_total whenever we have an amount
+    if getattr(doc, "amount", None) is not None:
+        base = doc.amount or 0
+        disc_amt = doc.discount_amount or 0
+        if doc.discount_margin == "Percentage" and doc.discount:
+            disc_amt = (base * doc.discount) / 100.0
+            doc.discount_amount = disc_amt
+        doc.grand_total = base - (disc_amt or 0)
 
-	return {
-		"name": doc.name,
-		"docstatus": doc.docstatus,
-		"status": doc.status,
-		"custom_result": getattr(doc, "custom_result", None),
-		"lab_test_comment": getattr(doc, "lab_test_comment", None),
-		"worksheet_instructions": getattr(doc, "worksheet_instructions", None),
-		"amount": getattr(doc, "amount", None),
-		"discount_margin": getattr(doc, "discount_margin", None),
-		"discount": getattr(doc, "discount", None),
-		"discount_amount": getattr(doc, "discount_amount", None),
-		"grand_total": getattr(doc, "grand_total", None),
-	}
+    _apply_documents_to_doc(doc, documents)
+    if submit:
+        if doc.docstatus == 0:
+            doc.flags.ignore_permissions = True
+            doc.save(ignore_permissions=True)
+            doc.flags.ignore_permissions = True
+            doc.submit()
+        else:
+            # If already submitted, just save changes
+            doc.save(ignore_permissions=True)
+    else:
+        doc.save(ignore_permissions=True)
 
+    return {
+        "name": doc.name,
+        "docstatus": doc.docstatus,
+        "status": doc.status,
+        "custom_result": getattr(doc, "custom_result", None),
+        "result_flag": getattr(doc, "result_flag", None),  # ADD THIS LINE
+        "lab_test_comment": getattr(doc, "lab_test_comment", None),
+        "worksheet_instructions": getattr(doc, "worksheet_instructions", None),
+        "amount": getattr(doc, "amount", None),
+        "discount_margin": getattr(doc, "discount_margin", None),
+        "discount": getattr(doc, "discount", None),
+        "discount_amount": getattr(doc, "discount_amount", None),
+        "grand_total": getattr(doc, "grand_total", None),
+    }
+    
+@frappe.whitelist()
+def recalculate_result_flags(lab_test_name=None):
+    """Recalculate result flags for one or all lab tests."""
+    
+    filters = {}
+    if lab_test_name:
+        filters["name"] = lab_test_name
+    
+    lab_tests = frappe.get_all("Lab Test", filters=filters, fields=["name", "patient", "template", "custom_result"])
+    
+    updated = []
+    for lt in lab_tests:
+        doc = frappe.get_doc("Lab Test", lt.name)
+        
+        # Get patient gender
+        patient_gender = frappe.db.get_value("Patient", doc.patient, "sex") if doc.patient else None
+        
+        # Get ranges from template
+        female_min = female_max = male_min = male_max = template_min = template_max = None
+        if doc.template:
+            template_doc = frappe.get_doc("Lab Test Template", doc.template)
+            female_min = template_doc.get("female_min_range")
+            female_max = template_doc.get("female_max_range")
+            male_min = template_doc.get("male_min_range")
+            male_max = template_doc.get("male_max_range")
+            template_min = template_doc.get("min_range")
+            template_max = template_doc.get("max_range")
+        
+        # Get result value
+        result_value = doc.custom_result
+        if not result_value and doc.normal_test_items:
+            for item in doc.normal_test_items:
+                if item.result_value:
+                    result_value = item.result_value
+                    break
+        
+        # Calculate new flag
+        new_flag = _calculate_result_flag(
+            result_value, patient_gender,
+            female_min, female_max,
+            male_min, male_max,
+            template_min, template_max
+        )
+        
+        if doc.result_flag != new_flag:
+            doc.db_set("result_flag", new_flag)
+            updated.append({"name": doc.name, "old_flag": doc.result_flag, "new_flag": new_flag})
+    
+    return {"updated": updated, "count": len(updated)}
 
 @frappe.whitelist()
 def update_lab_test_remarks(name, remarks=None):
@@ -968,7 +1274,7 @@ def create_sample_collection_for_lab_sample(
 				'sample_qty': frappe.utils.flt(obs.get('sample_qty') or getattr(row, 'sample_qty', 0) or 0),
 				'collection_point': obs.get('collection_point') or '',
 				'collected_by': obs.get('collected_by') or '',
-				'medical_department': obs.get('medical_department') or '',
+				# 'medical_department': obs.get('medical_department') or '',
 				'specimen': obs.get('specimen') or '',
 			})
 

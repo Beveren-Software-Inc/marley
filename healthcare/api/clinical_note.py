@@ -77,12 +77,6 @@ def get_clinical_notes(**kwargs):
 	note_type = kwargs.get('note_type')
 	reference_doctype = kwargs.get('ref_doctype')
 	reference_document = kwargs.get('ref_document')
-
-	print("=" * 50)
-	print("DEBUG kwargs keys:", list(kwargs.keys()))
-	print("DEBUG ref_doctype:", kwargs.get('ref_doctype'))
-	print("DEBUG ref_document:", kwargs.get('ref_document'))
-	print("=" * 50)
 	
 	filters = {}
 	
@@ -90,7 +84,12 @@ def get_clinical_notes(**kwargs):
 		filters['patient'] = patient
 	
 	if medical_role:
-		filters['medical_role'] = medical_role
+		roles_to_filter = resolve_medical_role_filter(medical_role)
+		if len(roles_to_filter) == 1:
+			filters['medical_role'] = roles_to_filter[0]
+		else:
+			filters['medical_role'] = ['in', roles_to_filter]
+
 	
 	if clinical_note_type:
 		filters['clinical_note_type'] = clinical_note_type
@@ -211,3 +210,22 @@ def create_clinical_note(data):
 		'reference_doctype': doc.reference_doctype,
 		'reference_document': doc.reference_document,
 	}
+ 
+ 
+def resolve_medical_role_filter(medical_role):
+    """
+    Resolve a medical role (parent or child) to the appropriate filter.
+    Returns a list of role names to filter by.
+    """
+    if not medical_role:
+        return []
+    
+    # Get child roles under this parent
+    child_roles = frappe.get_all(
+        'Medical Role',
+        filters={'parent_medical_role': medical_role},
+        pluck='name'
+    )
+    
+    # If children exist, return them; otherwise return the original role
+    return child_roles if child_roles else [medical_role]
