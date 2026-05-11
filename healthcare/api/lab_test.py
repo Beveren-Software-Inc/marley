@@ -738,7 +738,7 @@ def update_lab_test_basic(name, data=None):
 		"lab_test_name": getattr(doc, "lab_test_name", None),
 		"practitioner": doc.practitioner,
 		"practitioner_name": getattr(doc, "practitioner_name", None),
-		"department": doc.department,
+		# "department": doc.department,
 		"service_unit": getattr(doc, "service_unit", None),
 		"date": getattr(doc, "date", None),
 		"time": getattr(doc, "time", None),
