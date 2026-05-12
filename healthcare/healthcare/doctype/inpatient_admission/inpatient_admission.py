@@ -16,6 +16,7 @@ from frappe.utils import cint, get_datetime, get_link_to_form, getdate, now_date
 from healthcare.api.utils.api_utility import get_next_transaction_number
 from healthcare.healthcare.doctype.nursing_task.nursing_task import NursingTask
 from healthcare.healthcare.utils import validate_nursing_tasks
+from healthcare.api.utils.api_utility import get_next_transaction_number
 
 
 class InpatientAdmission(Document):
@@ -636,11 +637,13 @@ def transfer_to_another_cost_center(
 	reason=None,
 	transfer_datetime=None,
 ):
+    
 	"""
 	Transfer an inpatient admission from current cost center (hospital) to another.
 	Creates a Transfer Admission Event for audit trail, checks out from current bed,
 	updates admission cost_center, and optionally checks in to a bed in the new cost center.
 	"""
+	print("Are you at home")
 	inpatient_record = frappe.get_doc("Inpatient Admission", inpatient_admission)
 	if inpatient_record.status != "Admitted":
 		frappe.throw(
@@ -710,12 +713,14 @@ def transfer_to_another_cost_center(
 	# 3) If target service unit provided, check in there
 	if to_service_unit:
 		transfer_patient(inpatient_record, to_service_unit, transfer_dt)
-
+	trans_no = get_next_transaction_number("Transfer Admission Event", fieldname='transfer_num')
+	print("Huku ndio nagonga", trans_no)
 	# 4) Create audit trail
 	event = frappe.get_doc(
 		{
 			"doctype": "Transfer Admission Event",
 			"inpatient_admission": inpatient_admission,
+			"transfer_num": trans_no,
 			"patient": inpatient_record.patient,
 			"patient_name": inpatient_record.patient_name,
 			"transfer_datetime": transfer_dt,
