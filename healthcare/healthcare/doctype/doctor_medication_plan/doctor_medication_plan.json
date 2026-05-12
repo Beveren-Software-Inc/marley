@@ -1,0 +1,178 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "format:{patient}-{reference_name}-{#####}",
+ "creation": "2026-05-12 17:20:05.819017",
+ "default_view": "List",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "patient",
+  "blood_group",
+  "reference_doctype",
+  "reference_document",
+  "column_break_jw2e",
+  "posting_date",
+  "practitioner",
+  "medical_role",
+  "branch",
+  "note_section",
+  "plan",
+  "section_break_rxiz",
+  "recommendation",
+  "section_break_vpsl",
+  "reception_note",
+  "reference_section",
+  "reference_doc",
+  "column_break_jfxv",
+  "reference_name"
+ ],
+ "fields": [
+  {
+   "fieldname": "patient",
+   "fieldtype": "Link",
+   "ignore_user_permissions": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Patient",
+   "options": "Patient",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "fetch_from": "patient.blood_group",
+   "fieldname": "blood_group",
+   "fieldtype": "Data",
+   "label": "Blood Group",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_jw2e",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "now",
+   "fieldname": "posting_date",
+   "fieldtype": "Datetime",
+   "label": "Posting Date"
+  },
+  {
+   "fieldname": "practitioner",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Practitioner",
+   "options": "Healthcare Practitioner"
+  },
+  {
+   "fetch_from": "practitioner.medical_role",
+   "fieldname": "medical_role",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Medical Role",
+   "options": "Medical Role"
+  },
+  {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "label": "Branch",
+   "options": "Branch"
+  },
+  {
+   "fieldname": "reference_doctype",
+   "fieldtype": "Link",
+   "label": "Reference Doctype",
+   "options": "DocType"
+  },
+  {
+   "fieldname": "reference_document",
+   "fieldtype": "Dynamic Link",
+   "label": "Reference Document",
+   "options": "reference_doctype"
+  },
+  {
+   "fieldname": "note_section",
+   "fieldtype": "Section Break",
+   "label": "Note"
+  },
+  {
+   "fieldname": "reference_section",
+   "fieldtype": "Section Break",
+   "label": "Reference"
+  },
+  {
+   "fieldname": "reference_doc",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Reference Doc",
+   "options": "DocType",
+   "read_only": 1
+  },
+  {
+   "fieldname": "reference_name",
+   "fieldtype": "Dynamic Link",
+   "label": "Reference Name",
+   "options": "reference_doc",
+   "read_only": 1
+  },
+  {
+   "allow_in_quick_entry": 1,
+   "fieldname": "plan",
+   "fieldtype": "Text Editor",
+   "label": "Plan"
+  },
+  {
+   "fieldname": "section_break_rxiz",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "recommendation",
+   "fieldtype": "Text Editor",
+   "label": "Recommendation"
+  },
+  {
+   "fieldname": "section_break_vpsl",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "reception_note",
+   "fieldtype": "Text Editor",
+   "label": "Reception Note"
+  },
+  {
+   "fieldname": "column_break_jfxv",
+   "fieldtype": "Column Break"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-05-12 17:41:57.698261",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Doctor Medication Plan",
+ "naming_rule": "Expression (old style)",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "quick_entry": 1,
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

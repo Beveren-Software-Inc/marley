@@ -8,6 +8,7 @@ def get_practitioner_appointments(limit=50, offset=0, status=None):
 	"""Get appointments for the current user's healthcare practitioner"""
 	user = frappe.session.user
 	
+ 	
 	# Get the healthcare practitioner linked to the current user
 	practitioner = frappe.db.get_value('Healthcare Practitioner', {'user_id': user}, 'name')
 	
@@ -16,9 +17,10 @@ def get_practitioner_appointments(limit=50, offset=0, status=None):
 	
 	# Build filters
 	filters = {'practitioner': practitioner}
+	print("Hapa tunafika", filters)
 	if status:
 		filters['status'] = status
-	
+	print("Uko huku")
 	# Get appointments
 	appointments = frappe.get_all(
 		'Patient Appointment',
@@ -42,37 +44,87 @@ def get_practitioner_appointments(limit=50, offset=0, status=None):
 	
 	return appointments
 
+# @frappe.whitelist()
+# def get_all_appointments(limit=50, offset=0, status=None, patient=None):
+# 	"""Get all appointments (for receptionist)"""
+# 	filters = {}
+# 	if status:
+# 		filters['status'] = status
+# 	if patient:
+# 		filters['patient'] = patient
+# 	print("Where are you")
+# 	appointments = frappe.get_all(
+# 		'Patient Appointment',
+# 		filters=filters,
+# 		fields=[
+# 			'name',
+# 			'patient',
+# 			'patient_name',
+# 			'appointment_date',
+# 			'appointment_time',
+# 			'status',
+# 			'appointment_type',
+# 			'department',
+# 			'practitioner',
+# 			'practitioner_name',
+# 			'company',
+# 		],
+# 		limit=limit,
+# 		limit_start=offset,
+# 		order_by='appointment_date desc, appointment_time desc'
+# 	)
+	
+# 	return appointments
+
 @frappe.whitelist()
-def get_all_appointments(limit=50, offset=0, status=None, patient=None):
-	"""Get all appointments (for receptionist)"""
-	filters = {}
-	if status:
-		filters['status'] = status
-	if patient:
-		filters['patient'] = patient
-	
-	appointments = frappe.get_all(
-		'Patient Appointment',
-		filters=filters,
-		fields=[
-			'name',
-			'patient',
-			'patient_name',
-			'appointment_date',
-			'appointment_time',
-			'status',
-			'appointment_type',
-			'department',
-			'practitioner',
-			'practitioner_name',
-			'company',
-		],
-		limit=limit,
-		limit_start=offset,
-		order_by='appointment_date desc, appointment_time desc'
-	)
-	
-	return appointments
+def get_practitioner_appointments(limit=50, offset=0, status=None):
+    """Get appointments for the current user's healthcare practitioner"""
+    user = frappe.session.user
+
+    # Get the healthcare practitioner linked to the current user
+    practitioner = frappe.db.get_value('Healthcare Practitioner', {'user_id': user}, 'name')
+
+    # Check if user has elevated roles
+    elevated_roles = {'System Manager', 'Healthcare Administrator', 'CEO'}
+    user_roles = set(frappe.get_roles(user))
+    has_elevated_role = bool(elevated_roles & user_roles)
+
+    # If no practitioner is linked AND user has an elevated role, show all appointments
+    if not practitioner:
+        if not has_elevated_role:
+            return []
+        # Elevated users without a practitioner see everything
+        filters = {}
+    else:
+        # Regular practitioner — scope to their own appointments
+        filters = {'practitioner': practitioner}
+
+    # Apply optional status filter
+    if status:
+        filters['status'] = status
+
+    # Get appointments
+    appointments = frappe.get_all(
+        'Patient Appointment',
+        filters=filters,
+        fields=[
+            'name',
+            'patient',
+            'patient_name',
+            'appointment_date',
+            'appointment_time',
+            'status',
+            'appointment_type',
+            'department',
+            'practitioner',
+            'practitioner_name'
+        ],
+        limit=limit,
+        limit_start=offset,
+        order_by='appointment_date desc, appointment_time desc'
+    )
+
+    return appointments
 
 @frappe.whitelist()
 def create_appointment(data):
