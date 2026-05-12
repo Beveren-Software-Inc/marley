@@ -717,9 +717,13 @@ export async function createInvoiceForInpatientAdmission(inpatientAdmissionName:
   status: string;
   message: string;
 }> {
+  const csrf = await ensureCSRF()
   const response = await fetch(`/api/method/healthcare.api.inpatient_admission.create_invoice_from_inpatient_admission`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json',
+      ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
+     },
     body: JSON.stringify({ inpatient_admission_name: inpatientAdmissionName })
   });
   

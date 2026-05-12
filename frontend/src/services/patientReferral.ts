@@ -1,3 +1,4 @@
+import { ensureCSRF } from './apiClient'
 export interface PatientReferralRow {
   name: string
   patient: string
@@ -45,12 +46,13 @@ function csrfToken(): string {
 }
 
 export async function createPatientReferral(data: CreatePatientReferralData): Promise<{ name: string }> {
+  const csrf = await ensureCSRF()
   const res = await fetch('/api/method/healthcare.api.common.create_patient_referral', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Frappe-CSRF-Token': csrfToken(),
-    },
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json',
+      ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
+     },
     body: JSON.stringify(data),
   })
   const json = await res.json()
