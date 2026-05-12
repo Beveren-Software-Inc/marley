@@ -610,9 +610,7 @@ export const CreatePrescriptionModal = ({
   const validMedications = medications.filter((m) => m.drug && m.dosage && m.dosage_form && m.date)
 // Add this function before the emptyMedicationRow
 const isControlledSubstance = (medication: MedicationOrderRow): boolean => {
-  return medication.is_pink === true || 
-         medication.medication_type === 'Regular - Med (Active)' || 
-         medication.medication_type === 'Regular - Psy (Active)';
+  return medication.is_pink === true
 }
 
   // Add this function before handleSubmit

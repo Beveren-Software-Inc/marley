@@ -1,6 +1,13 @@
+
+
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { apiRequest } from '../../services/apiClient'
-import { fetchPatientOptions, fetchInpatientAdmissionOptions, type LinkFieldOption } from '../../services/common'
+import { 
+  fetchPatientOptions, 
+  fetchInpatientAdmissionOptions, 
+  fetchHealthcarePractitioners,
+  type LinkFieldOption 
+} from '../../services/common'
 import { toast } from '../../hooks/useToast'
 import { X, ChevronDown } from 'lucide-react'
 
@@ -174,8 +181,8 @@ const emptyForm = (): FormState => ({
 
 // ─── Reusable field components ────────────────────────────────────────────────
 
-const labelClass = 'block text-xs font-semibold text-slate-600 mb-1'
-const inputClass = 'w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white'
+const labelClass = 'block text-xs font-semibold text-slate-700 mb-1'
+const inputClass = 'w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-500 bg-white text-slate-900'
 const textareaClass = `${inputClass} resize-none`
 const sectionClass = 'mb-6'
 const sectionTitleClass = 'text-sm font-semibold text-slate-800 mb-3 pb-1.5 border-b border-slate-200'
@@ -251,9 +258,10 @@ interface LinkComboboxProps {
   onClear: () => void
   fetchOptions: (search: string) => Promise<LinkFieldOption[]>
   placeholder?: string
+  required?: boolean
 }
 
-const LinkCombobox = ({ label, value, onSelect, onClear, fetchOptions, placeholder }: LinkComboboxProps) => {
+const LinkCombobox = ({ label, value, onSelect, onClear, fetchOptions, placeholder, required }: LinkComboboxProps) => {
   const [query, setQuery] = useState(value)
   const [options, setOptions] = useState<LinkFieldOption[]>([])
   const [open, setOpen] = useState(false)
@@ -281,21 +289,22 @@ const LinkCombobox = ({ label, value, onSelect, onClear, fetchOptions, placehold
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
-  const lc = 'block text-xs font-semibold text-slate-600 mb-1'
-  const ic = 'w-full rounded-md border border-slate-300 px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white'
-
   return (
     <div ref={containerRef} className="relative">
-      <label className={lc}>{label}</label>
+      <label className={labelClass}>{label}{required && <span className="text-red-500 ml-0.5">*</span>}</label>
       <div className="relative">
-        <input type="text" value={query}
+        <input 
+          type="text" 
+          value={query}
           onChange={e => { setQuery(e.target.value); onClear(); setOpen(true) }}
           onFocus={() => setOpen(true)}
           placeholder={placeholder ?? 'Search...'}
-          className={ic} autoComplete="off" />
+          className={inputClass} 
+          autoComplete="off" 
+        />
         <span className="absolute inset-y-0 right-2 flex items-center pointer-events-none text-slate-400">
           {loading
-            ? <span className="w-3.5 h-3.5 border-2 border-slate-300 border-t-primary rounded-full animate-spin" />
+            ? <span className="w-3.5 h-3.5 border-2 border-slate-300 border-t-emerald-500 rounded-full animate-spin" />
             : <ChevronDown className="w-3.5 h-3.5" />}
         </span>
       </div>
@@ -304,10 +313,12 @@ const LinkCombobox = ({ label, value, onSelect, onClear, fetchOptions, placehold
           {options.length === 0
             ? <div className="px-3 py-2 text-xs text-slate-400">{loading ? 'Searching…' : 'No results found'}</div>
             : options.map(opt => (
-              <button key={opt.name} type="button"
-                className="w-full text-left px-3 py-2 text-sm hover:bg-primary/5 focus:outline-none"
+              <button 
+                key={opt.name} 
+                type="button"
+                className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-emerald-50 focus:outline-none transition-colors"
                 onClick={() => { onSelect(opt); setQuery(opt.label); setOpen(false) }}>
-                <span className="font-medium text-slate-800">{opt.label}</span>
+                <span className="font-medium">{opt.label}</span>
                 {opt.label !== opt.name && <span className="ml-1.5 text-xs text-slate-400">{opt.name}</span>}
               </button>
             ))
@@ -349,7 +360,7 @@ function GeneralTab({
             {isLockedContext ? (
               <>
                 <label className={labelClass}>Admission No</label>
-                <input type="text" value={currentAdmission} readOnly className={`${inputClass} bg-slate-100 cursor-not-allowed`} />
+                <input type="text" value={currentAdmission} readOnly className={`${inputClass} bg-slate-50 cursor-not-allowed`} />
               </>
             ) : (
               <LinkCombobox
@@ -376,7 +387,7 @@ function GeneralTab({
             {isLockedContext ? (
               <>
                 <label className={labelClass}>Patient</label>
-                <input type="text" value={currentPatient} readOnly className={`${inputClass} bg-slate-100 cursor-not-allowed`} />
+                <input type="text" value={currentPatient} readOnly className={`${inputClass} bg-slate-50 cursor-not-allowed`} />
               </>
             ) : (
               <LinkCombobox
@@ -395,16 +406,19 @@ function GeneralTab({
           </div>
           <div>
             <label className={labelClass}>Patient Name</label>
-            <input type="text" value={currentPatientName} readOnly className={`${inputClass} bg-slate-100 cursor-not-allowed`} />
+            <input type="text" value={currentPatientName} readOnly className={`${inputClass} bg-slate-50 cursor-not-allowed`} />
           </div>
           <div className="col-span-2">
-            <label className={labelClass}>Assessed By (Healthcare Practitioner)</label>
-            <input
-              type="text"
+            <LinkCombobox
+              label="Assessed By (Healthcare Practitioner)"
               value={form.assessed_by}
-              onChange={e => setField('assessed_by', e.target.value)}
-              placeholder="Enter practitioner name / ID..."
-              className={inputClass}
+              onSelect={(opt) => setField('assessed_by', opt.name)}
+              onClear={() => setField('assessed_by', '')}
+              fetchOptions={async (search) => {
+                const result = await fetchHealthcarePractitioners(search || undefined)
+                return result
+              }}
+              placeholder="Search practitioner..."
             />
           </div>
         </div>
@@ -663,7 +677,7 @@ function AttemptDetailsTab({ form, setField }: { form: FormState; setField: (k: 
               type="checkbox"
               checked={form.present_complaint_attempt}
               onChange={e => setField('present_complaint_attempt', e.target.checked)}
-              className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary"
+              className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
             />
             <span className="text-sm font-medium text-slate-700">
               Patient is coming with present complaint of attempting suicide
@@ -909,8 +923,8 @@ export const SuicidalPatientAssessmentModal = ({
         className="relative z-10 w-full max-w-3xl max-h-[92vh] bg-white rounded-xl shadow-2xl flex flex-col overflow-hidden"
         onMouseDown={e => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="flex items-start justify-between px-6 py-4 border-b border-slate-200 bg-slate-50 shrink-0">
+        {/* Header - neutral theme */}
+        <div className="flex items-start justify-between px-6 py-4 border-b border-slate-200 bg-white shrink-0">
           <div>
             <h2 className="text-lg font-bold text-slate-900">Suicidal Patient Assessment</h2>
             <p className="text-xs text-slate-500 mt-0.5">
@@ -920,14 +934,14 @@ export const SuicidalPatientAssessmentModal = ({
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex items-center justify-center w-8 h-8 rounded-md text-slate-500 hover:text-slate-800 hover:bg-slate-200 transition-colors ml-4 shrink-0"
+            className="inline-flex items-center justify-center w-8 h-8 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors ml-4 shrink-0"
             aria-label="Close"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Tab bar */}
+        {/* Tab bar - neutral theme */}
         <div className="flex border-b border-slate-200 bg-white shrink-0">
           {TABS.map(tab => (
             <button
@@ -936,7 +950,7 @@ export const SuicidalPatientAssessmentModal = ({
               onClick={() => setActiveTab(tab.id)}
               className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                 activeTab === tab.id
-                  ? 'border-primary text-primary'
+                  ? 'border-emerald-500 text-emerald-600'
                   : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
               }`}
             >
@@ -983,7 +997,7 @@ export const SuicidalPatientAssessmentModal = ({
                   key={tab.id}
                   type="button"
                   onClick={() => setActiveTab(tab.id)}
-                  className={`w-2 h-2 rounded-full transition-colors ${activeTab === tab.id ? 'bg-primary' : 'bg-slate-300 hover:bg-slate-400'}`}
+                  className={`w-2 h-2 rounded-full transition-colors ${activeTab === tab.id ? 'bg-emerald-500' : 'bg-slate-300 hover:bg-slate-400'}`}
                   title={`Go to ${tab.label}`}
                   aria-label={`${i + 1}. ${tab.label}`}
                 />
@@ -997,7 +1011,7 @@ export const SuicidalPatientAssessmentModal = ({
                     const idx = TABS.findIndex(t => t.id === activeTab)
                     setActiveTab(TABS[idx - 1].id)
                   }}
-                  className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50"
+                  className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors"
                 >
                   ← Previous
                 </button>
@@ -1009,7 +1023,7 @@ export const SuicidalPatientAssessmentModal = ({
                     const idx = TABS.findIndex(t => t.id === activeTab)
                     setActiveTab(TABS[idx + 1].id)
                   }}
-                  className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90"
+                  className="px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded-md hover:bg-emerald-700 transition-colors"
                 >
                   Next →
                 </button>
@@ -1017,14 +1031,14 @@ export const SuicidalPatientAssessmentModal = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50"
+                className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={submitting}
-                className="px-5 py-2 text-sm font-semibold text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-60 disabled:cursor-not-allowed"
+                className="px-5 py-2 text-sm font-semibold text-white bg-emerald-600 rounded-md hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
               >
                 {submitting ? 'Saving...' : 'Save Assessment'}
               </button>
