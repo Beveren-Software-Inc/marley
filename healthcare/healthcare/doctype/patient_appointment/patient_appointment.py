@@ -11,7 +11,7 @@ from frappe import _
 from frappe.core.doctype.sms_settings.sms_settings import send_sms
 from frappe.model.document import Document
 from frappe.model.mapper import get_mapped_doc
-from frappe.utils import flt, format_date, get_link_to_form, get_time, getdate
+from frappe.utils import cstr, flt, format_date, get_link_to_form, get_time, getdate
 
 from erpnext.setup.doctype.employee.employee import is_holiday
 
@@ -83,13 +83,13 @@ class PatientAppointment(Document):
 
 		# If appointment is created for today set status as Open else Scheduled
 		if appointment_date == today:
-			if self.status not in ["Checked In", "Checked Out", "Open", "Confirmed"]:
+			if self.status not in ["Checked In", "Checked Out", "Open", "Confirmed", "Patient Arrived"]:
 				self.status = "Open"
 
-		elif appointment_date > today and self.status not in ["Scheduled", "Confirmed"]:
+		elif appointment_date > today and self.status not in ["Scheduled", "Confirmed", "Patient Arrived"]:
 			self.status = "Scheduled"
 
-		elif appointment_date < today and self.status != "No Show":
+		elif appointment_date < today and self.status not in ["No Show", "Patient Arrived"]:
 			self.status = "No Show"
 
 	def validate_overlaps(self):
@@ -764,8 +764,13 @@ def validate_practitioner_schedules(schedule_entry, practitioner):
 
 
 @frappe.whitelist()
-def update_status(appointment_id, status):
+def update_status(appointment_id, status, notes=None):
 	frappe.db.set_value("Patient Appointment", appointment_id, "status", status)
+	if notes is not None and cstr(notes).strip():
+		prev = frappe.db.get_value("Patient Appointment", appointment_id, "notes") or ""
+		add = cstr(notes).strip()
+		merged = f"{prev}\n{add}".strip() if prev else add
+		frappe.db.set_value("Patient Appointment", appointment_id, "notes", merged)
 	appointment_booked = True
 	if status == "Cancelled":
 		appointment_booked = False

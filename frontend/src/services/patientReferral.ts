@@ -41,10 +41,6 @@ export interface ReferralSourceDoc {
   status: string
 }
 
-function csrfToken(): string {
-  return (window as unknown as { frappe?: { csrf_token?: string } }).frappe?.csrf_token ?? ''
-}
-
 export async function createPatientReferral(data: CreatePatientReferralData): Promise<{ name: string }> {
   const csrf = await ensureCSRF()
   const res = await fetch('/api/method/healthcare.api.common.create_patient_referral', {

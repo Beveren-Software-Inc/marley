@@ -16,6 +16,7 @@ import {
   fetchHealthcareInsurance,
   fetchInsurancePatientRegisters,
   fetchDocumentTypes,
+  fetchPatientCategories,
   type LinkFieldOption,
   type InsurancePatientRegisterRow
 } from '../../services/common'
@@ -302,6 +303,11 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
   const [selectedNationality, setSelectedNationality] = useState<LinkFieldOption | null>(null)
   const [showCreateNationality, setShowCreateNationality] = useState(false)
 
+  const [categoryOptions, setCategoryOptions] = useState<LinkFieldOption[]>([])
+  const [categoryOpen, setCategoryOpen] = useState(false)
+  const [categoryQuery, setCategoryQuery] = useState('')
+  const [selectedCategory, setSelectedCategory] = useState<LinkFieldOption | null>(null)
+
   const [salutationOptions, setSalutationOptions] = useState<LinkFieldOption[]>([])
   const [salutationOpen, setSalutationOpen] = useState(false)
   const [salutationQuery, setSalutationQuery] = useState('')
@@ -327,13 +333,14 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
       setLoading(true)
       setError(null)
       try {
-        const [patient, sources, nationalities, countryList, salutations, docTypes] = await Promise.all([
+        const [patient, sources, nationalities, countryList, salutations, docTypes, categories] = await Promise.all([
           fetchPatientDoc(patientName),
           fetchLeadSources(),
           fetchNationalities(),
           fetchCountries(),
           fetchSalutations(),
-          fetchDocumentTypes()
+          fetchDocumentTypes(),
+          fetchPatientCategories(),
         ])
 
         setSourceOptions(sources)
@@ -341,6 +348,7 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
         setCountries(countryList)
         setSalutationOptions(salutations)
         setDocumentTypes(docTypes)
+        setCategoryOptions(categories)
 
         // Build full name
         const fullName = [patient.first_name, patient.middle_name, patient.last_name].filter(Boolean).join(' ') || ''
@@ -415,6 +423,13 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
 
         const sal = salutations.find((s) => s.name === patient.title)
         if (sal) setSelectedSalutation(sal)
+
+        const cat = categories.find((c) => c.name === patient.category)
+        if (cat) {
+          setSelectedCategory(cat)
+        } else if (patient.category) {
+          setSelectedCategory({ name: patient.category, label: patient.category })
+        }
 
         if (patient.insurance) {
           setSelectedInsurance({ name: patient.insurance, label: patient.insurance })
@@ -568,7 +583,7 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
       return
     }
     if (!formData.category) {
-      setError('Patient type is required')
+      setError('Patient category is required')
       setActiveTab('details')
       return
     }
@@ -670,6 +685,14 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
   }, [sourceQuery, sourceOpen])
 
   useEffect(() => {
+    if (!categoryOpen) return
+    const t = setTimeout(() => {
+      fetchPatientCategories(categoryQuery).then(setCategoryOptions).catch(() => setCategoryOptions([]))
+    }, categoryQuery.trim() === '' ? 0 : 300)
+    return () => clearTimeout(t)
+  }, [categoryQuery, categoryOpen])
+
+  useEffect(() => {
     if (!nationalityOpen) return
     const t = setTimeout(() => {
       fetchNationalities(nationalityQuery).then(setNationalityOptions).catch(() => setNationalityOptions([]))
@@ -706,6 +729,13 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
     setFormData((prev) => ({ ...prev, source: source.name }))
     setSourceOpen(false)
     setSourceQuery('')
+  }
+
+  const handleCategorySelect = (cat: LinkFieldOption) => {
+    setSelectedCategory(cat)
+    setFormData((prev) => ({ ...prev, category: cat.name }))
+    setCategoryOpen(false)
+    setCategoryQuery('')
   }
 
   const handleNationalitySelect = (nat: LinkFieldOption) => {
@@ -945,14 +975,38 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">
-                        Patient type <span className="text-red-500">*</span>
+                        Category <span className="text-red-500">*</span>
                       </label>
-                      <select value={formData.category} onChange={(e) => handleChange('category', e.target.value)} required className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white">
-                        <option value="">Select Patient type</option>
-                        <option value="Royal">Royal</option>
-                        <option value="American Navy">American Navy</option>
-                        <option value="Regular">Regular</option>
-                      </select>
+                      <div className="relative flex items-center">
+                        <input
+                          type="text"
+                          value={selectedCategory ? selectedCategory.label : categoryQuery}
+                          onChange={(e) => {
+                            setCategoryQuery(e.target.value)
+                            setSelectedCategory(null)
+                            setFormData((prev) => ({ ...prev, category: '' }))
+                            setCategoryOpen(true)
+                          }}
+                          onFocus={() => setCategoryOpen(true)}
+                          placeholder="Search patient category..."
+                          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                          required
+                        />
+                        {categoryOpen && categoryOptions.length > 0 && (
+                          <div className="absolute z-10 w-full mt-1 top-full bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                            {categoryOptions.map((cat) => (
+                              <button
+                                key={cat.name}
+                                type="button"
+                                onClick={() => handleCategorySelect(cat)}
+                                className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100"
+                              >
+                                {cat.label}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">

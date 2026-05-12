@@ -647,12 +647,14 @@ import { AppointmentDetailPanel } from './AppointmentDetailPanel'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { ConfirmDialog } from '../ui/ConfirmDialog'
 import { toast } from '../../hooks/useToast'
+import { MarkPatientArrivedModal } from './MarkPatientArrivedModal'
 
 const statusColors: Record<string, string> = {
   'Scheduled': 'info',
   'Open': 'warning',
   'Confirmed': 'success',
   'Checked In': 'success',
+  'Patient Arrived': 'success',
   'Checked Out': 'default',
   'Postponed': 'warning',
   'Closed': 'default',
@@ -660,7 +662,7 @@ const statusColors: Record<string, string> = {
   'No Show': 'danger'
 }
 
-const ALL_STATUSES = ['Scheduled', 'Open', 'Confirmed', 'Checked In', 'Checked Out', 'Postponed', 'Closed', 'Cancelled', 'No Show']
+const ALL_STATUSES = ['Scheduled', 'Open', 'Confirmed', 'Checked In', 'Patient Arrived', 'Checked Out', 'Postponed', 'Closed', 'Cancelled', 'No Show']
 
 interface AppointmentListProps {
   refreshKey?: string | number
@@ -681,9 +683,11 @@ interface AvailabilityResponse {
   leave_details?: LeaveDetails
 }
 
-const ACTIVE_STATUSES = ['Scheduled', 'Open', 'Confirmed', 'Checked In']
+const ACTIVE_STATUSES = ['Scheduled', 'Open', 'Confirmed', 'Checked In', 'Patient Arrived']
 const CAN_CONFIRM_STATUSES = ['Open', 'Scheduled']
 const CAN_POSTPONE_STATUSES = ['Scheduled', 'Open', 'Confirmed', 'Checked In']
+/** Reception can mark arrived from these statuses (DocType already includes "Patient Arrived"). */
+const CAN_MARK_ARRIVED_STATUSES = ['Scheduled', 'Open', 'Confirmed', 'Checked In']
 
 // Stub — replace with your real API call
 const sendAppointmentReminder = async (appointmentName: string): Promise<void> => {
@@ -787,6 +791,7 @@ export const AppointmentList = ({ refreshKey, showAll = false, patient }: Appoin
   const [rescheduleAppointment, setRescheduleAppointment] = useState<Appointment | null>(null)
   const [detailApt, setDetailApt] = useState<Appointment | null>(null)
   const [cancelTarget, setCancelTarget] = useState<Appointment | null>(null)
+  const [arrivedTarget, setArrivedTarget] = useState<Appointment | null>(null)
   const [cancelLoading, setCancelLoading] = useState(false)
   const [practitionerAvailability, setPractitionerAvailability] = useState<Record<string, AvailabilityResponse>>({})
   const [availabilityLoading, setAvailabilityLoading] = useState<Record<string, boolean>>({})
@@ -868,7 +873,7 @@ export const AppointmentList = ({ refreshKey, showAll = false, patient }: Appoin
     const s = status.toLowerCase()
     if (s.includes('scheduled')) return 'info'
     if (s.includes('open') || s.includes('confirmed')) return 'warning'
-    if (s.includes('checked in')) return 'success'
+    if (s.includes('checked in') || s.includes('patient arrived')) return 'success'
     if (s.includes('checked out') || s.includes('closed')) return 'default'
     if (s.includes('cancelled') || s.includes('no show')) return 'danger'
     return statusColors[status] || 'default'
@@ -883,6 +888,8 @@ export const AppointmentList = ({ refreshKey, showAll = false, patient }: Appoin
   const canCancel = (status?: string) => status && ACTIVE_STATUSES.includes(status)
   const canConfirm = (status?: string) => status && CAN_CONFIRM_STATUSES.includes(status)
   const canPostpone = (status?: string) => status && CAN_POSTPONE_STATUSES.includes(status)
+  const canMarkPatientArrived = (status?: string) =>
+    Boolean(status && CAN_MARK_ARRIVED_STATUSES.includes(status))
 
   const handleCancel = (apt: Appointment) => {
     setOpenActionRow(null)
@@ -1138,7 +1145,7 @@ export const AppointmentList = ({ refreshKey, showAll = false, patient }: Appoin
         </div>
       ) : (
         <div className="min-w-full">
-          <table className="w-full min-w-[1000px]">
+          <table className="w-full min-w-[1120px]">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Appointment ID</th>
@@ -1152,6 +1159,11 @@ export const AppointmentList = ({ refreshKey, showAll = false, patient }: Appoin
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Date & Time</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Type</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Status</th>
+                {showAll && (
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">
+                    Reception
+                  </th>
+                )}
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase w-[100px]">Actions</th>
               </tr>
             </thead>
@@ -1201,6 +1213,26 @@ export const AppointmentList = ({ refreshKey, showAll = false, patient }: Appoin
                         ? <StatusPill status={apt.status} color={getStatusColor(apt.status)} />
                         : <span className="text-sm text-slate-500">-</span>}
                     </td>
+                    {showAll && (
+                      <td className="px-4 py-3 align-middle whitespace-nowrap">
+                        {canMarkPatientArrived(apt.status) ? (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setArrivedTarget(apt)
+                            }}
+                            className="inline-flex items-center px-3 py-1.5 text-xs font-semibold rounded-md border border-emerald-600 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          >
+                            Patient arrived
+                          </button>
+                        ) : apt.status === 'Patient Arrived' ? (
+                          <span className="text-xs font-medium text-emerald-700">Arrived</span>
+                        ) : (
+                          <span className="text-xs text-slate-400">—</span>
+                        )}
+                      </td>
+                    )}
                     <td className="px-4 py-2 align-middle">
                       <div className="relative" ref={openActionRow === apt.name ? menuRef : undefined}>
                         <button
@@ -1280,6 +1312,14 @@ export const AppointmentList = ({ refreshKey, showAll = false, patient }: Appoin
             </tbody>
           </table>
         </div>
+      )}
+
+      {arrivedTarget && (
+        <MarkPatientArrivedModal
+          appointment={arrivedTarget}
+          onClose={() => setArrivedTarget(null)}
+          onSuccess={() => setRefreshTrigger((t) => t + 1)}
+        />
       )}
 
       {rescheduleAppointment && (

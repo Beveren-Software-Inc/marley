@@ -9,6 +9,8 @@ import { AppointmentList } from '../components/appointments/AppointmentList'
 import { CreateAppointmentModal } from '../components/appointments/CreateAppointmentModal'
 import { ClinicalNotesList } from '../components/clinicalNotes/ClinicalNotesList'
 import { CreateClinicalNoteModal } from '../components/clinicalNotes/CreateClinicalNoteModal'
+import { CreateDoctorMedicationPlanModal } from '../components/doctorMedicationPlan/CreateDoctorMedicationPlanModal'
+import { DoctorMedicationPlanList } from '../components/doctorMedicationPlan/DoctorMedicationPlanList'
 import { SuicideRiskAssessmentList } from '../components/clinicalSuicide/ClinicalSuicideRiskAssessmentList'
 import { CreateSuicideRiskAssessmentModal } from '../components/clinicalSuicide/CreateClinicalSuicideRiskAssessmentModal'
 import { CreateDepressionAssessmentModal } from '../components/depression/CreateDepressionAssessmentModal'
@@ -179,6 +181,8 @@ export const DoctorPage = () => {
   const [showNutritionNoteModal, setShowNutritionNoteModal] = useState(false)
   const [showTherapistNoteModal, setShowTherapistNoteModal] = useState(false)
   const [showDoctorProgressNoteModal, setShowDoctorProgressNoteModal] = useState(false)
+  const [showDoctorMedicationPlanModal, setShowDoctorMedicationPlanModal] = useState(false)
+  const [doctorMedicationPlanRefreshKey, setDoctorMedicationPlanRefreshKey] = useState(0)
   const [showPsychologistNoteModal, setShowPsychologistNoteModal] = useState(false)
   const [showVitalSignModal, setShowVitalSignModal] = useState(false)
   const [vitalSignsRefreshKey, setVitalSignsRefreshKey] = useState(0)
@@ -2100,31 +2104,61 @@ return (
           </DashboardCard>
         </div>
 
-        {/* Row 2: Warnings & Allergies and Doctor Progress Notes */}
-        <div className="grid gap-4 md:grid-cols-2 auto-rows-fr px-4 pb-4">
-          <DashboardCard 
-            fixedHeight
-            title="Warnings & Allergies" 
-            onAdd={() => setShowWarningModal(true)}
-            addButtonTitle="Add Warning Message"
-          >
-            <WarningMessagesList patient={selectedPatient} key={warningRefreshKey} />
-          </DashboardCard>
+        {/* Row 2: OP — Doctor Progress Notes (left) + Doctor Medication Plan (right); IP — Warnings + Progress Notes */}
+        {costCenterCareScope !== 'ip_only' && mode === 'OP' ? (
+          <div className="grid gap-4 md:grid-cols-2 auto-rows-fr px-4 pb-4">
+            <DashboardCard
+              fixedHeight
+              title="Doctor Progress Notes"
+              onAdd={() => setShowDoctorProgressNoteModal(true)}
+              addButtonTitle="Add Doctor Progress Note"
+            >
+              <ClinicalNotesList
+                patient={selectedPatient}
+                medicalRole="Doctor"
+                clinicalNoteType="Doctor Progress Note"
+                key={doctorProgressNoteRefreshKey}
+              />
+            </DashboardCard>
 
-          <DashboardCard 
-            fixedHeight
-            title="Doctor Progress Notes" 
-            onAdd={() => setShowDoctorProgressNoteModal(true)}
-            addButtonTitle="Add Doctor Progress Note"
-          >
-            <ClinicalNotesList
-              patient={selectedPatient}
-              medicalRole="Doctor"
-              clinicalNoteType="Doctor Progress Note"
-              key={doctorProgressNoteRefreshKey}
-            />
-          </DashboardCard>
-        </div>
+            <DashboardCard
+              fixedHeight
+              title="Doctor Medication Plan"
+              onAdd={() => setShowDoctorMedicationPlanModal(true)}
+              addButtonTitle="Add Doctor Medication Plan"
+            >
+              <DoctorMedicationPlanList
+                patient={selectedPatient}
+                key={doctorMedicationPlanRefreshKey}
+              />
+            </DashboardCard>
+          </div>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2 auto-rows-fr px-4 pb-4">
+            <DashboardCard
+              fixedHeight
+              title="Warnings & Allergies"
+              onAdd={() => setShowWarningModal(true)}
+              addButtonTitle="Add Warning Message"
+            >
+              <WarningMessagesList patient={selectedPatient} key={warningRefreshKey} />
+            </DashboardCard>
+
+            <DashboardCard
+              fixedHeight
+              title="Doctor Progress Notes"
+              onAdd={() => setShowDoctorProgressNoteModal(true)}
+              addButtonTitle="Add Doctor Progress Note"
+            >
+              <ClinicalNotesList
+                patient={selectedPatient}
+                medicalRole="Doctor"
+                clinicalNoteType="Doctor Progress Note"
+                key={doctorProgressNoteRefreshKey}
+              />
+            </DashboardCard>
+          </div>
+        )}
 
         {/* Row 3: Lab Test Reports and Lab Requests (on same line) */}
         <div className="grid gap-4 md:grid-cols-2 auto-rows-fr px-4 pb-4">
@@ -2154,11 +2188,27 @@ return (
           </DashboardCard>
         </div>
 
-        {/* Row 4: ECT Chart and Diagnosis Detail (on same line) — hide ECT column entirely on OP-only cost centers */}
+        {/* Row 4: OP — Appointments + Diagnosis; IP — ECT Chart + Diagnosis (ECT hidden on op_only cost centers) */}
         <div
-          className={`grid gap-4 px-4 pb-4 auto-rows-fr ${costCenterCareScope === 'op_only' ? 'md:grid-cols-1' : 'md:grid-cols-2'}`}
+          className={`grid gap-4 px-4 pb-4 auto-rows-fr ${
+            mode === 'OP' || costCenterCareScope !== 'op_only' ? 'md:grid-cols-2' : 'md:grid-cols-1'
+          }`}
         >
-          {costCenterCareScope !== 'op_only' &&
+          {mode === 'OP' ? (
+            <DashboardCard
+              fixedHeight
+              title="Appointments"
+              onAdd={() => setShowAppointmentModal(true)}
+              addButtonTitle="Add Appointment"
+            >
+              <AppointmentList
+                showAll
+                patient={selectedPatient}
+                refreshKey={appointmentRefreshKey}
+              />
+            </DashboardCard>
+          ) : (
+            costCenterCareScope !== 'op_only' &&
             (mode === 'IP' && activeAdmission ? (
               <DashboardCard fixedHeight title="ECT Chart">
                 <ECTChart patient={selectedPatient} />
@@ -2169,7 +2219,8 @@ return (
                   ECT Chart is only available for inpatient admissions
                 </div>
               </DashboardCard>
-            ))}
+            ))
+          )}
 
           <DashboardCard
             fixedHeight
@@ -2200,9 +2251,17 @@ return (
           </DashboardCard>
         </div>
 
-        {/* Row 6: Patient Visits — OP mode only */}
+        {/* Row 6: OP — Warnings & Allergies + Patient Visits on one row */}
         {costCenterCareScope !== 'ip_only' && mode === 'OP' && (
-          <div className="px-4 pb-4">
+          <div className="grid gap-4 md:grid-cols-2 auto-rows-fr px-4 pb-4">
+            <DashboardCard
+              fixedHeight
+              title="Warnings & Allergies"
+              onAdd={() => setShowWarningModal(true)}
+              addButtonTitle="Add Warning Message"
+            >
+              <WarningMessagesList patient={selectedPatient} key={warningRefreshKey} />
+            </DashboardCard>
             <DashboardCard fixedHeight title="Patient Visits (OP)">
               <PatientVisitList patient={selectedPatient} />
             </DashboardCard>
@@ -2321,6 +2380,17 @@ return (
         initialPatient={selectedPatient}
         defaultClinicalNoteType="Doctor Progress Note"
         title="Add Doctor Progress Note"
+      />
+    )}
+
+    {showDoctorMedicationPlanModal && selectedPatient && (
+      <CreateDoctorMedicationPlanModal
+        onClose={() => setShowDoctorMedicationPlanModal(false)}
+        onSuccess={() => {
+          setDoctorMedicationPlanRefreshKey((prev) => prev + 1)
+          setShowDoctorMedicationPlanModal(false)
+        }}
+        initialPatient={selectedPatient}
       />
     )}
 

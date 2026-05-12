@@ -127,7 +127,7 @@
    "in_list_view": 1,
    "label": "Status",
    "no_copy": 1,
-   "options": "\nScheduled\nOpen\nConfirmed\nChecked In\nChecked Out\nPostponed\nClosed\nCancelled\nNo Show",
+   "options": "\nScheduled\nOpen\nConfirmed\nChecked In\nChecked Out\nPostponed\nPatient Arrived\nClosed\nCancelled\nNo Show",
    "read_only": 1
   },
   {
@@ -571,7 +571,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2026-04-29 11:35:45.617776",
+ "modified": "2026-05-12 18:05:30.293460",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Appointment",

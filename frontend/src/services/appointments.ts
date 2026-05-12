@@ -67,7 +67,7 @@ export async function fetchAllAppointments(
   params.append('offset', offset.toString())
   if (status) params.append('status', status)
   if (patient) params.append('patient', patient)
-
+console.log("Uko hapa")
   const response = await fetch(
     `/api/method/healthcare.api.patient_appointment.get_all_appointments?${params.toString()}`
   )
@@ -104,12 +104,20 @@ export async function createAppointment(data: CreateAppointmentData): Promise<Ap
   }
 }
 
-/** Update appointment status (e.g. Cancelled, Confirmed). Uses healthcare doctype method. */
+/** Update appointment status; optional `notes` appends to the appointment Notes field (e.g. reception arrival). */
 export async function updateAppointmentStatus(
   appointmentId: string,
-  status: string
+  status: string,
+  notes?: string
 ): Promise<void> {
   const csrf = (window as any).csrf_token
+  const body: Record<string, string> = {
+    appointment_id: appointmentId,
+    status,
+  }
+  if (notes !== undefined && notes !== '') {
+    body.notes = notes
+  }
   const response = await fetch(
     '/api/method/healthcare.healthcare.doctype.patient_appointment.patient_appointment.update_status',
     {
@@ -118,12 +126,9 @@ export async function updateAppointmentStatus(
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-        ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {})
+        ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
       },
-      body: JSON.stringify({
-        appointment_id: appointmentId,
-        status
-      })
+      body: JSON.stringify(body),
     }
   )
   const resData = await response.json()

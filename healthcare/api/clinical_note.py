@@ -77,7 +77,7 @@ def get_clinical_notes(**kwargs):
 	note_type = kwargs.get('note_type')
 	reference_doctype = kwargs.get('ref_doctype')
 	reference_document = kwargs.get('ref_document')
-	
+	print("here fuck")
 	filters = {}
 	
 	if patient:
