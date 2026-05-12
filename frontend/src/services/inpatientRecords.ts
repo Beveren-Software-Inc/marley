@@ -1,4 +1,6 @@
 import { apiRequest } from './apiClient'
+import { ensureCSRF } from './apiClient'
+
 
 export interface InpatientOccupancy {
   service_unit?: string
@@ -343,12 +345,13 @@ export async function addPatientVisitor(admissionName: string, data: PatientVisi
     cpr__id_no: data.cpr__id_no,
     any_remarks: data.any_remarks,
   }
-
+const csrf = await ensureCSRF()
   const res = await fetch('/api/method/healthcare.api.inpatient_admission.add_patient_visitor', {
     method: 'POST',
+      
     headers: {
       'Content-Type': 'application/json',
-      'Accept': 'application/json',
+...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),      
     },
     body: JSON.stringify(payload),
     credentials: 'include',
@@ -377,10 +380,15 @@ export async function transferToAnotherCostCenter(
   if (options?.toServiceUnit) body.to_service_unit = options.toServiceUnit
   if (options?.reason) body.reason = options.reason
   if (options?.transferDatetime) body.transfer_datetime = options.transferDatetime
-
+  const csrf = await ensureCSRF()
   const res = await apiRequest<TransferToCostCenterResult>(
     '/api/method/healthcare.healthcare.doctype.inpatient_admission.inpatient_admission.transfer_to_another_cost_center',
-    { method: 'POST', body: JSON.stringify(body) }
+    { method: 'POST', 
+      credentials: 'include',
+    headers: { 'Content-Type': 'application/json',
+      ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
+     },
+      body: JSON.stringify(body) }
   )
   return res
 }

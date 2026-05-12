@@ -107,7 +107,7 @@ export const TransferCostCenterModal = ({ admission, onClose, onSuccess }: Trans
       <div className="absolute inset-0 bg-black/50" onClick={onClose} aria-hidden="true" />
       <div className="relative bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-hidden flex flex-col">
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
-          <h2 className="text-lg font-semibold text-slate-900">Transfer to Another Cost Center</h2>
+          <h2 className="text-lg font-semibold text-slate-900">Transfeto Another Cost Center</h2>
           <button
             type="button"
             onClick={onClose}

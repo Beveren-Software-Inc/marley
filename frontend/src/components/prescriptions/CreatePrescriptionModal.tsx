@@ -608,6 +608,23 @@ export const CreatePrescriptionModal = ({
   }
 
   const validMedications = medications.filter((m) => m.drug && m.dosage && m.dosage_form && m.date)
+// Add this function before the emptyMedicationRow
+const isControlledSubstance = (medication: MedicationOrderRow): boolean => {
+  return medication.is_pink === true || 
+         medication.medication_type === 'Regular - Med (Active)' || 
+         medication.medication_type === 'Regular - Psy (Active)';
+}
+
+  // Add this function before handleSubmit
+const validateControlledSubstances = (medications: MedicationOrderRow[]): string | null => {
+  for (let i = 0; i < medications.length; i++) {
+    const med = medications[i];
+    if (isControlledSubstance(med) && (!med.reference_no || med.reference_no.trim() === '')) {
+      return `Row #${i + 1}: ${med.drug_name || med.drug || 'Medication'} is a controlled substance (Pink/Active). A Reference/Prescription Number is required.`;
+    }
+  }
+  return null;
+};
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -619,6 +636,13 @@ export const CreatePrescriptionModal = ({
       setError('Please add at least one medication with Drug, Dosage, Dosage Form, and Date')
       setActiveTab('medications'); return
     }
+     const refError = validateControlledSubstances(medications);
+  if (refError) {
+    setError(refError);
+    setActiveTab('medications');
+    toast.error(refError);
+    return;
+  }
 
     try {
       setSubmitting(true)
@@ -728,7 +752,7 @@ export const CreatePrescriptionModal = ({
 
   return (
     <div className={CREATE_MODAL_OVERLAY}>
-      <div className={createModalShellClass('max-w-4xl w-full max-h-[90vh] min-h-[500px]')}>
+      <div className={createModalShellClass('max-w-4xl w-full max-h-[90vh] min-h-[600px]')}>
         <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between shrink-0 rounded-t-xl">
           <h2 className="text-lg font-semibold tracking-tight text-emerald-950">
             {isEditing ? 'Edit Prescription' : 'Create Prescription'}
