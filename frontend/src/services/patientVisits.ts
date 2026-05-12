@@ -1,4 +1,5 @@
 import type { PatientDocumentRow } from './patients'
+import { ensureCSRF } from './apiClient'
 
 export interface PatientVisit {
   name: string
@@ -151,28 +152,20 @@ export async function cancelVisit(visitName: string, reason: string): Promise<vo
 }
 
 
-// Create an invoice for a visit
-// export async function createInvoice(visitName: string): Promise<string> {
-//   const response = await fetch(`/api/method/healthcare.api.patient_visit.create_invoice`, {
-//     method: 'POST',
-//     headers: { 'Content-Type': 'application/json' },
-//     body: JSON.stringify({ visit_name: visitName })
-//   })
-//   const resData = await response.json()
-//   if (!resData?.message) {
-//     throw new Error('Failed to create invoice')
-//   }
-//   return resData.message as string // return invoice name/id
-// }
 
 export async function createInvoiceForVisit(visitName: string): Promise<{
   sales_invoice: string;
   status: string;
   message: string;
 }> {
+
+  const csrf = await ensureCSRF()
   const response = await fetch(`/api/method/healthcare.api.patient_visit.create_invoice_from_visit`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json',
+      ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
+     },
     body: JSON.stringify({ visit_name: visitName })
   });
   
@@ -203,10 +196,13 @@ export async function createPatientVisit(data: CreatePatientVisitData): Promise<
   //   method: 'POST',
   //   body: JSON.stringify({ data }),
   // })
-
+const csrf = await ensureCSRF()
   const response = await fetch(`/api/method/healthcare.api.patient_visit.create_patient_visit`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json',
+      ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
+     },
     body: JSON.stringify({ data})
   });
   
