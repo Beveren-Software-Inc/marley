@@ -1,4 +1,5 @@
 import { apiRequest } from './apiClient'
+import { ensureCSRF } from './apiClient'
 
 export interface LinkFieldOption {
   name: string
@@ -632,9 +633,13 @@ export async function fetchComplaints(search?: string): Promise<LinkFieldOption[
 }
 
 export async function createDiagnosis(diagnosis: string): Promise<string> {
+  const csrf = await ensureCSRF()
   const res = await fetch('/api/method/healthcare.api.common.create_diagnosis', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json',
+      ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
+     },
     body: JSON.stringify({ diagnosis: diagnosis.trim() }),
   })
   const data = await res.json()
@@ -735,9 +740,13 @@ export async function savePatientDiagnosis(
   parentName: string,
   rows: PatientDiagnosisRow[]
 ): Promise<void> {
+  const csrf = await ensureCSRF()
   const res = await fetch('/api/method/healthcare.api.common.save_patient_diagnosis', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json',
+      ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
+     },
     body: JSON.stringify({ parent_doctype: parentDoctype, parent_name: parentName, rows }),
   })
   const data = await res.json()
