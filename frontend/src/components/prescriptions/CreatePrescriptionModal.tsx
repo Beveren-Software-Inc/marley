@@ -938,6 +938,12 @@ const validateControlledSubstances = (medications: MedicationOrderRow[]): string
                         setFormData((p) => ({ ...p, practitioner: opt.name }))
                         setPractQuery(opt.label || opt.name)
                       }}
+                      renderOption={(opt) => (
+                        <div>
+                          <div className="font-medium">{opt.label || opt.name}</div>
+                          <div className="text-xs text-slate-500">{opt.name}</div>
+                        </div>
+                      )}
                     />
                   </div>
                 </div>

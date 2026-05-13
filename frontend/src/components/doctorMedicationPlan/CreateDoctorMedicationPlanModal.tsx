@@ -403,7 +403,10 @@ export const CreateDoctorMedicationPlanModal = ({
                         onClick={() => handlePractitionerSelect(pr)}
                         className={linkComboboxOptionClass}
                       >
-                        {pr.label}
+                        <div>
+                          <div className="font-medium">{pr.label}</div>
+                          <div className="text-xs text-slate-500">{pr.name}</div>
+                        </div>
                       </button>
                     ))}
                   </div>

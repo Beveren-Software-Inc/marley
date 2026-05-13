@@ -521,6 +521,7 @@ export const CreateSessionScheduleModal = ({
               renderOption={(opt) => (
                 <div>
                   <div className="font-medium">{opt.label || opt.name}</div>
+                  <div className="text-xs text-slate-500">{opt.name}</div>
                 </div>
               )}
             />

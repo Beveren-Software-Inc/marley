@@ -878,6 +878,7 @@ const Combo = ({
   onSelect,
   loading,
   disabled,
+  renderOption,
 }: {
   label: string
   required?: boolean
@@ -890,6 +891,7 @@ const Combo = ({
   onSelect: (opt: { name: string; label: string }) => void
   loading?: boolean
   disabled?: boolean
+  renderOption?: (opt: { name: string; label: string }) => React.ReactNode
 }) => (
   <div>
     <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -911,7 +913,7 @@ const Combo = ({
           {options.map((o) => (
             <button key={o.name} type="button" onClick={() => onSelect(o)}
               className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100">
-              {o.label}
+              {renderOption ? renderOption(o) : o.label}
             </button>
           ))}
         </div>
@@ -1403,6 +1405,7 @@ export const CreatePatientAssessmentModal = ({
                     onQueryChange={(q) => { setPractQuery(q); setPractOpen(true); if (!q) setSelectedPract(null) }}
                     onOpen={() => setPractOpen(true)} open={practOpen} options={practOptions}
                     onSelect={(o) => { setSelectedPract(o); setPractQuery(o.label); setPractOpen(false) }}
+                    renderOption={(o) => (<div><div className="font-medium">{o.label}</div><div className="text-xs text-slate-500">{o.name}</div></div>)}
                   />
                   <Combo label="Company" placeholder="Search company…"
                     displayValue={companyOpen ? companyQuery : (selectedCompany?.label ?? companyQuery)}

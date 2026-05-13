@@ -121,18 +121,18 @@
   "doctype": "Medical Role",
   "is_group": 0,
   "medical_role": "Consultant",
-  "modified": "2025-12-02 16:01:25.503017",
+  "modified": "2026-05-11 14:34:51.446282",
   "name": "Consultant",
-  "parent_medical_role": null
+  "parent_medical_role": "Doctor"
  },
  {
   "docstatus": 0,
   "doctype": "Medical Role",
   "is_group": 1,
   "medical_role": "Doctor",
-  "modified": "2026-04-21 14:47:12.781639",
+  "modified": "2026-05-12 17:56:54.287889",
   "name": "Doctor",
-  "parent_medical_role": null
+  "parent_medical_role": "Doctor"
  },
  {
   "docstatus": 0,

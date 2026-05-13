@@ -190,6 +190,11 @@ export const CreatePatientVisitModal = ({ onClose, onSuccess, initialPatient, in
   const [practOpen, setPractOpen] = useState(false)
   const [practQuery, setPractQuery] = useState('')
 
+  // Visit type searchable dropdown state
+  const [visitTypeOptions, setVisitTypeOptions] = useState<PatientVisitTypeOption[]>([])
+  const [visitTypeOpen, setVisitTypeOpen] = useState(false)
+  const [visitTypeQuery, setVisitTypeQuery] = useState('')
+
   const [formData, setFormData] = useState({
     practitioner: '',
     encounter_date: new Date().toISOString().split('T')[0],
@@ -197,7 +202,6 @@ export const CreatePatientVisitModal = ({ onClose, onSuccess, initialPatient, in
     visit_type: initialIOPEnrollment ? 'IOP' : '',
     appointment: ''
   })
-  const [visitTypeOptions, setVisitTypeOptions] = useState<PatientVisitTypeOption[]>([])
   const [activeTab, setActiveTab] = useState<'details' | 'documents'>('details')
 
   const [documentTypes, setDocumentTypes] = useState<{ name: string; document_name?: string }[]>([])
@@ -209,6 +213,7 @@ export const CreatePatientVisitModal = ({ onClose, onSuccess, initialPatient, in
   useEffect(() => {
     if (initialIOPEnrollment) {
       setFormData((prev) => (prev.visit_type === '' ? { ...prev, visit_type: 'IOP' } : prev))
+      setVisitTypeQuery('IOP')
     }
   }, [initialIOPEnrollment])
 
@@ -348,6 +353,21 @@ export const CreatePatientVisitModal = ({ onClose, onSuccess, initialPatient, in
       return () => clearTimeout(timeoutId)
     }
   }, [practQuery, practOpen])
+
+  // Search visit types
+  useEffect(() => {
+    if (!visitTypeOpen) return
+    const search = async () => {
+      try {
+        const results = await fetchPatientVisitTypes(visitTypeQuery || undefined)
+        setVisitTypeOptions(results)
+      } catch (err) {
+        console.error('Failed to search visit types:', err)
+      }
+    }
+    const timeoutId = setTimeout(search, visitTypeQuery.trim() === '' ? 0 : 300)
+    return () => clearTimeout(timeoutId)
+  }, [visitTypeQuery, visitTypeOpen])
 
   // const handleSubmit = async (e: React.FormEvent) => {
   //   e.preventDefault()
@@ -507,6 +527,7 @@ export const CreatePatientVisitModal = ({ onClose, onSuccess, initialPatient, in
           if (target.tagName !== 'INPUT' && !target.closest('.absolute')) {
             setPatientOpen(false)
             setPractOpen(false)
+            setVisitTypeOpen(false)
           }
         }}>
           {activeTab === 'details' && (
@@ -617,9 +638,9 @@ export const CreatePatientVisitModal = ({ onClose, onSuccess, initialPatient, in
                           }}
                         >
                           <div className="font-medium">{pract.label}</div>
-                          {pract.department && (
-                            <div className="text-xs text-slate-500">{pract.department}</div>
-                          )}
+                          <div className="text-xs text-slate-500">
+                            {[pract.name, pract.department].filter(Boolean).join(' · ')}
+                          </div>
                         </button>
                       ))
                     ) : (
@@ -631,22 +652,65 @@ export const CreatePatientVisitModal = ({ onClose, onSuccess, initialPatient, in
             </div>
 
             {/* Visit Type (ECG, ECT, IOP, follow-up, lab visit, etc.) */}
-            <div>
+            <div className="relative">
               <label className="block text-sm font-medium text-slate-700 mb-1">
                 Visit Type
               </label>
-              <select
-                value={formData.visit_type}
-                onChange={(e) => setFormData({ ...formData, visit_type: e.target.value })}
+              <input
+                type="text"
+                value={formData.visit_type
+                  ? (visitTypeOptions.find(v => v.name === formData.visit_type)?.visit_type || formData.visit_type)
+                  : visitTypeQuery}
+                onChange={(e) => {
+                  setVisitTypeQuery(e.target.value)
+                  setVisitTypeOpen(true)
+                  if (formData.visit_type) {
+                    setFormData({ ...formData, visit_type: '' })
+                  }
+                }}
+                onFocus={() => setVisitTypeOpen(true)}
+                placeholder="Search visit type..."
                 className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-              >
-                <option value="">Select visit type</option>
-                {visitTypeOptions.map((vt) => (
-                  <option key={vt.name} value={vt.name}>
-                    {vt.visit_type || vt.name}
-                  </option>
-                ))}
-              </select>
+              />
+              {formData.visit_type && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFormData({ ...formData, visit_type: '' })
+                    setVisitTypeQuery('')
+                  }}
+                  className="absolute right-2 top-[calc(50%+10px)] -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  title="Clear"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+              {visitTypeOpen && (
+                <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-auto">
+                  {visitTypeOptions.length > 0 ? (
+                    visitTypeOptions.map((vt) => (
+                      <button
+                        key={vt.name}
+                        type="button"
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50"
+                        onClick={() => {
+                          setFormData({ ...formData, visit_type: vt.name })
+                          setVisitTypeQuery(vt.visit_type || vt.name)
+                          setVisitTypeOpen(false)
+                        }}
+                      >
+                        {vt.visit_type || vt.name}
+                      </button>
+                    ))
+                  ) : (
+                    <div className="px-3 py-2 text-xs text-slate-500">
+                      {visitTypeQuery ? 'No visit types match your search.' : 'No visit types found.'}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Encounter Date */}

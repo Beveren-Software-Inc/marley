@@ -4,9 +4,7 @@
 
 import frappe
 from frappe import _
-
-print("Module healthcare.api.common loaded")
-
+from healthcare.api.utils.api_utility import get_next_transaction_number
 
 @frappe.whitelist()
 def get_current_user_roles():
@@ -635,35 +633,45 @@ def get_service_request_statuses(search=None):
 
 @frappe.whitelist()
 def create_healthcare_practitioner(data):
-	"""Create a new Healthcare Practitioner"""
+	"""Create a new Healthcare Practitioner.
+
+	Accepts `full_name` (single field) or legacy `first_name`/`middle_name`/`last_name`.
+	When `full_name` is provided the entire string is stored as `first_name` so that
+	`practitioner_name` equals the full name exactly as entered.
+	"""
 	if isinstance(data, str):
 		import json
 		data = json.loads(data)
-	
-	# Validate required fields
-	if not data.get('first_name'):
-		frappe.throw(_("First Name is required"))
-	
-	# Create the practitioner
-	practitioner = frappe.get_doc({
+
+	full_name = (data.get('full_name') or '').strip()
+	first_name = full_name or (data.get('first_name') or '').strip()
+
+	if not first_name:
+		frappe.throw(_("Full Name is required"))
+
+	doc_data = {
 		'doctype': 'Healthcare Practitioner',
-		'first_name': data.get('first_name'),
-		'middle_name': data.get('middle_name') or '',
-		'last_name': data.get('last_name') or '',
+		'doctors_id': get_next_transaction_number('Healthcare Practitioner', fieldname='doctors_id'),
+		'first_name': first_name,
+		'practitioner_name': first_name,
 		'gender': data.get('gender') or None,
 		'status': data.get('status') or 'Active',
 		'mobile_phone': data.get('mobile_phone') or None,
 		'office_phone': data.get('office_phone') or None,
 		'department': data.get('department') or None,
-		'medical_role': data.get('medical_role') or None
-	})
-	
+		'medical_role': data.get('medical_role') or None,
+	}
+
+	if not full_name:
+		doc_data['middle_name'] = data.get('middle_name') or ''
+		doc_data['last_name'] = data.get('last_name') or ''
+
+	practitioner = frappe.get_doc(doc_data)
 	practitioner.insert()
-	
-	# Return the created practitioner
+
 	return {
 		'name': practitioner.name,
-		'practitioner_name': practitioner.practitioner_name
+		'practitioner_name': practitioner.practitioner_name,
 	}
 
 

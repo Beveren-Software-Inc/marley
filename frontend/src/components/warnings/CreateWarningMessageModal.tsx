@@ -490,7 +490,10 @@ export const CreateWarningMessageModal = ({ onClose, onSuccess, initialPatient }
                           onClick={() => handlePractitionerSelect(pract)}
                           className={linkComboboxOptionClass}
                         >
-                          {pract.label}
+                          <div>
+                            <div className="font-medium">{pract.label}</div>
+                            <div className="text-xs text-slate-500">{pract.name}</div>
+                          </div>
                         </button>
                       ))}
                     </div>
