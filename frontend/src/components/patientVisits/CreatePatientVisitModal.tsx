@@ -542,21 +542,42 @@ export const CreatePatientVisitModal = ({ onClose, onSuccess, initialPatient, in
                 type="text"
                 value={selectedPatient ? (selectedPatient.patient_name || selectedPatient.name) : patientQuery}
                 onChange={(e) => {
-                  setPatientQuery(e.target.value)
+                  const val = e.target.value
+                  if (selectedPatient) {
+                    setSelectedPatient(null)
+                  }
+                  setPatientQuery(val)
                   setPatientOpen(true)
                 }}
                 onFocus={() => setPatientOpen(true)}
                 placeholder="Search patient..."
-                className="w-full rounded-md border border-slate-300 pr-9 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full rounded-md border border-slate-300 pr-16 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
               />
-              <button
-                type="button"
-                onClick={() => setShowCreatePatient(true)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center text-xs hover:bg-primary/90"
-                title="Add Patient"
-              >
-                +
-              </button>
+              <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                {selectedPatient && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedPatient(null)
+                      setPatientQuery('')
+                    }}
+                    className="text-slate-400 hover:text-slate-600"
+                    title="Clear patient"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setShowCreatePatient(true)}
+                  className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center text-xs hover:bg-primary/90"
+                  title="Add Patient"
+                >
+                  +
+                </button>
+              </div>
               {patientOpen && (
                 <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-auto">
                   {loading ? (
@@ -604,25 +625,44 @@ export const CreatePatientVisitModal = ({ onClose, onSuccess, initialPatient, in
                   onChange={(e) => {
                     setPractQuery(e.target.value)
                     setPractOpen(true)
+                    if (formData.practitioner) {
+                      setFormData({ ...formData, practitioner: '' })
+                    }
                   }}
                   onFocus={() => setPractOpen(true)}
                   placeholder="Search Healthcare Practitioner..."
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                  required
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 pr-14 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                 />
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setShowCreatePractitioner(true)
-                  }}
-                  className="absolute right-2 p-1 text-primary hover:text-primary/80 rounded"
-                  title="Create New Practitioner"
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
-                </button>
+                <div className="absolute right-2 flex items-center gap-1">
+                  {formData.practitioner && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormData({ ...formData, practitioner: '' })
+                        setPractQuery('')
+                      }}
+                      className="text-slate-400 hover:text-slate-600"
+                      title="Clear practitioner"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setShowCreatePractitioner(true)
+                    }}
+                    className="p-1 text-primary hover:text-primary/80 rounded"
+                    title="Create New Practitioner"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                  </button>
+                </div>
                 {practOpen && (
                   <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-auto top-full">
                     {practitioners.length > 0 ? (
@@ -670,7 +710,7 @@ export const CreatePatientVisitModal = ({ onClose, onSuccess, initialPatient, in
                 }}
                 onFocus={() => setVisitTypeOpen(true)}
                 placeholder="Search visit type..."
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
               />
               {formData.visit_type && (
                 <button
@@ -722,7 +762,7 @@ export const CreatePatientVisitModal = ({ onClose, onSuccess, initialPatient, in
                 type="date"
                 value={formData.encounter_date}
                 onChange={(e) => setFormData({ ...formData, encounter_date: e.target.value })}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                 required
               />
             </div>
@@ -736,7 +776,7 @@ export const CreatePatientVisitModal = ({ onClose, onSuccess, initialPatient, in
                 type="time"
                 value={formData.encounter_time}
                 onChange={(e) => setFormData({ ...formData, encounter_time: e.target.value })}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                 required
               />
             </div>
@@ -784,7 +824,7 @@ export const CreatePatientVisitModal = ({ onClose, onSuccess, initialPatient, in
                             value={row.file_name || ''}
                             onChange={(e) => updateDocumentRow(idx, 'file_name', e.target.value)}
                             placeholder="File name"
-                            className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                            className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                           />
                         </div>
                         <div>
@@ -792,7 +832,7 @@ export const CreatePatientVisitModal = ({ onClose, onSuccess, initialPatient, in
                           <select
                             value={row.document_type || ''}
                             onChange={(e) => updateDocumentRow(idx, 'document_type', e.target.value)}
-                            className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary"
+                            className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                           >
                             <option value="">Select type</option>
                             {documentTypes.map((dt) => (
@@ -808,7 +848,7 @@ export const CreatePatientVisitModal = ({ onClose, onSuccess, initialPatient, in
                             value={row.transaction_no || ''}
                             onChange={(e) => updateDocumentRow(idx, 'transaction_no', e.target.value)}
                             placeholder="Transaction number"
-                            className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                            className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                           />
                         </div>
                         <div>
@@ -817,7 +857,7 @@ export const CreatePatientVisitModal = ({ onClose, onSuccess, initialPatient, in
                             value={row.upload_remarks || ''}
                             onChange={(e) => updateDocumentRow(idx, 'upload_remarks', e.target.value)}
                             placeholder="Remarks"
-                            className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                            className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                           />
                         </div>
                         <div className="sm:col-span-2">

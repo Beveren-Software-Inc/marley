@@ -905,6 +905,7 @@ export interface CreatePractitionerData {
   office_phone?: string
   department?: string
   medical_role?: string
+  practitioner_schedules?: { schedule: string; service_unit?: string }[]
 }
 
 export async function createPractitioner(data: CreatePractitionerData): Promise<{ name: string; practitioner_name: string }> {
