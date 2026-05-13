@@ -52,6 +52,7 @@ import { CreatePatientModal } from '../components/patients/CreatePatientModal'
 import { PatientList } from '../components/patients/PatientList'
 import { PatientSearch } from '../components/patients/PatientSearch'
 import { PatientSummaryCard } from '../components/patients/PatientSummaryCard'
+import { CreatePatientVisitModal } from '../components/patientVisits/CreatePatientVisitModal'
 import { PatientVisitList } from '../components/patientVisits/PatientVisitList'
 import { CreatePHQ9AssessmentModal } from '../components/phq9/CreatePHQ9AssessmentModal'
 import { PHQ9AssessmentList } from '../components/phq9/PHQ9AssessmentList'
@@ -221,6 +222,7 @@ export const DoctorPage = () => {
   const [panssRefreshKey, setPanssRefreshKey] = useState(0)
   const [showSuicidalModal, setShowSuicidalModal] = useState(false)
   const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
+  const [showCreateVisitModal, setShowCreateVisitModal] = useState(false)
 
   // Sync selectedPatient with URL on mount and when URL changes
   useEffect(() => {
@@ -1312,7 +1314,7 @@ export const DoctorPage = () => {
           </div>
         </header>
         <div className="p-4">
-          <DashboardCard title="Patient Visit History">
+          <DashboardCard title="Patient Visit History" onAdd={() => setShowCreateVisitModal(true)} addButtonTitle="Create Patient Visit">
             <PatientVisitList patient={selectedPatient} />
           </DashboardCard>
         </div>
@@ -2065,7 +2067,7 @@ return (
     {(mode === 'OP' && !activeVisit) ||
     (costCenterCareScope !== 'op_only' && mode === 'IP' && !activeAdmission) ? (
       <div className="px-4 pt-4 pb-0">
-        <DashboardCard fixedHeight title={mode === 'OP' ? 'Patient Visits (OP)' : 'Inpatient Admissions (IP)'}>
+        <DashboardCard fixedHeight title={mode === 'OP' ? 'Patient Visits (OP)' : 'Inpatient Admissions (IP)'} onAdd={mode === 'OP' ? () => setShowCreateVisitModal(true) : undefined} addButtonTitle="Create Patient Visit">
           {mode === 'OP' ? (
             <PatientVisitList
               patient={selectedPatient || undefined}
@@ -2262,7 +2264,7 @@ return (
             >
               <WarningMessagesList patient={selectedPatient} key={warningRefreshKey} />
             </DashboardCard>
-            <DashboardCard fixedHeight title="Patient Visits (OP)">
+            <DashboardCard fixedHeight title="Patient Visits (OP)" onAdd={() => setShowCreateVisitModal(true)} addButtonTitle="Create Patient Visit">
               <PatientVisitList patient={selectedPatient} />
             </DashboardCard>
           </div>
@@ -2429,6 +2431,16 @@ return (
           setShowAppointmentModal(false)
         }}
         initialPatient={selectedPatient}
+      />
+    )}
+
+    {showCreateVisitModal && (
+      <CreatePatientVisitModal
+        onClose={() => setShowCreateVisitModal(false)}
+        onSuccess={() => {
+          setShowCreateVisitModal(false)
+        }}
+        initialPatient={selectedPatient || undefined}
       />
     )}
   </div>

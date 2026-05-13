@@ -667,6 +667,18 @@ def create_healthcare_practitioner(data):
 		doc_data['last_name'] = data.get('last_name') or ''
 
 	practitioner = frappe.get_doc(doc_data)
+
+	schedules = data.get('practitioner_schedules') or []
+	if isinstance(schedules, str):
+		import json
+		schedules = json.loads(schedules)
+	for s in schedules:
+		if s.get('schedule'):
+			practitioner.append('practitioner_schedules', {
+				'schedule': s.get('schedule'),
+				'service_unit': s.get('service_unit') or None,
+			})
+
 	practitioner.insert()
 
 	return {
