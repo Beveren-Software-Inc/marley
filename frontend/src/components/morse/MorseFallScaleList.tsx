@@ -5,9 +5,10 @@ import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 interface MorseFallScaleListProps {
   patient?: string
   refreshKey?: number
+  onPatientClick?: (patient: string) => void
 }
 
-export const MorseFallScaleList = ({ patient, refreshKey }: MorseFallScaleListProps) => {
+export const MorseFallScaleList = ({ patient, refreshKey, onPatientClick }: MorseFallScaleListProps) => {
   const [rows, setRows] = useState<MorseFallScale[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
@@ -61,7 +62,9 @@ export const MorseFallScaleList = ({ patient, refreshKey }: MorseFallScaleListPr
         <thead className="bg-slate-50 border-b border-slate-200">
           <tr>
             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Admission</th>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Patient</th>
+            {!patient && (
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Patient</th>
+            )}
             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Company</th>
             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Total Points</th>
             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase w-[100px]">Actions</th>
@@ -78,7 +81,17 @@ export const MorseFallScaleList = ({ patient, refreshKey }: MorseFallScaleListPr
               }}
             >
               <td className="px-4 py-3 text-sm text-slate-800">{row.admission_no}</td>
-              <td className="px-4 py-3 text-sm text-slate-700">{row.patient_no}</td>
+              {!patient && (
+                <td
+                  className="px-4 py-3 text-sm text-slate-700 cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    if (row.patient_no) onPatientClick?.(row.patient_no)
+                  }}
+                >
+                  <span className="font-medium text-primary hover:underline">{row.patient_no}</span>
+                </td>
+              )}
               <td className="px-4 py-3 text-sm text-slate-700">{row.company || '-'}</td>
               <td className="px-4 py-3 text-sm text-slate-700">{row.total_points ?? '-'}</td>
               <td className="px-4 py-2 align-middle" data-no-row-click>

@@ -14,9 +14,10 @@ interface ConsentRecord {
 interface ECTAnesthesiaConsentListProps {
   patient?: string
   refreshKey?: number
+  onPatientClick?: (patient: string) => void
 }
 
-export const ECTAnesthesiaConsentList = ({ patient, refreshKey }: ECTAnesthesiaConsentListProps) => {
+export const ECTAnesthesiaConsentList = ({ patient, refreshKey, onPatientClick }: ECTAnesthesiaConsentListProps) => {
   const [items, setItems] = useState<ConsentRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
@@ -79,7 +80,9 @@ export const ECTAnesthesiaConsentList = ({ patient, refreshKey }: ECTAnesthesiaC
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr>
               <th className="px-3 py-2 text-left text-[11px] font-semibold text-slate-600 uppercase">Consent #</th>
-              <th className="px-3 py-2 text-left text-[11px] font-semibold text-slate-600 uppercase">Patient</th>
+              {!patient && (
+                <th className="px-3 py-2 text-left text-[11px] font-semibold text-slate-600 uppercase">Patient</th>
+              )}
               <th className="px-3 py-2 text-left text-[11px] font-semibold text-slate-600 uppercase">Admission</th>
               <th className="px-3 py-2 text-left text-[11px] font-semibold text-slate-600 uppercase">Date</th>
               <th className="px-3 py-2 text-left text-[11px] font-semibold text-slate-600 uppercase">Actions</th>
@@ -97,9 +100,14 @@ export const ECTAnesthesiaConsentList = ({ patient, refreshKey }: ECTAnesthesiaC
                     {row.name}
                   </button>
                 </td>
-                <td className="px-3 py-2 text-slate-700 text-xs">
-                  {row.patient_name || row.patient || '—'}
-                </td>
+                {!patient && (
+                  <td
+                    className="px-3 py-2 cursor-pointer"
+                    onClick={() => row.patient && onPatientClick?.(row.patient)}
+                  >
+                    <span className="font-medium text-primary hover:underline">{row.patient_name || row.patient || '—'}</span>
+                  </td>
+                )}
                 <td className="px-3 py-2 text-slate-500 text-xs">
                   {row.inpatient_admission || '—'}
                 </td>

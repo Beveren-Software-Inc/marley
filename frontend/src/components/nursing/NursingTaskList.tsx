@@ -4,6 +4,7 @@ import { fetchNursingTasks, type NursingTaskRow } from '../../services/nursingTa
 interface NursingTaskListProps {
   patient?: string
   myTasks?: boolean
+  onPatientClick?: (patient: string) => void
 }
 
 const statusColors: Record<string, string> = {
@@ -30,7 +31,7 @@ const ACTIVE_STATUSES = [
   'On Hold',
 ]
 
-export const NursingTaskList = ({ patient, myTasks }: NursingTaskListProps) => {
+export const NursingTaskList = ({ patient, myTasks, onPatientClick }: NursingTaskListProps) => {
   const [tasks, setTasks] = useState<NursingTaskRow[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -109,7 +110,9 @@ export const NursingTaskList = ({ patient, myTasks }: NursingTaskListProps) => {
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr>
               <th className="px-3 py-2 text-left font-semibold text-slate-600">Task</th>
-              <th className="px-3 py-2 text-left font-semibold text-slate-600">Patient</th>
+              {!patient && (
+                <th className="px-3 py-2 text-left font-semibold text-slate-600">Patient</th>
+              )}
               <th className="px-3 py-2 text-left font-semibold text-slate-600">Admission</th>
               <th className="px-3 py-2 text-left font-semibold text-slate-600">Service Unit</th>
               <th className="px-3 py-2 text-left font-semibold text-slate-600">Requested</th>
@@ -138,9 +141,14 @@ export const NursingTaskList = ({ patient, myTasks }: NursingTaskListProps) => {
                       </div>
                     )}
                   </td>
-                  <td className="px-3 py-2 text-slate-800">
-                    {t.patient_name || t.patient || '—'}
-                  </td>
+                  {!patient && (
+                    <td
+                      className="px-3 py-2 cursor-pointer"
+                      onClick={(e) => { e.stopPropagation(); t.patient && onPatientClick?.(t.patient) }}
+                    >
+                      <span className="font-medium text-primary hover:underline">{t.patient_name || t.patient || '—'}</span>
+                    </td>
+                  )}
                   <td className="px-3 py-2 text-slate-800">{t.inpatient_record || '—'}</td>
                   <td className="px-3 py-2 text-slate-800">{t.service_unit || '—'}</td>
                   <td className="px-3 py-2 text-slate-800">

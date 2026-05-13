@@ -36,7 +36,6 @@ import { MedicineGivenList } from '../components/medication/MedicineGivenList'
 import { ReceptionLongActingMedicineList } from '../components/medication/ReceptionLongActingMedicineList'
 import { CreateMoodDisorderAssessmentModal } from '../components/mood_disorder/CreateMoodDisorderAssessmentModal'
 import { MoodDisorderAssessmentList } from '../components/mood_disorder/MoodDisorderAssessmentList'
-import { CreateMorseFallScaleModal } from '../components/morse/CreateMorseFallScaleModal'
 import { MorseFallScaleList } from '../components/morse/MorseFallScaleList'
 import { NotificationBell } from '../components/notifications/NotificationBell'
 import { CreateNurseTaskModal } from '../components/nurseTask/CreateNurseTaskModal'
@@ -189,8 +188,7 @@ export const DoctorPage = () => {
   const [vitalSignsRefreshKey, setVitalSignsRefreshKey] = useState(0)
   const [showSleepingPatternModal, setShowSleepingPatternModal] = useState(false)
   const [sleepingPatternRefreshKey, setSleepingPatternRefreshKey] = useState(0)
-  const [showMorseFallModal, setShowMorseFallModal] = useState(false)
-  const [morseFallRefreshKey, setMorseFallRefreshKey] = useState(0)
+  const [morseFallRefreshKey] = useState(0)
   const [showCreateNurseTaskModal, setShowCreateNurseTaskModal] = useState(false)
   const [longActingRefreshKey] = useState(0)
   const [showPhysicalExamModal, setShowPhysicalExamModal] = useState(false)
@@ -198,7 +196,7 @@ export const DoctorPage = () => {
   const [showPatientHistoryModal, setShowPatientHistoryModal] = useState(false)
   const [patientHistoryRefreshKey, setPatientHistoryRefreshKey] = useState(0)
   const rawScreen = searchParams.get('screen')
-  const screenBlocked = !!(rawScreen && isDoctorScreenBlocked(rawScreen, costCenterCareScope))
+  const screenBlocked = !!(rawScreen && isDoctorScreenBlocked(rawScreen, costCenterCareScope, mode))
   const screen = screenBlocked ? null : rawScreen
   const [showCreateADHDModal, setShowCreateADHDModal] = useState(false)
   const [adhdRefreshKey, setAdhdRefreshKey] = useState(0)
@@ -249,11 +247,11 @@ export const DoctorPage = () => {
   }, [screen, selectedPatient, searchParams, setSearchParams])
 
   useLayoutEffect(() => {
-    if (!rawScreen || !isDoctorScreenBlocked(rawScreen, costCenterCareScope)) return
+    if (!rawScreen || !isDoctorScreenBlocked(rawScreen, costCenterCareScope, mode)) return
     const np = new URLSearchParams(searchParams)
     np.delete('screen')
     setSearchParams(np, { replace: true })
-  }, [rawScreen, costCenterCareScope, searchParams, setSearchParams])
+  }, [rawScreen, costCenterCareScope, mode, searchParams, setSearchParams])
 
   const handleCreateDischarge = async () => {
     if (!selectedPatient) {
@@ -297,8 +295,8 @@ export const DoctorPage = () => {
     setSearchParams(newSearchParams, { replace: true })
   }
 
-  // Show Admission page when screen=admission
-  if (screen === 'admission') {
+  // Show Admission page when screen=admission — hidden in OP mode
+  if (screen === 'admission' && mode !== 'OP') {
     return <AdmissionPage />
   }
 
@@ -450,6 +448,7 @@ export const DoctorPage = () => {
               medicalRole="Doctor"
               clinicalNoteType="Doctors Note"
               key={clinicalNotesRefreshKey}
+              onPatientClick={handlePatientSelect}
             />
           </DashboardCard>
         </div>
@@ -497,6 +496,7 @@ export const DoctorPage = () => {
               medicalRole="Doctor"
               clinicalNoteType="Doctor Progress Note"
               key={clinicalNotesRefreshKey}
+              onPatientClick={handlePatientSelect}
             />
           </DashboardCard>
         </div>
@@ -543,6 +543,7 @@ export const DoctorPage = () => {
               patient={selectedPatient} 
               clinicalNoteType="Doctors Order"
               key={clinicalNotesRefreshKey}
+              onPatientClick={handlePatientSelect}
             />
           </DashboardCard>
         </div>
@@ -586,7 +587,7 @@ export const DoctorPage = () => {
             addButtonTitle="Add Lab Test"
             noHeightLimit
           >
-            <LabTestList patient={selectedPatient} defaultStatus="Pending Review" key={labTestRefreshKey} />
+            <LabTestList patient={selectedPatient} defaultStatus="Pending Review" key={labTestRefreshKey} onPatientClick={handlePatientSelect} />
           </DashboardCard>
         </div>
       </div>
@@ -621,6 +622,7 @@ export const DoctorPage = () => {
               medicalRole="Psychologist"
               clinicalNoteType="Psychologist Note"
               key={clinicalNotesRefreshKey}
+              onPatientClick={handlePatientSelect}
             />
           </DashboardCard>
         </div>
@@ -667,6 +669,7 @@ export const DoctorPage = () => {
               patient={selectedPatient}
               medicalRole="Psychologist"
               clinicalNoteType="Psychologist Order"
+              onPatientClick={handlePatientSelect}
             />
           </DashboardCard>
         </div>
@@ -713,6 +716,7 @@ export const DoctorPage = () => {
               patient={selectedPatient} 
               medicalRole="Physiotherapist"
               key={clinicalNotesRefreshKey}
+              onPatientClick={handlePatientSelect}
             />
           </DashboardCard>
         </div>
@@ -759,6 +763,7 @@ export const DoctorPage = () => {
               patient={selectedPatient} 
               medicalRole="Nurse"
               key={clinicalNotesRefreshKey}
+              onPatientClick={handlePatientSelect}
             />
           </DashboardCard>
         </div>
@@ -841,7 +846,7 @@ export const DoctorPage = () => {
             onAdd={() => setShowObservationModal(true)}
             addButtonTitle="Add Observation"
           >
-            <ObservationList patient={selectedPatient} key={observationRefreshKey} />
+            <ObservationList patient={selectedPatient} key={observationRefreshKey} onPatientClick={handlePatientSelect} />
           </DashboardCard>
         </div>
         {showObservationModal && (
@@ -881,7 +886,7 @@ export const DoctorPage = () => {
             onAdd={() => setShowVitalSignModal(true)}
             addButtonTitle="Add Vital Signs"
           >
-            <VitalSignsList patient={selectedPatient} refreshKey={vitalSignsRefreshKey} />
+            <VitalSignsList patient={selectedPatient} refreshKey={vitalSignsRefreshKey} onPatientClick={handlePatientSelect} />
           </DashboardCard>
         </div>
         {showVitalSignModal && (
@@ -898,7 +903,7 @@ export const DoctorPage = () => {
     )
   }
 
-  // Show Doctors Prescriptions
+  // Show All Prescriptions
   if (screen === 'rx') {
     return (
       <div className="flex flex-col">
@@ -917,7 +922,7 @@ export const DoctorPage = () => {
         </header>
         <div className="p-4">
           <DashboardCard 
-            title="Doctors Prescriptions" 
+            title="All Prescriptions" 
             onAdd={() => setShowPrescriptionModal(true)}
             addButtonTitle="Create Prescription"
             noHeightLimit
@@ -925,6 +930,7 @@ export const DoctorPage = () => {
             <PrescriptionList
               patient={selectedPatient}
               refreshKey={prescriptionRefreshKey}
+              onPatientClick={handlePatientSelect}
             />
           </DashboardCard>
         </div>
@@ -942,8 +948,8 @@ export const DoctorPage = () => {
     )
   }
 
-  // Given Medicines
-  if (screen === 'gm') {
+  // Given Medicines — hidden in OP mode
+  if (screen === 'gm' && mode !== 'OP') {
     return (
       <div className="flex flex-col">
         <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
@@ -972,6 +978,7 @@ export const DoctorPage = () => {
         {showGivenMedicineModal && (
           <CreateMedicineGivenModal
             initialPatient={selectedPatient}
+            inpatientRecord={activeAdmission}
             onClose={() => setShowGivenMedicineModal(false)}
             onSuccess={() => {
               setGivenRefreshKey(prev => prev + 1)
@@ -1011,6 +1018,7 @@ export const DoctorPage = () => {
               patient={selectedPatient}
               refreshKey={prescriptionRefreshKey}
               careContext="Inpatient Admission"
+              onPatientClick={handlePatientSelect}
             />
           </DashboardCard>
         </div>
@@ -1046,22 +1054,10 @@ export const DoctorPage = () => {
           </div>
         </header>
         <div className="p-4">
-          <DashboardCard 
-            title="Morse Fall Scale" 
-            onAdd={() => setShowMorseFallModal(true)}
-            addButtonTitle="Create Morse Fall Scale"
-          >
-            <MorseFallScaleList patient={selectedPatient} refreshKey={morseFallRefreshKey} />
+          <DashboardCard title="Morse Fall Scale">
+            <MorseFallScaleList patient={selectedPatient} refreshKey={morseFallRefreshKey} onPatientClick={handlePatientSelect} />
           </DashboardCard>
         </div>
-        {showMorseFallModal && (
-          <CreateMorseFallScaleModal
-            patient={selectedPatient}
-            defaultAdmission={activeAdmission}
-            onClose={() => setShowMorseFallModal(false)}
-            onCreated={() => { setShowMorseFallModal(false); setMorseFallRefreshKey((k) => k + 1) }}
-          />
-        )}
       </div>
     )
   }
@@ -1315,7 +1311,7 @@ export const DoctorPage = () => {
         </header>
         <div className="p-4">
           <DashboardCard title="Patient Visit History" onAdd={() => setShowCreateVisitModal(true)} addButtonTitle="Create Patient Visit">
-            <PatientVisitList patient={selectedPatient} />
+            <PatientVisitList patient={selectedPatient} onPatientFromVisit={handlePatientSelect} />
           </DashboardCard>
         </div>
       </div>
@@ -1345,7 +1341,7 @@ export const DoctorPage = () => {
             onAdd={() => setShowWarningModal(true)}
             addButtonTitle="Add Warning Message"
           >
-            <WarningMessagesList patient={selectedPatient} key={warningRefreshKey} />
+            <WarningMessagesList patient={selectedPatient} key={warningRefreshKey} onPatientClick={handlePatientSelect} />
           </DashboardCard>
         </div>
         {showWarningModal && (
@@ -1390,6 +1386,7 @@ export const DoctorPage = () => {
               medicalRole="Nutritionist"
               clinicalNoteType="Nutritionist Note"
               key={clinicalNotesRefreshKey}
+              onPatientClick={handlePatientSelect}
             />
           </DashboardCard>
         </div>
@@ -1509,8 +1506,8 @@ export const DoctorPage = () => {
     )
   }
 
-  // Show Discharge Form
-  if (screen === 'df') {
+  // Show Discharge Form — hidden in OP mode
+  if (screen === 'df' && mode !== 'OP') {
     return (
       <div className="flex flex-col">
         <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
@@ -1537,7 +1534,7 @@ export const DoctorPage = () => {
                 Draft — {draftSavedAt(selectedAdmission.name)}
               </div>
             )}
-            <DischargeList patient={selectedPatient} key={dischargeRefreshKey} />
+            <DischargeList patient={selectedPatient} key={dischargeRefreshKey} onPatientClick={handlePatientSelect} />
           </DashboardCard>
         </div>
         {showDischargeModal && selectedAdmission && (
@@ -2019,7 +2016,7 @@ export const DoctorPage = () => {
     )
   }
 
-  // Show Single Prescription
+  // Show Current Prescription
   if (screen === 'single-prescription') {
     return (
       <div className="flex flex-col">
@@ -2106,33 +2103,25 @@ return (
           </DashboardCard>
         </div>
 
-        {/* Row 2: OP — Doctor Progress Notes (left) + Doctor Medication Plan (right); IP — Warnings + Progress Notes */}
+        {/* Row 2: OP — Appointments + Patient Visits (first row for OP); IP — Warnings + Progress Notes */}
         {costCenterCareScope !== 'ip_only' && mode === 'OP' ? (
           <div className="grid gap-4 md:grid-cols-2 auto-rows-fr px-4 pb-4">
             <DashboardCard
               fixedHeight
-              title="Doctor Progress Notes"
-              onAdd={() => setShowDoctorProgressNoteModal(true)}
-              addButtonTitle="Add Doctor Progress Note"
+              title="Appointments"
+              onAdd={() => setShowAppointmentModal(true)}
+              addButtonTitle="Add Appointment"
             >
-              <ClinicalNotesList
+              <AppointmentList
+                showAll
                 patient={selectedPatient}
-                medicalRole="Doctor"
-                clinicalNoteType="Doctor Progress Note"
-                key={doctorProgressNoteRefreshKey}
+                refreshKey={appointmentRefreshKey}
+                onPatientClick={handlePatientSelect}
               />
             </DashboardCard>
 
-            <DashboardCard
-              fixedHeight
-              title="Doctor Medication Plan"
-              onAdd={() => setShowDoctorMedicationPlanModal(true)}
-              addButtonTitle="Add Doctor Medication Plan"
-            >
-              <DoctorMedicationPlanList
-                patient={selectedPatient}
-                key={doctorMedicationPlanRefreshKey}
-              />
+            <DashboardCard fixedHeight title="Patient Visits (OP)" onAdd={() => setShowCreateVisitModal(true)} addButtonTitle="Create Patient Visit">
+              <PatientVisitList patient={selectedPatient} onPatientFromVisit={handlePatientSelect} />
             </DashboardCard>
           </div>
         ) : (
@@ -2143,7 +2132,7 @@ return (
               onAdd={() => setShowWarningModal(true)}
               addButtonTitle="Add Warning Message"
             >
-              <WarningMessagesList patient={selectedPatient} key={warningRefreshKey} />
+              <WarningMessagesList patient={selectedPatient} key={warningRefreshKey} onPatientClick={handlePatientSelect} />
             </DashboardCard>
 
             <DashboardCard
@@ -2157,6 +2146,7 @@ return (
                 medicalRole="Doctor"
                 clinicalNoteType="Doctor Progress Note"
                 key={doctorProgressNoteRefreshKey}
+                onPatientClick={handlePatientSelect}
               />
             </DashboardCard>
           </div>
@@ -2174,6 +2164,7 @@ return (
               patient={selectedPatient}
               defaultStatus="Pending Review"
               key={labTestRefreshKey}
+              onPatientClick={handlePatientSelect}
             />
           </DashboardCard>
 
@@ -2186,11 +2177,12 @@ return (
             <ServiceRequestList 
               patient={selectedPatient} 
               refreshKey={serviceRequestRefreshKey}
+              onPatientClick={handlePatientSelect}
             />
           </DashboardCard>
         </div>
 
-        {/* Row 4: OP — Appointments + Diagnosis; IP — ECT Chart + Diagnosis (ECT hidden on op_only cost centers) */}
+        {/* Row 4: OP — Progress Notes + Medication Plan; IP — ECT Chart + Diagnosis */}
         <div
           className={`grid gap-4 px-4 pb-4 auto-rows-fr ${
             mode === 'OP' || costCenterCareScope !== 'op_only' ? 'md:grid-cols-2' : 'md:grid-cols-1'
@@ -2199,14 +2191,16 @@ return (
           {mode === 'OP' ? (
             <DashboardCard
               fixedHeight
-              title="Appointments"
-              onAdd={() => setShowAppointmentModal(true)}
-              addButtonTitle="Add Appointment"
+              title="Doctor Progress Notes"
+              onAdd={() => setShowDoctorProgressNoteModal(true)}
+              addButtonTitle="Add Doctor Progress Note"
             >
-              <AppointmentList
-                showAll
+              <ClinicalNotesList
                 patient={selectedPatient}
-                refreshKey={appointmentRefreshKey}
+                medicalRole="Doctor"
+                clinicalNoteType="Doctor Progress Note"
+                key={doctorProgressNoteRefreshKey}
+                onPatientClick={handlePatientSelect}
               />
             </DashboardCard>
           ) : (
@@ -2224,14 +2218,28 @@ return (
             ))
           )}
 
-          <DashboardCard
-            fixedHeight
-            title="Diagnosis Detail"
-            onAdd={() => setShowDiagnosisModal(true)}
-            addButtonTitle="Add / Edit Diagnosis"
-          >
-            <PatientDiagnosisList patient={selectedPatient} refreshKey={diagnosisRefreshKey} />
-          </DashboardCard>
+          {mode === 'OP' ? (
+            <DashboardCard
+              fixedHeight
+              title="Doctor Medication Plan"
+              onAdd={() => setShowDoctorMedicationPlanModal(true)}
+              addButtonTitle="Add Doctor Medication Plan"
+            >
+              <DoctorMedicationPlanList
+                patient={selectedPatient}
+                key={doctorMedicationPlanRefreshKey}
+              />
+            </DashboardCard>
+          ) : (
+            <DashboardCard
+              fixedHeight
+              title="Diagnosis Detail"
+              onAdd={() => setShowDiagnosisModal(true)}
+              addButtonTitle="Add / Edit Diagnosis"
+            >
+              <PatientDiagnosisList patient={selectedPatient} refreshKey={diagnosisRefreshKey} />
+            </DashboardCard>
+          )}
         </div>
 
         {/* Row 5: Prescription and Long Acting Medicine (on same line) */}
@@ -2242,7 +2250,7 @@ return (
             onAdd={() => setShowPrescriptionModal(true)}
             addButtonTitle="Create Prescription"
           >
-            <PrescriptionList patient={selectedPatient} refreshKey={prescriptionRefreshKey} />
+            <PrescriptionList patient={selectedPatient} refreshKey={prescriptionRefreshKey} onPatientClick={handlePatientSelect} />
           </DashboardCard>
 
           <DashboardCard fixedHeight title="Long Acting Medicine">
@@ -2253,7 +2261,7 @@ return (
           </DashboardCard>
         </div>
 
-        {/* Row 6: OP — Warnings & Allergies + Patient Visits on one row */}
+        {/* Row 6: OP — Warnings & Allergies + Diagnosis */}
         {costCenterCareScope !== 'ip_only' && mode === 'OP' && (
           <div className="grid gap-4 md:grid-cols-2 auto-rows-fr px-4 pb-4">
             <DashboardCard
@@ -2262,10 +2270,15 @@ return (
               onAdd={() => setShowWarningModal(true)}
               addButtonTitle="Add Warning Message"
             >
-              <WarningMessagesList patient={selectedPatient} key={warningRefreshKey} />
+              <WarningMessagesList patient={selectedPatient} key={warningRefreshKey} onPatientClick={handlePatientSelect} />
             </DashboardCard>
-            <DashboardCard fixedHeight title="Patient Visits (OP)" onAdd={() => setShowCreateVisitModal(true)} addButtonTitle="Create Patient Visit">
-              <PatientVisitList patient={selectedPatient} />
+            <DashboardCard
+              fixedHeight
+              title="Diagnosis Detail"
+              onAdd={() => setShowDiagnosisModal(true)}
+              addButtonTitle="Add / Edit Diagnosis"
+            >
+              <PatientDiagnosisList patient={selectedPatient} refreshKey={diagnosisRefreshKey} />
             </DashboardCard>
           </div>
         )}
@@ -2274,7 +2287,7 @@ return (
         {costCenterCareScope !== 'op_only' && mode === 'IP' && (
           <div className="px-4 pb-4">
             <DashboardCard fixedHeight title="Admission & Discharges">
-              <DischargeList patient={selectedPatient} key={dischargeRefreshKey} />
+              <DischargeList patient={selectedPatient} key={dischargeRefreshKey} onPatientClick={handlePatientSelect} />
             </DashboardCard>
           </div>
         )}
@@ -2289,7 +2302,7 @@ return (
             onAdd={() => setShowWarningModal(true)}
             addButtonTitle="Add Warning Message"
           >
-            <WarningMessagesList patient={undefined} key={warningRefreshKey} />
+            <WarningMessagesList patient={undefined} key={warningRefreshKey} onPatientClick={handlePatientSelect} />
           </DashboardCard>
 
           <DashboardCard 
@@ -2298,7 +2311,7 @@ return (
             onAdd={() => setShowLabTestModal(true)}
             addButtonTitle="Add Lab Test Report"
           >
-            <LabTestList defaultStatus="Pending Review" key={labTestRefreshKey} />
+            <LabTestList defaultStatus="Pending Review" key={labTestRefreshKey} onPatientClick={handlePatientSelect} />
           </DashboardCard>
         </div>
 
@@ -2309,7 +2322,7 @@ return (
             onAdd={() => setShowAppointmentModal(true)}
             addButtonTitle="Add Appointment"
           >
-            <AppointmentList refreshKey={appointmentRefreshKey} />
+            <AppointmentList refreshKey={appointmentRefreshKey} onPatientClick={handlePatientSelect} />
           </DashboardCard>
 
           <DashboardCard 
@@ -2318,7 +2331,7 @@ return (
             onAdd={() => setShowPrescriptionModal(true)}
             addButtonTitle="Create Prescription"
           >
-            <PrescriptionList refreshKey={prescriptionRefreshKey} />
+            <PrescriptionList refreshKey={prescriptionRefreshKey} onPatientClick={handlePatientSelect} />
           </DashboardCard>
         </div>
       </>

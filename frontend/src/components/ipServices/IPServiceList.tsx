@@ -10,11 +10,12 @@ interface IPServiceListProps {
   admission_no?: string
   refreshKey?: number | string
   category?: 'Medical Service' | 'Other Service'
+  onPatientClick?: (patient: string) => void
 }
 
 const normalizeCategory = (category?: string) => (category || '').trim()
 
-export const IPServiceList = ({ patient, admission_no, refreshKey, category }: IPServiceListProps) => {
+export const IPServiceList = ({ patient, admission_no, refreshKey, category, onPatientClick }: IPServiceListProps) => {
   const [list, setList] = useState<IPServiceRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
@@ -130,7 +131,9 @@ export const IPServiceList = ({ patient, admission_no, refreshKey, category }: I
             <tr className="border-b border-slate-200 text-left text-slate-600 font-medium">
               <th className="py-2 pr-2">Name</th>
               <th className="py-2 pr-2">Admission</th>
-              <th className="py-2 pr-2">Patient</th>
+              {!patient && (
+                <th className="py-2 pr-2">Patient</th>
+              )}
               <th className="py-2 pr-2">Type</th>
               <th className="py-2 pr-2">Service Request</th>
               <th className="py-2 pr-2 text-right">Total</th>
@@ -152,12 +155,14 @@ export const IPServiceList = ({ patient, admission_no, refreshKey, category }: I
                 >
                   {row.admission_no ?? '–'}
                 </td>
-                <td 
-                  className="py-2 pr-2 cursor-pointer"
-                  onClick={() => handleView(row.name)}
-                >
-                  {row.patient_full_name ?? row.file_number ?? '–'}
-                </td>
+                {!patient && (
+                  <td
+                    className="py-2 pr-2 cursor-pointer"
+                    onClick={() => row.file_number && onPatientClick?.(row.file_number)}
+                  >
+                    <span className="font-medium text-primary hover:underline">{row.patient_full_name ?? row.file_number ?? '–'}</span>
+                  </td>
+                )}
                 <td 
                   className="py-2 pr-2 cursor-pointer"
                   onClick={() => handleView(row.name)}

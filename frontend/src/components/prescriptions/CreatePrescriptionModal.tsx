@@ -92,7 +92,6 @@ const emptyMedicationRow = (startDate: string): MedicationOrderRow => ({
   is_prn: false,
   is_long_acting: false,
   long_acting_frequency: 'Weekly',
-  reference_no: '',
   route_of_administration: '',
   medication_type: '',
 })
@@ -401,7 +400,6 @@ export const CreatePrescriptionModal = ({
           is_prn: med.is_prn || false,
           is_long_acting: med.is_long_acting || false,
           long_acting_frequency: med.long_acting_frequency || 'Weekly',
-          reference_no: med.reference_no || '',
           route_of_administration: med.route_of_administration || '',
           medication_type: med.medication_type || '',
         }))
@@ -608,22 +606,6 @@ export const CreatePrescriptionModal = ({
   }
 
   const validMedications = medications.filter((m) => m.drug && m.dosage && m.dosage_form && m.date)
-// Add this function before the emptyMedicationRow
-const isControlledSubstance = (medication: MedicationOrderRow): boolean => {
-  return medication.is_pink === true
-}
-
-  // Add this function before handleSubmit
-const validateControlledSubstances = (medications: MedicationOrderRow[]): string | null => {
-  for (let i = 0; i < medications.length; i++) {
-    const med = medications[i];
-    if (isControlledSubstance(med) && (!med.reference_no || med.reference_no.trim() === '')) {
-      return `Row #${i + 1}: ${med.drug_name || med.drug || 'Medication'} is a controlled substance (Pink/Active). A Reference/Prescription Number is required.`;
-    }
-  }
-  return null;
-};
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
@@ -634,14 +616,6 @@ const validateControlledSubstances = (medications: MedicationOrderRow[]): string
       setError('Please add at least one medication with Drug, Dosage, Dosage Form, and Date')
       setActiveTab('medications'); return
     }
-     const refError = validateControlledSubstances(medications);
-  if (refError) {
-    setError(refError);
-    setActiveTab('medications');
-    toast.error(refError);
-    return;
-  }
-
     try {
       setSubmitting(true)
       let successResult: { patient_visit: string; patient_medication_order: string } | undefined
@@ -1176,7 +1150,7 @@ const validateControlledSubstances = (medications: MedicationOrderRow[]): string
                             <p className="text-[11px] text-slate-500">Start + End Date → Days; or Start Date + Days → End Date</p>
                           )}
 
-                          <div className="grid grid-cols-3 gap-3">
+                          <div className="grid grid-cols-2 gap-3">
                             <div>
                               <label className="block text-xs font-medium text-slate-600 mb-1">Frequency</label>
                               <Combobox
@@ -1231,16 +1205,6 @@ const validateControlledSubstances = (medications: MedicationOrderRow[]): string
                                   updateMedicationRow(index, 'route_of_administration', '')
                                   setRouteQueries((prev) => ({ ...prev, [index]: '' }))
                                 }}
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-xs font-medium text-slate-600 mb-1">Ref No</label>
-                              <input
-                                type="text"
-                                value={row.reference_no ?? ''}
-                                onChange={(e) => updateMedicationRow(index, 'reference_no', e.target.value)}
-                                placeholder="Ref"
-                                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
                               />
                             </div>
                           </div>

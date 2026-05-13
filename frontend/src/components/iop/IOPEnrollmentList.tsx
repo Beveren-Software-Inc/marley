@@ -10,12 +10,14 @@ interface IOPEnrollmentListProps {
   refreshKey?: string | number
   iopDayFilter?: string
   patientFilter?: string
+  onPatientClick?: (patient: string) => void
 }
 
 export const IOPEnrollmentList = ({
   refreshKey,
   iopDayFilter,
-  patientFilter
+  patientFilter,
+  onPatientClick,
 }: IOPEnrollmentListProps) => {
   const [enrollments, setEnrollments] = useState<IOPEnrollment[]>([])
   const [loading, setLoading] = useState(true)
@@ -67,7 +69,9 @@ export const IOPEnrollmentList = ({
         <table className="w-full min-w-[500px]">
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Patient</th>
+              {!patientFilter && (
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Patient</th>
+              )}
               <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">IOP Day</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Date</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Status</th>
@@ -77,14 +81,21 @@ export const IOPEnrollmentList = ({
           <tbody className="divide-y divide-slate-200">
             {enrollments.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-4 py-6 text-center text-slate-500">
+                <td colSpan={patientFilter ? 4 : 5} className="px-4 py-6 text-center text-slate-500">
                   No enrollments. Enroll a patient in an IOP day.
                 </td>
               </tr>
             ) : (
               enrollments.map((e) => (
                 <tr key={e.name} className="hover:bg-slate-50">
-                  <td className="px-4 py-3 text-sm text-slate-700">{e.patient_name || e.patient || '-'}</td>
+                  {!patientFilter && (
+                    <td
+                      className="px-4 py-3 text-sm cursor-pointer"
+                      onClick={() => e.patient && onPatientClick?.(e.patient)}
+                    >
+                      <span className="font-medium text-primary hover:underline">{e.patient_name || e.patient || '-'}</span>
+                    </td>
+                  )}
                   <td className="px-4 py-3 text-sm text-slate-700">{e.iop_day || '-'}</td>
                   <td className="px-4 py-3 text-sm text-slate-700">{e.posting_date || '-'}</td>
                   <td className="px-4 py-3">

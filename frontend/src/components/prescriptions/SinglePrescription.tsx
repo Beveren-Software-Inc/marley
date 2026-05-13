@@ -3,14 +3,121 @@ import { createPortal } from 'react-dom'
 import {
   fetchPrescriptionByInpatientOrEncounter,
   saveMedicationOrderEntryStopReason,
+  updateMedicationOrderEntry,
+  checkMedicineGivenForEntry,
+  addMedicationOrderEntry,
+  getGivenStatusForPrescription,
   type Prescription,
 } from '../../services/prescriptions'
-import { RefreshCw, MoreVertical } from 'lucide-react'
+import { RefreshCw, MoreVertical, Pencil, Plus, X, ChevronDown } from 'lucide-react'
 import { useCareContext } from '../../providers/CareContextProvider'
-import { CreatePrescriptionModal } from './CreatePrescriptionModal'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { toast } from '../../hooks/useToast'
+import { CREATE_MODAL_OVERLAY, createModalShellClass } from '../ui/CreateModalChrome'
+import {
+  linkComboboxInputWithClearClass,
+  linkComboboxDropdownClass,
+  linkComboboxOptionClassCompact,
+} from '../ui/linkComboboxStyles'
+import {
+  fetchItems,
+  fetchPrescriptionFrequencies,
+  fetchRouteOfAdministrationList,
+  fetchDosageForms,
+  fetchStandardUoms,
+  type LinkFieldOption,
+} from '../../services/common'
 
+function addDaysToDate(dateStr: string, days: number): string {
+  const d = new Date(dateStr)
+  d.setDate(d.getDate() + Math.round(days))
+  return d.toISOString().split('T')[0]
+}
+function daysBetween(startStr: string, endStr: string): number {
+  if (!startStr || !endStr) return 0
+  const diff = new Date(endStr).getTime() - new Date(startStr).getTime()
+  return Math.round(diff / (24 * 60 * 60 * 1000))
+}
+
+
+// ─── Mini Combobox (matches CreatePrescriptionModal's Combobox) ───────────────
+const MiniCombobox = ({
+  value,
+  displayValue,
+  placeholder,
+  options,
+  loading,
+  onQueryChange,
+  onSelect,
+  onOpen,
+  onClear,
+  disabled,
+}: {
+  value: string
+  displayValue: string
+  placeholder: string
+  options: LinkFieldOption[]
+  loading?: boolean
+  onQueryChange: (q: string) => void
+  onSelect: (opt: LinkFieldOption) => void
+  onOpen: () => void
+  onClear?: () => void
+  disabled?: boolean
+}) => {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  return (
+    <div className="relative" ref={ref}>
+      <div className="relative">
+        <input
+          type="text"
+          value={displayValue}
+          onChange={(e) => { onQueryChange(e.target.value); setOpen(true) }}
+          onFocus={() => { setOpen(true); onOpen() }}
+          placeholder={placeholder}
+          disabled={disabled}
+          className={linkComboboxInputWithClearClass + (disabled ? ' !bg-slate-100 !text-slate-500' : '')}
+        />
+        <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
+          {displayValue && onClear && !disabled && (
+            <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onClear(); setOpen(false) }}
+              className="text-slate-400 hover:text-slate-600 transition-colors p-0.5" title="Clear">
+              <X className="w-4 h-4" />
+            </button>
+          )}
+          <ChevronDown className="w-4 h-4 text-slate-400 pointer-events-none" />
+        </div>
+      </div>
+      {open && !disabled && (
+        <div className={linkComboboxDropdownClass}>
+          {loading ? (
+            <div className="px-3 py-2 text-xs text-slate-500">Loading...</div>
+          ) : options.length ? (
+            options.map((opt) => (
+              <button key={opt.name} type="button" className={linkComboboxOptionClassCompact}
+                onClick={() => { onSelect(opt); setOpen(false) }}>
+                {opt.label || opt.name}
+              </button>
+            ))
+          ) : (
+            <div className="px-3 py-2 text-xs text-slate-500">
+              {value ? 'No matches' : 'Type to search...'}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
 
 // ─── Medication type definitions ──────────────────────────────────────────────
 const MED_TYPES = [
@@ -24,6 +131,7 @@ const MED_TYPES = [
   { key: 'Contraindicated',            label: 'Contraindicated',  icon: '🚫', color: 'rose'    },
   { key: 'Long Acting Medicine',       label: 'Long Acting',      icon: '⏳', color: 'teal'    },
   { key: 'Future Plan',                label: 'Future Plan',      icon: '📅', color: 'indigo'  },
+  { key: '__stopped__',                label: 'Stopped',          icon: '🛑', color: 'rose'    },
 ]
 
 const TYPE_COLORS: Record<string, { active: string; inactive: string; badge: string; activeBadge: string }> = {
@@ -67,8 +175,6 @@ const TypeFilterCard = ({
   isActive: boolean
   onClick: () => void
 }) => {
-  if (count === 0 && typeDef.key !== 'All') return null
-
   const hex = isHex(typeDef.color)
   const tailwind = !hex ? (TYPE_COLORS[typeDef.color] ?? TYPE_COLORS.slate) : null
 
@@ -94,15 +200,617 @@ const TypeFilterCard = ({
   )
 }
 
+// ─── Edit medication entry modal ──────────────────────────────────────────────
+const EditMedicationEntryModal = ({
+  order,
+  prescriptionName,
+  onClose,
+  onSaved,
+}: {
+  order: any
+  prescriptionName: string
+  onClose: () => void
+  onSaved: () => void | Promise<void>
+}) => {
+  const [form, setForm] = useState({
+    drug: order.drug || '',
+    drug_name: order.drug_name || '',
+    dosage: order.dosage || '',
+    uom: order.uom || '',
+    dosage_form: order.dosage_form || '',
+    no_of_days: order.no_of_days || '',
+    instructions: order.instructions || '',
+    date: order.date || '',
+    end_date: order.end_date || '',
+    patient_frequency: order.patient_frequency || '',
+    route_of_administration: order.route_of_administration || '',
+    is_pink: order.is_pink || false,
+    is_prn: order.is_prn || false,
+    is_long_acting: order.is_long_acting_medicine || false,
+    long_acting_frequency: order.long_acting_frequency || '',
+    medication_type: order.medication_type || '',
+  })
+  const [saving, setSaving] = useState(false)
+  const [givenCheck, setGivenCheck] = useState<{ loading: boolean; given: boolean }>({ loading: true, given: false })
+
+  const [freqQuery, setFreqQuery] = useState(order.patient_frequency || '')
+  const [freqOptions, setFreqOptions] = useState<LinkFieldOption[]>([])
+  const [freqLoading, setFreqLoading] = useState(false)
+  const [routeQuery, setRouteQuery] = useState(order.route_of_administration || '')
+  const [routeOptions, setRouteOptions] = useState<LinkFieldOption[]>([])
+  const [routeLoading, setRouteLoading] = useState(false)
+  const [uomQuery, setUomQuery] = useState(order.uom || '')
+  const [uomOptions, setUomOptions] = useState<LinkFieldOption[]>([])
+  const [uomLoading, setUomLoading] = useState(false)
+  const [dosageFormOptions, setDosageFormOptions] = useState<LinkFieldOption[]>([])
+
+  useEffect(() => {
+    fetchDosageForms().then(setDosageFormOptions).catch(() => setDosageFormOptions([]))
+    fetchStandardUoms().then(setUomOptions).catch(() => setUomOptions([]))
+  }, [])
+
+  const searchUoms = async (q: string) => {
+    setUomLoading(true)
+    try { setUomOptions(await fetchStandardUoms(q || undefined)) }
+    catch { setUomOptions([]) } finally { setUomLoading(false) }
+  }
+
+  const updateFieldWithDateCalc = (field: string, value: unknown) => {
+    setForm((f) => {
+      const next = { ...f, [field]: value }
+      if (field === 'date' || field === 'end_date' || field === 'no_of_days') {
+        const start = (field === 'date' ? value : next.date) as string
+        const end = (field === 'end_date' ? value : next.end_date) as string
+        const days = (field === 'no_of_days' ? value : next.no_of_days) as number
+        if ((field === 'date' || field === 'end_date') && start && end) {
+          next.no_of_days = String(daysBetween(start, end) || 1) as any
+        } else if (field === 'no_of_days' && start && typeof days === 'number' && days > 0) {
+          next.end_date = addDaysToDate(start, days)
+        } else if (field === 'date' && start && typeof next.no_of_days === 'number' && Number(next.no_of_days) > 0) {
+          next.end_date = addDaysToDate(start, Number(next.no_of_days))
+        }
+      }
+      return next
+    })
+  }
+
+  const searchFrequencies = async (q: string) => {
+    setFreqLoading(true)
+    try {
+      const all = await fetchPrescriptionFrequencies()
+      setFreqOptions(!q.trim() ? all : all.filter(f => f.label?.toLowerCase().includes(q.toLowerCase()) || f.name?.toLowerCase().includes(q.toLowerCase())))
+    } catch { setFreqOptions([]) } finally { setFreqLoading(false) }
+  }
+  const searchRoutes = async (q: string) => {
+    setRouteLoading(true)
+    try {
+      const all = await fetchRouteOfAdministrationList()
+      setRouteOptions(!q.trim() ? all : all.filter(r => r.label?.toLowerCase().includes(q.toLowerCase()) || r.name?.toLowerCase().includes(q.toLowerCase())))
+    } catch { setRouteOptions([]) } finally { setRouteLoading(false) }
+  }
+
+  useEffect(() => {
+    let cancelled = false
+    checkMedicineGivenForEntry(prescriptionName, order.name)
+      .then((res) => {
+        if (!cancelled) setGivenCheck({ loading: false, given: res.has_given })
+      })
+      .catch(() => {
+        if (!cancelled) setGivenCheck({ loading: false, given: false })
+      })
+    return () => { cancelled = true }
+  }, [prescriptionName, order.name])
+
+  const handleSave = async () => {
+    if (givenCheck.given) return
+    try {
+      setSaving(true)
+      const { is_long_acting, ...rest } = form
+      const payload = { ...rest, is_long_acting_medicine: is_long_acting }
+      await updateMedicationOrderEntry(prescriptionName, order.name, payload)
+      toast.success('Medication entry updated')
+      onSaved()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to update')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const updateField = (field: string, value: unknown) => setForm((f) => ({ ...f, [field]: value }))
+  const disabled = givenCheck.given
+
+  return createPortal(
+    <div
+      className={CREATE_MODAL_OVERLAY}
+      role="dialog"
+      aria-modal="true"
+      onMouseDown={(e) => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div className={createModalShellClass('max-w-xl w-full max-h-[85vh]')}>
+        <div className="px-6 py-4 border-b border-slate-200 shrink-0 rounded-t-2xl flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold tracking-tight text-emerald-950">
+              Edit Medication
+            </h2>
+            <p className="text-xs text-slate-500 mt-0.5">{order.drug_name}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            {givenCheck.loading ? (
+              <span className="text-xs text-slate-400">Checking...</span>
+            ) : givenCheck.given ? (
+              <span className="text-xs text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full font-medium">
+                Already given — read-only
+              </span>
+            ) : null}
+            <button onClick={onClose} className="shrink-0 rounded-lg p-2 text-emerald-800/70 transition hover:bg-emerald-200/50 hover:text-emerald-950">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Drug</label>
+              <input value={form.drug_name} disabled className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500 shadow-sm" />
+              <div className="text-[10px] text-slate-400 mt-0.5">{form.drug}</div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Medication Type</label>
+              <select
+                value={form.medication_type}
+                onChange={(e) => updateField('medication_type', e.target.value)}
+                disabled={disabled}
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25 disabled:bg-slate-100 disabled:text-slate-500"
+              >
+                <option value="">— Select —</option>
+                {MED_TYPES.filter(t => t.key !== 'All' && t.key !== '__stopped__').map(t => (
+                  <option key={t.key} value={t.key}>{t.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Dosage</label>
+              <input value={form.dosage} onChange={(e) => updateField('dosage', e.target.value)} disabled={disabled} placeholder="e.g. 1-0-1"
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25 disabled:bg-slate-100 disabled:text-slate-500" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Dosage Form</label>
+              <select value={form.dosage_form} onChange={(e) => updateField('dosage_form', e.target.value)} disabled={disabled}
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25 disabled:bg-slate-100 disabled:text-slate-500">
+                <option value="">Select...</option>
+                {dosageFormOptions.map((df) => <option key={df.name} value={df.name}>{df.label || df.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">UOM</label>
+              <MiniCombobox
+                value={form.uom}
+                displayValue={uomQuery}
+                placeholder="Type or select UOM..."
+                options={uomOptions}
+                loading={uomLoading}
+                disabled={disabled}
+                onQueryChange={(q) => { setUomQuery(q); searchUoms(q) }}
+                onOpen={() => { if (uomOptions.length === 0) searchUoms('') }}
+                onSelect={(opt) => { updateField('uom', opt.name); setUomQuery(opt.label || opt.name) }}
+                onClear={() => { updateField('uom', ''); setUomQuery('') }}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Frequency</label>
+              <MiniCombobox
+                value={form.patient_frequency}
+                displayValue={freqQuery}
+                placeholder="Search frequency..."
+                options={freqOptions}
+                loading={freqLoading}
+                disabled={disabled}
+                onQueryChange={(q) => { setFreqQuery(q); searchFrequencies(q) }}
+                onOpen={() => { if (freqOptions.length === 0) searchFrequencies('') }}
+                onSelect={(opt) => { updateField('patient_frequency', opt.name); setFreqQuery(opt.label || opt.name) }}
+                onClear={() => { updateField('patient_frequency', ''); setFreqQuery('') }}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Route</label>
+              <MiniCombobox
+                value={form.route_of_administration}
+                displayValue={routeQuery}
+                placeholder="Search route..."
+                options={routeOptions}
+                loading={routeLoading}
+                disabled={disabled}
+                onQueryChange={(q) => { setRouteQuery(q); searchRoutes(q) }}
+                onOpen={() => { if (routeOptions.length === 0) searchRoutes('') }}
+                onSelect={(opt) => { updateField('route_of_administration', opt.name); setRouteQuery(opt.label || opt.name) }}
+                onClear={() => { updateField('route_of_administration', ''); setRouteQuery('') }}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Start Date</label>
+              <input type="date" value={form.date} onChange={(e) => updateFieldWithDateCalc('date', e.target.value)} disabled={disabled}
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25 disabled:bg-slate-100 disabled:text-slate-500" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">End Date</label>
+              <input type="date" value={form.end_date} onChange={(e) => updateFieldWithDateCalc('end_date', e.target.value)} disabled={disabled}
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25 disabled:bg-slate-100 disabled:text-slate-500" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Days</label>
+              <input type="number" min={1} step={1} value={form.no_of_days} onChange={(e) => updateFieldWithDateCalc('no_of_days', e.target.value ? Number(e.target.value) : 1)} disabled={disabled}
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25 disabled:bg-slate-100 disabled:text-slate-500" />
+            </div>
+          </div>
+          <p className="text-[11px] text-slate-500">Start + End Date → Days; or Start Date + Days → End Date</p>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Instructions</label>
+            <textarea value={form.instructions} onChange={(e) => updateField('instructions', e.target.value)} disabled={disabled}
+              rows={2} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25 disabled:bg-slate-100 disabled:text-slate-500" />
+          </div>
+
+          <div className="flex flex-wrap gap-4 pt-1">
+            <label className="flex items-center gap-2 text-sm text-slate-700">
+              <input type="checkbox" checked={!!form.is_pink} onChange={(e) => updateField('is_pink', e.target.checked)} disabled={disabled}
+                className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" /> Pink
+            </label>
+            <label className="flex items-center gap-2 text-sm text-slate-700">
+              <input type="checkbox" checked={!!form.is_prn} onChange={(e) => updateField('is_prn', e.target.checked)} disabled={disabled}
+                className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" /> PRN
+            </label>
+            <label className="flex items-center gap-2 text-sm text-slate-700">
+              <input type="checkbox" checked={!!form.is_long_acting} onChange={(e) => updateField('is_long_acting', e.target.checked)} disabled={disabled}
+                className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" /> Long Acting
+            </label>
+          </div>
+
+          {form.is_long_acting && (
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Long Acting Frequency</label>
+              <input value={form.long_acting_frequency} onChange={(e) => updateField('long_acting_frequency', e.target.value)} disabled={disabled}
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25 disabled:bg-slate-100 disabled:text-slate-500" />
+            </div>
+          )}
+        </div>
+        <div className="px-6 py-4 border-t border-slate-200 flex justify-end gap-2 shrink-0 rounded-b-2xl bg-slate-50/50">
+          <button type="button" onClick={onClose}
+            className="px-4 py-2 text-sm rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-100 transition-colors">
+            {disabled ? 'Close' : 'Cancel'}
+          </button>
+          {!disabled && (
+            <button type="button" disabled={saving || givenCheck.loading} onClick={() => void handleSave()}
+              className="px-4 py-2 text-sm rounded-lg bg-primary text-white hover:bg-primary/90 disabled:opacity-50 transition-colors font-medium">
+              {saving ? 'Saving...' : 'Save Changes'}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>,
+    document.body
+  )
+}
+
+// ─── Add medication entry modal ──────────────────────────────────────────────
+const AddMedicationEntryModal = ({
+  prescriptionName,
+  onClose,
+  onSaved,
+}: {
+  prescriptionName: string
+  onClose: () => void
+  onSaved: () => void | Promise<void>
+}) => {
+  const [form, setForm] = useState({
+    drug: '',
+    drug_name: '',
+    dosage: '',
+    uom: '',
+    dosage_form: '',
+    no_of_days: '',
+    instructions: '',
+    date: new Date().toISOString().split('T')[0],
+    end_date: '',
+    patient_frequency: '',
+    route_of_administration: '',
+    is_pink: false,
+    is_prn: false,
+    is_long_acting: false,
+    long_acting_frequency: '',
+    medication_type: '',
+  })
+  const [saving, setSaving] = useState(false)
+  const [drugQuery, setDrugQuery] = useState('')
+  const [drugOpts, setDrugOpts] = useState<LinkFieldOption[]>([])
+  const [drugLoading, setDrugLoading] = useState(false)
+
+  const [addFreqQuery, setAddFreqQuery] = useState('')
+  const [addFreqOptions, setAddFreqOptions] = useState<LinkFieldOption[]>([])
+  const [addFreqLoading, setAddFreqLoading] = useState(false)
+  const [addRouteQuery, setAddRouteQuery] = useState('')
+  const [addRouteOptions, setAddRouteOptions] = useState<LinkFieldOption[]>([])
+  const [addRouteLoading, setAddRouteLoading] = useState(false)
+  const [addUomQuery, setAddUomQuery] = useState('')
+  const [addUomOptions, setAddUomOptions] = useState<LinkFieldOption[]>([])
+  const [addUomLoading, setAddUomLoading] = useState(false)
+  const [addDosageForms, setAddDosageForms] = useState<LinkFieldOption[]>([])
+
+  useEffect(() => {
+    fetchDosageForms().then(setAddDosageForms).catch(() => setAddDosageForms([]))
+    fetchStandardUoms().then(setAddUomOptions).catch(() => setAddUomOptions([]))
+  }, [])
+
+  const addSearchUoms = async (q: string) => {
+    setAddUomLoading(true)
+    try { setAddUomOptions(await fetchStandardUoms(q || undefined)) }
+    catch { setAddUomOptions([]) } finally { setAddUomLoading(false) }
+  }
+
+  const addUpdateFieldWithDateCalc = (field: string, value: unknown) => {
+    setForm((f) => {
+      const next = { ...f, [field]: value }
+      if (field === 'date' || field === 'end_date' || field === 'no_of_days') {
+        const start = (field === 'date' ? value : next.date) as string
+        const end = (field === 'end_date' ? value : next.end_date) as string
+        const days = (field === 'no_of_days' ? value : next.no_of_days) as number
+        if ((field === 'date' || field === 'end_date') && start && end) {
+          next.no_of_days = String(daysBetween(start, end) || 1) as any
+        } else if (field === 'no_of_days' && start && typeof days === 'number' && days > 0) {
+          next.end_date = addDaysToDate(start, days)
+        } else if (field === 'date' && start && typeof next.no_of_days === 'number' && Number(next.no_of_days) > 0) {
+          next.end_date = addDaysToDate(start, Number(next.no_of_days))
+        }
+      }
+      return next
+    })
+  }
+
+  const loadDrugOptions = (query: string) => {
+    if (!query || query.length < 1) { setDrugOpts([]); return }
+    setDrugLoading(true)
+    fetchItems(query)
+      .then((opts) => setDrugOpts(opts))
+      .catch(() => setDrugOpts([]))
+      .finally(() => setDrugLoading(false))
+  }
+
+  const addSearchFrequencies = async (q: string) => {
+    setAddFreqLoading(true)
+    try {
+      const all = await fetchPrescriptionFrequencies()
+      setAddFreqOptions(!q.trim() ? all : all.filter(f => f.label?.toLowerCase().includes(q.toLowerCase()) || f.name?.toLowerCase().includes(q.toLowerCase())))
+    } catch { setAddFreqOptions([]) } finally { setAddFreqLoading(false) }
+  }
+  const addSearchRoutes = async (q: string) => {
+    setAddRouteLoading(true)
+    try {
+      const all = await fetchRouteOfAdministrationList()
+      setAddRouteOptions(!q.trim() ? all : all.filter(r => r.label?.toLowerCase().includes(q.toLowerCase()) || r.name?.toLowerCase().includes(q.toLowerCase())))
+    } catch { setAddRouteOptions([]) } finally { setAddRouteLoading(false) }
+  }
+
+  const handleSave = async () => {
+    if (!form.drug || !form.dosage || !form.dosage_form || !form.date) {
+      toast.error('Drug, Dosage, Dosage Form, and Start Date are required')
+      return
+    }
+    try {
+      setSaving(true)
+      const { is_long_acting, ...rest } = form
+      const payload = { ...rest, is_long_acting_medicine: is_long_acting }
+      await addMedicationOrderEntry(prescriptionName, payload)
+      toast.success('Medicine added to prescription')
+      onSaved()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to add medicine')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const updateField = (field: string, value: unknown) => setForm((f) => ({ ...f, [field]: value }))
+
+  return createPortal(
+    <div
+      className={CREATE_MODAL_OVERLAY}
+      role="dialog"
+      aria-modal="true"
+      onMouseDown={(e) => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div className={createModalShellClass('max-w-xl w-full max-h-[85vh]')}>
+        <div className="px-6 py-4 border-b border-slate-200 shrink-0 rounded-t-2xl flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold tracking-tight text-emerald-950">Add Medicine</h2>
+            <p className="text-xs text-slate-500 mt-0.5">Add a new medicine to the current prescription</p>
+          </div>
+          <button onClick={onClose} className="shrink-0 rounded-lg p-2 text-emerald-800/70 transition hover:bg-emerald-200/50 hover:text-emerald-950">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Drug *</label>
+            <MiniCombobox
+              value={form.drug}
+              displayValue={drugQuery}
+              placeholder="Search drug..."
+              options={drugOpts}
+              loading={drugLoading}
+              onQueryChange={(q) => { setDrugQuery(q); loadDrugOptions(q) }}
+              onOpen={() => loadDrugOptions(drugQuery || '')}
+              onSelect={(opt) => {
+                updateField('drug', opt.name)
+                updateField('drug_name', opt.label || opt.name)
+                const stockUom = ((opt as any).stock_uom || '').trim()
+                updateField('uom', stockUom)
+                setAddUomQuery(stockUom)
+                setDrugQuery(opt.label || opt.name)
+              }}
+              onClear={() => { updateField('drug', ''); updateField('drug_name', ''); setDrugQuery('') }}
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Medication Type</label>
+            <select value={form.medication_type} onChange={(e) => updateField('medication_type', e.target.value)}
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25">
+              <option value="">— Select —</option>
+              {MED_TYPES.filter(t => t.key !== 'All' && t.key !== '__stopped__').map(t => (
+                <option key={t.key} value={t.key}>{t.label}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Dosage *</label>
+              <input value={form.dosage} onChange={(e) => updateField('dosage', e.target.value)} placeholder="e.g. 1-0-1"
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Dosage Form *</label>
+              <select value={form.dosage_form} onChange={(e) => updateField('dosage_form', e.target.value)}
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25">
+                <option value="">Select...</option>
+                {addDosageForms.map((df) => <option key={df.name} value={df.name}>{df.label || df.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">UOM</label>
+              <MiniCombobox
+                value={form.uom}
+                displayValue={addUomQuery}
+                placeholder="Type or select UOM..."
+                options={addUomOptions}
+                loading={addUomLoading}
+                onQueryChange={(q) => { setAddUomQuery(q); addSearchUoms(q) }}
+                onOpen={() => { if (addUomOptions.length === 0) addSearchUoms('') }}
+                onSelect={(opt) => { updateField('uom', opt.name); setAddUomQuery(opt.label || opt.name) }}
+                onClear={() => { updateField('uom', ''); setAddUomQuery('') }}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Frequency</label>
+              <MiniCombobox
+                value={form.patient_frequency}
+                displayValue={addFreqQuery}
+                placeholder="Search frequency..."
+                options={addFreqOptions}
+                loading={addFreqLoading}
+                onQueryChange={(q) => { setAddFreqQuery(q); addSearchFrequencies(q) }}
+                onOpen={() => { if (addFreqOptions.length === 0) addSearchFrequencies('') }}
+                onSelect={(opt) => { updateField('patient_frequency', opt.name); setAddFreqQuery(opt.label || opt.name) }}
+                onClear={() => { updateField('patient_frequency', ''); setAddFreqQuery('') }}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Route</label>
+              <MiniCombobox
+                value={form.route_of_administration}
+                displayValue={addRouteQuery}
+                placeholder="Search route..."
+                options={addRouteOptions}
+                loading={addRouteLoading}
+                onQueryChange={(q) => { setAddRouteQuery(q); addSearchRoutes(q) }}
+                onOpen={() => { if (addRouteOptions.length === 0) addSearchRoutes('') }}
+                onSelect={(opt) => { updateField('route_of_administration', opt.name); setAddRouteQuery(opt.label || opt.name) }}
+                onClear={() => { updateField('route_of_administration', ''); setAddRouteQuery('') }}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Start Date *</label>
+              <input type="date" value={form.date} onChange={(e) => addUpdateFieldWithDateCalc('date', e.target.value)}
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">End Date</label>
+              <input type="date" value={form.end_date} onChange={(e) => addUpdateFieldWithDateCalc('end_date', e.target.value)}
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Days</label>
+              <input type="number" min={1} step={1} value={form.no_of_days} onChange={(e) => addUpdateFieldWithDateCalc('no_of_days', e.target.value ? Number(e.target.value) : 1)}
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25" />
+            </div>
+          </div>
+          <p className="text-[11px] text-slate-500">Start + End Date → Days; or Start Date + Days → End Date</p>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Instructions</label>
+            <textarea value={form.instructions} onChange={(e) => updateField('instructions', e.target.value)}
+              rows={2} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25" />
+          </div>
+
+          <div className="flex flex-wrap gap-4 pt-1">
+            <label className="flex items-center gap-2 text-sm text-slate-700">
+              <input type="checkbox" checked={!!form.is_pink} onChange={(e) => updateField('is_pink', e.target.checked)}
+                className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" /> Pink
+            </label>
+            <label className="flex items-center gap-2 text-sm text-slate-700">
+              <input type="checkbox" checked={!!form.is_prn} onChange={(e) => updateField('is_prn', e.target.checked)}
+                className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" /> PRN
+            </label>
+            <label className="flex items-center gap-2 text-sm text-slate-700">
+              <input type="checkbox" checked={!!form.is_long_acting} onChange={(e) => updateField('is_long_acting', e.target.checked)}
+                className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" /> Long Acting
+            </label>
+          </div>
+
+          {form.is_long_acting && (
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Long Acting Frequency</label>
+              <input value={form.long_acting_frequency} onChange={(e) => updateField('long_acting_frequency', e.target.value)}
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25" />
+            </div>
+          )}
+        </div>
+        <div className="px-6 py-4 border-t border-slate-200 flex justify-end gap-2 shrink-0 rounded-b-2xl bg-slate-50/50">
+          <button type="button" onClick={onClose}
+            className="px-4 py-2 text-sm rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-100 transition-colors">
+            Cancel
+          </button>
+          <button type="button" disabled={saving} onClick={() => void handleSave()}
+            className="px-4 py-2 text-sm rounded-lg bg-primary text-white hover:bg-primary/90 disabled:opacity-50 transition-colors font-medium">
+            {saving ? 'Adding...' : 'Add Medicine'}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  )
+}
+
 // ─── Table row ────────────────────────────────────────────────────────────────
 const MedicationRow = ({
   order,
   prescriptionName,
   onUpdated,
+  onEdit,
+  readOnly = false,
+  givenInfo,
 }: {
   order: any
   prescriptionName: string
   onUpdated: () => void | Promise<void>
+  onEdit: () => void
+  readOnly?: boolean
+  givenInfo?: { has_given: boolean; count: number }
 }) => {
   const color = getTypeColor(order.medication_type)
   const rowStyle = isHex(color) ? hexRowStyle(color) : {}
@@ -182,7 +890,7 @@ const MedicationRow = ({
                 value={reasonDraft}
                 onChange={(e) => setReasonDraft(e.target.value)}
                 rows={4}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary"
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25"
                 placeholder="e.g. Side effects, replaced by X, patient refused…"
               />
               <div className="flex justify-end gap-2 pt-1">
@@ -250,31 +958,40 @@ const MedicationRow = ({
           <div className="text-slate-400">→ {order.end_date}</div>
         </td>
         <td className="px-3 py-2.5">
-          {order.is_completed ? (
-            <SmallBadge cls="bg-green-100 text-green-700">Completed</SmallBadge>
-          ) : isStopped ? (
+          {isStopped ? (
             <SmallBadge cls="bg-rose-100 text-rose-800">Stopped</SmallBadge>
+          ) : givenInfo?.has_given ? (
+            <SmallBadge cls="bg-green-100 text-green-700">Given</SmallBadge>
           ) : (
-            <SmallBadge cls="bg-amber-100 text-amber-700">Pending</SmallBadge>
-          )}
-          {order.returned_to_store && (
-            <div className="mt-1">
-              <SmallBadge cls="bg-slate-100 text-slate-500">Returned</SmallBadge>
-            </div>
+            <SmallBadge cls="bg-amber-100 text-amber-700">Not Given</SmallBadge>
           )}
         </td>
+        {!readOnly && (
         <td className="px-3 py-2.5 text-right align-middle">
-          <button
-            ref={triggerRef}
-            type="button"
-            onClick={() => setMenuOpen((o) => !o)}
-            disabled={saving}
-            className="inline-flex items-center justify-center rounded-md border border-slate-200 bg-white p-1.5 text-slate-600 hover:bg-slate-50 hover:text-slate-900 disabled:opacity-50"
-            title="Actions"
-            aria-label="Row actions"
-          >
-            <MoreVertical className="h-4 w-4" />
-          </button>
+          <div className="inline-flex items-center gap-1">
+            {!givenInfo?.has_given && (
+              <button
+                type="button"
+                onClick={onEdit}
+                className="inline-flex items-center justify-center rounded-md border border-slate-200 bg-white p-1.5 text-slate-600 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-colors"
+                title="Edit medication"
+                aria-label="Edit medication"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </button>
+            )}
+            <button
+              ref={triggerRef}
+              type="button"
+              onClick={() => setMenuOpen((o) => !o)}
+              disabled={saving}
+              className="inline-flex items-center justify-center rounded-md border border-slate-200 bg-white p-1.5 text-slate-600 hover:bg-slate-50 hover:text-slate-900 disabled:opacity-50"
+              title="Actions"
+              aria-label="Row actions"
+            >
+              <MoreVertical className="h-4 w-4" />
+            </button>
+          </div>
           <PortalActionsMenu open={menuOpen} onClose={() => setMenuOpen(false)} triggerRef={triggerRef} placement="below-right">
             <button
               type="button"
@@ -305,6 +1022,7 @@ const MedicationRow = ({
             </button>
           </PortalActionsMenu>
         </td>
+        )}
       </tr>
     </>
   )
@@ -316,7 +1034,7 @@ const MedicationRow = ({
 //   patientEncounterId?: string | null
 // }
 
-export const RxPage = () => {
+export const RxPage = ({ readOnly = false }: { readOnly?: boolean } = {}) => {
     const { 
     selectedPatient, 
     mode, 
@@ -328,10 +1046,9 @@ export const RxPage = () => {
   const [error, setError] = useState<string | null>(null)
   const [activeType, setActiveType] = useState('All')
 
-  const [showEditModal, setShowEditModal] = useState(false)
-const handleEdit = () => {
-  setShowEditModal(true)
-}
+  const [editingOrder, setEditingOrder] = useState<any>(null)
+  const [showAddModal, setShowAddModal] = useState(false)
+  const [givenStatus, setGivenStatus] = useState<Record<string, { has_given: boolean; count: number }>>({})
 
 
   const load = async () => {
@@ -340,18 +1057,29 @@ const handleEdit = () => {
 
     if (!inpatientRecordId && !patientEncounterId) {
       setPrescription(null)
+      setGivenStatus({})
       return
     }
 
     setLoading(true)
     setError(null)
     try {
-        // console.log('Fetched prescription:', id)
-const data = await fetchPrescriptionByInpatientOrEncounter(inpatientRecordId, patientEncounterId)      
+      const data = await fetchPrescriptionByInpatientOrEncounter(inpatientRecordId, patientEncounterId)
       setPrescription(data)
+      if (data?.name) {
+        try {
+          const statuses = await getGivenStatusForPrescription(data.name)
+          setGivenStatus(statuses || {})
+        } catch {
+          setGivenStatus({})
+        }
+      } else {
+        setGivenStatus({})
+      }
     } catch (e) {
       setError('Could not load prescription.')
       setPrescription(null)
+      setGivenStatus({})
     } finally {
       setLoading(false)
     }
@@ -423,10 +1151,17 @@ const data = await fetchPrescriptionByInpatientOrEncounter(inpatientRecordId, pa
     }
 
   const orders = prescription.medication_orders || []
-  const countFor = (key: string) =>
-    key === 'All' ? orders.length : orders.filter((o: any) => o.medication_type === key).length
+  const countFor = (key: string) => {
+    if (key === 'All') return orders.length
+    if (key === '__stopped__') return orders.filter((o: any) => String(o.reason_stopped || '').trim()).length
+    return orders.filter((o: any) => o.medication_type === key).length
+  }
   const filteredOrders =
-    activeType === 'All' ? orders : orders.filter((o: any) => o.medication_type === activeType)
+    activeType === 'All'
+      ? orders
+      : activeType === '__stopped__'
+        ? orders.filter((o: any) => String(o.reason_stopped || '').trim())
+        : orders.filter((o: any) => o.medication_type === activeType)
   const activeTypeDef = MED_TYPES.find(t => t.key === activeType)
   const completionPct = (prescription.total_orders ?? 0) > 0
     ? Math.round(((prescription.completed_orders ?? 0) / (prescription.total_orders ?? 0)) * 100)
@@ -450,16 +1185,9 @@ const data = await fetchPrescriptionByInpatientOrEncounter(inpatientRecordId, pa
                         )}
                     </h1>
                     </div>
-                    {/* Add Edit Button */}
-                    <button
-                    onClick={handleEdit}
-                    className="ml-2 px-3 py-1 text-xs font-medium rounded-md border border-primary text-primary hover:bg-primary hover:text-white transition-colors"
-                    >
-                    Edit Prescription
-                    </button>
                 </div>
 
-          {/* Progress + refresh */}
+          {/* Progress + refresh + add */}
           <div className="flex items-center gap-3">
             <div className="text-right">
               <div className="text-xs text-slate-500 mb-1">
@@ -479,20 +1207,17 @@ const data = await fetchPrescriptionByInpatientOrEncounter(inpatientRecordId, pa
             >
               <RefreshCw className="w-4 h-4" />
             </button>
+            {!readOnly && (
+              <button
+                onClick={() => setShowAddModal(true)}
+                className="inline-flex items-center justify-center rounded-md bg-primary text-white p-1.5 hover:bg-primary/90 transition-colors"
+                title="Add new medicine"
+              >
+                <Plus className="h-4 w-4" />
+              </button>
+            )}
           </div>
         </div>
-
-        {showEditModal && (
-  <CreatePrescriptionModal
-    onClose={() => setShowEditModal(false)}
-    onSuccess={() => {
-      setShowEditModal(false)
-      load() // Reload the prescription after edit
-    }}
-    editMode={true}
-    prescriptionData={prescription}
-  />
-)}
 
         {/* Type filter cards */}
         <div className="flex flex-wrap gap-2">
@@ -534,7 +1259,7 @@ const data = await fetchPrescriptionByInpatientOrEncounter(inpatientRecordId, pa
             <table className="min-w-full text-sm divide-y divide-slate-200">
               <thead className="bg-slate-50">
                 <tr>
-                  {['Drug', 'Dosage', 'Form', 'Frequency', 'Route', 'Period', 'Status', 'Actions'].map(h => (
+                  {['Drug', 'Dosage', 'Form', 'Frequency', 'Route', 'Period', 'Status', ...(readOnly ? [] : ['Actions'])].map(h => (
                     <th
                       key={h}
                       className={`px-3 py-2.5 text-xs font-semibold text-slate-600 uppercase tracking-wide ${
@@ -553,6 +1278,9 @@ const data = await fetchPrescriptionByInpatientOrEncounter(inpatientRecordId, pa
                     order={order}
                     prescriptionName={prescription.name}
                     onUpdated={load}
+                    onEdit={() => setEditingOrder(order)}
+                    readOnly={readOnly}
+                    givenInfo={givenStatus[order.name]}
                   />
                 ))}
               </tbody>
@@ -560,6 +1288,23 @@ const data = await fetchPrescriptionByInpatientOrEncounter(inpatientRecordId, pa
           </div>
         )}
       </div>
+
+      {editingOrder && (
+        <EditMedicationEntryModal
+          order={editingOrder}
+          prescriptionName={prescription.name}
+          onClose={() => setEditingOrder(null)}
+          onSaved={() => { setEditingOrder(null); load() }}
+        />
+      )}
+
+      {showAddModal && (
+        <AddMedicationEntryModal
+          prescriptionName={prescription.name}
+          onClose={() => setShowAddModal(false)}
+          onSaved={() => { setShowAddModal(false); load() }}
+        />
+      )}
     </div>
   )
 }

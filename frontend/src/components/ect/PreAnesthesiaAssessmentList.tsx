@@ -16,6 +16,7 @@ interface AssessmentRecord {
 interface PreAnesthesiaAssessmentListProps {
   patient?: string
   refreshKey?: number
+  onPatientClick?: (patient: string) => void
 }
 
 const fitColors: Record<string, string> = {
@@ -24,7 +25,7 @@ const fitColors: Record<string, string> = {
   'Conditional': 'bg-amber-100 text-amber-700 border-amber-200',
 }
 
-export const PreAnesthesiaAssessmentList = ({ patient, refreshKey }: PreAnesthesiaAssessmentListProps) => {
+export const PreAnesthesiaAssessmentList = ({ patient, refreshKey, onPatientClick }: PreAnesthesiaAssessmentListProps) => {
   const [items, setItems] = useState<AssessmentRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
@@ -72,7 +73,9 @@ export const PreAnesthesiaAssessmentList = ({ patient, refreshKey }: PreAnesthes
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr>
               <th className="px-3 py-2 text-left text-[11px] font-semibold text-slate-600 uppercase">Record</th>
-              <th className="px-3 py-2 text-left text-[11px] font-semibold text-slate-600 uppercase">Patient</th>
+              {!patient && (
+                <th className="px-3 py-2 text-left text-[11px] font-semibold text-slate-600 uppercase">Patient</th>
+              )}
               <th className="px-3 py-2 text-left text-[11px] font-semibold text-slate-600 uppercase">ASA</th>
               <th className="px-3 py-2 text-left text-[11px] font-semibold text-slate-600 uppercase">Fit</th>
               <th className="px-3 py-2 text-left text-[11px] font-semibold text-slate-600 uppercase">Date</th>
@@ -88,7 +91,14 @@ export const PreAnesthesiaAssessmentList = ({ patient, refreshKey }: PreAnesthes
                     {row.name}
                   </button>
                 </td>
-                <td className="px-3 py-2 text-slate-700 text-xs">{row.patient_name || row.patient || '—'}</td>
+                {!patient && (
+                  <td
+                    className="px-3 py-2 cursor-pointer"
+                    onClick={() => row.patient && onPatientClick?.(row.patient)}
+                  >
+                    <span className="font-medium text-primary hover:underline">{row.patient_name || row.patient || '—'}</span>
+                  </td>
+                )}
                 <td className="px-3 py-2">
                   {row.asa_class
                     ? <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-600 border border-slate-200">{row.asa_class}</span>

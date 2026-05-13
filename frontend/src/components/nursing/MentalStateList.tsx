@@ -5,6 +5,7 @@ interface MentalStateListProps {
   patient?: string
   refreshKey?: number
   onCreateNew?: () => void
+  onPatientClick?: (patient: string) => void
 }
 
 const Tick = ({ v }: { v: 0 | 1 | undefined | null }) =>
@@ -36,7 +37,7 @@ const DataField = ({ label, value }: { label: string; value: string | number | n
   </div>
 )
 
-export const MentalStateList = ({ patient, refreshKey, onCreateNew }: MentalStateListProps) => {
+export const MentalStateList = ({ patient, refreshKey, onCreateNew, onPatientClick }: MentalStateListProps) => {
   const [records, setRecords] = useState<MentalStateRow[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -131,7 +132,9 @@ export const MentalStateList = ({ patient, refreshKey, onCreateNew }: MentalStat
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">Date</th>
-                <th className="px-3 py-2 text-left font-semibold text-slate-600">Patient</th>
+                {!patient && (
+                  <th className="px-3 py-2 text-left font-semibold text-slate-600">Patient</th>
+                )}
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">Admission No</th>
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">Branch</th>
                 <th className="px-3 py-2 text-center font-semibold text-slate-600">Trans Shift</th>
@@ -148,7 +151,14 @@ export const MentalStateList = ({ patient, refreshKey, onCreateNew }: MentalStat
                 return (
                   <tr key={r.name} className="hover:bg-slate-50 cursor-pointer" onClick={() => setSelected(r)}>
                     <td className="px-3 py-2 text-slate-900 font-medium">{formatDate(r.creation)}</td>
-                    <td className="px-3 py-2 text-slate-800">{r.patient_name || r.file_no || '—'}</td>
+                    {!patient && (
+                      <td
+                        className="px-3 py-2 text-slate-800 cursor-pointer"
+                        onClick={(e) => { e.stopPropagation(); r.file_no && onPatientClick?.(r.file_no) }}
+                      >
+                        <span className="font-medium text-primary hover:underline">{r.patient_name || r.file_no || '—'}</span>
+                      </td>
+                    )}
                     <td className="px-3 py-2 text-slate-700">{r.admission_no || '—'}</td>
                     <td className="px-3 py-2 text-slate-700">{r.branch || '—'}</td>
                     <td className="px-3 py-2 text-center text-slate-700">{r.trans_shift ?? '—'}</td>

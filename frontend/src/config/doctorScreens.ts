@@ -84,8 +84,8 @@ export const doctorScreenGroups: ScreenGroup[] = [
   {
     groupTitle: 'Medication & Pharmacy',
     screens: [
-      { id: 'single-prescription', title: 'Single Prescription' },
-      { id: 'rx', title: 'Doctors Prescriptions' },
+      { id: 'single-prescription', title: 'Current Prescription' },
+      { id: 'rx', title: 'All Prescriptions' },
       // { id: 'dmc', title: 'Doctor Medication Chart' },
       { id: 'gm', title: 'Given Medicines' },
       { id: 'd-long-acting-meds', title: 'Long Acting Med Reminder' },
@@ -95,6 +95,14 @@ export const doctorScreenGroups: ScreenGroup[] = [
     groupTitle: 'Laboratory & Diagnostics',
     screens: [
       { id: 'lab', title: 'Laboratory' },
+    ],
+  },
+  {
+    groupTitle: 'Patient Visit',
+    screens: [
+      { id: 'op', title: 'Patient Visit' },
+      { id: 'pvh', title: 'Patient Visit History' },
+      { id: 'iop', title: 'IOP Dashboard' },
     ],
   },
   {

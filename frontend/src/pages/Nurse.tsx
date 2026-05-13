@@ -32,7 +32,6 @@ import { CreateServiceRequestModal } from '../components/serviceRequests/CreateS
 import { IPServiceList } from '../components/ipServices/IPServiceList'
 import { CreateIPServiceModal } from '../components/ipServices/CreateIPServiceModal'
 import { PrescriptionList } from '../components/prescriptions/PrescriptionList'
-import { CreatePrescriptionModal } from '../components/prescriptions/CreatePrescriptionModal'
 import { CreateMedicineGivenModal } from '../components/medication/CreateMedicineGivenModal'
 import { MedicineGivenList } from '../components/medication/MedicineGivenList'
 import { DailyMedicationChart } from '../components/medication/DailyMedicationChart'
@@ -83,6 +82,7 @@ export const NursePage = () => {
     selectedPatient: globalPatient,
     setSelectedPatient: setGlobalPatient,
     activeAdmission,
+    activeVisit,
     costCenterCareScope,
   } = useCareContext()
   const patientFromUrl = searchParams.get('patient')
@@ -107,8 +107,7 @@ export const NursePage = () => {
   const [ipServiceRefreshKey, setIpServiceRefreshKey] = useState(0)
   const [showCreateIPServiceModal, setShowCreateIPServiceModal] = useState(false)
   const [createIPServicePreFill, setCreateIPServicePreFill] = useState<{ serviceRequest?: string; patient?: string } | null>(null)
-  const [showPrescriptionModal, setShowPrescriptionModal] = useState(false)
-  const [prescriptionRefreshKey, setPrescriptionRefreshKey] = useState(0)
+  const [prescriptionRefreshKey] = useState(0)
   const [showPsychOrderModal, setShowPsychOrderModal] = useState(false)
   // Doctor notes are read-only on the nurse screen — no create modal state needed
   const [showNutritionNoteModal, setShowNutritionNoteModal] = useState(false)
@@ -143,7 +142,7 @@ export const NursePage = () => {
   const [patientHistoryRefreshKey, setPatientHistoryRefreshKey] = useState(0)
   const rawScreen = searchParams.get('screen')
   const screen =
-    rawScreen && !isNurseScreenBlocked(rawScreen, costCenterCareScope) ? rawScreen : null
+    rawScreen && !isNurseScreenBlocked(rawScreen, costCenterCareScope, mode) ? rawScreen : null
 
   // Sync selectedPatient with URL on mount and when URL changes
   useEffect(() => {
@@ -157,11 +156,11 @@ export const NursePage = () => {
   }, [searchParams])
 
   useLayoutEffect(() => {
-    if (!rawScreen || !isNurseScreenBlocked(rawScreen, costCenterCareScope)) return
+    if (!rawScreen || !isNurseScreenBlocked(rawScreen, costCenterCareScope, mode)) return
     const np = new URLSearchParams(searchParams)
     np.delete('screen')
     setSearchParams(np, { replace: true })
-  }, [rawScreen, costCenterCareScope, searchParams, setSearchParams])
+  }, [rawScreen, costCenterCareScope, mode, searchParams, setSearchParams])
 
   const handlePatientSelect = (patient: string | undefined) => {
     setSelectedPatient(patient)
@@ -202,8 +201,8 @@ export const NursePage = () => {
     }
   }
 
-  // Show Admission page when screen=n-reg or screen=admission
-  if (screen === 'n-reg' || screen === 'admission') {
+  // Show Admission page when screen=n-reg or screen=admission — hidden in OP mode
+  if ((screen === 'n-reg' || screen === 'admission') && mode !== 'OP') {
     return <AdmissionPage />
   }
 
@@ -253,10 +252,7 @@ export const NursePage = () => {
   
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <RxPage 
-              // inpatientRecordId={activeInpatientRecordId}  // For IP admissions
-              // patientEncounterId={activePatientEncounterId} // For OP visits
-            />
+            <RxPage readOnly />
           </section>
         </div>
       </div>
@@ -294,7 +290,7 @@ export const NursePage = () => {
               </button>
             </div>
             <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-              <WarningMessagesList patient={selectedPatient} key={warningRefreshKey} />
+              <WarningMessagesList patient={selectedPatient} key={warningRefreshKey} onPatientClick={handlePatientSelect} />
             </div>
           </section>
         </div>
@@ -523,6 +519,7 @@ export const NursePage = () => {
               defaultStatus="Requested"
               byNurse={true}
               key={labTestRefreshKey}
+              onPatientClick={handlePatientSelect}
             />
           </section>
         </div>
@@ -548,32 +545,14 @@ export const NursePage = () => {
         </header>
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4 flex items-center justify-between">
-              <span>Doctors Prescriptions</span>
-              <button
-                onClick={() => setShowPrescriptionModal(true)}
-                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
-                title="Create Prescription"
-              >
-                +
-              </button>
-            </div>
+            <div className="font-semibold mb-4">All Prescriptions</div>
             <PrescriptionList
               patient={selectedPatient}
               refreshKey={prescriptionRefreshKey}
+              onPatientClick={handlePatientSelect}
             />
           </section>
         </div>
-        {showPrescriptionModal && (
-          <CreatePrescriptionModal
-            onClose={() => setShowPrescriptionModal(false)}
-            onSuccess={() => {
-              setPrescriptionRefreshKey(prev => prev + 1)
-              setShowPrescriptionModal(false)
-            }}
-            initialPatient={selectedPatient}
-          />
-        )}
       </div>
     )
   }
@@ -655,6 +634,7 @@ export const NursePage = () => {
               defaultStatus="Requested"
               byNurse={true}
               key={labTestRefreshKey}
+              onPatientClick={handlePatientSelect}
             />
           </section>
         </div>
@@ -690,6 +670,7 @@ export const NursePage = () => {
               medicalRole="Doctor"
               clinicalNoteType="Doctors Note"
               key={clinicalNotesRefreshKey}
+              onPatientClick={handlePatientSelect}
             />
           </section>
         </div>
@@ -720,6 +701,7 @@ export const NursePage = () => {
             <ClinicalNotesList 
               patient={selectedPatient} 
               noteType="Order"
+              onPatientClick={handlePatientSelect}
             />
           </section>
         </div>
@@ -760,6 +742,7 @@ export const NursePage = () => {
               patient={selectedPatient} 
               medicalRole="Nurse"
               key={clinicalNotesRefreshKey}
+              onPatientClick={handlePatientSelect}
             />
           </section>
         </div>
@@ -802,6 +785,7 @@ export const NursePage = () => {
             <ClinicalNotesList
               patient={selectedPatient}
               medicalRole="Psychologist"
+              onPatientClick={handlePatientSelect}
             />
           </section>
         </div>
@@ -843,6 +827,7 @@ export const NursePage = () => {
               medicalRole="Nutritionist"
               clinicalNoteType="Nutritionist Note"
               key={clinicalNotesRefreshKey}
+              onPatientClick={handlePatientSelect}
             />
           </section>
         </div>
@@ -895,6 +880,7 @@ export const NursePage = () => {
               patient={selectedPatient}
               medicalRole="Psychologist"
               noteType="Order"
+              onPatientClick={handlePatientSelect}
             />
           </section>
         </div>
@@ -943,7 +929,7 @@ export const NursePage = () => {
                 +
               </button>
             </div>
-            <ObservationList patient={selectedPatient} key={observationRefreshKey} />
+            <ObservationList patient={selectedPatient} key={observationRefreshKey} onPatientClick={handlePatientSelect} />
           </section>
         </div>
         {showObservationModal && (
@@ -989,7 +975,7 @@ export const NursePage = () => {
                 +
               </button>
             </div>
-            <VitalSignsList patient={selectedPatient} refreshKey={vitalSignsRefreshKey} />
+            <VitalSignsList patient={selectedPatient} refreshKey={vitalSignsRefreshKey} onPatientClick={handlePatientSelect} />
           </section>
         </div>
         {showVitalSignModal && (
@@ -1066,6 +1052,7 @@ export const NursePage = () => {
               patient={selectedPatient}
               medicalRole="Physiotherapist"
               key={clinicalNotesRefreshKey}
+              onPatientClick={handlePatientSelect}
             />
           </section>
         </div>
@@ -1104,38 +1091,20 @@ export const NursePage = () => {
         </header>
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4 flex items-center justify-between">
-              <span>Medication (Prescriptions)</span>
-              <button
-                onClick={() => setShowPrescriptionModal(true)}
-                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
-                title="Create Prescription"
-              >
-                +
-              </button>
-            </div>
+            <div className="font-semibold mb-4">Medication (Prescriptions)</div>
             <PrescriptionList
               patient={selectedPatient}
               refreshKey={prescriptionRefreshKey}
+              onPatientClick={handlePatientSelect}
             />
           </section>
         </div>
-        {showPrescriptionModal && (
-          <CreatePrescriptionModal
-            onClose={() => setShowPrescriptionModal(false)}
-            onSuccess={() => {
-              setPrescriptionRefreshKey(prev => prev + 1)
-              setShowPrescriptionModal(false)
-            }}
-            initialPatient={selectedPatient}
-          />
-        )}
       </div>
     )
   }
 
-  // Given Medicines – list administrations, not prescriptions
-  if (screen === 'n-given') {
+  // Given Medicines – list administrations, not prescriptions — hidden in OP mode
+  if (screen === 'n-given' && mode !== 'OP') {
     return (
       <div className="flex flex-col">
         <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
@@ -1187,6 +1156,7 @@ export const NursePage = () => {
         {showGivenMedicineModal && (
           <CreateMedicineGivenModal
             initialPatient={selectedPatient}
+            inpatientRecord={activeAdmission}
             onClose={() => setShowGivenMedicineModal(false)}
             onSuccess={() => {
               setGivenRefreshKey(prev => prev + 1)
@@ -1320,6 +1290,7 @@ export const NursePage = () => {
                 refreshKey={serviceRequestRefreshKey}
                 template_dt="Healthcare Service Template"
                 isNurseContext={true}
+                onPatientClick={handlePatientSelect}
                 onCreateIPService={(sr) => {
                   setCreateIPServicePreFill({ serviceRequest: sr.name, patient: sr.patient })
                   setShowCreateIPServiceModal(true)
@@ -1411,7 +1382,7 @@ export const NursePage = () => {
                 +
               </button>
             </div>
-            <ServiceRequestList patient={selectedPatient} refreshKey={serviceRequestRefreshKey} />
+            <ServiceRequestList patient={selectedPatient} refreshKey={serviceRequestRefreshKey} onPatientClick={handlePatientSelect} />
           </section>
         </div>
         {showServiceRequestModal && (
@@ -1450,7 +1421,7 @@ export const NursePage = () => {
           {/* Appointments Section */}
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
             <div className="font-semibold mb-4">Appointments</div>
-            <AppointmentList patient={selectedPatient} />
+            <AppointmentList patient={selectedPatient} onPatientClick={handlePatientSelect} />
           </section>
 
           {/* Session Schedules Section */}
@@ -1517,7 +1488,7 @@ export const NursePage = () => {
                 +
               </button>
             </div>
-            <MorseFallScaleList patient={selectedPatient} refreshKey={morseFallRefreshKey} />
+            <MorseFallScaleList patient={selectedPatient} refreshKey={morseFallRefreshKey} onPatientClick={handlePatientSelect} />
           </section>
         </div>
         {showMorseFallModal && (
@@ -1634,8 +1605,8 @@ export const NursePage = () => {
     )
   }
 
-  // Show Discharge Form (list of discharges with + button)
-  if (screen === 'n-discharge') {
+  // Show Discharge Form (list of discharges with + button) — hidden in OP mode
+  if (screen === 'n-discharge' && mode !== 'OP') {
     const handleCreateDischarge = async () => {
       if (!selectedPatient) {
         toast.error('Please select a patient first')
@@ -1688,7 +1659,7 @@ export const NursePage = () => {
                 +
               </button>
             </div>
-            <DischargeList patient={selectedPatient} key={dischargeRefreshKey} />
+            <DischargeList patient={selectedPatient} key={dischargeRefreshKey} onPatientClick={handlePatientSelect} />
           </section>
         </div>
         {showDischargeModal && selectedAdmission && (
@@ -1735,8 +1706,8 @@ export const NursePage = () => {
     )
   }
 
-  // Show Package Details – dashboard: available packages, active admission, assigned package (from Quotation)
-  if (screen === 'n-package') {
+  // Show Package Details – dashboard: available packages, active admission, assigned package (from Quotation) — hidden in OP mode
+  if (screen === 'n-package' && mode !== 'OP') {
     return (
       <div className="flex flex-col">
         <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
@@ -2023,11 +1994,11 @@ export const NursePage = () => {
 
       {selectedPatient ? (
         <>
-          {/* Row 1: Given Medicines + Long Acting Med Reminder — Given Medicines hidden for OP-only cost centers */}
+          {/* Row 1: Given Medicines + Long Acting Med Reminder — hidden when OP mode or OP-only cost center */}
           <div
-            className={`grid gap-4 p-4 ${costCenterCareScope === 'op_only' ? 'md:grid-cols-1' : 'md:grid-cols-2'}`}
+            className={`grid gap-4 p-4 ${(costCenterCareScope === 'op_only' || mode === 'OP') ? 'md:grid-cols-1' : 'md:grid-cols-2'}`}
           >
-            {costCenterCareScope !== 'op_only' && (
+            {costCenterCareScope !== 'op_only' && mode !== 'OP' && (
               <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
                 <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0 gap-2">
                   <span>Given Medicines</span>
@@ -2088,7 +2059,7 @@ export const NursePage = () => {
                 </button> */}
               </div>
               <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                <LabTestList patient={selectedPatient} byNurse={true} key={labTestRefreshKey} />
+                <LabTestList patient={selectedPatient} byNurse={true} key={labTestRefreshKey} onPatientClick={handlePatientSelect} />
               </div>
             </section>
 
@@ -2109,6 +2080,7 @@ export const NursePage = () => {
                   patient={selectedPatient}
                   refreshKey={serviceRequestRefreshKey}
                   isNurseContext={true}
+                  onPatientClick={handlePatientSelect}
                 />
               </div>
             </section>
@@ -2131,7 +2103,7 @@ export const NursePage = () => {
                 </button> */}
                 </div>
                 <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                  <PrescriptionList patient={selectedPatient} refreshKey={prescriptionRefreshKey} />
+                  <PrescriptionList patient={selectedPatient} refreshKey={prescriptionRefreshKey} onPatientClick={handlePatientSelect} />
                 </div>
               </section>
             )}
@@ -2148,6 +2120,7 @@ export const NursePage = () => {
                   medicalRole="Doctor"
                   clinicalNoteType="Doctors Note"
                   key={clinicalNotesRefreshKey}
+                  onPatientClick={handlePatientSelect}
                 />
               </div>
             </section>
@@ -2173,7 +2146,7 @@ export const NursePage = () => {
                 </button>
               </div>
               <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                <WarningMessagesList patient={selectedPatient} key={warningRefreshKey} />
+                <WarningMessagesList patient={selectedPatient} key={warningRefreshKey} onPatientClick={handlePatientSelect} />
               </div>
             </section>
           </div>
@@ -2189,7 +2162,7 @@ export const NursePage = () => {
                   className="overflow-x-auto overflow-y-auto flex-1 min-h-0"
                   style={{ scrollbarWidth: 'thin' }}
                 >
-                  <DischargeList patient={selectedPatient} key={dischargeRefreshKey} />
+                  <DischargeList patient={selectedPatient} key={dischargeRefreshKey} onPatientClick={handlePatientSelect} />
                 </div>
               </section>
             </div>
@@ -2216,7 +2189,7 @@ export const NursePage = () => {
               </button>
             </div>
             <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-              <WarningMessagesList patient={undefined} key={warningRefreshKey} />
+              <WarningMessagesList patient={undefined} key={warningRefreshKey} onPatientClick={handlePatientSelect} />
             </div>
           </section>
 
@@ -2232,37 +2205,17 @@ export const NursePage = () => {
               </button>
             </div>
             <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-              <LabTestList defaultStatus="Pending Review" byNurse={true} key={labTestRefreshKey} />
+              <LabTestList defaultStatus="Pending Review" byNurse={true} key={labTestRefreshKey} onPatientClick={handlePatientSelect} />
             </div>
           </section>
 
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-            <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
-              <span>Prescription</span>
-              <button
-                onClick={() => setShowPrescriptionModal(true)}
-                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
-                title="Create Prescription"
-              >
-                +
-              </button>
-            </div>
+            <div className="font-semibold mb-4 flex-shrink-0">Prescription</div>
             <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-              <PrescriptionList refreshKey={prescriptionRefreshKey} />
+              <PrescriptionList refreshKey={prescriptionRefreshKey} onPatientClick={handlePatientSelect} />
             </div>
           </section>
         </div>
-      )}
-
-      {showPrescriptionModal && (
-        <CreatePrescriptionModal
-          onClose={() => setShowPrescriptionModal(false)}
-          onSuccess={() => {
-            setPrescriptionRefreshKey((prev) => prev + 1)
-            setShowPrescriptionModal(false)
-          }}
-          initialPatient={selectedPatient}
-        />
       )}
 
       {showWarningModal && (
@@ -2327,6 +2280,8 @@ export const NursePage = () => {
       {showGivenMedicineModal && (
         <CreateMedicineGivenModal
           initialPatient={selectedPatient}
+          inpatientRecord={mode === 'IP' ? activeAdmission : null}
+          patientEncounter={mode === 'OP' ? activeVisit : null}
           onClose={() => setShowGivenMedicineModal(false)}
           onSuccess={() => {
             setGivenRefreshKey((prev) => prev + 1)

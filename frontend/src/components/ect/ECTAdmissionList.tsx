@@ -5,9 +5,10 @@ import { DocDetailView } from '../ui/DocDetailView'
 
 interface ECTAdmissionListProps {
   patient?: string
+  onPatientClick?: (patient: string) => void
 }
 
-export const ECTAdmissionList = ({ patient }: ECTAdmissionListProps) => {
+export const ECTAdmissionList = ({ patient, onPatientClick }: ECTAdmissionListProps) => {
   const [items, setItems] = useState<ECTAdmission[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
@@ -66,9 +67,11 @@ export const ECTAdmissionList = ({ patient }: ECTAdmissionListProps) => {
               <th className="px-3 py-2 text-left text-[11px] font-semibold text-slate-600 uppercase">
                 Date
               </th>
-              <th className="px-3 py-2 text-left text-[11px] font-semibold text-slate-600 uppercase">
-                Patient
-              </th>
+              {!patient && (
+                <th className="px-3 py-2 text-left text-[11px] font-semibold text-slate-600 uppercase">
+                  Patient
+                </th>
+              )}
               <th className="px-3 py-2 text-left text-[11px] font-semibold text-slate-600 uppercase">
                 BP
               </th>
@@ -96,9 +99,14 @@ export const ECTAdmissionList = ({ patient }: ECTAdmissionListProps) => {
                 <td className="px-3 py-2">
                   {row.date ? new Date(row.date).toLocaleDateString() : '-'}
                 </td>
-                <td className="px-3 py-2">
-                  {row.patient_name || row.patient || '-'}
-                </td>
+                {!patient && (
+                  <td
+                    className="px-3 py-2 cursor-pointer"
+                    onClick={() => row.patient && onPatientClick?.(row.patient)}
+                  >
+                    <span className="font-medium text-primary hover:underline">{row.patient_name || row.patient || '-'}</span>
+                  </td>
+                )}
                 <td className="px-3 py-2">{row.bp || '-'}</td>
                 <td className="px-3 py-2">{row.hr || '-'}</td>
                 <td className="px-3 py-2">

@@ -18,9 +18,10 @@ const stripHtml = (html: string): string => {
 
 interface DoctorMedicationPlanListProps {
   patient?: string
+  onPatientClick?: (patient: string) => void
 }
 
-export const DoctorMedicationPlanList = ({ patient }: DoctorMedicationPlanListProps) => {
+export const DoctorMedicationPlanList = ({ patient, onPatientClick }: DoctorMedicationPlanListProps) => {
   const { mode, activeVisit } = useCareContext()
   const [rows, setRows] = useState<DoctorMedicationPlanRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -107,9 +108,11 @@ export const DoctorMedicationPlanList = ({ patient }: DoctorMedicationPlanListPr
               <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
                 Date
               </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-                Patient
-              </th>
+              {!patient && (
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+                  Patient
+                </th>
+              )}
               <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
                 Practitioner
               </th>
@@ -138,7 +141,14 @@ export const DoctorMedicationPlanList = ({ patient }: DoctorMedicationPlanListPr
                     {row.posting_date ? new Date(row.posting_date).toLocaleString() : '-'}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-sm text-slate-700">{row.patient || '-'}</td>
+                {!patient && (
+                  <td
+                    className="px-4 py-3 text-sm cursor-pointer"
+                    onClick={() => row.patient && onPatientClick?.(row.patient)}
+                  >
+                    <span className="font-medium text-primary hover:underline">{row.patient || '-'}</span>
+                  </td>
+                )}
                 <td className="px-4 py-3 text-sm text-slate-700">{row.practitioner || '-'}</td>
                 <td className="px-4 py-3 text-sm text-slate-700">{row.medical_role || '-'}</td>
                 <td className="px-4 py-3 text-sm text-slate-700 max-w-[140px] truncate">

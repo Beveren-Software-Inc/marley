@@ -7,9 +7,10 @@ import { DocDetailView } from '../ui/DocDetailView'
 interface VitalSignsListProps {
   patient?: string
   refreshKey?: number | string
+  onPatientClick?: (patient: string) => void
 }
 
-export const VitalSignsList = ({ patient, refreshKey }: VitalSignsListProps) => {
+export const VitalSignsList = ({ patient, refreshKey, onPatientClick }: VitalSignsListProps) => {
   const [vitalSigns, setVitalSigns] = useState<VitalSign[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
@@ -67,9 +68,11 @@ export const VitalSignsList = ({ patient, refreshKey }: VitalSignsListProps) => 
             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
               Date & Time
             </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-              Patient
-            </th>
+            {!patient && (
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+                Patient
+              </th>
+            )}
             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
               Temperature
             </th>
@@ -106,9 +109,14 @@ export const VitalSignsList = ({ patient, refreshKey }: VitalSignsListProps) => 
                 {vs.signs_date ? new Date(vs.signs_date).toLocaleDateString() : '-'}
                 {vs.signs_time && ` ${vs.signs_time}`}
               </td>
-              <td className="px-4 py-3 text-sm text-slate-700">
-                {vs.patient_name || vs.patient || '-'}
-              </td>
+              {!patient && (
+                <td
+                  className="px-4 py-3 text-sm text-slate-700 cursor-pointer"
+                  onClick={() => vs.patient && onPatientClick?.(vs.patient)}
+                >
+                  <span className="font-medium text-primary hover:underline">{vs.patient_name || vs.patient || '-'}</span>
+                </td>
+              )}
               <td className="px-4 py-3 text-sm text-slate-700">
                 {vs.temperature || '-'}
               </td>

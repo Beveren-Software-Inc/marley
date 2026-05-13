@@ -10,6 +10,7 @@ interface PatientAssessmentListProps {
   patient?: string
   refreshKey?: number
   onCreateNew?: () => void
+  onPatientClick?: (patient: string) => void
 }
 
 const statusBadge = (docstatus: number) => {
@@ -36,6 +37,7 @@ export const PatientAssessmentList = ({
   patient,
   refreshKey,
   onCreateNew,
+  onPatientClick,
 }: PatientAssessmentListProps) => {
   const [records, setRecords] = useState<PatientAssessmentRow[]>([])
   const [loading, setLoading] = useState(false)
@@ -183,9 +185,11 @@ export const PatientAssessmentList = ({
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">
                   Date / Time
                 </th>
-                <th className="px-3 py-2 text-left font-semibold text-slate-600">
-                  Patient
-                </th>
+                {!patient && (
+                  <th className="px-3 py-2 text-left font-semibold text-slate-600">
+                    Patient
+                  </th>
+                )}
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">
                   Template
                 </th>
@@ -216,9 +220,14 @@ export const PatientAssessmentList = ({
                   <td className="px-3 py-2 text-slate-900 font-medium whitespace-nowrap">
                     {fmt(r.assessment_datetime)}
                   </td>
-                  <td className="px-3 py-2 text-slate-800">
-                    {r.patient_name || r.patient}
-                  </td>
+                  {!patient && (
+                    <td
+                      className="px-3 py-2 cursor-pointer"
+                      onClick={(e) => { e.stopPropagation(); r.patient && onPatientClick?.(r.patient) }}
+                    >
+                      <span className="font-medium text-primary hover:underline">{r.patient_name || r.patient}</span>
+                    </td>
+                  )}
                   <td className="px-3 py-2 text-slate-700">
                     {r.assessment_template || '—'}
                   </td>

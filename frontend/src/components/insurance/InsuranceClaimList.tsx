@@ -218,12 +218,14 @@ interface InsuranceClaimListProps {
   refreshKey?: number
   patient?: string
   currency?: string
+  onPatientClick?: (patient: string) => void
 }
 
 export const InsuranceClaimList = ({
   refreshKey = 0,
   patient,
   currency,
+  onPatientClick,
 }: InsuranceClaimListProps) => {
   const { companyCurrency } = useCareContext()
   const displayCurrency = (currency ?? companyCurrency ?? 'USD').toUpperCase()
@@ -364,7 +366,9 @@ export const InsuranceClaimList = ({
             <thead>
               <tr className="bg-slate-50 text-left">
                 <th className="px-3 py-2 text-xs font-semibold text-slate-600">Claim No</th>
-                <th className="px-3 py-2 text-xs font-semibold text-slate-600">Patient</th>
+                {!patient && (
+                  <th className="px-3 py-2 text-xs font-semibold text-slate-600">Patient</th>
+                )}
                 <th className="px-3 py-2 text-xs font-semibold text-slate-600">Health Insurance</th>
                 <th className="px-3 py-2 text-xs font-semibold text-slate-600">Claim Date</th>
                 <th className="px-3 py-2 text-xs font-semibold text-slate-600 text-right">Claimed</th>
@@ -378,7 +382,7 @@ export const InsuranceClaimList = ({
             <tbody>
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={10} className="text-center text-slate-400 py-8">No insurance claims found</td>
+                  <td colSpan={patient ? 9 : 10} className="text-center text-slate-400 py-8">No insurance claims found</td>
                 </tr>
               )}
               {rows.map(row => (
@@ -390,10 +394,17 @@ export const InsuranceClaimList = ({
                   <td className="px-3 py-2">
                     <span className="text-primary font-medium text-xs">{row.name}</span>
                   </td>
-                  <td className="px-3 py-2">
-                    <div className="font-medium text-slate-800 text-xs">{row.patient_name || row.patient}</div>
-                    {row.patient_name && <div className="text-slate-400 text-xs">{row.patient}</div>}
-                  </td>
+                  {!patient && (
+                    <td
+                      className="px-3 py-2 cursor-pointer"
+                      onClick={(e) => { e.stopPropagation(); row.patient && onPatientClick?.(row.patient) }}
+                    >
+                      <span className="font-medium text-primary hover:underline">
+                        <div className="text-xs">{row.patient_name || row.patient}</div>
+                        {row.patient_name && <div className="text-slate-400 text-xs">{row.patient}</div>}
+                      </span>
+                    </td>
+                  )}
                   <td className="px-3 py-2 text-xs text-slate-600">{row.health_insurance || '—'}</td>
                   <td className="px-3 py-2 text-xs text-slate-500">{row.claim_date || '—'}</td>
                   <td className="px-3 py-2 text-xs text-right font-mono text-slate-700">{fmt(row.total_claimed, displayCurrency)}</td>

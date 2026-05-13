@@ -11,6 +11,7 @@ interface HomicideRiskAssessmentListProps {
   patient?: string
   refreshKey?: number
   onCreateNew?: () => void
+  onPatientClick?: (patient: string) => void
 }
 
 const statusBadge = (docstatus: number) => {
@@ -55,6 +56,7 @@ export const HomicideRiskAssessmentList = ({
   patient,
   refreshKey,
   onCreateNew,
+  onPatientClick,
 }: HomicideRiskAssessmentListProps) => {
   const [records, setRecords] = useState<HomicideRiskAssessmentRow[]>([])
   const [loading, setLoading] = useState(false)
@@ -158,7 +160,9 @@ export const HomicideRiskAssessmentList = ({
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">Date</th>
-                <th className="px-3 py-2 text-left font-semibold text-slate-600">Patient</th>
+                {!patient && (
+                  <th className="px-3 py-2 text-left font-semibold text-slate-600">Patient</th>
+                )}
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">Clinician</th>
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">Risk Level</th>
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">Status</th>
@@ -175,9 +179,14 @@ export const HomicideRiskAssessmentList = ({
                   <td className="px-3 py-2 text-slate-900 font-medium whitespace-nowrap">
                     {fmt(r.assessment_date)}
                   </td>
-                  <td className="px-3 py-2 text-slate-800">
-                    {r.patient_name || r.patient}
-                  </td>
+                  {!patient && (
+                    <td
+                      className="px-3 py-2 cursor-pointer"
+                      onClick={(e) => { e.stopPropagation(); r.patient && onPatientClick?.(r.patient) }}
+                    >
+                      <span className="font-medium text-primary hover:underline">{r.patient_name || r.patient}</span>
+                    </td>
+                  )}
                   <td className="px-3 py-2 text-slate-700">{r.clinician || '—'}</td>
                   <td className="px-3 py-2">{riskLevelBadge(r.risk_level)}</td>
                   <td className="px-3 py-2">{statusBadge(r.docstatus)}</td>

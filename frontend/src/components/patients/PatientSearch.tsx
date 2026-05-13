@@ -523,6 +523,15 @@ export const PatientSearch = ({
                     setSecondaryQuery(newValue)
                     if (newValue === '') {
                       setSecondaryOpen(false)
+                      if (mode === 'OP') {
+                        setActiveVisit(undefined)
+                        setStoredValue(STORAGE_KEYS.ACTIVE_VISIT, '')
+                        setStoredValue(STORAGE_KEYS.ACTIVE_VISIT_LABEL, '')
+                      } else if (mode === 'IP') {
+                        setActiveAdmission(undefined)
+                        setStoredValue(STORAGE_KEYS.ACTIVE_ADMISSION, '')
+                        setStoredValue(STORAGE_KEYS.ACTIVE_ADMISSION_LABEL, '')
+                      }
                     } else {
                       setSecondaryOpen(true)
                     }

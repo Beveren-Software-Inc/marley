@@ -13,9 +13,10 @@ import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 interface ReceptionLongActingMedicineListProps {
   patient?: string
   refreshKey?: string | number
+  onPatientClick?: (patient: string) => void
 }
 
-export const ReceptionLongActingMedicineList = ({ patient, refreshKey }: ReceptionLongActingMedicineListProps) => {
+export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatientClick }: ReceptionLongActingMedicineListProps) => {
   const [rows, setRows] = useState<LongActingMedicineRow[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -266,7 +267,9 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey }: Recepti
             <thead className="bg-slate-50 border-b border-slate-200 sticky top-0">
               <tr>
                 <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Name</th>
-                <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Patient</th>
+                {!patient && (
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Patient</th>
+                )}
                 <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Frequency</th>
                 <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Start</th>
                 <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Next Run</th>
@@ -283,12 +286,17 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey }: Recepti
                   onClick={() => handleRowClick(row.name)}
                 >
                   <td className="px-3 py-2 text-primary font-medium">{row.name}</td>
-                  <td className="px-3 py-2 text-slate-700">
-                    <div className="flex flex-col">
-                      <span>{row.patient_name || '—'}</span>
-                      <span className="text-xs text-slate-500">{row.patient || ''}</span>
-                    </div>
-                  </td>
+                  {!patient && (
+                    <td
+                      className="px-3 py-2 text-slate-700 cursor-pointer"
+                      onClick={(e) => { e.stopPropagation(); row.patient && onPatientClick?.(row.patient) }}
+                    >
+                      <div className="flex flex-col">
+                        <span className="font-medium text-primary hover:underline">{row.patient_name || '—'}</span>
+                        <span className="text-xs text-slate-500">{row.patient || ''}</span>
+                      </div>
+                    </td>
+                  )}
                   <td className="px-3 py-2 text-slate-700">{row.frequency || '—'}</td>
                   <td className="px-3 py-2 text-slate-700">{formatDate(row.start_date)}</td>
                   <td className="px-3 py-2 text-slate-700">{formatDate(row.next_run_date)}</td>

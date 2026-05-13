@@ -14,8 +14,8 @@ const nurseScreenGroups: ScreenGroup[] = [
   {
     groupTitle: 'Patient Care & Medication',
     screens: [
-      { id: 'rx',          title: 'Prescription' },
-      { id: 'single-prescription',    title: 'Single Prescription' },
+      { id: 'rx',          title: 'All Prescriptions' },
+      { id: 'single-prescription',    title: 'Current Prescription' },
       // { id: 'n-med',       title: 'Medication' },
       { id: 'n-given',     title: 'Given Medicines' },
       { id: 'n-daily-med', title: 'Daily Medication Chart' },
@@ -223,7 +223,7 @@ const ALL_MAIN_LINKS: MainLinkItem[] = [
 
 export const AppShell = ({ children }: { children: ReactNode }) => {
   const { user } = useAuth()
-  const { selectedPatient, costCenterPatientCareType } = useCareContext()
+  const { selectedPatient, costCenterPatientCareType, mode } = useCareContext()
   const ccScope = careScopeFromCostCenterField(costCenterPatientCareType)
   const location = useLocation()
 
@@ -271,11 +271,11 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
           : doctorScreenGroups
         return {
           ...link,
-          screenGroups: filterDoctorScreenGroups(base, ccScope),
+          screenGroups: filterDoctorScreenGroups(base, ccScope, mode),
         }
       }
       if (link.to === '/nurse') {
-        return { ...link, screenGroups: filterNurseScreenGroups(nurseScreenGroups, ccScope) }
+        return { ...link, screenGroups: filterNurseScreenGroups(nurseScreenGroups, ccScope, mode) }
       }
       if (link.to === '/reception') {
         return { ...link, screenGroups: filterReceptionScreenGroups(receptionScreenGroups, ccScope) }
@@ -290,6 +290,7 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
     selectedPatient,
     ccScope,
     costCenterPatientCareType,
+    mode,
   ])
 
   return (

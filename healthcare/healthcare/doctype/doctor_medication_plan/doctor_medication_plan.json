@@ -149,7 +149,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-05-12 17:41:57.698261",
+ "modified": "2026-05-13 14:33:58.700617",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Doctor Medication Plan",
@@ -167,6 +167,28 @@
    "role": "System Manager",
    "share": 1,
    "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Doctor",
+   "select": 1,
+   "share": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Reception",
+   "share": 1
   }
  ],
  "quick_entry": 1,

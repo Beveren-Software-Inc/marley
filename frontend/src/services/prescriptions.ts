@@ -260,7 +260,6 @@ export interface MedicationOrderRow {
   is_pink?: boolean
   /** PRN (Pro Re Nata) — give only as needed */
   is_prn?: boolean
-  reference_no?: string
   route_of_administration?: string
   /** When true, row is long-acting; show long_acting_frequency and create Long Acting Medicine on backend */
   is_long_acting?: boolean
@@ -314,7 +313,6 @@ export async function createPrescription(
       patient_frequency: row.patient_frequency,
       is_pink: row.is_pink,
       is_prn: row.is_prn ?? false,
-      reference_no: row.reference_no,
       route_of_administration: row.route_of_administration,
       is_long_acting_medicine: row.is_long_acting ?? false,
       long_acting_frequency: row.is_long_acting ? (row.long_acting_frequency || 'Weekly') : undefined,
@@ -442,4 +440,76 @@ export async function fetchAfterDischargePrescriptions(
     return resData.message as Prescription[]
   }
   return []
+}
+
+/** Update a single medication order entry (child table row). */
+export async function updateMedicationOrderEntry(
+  patientMedicationOrder: string,
+  orderEntryName: string,
+  updates: Record<string, unknown>
+): Promise<{ ok: boolean }> {
+  const { apiRequest } = await import('./apiClient')
+  return apiRequest<{ ok: boolean }>(
+    '/api/method/healthcare.api.patient_medication_order.update_medication_order_entry',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        patient_medication_order: patientMedicationOrder,
+        order_entry_name: orderEntryName,
+        updates: JSON.stringify(updates),
+      }),
+    }
+  )
+}
+
+/** Add a new medication order entry to an existing prescription. */
+export async function addMedicationOrderEntry(
+  patientMedicationOrder: string,
+  entryData: Record<string, unknown>
+): Promise<{ ok: boolean; entry: any }> {
+  const { apiRequest } = await import('./apiClient')
+  return apiRequest<{ ok: boolean; entry: any }>(
+    '/api/method/healthcare.api.patient_medication_order.add_medication_order_entry',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        patient_medication_order: patientMedicationOrder,
+        entry_data: JSON.stringify(entryData),
+      }),
+    }
+  )
+}
+
+/** Check if any medicine has been given for a specific medication order entry. */
+export async function checkMedicineGivenForEntry(
+  patientMedicationOrder: string,
+  orderEntryName: string
+): Promise<{ has_given: boolean; count?: number }> {
+  const { apiRequest } = await import('./apiClient')
+  return apiRequest<{ has_given: boolean; count?: number }>(
+    '/api/method/healthcare.api.patient_medication_order.check_medicine_given_for_entry',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        patient_medication_order: patientMedicationOrder,
+        order_entry_name: orderEntryName,
+      }),
+    }
+  )
+}
+
+/** Batch: get given/not-given status for all entries in a prescription. */
+export async function getGivenStatusForPrescription(
+  patientMedicationOrder: string
+): Promise<Record<string, { has_given: boolean; count: number }>> {
+  const { apiRequest } = await import('./apiClient')
+  return apiRequest<Record<string, { has_given: boolean; count: number }>>(
+    '/api/method/healthcare.api.patient_medication_order.get_given_status_for_prescription',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        patient_medication_order: patientMedicationOrder,
+      }),
+    }
+  )
 }

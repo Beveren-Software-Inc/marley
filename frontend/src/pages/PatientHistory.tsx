@@ -203,7 +203,7 @@ export const PatientHistoryPage = () => {
             <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[420px]">
               <div className="font-semibold mb-4 flex-shrink-0">Warnings & Allergies</div>
               <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                <WarningMessagesList patient={selectedPatient} />
+                <WarningMessagesList patient={selectedPatient} onPatientClick={handlePatientSelect} />
               </div>
             </section>
 
@@ -220,14 +220,14 @@ export const PatientHistoryPage = () => {
             <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[420px]">
               <div className="font-semibold mb-4 flex-shrink-0">Admissions</div>
               <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                <AdmissionList patient={selectedPatient} />
+                <AdmissionList patient={selectedPatient} onPatientFromAdmission={handlePatientSelect} />
               </div>
             </section>
 
             <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[420px]">
               <div className="font-semibold mb-4 flex-shrink-0">Patient Visits</div>
               <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                <PatientVisitList patient={selectedPatient} />
+                <PatientVisitList patient={selectedPatient} onPatientFromVisit={handlePatientSelect} />
               </div>
             </section>
           </div>
@@ -236,14 +236,14 @@ export const PatientHistoryPage = () => {
             <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[420px]">
               <div className="font-semibold mb-4 flex-shrink-0">Lab Test Reports</div>
               <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                <LabTestList patient={selectedPatient} />
+                <LabTestList patient={selectedPatient} onPatientClick={handlePatientSelect} />
               </div>
             </section>
 
             <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[420px]">
               <div className="font-semibold mb-4 flex-shrink-0">Discharge Form</div>
               <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                <DischargeList patient={selectedPatient} />
+                <DischargeList patient={selectedPatient} onPatientClick={handlePatientSelect} />
               </div>
             </section>
           </div>
@@ -252,14 +252,14 @@ export const PatientHistoryPage = () => {
             <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[420px]">
               <div className="font-semibold mb-4 flex-shrink-0">Service Requests</div>
               <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                <ServiceRequestList patient={selectedPatient} />
+                <ServiceRequestList patient={selectedPatient} onPatientClick={handlePatientSelect} />
               </div>
             </section>
 
             <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[420px]">
               <div className="font-semibold mb-4 flex-shrink-0">Appointments</div>
               <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                <AppointmentList patient={selectedPatient} showAll={true}/>
+                <AppointmentList patient={selectedPatient} showAll={true} onPatientClick={handlePatientSelect} />
               </div>
             </section>
           </div>
@@ -268,14 +268,14 @@ export const PatientHistoryPage = () => {
             <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[420px]">
               <div className="font-semibold mb-4 flex-shrink-0">Vital Signs</div>
               <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                <VitalSignsList patient={selectedPatient} />
+                <VitalSignsList patient={selectedPatient} onPatientClick={handlePatientSelect} />
               </div>
             </section>
 
             <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[420px]">
               <div className="font-semibold mb-4 flex-shrink-0">Observation</div>
               <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                <ObservationList patient={selectedPatient} />
+                <ObservationList patient={selectedPatient} onPatientClick={handlePatientSelect} />
               </div>
             </section>
           </div>

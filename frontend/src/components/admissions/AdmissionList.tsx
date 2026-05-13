@@ -469,7 +469,9 @@ const [diagnosisModalAdmission, setDiagnosisModalAdmission] = useState<Inpatient
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Case No</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Patient</th>
+                {!patient && (
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Patient</th>
+                )}
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Scheduled Date</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Status</th>
                 {onAdmissionSelect && (
@@ -480,7 +482,7 @@ const [diagnosisModalAdmission, setDiagnosisModalAdmission] = useState<Inpatient
             <tbody className="divide-y divide-slate-200">
               {records.length === 0 ? (
                 <tr>
-                  <td colSpan={onAdmissionSelect ? 5 : 4} className="px-4 py-8 text-center text-slate-500">
+                  <td colSpan={onAdmissionSelect ? (patient ? 4 : 5) : (patient ? 3 : 4)} className="px-4 py-8 text-center text-slate-500">
                     {hasActiveFilters ? 'No admissions match your filters.' : 'No admissions found'}
                   </td>
                 </tr>
@@ -495,7 +497,6 @@ const [diagnosisModalAdmission, setDiagnosisModalAdmission] = useState<Inpatient
                         onClick={() => {
                           setDetailAdmission(record.name)
                           onAdmissionSelect?.(record.name)
-                          if (record.patient) onPatientFromAdmission?.(record.patient)
                         }}
                         className="text-primary hover:underline text-left focus:outline-none"
                         title="View admission details"
@@ -504,9 +505,14 @@ const [diagnosisModalAdmission, setDiagnosisModalAdmission] = useState<Inpatient
                       </button>
                     </td>
 
-                    <td className="px-4 py-3 text-sm text-slate-700">
-                      {record.patient_name || record.patient}
-                    </td>
+                    {!patient && (
+                      <td
+                        className="px-4 py-3 text-sm text-slate-700 cursor-pointer"
+                        onClick={() => record.patient && onPatientFromAdmission?.(record.patient)}
+                      >
+                        <span className="font-medium text-primary hover:underline">{record.patient_name || record.patient || '-'}</span>
+                      </td>
+                    )}
                     <td className="px-4 py-3 text-sm text-slate-700">
                       {record.scheduled_date ? new Date(record.scheduled_date).toLocaleDateString() : '-'}
                     </td>

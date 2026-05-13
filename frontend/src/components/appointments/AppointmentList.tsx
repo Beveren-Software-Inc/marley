@@ -669,6 +669,7 @@ interface AppointmentListProps {
   showAll?: boolean
   patient?: string
   onAddAppointment?: () => void
+  onPatientClick?: (patient: string) => void
 }
 
 interface LeaveDetails {
@@ -781,7 +782,7 @@ const PractitionerStatusIndicator = ({ available, leaveDetails }: { available: b
   )
 }
 
-export const AppointmentList = ({ refreshKey, showAll = false, patient }: AppointmentListProps) => {
+export const AppointmentList = ({ refreshKey, showAll = false, patient, onPatientClick }: AppointmentListProps) => {
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
@@ -1149,7 +1150,9 @@ export const AppointmentList = ({ refreshKey, showAll = false, patient }: Appoin
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Appointment ID</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Patient</th>
+                {!patient && (
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Patient</th>
+                )}
                 {showAll && (
                   <>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Practitioner</th>
@@ -1183,7 +1186,14 @@ export const AppointmentList = ({ refreshKey, showAll = false, patient }: Appoin
                     >
                       {apt.name}
                     </td>
-                    <td className="px-4 py-3 text-sm text-slate-700">{apt.patient_name || apt.patient || '-'}</td>
+                    {!patient && (
+                      <td
+                        className="px-4 py-3 text-sm text-slate-700 cursor-pointer"
+                        onClick={() => apt.patient && onPatientClick?.(apt.patient)}
+                      >
+                        <span className="font-medium text-primary hover:underline">{apt.patient_name || apt.patient || '-'}</span>
+                      </td>
+                    )}
                     {showAll && (
                       <>
                         <td className="px-4 py-3 text-sm text-slate-700">{apt.practitioner_name || apt.practitioner || '-'}</td>

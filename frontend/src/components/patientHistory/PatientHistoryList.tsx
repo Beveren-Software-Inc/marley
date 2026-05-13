@@ -14,9 +14,10 @@ interface HistoryRecord {
 interface PatientHistoryListProps {
   patient?: string
   refreshKey?: number
+  onPatientClick?: (patient: string) => void
 }
 
-export const PatientHistoryList = ({ patient, refreshKey }: PatientHistoryListProps) => {
+export const PatientHistoryList = ({ patient, refreshKey, onPatientClick }: PatientHistoryListProps) => {
   const [items, setItems] = useState<HistoryRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
@@ -75,7 +76,9 @@ export const PatientHistoryList = ({ patient, refreshKey }: PatientHistoryListPr
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr>
               <th className="px-3 py-2 text-left text-[11px] font-semibold text-slate-600 uppercase">Record #</th>
-              <th className="px-3 py-2 text-left text-[11px] font-semibold text-slate-600 uppercase">Patient</th>
+              {!patient && (
+                <th className="px-3 py-2 text-left text-[11px] font-semibold text-slate-600 uppercase">Patient</th>
+              )}
               <th className="px-3 py-2 text-left text-[11px] font-semibold text-slate-600 uppercase">Admission</th>
               <th className="px-3 py-2 text-left text-[11px] font-semibold text-slate-600 uppercase">Visit</th>
               <th className="px-3 py-2 text-left text-[11px] font-semibold text-slate-600 uppercase">Date</th>
@@ -91,7 +94,14 @@ export const PatientHistoryList = ({ patient, refreshKey }: PatientHistoryListPr
                     {row.name}
                   </button>
                 </td>
-                <td className="px-3 py-2 text-slate-700 text-xs">{row.patient || '—'}</td>
+                {!patient && (
+                  <td
+                    className="px-3 py-2 cursor-pointer"
+                    onClick={() => row.patient && onPatientClick?.(row.patient)}
+                  >
+                    <span className="font-medium text-primary hover:underline">{row.patient || '—'}</span>
+                  </td>
+                )}
                 <td className="px-3 py-2 text-slate-500 text-xs">{row.inpatient_admission || '—'}</td>
                 <td className="px-3 py-2 text-slate-500 text-xs">{row.patient_visit || '—'}</td>
                 <td className="px-3 py-2 text-slate-500 text-xs">

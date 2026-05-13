@@ -1094,3 +1094,196 @@ def update_medication_order_status(name: str, status: str):
         "success": True,
         "message": f"Prescription {name} status updated to {status}"
     }
+
+
+@frappe.whitelist()
+def update_medication_order_entry(patient_medication_order, order_entry_name, updates):
+    """Update a single medication order entry (child table row) in a Patient Medication Order.
+
+    Args:
+        patient_medication_order: Parent document name
+        order_entry_name: Child table row name
+        updates: JSON string or dict of field values to update
+    """
+    import json
+    if isinstance(updates, str):
+        updates = json.loads(updates)
+
+    if not frappe.has_permission("Patient Medication Order", "write", patient_medication_order):
+        frappe.throw("Not permitted", frappe.PermissionError)
+
+    doc = frappe.get_doc("Patient Medication Order", patient_medication_order)
+    entry = None
+    for row in doc.get("medication_orders", []):
+        if row.name == order_entry_name:
+            entry = row
+            break
+
+    if not entry:
+        frappe.throw(f"Medication order entry {order_entry_name} not found")
+
+    allowed_fields = [
+        "drug", "drug_name", "dosage", "uom", "dosage_form", "no_of_days",
+        "instructions", "date", "end_date", "time", "patient_frequency",
+        "route_of_administration", "reference_no", "is_pink", "is_prn",
+        "is_long_acting_medicine", "long_acting_frequency", "medication_type",
+        "frequency_in_a_day"
+    ]
+
+    for field, value in updates.items():
+        if field in allowed_fields:
+            entry.set(field, value)
+
+    doc.save(ignore_permissions=False)
+    frappe.db.commit()
+
+    return {"ok": True, "entry": entry.as_dict()}
+
+
+@frappe.whitelist()
+def add_medication_order_entry(patient_medication_order, entry_data):
+    """Add a new medication order entry to an existing Patient Medication Order.
+
+    Args:
+        patient_medication_order: Parent document name
+        entry_data: JSON string or dict of new entry fields
+    """
+    import json
+    if isinstance(entry_data, str):
+        entry_data = json.loads(entry_data)
+
+    if not frappe.has_permission("Patient Medication Order", "write", patient_medication_order):
+        frappe.throw("Not permitted", frappe.PermissionError)
+
+    doc = frappe.get_doc("Patient Medication Order", patient_medication_order)
+
+    new_entry = doc.append("medication_orders", {
+        "drug": entry_data.get("drug"),
+        "drug_name": entry_data.get("drug_name"),
+        "dosage": entry_data.get("dosage"),
+        "uom": entry_data.get("uom"),
+        "dosage_form": entry_data.get("dosage_form"),
+        "no_of_days": entry_data.get("no_of_days"),
+        "instructions": entry_data.get("instructions"),
+        "date": entry_data.get("date"),
+        "end_date": entry_data.get("end_date"),
+        "time": entry_data.get("time"),
+        "patient_frequency": entry_data.get("patient_frequency"),
+        "route_of_administration": entry_data.get("route_of_administration"),
+        "reference_no": entry_data.get("reference_no"),
+        "is_pink": entry_data.get("is_pink", 0),
+        "is_prn": entry_data.get("is_prn", 0),
+        "is_long_acting_medicine": entry_data.get("is_long_acting_medicine", 0),
+        "long_acting_frequency": entry_data.get("long_acting_frequency"),
+        "medication_type": entry_data.get("medication_type"),
+    })
+
+    doc.save(ignore_permissions=False)
+    frappe.db.commit()
+
+    return {"ok": True, "entry": new_entry.as_dict(), "prescription": doc.name}
+
+
+@frappe.whitelist()
+def check_medicine_given_for_entry(patient_medication_order, order_entry_name):
+    """Check if any medicine has been given for a specific medication order entry.
+
+    Returns True if there's at least one Medicine Given record that references
+    this medication order entry.
+    """
+    doc = frappe.get_doc("Patient Medication Order", patient_medication_order)
+    entry = None
+    for row in doc.get("medication_orders", []):
+        if row.name == order_entry_name:
+            entry = row
+            break
+
+    if not entry:
+        return {"has_given": False}
+
+    # Medicine Given is a child table of Admission Detail, linked via medication_order (PMO name)
+    # and medicine_code (Item code). There is no direct link to the order entry row.
+    admission = getattr(doc, "inpatient_record", None)
+    if not admission:
+        return {"has_given": False, "count": 0}
+
+    admission_detail_name = frappe.db.get_value("Admission Detail", {"admission": admission}, "name")
+    if not admission_detail_name:
+        return {"has_given": False, "count": 0}
+
+    # Primary check: match by PMO link and drug code on Medicine Given child rows
+    count = frappe.db.count("Medicine Given", filters={
+        "parent": admission_detail_name,
+        "parenttype": "Admission Detail",
+        "medication_order": patient_medication_order,
+        "medicine_code": entry.drug,
+    })
+
+    if count == 0:
+        # Fallback: match by drug code only (in case medication_order was not set on older rows)
+        count = frappe.db.count("Medicine Given", filters={
+            "parent": admission_detail_name,
+            "parenttype": "Admission Detail",
+            "medicine_code": entry.drug,
+        })
+
+    return {"has_given": count > 0, "count": count}
+
+
+@frappe.whitelist()
+def get_given_status_for_prescription(patient_medication_order):
+    """Return given/not-given status for every medication order entry in a prescription.
+
+    Returns a dict keyed by entry name with {has_given: bool, count: int}.
+    Efficient batch version — does a single DB query for all Medicine Given rows.
+    """
+    doc = frappe.get_doc("Patient Medication Order", patient_medication_order)
+    entries = doc.get("medication_orders", [])
+
+    result = {}
+    if not entries:
+        return result
+
+    admission = getattr(doc, "inpatient_record", None)
+    if not admission:
+        for row in entries:
+            result[row.name] = {"has_given": False, "count": 0}
+        return result
+
+    admission_detail_name = frappe.db.get_value(
+        "Admission Detail", {"admission": admission}, "name"
+    )
+    if not admission_detail_name:
+        for row in entries:
+            result[row.name] = {"has_given": False, "count": 0}
+        return result
+
+    given_rows = frappe.get_all(
+        "Medicine Given",
+        filters={
+            "parent": admission_detail_name,
+            "parenttype": "Admission Detail",
+        },
+        fields=["medicine_code", "medication_order"],
+        ignore_permissions=True,
+    )
+
+    given_by_pmo_drug: dict[tuple, int] = {}
+    given_by_drug: dict[str, int] = {}
+    for g in given_rows:
+        key = (g.get("medication_order") or "", g.get("medicine_code") or "")
+        given_by_pmo_drug[key] = given_by_pmo_drug.get(key, 0) + 1
+        drug = g.get("medicine_code") or ""
+        if drug:
+            given_by_drug[drug] = given_by_drug.get(drug, 0) + 1
+
+    pmo_name = doc.name
+    for row in entries:
+        primary = given_by_pmo_drug.get((pmo_name, row.drug), 0)
+        if primary > 0:
+            result[row.name] = {"has_given": True, "count": primary}
+        else:
+            fallback = given_by_drug.get(row.drug, 0)
+            result[row.name] = {"has_given": fallback > 0, "count": fallback}
+
+    return result

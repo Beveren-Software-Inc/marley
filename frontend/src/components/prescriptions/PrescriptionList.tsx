@@ -30,6 +30,7 @@ interface PrescriptionListProps {
   patient?: string
   refreshKey?: string | number
   onPrescriptionSelect?: (name: string) => void
+  onPatientClick?: (patient: string) => void
   careContext?: 'Patient Visit' | 'Inpatient Admission'
 }
 
@@ -37,6 +38,7 @@ export const PrescriptionList = ({
   patient,
   refreshKey,
   onPrescriptionSelect,
+  onPatientClick,
   careContext: careContextProp,
 }: PrescriptionListProps) => {
   const { mode, activeVisit, activeAdmission, selectedPatient: contextPatient } = useCareContext()
@@ -297,9 +299,11 @@ export const PrescriptionList = ({
             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
               Prescription
             </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-              Patient
-            </th>
+            {!patient && (
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+                Patient
+              </th>
+            )}
             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
               Practitioner
             </th>
@@ -329,9 +333,14 @@ export const PrescriptionList = ({
               >
                 <span className="font-medium text-primary hover:underline">{row.name}</span>
               </td>
-              <td className="px-4 py-3 text-sm text-slate-700">
-                {row.patient_name || row.patient || '-'}
-              </td>
+              {!patient && (
+                <td
+                  className="px-4 py-3 text-sm text-slate-700 cursor-pointer"
+                  onClick={() => row.patient && onPatientClick?.(row.patient)}
+                >
+                  <span className="font-medium text-primary hover:underline">{row.patient_name || row.patient || '-'}</span>
+                </td>
+              )}
               <td className="px-4 py-3 text-sm text-slate-700">
                 {row.healthcare_practitioner_name || row.practitioner || '-'}
               </td>

@@ -11,6 +11,7 @@ interface ADHDAssessmentListProps {
   patient?: string
   refreshKey?: number
   onCreateNew?: () => void
+  onPatientClick?: (patient: string) => void
 }
 
 const statusBadge = (docstatus: number) => {
@@ -50,6 +51,7 @@ export const ADHDAssessmentList = ({
   patient,
   refreshKey,
   onCreateNew,
+  onPatientClick,
 }: ADHDAssessmentListProps) => {
   const [records, setRecords] = useState<ADHDAssessmentRow[]>([])
   const [loading, setLoading] = useState(false)
@@ -155,7 +157,9 @@ export const ADHDAssessmentList = ({
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">Date</th>
-                <th className="px-3 py-2 text-left font-semibold text-slate-600">Patient</th>
+                {!patient && (
+                  <th className="px-3 py-2 text-left font-semibold text-slate-600">Patient</th>
+                )}
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">Template</th>
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">Part A Positives</th>
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">Result</th>
@@ -173,9 +177,14 @@ export const ADHDAssessmentList = ({
                   <td className="px-3 py-2 text-slate-900 font-medium whitespace-nowrap">
                     {fmt(r.assessment_date)}
                   </td>
-                  <td className="px-3 py-2 text-slate-800">
-                    {r.patient_name || r.patient}
-                  </td>
+                  {!patient && (
+                    <td
+                      className="px-3 py-2 cursor-pointer"
+                      onClick={(e) => { e.stopPropagation(); r.patient && onPatientClick?.(r.patient) }}
+                    >
+                      <span className="font-medium text-primary hover:underline">{r.patient_name || r.patient}</span>
+                    </td>
+                  )}
                   <td className="px-3 py-2 text-slate-700">{r.template || '—'}</td>
                   <td className="px-3 py-2 text-slate-700">
                     {r.positive_count != null ? (
