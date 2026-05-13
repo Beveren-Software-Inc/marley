@@ -77,7 +77,7 @@ def get_clinical_notes(**kwargs):
 	note_type = kwargs.get('note_type')
 	reference_doctype = kwargs.get('ref_doctype')
 	reference_document = kwargs.get('ref_document')
-	print("here fuck")
+	
 	filters = {}
 	
 	if patient:
@@ -229,3 +229,4 @@ def resolve_medical_role_filter(medical_role):
     
     # If children exist, return them; otherwise return the original role
     return child_roles if child_roles else [medical_role]
+
