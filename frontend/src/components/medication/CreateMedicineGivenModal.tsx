@@ -4,7 +4,7 @@ import {
   createModalShellClass,
 } from '../ui/CreateModalChrome'
 import type { Prescription, MedicationOrderEntry } from '../../services/prescriptions'
-import { fetchPrescriptions, fetchMedicationOrders } from '../../services/prescriptions'
+import { fetchPrescriptions, fetchMedicationOrders, fetchPrescriptionByInpatientOrEncounter } from '../../services/prescriptions'
 import { getPatientActiveAdmission, type InpatientRecord } from '../../services/inpatientRecords'
 import { createMedicineGiven } from '../../services/medicineGiven'
 import { toast } from '../../hooks/useToast'
@@ -18,6 +18,8 @@ import { ChevronDown, X } from 'lucide-react'
 
 interface CreateMedicineGivenModalProps {
   initialPatient?: string
+  inpatientRecord?: string | null
+  patientEncounter?: string | null
   onClose: () => void
   onSuccess: () => void
 }
@@ -121,6 +123,8 @@ const Combobox = ({
 
 export const CreateMedicineGivenModal = ({
   initialPatient,
+  inpatientRecord: propInpatientRecord,
+  patientEncounter: propPatientEncounter,
   onClose,
   onSuccess,
 }: CreateMedicineGivenModalProps) => {
@@ -180,30 +184,56 @@ export const CreateMedicineGivenModal = ({
         setLoadingUoms(false)
 
         if (mode === 'prescription') {
-          // Only PMOs for *this* admission — otherwise the first match can be an old IP (wrong inpatient_record).
-          const list = await fetchPrescriptions(50, 0, {
-            patient: initialPatient,
-            careContext: 'Inpatient Admission',
-            inpatientRecord: adm.name,
-          })
-          setPrescriptions(list)
-          if (list.length > 0) {
-            const first = list[0].name
-            setSelectedPrescription(first)
-            const ords = await fetchMedicationOrders(first)
-            setOrders(ords)
-            if (ords.length > 0) {
-              setSelectedOrder(ords[0].name)
-            } else {
+          const hasContext = propInpatientRecord || propPatientEncounter
+          if (hasContext) {
+            try {
+              const currentRx = await fetchPrescriptionByInpatientOrEncounter(
+                propInpatientRecord,
+                propPatientEncounter
+              )
+              if (currentRx) {
+                setPrescriptions([currentRx])
+                setSelectedPrescription(currentRx.name)
+                const ords = await fetchMedicationOrders(currentRx.name)
+                setOrders(ords)
+                setSelectedOrder(ords.length > 0 ? ords[0].name : '')
+              } else {
+                setPrescriptions([])
+                setSelectedPrescription('')
+                setOrders([])
+                setSelectedOrder('')
+                setError(
+                  'No current prescription found. Use "Direct Medicine" to record a dose, or create a prescription first.'
+                )
+              }
+            } catch {
+              setPrescriptions([])
+              setSelectedPrescription('')
+              setOrders([])
               setSelectedOrder('')
+              setError('Failed to load current prescription.')
             }
           } else {
-            setSelectedPrescription('')
-            setOrders([])
-            setSelectedOrder('')
-            setError(
-              `No submitted prescription (Patient Medication Order) for admission ${adm.name}. Use “Direct Medicine” to record a dose, or add a prescription for this admission.`
-            )
+            const list = await fetchPrescriptions(50, 0, {
+              patient: initialPatient,
+              careContext: 'Inpatient Admission',
+              inpatientRecord: adm.name,
+            })
+            setPrescriptions(list)
+            if (list.length > 0) {
+              const first = list[0].name
+              setSelectedPrescription(first)
+              const ords = await fetchMedicationOrders(first)
+              setOrders(ords)
+              setSelectedOrder(ords.length > 0 ? ords[0].name : '')
+            } else {
+              setSelectedPrescription('')
+              setOrders([])
+              setSelectedOrder('')
+              setError(
+                `No submitted prescription (Patient Medication Order) for admission ${adm.name}. Use "Direct Medicine" to record a dose, or add a prescription for this admission.`
+              )
+            }
           }
         } else {
           const opts = await fetchItems()
@@ -222,7 +252,7 @@ export const CreateMedicineGivenModal = ({
     }
 
     load()
-  }, [initialPatient, mode])
+  }, [initialPatient, mode, propInpatientRecord, propPatientEncounter])
 
   useEffect(() => {
     if (mode === 'prescription') {
@@ -309,8 +339,13 @@ export const CreateMedicineGivenModal = ({
         return
       }
 
+      const selectedRx = prescriptions.find(p => p.name === selectedPrescription)
+      const admissionName = (mode === 'prescription' && selectedRx?.inpatient_record)
+        ? selectedRx.inpatient_record
+        : (propInpatientRecord || admission.name)
+
       await createMedicineGiven({
-        admission: admission.name,
+        admission: admissionName,
         medication_order: mode === 'prescription' ? selectedPrescription : '',
         order_entry: mode === 'prescription' ? selectedOrder : undefined,
         item_code: mode === 'direct' ? selectedItem : undefined,
@@ -459,7 +494,7 @@ export const CreateMedicineGivenModal = ({
             <>
               <div className="space-y-2">
                 <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Prescription (Patient Medication Order)
+                  Current Prescription
                 </label>
                 <select
                   value={selectedPrescription}

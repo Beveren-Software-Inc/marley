@@ -5,9 +5,10 @@ interface SickLeaveListProps {
   patient?: string
   refreshKey?: number
   onCreateNew?: () => void
+  onPatientClick?: (patient: string) => void
 }
 
-export const SickLeaveList = ({ patient, refreshKey, onCreateNew }: SickLeaveListProps) => {
+export const SickLeaveList = ({ patient, refreshKey, onCreateNew, onPatientClick }: SickLeaveListProps) => {
   const [records, setRecords] = useState<SickLeaveRow[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -98,7 +99,9 @@ export const SickLeaveList = ({ patient, refreshKey, onCreateNew }: SickLeaveLis
           <table className="min-w-full text-xs">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
-                <th className="px-3 py-2 text-left font-semibold text-slate-600">Patient</th>
+                {!patient && (
+                  <th className="px-3 py-2 text-left font-semibold text-slate-600">Patient</th>
+                )}
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">Admission No</th>
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">From Date</th>
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">To Date</th>
@@ -110,7 +113,14 @@ export const SickLeaveList = ({ patient, refreshKey, onCreateNew }: SickLeaveLis
             <tbody className="divide-y divide-slate-100">
               {records.map((r) => (
                 <tr key={r.name} className="hover:bg-slate-50 cursor-pointer" onClick={() => setSelected(r)}>
-                  <td className="px-3 py-2 text-slate-900 font-medium">{r.patient_name || r.patient || '—'}</td>
+                  {!patient && (
+                    <td
+                      className="px-3 py-2 text-slate-900 cursor-pointer"
+                      onClick={(e) => { e.stopPropagation(); r.patient && onPatientClick?.(r.patient) }}
+                    >
+                      <span className="font-medium text-primary hover:underline">{r.patient_name || r.patient || '—'}</span>
+                    </td>
+                  )}
                   <td className="px-3 py-2 text-slate-700">{r.admission_no || '—'}</td>
                   <td className="px-3 py-2 text-slate-800">{r.from_date || '—'}</td>
                   <td className="px-3 py-2 text-slate-800">{r.to_date || '—'}</td>

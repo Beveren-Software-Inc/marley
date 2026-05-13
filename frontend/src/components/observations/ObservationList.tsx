@@ -21,9 +21,10 @@ const statusColors: Record<string, string> = {
 
 interface ObservationListProps {
   patient?: string
+  onPatientClick?: (patient: string) => void
 }
 
-export const ObservationList = ({ patient }: ObservationListProps) => {
+export const ObservationList = ({ patient, onPatientClick }: ObservationListProps) => {
   const formatCurrency = useFormatMoney()
   const [observations, setObservations] = useState<Observation[]>([])
   const [loading, setLoading] = useState(true)
@@ -139,9 +140,11 @@ export const ObservationList = ({ patient }: ObservationListProps) => {
             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
               Observation ID
             </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-              Patient
-            </th>
+            {!patient && (
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+                Patient
+              </th>
+            )}
             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
               Template
             </th>
@@ -183,9 +186,14 @@ export const ObservationList = ({ patient }: ObservationListProps) => {
               >
                 {obs.name}
               </td>
-              <td className="px-4 py-3 text-sm text-slate-700">
-                {obs.patient_name || obs.patient || '-'}
-              </td>
+              {!patient && (
+                <td
+                  className="px-4 py-3 text-sm text-slate-700 cursor-pointer"
+                  onClick={() => obs.patient && onPatientClick?.(obs.patient)}
+                >
+                  <span className="font-medium text-primary hover:underline">{obs.patient_name || obs.patient || '-'}</span>
+                </td>
+              )}
               <td className="px-4 py-3 text-sm text-slate-700">
                 {obs.template_name || obs.observation_template || '-'}
               </td>

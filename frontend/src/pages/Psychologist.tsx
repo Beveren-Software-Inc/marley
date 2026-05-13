@@ -86,6 +86,7 @@ export const PsychologistPage = () => {
               medicalRole="Psychologist"
               clinicalNoteType="Psychologist Note"
               key={clinicalNotesRefreshKey}
+              onPatientClick={handlePatientSelect}
             />
           </section>
         </div>
@@ -122,6 +123,7 @@ export const PsychologistPage = () => {
               medicalRole="Psychologist"
               clinicalNoteType="Psychologist Order"
               key={clinicalNotesRefreshKey}
+              onPatientClick={handlePatientSelect}
             />
           </section>
         </div>
@@ -171,7 +173,7 @@ export const PsychologistPage = () => {
                 title="Add Warning"
               >+</button>
             </div>
-            <WarningMessagesList patient={selectedPatient} key={warningRefreshKey} />
+            <WarningMessagesList patient={selectedPatient} key={warningRefreshKey} onPatientClick={handlePatientSelect} />
           </section>
         </div>
         {showWarningModal && (
@@ -216,7 +218,7 @@ export const PsychologistPage = () => {
                 title="Add Patient History"
               >+</button>
             </div>
-            <PatientHistoryList patient={selectedPatient} refreshKey={patientHistoryRefreshKey} />
+            <PatientHistoryList patient={selectedPatient} refreshKey={patientHistoryRefreshKey} onPatientClick={handlePatientSelect} />
           </section>
         </div>
         {showPatientHistoryModal && (
@@ -247,7 +249,7 @@ export const PsychologistPage = () => {
                 title="Add Physical Examination"
               >+</button>
             </div>
-            <PhysicalExaminationList patient={selectedPatient} refreshKey={physicalExamRefreshKey} />
+            <PhysicalExaminationList patient={selectedPatient} refreshKey={physicalExamRefreshKey} onPatientClick={handlePatientSelect} />
           </section>
         </div>
         {showPhysicalExamModal && (
@@ -287,6 +289,7 @@ export const PsychologistPage = () => {
                 medicalRole="Psychologist"
                 clinicalNoteType="Psychologist Note"
                 key={clinicalNotesRefreshKey}
+                onPatientClick={handlePatientSelect}
               />
             </div>
           </section>
@@ -307,6 +310,7 @@ export const PsychologistPage = () => {
                 medicalRole="Psychologist"
                 clinicalNoteType="Psychologist Order"
                 key={`order-${clinicalNotesRefreshKey}`}
+                onPatientClick={handlePatientSelect}
               />
             </div>
           </section>
@@ -325,7 +329,7 @@ export const PsychologistPage = () => {
               >+</button>
             </div>
             <div className="flex-1 min-h-[80px]">
-              <WarningMessagesList patient={selectedPatient} key={warningRefreshKey} />
+              <WarningMessagesList patient={selectedPatient} key={warningRefreshKey} onPatientClick={handlePatientSelect} />
             </div>
           </section>
 
@@ -340,7 +344,7 @@ export const PsychologistPage = () => {
               >+</button>
             </div>
             <div className="flex-1 min-h-[80px]">
-              <PatientHistoryList patient={selectedPatient} refreshKey={patientHistoryRefreshKey} />
+              <PatientHistoryList patient={selectedPatient} refreshKey={patientHistoryRefreshKey} onPatientClick={handlePatientSelect} />
             </div>
           </section>
 
@@ -355,7 +359,7 @@ export const PsychologistPage = () => {
               >+</button>
             </div>
             <div className="flex-1 min-h-[80px]">
-              <PhysicalExaminationList patient={selectedPatient} refreshKey={physicalExamRefreshKey} />
+              <PhysicalExaminationList patient={selectedPatient} refreshKey={physicalExamRefreshKey} onPatientClick={handlePatientSelect} />
             </div>
           </section>
 

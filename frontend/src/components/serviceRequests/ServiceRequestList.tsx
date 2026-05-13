@@ -25,6 +25,7 @@ interface ServiceRequestListProps {
   onCreateIPService?: (sr: ServiceRequest) => void
   /** Flag to indicate if we're in nurse/IP context */
   isNurseContext?: boolean
+  onPatientClick?: (patient: string) => void
 }
 
 const statusColors: Record<string, string> = {
@@ -67,7 +68,8 @@ export const ServiceRequestList = ({
   refreshKey, 
   template_dt, 
   onCreateIPService,
-  isNurseContext = false 
+  isNurseContext = false,
+  onPatientClick,
 }: ServiceRequestListProps) => {
   const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>([])
   const [loading, setLoading] = useState(true)
@@ -294,9 +296,11 @@ export const ServiceRequestList = ({
             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
               Service Request ID
             </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-              Patient
-            </th>
+            {!patient && (
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+                Patient
+              </th>
+            )}
             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
               Test Name
             </th>
@@ -336,9 +340,14 @@ export const ServiceRequestList = ({
                 >
                   {sr.name}
                 </td>
-                <td className="px-4 py-3 text-sm text-slate-700">
-                  {sr.patient_name || sr.patient || '-'}
-                </td>
+                {!patient && (
+                  <td
+                    className="px-4 py-3 text-sm text-slate-700 cursor-pointer"
+                    onClick={() => sr.patient && onPatientClick?.(sr.patient)}
+                  >
+                    <span className="font-medium text-primary hover:underline">{sr.patient_name || sr.patient || '-'}</span>
+                  </td>
+                )}
                 <td className="px-4 py-3 text-sm text-slate-700">
                   {sr.template_name || sr.template_dn || '-'}
                 </td>

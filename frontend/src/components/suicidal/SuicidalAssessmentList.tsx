@@ -10,13 +10,15 @@ interface SuicidalAssessmentListProps {
   admission?: string
   onAddNew?: () => void
   onViewDetails?: (assessment: SuicidalAssessment) => void
+  onPatientClick?: (patient: string) => void
 }
 
 export const SuicidalAssessmentList = ({ 
   patient, 
   admission, 
   onAddNew,
-  onViewDetails 
+  onViewDetails,
+  onPatientClick,
 }: SuicidalAssessmentListProps) => {
   const { selectedPatient: contextPatient, mode, activeAdmission } = useCareContext()
   const [assessments, setAssessments] = useState<SuicidalAssessment[]>([])
@@ -122,9 +124,11 @@ export const SuicidalAssessmentList = ({
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
                   Assessment Date
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-                  Patient
-                </th>
+                {!patient && (
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+                    Patient
+                  </th>
+                )}
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
                   Admission No
                 </th>
@@ -156,9 +160,14 @@ export const SuicidalAssessmentList = ({
                     <td className="px-4 py-3 text-sm text-slate-700">
                       {formatDate(assessment.assessment_date)}
                     </td>
-                    <td className="px-4 py-3 text-sm text-slate-700">
-                      {assessment.patient_name || assessment.patient}
-                    </td>
+                    {!patient && (
+                      <td
+                        className="px-4 py-3 text-sm cursor-pointer"
+                        onClick={(e) => { e.stopPropagation(); assessment.patient && onPatientClick?.(assessment.patient) }}
+                      >
+                        <span className="font-medium text-primary hover:underline">{assessment.patient_name || assessment.patient}</span>
+                      </td>
+                    )}
                     <td className="px-4 py-3 text-sm text-slate-700">
                       {assessment.admission_no || '-'}
                     </td>

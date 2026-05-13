@@ -1113,6 +1113,7 @@ export const LabPage = () => {
                 onLabTestCreated={handleLabTestCreated}
                 refreshKey={serviceRequestRefreshKey}
                 template_dt="Lab Test Template"
+                onPatientClick={handlePatientSelect}
               />
             </div>
           </section>
@@ -1163,7 +1164,7 @@ export const LabPage = () => {
               </button>
             </div>
             <div className="overflow-x-auto overflow-visible" style={{ scrollbarWidth: 'thin' }}>
-              <LabTestList patient={selectedPatient} isOutsourced={true} key={labTestRefreshKey} />
+              <LabTestList patient={selectedPatient} isOutsourced={true} key={labTestRefreshKey} onPatientClick={handlePatientSelect} />
             </div>
           </section>
         </div>
@@ -1212,7 +1213,7 @@ export const LabPage = () => {
               </button>
             </div>
             <div className="overflow-x-auto overflow-visible" style={{ scrollbarWidth: 'thin' }}>
-              <LabTestList patient={selectedPatient} key={labTestRefreshKey} />
+              <LabTestList patient={selectedPatient} key={labTestRefreshKey} onPatientClick={handlePatientSelect} />
             </div>
           </section>
         </div>
@@ -1334,10 +1335,11 @@ export const LabPage = () => {
                 onLabTestCreated={handleLabTestCreated}
                 refreshKey={serviceRequestRefreshKey}
                 template_dt="Lab Test Template"
+                onPatientClick={handlePatientSelect}
               />
             )}
             {resolvedTab === 'lab-tests' && (
-              <LabTestList patient={selectedPatient} key={labTestRefreshKey} />
+              <LabTestList patient={selectedPatient} key={labTestRefreshKey} onPatientClick={handlePatientSelect} />
             )}
             {resolvedTab === 'sample-collection' && (
               <div className="p-3">
@@ -1389,7 +1391,7 @@ export const LabPage = () => {
                 </div>
               ) : (
                 <div className="p-3">
-                  <WarningMessagesList patient={selectedPatient!} />
+                  <WarningMessagesList patient={selectedPatient!} onPatientClick={handlePatientSelect} />
                 </div>
               )
             )}

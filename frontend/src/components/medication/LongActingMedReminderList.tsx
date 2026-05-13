@@ -156,6 +156,7 @@ import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 interface LongActingMedReminderListProps {
   patient?: string
   daysAhead?: number
+  onPatientClick?: (patient: string) => void
 }
 
 const statusConfig: Record<
@@ -167,7 +168,7 @@ const statusConfig: Record<
   due_soon: { label: 'Due soon', className: 'bg-blue-100 text-blue-800 border-blue-200' },
 }
 
-export const LongActingMedReminderList = ({ patient, daysAhead = 7 }: LongActingMedReminderListProps) => {
+export const LongActingMedReminderList = ({ patient, daysAhead = 7, onPatientClick }: LongActingMedReminderListProps) => {
   const [reminders, setReminders] = useState<LongActingMedicationReminder[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -240,7 +241,9 @@ export const LongActingMedReminderList = ({ patient, daysAhead = 7 }: LongActing
         <table className="min-w-full text-sm">
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr>
-              <th className="px-3 py-2 text-left font-semibold text-slate-600">Patient</th>
+              {!patient && (
+                <th className="px-3 py-2 text-left font-semibold text-slate-600">Patient</th>
+              )}
               <th className="px-3 py-2 text-left font-semibold text-slate-600">Medication</th>
               <th className="px-3 py-2 text-left font-semibold text-slate-600">Dose</th>
               <th className="px-3 py-2 text-left font-semibold text-slate-600">Frequency</th>
@@ -256,7 +259,14 @@ export const LongActingMedReminderList = ({ patient, daysAhead = 7 }: LongActing
               const config = statusConfig[r.status]
               return (
                 <tr key={rowKey} className="hover:bg-slate-50">
-                  <td className="px-3 py-2 text-slate-900">{r.patient_name || r.patient}</td>
+                  {!patient && (
+                    <td
+                      className="px-3 py-2 text-slate-900 cursor-pointer"
+                      onClick={() => r.patient && onPatientClick?.(r.patient)}
+                    >
+                      <span className="font-medium text-primary hover:underline">{r.patient_name || r.patient}</span>
+                    </td>
+                  )}
                   <td className="px-3 py-2 text-slate-900">{r.drug_name}</td>
                   <td className="px-3 py-2 text-slate-700">{r.dosage || '–'}</td>
                   <td className="px-3 py-2 text-slate-700">{r.frequency}</td>

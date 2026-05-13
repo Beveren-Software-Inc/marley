@@ -23,7 +23,7 @@ interface MedicineGivenListProps {
 }
 
 export const MedicineGivenList = ({ patient, refreshKey }: MedicineGivenListProps) => {
-  const { userCostCenter } = useCareContext()
+  const { userCostCenter, activeAdmission } = useCareContext()
   const [admission, setAdmission] = useState<InpatientRecord | null>(null)
   const [rows, setRows] = useState<MedicineGivenRow[]>([])
   const [missedRows, setMissedRows] = useState<MissedMedicineRow[]>([])
@@ -43,18 +43,29 @@ export const MedicineGivenList = ({ patient, refreshKey }: MedicineGivenListProp
       try {
         setLoading(true)
         setError(null)
-        const adm = await getPatientActiveAdmission(patient)
-        if (!adm) {
+
+        let admName: string | undefined
+        let admObj: InpatientRecord | null = null
+
+        if (activeAdmission) {
+          admName = activeAdmission
+          admObj = { name: activeAdmission, patient, patient_name: '', status: 'Admitted', scheduled_date: '' }
+        } else {
+          admObj = await getPatientActiveAdmission(patient)
+          admName = admObj?.name
+        }
+
+        if (!admObj || !admName) {
           setAdmission(null)
           setRows([])
           setMissedRows([])
           setError('No active inpatient admission found for this patient')
           return
         }
-        setAdmission(adm)
+        setAdmission(admObj)
         const [data, missed] = await Promise.all([
-          fetchMedicineGiven(adm.name, 100, 0),
-          fetchMissedMedicine(adm.name, 100, 0),
+          fetchMedicineGiven(admName, 100, 0),
+          fetchMissedMedicine(admName, 100, 0),
         ])
         setRows(data)
         setMissedRows(missed)
@@ -69,7 +80,7 @@ export const MedicineGivenList = ({ patient, refreshKey }: MedicineGivenListProp
     }
 
     load()
-  }, [patient, refreshKey])
+  }, [patient, refreshKey, activeAdmission])
 
   const handleDelete = async (row: MedicineGivenRow) => {
     if (!window.confirm('Remove this given medicine entry?')) return

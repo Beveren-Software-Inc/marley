@@ -170,6 +170,7 @@ export const InsurancePage = () => {
               <InsuranceClaimList
                 refreshKey={claimRefreshKey}
                 patient={selectedPatient}
+                onPatientClick={handlePatientSelect}
               />
             )}
           </div>

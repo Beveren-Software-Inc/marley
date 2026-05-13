@@ -16,7 +16,12 @@ const stripHtml = (html: string | undefined): string => {
   return text.trim().replace(/\s+/g, ' ') || '-'
 }
 
-export const WarningMessagesList = ({ patient }: { patient?: string }) => {
+interface WarningMessagesListProps {
+  patient?: string
+  onPatientClick?: (patient: string) => void
+}
+
+export const WarningMessagesList = ({ patient, onPatientClick }: WarningMessagesListProps) => {
   const { warnings, loading, error, refetch } = useWarningMessages(patient)
   const [detailName, setDetailName] = useState<string | null>(null)
 
@@ -58,9 +63,11 @@ export const WarningMessagesList = ({ patient }: { patient?: string }) => {
       <table className="w-full min-w-[800px]">
         <thead className="bg-slate-50 border-b border-slate-200">
           <tr>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-              Patient
-            </th>
+            {!patient && (
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+                Patient
+              </th>
+            )}
             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
               Posting Date
             </th>
@@ -78,21 +85,28 @@ export const WarningMessagesList = ({ patient }: { patient?: string }) => {
         <tbody className="divide-y divide-slate-200">
           {warnings.map((warning) => (
             <tr key={warning.name} className="hover:bg-slate-50">
+              {!patient && (
+                <td
+                  className="px-4 py-3 text-sm text-slate-700 cursor-pointer"
+                  onClick={() => warning.patient && onPatientClick?.(warning.patient)}
+                >
+                  <span className="font-medium text-primary hover:underline">
+                    {warning.patient_name || warning.patient || '-'}
+                  </span>
+                  {warning.gender && (
+                    <div className="text-xs text-slate-500">{warning.gender}</div>
+                  )}
+                </td>
+              )}
               <td
-                className="px-4 py-3 text-sm cursor-pointer"
+                className="px-4 py-3 text-sm text-slate-700 cursor-pointer"
                 onClick={() => setDetailName(warning.name)}
               >
-                <div className="font-medium text-primary hover:underline">
-                  {warning.patient_name || warning.patient}
-                </div>
-                {warning.gender && (
-                  <div className="text-xs text-slate-500">{warning.gender}</div>
-                )}
-              </td>
-              <td className="px-4 py-3 text-sm text-slate-700">
-                {warning.posting_date
-                  ? new Date(warning.posting_date).toLocaleString()
-                  : '-'}
+                <span className="text-primary hover:underline">
+                  {warning.posting_date
+                    ? new Date(warning.posting_date).toLocaleString()
+                    : '-'}
+                </span>
               </td>
               <td className="px-4 py-3 text-sm text-slate-700">
                 {warning.practitioner_name || warning.practitioner || '-'}

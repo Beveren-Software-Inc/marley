@@ -105,12 +105,12 @@ export const AdmissionPage = () => {
           <div className="grid gap-4 md:grid-cols-2 mb-4">
             <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
               <div className="font-semibold mb-4">Warning Messages</div>
-              <WarningMessagesList patient={admissionPatient} />
+              <WarningMessagesList patient={admissionPatient} onPatientClick={handlePatientFromAdmission} />
             </section>
 
             <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
               <div className="font-semibold mb-4">Lab Test Reports</div>
-              <LabTestList patient={admissionPatient} />
+              <LabTestList patient={admissionPatient} onPatientClick={handlePatientFromAdmission} />
             </section>
           </div>
 

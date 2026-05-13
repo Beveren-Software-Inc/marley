@@ -5,6 +5,7 @@ interface GroomingChartListProps {
   patient?: string
   refreshKey?: number
   onCreateNew?: () => void
+  onPatientClick?: (patient: string) => void
 }
 
 const CheckIcon = ({ checked }: { checked: boolean }) =>
@@ -25,7 +26,7 @@ const CheckRow = ({ label, value }: { label: string; value: 0 | 1 | undefined | 
   </div>
 )
 
-export const GroomingChartList = ({ patient, refreshKey, onCreateNew }: GroomingChartListProps) => {
+export const GroomingChartList = ({ patient, refreshKey, onCreateNew, onPatientClick }: GroomingChartListProps) => {
   const [charts, setCharts] = useState<GroomingChartRow[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -122,7 +123,9 @@ export const GroomingChartList = ({ patient, refreshKey, onCreateNew }: Grooming
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">Date</th>
-                <th className="px-3 py-2 text-left font-semibold text-slate-600">Patient</th>
+                {!patient && (
+                  <th className="px-3 py-2 text-left font-semibold text-slate-600">Patient</th>
+                )}
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">Admission No</th>
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">Cost Centre</th>
                 <th className="px-3 py-2 text-center font-semibold text-slate-600">Hygiene</th>
@@ -146,7 +149,14 @@ export const GroomingChartList = ({ patient, refreshKey, onCreateNew }: Grooming
                     onClick={() => setSelected(c)}
                   >
                     <td className="px-3 py-2 text-slate-900 font-medium">{c.date || formatDate(c.creation)}</td>
-                    <td className="px-3 py-2 text-slate-800">{c.patient_name || c.file_no || '—'}</td>
+                    {!patient && (
+                      <td
+                        className="px-3 py-2 text-slate-800 cursor-pointer"
+                        onClick={(e) => { e.stopPropagation(); c.file_no && onPatientClick?.(c.file_no) }}
+                      >
+                        <span className="font-medium text-primary hover:underline">{c.patient_name || c.file_no || '—'}</span>
+                      </td>
+                    )}
                     <td className="px-3 py-2 text-slate-700">{c.admission_no || '—'}</td>
                     <td className="px-3 py-2 text-slate-700">{c.cost_center || '—'}</td>
                     <td className="px-3 py-2 text-center">

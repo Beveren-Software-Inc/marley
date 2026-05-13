@@ -1951,8 +1951,8 @@ const getGroupCompletionStatus = (children: LabTest[]) => {
 // ─── Main Component ──────────────────────────────────────────────────────────
 
 export const LabTestList = ({
-  patient, isOutsourced, defaultStatus, byNurse,
-}: { patient?: string; isOutsourced?: boolean; defaultStatus?: string; byNurse?: boolean }) => {
+  patient, isOutsourced, defaultStatus, byNurse, onPatientClick,
+}: { patient?: string; isOutsourced?: boolean; defaultStatus?: string; byNurse?: boolean; onPatientClick?: (patient: string) => void }) => {
   const { mode, selectedPatient: contextPatient, userRole } = useCareContext()
   const effectivePatient = patient ?? (contextPatient || undefined)
   const canEditResults = canEditLabTestResults(userRole)
@@ -2721,7 +2721,9 @@ export const LabTestList = ({
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Lab Test ID</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Patient</th>
+                {!patient && (
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Patient</th>
+                )}
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Test Name</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Practitioner</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Status</th>
@@ -2763,7 +2765,14 @@ export const LabTestList = ({
                           <span className="text-xs text-indigo-600 truncate max-w-[100px]" title={serviceRequest}>{serviceRequest}</span>
                         </div>
                        </td>
-                      <td className="px-4 py-3 text-sm text-slate-700">{representativeChild.patient_name || representativeChild.patient}</td>
+                      {!patient && (
+                        <td
+                          className="px-4 py-3 text-sm text-slate-700 cursor-pointer"
+                          onClick={() => representativeChild.patient && onPatientClick?.(representativeChild.patient)}
+                        >
+                          <span className="font-medium text-primary hover:underline">{representativeChild.patient_name || representativeChild.patient || '-'}</span>
+                        </td>
+                      )}
                       <td className="px-4 py-3 text-sm">
                         <button type="button" data-no-row-click
                           onClick={(e) => { e.stopPropagation(); setExpandedGroupKeys(prev => ({ ...prev, [serviceRequest]: !isExpanded })) }}
@@ -2839,7 +2848,14 @@ export const LabTestList = ({
                         >
                           ↳ {child.name}
                         </td>
-                        <td className="px-4 py-2.5 text-sm text-slate-500">{child.patient_name || child.patient}</td>
+                        {!patient && (
+                          <td
+                            className="px-4 py-2.5 text-sm text-slate-500 cursor-pointer"
+                            onClick={() => child.patient && onPatientClick?.(child.patient)}
+                          >
+                            <span className="font-medium text-primary hover:underline">{child.patient_name || child.patient || '-'}</span>
+                          </td>
+                        )}
                         <td className="px-4 py-2.5 text-sm text-slate-700 pl-6">{child.lab_test_name || child.template || '-'}</td>
                         <td className="px-4 py-2.5 text-sm text-slate-700">{child.practitioner_name || child.practitioner || '-'}</td>
                         <td className="px-4 py-2.5"><StatusPill status={child.status || 'Draft'} color={statusColors[child.status || 'Draft'] || 'default'} /></td>
@@ -2883,7 +2899,14 @@ export const LabTestList = ({
                   >
                     {labTest.name}
                   </td>
-                  <td className="px-4 py-3 text-sm text-slate-700">{labTest.patient_name || labTest.patient}</td>
+                  {!patient && (
+                    <td
+                      className="px-4 py-3 text-sm text-slate-700 cursor-pointer"
+                      onClick={() => labTest.patient && onPatientClick?.(labTest.patient)}
+                    >
+                      <span className="font-medium text-primary hover:underline">{labTest.patient_name || labTest.patient || '-'}</span>
+                    </td>
+                  )}
                   <td className="px-4 py-3 text-sm text-slate-700">{labTest.lab_test_name || labTest.template || '-'}</td>
                   <td className="px-4 py-3 text-sm text-slate-700">{labTest.practitioner_name || labTest.practitioner || '-'}</td>
                   <td className="px-4 py-3"><StatusPill status={labTest.status || 'Draft'} color={statusColors[labTest.status || 'Draft'] || 'default'} /></td>

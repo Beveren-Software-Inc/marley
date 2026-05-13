@@ -5,9 +5,10 @@ import { DocDetailView } from '../ui/DocDetailView'
 
 interface ECTProcedureListProps {
   patient?: string
+  onPatientClick?: (patient: string) => void
 }
 
-export const ECTProcedureList = ({ patient }: ECTProcedureListProps) => {
+export const ECTProcedureList = ({ patient, onPatientClick }: ECTProcedureListProps) => {
   const [items, setItems] = useState<ECTProcedure[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
@@ -66,9 +67,11 @@ export const ECTProcedureList = ({ patient }: ECTProcedureListProps) => {
               <th className="px-3 py-2 text-left text-[11px] font-semibold text-slate-600 uppercase">
                 Session Date
               </th>
-              <th className="px-3 py-2 text-left text-[11px] font-semibold text-slate-600 uppercase">
-                Patient
-              </th>
+              {!patient && (
+                <th className="px-3 py-2 text-left text-[11px] font-semibold text-slate-600 uppercase">
+                  Patient
+                </th>
+              )}
               <th className="px-3 py-2 text-left text-[11px] font-semibold text-slate-600 uppercase">
                 Energy
               </th>
@@ -100,9 +103,14 @@ export const ECTProcedureList = ({ patient }: ECTProcedureListProps) => {
                     ? new Date(row.date).toLocaleDateString()
                     : '-'}
                 </td>
-                <td className="px-3 py-2">
-                  {row.patient_name || row.patient || '-'}
-                </td>
+                {!patient && (
+                  <td
+                    className="px-3 py-2 cursor-pointer"
+                    onClick={() => row.patient && onPatientClick?.(row.patient)}
+                  >
+                    <span className="font-medium text-primary hover:underline">{row.patient_name || row.patient || '-'}</span>
+                  </td>
+                )}
                 <td className="px-3 py-2">{row.energy || '-'}</td>
                 <td className="px-3 py-2">
                   {typeof row.no_of_session === 'number' ? row.no_of_session : '-'}

@@ -433,7 +433,9 @@ export const PatientVisitList = ({
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Visit No</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Patient</th>
+                {!patient && (
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Patient</th>
+                )}
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Practitioner</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Encounter Date</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase tracking-wide">Lab Amount</th>
@@ -446,7 +448,7 @@ export const PatientVisitList = ({
             <tbody className="divide-y divide-slate-200">
               {visits.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-4 py-10 text-center text-slate-400 text-sm">
+                  <td colSpan={patient ? 8 : 9} className="px-4 py-10 text-center text-slate-400 text-sm">
                     {hasActiveFilters ? 'No visits match your filters.' : 'No patient visits found.'}
                   </td>
                 </tr>
@@ -454,11 +456,18 @@ export const PatientVisitList = ({
                 <tr key={visit.value} className="hover:bg-slate-50 transition-colors">
                   <td
                     className="px-4 py-3 text-sm font-medium text-primary hover:underline cursor-pointer"
-                    onClick={() => { setDetailVisit(visit.value); onVisitSelect?.(visit.value); if (visit.patient) onPatientFromVisit?.(visit.patient) }}
+                    onClick={() => { setDetailVisit(visit.value); onVisitSelect?.(visit.value) }}
                   >
                     {visit.value}
                   </td>
-                  <td className="px-4 py-3 text-sm text-slate-700">{visit.label?.split(' - ')[1] || '-'}</td>
+                  {!patient && (
+                    <td
+                      className="px-4 py-3 text-sm text-slate-700 cursor-pointer"
+                      onClick={() => { if (visit.patient) onPatientFromVisit?.(visit.patient) }}
+                    >
+                      <span className="font-medium text-primary hover:underline">{visit.label?.split(' - ')[1] || '-'}</span>
+                    </td>
+                  )}
                   <td className="px-4 py-3 text-sm text-slate-700">{visit.practitioner_name || '-'}</td>
                   <td className="px-4 py-3 text-sm text-slate-700">
                     {visit.encounter_date

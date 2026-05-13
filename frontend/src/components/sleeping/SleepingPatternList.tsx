@@ -9,9 +9,10 @@ interface SleepingPatternListProps {
   patient?: string
   refreshKey?: string | number
   onRowClick?: (name: string) => void
+  onPatientClick?: (patient: string) => void
 }
 
-export const SleepingPatternList = ({ patient, refreshKey, onRowClick }: SleepingPatternListProps) => {
+export const SleepingPatternList = ({ patient, refreshKey, onRowClick, onPatientClick }: SleepingPatternListProps) => {
   const [rows, setRows] = useState<SleepingPattern[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
@@ -165,7 +166,9 @@ export const SleepingPatternList = ({ patient, refreshKey, onRowClick }: Sleepin
             <tr>
               <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Date</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Admission</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Patient</th>
+              {!patient && (
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Patient</th>
+              )}
               <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Total Hours</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">User</th>
             </tr>
@@ -187,9 +190,14 @@ export const SleepingPatternList = ({ patient, refreshKey, onRowClick }: Sleepin
                   {row.date ? new Date(row.date).toLocaleDateString() : '-'}
                 </td>
                 <td className="px-4 py-3 text-sm text-slate-700">{row.admission_no}</td>
-                <td className="px-4 py-3 text-sm text-slate-700">
-                  {row.patient_name || row.file_no || '-'}
-                </td>
+                {!patient && (
+                  <td
+                    className="px-4 py-3 text-sm text-slate-700 cursor-pointer"
+                    onClick={(e) => { e.stopPropagation(); row.file_no && onPatientClick?.(row.file_no) }}
+                  >
+                    <span className="font-medium text-primary hover:underline">{row.patient_name || row.file_no || '-'}</span>
+                  </td>
+                )}
                 <td className="px-4 py-3 text-sm text-slate-700">
                   {typeof row.total_hours === 'number' ? row.total_hours.toFixed(2) : '-'}
                 </td>

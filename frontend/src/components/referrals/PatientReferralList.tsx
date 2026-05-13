@@ -13,6 +13,7 @@ interface PatientReferralListProps {
   refreshKey?: number | string
   showCreateButton?: boolean
   initialPatient?: string
+  onPatientClick?: (patient: string) => void
 }
 
 export const PatientReferralList = ({
@@ -20,6 +21,7 @@ export const PatientReferralList = ({
   refreshKey,
   showCreateButton = false,
   initialPatient,
+  onPatientClick,
 }: PatientReferralListProps) => {
   const [rows, setRows] = useState<PatientReferralRow[]>([])
   const [loading, setLoading] = useState(false)
@@ -79,7 +81,9 @@ export const PatientReferralList = ({
           <thead>
             <tr className="bg-slate-50 border-b border-slate-200 text-left">
               <th className="px-3 py-2 font-semibold text-slate-600 text-xs">Ref No</th>
-              <th className="px-3 py-2 font-semibold text-slate-600 text-xs">Patient</th>
+              {!patient && (
+                <th className="px-3 py-2 font-semibold text-slate-600 text-xs">Patient</th>
+              )}
               <th className="px-3 py-2 font-semibold text-slate-600 text-xs">Date</th>
               <th className="px-3 py-2 font-semibold text-slate-600 text-xs">Referred To</th>
               <th className="px-3 py-2 font-semibold text-slate-600 text-xs">Doctor</th>
@@ -90,20 +94,27 @@ export const PatientReferralList = ({
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={7} className="px-3 py-8 text-center text-slate-400 text-xs">Loading…</td>
+                <td colSpan={patient ? 6 : 7} className="px-3 py-8 text-center text-slate-400 text-xs">Loading…</td>
               </tr>
             ) : rows.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-3 py-8 text-center text-slate-400 text-xs">No referrals found</td>
+                <td colSpan={patient ? 6 : 7} className="px-3 py-8 text-center text-slate-400 text-xs">No referrals found</td>
               </tr>
             ) : (
               rows.map(row => (
                 <tr key={row.name} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
                   <td className="px-3 py-2 font-mono text-xs text-slate-600">{row.name}</td>
-                  <td className="px-3 py-2">
-                    <div className="font-medium text-slate-800">{row.patient_name || row.patient}</div>
-                    <div className="text-xs text-slate-400">{row.patient}</div>
-                  </td>
+                  {!patient && (
+                    <td
+                      className="px-3 py-2 cursor-pointer"
+                      onClick={() => row.patient && onPatientClick?.(row.patient)}
+                    >
+                      <span className="font-medium text-primary hover:underline">
+                        <div>{row.patient_name || row.patient}</div>
+                        <div className="text-xs text-slate-400">{row.patient}</div>
+                      </span>
+                    </td>
+                  )}
                   <td className="px-3 py-2 text-slate-600">{row.referral_date}</td>
                   <td className="px-3 py-2">
                     <div className="font-medium text-slate-800">{row.referred_to_hospital}</div>

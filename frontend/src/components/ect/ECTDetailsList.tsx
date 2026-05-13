@@ -6,9 +6,10 @@ import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 interface ECTDetailsListProps {
   patient?: string
   refreshKey?: number | string
+  onPatientClick?: (patient: string) => void
 }
 
-export const ECTDetailsList = ({ patient, refreshKey }: ECTDetailsListProps) => {
+export const ECTDetailsList = ({ patient, refreshKey, onPatientClick }: ECTDetailsListProps) => {
   const [ectDetails, setEctDetails] = useState<ECTDetail[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
@@ -70,9 +71,11 @@ export const ECTDetailsList = ({ patient, refreshKey }: ECTDetailsListProps) => 
               <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
                 Date
               </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-                Patient
-              </th>
+              {!patient && (
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+                  Patient
+                </th>
+              )}
               <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
                 Energy
               </th>
@@ -110,9 +113,14 @@ export const ECTDetailsList = ({ patient, refreshKey }: ECTDetailsListProps) => 
                   {ect.date ? new Date(ect.date).toLocaleDateString() : '-'}
                   {ect.time && ` ${String(ect.time).slice(0, 5)}`}
                 </td>
-                <td className="px-4 py-3 text-sm text-slate-700">
-                  {ect.patient_name || ect.patient || '-'}
-                </td>
+                {!patient && (
+                  <td
+                    className="px-4 py-3 text-sm cursor-pointer"
+                    onClick={() => ect.patient && onPatientClick?.(ect.patient)}
+                  >
+                    <span className="font-medium text-primary hover:underline">{ect.patient_name || ect.patient || '-'}</span>
+                  </td>
+                )}
                 <td className="px-4 py-3 text-sm text-slate-700">
                   {ect.energy || '-'}
                 </td>

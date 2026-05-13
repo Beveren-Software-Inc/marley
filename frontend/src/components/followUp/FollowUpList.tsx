@@ -30,9 +30,11 @@ const STATUS_ACTIONS: { value: string; label: string }[] = [
 
 interface FollowUpListProps {
   refreshKey?: number | string
+  patient?: string
+  onPatientClick?: (patient: string) => void
 }
 
-export const FollowUpList = ({ refreshKey }: FollowUpListProps) => {
+export const FollowUpList = ({ refreshKey, patient, onPatientClick }: FollowUpListProps) => {
   const [list, setList] = useState<PatientFollowUpRow[]>([])
   const [loading, setLoading] = useState(true)
   const [status, setStatus] = useState<string>('Open')
@@ -184,7 +186,9 @@ export const FollowUpList = ({ refreshKey }: FollowUpListProps) => {
             <table className="min-w-full divide-y divide-slate-200 text-sm min-h-[300px]">
               <thead className="bg-slate-50">
                 <tr>
-                  <th className="px-4 py-2 text-left font-medium text-slate-700">Patient</th>
+                  {!patient && (
+                    <th className="px-4 py-2 text-left font-medium text-slate-700">Patient</th>
+                  )}
                   <th className="px-4 py-2 text-left font-medium text-slate-700">Type</th>
                   <th className="px-4 py-2 text-left font-medium text-slate-700">Follow Up Date</th>
                   <th className="px-4 py-2 text-left font-medium text-slate-700">Status</th>
@@ -196,12 +200,14 @@ export const FollowUpList = ({ refreshKey }: FollowUpListProps) => {
               <tbody className="divide-y divide-slate-200">
                 {list.map((row) => (
                   <tr key={row.name} className="hover:bg-slate-50">
-                    <td
-                      className="px-4 py-2 cursor-pointer"
-                      onClick={() => setDetailName(row.name)}
-                    >
-                      <span className="font-medium text-primary hover:underline">{row.patient_name || row.patient}</span>
-                    </td>
+                    {!patient && (
+                      <td
+                        className="px-4 py-2 cursor-pointer"
+                        onClick={() => row.patient && onPatientClick?.(row.patient)}
+                      >
+                        <span className="font-medium text-primary hover:underline">{row.patient_name || row.patient}</span>
+                      </td>
+                    )}
                     <td className="px-4 py-2 text-slate-600">{row.follow_up_type}</td>
                     <td className="px-4 py-2 text-slate-600">{row.follow_up_date}</td>
                     <td className="px-4 py-2">

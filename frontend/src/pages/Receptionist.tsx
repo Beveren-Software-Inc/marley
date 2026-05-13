@@ -269,7 +269,8 @@ export const ReceptionistPage = () => {
             </div>
             <AdmissionList 
               refreshKey={admissionRefreshKey}
-              onAdmissionSelect={() => {}} 
+              onAdmissionSelect={() => {}}
+              onPatientFromAdmission={handlePatientSelect}
             />
           </div>
         )}
@@ -287,6 +288,7 @@ export const ReceptionistPage = () => {
             <DischargeList
               patient={selectedPatient || undefined}
               admission={undefined}
+              onPatientClick={handlePatientSelect}
             />
           </div>
         )}
@@ -311,6 +313,7 @@ export const ReceptionistPage = () => {
             <PatientVisitList 
               patient={selectedPatient || undefined}
               refreshKey={patientVisitRefreshKey}
+              onPatientFromVisit={handlePatientSelect}
             />
           </div>
         )}
@@ -372,7 +375,7 @@ export const ReceptionistPage = () => {
                 OP &amp; IP discharged follow-up list. Filter by status (default: Open) and cost center. Send reminder per row or send all reminders.
               </p>
             </div>
-            <FollowUpList refreshKey={patientVisitRefreshKey} />
+            <FollowUpList refreshKey={patientVisitRefreshKey} onPatientClick={handlePatientSelect} />
           </div>
         )}
 
@@ -421,6 +424,7 @@ export const ReceptionistPage = () => {
             <ReceptionLongActingMedicineList
               patient={selectedPatient || undefined}
               refreshKey={longActingRefreshKey}
+              onPatientClick={handlePatientSelect}
             />
 
             {showCreateLongActing && (
@@ -505,6 +509,7 @@ export const ReceptionistPage = () => {
               <PatientReferralList
                 patient={selectedPatient || undefined}
                 refreshKey={referralRefreshKey}
+                onPatientClick={handlePatientSelect}
               />
             </div>
             {showCreateReferral && (
@@ -542,6 +547,7 @@ export const ReceptionistPage = () => {
               <InternalTransferList
                 patient={selectedPatient || undefined}
                 refreshKey={internalTransferRefreshKey}
+                onPatientClick={handlePatientSelect}
               />
             </div>
           </div>
@@ -566,7 +572,7 @@ export const ReceptionistPage = () => {
               </button>
             </div>
             <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[500px]">
-              <AppointmentList showAll={true} patient={selectedPatient || undefined} refreshKey={appointmentRefreshKey} />
+              <AppointmentList showAll={true} patient={selectedPatient || undefined} refreshKey={appointmentRefreshKey} onPatientClick={handlePatientSelect} />
             </div>
             {/* <div className="mt-4 bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-800">
               To freeze or release practitioner schedules, use the backend: Healthcare → Practitioner Schedule, or open Appointments in the backend.
@@ -597,6 +603,7 @@ export const ReceptionistPage = () => {
               <ServiceRequestList
                 patient={selectedPatient || undefined}
                 refreshKey={serviceRequestRefreshKey}
+                onPatientClick={handlePatientSelect}
               />
             </div>
             {showCreateServiceRequest && (
@@ -664,7 +671,7 @@ export const ReceptionistPage = () => {
                     <button onClick={() => setShowAppointmentModal(true)} className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 text-sm font-bold" title="Add Appointment">+</button>
                   </div>
                   <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                    <AppointmentList showAll={true} patient={selectedPatient || undefined} refreshKey={appointmentRefreshKey} />
+                    <AppointmentList showAll={true} patient={selectedPatient || undefined} refreshKey={appointmentRefreshKey} onPatientClick={handlePatientSelect} />
                   </div>
                 </section>
               </div>
@@ -676,7 +683,7 @@ export const ReceptionistPage = () => {
                   <button onClick={() => setShowAdmissionModal(true)} className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 text-sm font-bold" title="Add Admission">+</button>
                 </div>
                 <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                  <AdmissionList patient={selectedPatient || undefined} refreshKey={admissionRefreshKey} onAdmissionSelect={() => {}} />
+                  <AdmissionList patient={selectedPatient || undefined} refreshKey={admissionRefreshKey} onAdmissionSelect={() => {}} onPatientFromAdmission={handlePatientSelect} />
                 </div>
               </div>
             )}
@@ -718,6 +725,7 @@ export const ReceptionistPage = () => {
                     showAll={true} 
                     patient={selectedPatient || undefined}
                     refreshKey={appointmentRefreshKey}
+                    onPatientClick={handlePatientSelect}
                   />
                 </div>
               </section>
@@ -740,6 +748,7 @@ export const ReceptionistPage = () => {
                     <PatientVisitList 
                       patient={selectedPatient || undefined}
                       refreshKey={patientVisitRefreshKey}
+                      onPatientFromVisit={handlePatientSelect}
                     />
                   </div>
                 </section>
@@ -761,7 +770,8 @@ export const ReceptionistPage = () => {
                     <AdmissionList 
                       patient={selectedPatient || undefined}
                       refreshKey={admissionRefreshKey}
-                      onAdmissionSelect={() => {}} 
+                      onAdmissionSelect={() => {}}
+                      onPatientFromAdmission={handlePatientSelect}
                     />
                   </div>
                 </section>
@@ -806,6 +816,7 @@ export const ReceptionistPage = () => {
                     <DischargeList
                       patient={selectedPatient || undefined}
                       admission={undefined}
+                      onPatientClick={handlePatientSelect}
                     />
                   </div>
                 </section>
@@ -828,6 +839,7 @@ export const ReceptionistPage = () => {
                   <PatientReferralList
                     patient={selectedPatient || undefined}
                     refreshKey={referralRefreshKey}
+                    onPatientClick={handlePatientSelect}
                   />
                 </div>
               </section>
@@ -849,6 +861,7 @@ export const ReceptionistPage = () => {
                   <InternalTransferList
                     patient={selectedPatient || undefined}
                     refreshKey={internalTransferRefreshKey}
+                    onPatientClick={handlePatientSelect}
                   />
                 </div>
               </section>

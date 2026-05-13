@@ -16,9 +16,10 @@ const statusColors: Record<string, string> = {
 interface DischargeListProps {
   patient?: string
   admission?: string
+  onPatientClick?: (patient: string) => void
 }
 
-export const DischargeList = ({ patient, admission }: DischargeListProps) => {
+export const DischargeList = ({ patient, admission, onPatientClick }: DischargeListProps) => {
   const { mode, activeAdmission, selectedPatient: contextPatient } = useCareContext()
 
   // When IP mode has a specific admission, scope discharges to that admission.
@@ -375,9 +376,11 @@ export const DischargeList = ({ patient, admission }: DischargeListProps) => {
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
                     Discharge ID
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-                    Patient
-                  </th>
+                  {!patient && (
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+                      Patient
+                    </th>
+                  )}
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
                     Admission No
                   </th>
@@ -410,9 +413,14 @@ export const DischargeList = ({ patient, admission }: DischargeListProps) => {
                     >
                       {discharge.name}
                     </td>
-                    <td className="px-4 py-3 text-sm text-slate-700">
-                      {discharge.patient_name || discharge.file_no || '-'}
-                    </td>
+                    {!patient && (
+                      <td
+                        className="px-4 py-3 text-sm text-slate-700 cursor-pointer"
+                        onClick={() => discharge.file_no && onPatientClick?.(discharge.file_no)}
+                      >
+                        <span className="font-medium text-primary hover:underline">{discharge.patient_name || discharge.file_no || '-'}</span>
+                      </td>
+                    )}
                     <td className="px-4 py-3 text-sm text-slate-700">
                       {discharge.admission || '-'}
                     </td>

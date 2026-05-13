@@ -11,6 +11,7 @@ interface PANSSAssessmentListProps {
   patient?: string
   refreshKey?: number
   onCreateNew?: () => void
+  onPatientClick?: (patient: string) => void
 }
 
 const statusBadge = (docstatus: number) => {
@@ -37,6 +38,7 @@ export const PANSSAssessmentList = ({
   patient,
   refreshKey,
   onCreateNew,
+  onPatientClick,
 }: PANSSAssessmentListProps) => {
   const [records, setRecords] = useState<PANSSAssessmentRow[]>([])
   const [loading, setLoading] = useState(false)
@@ -140,7 +142,9 @@ export const PANSSAssessmentList = ({
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">Date</th>
-                <th className="px-3 py-2 text-left font-semibold text-slate-600">Patient</th>
+                {!patient && (
+                  <th className="px-3 py-2 text-left font-semibold text-slate-600">Patient</th>
+                )}
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">Clinician</th>
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">Positive</th>
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">Negative</th>
@@ -160,9 +164,14 @@ export const PANSSAssessmentList = ({
                   <td className="px-3 py-2 text-slate-900 font-medium whitespace-nowrap">
                     {fmt(r.assessment_date)}
                   </td>
-                  <td className="px-3 py-2 text-slate-800">
-                    {r.patient_name || r.patient}
-                  </td>
+                  {!patient && (
+                    <td
+                      className="px-3 py-2 cursor-pointer"
+                      onClick={(e) => { e.stopPropagation(); r.patient && onPatientClick?.(r.patient) }}
+                    >
+                      <span className="font-medium text-primary hover:underline">{r.patient_name || r.patient}</span>
+                    </td>
+                  )}
                   <td className="px-3 py-2 text-slate-700">{r.rater || '—'}</td>
                   <td className="px-3 py-2 text-slate-700 font-medium">{r.positive_total}</td>
                   <td className="px-3 py-2 text-slate-700 font-medium">{r.negative_total}</td>

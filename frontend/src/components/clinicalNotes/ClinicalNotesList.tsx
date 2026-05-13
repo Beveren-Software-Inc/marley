@@ -19,6 +19,7 @@ interface ClinicalNotesListProps {
   clinicalNoteType?: string
   noteType?: string
   hideTypes?: boolean
+  onPatientClick?: (patient: string) => void
 }
 
 export const ClinicalNotesList = ({ 
@@ -27,6 +28,7 @@ export const ClinicalNotesList = ({
   clinicalNoteType,
   noteType,
   hideTypes = false,
+  onPatientClick,
 }: ClinicalNotesListProps) => {
   const { mode, activeVisit, activeAdmission } = useCareContext()
   const [clinicalNotes, setClinicalNotes] = useState<ClinicalNote[]>([])
@@ -137,9 +139,11 @@ export const ClinicalNotesList = ({
               <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
                 Date
               </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-                Patient
-              </th>
+              {!patient && (
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+                  Patient
+                </th>
+              )}
               <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
                 Practitioner
               </th>
@@ -180,9 +184,14 @@ export const ClinicalNotesList = ({
                       : '-'}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-sm text-slate-700">
-                  {note.patient_name || note.patient || '-'}
-                </td>
+                {!patient && (
+                  <td
+                    className="px-4 py-3 text-sm text-slate-700 cursor-pointer"
+                    onClick={() => note.patient && onPatientClick?.(note.patient)}
+                  >
+                    <span className="font-medium text-primary hover:underline">{note.patient_name || note.patient || '-'}</span>
+                  </td>
+                )}
                 <td className="px-4 py-3 text-sm text-slate-700">
                   {note.practitioner_name || note.practitioner || '-'}
                 </td>

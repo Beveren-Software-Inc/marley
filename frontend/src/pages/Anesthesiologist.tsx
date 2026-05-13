@@ -112,7 +112,7 @@ export const AnesthesiologistPage = () => {
               {plusBtn(() => setShowECTAnesthesiaConsentModal(true), 'Add ECT Anesthesia Consent')}
             </div>
             <p className="text-sm text-slate-600 mb-3">Record anesthesia consent with signatures from the anesthesiologist, patient, guardian, and witness.</p>
-            <ECTAnesthesiaConsentList patient={selectedPatient} refreshKey={ectConsentRefreshKey} />
+            <ECTAnesthesiaConsentList patient={selectedPatient} refreshKey={ectConsentRefreshKey} onPatientClick={handlePatientSelect} />
           </section>
         </div>
         {showECTAnesthesiaConsentModal && (
@@ -135,7 +135,7 @@ export const AnesthesiologistPage = () => {
               {plusBtn(() => setShowPreAnesthesiaModal(true), 'Add Pre Anesthesia Assessment')}
             </div>
             <p className="text-sm text-slate-600 mb-3">Comprehensive pre-operative assessment covering all body systems with ASA classification.</p>
-            <PreAnesthesiaAssessmentList patient={selectedPatient} refreshKey={preAnesthesiaRefreshKey} />
+            <PreAnesthesiaAssessmentList patient={selectedPatient} refreshKey={preAnesthesiaRefreshKey} onPatientClick={handlePatientSelect} />
           </section>
         </div>
         {showPreAnesthesiaModal && (
@@ -158,7 +158,7 @@ export const AnesthesiologistPage = () => {
               {plusBtn(() => setShowAnesthesiaRecordModal(true), 'Add Anesthesia Record')}
             </div>
             <p className="text-sm text-slate-600 mb-3">Record anesthesia administration details, patient monitoring, and intra-procedure events.</p>
-            <AdmissionAssessmentList doctype="Anesthesia Record" doctypeLabel="Anesthesia Record" patient={selectedPatient} refreshKey={anesthesiaRecordRefreshKey} />
+            <AdmissionAssessmentList doctype="Anesthesia Record" doctypeLabel="Anesthesia Record" patient={selectedPatient} refreshKey={anesthesiaRecordRefreshKey} onPatientClick={handlePatientSelect} />
           </section>
         </div>
         {showAnesthesiaRecordModal && (
@@ -181,7 +181,7 @@ export const AnesthesiologistPage = () => {
               {plusBtn(() => setShowRecoveryRoomModal(true), 'Add Recovery Room Record')}
             </div>
             <p className="text-sm text-slate-600 mb-3">Document post-procedure recovery room events, vitals, and nursing observations.</p>
-            <AdmissionAssessmentList doctype="Recovery Room Record" doctypeLabel="Recovery Room Record" patient={selectedPatient} refreshKey={recoveryRoomRefreshKey} />
+            <AdmissionAssessmentList doctype="Recovery Room Record" doctypeLabel="Recovery Room Record" patient={selectedPatient} refreshKey={recoveryRoomRefreshKey} onPatientClick={handlePatientSelect} />
           </section>
         </div>
         {showRecoveryRoomModal && (
@@ -204,7 +204,7 @@ export const AnesthesiologistPage = () => {
               {plusBtn(() => setShowAldereteModal(true), 'Add Modified Alderete Score')}
             </div>
             <p className="text-sm text-slate-600 mb-3">Score patient recovery readiness for discharge from the recovery room.</p>
-            <AdmissionAssessmentList doctype="Modified Alderete Score" doctypeLabel="Modified Alderete Score" patient={selectedPatient} refreshKey={aldereteRefreshKey} />
+            <AdmissionAssessmentList doctype="Modified Alderete Score" doctypeLabel="Modified Alderete Score" patient={selectedPatient} refreshKey={aldereteRefreshKey} onPatientClick={handlePatientSelect} />
           </section>
         </div>
         {showAldereteModal && (
@@ -227,7 +227,7 @@ export const AnesthesiologistPage = () => {
               {plusBtn(() => setShowTimeOutModal(true), 'Add Time Out Procedure')}
             </div>
             <p className="text-sm text-slate-600 mb-3">Complete the pre-procedure time-out checklist to verify patient identity, procedure, and site.</p>
-            <AdmissionAssessmentList doctype="Time Out Procedure" doctypeLabel="Time Out Procedure" patient={selectedPatient} refreshKey={timeOutRefreshKey} />
+            <AdmissionAssessmentList doctype="Time Out Procedure" doctypeLabel="Time Out Procedure" patient={selectedPatient} refreshKey={timeOutRefreshKey} onPatientClick={handlePatientSelect} />
           </section>
         </div>
         {showTimeOutModal && (
@@ -250,7 +250,7 @@ export const AnesthesiologistPage = () => {
               {plusBtn(() => setShowPreEctModal(true), 'Add Pre-ECT Checklist')}
             </div>
             <p className="text-sm text-slate-600 mb-3">Verify all pre-ECT requirements are met before proceeding with the procedure.</p>
-            <AdmissionAssessmentList doctype="Pre-ECT Checklist" doctypeLabel="Pre-ECT Checklist" patient={selectedPatient} refreshKey={preEctRefreshKey} />
+            <AdmissionAssessmentList doctype="Pre-ECT Checklist" doctypeLabel="Pre-ECT Checklist" patient={selectedPatient} refreshKey={preEctRefreshKey} onPatientClick={handlePatientSelect} />
           </section>
         </div>
         {showPreEctModal && (
@@ -273,7 +273,7 @@ export const AnesthesiologistPage = () => {
               {plusBtn(() => setShowSuicidalModal(true), 'Add Suicidal Patient Assessment')}
             </div>
             <p className="text-sm text-slate-600 mb-3">Assess patient suicide risk factors, history, and current ideation.</p>
-            <AdmissionAssessmentList doctype="Suicidal Patient Assessment" doctypeLabel="Suicidal Patient Assessment" patient={selectedPatient} refreshKey={suicidalRefreshKey} />
+            <AdmissionAssessmentList doctype="Suicidal Patient Assessment" doctypeLabel="Suicidal Patient Assessment" patient={selectedPatient} refreshKey={suicidalRefreshKey} onPatientClick={handlePatientSelect} />
           </section>
         </div>
         {showSuicidalModal && (
@@ -296,7 +296,7 @@ export const AnesthesiologistPage = () => {
               {plusBtn(() => setShowECTAdmissionModal(true), 'Add ECT Admission')}
             </div>
             <p className="text-sm text-slate-600 mb-3">Record admission details for patients undergoing ECT.</p>
-            <ECTAdmissionList patient={selectedPatient} />
+            <ECTAdmissionList patient={selectedPatient} onPatientClick={handlePatientSelect} />
           </section>
         </div>
         {showECTAdmissionModal && (
@@ -319,7 +319,7 @@ export const AnesthesiologistPage = () => {
               {plusBtn(() => setShowECTProcedureModal(true), 'Add ECT Procedure')}
             </div>
             <p className="text-sm text-slate-600 mb-3">Capture procedure details for each ECT session including vitals and clinical notes.</p>
-            <ECTProcedureList patient={selectedPatient} />
+            <ECTProcedureList patient={selectedPatient} onPatientClick={handlePatientSelect} />
           </section>
         </div>
         {showECTProcedureModal && (
@@ -341,7 +341,7 @@ export const AnesthesiologistPage = () => {
               <span>ECT Details</span>
               {plusBtn(() => setShowECTModal(true), 'Add ECT Detail')}
             </div>
-            <ECTDetailsList patient={selectedPatient} refreshKey={ectRefreshKey} />
+            <ECTDetailsList patient={selectedPatient} refreshKey={ectRefreshKey} onPatientClick={handlePatientSelect} />
           </section>
         </div>
         {showECTModal && (
@@ -364,7 +364,7 @@ export const AnesthesiologistPage = () => {
               {plusBtn(() => setShowPhysicalExamModal(true), 'Add Physical Examination')}
             </div>
             <p className="text-sm text-slate-600 mb-3">Document systematic physical examination findings across all body systems.</p>
-            <PhysicalExaminationList patient={selectedPatient} refreshKey={physicalExamRefreshKey} />
+            <PhysicalExaminationList patient={selectedPatient} refreshKey={physicalExamRefreshKey} onPatientClick={handlePatientSelect} />
           </section>
         </div>
         {showPhysicalExamModal && (
@@ -387,7 +387,7 @@ export const AnesthesiologistPage = () => {
               {plusBtn(() => setShowPatientHistoryModal(true), 'Add Patient History')}
             </div>
             <p className="text-sm text-slate-600 mb-3">Record detailed patient history including presenting complaints and past history.</p>
-            <PatientHistoryList patient={selectedPatient} refreshKey={patientHistoryRefreshKey} />
+            <PatientHistoryList patient={selectedPatient} refreshKey={patientHistoryRefreshKey} onPatientClick={handlePatientSelect} />
           </section>
         </div>
         {showPatientHistoryModal && (
