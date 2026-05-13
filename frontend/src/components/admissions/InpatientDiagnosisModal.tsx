@@ -379,7 +379,10 @@ export const InpatientDiagnosisModal = ({
                                     setPractitionerOpen(prev => ({ ...prev, [index]: false }))
                                   }}
                                 >
-                                  {pract.label}
+                                  <div>
+                                    <div className="font-medium">{pract.label}</div>
+                                    <div className="text-xs text-slate-500">{pract.name}</div>
+                                  </div>
                                 </button>
                               ))
                             ) : (

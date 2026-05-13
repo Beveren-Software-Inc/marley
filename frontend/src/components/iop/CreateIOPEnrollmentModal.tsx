@@ -239,9 +239,9 @@ export const CreateIOPEnrollmentModal = ({ onClose, onSuccess, initialPatient }:
                       className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100"
                     >
                       <div className="font-medium">{p.label}</div>
-                      {p.department && (
-                        <div className="text-xs text-slate-500">{p.department}</div>
-                      )}
+                      <div className="text-xs text-slate-500">
+                        {[p.name, p.department].filter(Boolean).join(' · ')}
+                      </div>
                     </button>
                   ))}
                 </div>

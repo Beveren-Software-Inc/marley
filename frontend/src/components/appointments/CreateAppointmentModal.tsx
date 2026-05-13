@@ -618,9 +618,9 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
                       className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 focus:bg-slate-100 focus:outline-none"
                     >
                       <div className="font-medium">{pract.label}</div>
-                      {pract.department && (
-                        <div className="text-xs text-slate-500">Dept: {pract.department}</div>
-                      )}
+                      <div className="text-xs text-slate-500">
+                        {[pract.name, pract.department].filter(Boolean).join(' · ')}
+                      </div>
                     </button>
                   ))}
                 </div>

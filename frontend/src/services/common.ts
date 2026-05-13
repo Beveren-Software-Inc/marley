@@ -898,9 +898,7 @@ export async function fetchServiceRequestStatuses(search?: string): Promise<Link
 }
 
 export interface CreatePractitionerData {
-  first_name: string
-  middle_name?: string
-  last_name?: string
+  full_name: string
   gender?: string
   status?: string
   mobile_phone?: string
@@ -916,12 +914,11 @@ export async function createPractitioner(data: CreatePractitionerData): Promise<
     method: 'POST',
     body: JSON.stringify({ data }),
   })
-  
-  if (response?.message) {
-    return response.message as { name: string; practitioner_name: string }
-  } else {
-    throw new Error('Invalid response format')
+
+  if (response?.name) {
+    return response as { name: string; practitioner_name: string }
   }
+  throw new Error('Invalid response format')
 }
 
 export const fetchDischargeChecklist = async (templateName: string): Promise<ChecklistItem[]> => {

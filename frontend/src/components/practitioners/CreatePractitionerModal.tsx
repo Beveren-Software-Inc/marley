@@ -14,9 +14,7 @@ interface CreatePractitionerModalProps {
 
 export const CreatePractitionerModal = ({ onClose, onSuccess }: CreatePractitionerModalProps) => {
   const [formData, setFormData] = useState({
-    first_name: '',
-    middle_name: '',
-    last_name: '',
+    full_name: '',
     gender: '',
     status: 'Active',
     mobile_phone: '',
@@ -42,8 +40,8 @@ export const CreatePractitionerModal = ({ onClose, onSuccess }: CreatePractition
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (!formData.first_name) {
-      setError('First Name is required')
+    if (!formData.full_name.trim()) {
+      setError('Full Name is required')
       return
     }
 
@@ -171,40 +169,17 @@ export const CreatePractitionerModal = ({ onClose, onSuccess }: CreatePractition
           <div>
             <h3 className="text-sm font-semibold text-slate-700 mb-3">Basic Information</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
+              <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-slate-700 mb-1">
-                  First Name <span className="text-red-500">*</span>
+                  Full Name <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
-                  value={formData.first_name}
-                  onChange={(e) => handleChange('first_name', e.target.value)}
+                  value={formData.full_name}
+                  onChange={(e) => handleChange('full_name', e.target.value)}
+                  placeholder="Enter practitioner full name"
                   className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                   required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Middle Name
-                </label>
-                <input
-                  type="text"
-                  value={formData.middle_name}
-                  onChange={(e) => handleChange('middle_name', e.target.value)}
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Last Name
-                </label>
-                <input
-                  type="text"
-                  value={formData.last_name}
-                  onChange={(e) => handleChange('last_name', e.target.value)}
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                 />
               </div>
 

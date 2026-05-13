@@ -638,9 +638,9 @@ export const CreatePatientVisitModal = ({ onClose, onSuccess, initialPatient, in
                           }}
                         >
                           <div className="font-medium">{pract.label}</div>
-                          {pract.department && (
-                            <div className="text-xs text-slate-500">{pract.department}</div>
-                          )}
+                          <div className="text-xs text-slate-500">
+                            {[pract.name, pract.department].filter(Boolean).join(' · ')}
+                          </div>
                         </button>
                       ))
                     ) : (

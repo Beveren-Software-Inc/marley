@@ -642,7 +642,10 @@ export const CreateLabTestModal = ({
                           onClick={() => handlePractitionerSelect(pract)}
                           className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 focus:bg-slate-100 focus:outline-none"
                         >
-                          {pract.label}
+                          <div>
+                            <div className="font-medium">{pract.label}</div>
+                            <div className="text-xs text-slate-500">{pract.name}</div>
+                          </div>
                         </button>
                       ))}
                     </div>

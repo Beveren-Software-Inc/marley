@@ -631,9 +631,9 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                           }}
                         >
                           <div className="font-medium">{pract.label}</div>
-                          {pract.department && (
-                            <div className="text-xs text-slate-500">{pract.department}</div>
-                          )}
+                          <div className="text-xs text-slate-500">
+                            {[pract.name, pract.department].filter(Boolean).join(' · ')}
+                          </div>
                         </button>
                       ))
                     ) : (
@@ -692,9 +692,9 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                           }}
                         >
                           <div className="font-medium">{pract.label}</div>
-                          {pract.department && (
-                            <div className="text-xs text-slate-500">{pract.department}</div>
-                          )}
+                          <div className="text-xs text-slate-500">
+                            {[pract.name, pract.department].filter(Boolean).join(' · ')}
+                          </div>
                         </button>
                       ))
                     ) : (
@@ -753,9 +753,9 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                           }}
                         >
                           <div className="font-medium">{pract.label}</div>
-                          {pract.department && (
-                            <div className="text-xs text-slate-500">{pract.department}</div>
-                          )}
+                          <div className="text-xs text-slate-500">
+                            {[pract.name, pract.department].filter(Boolean).join(' · ')}
+                          </div>
                         </button>
                       ))
                     ) : (

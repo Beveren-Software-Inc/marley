@@ -195,13 +195,14 @@ export const PatientSearch = ({
       const loadPatientName = async () => {
         try {
           const response = await fetch(
-            `/api/method/healthcare.api.patient.get_patients?name=${encodeURIComponent(selectedPatient)}`
+            `/api/resource/Patient/${encodeURIComponent(selectedPatient)}?fields=["patient_name"]`
           )
           const resData = await response.json()
-          if (resData?.message?.patient_name) {
-            setSelectedPatientName(resData.message.patient_name)
-            setPatientQuery(resData.message.patient_name)
-            setStoredValue(STORAGE_KEYS.SELECTED_PATIENT_NAME, resData.message.patient_name)
+          const fullName = resData?.data?.patient_name
+          if (fullName) {
+            setSelectedPatientName(fullName)
+            setPatientQuery(fullName)
+            setStoredValue(STORAGE_KEYS.SELECTED_PATIENT_NAME, fullName)
           } else {
             setSelectedPatientName(selectedPatient)
             setPatientQuery(selectedPatient)
@@ -468,6 +469,7 @@ export const PatientSearch = ({
                     >
                       <div className="font-medium">{patient.patient_name || patient.name}</div>
                       <div className="text-xs text-slate-500 flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
+                        <span>{patient.name}</span>
                         {patient.file_number && <span>File: {patient.file_number}</span>}
                         {patient.id_number && <span>ID: {patient.id_number}</span>}
                         {patient.mobile && <span>{patient.mobile}</span>}
