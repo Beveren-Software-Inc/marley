@@ -6,7 +6,7 @@ import {
   createModalShellClass,
 } from '../ui/CreateModalChrome'
 import { createLabTest } from '../../services/labTests'
-import { fetchHealthcarePractitioners, fetchLabTestTemplates, fetchMedicalDepartments, fetchDocumentTypes, fetchCostCenters, type LinkFieldOption } from '../../services/common'
+import { fetchHealthcarePractitioners, fetchLabTestTemplates, fetchMedicalDepartments, fetchDocumentTypes, fetchCostCenters, getCurrentUserPractitioner, type LinkFieldOption } from '../../services/common'
 import { createNurseTask } from '../../services/nurseTask'
 import { searchPatients, fetchPatients, uploadPatientFile, type PatientListItem, type PatientDocumentRow } from '../../services/patients'
 import { CreatePatientModal } from '../patients/CreatePatientModal'
@@ -199,20 +199,24 @@ export const CreateLabTestModal = ({
     }
   }, [initialPatient])
 
-  // Load initial options
+  // Load initial options and auto-fill current user's practitioner
   useEffect(() => {
     const loadOptions = async () => {
       try {
-        const [templates, practs, depts, costCenters] = await Promise.all([
+        const [templates, practs, depts, costCenters, currentPract] = await Promise.all([
           fetchLabTestTemplates(undefined, undefined, templatesNurseOnly),
           fetchHealthcarePractitioners(),
           fetchMedicalDepartments(),
-          fetchCostCenters()
+          fetchCostCenters(),
+          getCurrentUserPractitioner(),
         ])
         setTemplateOptions(templates)
         setPractitionerOptions(practs)
         setDepartmentOptions(depts)
         setCostCenterOptions(costCenters)
+        if (currentPract) {
+          setFormData(prev => prev.practitioner === '' ? { ...prev, practitioner: currentPract } : prev)
+        }
       } catch (err) {
         console.error('Failed to load options:', err)
       }

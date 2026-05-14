@@ -10,7 +10,7 @@ import {
   type SlotDetail,
   type AvailabilitySlotInfo
 } from '../../services/appointments'
-import { fetchHealthcarePractitioners, fetchAppointmentTypes, type LinkFieldOption } from '../../services/common'
+import { fetchHealthcarePractitioners, fetchAppointmentTypes, getCurrentUserPractitioner, type LinkFieldOption } from '../../services/common'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
 import { toast } from '../../hooks/useToast'
 import { X } from 'lucide-react'
@@ -222,23 +222,30 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
     }
   }
 
-  // Load initial options
+  // Load initial options and auto-fill current user's practitioner
   useEffect(() => {
     const loadOptions = async () => {
       try {
-        const [practs, appointmentTypes] = await Promise.all([
+        const [practs, appointmentTypes, currentPract] = await Promise.all([
           fetchHealthcarePractitioners(),
-          fetchAppointmentTypes()
+          fetchAppointmentTypes(),
+          getCurrentUserPractitioner(),
         ])
         setPractitionerOptions(practs)
         setAppointmentTypeOptions(appointmentTypes)
         
-        // Set initial practitioner if provided
+        // Set initial practitioner if provided, otherwise auto-fill current user
         if (initialPractitioner) {
           const pract = practs.find(p => p.name === initialPractitioner)
           if (pract) {
             setPractitionerQuery(pract.label)
             setFormData(prev => ({ ...prev, practitioner: pract.name }))
+          }
+        } else if (currentPract) {
+          const pract = practs.find(p => p.name === currentPract)
+          if (pract) {
+            setPractitionerQuery(pract.label)
+            setFormData(prev => prev.practitioner === '' ? { ...prev, practitioner: pract.name } : prev)
           }
         }
       } catch (err) {

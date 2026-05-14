@@ -8,6 +8,7 @@ import {
   fetchPatientVisits,
   fetchServiceRequestTemplateTypes,
   fetchServiceRequestTemplates,
+  getCurrentUserPractitioner,
   type LinkFieldOption,
 } from '../../services/common'
 import { createServiceRequest } from '../../services/serviceRequests'
@@ -273,6 +274,13 @@ export const CreateServiceRequestModal = ({
     const t = setTimeout(run, delay)
     return () => clearTimeout(t)
   }, [practitionerDropdownOpen, practitionerSearchQuery])
+
+  // Auto-fill current user's practitioner
+  useEffect(() => {
+    getCurrentUserPractitioner().then(pract => {
+      if (pract) setForm(prev => prev.practitioner === '' ? { ...prev, practitioner: pract } : prev)
+    })
+  }, [])
 
   useEffect(() => {
     if (!costCenterDropdownOpen) return

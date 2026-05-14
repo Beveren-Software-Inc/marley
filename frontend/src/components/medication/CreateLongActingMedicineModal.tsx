@@ -11,6 +11,7 @@ import {
   fetchItems,
   fetchDosageForms,
   fetchPrescriptionFrequencies,
+  getCurrentUserPractitioner,
   type LinkFieldOption,
 } from '../../services/common'
 import type { LongActingFrequency } from '../../services/prescriptions'
@@ -219,6 +220,9 @@ export const CreateLongActingMedicineModal = ({
     fetchCompanies().then(setCompanies).catch(() => setCompanies([]))
     fetchDosageForms().then(setDosageForms).catch(() => setDosageForms([]))
     fetchPrescriptionFrequencies().then(setFrequencies).catch(() => setFrequencies([]))
+    getCurrentUserPractitioner().then(pract => {
+      if (pract) setFormData(prev => prev.practitioner === '' ? { ...prev, practitioner: pract } : prev)
+    })
   }, [])
 
   // Set default company if only one

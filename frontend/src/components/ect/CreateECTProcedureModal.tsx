@@ -5,7 +5,7 @@ import {
 } from '../ui/CreateModalChrome'
 import { createECTProcedure } from '../../services/ectProcedure'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
-import { fetchHealthcarePractitioners, fetchAnaesthesiaTypes, type LinkFieldOption } from '../../services/common'
+import { fetchHealthcarePractitioners, fetchAnaesthesiaTypes, getCurrentUserPractitioner, type LinkFieldOption } from '../../services/common'
 import { toast } from '../../hooks/useToast'
 
 interface CreateECTProcedureModalProps {
@@ -277,6 +277,13 @@ export const CreateECTProcedureModal = ({
     }, anaesthetistQuery.trim() === '' ? 0 : 300)
     return () => clearTimeout(t)
   }, [anaesthetistQuery, anaesthetistOpen])
+
+  // Auto-fill current user's practitioner as consultant doctor
+  useEffect(() => {
+    getCurrentUserPractitioner().then(pract => {
+      if (pract) setFormData(prev => prev.consultant_doctor === '' ? { ...prev, consultant_doctor: pract } : prev)
+    })
+  }, [])
 
   useEffect(() => {
     if (!anaesthesiaOpen) return
