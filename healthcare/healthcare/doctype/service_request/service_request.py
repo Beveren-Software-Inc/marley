@@ -618,7 +618,7 @@ def book_lab_and_forward(service_request_name):
 			lt.is_group_lab_test = 1
 		
 		lt.practitioner = sr.practitioner
-		lt.requesting_department = sr.medical_department
+		# lt.requesting_department = sr.medical_department
 		lt.date = sr.occurrence_date
 		lt.time = sr.occurrence_time
 		lt.invoiced = sr.get("invoiced") or 0
