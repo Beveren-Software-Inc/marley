@@ -6,6 +6,7 @@ import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { DetailSlideOver } from '../ui/DetailSlideOver'
 import { DocDetailView } from '../ui/DocDetailView'
 import { useCareContext } from '../../providers/CareContextProvider'
+import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
 
 const statusColors: Record<string, string> = {
   'Draft': 'warning',
@@ -37,6 +38,9 @@ export const DischargeList = ({ patient, admission, onPatientClick }: DischargeL
   const [dischargeIdFilter, setDischargeIdFilter] = useState<string>('')
   const [fromDate, setFromDate] = useState<string>('')
   const [toDate, setToDate] = useState<string>('')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState<PageSize>(DEFAULT_PAGE_SIZE)
+  const [totalCount, setTotalCount] = useState(0)
 
   // Discharge ID — searchable dropdown (link to Discharge)
   const [dischargeIdQuery, setDischargeIdQuery] = useState('')
@@ -58,15 +62,18 @@ export const DischargeList = ({ patient, admission, onPatientClick }: DischargeL
         const resolvedAdmission = dischargeIdFilter ? undefined : (admissionFilter || effectiveAdmission)
         const search = dischargeIdFilter || undefined
         const response = await fetchDischarges(
-          50,
-          0,
+          pageSize,
+          (page - 1) * pageSize,
           effectivePatient,
           resolvedAdmission,
           search,
           fromDate || undefined,
-          toDate || undefined
+          toDate || undefined,
+          statusFilter || undefined,
+          typeFilter || undefined
         )
-        setDischarges(response)
+        setDischarges(response.data)
+        setTotalCount(response.total_count)
       } catch (err) {
         setError(err instanceof Error ? err : new Error('Failed to fetch discharges'))
       } finally {
@@ -75,16 +82,21 @@ export const DischargeList = ({ patient, admission, onPatientClick }: DischargeL
     }
 
     loadDischarges()
-  }, [effectivePatient, effectiveAdmission, admissionFilter, dischargeIdFilter, fromDate, toDate])
+  }, [effectivePatient, effectiveAdmission, admissionFilter, dischargeIdFilter, fromDate, toDate, statusFilter, typeFilter, page, pageSize])
+
+  // Reset page when filters change
+  useEffect(() => {
+    setPage(1)
+  }, [effectivePatient, effectiveAdmission, admissionFilter, dischargeIdFilter, fromDate, toDate, statusFilter, typeFilter])
 
   // Load discharge ID options when dropdown is open (searchable list of discharges)
   useEffect(() => {
     if (!dischargeIdOpen) return
     const t = setTimeout(async () => {
       try {
-        const results = await fetchDischarges(30, 0, effectivePatient, undefined, dischargeIdQuery || undefined)
+        const response = await fetchDischarges(30, 0, effectivePatient, undefined, dischargeIdQuery || undefined)
         setDischargeIdOptions(
-          results.map((d) => ({
+          response.data.map((d) => ({
             value: d.name,
             label: `${d.name}${d.patient_name ? ` - ${d.patient_name}` : ''}`,
           }))
@@ -101,16 +113,18 @@ export const DischargeList = ({ patient, admission, onPatientClick }: DischargeL
     if (!admissionOpen) return
     const t = setTimeout(async () => {
       try {
-        const results = await fetchInpatientRecords(
+        const response = await fetchInpatientRecords(
           undefined,
           admissionNoQuery || undefined,
           effectivePatient,
           undefined,
           undefined,
-          undefined
+          undefined,
+          30,
+          0
         )
         setAdmissionOptions(
-          results.slice(0, 30).map((r) => ({
+          response.data.slice(0, 30).map((r) => ({
             value: r.name,
             label: `${r.name}${r.patient_name ? ` - ${r.patient_name}` : ''}`,
           }))
@@ -175,14 +189,6 @@ export const DischargeList = ({ patient, admission, onPatientClick }: DischargeL
     if (docstatus === 2) return 'Cancelled'
     return 'Draft'
   }
-
-  const filtered = discharges.filter((d) => {
-    const status = getDocStatus(d.docstatus)
-    if (dischargeIdFilter && d.name !== dischargeIdFilter) return false
-    if (statusFilter && status !== statusFilter) return false
-    if (typeFilter && d.discharge_type !== typeFilter) return false
-    return true
-  })
 
   const statusOptions = ['Draft', 'Submitted', 'Cancelled']
   const dischargeTypeOptions = ['Home', 'Dama', 'Refer To Another Hospital']
@@ -357,7 +363,7 @@ export const DischargeList = ({ patient, admission, onPatientClick }: DischargeL
       </div>
 
       {/* Empty or Table Data */}
-      {filtered.length === 0 ? (
+      {discharges.length === 0 ? (
         <div className="flex items-center justify-center p-8">
           <div className="text-slate-500 text-center">
             <svg className="w-12 h-12 mx-auto mb-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -405,7 +411,7 @@ export const DischargeList = ({ patient, admission, onPatientClick }: DischargeL
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
-                {filtered.map((discharge) => (
+                {discharges.map((discharge) => (
                   <tr key={discharge.name} className="hover:bg-slate-50">
                     <td
                       className="px-4 py-3 text-sm font-medium text-primary cursor-pointer hover:underline"
@@ -455,6 +461,14 @@ export const DischargeList = ({ patient, admission, onPatientClick }: DischargeL
               </tbody>
             </table>
           </div>
+          <PaginationControls
+            page={page}
+            pageSize={pageSize}
+            totalCount={totalCount}
+            loading={loading}
+            onPageChange={setPage}
+            onPageSizeChange={(size) => { setPageSize(size); setPage(1) }}
+          />
 
           {detailName && (
             <DetailSlideOver

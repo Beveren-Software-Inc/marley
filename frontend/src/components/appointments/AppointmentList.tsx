@@ -630,7 +630,7 @@
 // }
 
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   fetchPractitionerAppointments,
   fetchAllAppointments,
@@ -651,6 +651,7 @@ import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { ConfirmDialog } from '../ui/ConfirmDialog'
 import { toast } from '../../hooks/useToast'
 import { MarkPatientArrivedModal } from './MarkPatientArrivedModal'
+import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
 
 const statusColors: Record<string, string> = {
   'Scheduled': 'info',
@@ -802,7 +803,7 @@ export const AppointmentList = ({ refreshKey, showAll = false, patient, onPatien
   const [uniquePractitioners, setUniquePractitioners] = useState<string[]>([])
   const menuRef = useRef<HTMLDivElement>(null)
 
-  // Filters
+  // Filters (server-side)
   const [filterStatus, setFilterStatus] = useState<string>('')
   const [filterPractitioner, setFilterPractitioner] = useState<string>('')
   const [filterDateFrom, setFilterDateFrom] = useState<string>('')
@@ -811,25 +812,69 @@ export const AppointmentList = ({ refreshKey, showAll = false, patient, onPatien
   const [bulkChannelMenuOpen, setBulkChannelMenuOpen] = useState(false)
   const bulkMenuRef = useRef<HTMLDivElement>(null)
 
+  // Pagination & search
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState<PageSize>(DEFAULT_PAGE_SIZE)
+  const [totalCount, setTotalCount] = useState(0)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchInput, setSearchInput] = useState('')
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Debounce search input
+  useEffect(() => {
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
+    searchTimerRef.current = setTimeout(() => {
+      setSearchQuery(searchInput)
+      setPage(1)
+    }, 400)
+    return () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current) }
+  }, [searchInput])
+
+  const handleFilterStatusChange = useCallback((v: string) => { setFilterStatus(v); setPage(1) }, [])
+  const handleFilterPractitionerChange = useCallback((v: string) => { setFilterPractitioner(v); setPage(1) }, [])
+  const handleFilterDateFromChange = useCallback((v: string) => { setFilterDateFrom(v); setPage(1) }, [])
+  const handleFilterDateToChange = useCallback((v: string) => { setFilterDateTo(v); setPage(1) }, [])
+
+  const handlePageSizeChange = useCallback((size: PageSize) => {
+    setPageSize(size)
+    setPage(1)
+  }, [])
+
   useEffect(() => {
     const loadAppointments = async () => {
       try {
         setLoading(true)
         setError(null)
+        const offset = (page - 1) * pageSize
         const response = showAll
-          ? await fetchAllAppointments(50, 0, undefined, patient)
-          : await fetchPractitionerAppointments(50, 0)
-        setAppointments(response)
-        
-        // Extract unique practitioners for filter
-        const practitioners = [...new Set(response
+          ? await fetchAllAppointments(
+              pageSize, offset,
+              filterStatus || undefined, patient,
+              searchQuery || undefined,
+              filterPractitioner || undefined,
+              filterDateFrom || undefined, filterDateTo || undefined,
+            )
+          : await fetchPractitionerAppointments(
+              pageSize, offset,
+              filterStatus || undefined,
+              searchQuery || undefined,
+              filterDateFrom || undefined, filterDateTo || undefined,
+            )
+
+        setAppointments(response.data)
+        setTotalCount(response.total_count)
+
+        // Extract unique practitioners for filter dropdown
+        const practitioners = [...new Set(response.data
           .map(apt => apt.practitioner)
           .filter(p => p)
         )] as string[]
-        setUniquePractitioners(practitioners)
-        
-        // Check availability for each practitioner in the appointments
-        for (const apt of response) {
+        setUniquePractitioners(prev => {
+          const merged = new Set([...prev, ...practitioners])
+          return [...merged]
+        })
+
+        for (const apt of response.data) {
           if (apt.practitioner && apt.appointment_date && !practitionerAvailability[apt.name]) {
             setAvailabilityLoading(prev => ({ ...prev, [apt.name]: true }))
             checkPractitionerAvailability(apt.practitioner, apt.appointment_date)
@@ -848,7 +893,7 @@ export const AppointmentList = ({ refreshKey, showAll = false, patient, onPatien
       }
     }
     loadAppointments()
-  }, [refreshKey, showAll, patient, refreshTrigger])
+  }, [refreshKey, showAll, patient, refreshTrigger, page, pageSize, filterStatus, filterPractitioner, filterDateFrom, filterDateTo, searchQuery])
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -863,16 +908,7 @@ export const AppointmentList = ({ refreshKey, showAll = false, patient, onPatien
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  // Client-side filtering
-  const filtered = appointments.filter((apt) => {
-    if (filterStatus && apt.status !== filterStatus) return false
-    if (filterPractitioner && apt.practitioner !== filterPractitioner) return false
-    if (filterDateFrom && apt.appointment_date && apt.appointment_date < filterDateFrom) return false
-    if (filterDateTo && apt.appointment_date && apt.appointment_date > filterDateTo) return false
-    return true
-  })
-
-  const reminderEligible = filtered.filter((apt) => apt.patient)
+  const reminderEligible = appointments.filter((apt) => apt.patient)
 
   const getStatusColor = (status?: string): string => {
     if (!status) return 'default'
@@ -1015,9 +1051,12 @@ export const AppointmentList = ({ refreshKey, showAll = false, patient, onPatien
     setFilterPractitioner('')
     setFilterDateFrom('')
     setFilterDateTo('')
+    setSearchInput('')
+    setSearchQuery('')
+    setPage(1)
   }
 
-  const hasActiveFilters = filterStatus || filterPractitioner || filterDateFrom || filterDateTo
+  const hasActiveFilters = filterStatus || filterPractitioner || filterDateFrom || filterDateTo || searchQuery
 
   if (loading) {
     return <div className="flex items-center justify-center p-8 text-slate-600">Loading appointments...</div>
@@ -1040,13 +1079,24 @@ export const AppointmentList = ({ refreshKey, showAll = false, patient, onPatien
       <div className="mb-3 space-y-2">
         {/* Top row: filters */}
         <div className="flex flex-wrap items-end gap-2">
+          {/* Search */}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-slate-500">Search</label>
+            <input
+              type="text"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder="Patient, practitioner, ID…"
+              className="rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary min-w-[180px]"
+            />
+          </div>
           {/* Date From */}
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-slate-500">From</label>
             <input
               type="date"
               value={filterDateFrom}
-              onChange={(e) => setFilterDateFrom(e.target.value)}
+              onChange={(e) => handleFilterDateFromChange(e.target.value)}
               className="rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </div>
@@ -1056,7 +1106,7 @@ export const AppointmentList = ({ refreshKey, showAll = false, patient, onPatien
             <input
               type="date"
               value={filterDateTo}
-              onChange={(e) => setFilterDateTo(e.target.value)}
+              onChange={(e) => handleFilterDateToChange(e.target.value)}
               className="rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </div>
@@ -1067,13 +1117,12 @@ export const AppointmentList = ({ refreshKey, showAll = false, patient, onPatien
               <label className="text-xs font-medium text-slate-500">Practitioner</label>
               <select
                 value={filterPractitioner}
-                onChange={(e) => setFilterPractitioner(e.target.value)}
+                onChange={(e) => handleFilterPractitionerChange(e.target.value)}
                 className="rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary min-w-[150px]"
               >
                 <option value="">All Practitioners</option>
                 {uniquePractitioners.map((pract) => {
-                  // Get practitioner name for display
-                  const apt = appointments.find(apt => apt.practitioner === pract)
+                  const apt = appointments.find(a => a.practitioner === pract)
                   const displayName = apt?.practitioner_name || pract
                   return (
                     <option key={pract} value={pract}>
@@ -1090,7 +1139,7 @@ export const AppointmentList = ({ refreshKey, showAll = false, patient, onPatien
             <label className="text-xs font-medium text-slate-500">Status</label>
             <select
               value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
+              onChange={(e) => handleFilterStatusChange(e.target.value)}
               className="rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
             >
               <option value="">All statuses</option>
@@ -1160,15 +1209,15 @@ export const AppointmentList = ({ refreshKey, showAll = false, patient, onPatien
 
         {/* Result count */}
         <p className="text-xs text-slate-500">
-          Showing {filtered.length} of {appointments.length} appointment{appointments.length !== 1 ? 's' : ''}
+          Showing {appointments.length} of {totalCount} appointment{totalCount !== 1 ? 's' : ''}
           {hasActiveFilters && ' (filtered)'}
         </p>
       </div>
 
       {/* ── Table ── */}
-      {filtered.length === 0 ? (
+      {appointments.length === 0 ? (
         <div className="flex items-center justify-center p-8 text-slate-500">
-          {appointments.length === 0 ? 'No appointments found' : 'No appointments match the current filters'}
+          {totalCount === 0 ? 'No appointments found' : 'No appointments match the current filters'}
         </div>
       ) : (
         <div className="min-w-full">
@@ -1197,7 +1246,7 @@ export const AppointmentList = ({ refreshKey, showAll = false, patient, onPatien
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
-              {filtered.map((apt) => {
+              {appointments.map((apt) => {
                 const availabilityResponse = practitionerAvailability[apt.name]
                 const isAvailable = availabilityResponse?.available ?? true
                 const leaveDetails = availabilityResponse?.leave_details
@@ -1360,6 +1409,16 @@ export const AppointmentList = ({ refreshKey, showAll = false, patient, onPatien
           </table>
         </div>
       )}
+
+      {/* ── Pagination ── */}
+      <PaginationControls
+        page={page}
+        pageSize={pageSize}
+        totalCount={totalCount}
+        loading={loading}
+        onPageChange={setPage}
+        onPageSizeChange={handlePageSizeChange}
+      />
 
       {arrivedTarget && (
         <MarkPatientArrivedModal

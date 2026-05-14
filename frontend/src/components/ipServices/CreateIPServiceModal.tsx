@@ -189,7 +189,8 @@ export const CreateIPServiceModal = ({
   useEffect(() => {
     if (isIPMode && effectiveAdmission && !admissionNo) {
       fetchInpatientRecords(undefined, effectiveAdmission, effectivePatient, undefined, undefined, undefined)
-        .then((list) => {
+        .then((response) => {
+          const list = response.data
           const matched = list.find(a => a.name === effectiveAdmission)
           if (matched) {
             setAdmissionNo(matched.name)
@@ -214,7 +215,7 @@ export const CreateIPServiceModal = ({
   useEffect(() => {
     if (!effectivePatient) return
     fetchServiceRequests(50, 0, effectivePatient, 'Healthcare Service Template')
-      .then(setServiceRequests)
+      .then((result) => setServiceRequests(result.data))
       .catch(() => setServiceRequests([]))
   }, [effectivePatient])
 
@@ -223,7 +224,7 @@ export const CreateIPServiceModal = ({
     if (!admissionOpen) return
     const t = setTimeout(() => {
       fetchInpatientRecords(undefined, admissionSearch || undefined, effectivePatient, undefined, undefined, undefined)
-        .then((list) => setAdmissions(list.slice(0, 30)))
+        .then((response) => setAdmissions(response.data.slice(0, 30)))
         .catch(() => setAdmissions([]))
     }, admissionSearch.trim() === '' ? 0 : 300)
     return () => clearTimeout(t)

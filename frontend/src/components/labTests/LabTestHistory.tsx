@@ -161,7 +161,7 @@ export const LabTestHistory = ({
         setLoading(true)
         setError(null)
         
-        const tests = await fetchLabTests(
+        const result = await fetchLabTests(
           limit,
           0,
           patientId,
@@ -175,7 +175,7 @@ export const LabTestHistory = ({
           false
         )
 
-        let sortedTests = [...tests].sort((a, b) => {
+        let sortedTests = [...result.data].sort((a, b) => {
           const dateA = a.result_date || a.submitted_date || a.date || ''
           const dateB = b.result_date || b.submitted_date || b.date || ''
           return dateB.localeCompare(dateA)

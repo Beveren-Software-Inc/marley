@@ -24,14 +24,19 @@ export interface ServiceRequest {
   amount?: number
 }
 
+export interface PaginatedServiceRequests {
+  data: ServiceRequest[]
+  total_count: number
+}
+
 export async function fetchServiceRequests(
-  limit: number = 50,
+  limit: number = 20,
   offset: number = 0,
   patient?: string,
   template_dt?: string,
   status?: string,
   search?: string
-): Promise<ServiceRequest[]> {
+): Promise<PaginatedServiceRequests> {
   const params = new URLSearchParams()
   params.append('limit', limit.toString())
   params.append('offset', offset.toString())
@@ -45,11 +50,13 @@ export async function fetchServiceRequests(
   )
   const resData = await response.json()
 
-  if (resData?.message && Array.isArray(resData.message)) {
-    return resData.message as ServiceRequest[]
-  } else {
-    return []
+  if (resData?.message && typeof resData.message === 'object' && !Array.isArray(resData.message)) {
+    return resData.message as PaginatedServiceRequests
   }
+  if (resData?.message && Array.isArray(resData.message)) {
+    return { data: resData.message as ServiceRequest[], total_count: resData.message.length }
+  }
+  return { data: [], total_count: 0 }
 }
 
 /** Fetch a single Service Request by name (for edit modal). */

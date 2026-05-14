@@ -318,7 +318,7 @@ def get_service_requests(limit=50, offset=0, patient=None, template_dt=None, sta
 	or_filters = None
 	if permitted_cc is not None:
 		if not permitted_cc:
-			return []
+			return {"data": [], "total_count": 0}
 		or_filters = [
 			['Service Request', 'cost_center', 'in', permitted_cc],
 			['Service Request', 'cost_center', 'is', 'not set'],
@@ -352,6 +352,13 @@ def get_service_requests(limit=50, offset=0, patient=None, template_dt=None, sta
 	if or_filters:
 		fetch_kwargs['or_filters'] = or_filters
 
+	# Count total matching records (without limit/offset)
+	count_kwargs = dict(filters=filters)
+	if or_filters:
+		count_kwargs['or_filters'] = or_filters
+	total_count = frappe.get_all('Service Request', **count_kwargs, limit=0, fields=['name'])
+	total_count = len(total_count)
+
 	service_requests = frappe.get_all('Service Request', **fetch_kwargs)
 	for sr in service_requests:
 		if sr.practitioner:
@@ -368,7 +375,7 @@ def get_service_requests(limit=50, offset=0, patient=None, template_dt=None, sta
 			else:
 				sr['template_name'] = sr.template_dn
 	
-	return service_requests
+	return {"data": service_requests, "total_count": total_count}
 
 
 def generate_lab_test_trans_num(format_type="integer", prefix="", suffix="", padding=6):

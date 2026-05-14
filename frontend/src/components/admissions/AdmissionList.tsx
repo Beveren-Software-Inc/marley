@@ -4,6 +4,7 @@ import { useInpatientRecords } from '../../hooks/useInpatientRecords'
 import { fetchInpatientRecords } from '../../services/inpatientRecords'
 import { fetchHealthcarePractitioners, type LinkFieldOption } from '../../services/common'
 import { useCareContext } from '../../providers/CareContextProvider'
+import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
 import { StatusPill } from '../ui/StatusPill'
 import { PackageSelectionModal } from './PackageSelectionModal'
 import { AdmissionFormModal } from './AdmissionFormModal'
@@ -91,8 +92,10 @@ export const AdmissionList = ({ onAdmissionSelect, onPatientFromAdmission, searc
   const [patientHistoryAdmission, setPatientHistoryAdmission] = useState<InpatientRecord | null>(null)
   const [referralAdmission, setReferralAdmission] = useState<InpatientRecord | null>(null)
   const [diagnosisAdmission, setDiagnosisAdmission] = useState<InpatientRecord | null>(null)
-  const [actionLoading, setActionLoading] = useState<string | null>(null) // Add this state for loading
-const [diagnosisModalAdmission, setDiagnosisModalAdmission] = useState<InpatientRecord | null>(null)
+  const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [diagnosisModalAdmission, setDiagnosisModalAdmission] = useState<InpatientRecord | null>(null)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState<PageSize>(DEFAULT_PAGE_SIZE)
   // --- Filter: Admission No (searchable dropdown) ---
   const [admissionNoQuery, setAdmissionNoQuery] = useState('')
   const [admissionOptions, setAdmissionOptions] = useState<{ value: string; label: string }[]>([])
@@ -117,23 +120,30 @@ const [diagnosisModalAdmission, setDiagnosisModalAdmission] = useState<Inpatient
   // Slide-over detail panel (unchanged — opens on row click)
   const [detailAdmission, setDetailAdmission] = useState<string | null>(null)
 
-  const { records, loading, error, refetch } = useInpatientRecords(
+  const { records, totalCount, loading, error, refetch } = useInpatientRecords(
     effectiveNameFilter ? undefined : (selectedStatus || undefined),
     effectiveNameFilter ?? (admissionNoFilter || externalSearchQuery || undefined),
     effectiveNameFilter ? undefined : effectivePatient,
     effectiveNameFilter ? undefined : (practitionerFilter || undefined),
     effectiveNameFilter ? undefined : (dateFrom || undefined),
     effectiveNameFilter ? undefined : (dateTo || undefined),
-    refreshKey
+    refreshKey,
+    pageSize,
+    (page - 1) * pageSize
   )
+
+  // Reset page when filters change
+  useEffect(() => {
+    setPage(1)
+  }, [selectedStatus, admissionNoFilter, externalSearchQuery, effectivePatient, practitionerFilter, dateFrom, dateTo, effectiveNameFilter])
 
   // --- Admission No: debounced search when dropdown is open ---
   useEffect(() => {
     if (!admissionOpen) return
     const t = setTimeout(async () => {
       try {
-        const results = await fetchInpatientRecords(undefined, admissionNoQuery || undefined, effectivePatient, undefined, undefined, undefined)
-        setAdmissionOptions(results.slice(0, 30).map(r => ({ value: r.name, label: `${r.name} - ${r.patient_name || r.patient || ''}` })))
+        const response = await fetchInpatientRecords(undefined, admissionNoQuery || undefined, effectivePatient, undefined, undefined, undefined, 30, 0)
+        setAdmissionOptions(response.data.slice(0, 30).map(r => ({ value: r.name, label: `${r.name} - ${r.patient_name || r.patient || ''}` })))
       } catch (err) {
         console.error('Failed to load admission options', err)
         setAdmissionOptions([])
@@ -783,6 +793,14 @@ const [diagnosisModalAdmission, setDiagnosisModalAdmission] = useState<Inpatient
               )}
             </tbody>
           </table>
+          <PaginationControls
+            page={page}
+            pageSize={pageSize}
+            totalCount={totalCount}
+            loading={loading}
+            onPageChange={setPage}
+            onPageSizeChange={(size) => { setPageSize(size); setPage(1) }}
+          />
         </div>
       </div>
 

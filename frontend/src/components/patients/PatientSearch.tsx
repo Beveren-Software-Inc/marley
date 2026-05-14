@@ -4,8 +4,8 @@ import { CreatePatientModal } from './CreatePatientModal'
 import { PatientAlertsBanner } from './PatientAlertsBanner'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
 import { useCareContext } from '../../providers/CareContextProvider'
-import { fetchPatientVisitsFull, type PatientVisitListRow } from '../../services/patientVisits'
-import { fetchInpatientRecords, type InpatientRecord } from '../../services/inpatientRecords'
+import { fetchPatientVisitsFull } from '../../services/patientVisits'
+import { fetchInpatientRecords } from '../../services/inpatientRecords'
 
 interface PatientSearchProps {
   selectedPatient: string
@@ -266,12 +266,12 @@ export const PatientSearch = ({
       setSecondaryLoading(true)
       try {
         if (mode === 'OP') {
-          const visits: PatientVisitListRow[] = await fetchPatientVisitsFull(
+          const visitsResponse = await fetchPatientVisitsFull(
             selectedPatient || undefined,
             secondaryQuery || undefined
           )
           setSecondaryResults(
-            visits.slice(0, 30).map((v) => ({
+            visitsResponse.data.slice(0, 30).map((v) => ({
               value: v.value,
               label: v.label,
               patient: v.patient,
@@ -280,11 +280,12 @@ export const PatientSearch = ({
             }))
           )
         } else if (mode === 'IP') {
-          const admissions: InpatientRecord[] = await fetchInpatientRecords(
+          const admissionsResponse = await fetchInpatientRecords(
             undefined,
             secondaryQuery || undefined,
             selectedPatient || undefined
           )
+          const admissions = admissionsResponse.data
           setSecondaryResults(
             admissions.slice(0, 30).map((a) => ({
               value: a.name,

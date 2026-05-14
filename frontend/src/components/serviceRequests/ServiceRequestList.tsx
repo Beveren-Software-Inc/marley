@@ -15,6 +15,7 @@ import { DocDetailView } from '../ui/DocDetailView'
 import { EditServiceRequestModal } from './EditServiceRequestModal'
 import { BookConsultationSessionModal } from './BookConsultationSessionModal'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
+import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
 import { Search, X } from 'lucide-react'
 
 interface ServiceRequestListProps {
@@ -49,15 +50,21 @@ const SR_STATUSES = [
 const refetch = (
   setLoading: (v: boolean) => void,
   setServiceRequests: (v: ServiceRequest[]) => void,
+  setTotalCount: (v: number) => void,
   setError: (v: Error | null) => void,
   patient?: string,
   template_dt?: string,
   statusFilter?: string,
-  search?: string
+  search?: string,
+  limit: number = 20,
+  offset: number = 0,
 ) => {
   setLoading(true)
-  fetchServiceRequests(50, 0, patient, template_dt || undefined, statusFilter || undefined, search || undefined)
-    .then(setServiceRequests)
+  fetchServiceRequests(limit, offset, patient, template_dt || undefined, statusFilter || undefined, search || undefined)
+    .then((result) => {
+      setServiceRequests(result.data)
+      setTotalCount(result.total_count)
+    })
     .catch((err) => setError(err instanceof Error ? err : new Error('Failed to fetch service requests')))
     .finally(() => setLoading(false))
 }
@@ -80,6 +87,11 @@ export const ServiceRequestList = ({
   const [editServiceRequestName, setEditServiceRequestName] = useState<string | null>(null)
   const [bookingSessionSR, setBookingSessionSR] = useState<ServiceRequest | null>(null)
   const actionMenuRef = useRef<HTMLDivElement>(null)
+
+  // Pagination state
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState<PageSize>(DEFAULT_PAGE_SIZE)
+  const [totalCount, setTotalCount] = useState(0)
 
   // Filter state
   const [search, setSearch] = useState('')
@@ -104,20 +116,30 @@ export const ServiceRequestList = ({
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
+  // Reset page when filters change
   useEffect(() => {
-    setError(null)
-    refetch(setLoading, setServiceRequests, setError, patient, templateDtFilter, statusFilter, search)
+    setPage(1)
   }, [patient, refreshKey, templateDtFilter, statusFilter])
 
-  // Debounced search
+  // Debounced search - reset page
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [debouncedSearch, setDebouncedSearch] = useState(search)
   useEffect(() => {
-    const t = setTimeout(() => {
-      refetch(setLoading, setServiceRequests, setError, patient, templateDtFilter, statusFilter, search)
-    }, 350)
-    return () => clearTimeout(t)
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
+    searchTimerRef.current = setTimeout(() => {
+      setDebouncedSearch(search)
+      setPage(1)
+    }, 400)
+    return () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current) }
   }, [search])
 
-  const doRefetch = () => refetch(setLoading, setServiceRequests, setError, patient, templateDtFilter, statusFilter, search)
+  // Single fetch effect
+  useEffect(() => {
+    setError(null)
+    refetch(setLoading, setServiceRequests, setTotalCount, setError, patient, templateDtFilter, statusFilter, debouncedSearch, pageSize, (page - 1) * pageSize)
+  }, [patient, refreshKey, templateDtFilter, statusFilter, debouncedSearch, page, pageSize])
+
+  const doRefetch = () => refetch(setLoading, setServiceRequests, setTotalCount, setError, patient, templateDtFilter, statusFilter, debouncedSearch, pageSize, (page - 1) * pageSize)
 
   const handleConfirmPayment = async (sr: ServiceRequest) => {
     setOpenActionRow(null)
@@ -206,14 +228,6 @@ export const ServiceRequestList = ({
     return statusColors[status] || 'default'
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center p-8">
-        <div className="text-slate-600">Loading service requests...</div>
-      </div>
-    )
-  }
-
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center p-8">
@@ -285,7 +299,7 @@ export const ServiceRequestList = ({
         )}
       </div>
 
-      {loading ? (
+      {loading && serviceRequests.length === 0 ? (
         <div className="flex items-center justify-center p-8 text-slate-500 text-sm">Loading...</div>
       ) : serviceRequests.length === 0 ? (
         <div className="flex items-center justify-center p-8 text-slate-500 text-sm">No service requests found</div>
@@ -496,6 +510,15 @@ export const ServiceRequestList = ({
         </tbody>
       </table>
       )}
+
+      <PaginationControls
+        page={page}
+        pageSize={pageSize}
+        totalCount={totalCount}
+        loading={loading}
+        onPageChange={setPage}
+        onPageSizeChange={(size) => { setPageSize(size); setPage(1) }}
+      />
 
       {detailName && (
         <DetailSlideOver

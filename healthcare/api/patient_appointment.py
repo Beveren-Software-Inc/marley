@@ -45,86 +45,112 @@ def get_practitioner_appointments(limit=50, offset=0, status=None):
 	return appointments
 
 @frappe.whitelist()
-def get_all_appointments(limit=50, offset=0, status=None, patient=None):
-	"""Get all appointments (for receptionist)"""
+def get_all_appointments(limit=50, offset=0, status=None, patient=None,
+                         search=None, practitioner=None,
+                         date_from=None, date_to=None):
+	"""Get all appointments (for receptionist) with server-side pagination."""
 	filters = {}
+	or_filters = {}
+
 	if status:
 		filters['status'] = status
 	if patient:
 		filters['patient'] = patient
-	print("Where are you")
-	appointments = frappe.get_all(
-		'Patient Appointment',
-		filters=filters,
-		fields=[
-			'name',
-			'patient',
-			'patient_name',
-			'appointment_date',
-			'appointment_time',
-			'status',
-			'appointment_type',
-			'department',
-			'practitioner',
-			'practitioner_name',
-			'company',
-		],
-		limit=limit,
-		limit_start=offset,
-		order_by='appointment_date desc, appointment_time desc'
-	)
-	
-	return appointments
+	if practitioner:
+		filters['practitioner'] = practitioner
+	if date_from:
+		filters['appointment_date'] = ['>=', date_from]
+	if date_to:
+		if 'appointment_date' in filters:
+			filters['appointment_date'] = ['between', [date_from, date_to]]
+		else:
+			filters['appointment_date'] = ['<=', date_to]
+
+	if search:
+		search_term = f"%{search}%"
+		or_filters = {
+			'patient_name': ['like', search_term],
+			'patient': ['like', search_term],
+			'practitioner_name': ['like', search_term],
+			'name': ['like', search_term],
+		}
+
+	fields = [
+		'name', 'patient', 'patient_name',
+		'appointment_date', 'appointment_time',
+		'status', 'appointment_type', 'department',
+		'practitioner', 'practitioner_name', 'company',
+	]
+
+	count_args = {'doctype': 'Patient Appointment', 'filters': filters}
+	fetch_args = dict(count_args, fields=fields, limit=limit, limit_start=offset,
+		order_by='appointment_date desc, appointment_time desc')
+	if or_filters:
+		count_args['or_filters'] = or_filters
+		fetch_args['or_filters'] = or_filters
+
+	total_count = len(frappe.get_all(**count_args, fields=['name'], limit=0))
+	appointments = frappe.get_all(**fetch_args)
+
+	return {"data": appointments, "total_count": total_count}
 
 @frappe.whitelist()
-def get_practitioner_appointments(limit=50, offset=0, status=None):
-    """Get appointments for the current user's healthcare practitioner"""
+def get_practitioner_appointments(limit=50, offset=0, status=None,
+                                  search=None, date_from=None, date_to=None):
+    """Get appointments for the current user's healthcare practitioner with server-side pagination."""
     user = frappe.session.user
 
-    # Get the healthcare practitioner linked to the current user
     practitioner = frappe.db.get_value('Healthcare Practitioner', {'user_id': user}, 'name')
 
-    # Check if user has elevated roles
     elevated_roles = {'System Manager', 'Healthcare Administrator', 'CEO'}
     user_roles = set(frappe.get_roles(user))
     has_elevated_role = bool(elevated_roles & user_roles)
 
-    # If no practitioner is linked AND user has an elevated role, show all appointments
     if not practitioner:
         if not has_elevated_role:
-            return []
-        # Elevated users without a practitioner see everything
+            return {"data": [], "total_count": 0}
         filters = {}
     else:
-        # Regular practitioner — scope to their own appointments
         filters = {'practitioner': practitioner}
 
-    # Apply optional status filter
     if status:
         filters['status'] = status
+    if date_from:
+        filters['appointment_date'] = ['>=', date_from]
+    if date_to:
+        if 'appointment_date' in filters:
+            filters['appointment_date'] = ['between', [date_from, date_to]]
+        else:
+            filters['appointment_date'] = ['<=', date_to]
 
-    # Get appointments
-    appointments = frappe.get_all(
-        'Patient Appointment',
-        filters=filters,
-        fields=[
-            'name',
-            'patient',
-            'patient_name',
-            'appointment_date',
-            'appointment_time',
-            'status',
-            'appointment_type',
-            'department',
-            'practitioner',
-            'practitioner_name'
-        ],
-        limit=limit,
-        limit_start=offset,
-        order_by='appointment_date desc, appointment_time desc'
-    )
+    or_filters = {}
+    if search:
+        search_term = f"%{search}%"
+        or_filters = {
+            'patient_name': ['like', search_term],
+            'patient': ['like', search_term],
+            'practitioner_name': ['like', search_term],
+            'name': ['like', search_term],
+        }
 
-    return appointments
+    fields = [
+        'name', 'patient', 'patient_name',
+        'appointment_date', 'appointment_time',
+        'status', 'appointment_type', 'department',
+        'practitioner', 'practitioner_name',
+    ]
+
+    count_args = {'doctype': 'Patient Appointment', 'filters': filters}
+    fetch_args = dict(count_args, fields=fields, limit=limit, limit_start=offset,
+        order_by='appointment_date desc, appointment_time desc')
+    if or_filters:
+        count_args['or_filters'] = or_filters
+        fetch_args['or_filters'] = or_filters
+
+    total_count = len(frappe.get_all(**count_args, fields=['name'], limit=0))
+    appointments = frappe.get_all(**fetch_args)
+
+    return {"data": appointments, "total_count": total_count}
 
 @frappe.whitelist()
 def create_appointment(data):

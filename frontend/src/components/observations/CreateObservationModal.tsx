@@ -9,7 +9,7 @@ import { createObservation, fetchObservationLevelDetails } from '../../services/
 import { fetchHealthcarePractitioners, getCurrentUserPractitioner, fetchObservationTemplates, fetchMedicalDepartments, type LinkFieldOption, fetchPatientVisits, fetchObservationLevels } from '../../services/common'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
 import { toast } from '../../hooks/useToast'
-import { fetchInpatientRecords, type InpatientRecord } from '../../services/inpatientRecords'
+import { fetchInpatientRecords } from '../../services/inpatientRecords'
 import { X } from 'lucide-react'
 import { useCareContext } from '../../providers/CareContextProvider'
 
@@ -350,7 +350,7 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
     const timeoutId = setTimeout(async () => {
       setAdmissionLoading(true)
       try {
-        const results: InpatientRecord[] = await fetchInpatientRecords(
+        const response = await fetchInpatientRecords(
           undefined,
           admissionQuery.trim() || undefined,
           formData.patient,
@@ -359,7 +359,7 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
           undefined
         )
         setAdmissionOptions(
-          results.slice(0, 50).map((r) => ({
+          response.data.slice(0, 50).map((r) => ({
             value: r.name,
             label: `${r.name}${r.patient_name ? ` — ${r.patient_name}` : ''}`,
           }))

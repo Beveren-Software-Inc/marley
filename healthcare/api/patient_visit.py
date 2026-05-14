@@ -213,14 +213,15 @@ def get_patient_visit(name):
 # healthcare/api/common.py
 
 @frappe.whitelist()
-def get_patient_visits_full(search=None, patient=None, practitioner=None, from_date=None, to_date=None, visit_type=None, limit=50):
+def get_patient_visits_full(search=None, patient=None, practitioner=None, from_date=None, to_date=None, visit_type=None, status=None, limit=20, offset=0):
 	"""
-	Fetch patient visits with all filters:
-	- search: filters by visit name
-	- patient: filters by patient
-	- practitioner: filters by practitioner
-	- from_date / to_date: filters by encounter date
+	Fetch patient visits with all filters and pagination.
+	Returns { data: [...], total_count: N }
 	"""
+	from frappe.utils import cint
+	limit = cint(limit) or 20
+	offset = cint(offset) or 0
+
 	filters = [["docstatus", "!=", 2]]
 	if patient:
 		filters.append(["patient", "=", patient])
@@ -234,11 +235,21 @@ def get_patient_visits_full(search=None, patient=None, practitioner=None, from_d
 	if visit_type:
 		filters.append(["visit_type", "=", visit_type])
 
+	if status:
+		filters.append(["status", "=", status])
+
 	if from_date:
 		filters.append(["encounter_date", ">=", from_date])
 
 	if to_date:
 		filters.append(["encounter_date", "<=", to_date])
+
+	total_count = len(frappe.get_all(
+		"Patient Visit",
+		filters=filters,
+		fields=["name"],
+		limit=0,
+	))
 
 	visits = frappe.get_all(
 		"Patient Visit",
@@ -262,6 +273,7 @@ def get_patient_visits_full(search=None, patient=None, practitioner=None, from_d
 			"invoice_created"
 		],
 		limit=limit,
+		start=offset,
 		order_by="creation desc",
 	)
 
@@ -351,21 +363,24 @@ def get_patient_visits_full(search=None, patient=None, practitioner=None, from_d
 		for row in pharmacy_rows:
 			pharmacy_amount_map[row.visit_name] = float(row.amount or 0)
 
-	return [
-		{
-			"name": v.name,
-			"label": f"{v.name} - {v.patient_name or v.patient or ''}",
-			"patient": v.patient or '',
-			"patient_name": v.patient_name or '',
-			"encounter_date": str(v.encounter_date) if v.encounter_date else None,
-			"practitioner_name": v.practitioner_name,
-			"status": v.status,
-			"lab_amount": lab_amount_map.get(v.name, 0),
-			"service_amount": service_amount_map.get(v.name, 0),
-			"pharmacy_amount": pharmacy_amount_map.get(v.name, 0),
-		}
-		for v in visits
-	]
+	return {
+		"data": [
+			{
+				"name": v.name,
+				"label": f"{v.name} - {v.patient_name or v.patient or ''}",
+				"patient": v.patient or '',
+				"patient_name": v.patient_name or '',
+				"encounter_date": str(v.encounter_date) if v.encounter_date else None,
+				"practitioner_name": v.practitioner_name,
+				"status": v.status,
+				"lab_amount": lab_amount_map.get(v.name, 0),
+				"service_amount": service_amount_map.get(v.name, 0),
+				"pharmacy_amount": pharmacy_amount_map.get(v.name, 0),
+			}
+			for v in visits
+		],
+		"total_count": total_count,
+	}
 	
 @frappe.whitelist()
 def cancel_patient_visit(visit_name: str, reason_for_cancel: str = None):

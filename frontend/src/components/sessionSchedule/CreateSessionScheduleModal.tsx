@@ -233,7 +233,7 @@ export const CreateSessionScheduleModal = ({
 
     const timeoutId = setTimeout(async () => {
       try {
-        const records = await fetchInpatientRecords(
+        const response = await fetchInpatientRecords(
           undefined,
           admissionQuery || undefined,
           undefined,
@@ -241,7 +241,7 @@ export const CreateSessionScheduleModal = ({
           undefined,
           undefined
         )
-        setAdmissionOptions(records.slice(0, 30))
+        setAdmissionOptions(response.data.slice(0, 30))
       } catch (err) {
         console.error('Failed to load admissions:', err)
         setAdmissionOptions([])

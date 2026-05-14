@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { fetchInpatientRecords, type InpatientRecord } from '../services/inpatientRecords'
 
 export function useInpatientRecords(
@@ -8,48 +8,38 @@ export function useInpatientRecords(
   practitioner?: string,
   fromDate?: string,
   toDate?: string,
-  refreshKey?: string | number
+  refreshKey?: string | number,
+  limit?: number,
+  offset?: number
 ) {
   const [records, setRecords] = useState<InpatientRecord[]>([])
+  const [totalCount, setTotalCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
 
-  useEffect(() => {
-    const loadRecords = async () => {
-      try {
-        setLoading(true)
-        setError(null)
-        const response = await fetchInpatientRecords(status, search, patient, practitioner, fromDate, toDate)
-        setRecords(response)
-      } catch (err) {
-        setError(err instanceof Error ? err : new Error('Failed to fetch inpatient records'))
-      } finally {
-        setLoading(false)
-      }
+  const loadRecords = useCallback(async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const response = await fetchInpatientRecords(status, search, patient, practitioner, fromDate, toDate, limit, offset)
+      setRecords(response.data)
+      setTotalCount(response.total_count)
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error('Failed to fetch inpatient records'))
+    } finally {
+      setLoading(false)
     }
+  }, [status, search, patient, practitioner, fromDate, toDate, limit, offset, refreshKey])
 
+  useEffect(() => {
     loadRecords()
-  }, [status, search, patient, practitioner, fromDate, toDate, refreshKey])
+  }, [loadRecords])
 
   return {
     records,
+    totalCount,
     loading,
     error,
-    refetch: () => {
-      const loadRecords = async () => {
-        try {
-          setLoading(true)
-          setError(null)
-          const response = await fetchInpatientRecords(status, search, patient, practitioner, fromDate, toDate)
-          setRecords(response)
-        } catch (err) {
-          setError(err instanceof Error ? err : new Error('Failed to fetch inpatient records'))
-        } finally {
-          setLoading(false)
-        }
-      }
-      loadRecords()
-    }
+    refetch: loadRecords,
   }
 }
-

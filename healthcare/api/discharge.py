@@ -9,9 +9,15 @@ from frappe import _
 
 
 @frappe.whitelist()
-def get_discharges(limit=50, offset=0, patient=None, admission=None, search=None, from_date=None, to_date=None):
-	"""Get list of Discharge documents"""
+def get_discharges(limit=20, offset=0, patient=None, admission=None, search=None, from_date=None, to_date=None, status=None, discharge_type=None):
+	"""Get list of Discharge documents with pagination.
+	Returns { data: [...], total_count: N }
+	"""
+	from frappe.utils import cint
 	from healthcare.api.common import get_permitted_cost_centers
+
+	limit = cint(limit) or 20
+	offset = cint(offset) or 0
 	filters = {}
 
 	if patient:
@@ -30,12 +36,27 @@ def get_discharges(limit=50, offset=0, patient=None, admission=None, search=None
 	elif to_date:
 		filters['discharge_date'] = ['<=', to_date]
 
+	if status:
+		docstatus_map = {'Draft': 0, 'Submitted': 1, 'Cancelled': 2}
+		if status in docstatus_map:
+			filters['docstatus'] = docstatus_map[status]
+
+	if discharge_type:
+		filters['discharge_type'] = discharge_type
+
 	# ── Cost-centre User Permission enforcement ──────────────────────────────
 	permitted_cc = get_permitted_cost_centers()
 	if permitted_cc is not None:
 		if not permitted_cc:
-			return []
+			return {"data": [], "total_count": 0}
 		filters['cost_center'] = ['in', permitted_cc]
+
+	total_count = len(frappe.get_all(
+		'Discharge',
+		filters=filters,
+		fields=['name'],
+		limit=0,
+	))
 
 	discharges = frappe.get_all(
 		'Discharge',
@@ -95,4 +116,4 @@ def get_discharges(limit=50, offset=0, patient=None, admission=None, search=None
 			if admission_date:
 				discharge['admission_date'] = admission_date
 	
-	return discharges
+	return {"data": discharges, "total_count": total_count}

@@ -449,7 +449,7 @@ import {
 } from '../ui/CreateModalChrome'
 import { createVitalSign } from '../../services/vitalSigns'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
-import { fetchInpatientRecords, type InpatientRecord } from '../../services/inpatientRecords'
+import { fetchInpatientRecords } from '../../services/inpatientRecords'
 import { fetchPatientVisits, type LinkFieldOption } from '../../services/common'
 import { toast } from '../../hooks/useToast'
 import { useCareContext } from '../../providers/CareContextProvider'
@@ -622,7 +622,7 @@ export const CreateVitalSignModal = ({
 
     const timeoutId = setTimeout(async () => {
       try {
-        const records: InpatientRecord[] = await fetchInpatientRecords(
+        const response = await fetchInpatientRecords(
           undefined,
           admissionQuery || undefined,
           formData.patient || undefined,
@@ -631,7 +631,7 @@ export const CreateVitalSignModal = ({
           undefined
         )
         setAdmissionOptions(
-          records.slice(0, 30).map((r) => ({
+          response.data.slice(0, 30).map((r) => ({
             value: r.name,
             label: `${r.name} - ${r.patient_name || r.patient || ''}`,
           }))

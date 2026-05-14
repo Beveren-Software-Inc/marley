@@ -16,6 +16,7 @@ import { CreateObservationModal } from '../observations/CreateObservationModal'
 import { PatientDiagnosisModal } from '../diagnosis/PatientDiagnosisModal'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { useFormatMoney } from '../../hooks/useFormatMoney'
+import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
 
 const statusColors: Record<string, string> = {
   'Open': 'warning',
@@ -74,6 +75,10 @@ export const PatientVisitList = ({
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
 
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState<PageSize>(DEFAULT_PAGE_SIZE)
+  const [totalCount, setTotalCount] = useState(0)
+
   const [showCancelModal, setShowCancelModal] = useState(false)
   const [cancelLoading, setCancelLoading] = useState(false)
   const [selectedVisitForCancel, setSelectedVisitForCancel] = useState<PatientVisitListRow | null>(null)
@@ -89,8 +94,8 @@ export const PatientVisitList = ({
     if (!visitOpen) return
     const t = setTimeout(async () => {
       try {
-        const results = await fetchPatientVisitsFull(effectivePatient, visitQuery || undefined)
-        setVisitOptions(results.map(r => ({ value: r.value, label: r.label })))
+        const response = await fetchPatientVisitsFull(effectivePatient, visitQuery || undefined)
+        setVisitOptions(response.data.map(r => ({ value: r.value, label: r.label })))
       } catch (err) {
         console.error('Failed to load visit options', err)
       }
@@ -121,16 +126,19 @@ export const PatientVisitList = ({
     setLoading(true)
     setError(null)
     try {
-      const results = await fetchPatientVisitsFull(
+      const response = await fetchPatientVisitsFull(
         effectiveVisitFilter ? undefined : effectivePatient,
         effectiveVisitFilter ?? (visitIdFilter || externalSearchQuery || undefined),
         effectiveVisitFilter ? undefined : (practitionerFilter || undefined),
         effectiveVisitFilter ? undefined : (dateFrom || undefined),
         effectiveVisitFilter ? undefined : (dateTo || undefined),
         effectiveVisitFilter ? undefined : (selectedStatus || undefined),
-        effectiveVisitFilter ? undefined : (visitType || undefined)
+        effectiveVisitFilter ? undefined : (visitType || undefined),
+        pageSize,
+        (page - 1) * pageSize
       )
-      setVisits(results)
+      setVisits(response.data)
+      setTotalCount(response.total_count)
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Failed to fetch visits'))
     } finally {
@@ -140,7 +148,12 @@ export const PatientVisitList = ({
 
   useEffect(() => {
     fetchVisits()
-  }, [selectedStatus, practitionerFilter, visitIdFilter, dateFrom, dateTo, effectivePatient, externalSearchQuery, refreshKey, effectiveVisitFilter])
+  }, [selectedStatus, practitionerFilter, visitIdFilter, dateFrom, dateTo, effectivePatient, externalSearchQuery, refreshKey, effectiveVisitFilter, page, pageSize])
+
+  // Reset page when filters change
+  useEffect(() => {
+    setPage(1)
+  }, [selectedStatus, practitionerFilter, visitIdFilter, dateFrom, dateTo, effectivePatient, externalSearchQuery, effectiveVisitFilter])
 
   // Close action row dropdown on outside click (ignore portaled menu and trigger button)
   useEffect(() => {
@@ -594,6 +607,14 @@ export const PatientVisitList = ({
             </tbody>
           </table>
         )}
+        <PaginationControls
+          page={page}
+          pageSize={pageSize}
+          totalCount={totalCount}
+          loading={loading}
+          onPageChange={setPage}
+          onPageSizeChange={(size) => { setPageSize(size); setPage(1) }}
+        />
       </div>
 
       {/* Referral Modal */}
