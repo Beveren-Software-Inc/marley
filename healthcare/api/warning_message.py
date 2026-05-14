@@ -99,7 +99,7 @@ def create_warning_message(data):
 		'medical_role': data.get('medical_role')
 	})
 	
-	warning.insert()
+	warning.insert(ignore_permissions=True)
 	
 	# Return the created warning message
 	return {

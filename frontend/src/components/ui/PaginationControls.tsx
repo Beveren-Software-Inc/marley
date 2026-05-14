@@ -24,7 +24,7 @@ export const PaginationControls = ({
   const to = Math.min(page * pageSize, totalCount)
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 px-1 py-2 text-sm text-slate-600">
+    <div className="mt-auto flex-shrink-0 bg-white flex flex-wrap items-center justify-between gap-3 px-1 py-2 text-sm text-slate-600 border-t border-slate-200">
       <div className="flex items-center gap-2">
         <span className="whitespace-nowrap">Rows per page</span>
         <select

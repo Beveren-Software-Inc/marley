@@ -179,7 +179,7 @@ def create_observation(data):
 		observation.reference_doctype = "Patient Visit"
 		observation.reference_docname = pv
 
-	observation.insert()
+	observation.insert(ignore_permissions=True)
 	
 	# Return the created observation
 	return {

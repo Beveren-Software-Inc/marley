@@ -195,7 +195,7 @@ export const PatientList = ({ refreshKey }: PatientListProps = {}) => {
   }
 
   return (
-    <div className="w-full h-full flex flex-col">
+    <div className="w-full h-full flex flex-col min-h-[400px]">
       {/* Fixed height container for search hint - prevents layout shift */}
       <div className="flex-shrink-0]">
         {searchQuery && debouncedQuery && (

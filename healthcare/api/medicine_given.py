@@ -25,7 +25,7 @@ def _get_or_create_admission_detail(admission: str):
 	if hasattr(doc, "patient_name"):
 		doc.patient_name = admission_doc.patient_name
 
-	doc.insert()
+	doc.insert(ignore_permissions=True)
 	return doc
 
 
@@ -719,7 +719,7 @@ def reconcile_discharge_medicines(admission: str) -> dict:
 
 		items_summary.append({"item_code": drug, "qty": qty})
 
-	stock_entry.insert()
+	stock_entry.insert(ignore_permissions=True)
 
 	return {
 		"stock_entry": stock_entry.name,
@@ -1049,7 +1049,7 @@ def return_stopped_medications_to_store(admission: str, order_entry_names: str |
 			item_row.cost_center = cost_center
 		items_summary.append({"item_code": drug, "qty": qty})
 
-	stock_entry.insert()
+	stock_entry.insert(ignore_permissions=True)
 
 	# Mark all stopped entries that were included as returned_to_store
 	if frappe.db.has_column("Inpatient Medication Order Entry", "returned_to_store"):

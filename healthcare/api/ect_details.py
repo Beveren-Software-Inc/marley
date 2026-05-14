@@ -190,7 +190,7 @@ def create_ect_detail(data):
 		"psychology_doctor": data.get("psychology_doctor") or None,
 		"anaesthetic_doctor": data.get("anaesthetic_doctor") or None,
 	})
-	doc.insert()
+	doc.insert(ignore_permissions=True)
 
 	return {
 		"name": doc.name,
@@ -231,7 +231,7 @@ def create_ect_admission(data):
 		"doctor": data.get("doctor"),
 		"doctors_name": data.get("doctors_name"),
 	})
-	doc.insert()
+	doc.insert(ignore_permissions=True)
 
 	return {
 		"name": doc.name,
@@ -279,7 +279,7 @@ def create_ect_procedure(data):
 		"sign_date": data.get("sign_date"),
 		"consultant_sign_date": data.get("consultant_sign_date"),
 	})
-	doc.insert()
+	doc.insert(ignore_permissions=True)
 
 	return {
 		"name": doc.name,

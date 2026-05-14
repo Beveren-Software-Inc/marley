@@ -52,7 +52,7 @@ def create_session_schedule(data: dict):
 		session_schedule.transaction_status = 'Draft'
 
 		# Insert and return the created document
-		session_schedule.insert()
+		session_schedule.insert(ignore_permissions=True)
 		frappe.db.commit()
 
 		return {

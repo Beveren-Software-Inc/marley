@@ -200,7 +200,7 @@ def create_clinical_note(data):
 		'reference_document': reference_document,
 	})
 
-	doc.insert()
+	doc.insert(ignore_permissions=True)
 
 	return {
 		'name': doc.name,

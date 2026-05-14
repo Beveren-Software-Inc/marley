@@ -113,6 +113,6 @@ def create_nursing_task(
 	if requested_start_time:
 		doc.requested_start_time = requested_start_time
 
-	doc.insert()
+	doc.insert(ignore_permissions=True)
 	return {"name": doc.name}
 

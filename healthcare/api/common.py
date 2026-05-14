@@ -682,7 +682,7 @@ def create_healthcare_practitioner(data):
 				'service_unit': s.get('service_unit') or None,
 			})
 
-	practitioner.insert()
+	practitioner.insert(ignore_permissions=True)
 
 	return {
 		'name': practitioner.name,

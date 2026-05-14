@@ -422,7 +422,7 @@ export const PatientVisitList = ({
       )}
 
       {/* --- Visits Table --- */}
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto flex flex-col min-h-[400px]">
         {loading ? (
           <div className="flex items-center justify-center p-10 text-slate-500 text-sm">
             <svg className="animate-spin w-4 h-4 mr-2 text-primary" fill="none" viewBox="0 0 24 24">
