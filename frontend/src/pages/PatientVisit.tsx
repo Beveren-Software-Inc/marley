@@ -64,22 +64,12 @@ export const PatientVisitPage = ({ initialPatient }: PatientVisitPageProps = {})
 
         <div className="flex-1 overflow-y-auto p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="flex items-center justify-between gap-3 mb-4 flex-shrink-0">
-              <h2 className="text-base font-semibold text-slate-800">Patient Visits</h2>
-              <button
-                onClick={() => setShowCreateVisit(true)}
-                className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-lg font-bold flex-shrink-0"
-                title="Create New Patient Visit"
-                aria-label="Create New Patient Visit"
-              >
-                +
-              </button>
-            </div>
             <PatientVisitList 
               searchQuery={searchQuery}
               patient={selectedPatient || undefined}
               refreshKey={visitRefreshKey}
               onPatientFromVisit={handlePatientSelect}
+              onCreateNew={() => setShowCreateVisit(true)}
             />
           </section>
         </div>

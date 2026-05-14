@@ -274,8 +274,8 @@ export const PsychologistPage = () => {
 
         <div className="grid gap-4 md:grid-cols-2">
           {/* Psychologist Notes */}
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col">
-            <div className="font-semibold mb-4 flex items-center justify-between">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col min-h-[400px] max-h-[400px]">
+            <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
               <span>Psychologist Notes</span>
               <button
                 onClick={() => setShowPsychNoteModal(true)}
@@ -283,7 +283,7 @@ export const PsychologistPage = () => {
                 title="Add Psychologist Note"
               >+</button>
             </div>
-            <div className="flex-1 min-h-[80px]">
+            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto" style={{ scrollbarWidth: 'thin' }}>
               <ClinicalNotesList
                 patient={selectedPatient}
                 medicalRole="Psychologist"
@@ -295,8 +295,8 @@ export const PsychologistPage = () => {
           </section>
 
           {/* Psychologist Orders */}
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col">
-            <div className="font-semibold mb-4 flex items-center justify-between">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col min-h-[400px] max-h-[400px]">
+            <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
               <span>Psychologist Orders</span>
               <button
                 onClick={() => setShowPsychOrderModal(true)}
@@ -304,7 +304,7 @@ export const PsychologistPage = () => {
                 title="Add Psychologist Order"
               >+</button>
             </div>
-            <div className="flex-1 min-h-[80px]">
+            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto" style={{ scrollbarWidth: 'thin' }}>
               <ClinicalNotesList
                 patient={selectedPatient}
                 medicalRole="Psychologist"
@@ -316,8 +316,8 @@ export const PsychologistPage = () => {
           </section>
 
           {/* Warning Messages */}
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col">
-            <div className="font-semibold mb-4 flex items-center justify-between">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col min-h-[400px] max-h-[400px]">
+            <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
               <span>Warning Messages</span>
               <button
                 onClick={() => {
@@ -328,14 +328,14 @@ export const PsychologistPage = () => {
                 title="Add Warning"
               >+</button>
             </div>
-            <div className="flex-1 min-h-[80px]">
+            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto" style={{ scrollbarWidth: 'thin' }}>
               <WarningMessagesList patient={selectedPatient} key={warningRefreshKey} onPatientClick={handlePatientSelect} />
             </div>
           </section>
 
           {/* Patient History */}
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col">
-            <div className="font-semibold mb-4 flex items-center justify-between">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col min-h-[400px] max-h-[400px]">
+            <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
               <span>Patient History</span>
               <button
                 onClick={() => setShowPatientHistoryModal(true)}
@@ -343,14 +343,14 @@ export const PsychologistPage = () => {
                 title="Add Patient History"
               >+</button>
             </div>
-            <div className="flex-1 min-h-[80px]">
+            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto" style={{ scrollbarWidth: 'thin' }}>
               <PatientHistoryList patient={selectedPatient} refreshKey={patientHistoryRefreshKey} onPatientClick={handlePatientSelect} />
             </div>
           </section>
 
           {/* Physical Examination */}
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col">
-            <div className="font-semibold mb-4 flex items-center justify-between">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col min-h-[400px] max-h-[400px]">
+            <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
               <span>Physical Examination</span>
               <button
                 onClick={() => setShowPhysicalExamModal(true)}
@@ -358,17 +358,17 @@ export const PsychologistPage = () => {
                 title="Add Physical Examination"
               >+</button>
             </div>
-            <div className="flex-1 min-h-[80px]">
+            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto" style={{ scrollbarWidth: 'thin' }}>
               <PhysicalExaminationList patient={selectedPatient} refreshKey={physicalExamRefreshKey} onPatientClick={handlePatientSelect} />
             </div>
           </section>
 
           {/* Medical History */}
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col">
-            <div className="font-semibold mb-4 flex items-center justify-between">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col min-h-[400px] max-h-[400px]">
+            <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
               <span>Medical History / Allergies</span>
             </div>
-            <div className="flex-1 min-h-[80px]">
+            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto" style={{ scrollbarWidth: 'thin' }}>
               {selectedPatient
                 ? <MedicalHistoryView patient={selectedPatient} />
                 : <p className="text-sm text-slate-400 text-center py-4">Select a patient</p>

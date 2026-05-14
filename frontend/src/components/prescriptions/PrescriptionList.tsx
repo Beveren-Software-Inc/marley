@@ -7,6 +7,7 @@ import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { PrescriptionSlideOver } from './PrescriptionSlideOver'
 import { useCareContext } from '../../providers/CareContextProvider'
+import { useCardFilters } from '../../contexts/CardFilterContext'
 
 
 const statusColors: Record<string, string> = {
@@ -61,6 +62,10 @@ export const PrescriptionList = ({
   const menuRef = useRef<HTMLDivElement>(null)
 
   // Filters
+  const cardFilters = useCardFilters()
+  const [showFiltersInternal, setShowFiltersInternal] = useState(false)
+  const showFilters = cardFilters !== undefined ? cardFilters : showFiltersInternal
+  const isInsideCard = cardFilters !== undefined
   const [statusFilter, setStatusFilter] = useState('')
   const [practitionerFilter, setPractitionerFilter] = useState('')
   const [practitionerOptions, setPractitionerOptions] = useState<LinkFieldOption[]>([])
@@ -196,8 +201,25 @@ export const PrescriptionList = ({
         </div>
       )}
 
-      {/* Filter bar — hidden when a specific context lock is active */}
-      {!hasContextLock && (
+      {/* Header row — hidden when inside a DashboardCard */}
+      {!isInsideCard && (
+        <div className="flex items-center justify-between gap-2 mb-3">
+          <h2 className="text-xl font-semibold text-slate-900">Prescriptions</h2>
+          <button
+            type="button"
+            onClick={() => setShowFiltersInternal(prev => !prev)}
+            className={`p-1.5 rounded-md border transition-colors ${showFilters ? 'bg-primary/10 border-primary text-primary' : 'border-slate-300 text-slate-500 hover:bg-slate-50'}`}
+            title={showFilters ? 'Hide filters' : 'Show filters'}
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
+            </svg>
+          </button>
+        </div>
+      )}
+
+      {/* Filter bar — hidden when a specific context lock is active or filters toggled off */}
+      {!hasContextLock && showFilters && (
       <div className="flex flex-wrap items-end gap-3 px-4 py-3 bg-white border-b border-slate-200">
         <div className="flex flex-col gap-1 min-w-[120px]">
           <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Status</label>

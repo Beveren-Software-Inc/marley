@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { useCardFilters } from '../../contexts/CardFilterContext'
 import { StatusPill } from '../ui/StatusPill'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
@@ -32,6 +33,7 @@ interface PatientVisitListProps {
   patient?: string
   refreshKey?: string | number
   visitType?: string
+  onCreateNew?: () => void
 }
 
 export const PatientVisitList = ({
@@ -40,7 +42,8 @@ export const PatientVisitList = ({
   searchQuery: externalSearchQuery = '',
   patient,
   refreshKey,
-  visitType
+  visitType,
+  onCreateNew,
 }: PatientVisitListProps = {}) => {
   const { mode, activeVisit, selectedPatient: contextPatient } = useCareContext()
   const formatMoney = useFormatMoney()
@@ -52,6 +55,10 @@ export const PatientVisitList = ({
   const effectivePatient = patient ?? (contextPatient || undefined)
 
   const [selectedStatus, setSelectedStatus] = useState<string>('')
+  const cardFilters = useCardFilters()
+  const [showFiltersInternal, setShowFiltersInternal] = useState(false)
+  const showFilters = cardFilters !== undefined ? cardFilters : showFiltersInternal
+  const isInsideCard = cardFilters !== undefined
   const [detailVisit, setDetailVisit] = useState<string | null>(null)
   const [openActionRow, setOpenActionRow] = useState<string | null>(null)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
@@ -295,13 +302,38 @@ export const PatientVisitList = ({
         </div>
       )}
 
-      {/* --- Filters (hidden when a specific visit is globally active) --- */}
-      <div className="flex items-center justify-end gap-2 mb-3">
-        <button type="button" onClick={printFilteredList} className="px-3 py-1.5 text-xs border border-slate-300 rounded-md hover:bg-slate-50">PDF</button>
-        <button type="button" onClick={exportFilteredCsv} className="px-3 py-1.5 text-xs border border-slate-300 rounded-md hover:bg-slate-50">Excel</button>
+      {/* --- Header (hidden when inside a DashboardCard) --- */}
+      {!isInsideCard && (
+      <div className="flex items-center justify-between gap-2 mb-3">
+        <h2 className="text-base font-semibold text-slate-800">Patient Visits</h2>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowFiltersInternal(prev => !prev)}
+            className={`p-1.5 rounded-md border transition-colors ${showFilters ? 'bg-primary/10 border-primary text-primary' : 'border-slate-300 text-slate-500 hover:bg-slate-50'}`}
+            title={showFilters ? 'Hide filters' : 'Show filters'}
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
+            </svg>
+          </button>
+          <button type="button" onClick={printFilteredList} className="px-3 py-1.5 text-xs border border-slate-300 rounded-md hover:bg-slate-50">PDF</button>
+          <button type="button" onClick={exportFilteredCsv} className="px-3 py-1.5 text-xs border border-slate-300 rounded-md hover:bg-slate-50">Excel</button>
+          {onCreateNew && (
+            <button
+              type="button"
+              onClick={onCreateNew}
+              className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-lg font-bold flex-shrink-0"
+              title="Create New Patient Visit"
+            >
+              +
+            </button>
+          )}
+        </div>
       </div>
+      )}
 
-      {!effectiveVisitFilter && (
+      {!effectiveVisitFilter && showFilters && (
       <div className="flex flex-wrap gap-3 mb-4 items-end">
 
         {/* Visit No — custom searchable dropdown (matches Title style) */}

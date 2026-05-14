@@ -1261,13 +1261,13 @@ const loadDailyVisitSetup = async () => {
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-5xl min-h-[800px] max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
 
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+        <div className="flex items-center justify-between px-6 py-3 border-b border-slate-200 shrink-0">
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-xl font-semibold text-slate-900">Discharge Patient</h2>
+              <h2 className="text-lg font-semibold text-slate-900">Discharge Patient</h2>
               {draftSavedAt(admission.name) && (
                 <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">
                   <Clock className="w-3 h-3" />
@@ -1284,14 +1284,14 @@ const loadDailyVisitSetup = async () => {
           </button>
         </div>
 
-        {/* Tabs */}
-        <div className="flex border-b border-slate-200 bg-slate-50 overflow-x-auto">
+        {/* Tabs — sticky so they stay visible while scrolling content */}
+        <div className="flex border-b border-slate-200 bg-slate-50 overflow-x-auto shrink-0" style={{ scrollbarWidth: 'thin' }}>
           {tabs.map((tab) => (
             <button
               key={tab.id}
               type="button"
               onClick={() => setActiveTab(tab.id)}
-              className={`px-4 py-3 text-sm font-medium transition-colors border-b-2 -mb-px flex items-center gap-1.5 whitespace-nowrap ${
+              className={`px-3 py-2.5 text-xs sm:text-sm font-medium transition-colors border-b-2 -mb-px flex items-center gap-1 sm:gap-1.5 whitespace-nowrap ${
                 activeTab === tab.id
                   ? 'border-green-600 text-green-700 bg-white'
                   : 'border-transparent text-slate-500 hover:text-slate-700'

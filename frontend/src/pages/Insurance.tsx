@@ -57,6 +57,7 @@ export const InsurancePage = () => {
 
   const [hiRefreshKey, setHiRefreshKey] = useState(0)
   const [showCreateHI, setShowCreateHI] = useState(false)
+  const [showFilters, setShowFilters] = useState(false)
 
   const handlePatientSelect = (patient: string | undefined) => {
     setSelectedPatient(patient)
@@ -124,33 +125,43 @@ export const InsurancePage = () => {
               <h2 className="font-semibold text-slate-800">{activeCard.title}</h2>
               <p className="text-xs text-slate-500 mt-0.5">{activeCard.desc}</p>
             </div>
-            {activeTab === 'health-insurance' && (
+            <div className="flex items-center gap-2 flex-shrink-0">
               <button
-                onClick={() => setShowCreateHI(true)}
-                className="w-7 h-7 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
-                title="New Health Insurance"
+                type="button"
+                onClick={() => setShowFilters(prev => !prev)}
+                className={`p-1.5 rounded-md border transition-colors ${showFilters ? 'bg-primary/10 border-primary text-primary' : 'border-slate-300 text-slate-500 hover:bg-slate-50'}`}
+                title={showFilters ? 'Hide filters' : 'Show filters'}
               >
-                +
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" /></svg>
               </button>
-            )}
-            {activeTab === 'registers' && (
-              <button
-                onClick={() => setShowCreateRegister(true)}
-                className="w-7 h-7 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
-                title="New Insurance Patient Register"
-              >
-                +
-              </button>
-            )}
-            {activeTab === 'claims' && (
-              <button
-                onClick={() => setShowCreateClaim(true)}
-                className="w-7 h-7 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
-                title="New Insurance Claim"
-              >
-                +
-              </button>
-            )}
+              {activeTab === 'health-insurance' && (
+                <button
+                  onClick={() => setShowCreateHI(true)}
+                  className="w-7 h-7 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
+                  title="New Health Insurance"
+                >
+                  +
+                </button>
+              )}
+              {activeTab === 'registers' && (
+                <button
+                  onClick={() => setShowCreateRegister(true)}
+                  className="w-7 h-7 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
+                  title="New Insurance Patient Register"
+                >
+                  +
+                </button>
+              )}
+              {activeTab === 'claims' && (
+                <button
+                  onClick={() => setShowCreateClaim(true)}
+                  className="w-7 h-7 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
+                  title="New Insurance Claim"
+                >
+                  +
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Content */}
@@ -158,12 +169,13 @@ export const InsurancePage = () => {
             {activeTab === 'health-insurance' && (
               <HealthInsuranceList
                 refreshKey={hiRefreshKey}
-                onCreateNew={() => setShowCreateHI(true)}
+                showFilters={showFilters}
               />
             )}
             {activeTab === 'registers' && (
               <InsurancePatientRegisterList
                 refreshKey={registerRefreshKey}
+                showFilters={showFilters}
               />
             )}
             {activeTab === 'claims' && (
@@ -171,6 +183,7 @@ export const InsurancePage = () => {
                 refreshKey={claimRefreshKey}
                 patient={selectedPatient}
                 onPatientClick={handlePatientSelect}
+                showFilters={showFilters}
               />
             )}
           </div>

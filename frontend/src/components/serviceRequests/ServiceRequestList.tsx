@@ -17,6 +17,7 @@ import { BookConsultationSessionModal } from './BookConsultationSessionModal'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
 import { Search, X } from 'lucide-react'
+import { useCardFilters } from '../../contexts/CardFilterContext'
 
 interface ServiceRequestListProps {
   patient?: string
@@ -94,6 +95,10 @@ export const ServiceRequestList = ({
   const [totalCount, setTotalCount] = useState(0)
 
   // Filter state
+  const cardFilters = useCardFilters()
+  const [showFiltersInternal, setShowFiltersInternal] = useState(false)
+  const showFilters = cardFilters !== undefined ? cardFilters : showFiltersInternal
+  const isInsideCard = cardFilters !== undefined
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [templateDtFilter, setTemplateDtFilter] = useState(template_dt || '')
@@ -241,7 +246,25 @@ export const ServiceRequestList = ({
 
   return (
     <div className="min-w-full flex flex-col min-h-[400px]">
+      {/* Header row */}
+      {!isInsideCard && (
+      <div className="flex items-center justify-between gap-2 mb-3">
+        <h2 className="text-xl font-semibold text-slate-900">Service Requests</h2>
+        <button
+          type="button"
+          onClick={() => setShowFiltersInternal(prev => !prev)}
+          className={`p-1.5 rounded-md border transition-colors ${showFilters ? 'bg-primary/10 border-primary text-primary' : 'border-slate-300 text-slate-500 hover:bg-slate-50'}`}
+          title={showFilters ? 'Hide filters' : 'Show filters'}
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
+          </svg>
+        </button>
+      </div>
+      )}
+
       {/* ── FILTER BAR ── */}
+      {showFilters && (
       <div className="flex flex-wrap items-center gap-3 mb-4">
         {/* Search */}
         <div className="relative flex-1 min-w-[180px]">
@@ -298,6 +321,7 @@ export const ServiceRequestList = ({
           </button>
         )}
       </div>
+      )}
 
       {loading && serviceRequests.length === 0 ? (
         <div className="flex items-center justify-center p-8 text-slate-500 text-sm">Loading...</div>
