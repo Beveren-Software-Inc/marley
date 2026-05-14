@@ -215,6 +215,19 @@ export async function uploadPatientFile(file: File): Promise<string> {
 
 export type CreatePatientResult = { name: string; patient_name: string; file_no: string; server_message?: string }
 
+export async function fetchNextPatientFileNo(): Promise<string | null> {
+  try {
+    const response = await fetch('/api/method/healthcare.api.patient.get_next_patient_file_no')
+    const resData = await response.json()
+    if (resData?.message && typeof resData.message === 'string') {
+      return resData.message
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
 export async function createPatient(data: CreatePatientData): Promise<CreatePatientResult> {
   const csrf = (window as any).csrf_token
 

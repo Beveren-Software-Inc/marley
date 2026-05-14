@@ -6,7 +6,7 @@ import {
   CREATE_MODAL_OVERLAY,
   createModalShellClass,
 } from '../ui/CreateModalChrome'
-import { createPatient, uploadPatientFile, type PatientDocumentRow } from '../../services/patients'
+import { createPatient, uploadPatientFile, fetchNextPatientFileNo, type PatientDocumentRow } from '../../services/patients'
 import { fetchLeadSources, fetchNationalities, fetchCountries, fetchDocumentTypes, fetchHealthcareInsurance, fetchSalutations, fetchInsurancePatientRegisters, fetchPatientCategories, type LinkFieldOption, type InsurancePatientRegisterRow } from '../../services/common'
 import { CreateLeadSourceModal } from './CreateLeadSourceModal'
 import { CreateNationalityModal } from './CreateNationalityModal'
@@ -545,18 +545,22 @@ export const CreatePatientModal = ({ onClose, onSuccess, initialName, initialNat
   useEffect(() => {
     const loadOptions = async () => {
       try {
-        const [sources, nationalities, countryList, docTypes, categories] = await Promise.all([
+        const [sources, nationalities, countryList, docTypes, categories, nextFileNo] = await Promise.all([
           fetchLeadSources(),
           fetchNationalities(),
           fetchCountries(),
           fetchDocumentTypes(),
           fetchPatientCategories(),
+          fetchNextPatientFileNo(),
         ])
         setSourceOptions(sources)
         setNationalityOptions(nationalities)
         setCountries(countryList)
         setDocumentTypes(docTypes)
         setCategoryOptions(categories)
+        if (nextFileNo) {
+          setFormData(prev => prev.file_no === '' ? { ...prev, file_no: nextFileNo } : prev)
+        }
       } catch (err) {
         console.error('Failed to load options:', err)
       }
