@@ -158,6 +158,12 @@ def get_latest_inpatient_status(patient_names: list[str]) -> dict:
 	return {d.patient: d.status for d in data}
 
 @frappe.whitelist()
+def get_next_patient_file_no():
+	"""Generate the next file number for a new Patient record."""
+	from healthcare.api.utils.api_utility import get_next_transaction_number
+	return get_next_transaction_number('Patient', fieldname='file_no')
+
+@frappe.whitelist()
 def create_patient(data):
 	"""Create a new Patient"""
 
