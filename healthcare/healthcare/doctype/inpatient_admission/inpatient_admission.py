@@ -254,7 +254,7 @@ def schedule_inpatient(args):
 	# Patient details
 	patient = frappe.get_doc("Patient", admission_order["patient"])
 	inpatient_record.patient = patient.name
-	inpatient_record.case_no = get_next_transaction_number('Inpatient Admission')
+	inpatient_record.case_no = get_next_transaction_number('Inpatient Admission', fieldname='case_no')
 	inpatient_record.patient_name = patient.patient_name
 	inpatient_record.gender = patient.sex
 	inpatient_record.blood_group = patient.blood_group
