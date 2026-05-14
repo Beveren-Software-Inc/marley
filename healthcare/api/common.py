@@ -130,20 +130,23 @@ def get_nationalities(search=None):
 
 @frappe.whitelist()
 def get_healthcare_practitioners(search=None, department=None):
-	"""Get list of Healthcare Practitioners"""
-	filters = {}
-	filters['status'] = 'Active'  # Only get active practitioners
+	"""Get list of Healthcare Practitioners. Searches by name (ID) or full name."""
+	filters = {'status': 'Active'}
+
+	or_filters = None
 	if search:
-		filters['practitioner_name'] = ['like', f'%{search}%']
-	# if department:
-	# 	filters['department'] = department
-	
+		or_filters = {
+			'practitioner_name': ['like', f'%{search}%'],
+			'name': ['like', f'%{search}%'],
+		}
+
 	practitioners = frappe.get_all(
 		'Healthcare Practitioner',
 		filters=filters,
+		or_filters=or_filters,
 		fields=['name', 'practitioner_name', 'department', 'medical_role'],
 		limit=50,
-		order_by='practitioner_name'
+		order_by='practitioner_name',
 	)
 	return [{'name': p.name, 'label': p.practitioner_name or p.name, 'department': p.department, 'medical_role': p.medical_role} for p in practitioners]
 
@@ -679,7 +682,7 @@ def create_healthcare_practitioner(data):
 				'service_unit': s.get('service_unit') or None,
 			})
 
-	practitioner.insert()
+	practitioner.insert(ignore_permissions=True)
 
 	return {
 		'name': practitioner.name,

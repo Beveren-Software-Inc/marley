@@ -78,7 +78,7 @@ def create_iop_day(data):
 			"to_time": s.get("to_time"),
 		})
 	try:
-		doc.insert()
+		doc.insert(ignore_permissions=True)
 		frappe.db.commit()
 	except frappe.DuplicateEntryError:
 		frappe.db.rollback()
@@ -140,7 +140,7 @@ def create_iop_enrollment(patient, iop_day=None, status=None, notes=None, doctor
 			"to_time": row.get("to_time"),
 			"notes": row.get("notes"),
 		})
-	doc.insert()
+	doc.insert(ignore_permissions=True)
 	frappe.db.commit()
 	posting_date = doc.iop_day and frappe.db.get_value("IOP Day", doc.iop_day, "posting_date")
 	return {

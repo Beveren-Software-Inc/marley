@@ -174,7 +174,7 @@ def create_ip_service(admission_no, cost_center, service_request=None, services=
 		doc.append("services", {"date": getdate(), "amount": 0, "user": current_user})
 
 	_compute_total_amount(doc)
-	doc.insert()
+	doc.insert(ignore_permissions=True)
 	if doc.docstatus == 0:
 		doc.db_set("total_amount", doc.total_amount)
 	return {"name": doc.name}

@@ -240,7 +240,7 @@ export const ServiceRequestList = ({
   }
 
   return (
-    <div className="min-w-full">
+    <div className="min-w-full flex flex-col min-h-[400px]">
       {/* ── FILTER BAR ── */}
       <div className="flex flex-wrap items-center gap-3 mb-4">
         {/* Search */}

@@ -158,7 +158,7 @@ export const FollowUpList = ({ refreshKey, patient, onPatientClick }: FollowUpLi
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4 min-h-[400px]">
       {/* Filters + Send all reminders */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-2">

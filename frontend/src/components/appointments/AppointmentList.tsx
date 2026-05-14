@@ -1075,6 +1075,7 @@ export const AppointmentList = ({ refreshKey, showAll = false, patient, onPatien
 
   return (
     <>
+      <div className="flex flex-col min-h-[400px]">
       {/* ── Filters + Bulk Reminder bar ── */}
       <div className="mb-3 space-y-2">
         {/* Top row: filters */}
@@ -1419,6 +1420,7 @@ export const AppointmentList = ({ refreshKey, showAll = false, patient, onPatien
         onPageChange={setPage}
         onPageSizeChange={handlePageSizeChange}
       />
+      </div>
 
       {arrivedTarget && (
         <MarkPatientArrivedModal

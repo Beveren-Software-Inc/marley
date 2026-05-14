@@ -104,7 +104,7 @@ def create_vital_sign(data):
 		'naming_series': naming_series
 	})
 
-	doc.insert()
+	doc.insert(ignore_permissions=True)
 
 	return {
 		'name': doc.name,

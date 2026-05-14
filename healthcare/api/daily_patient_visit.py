@@ -25,7 +25,7 @@ def create_daily_patient_visit_setup(data):
         'is_active': data.get('is_active', 0),
         'amount': data.get('amount', 0)
     })
-    doc.insert()
+    doc.insert(ignore_permissions=True)
     frappe.db.commit()
     
     return doc.as_dict()
@@ -106,7 +106,7 @@ def get_or_create_daily_session_charge_item():
         'standard_rate': 0,
         'description': 'Daily session charge for automatic patient visits'
     })
-    item.insert()
+    item.insert(ignore_permissions=True)
     frappe.db.commit()
     
     return item_name
@@ -188,7 +188,7 @@ def process_daily_patient_visits():
                     'visit_type': 'Daily Visit',
                     'status': 'Open'
                 })
-                visit.insert()
+                visit.insert(ignore_permissions=True)
                 # frappe.db.commit()
                 # frappe.throw(str(setup.amount))
                 # Add OP charge to the visit

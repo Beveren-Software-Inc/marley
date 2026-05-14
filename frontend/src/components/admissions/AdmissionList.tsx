@@ -474,7 +474,7 @@ export const AdmissionList = ({ onAdmissionSelect, onPatientFromAdmission, searc
         )}
 
         {/* Records Table */}
-        <div className="min-w-full">
+        <div className="min-w-full flex flex-col min-h-[400px]">
           <table className="w-full min-w-[900px]">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>

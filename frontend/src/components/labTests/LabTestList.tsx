@@ -2701,7 +2701,7 @@ export const LabTestList = ({
 
   // ── Render ───────────────────────────────────────────────────────────────
   return (
-    <div className="flex flex-col min-w-full">
+    <div className="flex flex-col min-w-full min-h-[400px]">
       <FilterBar
         filters={filters}
         onChange={setFilters}

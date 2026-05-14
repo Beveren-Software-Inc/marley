@@ -486,7 +486,7 @@ def create_lab_test_from_service_request(service_request):
 				sr_dict.template_dn = row.lab_test_template
 				lab_test = make_lab_test(sr_dict)
 				lab_test.service_request = service_request
-				lab_test.insert()
+				lab_test.insert(ignore_permissions=True)
 				created_tests.append({
 					'name': lab_test.name,
 					'patient': lab_test.patient,
@@ -507,7 +507,7 @@ def create_lab_test_from_service_request(service_request):
 	service_request_dict = service_request_doc.as_dict()
 	print("Inafika hapa")
 	lab_test = make_lab_test(service_request_dict)
-	lab_test.insert()
+	lab_test.insert(ignore_permissions=True)
 	frappe.db.commit()
 
 	return {
@@ -588,7 +588,7 @@ def create_service_request(data):
 		'selected_group_templates': frappe.as_json(selected_group_templates),
 	})
 	
-	service_request.insert()
+	service_request.insert(ignore_permissions=True)
 	
 	# Get template name for response based on template_dt
 	template_name = None

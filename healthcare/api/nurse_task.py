@@ -83,7 +83,7 @@ def create_nurse_task(
 	if encounter:
 		doc.encounter = encounter
 
-	doc.insert()
+	doc.insert(ignore_permissions=True)
 	return {"name": doc.name}
 
 

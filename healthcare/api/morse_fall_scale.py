@@ -42,7 +42,7 @@ def create_morse_fall_scale(data):
 			if isinstance(row, dict):
 				doc.append("morse_fall_scale_detail", row)
 
-	doc.insert()
+	doc.insert(ignore_permissions=True)
 	frappe.db.commit()
 
 	return {

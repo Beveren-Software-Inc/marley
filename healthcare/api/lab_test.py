@@ -1104,7 +1104,7 @@ def create_lab_test(data):
 		'naming_series': naming_series
 	})
 	
-	lab_test.insert()
+	lab_test.insert(ignore_permissions=True)
 
 	# Append documents if provided (same child table as Patient/Discharge/Admission)
 	documents = data.get('documents')

@@ -175,7 +175,7 @@ def create_appointment(data):
 		'trans_no': number
 	})
 	
-	appointment.insert()
+	appointment.insert(ignore_permissions=True)
 	frappe.db.commit()
 	
 	# Get practitioner name

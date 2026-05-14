@@ -191,6 +191,8 @@ export const PatientSearch = ({
   }, [mode])
 
   useEffect(() => {
+    let cancelled = false
+
     if (selectedPatient) {
       const loadPatientName = async () => {
         try {
@@ -198,6 +200,7 @@ export const PatientSearch = ({
             `/api/resource/Patient/${encodeURIComponent(selectedPatient)}?fields=["patient_name"]`
           )
           const resData = await response.json()
+          if (cancelled) return
           const fullName = resData?.data?.patient_name
           if (fullName) {
             setSelectedPatientName(fullName)
@@ -209,6 +212,7 @@ export const PatientSearch = ({
             setStoredValue(STORAGE_KEYS.SELECTED_PATIENT_NAME, selectedPatient)
           }
         } catch (error) {
+          if (cancelled) return
           console.error('Failed to load patient name:', error)
           setSelectedPatientName(selectedPatient)
           setPatientQuery(selectedPatient)
@@ -222,6 +226,8 @@ export const PatientSearch = ({
       setPatientQuery('')
       clearPatientData()
     }
+
+    return () => { cancelled = true }
   }, [selectedPatient])
 
   useEffect(() => {

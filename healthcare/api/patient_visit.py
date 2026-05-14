@@ -669,7 +669,7 @@ def create_patient_visit(data):
 			if isinstance(row, dict):
 				visit_doc.append("documents", row)
 
-	visit_doc.insert()
+	visit_doc.insert(ignore_permissions=True)
 	frappe.db.commit()
 
 	return {
