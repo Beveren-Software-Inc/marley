@@ -163,6 +163,52 @@ export async function createEncounterFromAppointment(appointmentId: string): Pro
   throw new Error('Invalid response from create_encounter_from_appointment')
 }
 
+export type ReminderChannel = 'email' | 'whatsapp' | 'sms'
+
+export async function sendAppointmentReminder(
+  appointmentName: string,
+  channel: ReminderChannel = 'sms'
+): Promise<{ sent: boolean; channel: string; appointment: string }> {
+  const csrf = await ensureCSRF()
+  const res = await fetch(
+    '/api/method/healthcare.healthcare.doctype.patient_appointment.patient_appointment.send_appointment_reminder_manual',
+    {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
+      },
+      body: JSON.stringify({ appointment_name: appointmentName, channel }),
+    }
+  )
+  const data = await res.json()
+  if (data?.exc) throw new Error(messageFromExc(data.exc, data.exc_type))
+  return (data?.message as { sent: boolean; channel: string; appointment: string }) || { sent: true, channel, appointment: appointmentName }
+}
+
+export async function sendAppointmentRemindersBulk(
+  appointmentNames: string[],
+  channel: ReminderChannel = 'sms'
+): Promise<{ sent: number; failed: number }> {
+  const csrf = await ensureCSRF()
+  const res = await fetch(
+    '/api/method/healthcare.healthcare.doctype.patient_appointment.patient_appointment.send_appointment_reminders_bulk',
+    {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
+      },
+      body: JSON.stringify({ appointment_names: JSON.stringify(appointmentNames), channel }),
+    }
+  )
+  const data = await res.json()
+  if (data?.exc) throw new Error(messageFromExc(data.exc, data.exc_type))
+  return (data?.message as { sent: number; failed: number }) || { sent: 0, failed: 0 }
+}
+
 /** Base URL for Frappe app (same origin). */
 function appBase(): string {
   if (typeof window === 'undefined') return '/app'

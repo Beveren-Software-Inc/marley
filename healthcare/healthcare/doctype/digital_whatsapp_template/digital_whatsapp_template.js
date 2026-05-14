@@ -87,8 +87,6 @@ frappe.ui.form.on('Digital Whatsapp Template', {
 					let lang_code = r.language_code;
 					if (lang_code.includes('-')) {
 						lang_code = lang_code.replace('-', '_');
-					} else if (!lang_code.includes('_')) {
-						lang_code = lang_code + '_US';
 					}
 					frm.set_value('language_code', lang_code);
 				}

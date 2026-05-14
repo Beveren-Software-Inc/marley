@@ -28,15 +28,14 @@ class DigitalWhatsappTemplate(Document):
 
 	def validate(self):
 		"""Validate template before save."""
-		# Set language code from language
-		if not self.language_code or self.has_value_changed("language"):
-			lang_code = frappe.db.get_value("Language", self.language) or "en"
-			# Convert to format like en_US
+		# Set language code from language, but don't overwrite an explicitly-set value
+		if not self.language_code or (
+			self.has_value_changed("language") and not self.has_value_changed("language_code")
+		):
+			lang_code = frappe.db.get_value("Language", self.language, "language_code") or self.language or "en"
+			# WhatsApp uses underscores (en_US) while Frappe uses hyphens (en-US)
 			if "-" in lang_code:
 				self.language_code = lang_code.replace("-", "_")
-			elif "_" not in lang_code:
-				# If just "en", default to "en_US"
-				self.language_code = f"{lang_code}_US"
 			else:
 				self.language_code = lang_code
 

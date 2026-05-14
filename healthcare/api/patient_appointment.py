@@ -44,37 +44,37 @@ def get_practitioner_appointments(limit=50, offset=0, status=None):
 	
 	return appointments
 
-# @frappe.whitelist()
-# def get_all_appointments(limit=50, offset=0, status=None, patient=None):
-# 	"""Get all appointments (for receptionist)"""
-# 	filters = {}
-# 	if status:
-# 		filters['status'] = status
-# 	if patient:
-# 		filters['patient'] = patient
-# 	print("Where are you")
-# 	appointments = frappe.get_all(
-# 		'Patient Appointment',
-# 		filters=filters,
-# 		fields=[
-# 			'name',
-# 			'patient',
-# 			'patient_name',
-# 			'appointment_date',
-# 			'appointment_time',
-# 			'status',
-# 			'appointment_type',
-# 			'department',
-# 			'practitioner',
-# 			'practitioner_name',
-# 			'company',
-# 		],
-# 		limit=limit,
-# 		limit_start=offset,
-# 		order_by='appointment_date desc, appointment_time desc'
-# 	)
+@frappe.whitelist()
+def get_all_appointments(limit=50, offset=0, status=None, patient=None):
+	"""Get all appointments (for receptionist)"""
+	filters = {}
+	if status:
+		filters['status'] = status
+	if patient:
+		filters['patient'] = patient
+	print("Where are you")
+	appointments = frappe.get_all(
+		'Patient Appointment',
+		filters=filters,
+		fields=[
+			'name',
+			'patient',
+			'patient_name',
+			'appointment_date',
+			'appointment_time',
+			'status',
+			'appointment_type',
+			'department',
+			'practitioner',
+			'practitioner_name',
+			'company',
+		],
+		limit=limit,
+		limit_start=offset,
+		order_by='appointment_date desc, appointment_time desc'
+	)
 	
-# 	return appointments
+	return appointments
 
 @frappe.whitelist()
 def get_practitioner_appointments(limit=50, offset=0, status=None):

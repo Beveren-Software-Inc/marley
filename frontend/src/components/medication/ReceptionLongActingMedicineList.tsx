@@ -25,6 +25,8 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
   const [sortBy, setSortBy] = useState<'next_run_date' | 'start_date'>('next_run_date')
   const [detailName, setDetailName] = useState<string | null>(null)
   const [bulkSending, setBulkSending] = useState(false)
+  const [bulkChannelMenuOpen, setBulkChannelMenuOpen] = useState(false)
+  const bulkMenuRef = useRef<HTMLDivElement>(null)
 
   // Three-dot action menu
   const [openMenuRow, setOpenMenuRow] = useState<string | null>(null)
@@ -134,13 +136,13 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
     await load()
   }
 
-  const handleBulkSendReminders = async () => {
+  const handleBulkSendReminders = async (channel: ReminderChannel) => {
     if (formattedRows.length === 0) {
       toast.error('No long acting medicines to send reminders for')
       return
     }
-    
-    if (!window.confirm(`Send reminders for all ${formattedRows.length} long acting medicine record(s) in the current view?`)) {
+    const channelLabel = channel === 'whatsapp' ? 'WhatsApp' : channel === 'sms' ? 'SMS' : 'Email'
+    if (!window.confirm(`Send ${channelLabel} reminders for all ${formattedRows.length} long acting medicine record(s) in the current view?`)) {
       return
     }
     
@@ -150,7 +152,7 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
     
     for (const row of formattedRows) {
       try {
-        await sendLongActingMedicineReminder(row.name)
+        await sendLongActingMedicineReminder(row.name, channel)
         successCount++
       } catch {
         failCount++
@@ -160,7 +162,7 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
     setBulkSending(false)
     
     if (failCount === 0) {
-      toast.success(`Reminders sent for ${successCount} record(s)`)
+      toast.success(`${channelLabel} reminders sent for ${successCount} record(s)`)
     } else {
       toast.error(`${successCount} sent, ${failCount} failed`)
     }
@@ -239,15 +241,39 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
         </div>
 
         {/* Bulk Send Reminders Button */}
-        <button
-          type="button"
-          disabled={bulkSending || formattedRows.length === 0}
-          onClick={handleBulkSendReminders}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded border border-primary bg-primary/5 text-primary hover:bg-primary/10 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          <Mail className="w-4 h-4" />
-          {bulkSending ? 'Sending…' : `Bulk Send Reminders${formattedRows.length ? ` (${formattedRows.length})` : ''}`}
-        </button>
+        <div className="relative" ref={bulkMenuRef}>
+          <button
+            type="button"
+            disabled={bulkSending || formattedRows.length === 0}
+            onClick={() => setBulkChannelMenuOpen((p) => !p)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded border border-primary bg-primary/5 text-primary hover:bg-primary/10 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            <Mail className="w-4 h-4" />
+            {bulkSending ? 'Sending…' : `Bulk Send Reminders${formattedRows.length ? ` (${formattedRows.length})` : ''}`}
+            {!bulkSending && (
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+            )}
+          </button>
+          {bulkChannelMenuOpen && (
+            <div className="absolute right-0 z-30 mt-1 w-48 bg-white border border-slate-200 rounded-md shadow-lg py-1">
+              <div className="px-3 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wide border-b border-slate-100">
+                Choose Channel
+              </div>
+              <button type="button" onClick={() => { setBulkChannelMenuOpen(false); handleBulkSendReminders('email') }}
+                className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2">
+                <Mail className="w-3.5 h-3.5 text-blue-500" /> Email
+              </button>
+              <button type="button" onClick={() => { setBulkChannelMenuOpen(false); handleBulkSendReminders('whatsapp') }}
+                className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2">
+                <span className="text-green-500 text-base leading-none">💬</span> WhatsApp
+              </button>
+              <button type="button" onClick={() => { setBulkChannelMenuOpen(false); handleBulkSendReminders('sms') }}
+                className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2">
+                <span className="text-purple-500 text-base leading-none">📱</span> SMS
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Content Area */}

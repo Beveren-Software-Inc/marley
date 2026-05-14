@@ -40,6 +40,7 @@ def send_appointment_whatsapp_reminders(days_before: int = 1):
 			"appointment_time",
 			"practitioner_name",
 			"temporary_mobile_no",
+			"whatsapp_template",
 		],
 		ignore_permissions=True,
 	)
@@ -52,15 +53,24 @@ def send_appointment_whatsapp_reminders(days_before: int = 1):
 		tag = f"appointment-reminder-{days_before}d-{target_date}"
 		if _already_sent("Patient Appointment", appt.name, tag):
 			continue
-
-		message = _build_appointment_message(appt, days_before)
-		_send_and_link_chat(
-			phone_number=phone,
-			body=message,
-			reference_doctype="Patient Appointment",
-			reference_name=appt.name,
-			bulk_reference=tag,
-		)
+		print("Phone number is", phone)
+		if appt.get("whatsapp_template"):
+			_send_and_link_chat(
+				phone_number=phone,
+				reference_doctype="Patient Appointment",
+				reference_name=appt.name,
+				bulk_reference=tag,
+				template_name=appt.whatsapp_template,
+			)
+		else:
+			message = _build_appointment_message(appt, days_before)
+			_send_and_link_chat(
+				phone_number=phone,
+				body=message,
+				reference_doctype="Patient Appointment",
+				reference_name=appt.name,
+				bulk_reference=tag,
+			)
 
 
 def send_discharge_followup_whatsapp_reminders(days_before: int):
@@ -77,6 +87,7 @@ def send_discharge_followup_whatsapp_reminders(days_before: int):
 			"patient_name",
 			"next_appointment_date",
 			"next_appointment_time",
+			"whatsapp_template",
 		],
 		ignore_permissions=True,
 	)
@@ -93,14 +104,23 @@ def send_discharge_followup_whatsapp_reminders(days_before: int):
 		if _already_sent("Discharge", discharge.name, tag):
 			continue
 
-		message = _build_discharge_followup_message(discharge, days_before)
-		_send_and_link_chat(
-			phone_number=phone,
-			body=message,
-			reference_doctype="Discharge",
-			reference_name=discharge.name,
-			bulk_reference=tag,
-		)
+		if discharge.get("whatsapp_template"):
+			_send_and_link_chat(
+				phone_number=phone,
+				reference_doctype="Discharge",
+				reference_name=discharge.name,
+				bulk_reference=tag,
+				template_name=discharge.whatsapp_template,
+			)
+		else:
+			message = _build_discharge_followup_message(discharge, days_before)
+			_send_and_link_chat(
+				phone_number=phone,
+				body=message,
+				reference_doctype="Discharge",
+				reference_name=discharge.name,
+				bulk_reference=tag,
+			)
 
 
 def _is_whatsapp_enabled() -> bool:
@@ -174,13 +194,22 @@ def _already_sent(reference_doctype: str, reference_name: str, bulk_reference: s
 def _send_and_link_chat(
 	*,
 	phone_number: str,
-	body: str,
 	reference_doctype: str,
 	reference_name: str,
 	bulk_reference: str,
+	body: str | None = None,
+	template_name: str | None = None,
+	template_parameters: str | None = None,
 ):
 	try:
-		result = send_test_message(phone_number=phone_number, body=body, preview_url=1)
+		if template_name:
+			result = send_test_message(
+				phone_number=phone_number,
+				template_name=template_name,
+				template_parameters=template_parameters,
+			)
+		else:
+			result = send_test_message(phone_number=phone_number, body=body, preview_url=1)
 		chat_name = result.get("chat_name") if isinstance(result, dict) else None
 		if chat_name:
 			frappe.db.set_value(

@@ -833,13 +833,57 @@ def send_long_acting_medicine_reminder(name: str, channel: str = "email"):
 		# frappe.sendmail(recipients=[patient.email], subject="...", message="...")
 		pass
 	elif channel == "whatsapp":
-		# Hook: send WhatsApp via your gateway (e.g. Twilio, Meta Cloud API)
-		pass
+		_send_long_acting_medicine_whatsapp(doc, patient)
 	elif channel == "sms":
 		# Hook: send SMS via frappe.core.doctype.sms_settings or external gateway
 		pass
 
 	return {"sent": True, "channel": channel, "patient": patient_name}
+
+
+def _send_long_acting_medicine_whatsapp(doc, patient):
+	"""Send WhatsApp reminder for a Long Acting Medicine document."""
+	from healthcare.healthcare.doctype.digital_connect_whatsap_settings.digital_connect_whatsap_settings import (
+		send_test_message,
+	)
+
+	if not patient:
+		frappe.throw(_("Patient record not found for this Long Acting Medicine"))
+
+	phone = (
+		getattr(patient, "mobile", "") or
+		getattr(patient, "mobile_no", "") or
+		getattr(patient, "mobile_no_1", "") or
+		getattr(patient, "phone", "") or ""
+	).strip()
+	if not phone:
+		frappe.throw(_("Patient {0} has no mobile number").format(patient.patient_name or patient.name))
+
+	template_name = doc.get("whatsapp_template")
+	if template_name:
+		result = send_test_message(
+			phone_number=phone,
+			template_name=template_name,
+		)
+	else:
+		patient_name = doc.patient_name or patient.patient_name or doc.patient
+		body = _(
+			"Dear {0}, this is a reminder for your Long Acting Medicine. "
+			"Please visit the hospital as scheduled."
+		).format(patient_name)
+		result = send_test_message(phone_number=phone, body=body, preview_url=1)
+
+	chat_name = result.get("chat_name") if isinstance(result, dict) else None
+	if chat_name:
+		frappe.db.set_value(
+			"Digital Whatsapp Chat",
+			chat_name,
+			{
+				"reference_doctype": "Long Acting Medicine",
+				"reference_name": doc.name,
+			},
+			update_modified=True,
+		)
 
 
 def _enrich_diagnosis_display(diagnosis_link_name):
