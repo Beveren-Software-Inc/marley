@@ -10,6 +10,7 @@ import { fetchPatientVisitTypes, type PatientVisitTypeOption, createPatientVisit
 import { 
   fetchHealthcarePractitioners,
   fetchDocumentTypes,
+  getCurrentUserPractitioner,
   type LinkFieldOption 
 } from '../../services/common'
 import { CreatePatientModal } from '../patients/CreatePatientModal'
@@ -217,18 +218,22 @@ export const CreatePatientVisitModal = ({ onClose, onSuccess, initialPatient, in
     }
   }, [initialIOPEnrollment])
 
-  // Load initial options (practitioners + visit types)
+  // Load initial options (practitioners + visit types) and auto-fill current user's practitioner
   useEffect(() => {
     const loadOptions = async () => {
       try {
-        const [practs, visitTypes, docTypes] = await Promise.all([
+        const [practs, visitTypes, docTypes, currentPract] = await Promise.all([
           fetchHealthcarePractitioners(),
           fetchPatientVisitTypes(),
           fetchDocumentTypes(),
+          getCurrentUserPractitioner(),
         ])
         setPractitioners(practs)
         setVisitTypeOptions(visitTypes)
         setDocumentTypes(docTypes)
+        if (currentPract) {
+          setFormData(prev => prev.practitioner === '' ? { ...prev, practitioner: currentPract } : prev)
+        }
       } catch (err) {
         console.error('Failed to load options:', err)
       }

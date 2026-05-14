@@ -840,6 +840,7 @@ import {
   fetchInpatientAdmissions,
   fetchHealthcarePractitioners,
   fetchCompanies,
+  getCurrentUserPractitioner,
   type LinkFieldOption,
 } from '../../services/common'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
@@ -1094,6 +1095,18 @@ export const CreatePatientAssessmentModal = ({
     }, practQuery.trim() ? 300 : 0)
     return () => { c = true; clearTimeout(t) }
   }, [practQuery, practOpen])
+
+  // Auto-fill current user's practitioner
+  useEffect(() => {
+    getCurrentUserPractitioner().then(pract => {
+      if (pract && !selectedPract) {
+        fetchHealthcarePractitioners(pract).then(opts => {
+          const match = opts.find(o => o.name === pract)
+          if (match) { setSelectedPract(match); setPractQuery(match.label) }
+        })
+      }
+    })
+  }, [])
 
   // ── Company options ───────────────────────────────────────────────────────────
   useEffect(() => {

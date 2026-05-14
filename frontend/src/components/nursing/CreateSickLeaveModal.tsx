@@ -417,6 +417,7 @@ import {
   fetchInpatientAdmissions,
   fetchPatientVisits,
   fetchLeadSources,
+  getCurrentUserPractitioner,
   type LinkFieldOption,
 } from '../../services/common'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
@@ -599,6 +600,13 @@ export const CreateSickLeaveModal = ({ onClose, onSuccess, patient }: CreateSick
     const t = setTimeout(run, doctorQuery.trim() ? 300 : 0)
     return () => { cancelled = true; clearTimeout(t) }
   }, [doctorQuery, doctorOpen])
+
+  // Auto-fill current user's practitioner
+  useEffect(() => {
+    getCurrentUserPractitioner().then(pract => {
+      if (pract && !doctorId) setDoctorId(pract)
+    })
+  }, [])
 
   useEffect(() => {
     if (!sourceOpen) return

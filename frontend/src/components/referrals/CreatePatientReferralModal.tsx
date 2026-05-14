@@ -6,7 +6,7 @@ import {
 } from '../ui/CreateModalChrome'
 import { createPatientReferral, searchReferralSourceDocs, type ReferralSourceDoc } from '../../services/patientReferral'
 import { searchPatients, type PatientListItem } from '../../services/patients'
-import { fetchCostCenters, fetchHealthcarePractitioners, type LinkFieldOption } from '../../services/common'
+import { fetchCostCenters, fetchHealthcarePractitioners, getCurrentUserPractitioner, type LinkFieldOption } from '../../services/common'
 import { toast } from '../../hooks/useToast'
 import { X } from 'lucide-react'
 
@@ -96,6 +96,13 @@ export const CreatePatientReferralModal = ({
     }, 300)
     return () => clearTimeout(t)
   }, [doctorQuery, doctorOpen])
+
+  // Auto-fill current user's practitioner
+  useEffect(() => {
+    getCurrentUserPractitioner().then(pract => {
+      if (pract && !referralDoctor) setReferralDoctor(pract)
+    })
+  }, [])
 
   // ── source document search ──────────────────────────────────────
   // Immediately load + open dropdown when doctype is selected or patient changes

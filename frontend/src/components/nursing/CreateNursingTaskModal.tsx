@@ -289,7 +289,7 @@ import {
 import { apiRequest } from '../../services/apiClient'
 import { toast } from '../../hooks/useToast'
 import { CreateHealthcareActivityModal } from '../activities/CreateHealthcareActivityModal'
-import { fetchHealthcarePractitioners, fetchInpatientAdmissions, fetchPatientVisits, type LinkFieldOption } from '../../services/common'
+import { fetchHealthcarePractitioners, fetchInpatientAdmissions, fetchPatientVisits, getCurrentUserPractitioner, type LinkFieldOption } from '../../services/common'
 import { useCareContext } from '../../providers/CareContextProvider'
 
 interface CreateNursingTaskModalProps {
@@ -460,6 +460,13 @@ export const CreateNursingTaskModal = ({ onClose, onSuccess, patient }: CreateNu
     }, nurseQuery.trim() === '' ? 0 : 300)
     return () => clearTimeout(t)
   }, [nurseQuery, nurseOpen])
+
+  // Auto-fill current user's practitioner
+  useEffect(() => {
+    getCurrentUserPractitioner().then(pract => {
+      if (pract && !assignedTo) setAssignedTo(pract)
+    })
+  }, [])
 
   // Get mode-specific help text
   const getModeHelpText = () => {

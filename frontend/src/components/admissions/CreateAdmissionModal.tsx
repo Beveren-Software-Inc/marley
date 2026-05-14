@@ -12,6 +12,7 @@ import {
   fetchHealthcarePractitioners, 
   fetchCompanies,
   fetchCostCenters,
+  getCurrentUserPractitioner,
   type LinkFieldOption
 } from '../../services/common'
 import { CreatePatientModal } from '../patients/CreatePatientModal'
@@ -225,6 +226,13 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
       return () => clearTimeout(timeoutId)
     }
   }, [residentQuery, residentOpen, formData.medical_department])
+
+  // Auto-fill current user's practitioner as consultant doctor
+  useEffect(() => {
+    getCurrentUserPractitioner().then(pract => {
+      if (pract) setFormData(prev => prev.consultant_doctor === '' ? { ...prev, consultant_doctor: pract } : prev)
+    })
+  }, [])
 
   // Search nursing templates
   // (UI currently disabled; keep hook placeholder if needed in future)

@@ -5,7 +5,7 @@ import {
 } from '../ui/CreateModalChrome'
 import { createECTAdmission } from '../../services/ectAdmission'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
-import { fetchHealthcarePractitioners, type LinkFieldOption } from '../../services/common'
+import { fetchHealthcarePractitioners, getCurrentUserPractitioner, type LinkFieldOption } from '../../services/common'
 import { toast } from '../../hooks/useToast'
 
 interface CreateECTAdmissionModalProps {
@@ -148,6 +148,13 @@ export const CreateECTAdmissionModal = ({
     }, doctorQuery.trim() === '' ? 0 : 300)
     return () => clearTimeout(t)
   }, [doctorQuery, doctorOpen])
+
+  // Auto-fill current user's practitioner
+  useEffect(() => {
+    getCurrentUserPractitioner().then(pract => {
+      if (pract) setFormData(prev => prev.doctor === '' ? { ...prev, doctor: pract } : prev)
+    })
+  }, [])
 
   const handlePatientSelect = (p: PatientListItem) => {
     setFormData(prev => ({
