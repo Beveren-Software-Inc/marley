@@ -284,7 +284,8 @@ def create_test_from_template(lab_test):
 
 	lab_test.lab_test_name = template.lab_test_name
 	lab_test.result_date = getdate()
-	lab_test.department = template.department
+	# Skip department — template may reference a department that doesn't exist yet
+	# lab_test.department = template.department
 	# _set_lab_test_group_from_template(lab_test, template)
 	lab_test.legend_print_position = template.legend_print_position
 	lab_test.result_legend = template.result_legend
