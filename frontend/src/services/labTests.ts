@@ -76,8 +76,13 @@ export interface LabConsumableRow {
   warehouse?: string
 }
 
+export interface PaginatedLabTests {
+  data: LabTest[]
+  total_count: number
+}
+
 export async function fetchLabTests(
-  limit: number = 50,
+  limit: number = 20,
   offset: number = 0,
   patient?: string,
   status?: string,
@@ -88,7 +93,7 @@ export async function fetchLabTests(
   template?: string,
   patient_type?: string,
   by_nurse?: boolean
-): Promise<LabTest[]> {
+): Promise<PaginatedLabTests> {
   const params = new URLSearchParams()
   params.append('limit', limit.toString())
   params.append('offset', offset.toString())
@@ -106,11 +111,13 @@ export async function fetchLabTests(
     `/api/method/healthcare.api.lab_test.get_lab_tests?${params.toString()}`
   )
   const resData = await response.json()
-  if (resData?.message && Array.isArray(resData.message)) {
-    return resData.message as LabTest[]
-  } else {
-    return []
+  if (resData?.message && typeof resData.message === 'object' && !Array.isArray(resData.message)) {
+    return resData.message as PaginatedLabTests
   }
+  if (resData?.message && Array.isArray(resData.message)) {
+    return { data: resData.message as LabTest[], total_count: resData.message.length }
+  }
+  return { data: [], total_count: 0 }
 }
 
 export async function fetchLabTest(name: string): Promise<LabTest> {

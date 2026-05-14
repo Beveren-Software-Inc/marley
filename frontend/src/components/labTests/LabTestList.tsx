@@ -1699,6 +1699,7 @@ import { LabTestDetails } from './LabTestDetails'
 import { EditLabTestModal } from './EditLabTestModal'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
+import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
 import { toast } from '../../hooks/useToast'
 import { canEditLabTestResults } from '../../config/permissions'
 import { Search, X, ChevronDown, ChevronRight } from 'lucide-react'
@@ -1957,6 +1958,10 @@ export const LabTestList = ({
   const effectivePatient = patient ?? (contextPatient || undefined)
   const canEditResults = canEditLabTestResults(userRole)
 
+  // Pagination state
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState<PageSize>(DEFAULT_PAGE_SIZE)
+
   const [filters, setFilters] = useState<Filters>(() => ({
     ...makeEmptyFilters(),
     status: defaultStatus ?? '',
@@ -1967,13 +1972,19 @@ export const LabTestList = ({
     setFilters(prev => ({ ...prev, opIp: mode === 'IP' ? 'IP' : mode === 'OP' ? 'OP' : '' }))
   }, [mode])
 
+  // Reset page when filters change
+  useEffect(() => {
+    setPage(1)
+  }, [filters])
+
   const activeCount = [filters.status, filters.fromDate, filters.toDate, filters.isOutsourced, filters.opIp, filters.template].filter(Boolean).length
 
-  const { labTests, loading, error, refetch } = useLabTests(
+  const { labTests, totalCount, loading, error, refetch } = useLabTests(
     effectivePatient, filters.status || undefined, filters.status === 'Pending Review',
     isOutsourced !== undefined ? isOutsourced : (filters.isOutsourced ? filters.isOutsourced === 'yes' : undefined),
     filters.fromDate || undefined, filters.toDate || undefined,
-    filters.template || undefined, filters.opIp || undefined, byNurse
+    filters.template || undefined, filters.opIp || undefined, byNurse,
+    pageSize, (page - 1) * pageSize
   )
 
   // ── Inline Result Editing ──
@@ -2939,6 +2950,15 @@ export const LabTestList = ({
           </table>
         </div>
       )}
+
+      <PaginationControls
+        page={page}
+        pageSize={pageSize}
+        totalCount={totalCount}
+        loading={loading}
+        onPageChange={setPage}
+        onPageSizeChange={(size) => { setPageSize(size); setPage(1) }}
+      />
 
       {/* ── Lab Test Details slide-over ── */}
       {selectedLabTestForDetails && (

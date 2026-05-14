@@ -53,12 +53,13 @@ export interface PatientVisitListRow {
   pharmacy_amount: number
 }
 
+export interface PatientVisitsPaginatedResponse {
+  data: PatientVisitListRow[]
+  total_count: number
+}
+
 /**
- * Fetch patient visits with full filter support:
- * - patient
- * - search (visit name)
- * - practitioner
- * - fromDate / toDate
+ * Fetch patient visits with full filter support and server-side pagination.
  */
 export async function fetchPatientVisitsFull(
   patient?: string,
@@ -67,8 +68,10 @@ export async function fetchPatientVisitsFull(
   fromDate?: string,
   toDate?: string,
   status?: string,
-  visitType?: string
-): Promise<PatientVisitListRow[]> {
+  visitType?: string,
+  limit?: number,
+  offset?: number
+): Promise<PatientVisitsPaginatedResponse> {
   const params = new URLSearchParams()
   if (patient) params.append('patient', patient)
   if (search) params.append('search', search)
@@ -77,30 +80,38 @@ export async function fetchPatientVisitsFull(
   if (toDate) params.append('to_date', toDate)
   if (status) params.append('status', status)
   if (visitType) params.append('visit_type', visitType)
+  if (limit !== undefined) params.append('limit', limit.toString())
+  if (offset !== undefined) params.append('offset', offset.toString())
   try {
     const res = await fetch(
       `/api/method/healthcare.api.patient_visit.get_patient_visits_full?${params}`
     )
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    const data = await res.json()
+    const json = await res.json()
 
-    if (!Array.isArray(data?.message)) return []
+    const msg = json?.message
+    if (!msg) return { data: [], total_count: 0 }
 
-    return data.message.map((m: any) => ({
-      value: m.name,
-      label: m.label,
-      patient: m.patient ?? '',
-      patient_name: m.patient_name ?? '',
-      encounter_date: m.encounter_date ?? null,
-      practitioner_name: m.practitioner_name ?? '',
-      status: m.status ?? '',
-      lab_amount: Number(m.lab_amount ?? 0),
-      service_amount: Number(m.service_amount ?? 0),
-      pharmacy_amount: Number(m.pharmacy_amount ?? 0),
-    }))
+    const rows = Array.isArray(msg.data) ? msg.data : (Array.isArray(msg) ? msg : [])
+
+    return {
+      data: rows.map((m: any) => ({
+        value: m.name,
+        label: m.label,
+        patient: m.patient ?? '',
+        patient_name: m.patient_name ?? '',
+        encounter_date: m.encounter_date ?? null,
+        practitioner_name: m.practitioner_name ?? '',
+        status: m.status ?? '',
+        lab_amount: Number(m.lab_amount ?? 0),
+        service_amount: Number(m.service_amount ?? 0),
+        pharmacy_amount: Number(m.pharmacy_amount ?? 0),
+      })),
+      total_count: msg.total_count ?? rows.length,
+    }
   } catch (err) {
     console.error('fetchPatientVisitsFull error:', err)
-    return []
+    return { data: [], total_count: 0 }
   }
 }
 

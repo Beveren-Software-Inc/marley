@@ -12,6 +12,7 @@ import { toast } from '../../hooks/useToast'
 import { DetailSlideOver } from '../ui/DetailSlideOver'
 import { DocDetailView } from '../ui/DocDetailView'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
+import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
 
 const CHANNEL_OPTIONS: { value: ReminderChannel; label: string; icon: string }[] = [
   { value: 'whatsapp', label: 'WhatsApp', icon: '💬' },
@@ -56,22 +57,31 @@ export const FollowUpList = ({ refreshKey, patient, onPatientClick }: FollowUpLi
   const menuRef = useRef<HTMLDivElement>(null)
   const bulkMenuRef = useRef<HTMLDivElement>(null)
 
-  const loadList = useCallback(async () => {
+  // Pagination state
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState<PageSize>(DEFAULT_PAGE_SIZE)
+  const [totalCount, setTotalCount] = useState(0)
+
+  const loadList = useCallback(async (overridePage?: number) => {
+    const currentPage = overridePage ?? page
     setLoading(true)
     try {
-      const rows = await getFollowUps({
+      const result = await getFollowUps({
         status: status || undefined,
         cost_center: costCenter || undefined,
-        limit: 200,
+        limit: pageSize,
+        offset: (currentPage - 1) * pageSize,
       })
-      setList(rows)
+      setList(result.data)
+      setTotalCount(result.total_count)
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed to load follow-ups')
       setList([])
+      setTotalCount(0)
     } finally {
       setLoading(false)
     }
-  }, [status, costCenter])
+  }, [status, costCenter, page, pageSize])
 
   useEffect(() => {
     loadList()
@@ -155,7 +165,7 @@ export const FollowUpList = ({ refreshKey, patient, onPatientClick }: FollowUpLi
           <label className="text-sm font-medium text-slate-700">Status</label>
           <select
             value={status}
-            onChange={(e) => setStatus(e.target.value)}
+            onChange={(e) => { setStatus(e.target.value); setPage(1) }}
             className="rounded-md border border-slate-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
           >
             {STATUS_OPTIONS.map((o) => (
@@ -167,7 +177,7 @@ export const FollowUpList = ({ refreshKey, patient, onPatientClick }: FollowUpLi
           <label className="text-sm font-medium text-slate-700">Cost Center</label>
           <select
             value={costCenter}
-            onChange={(e) => setCostCenter(e.target.value)}
+            onChange={(e) => { setCostCenter(e.target.value); setPage(1) }}
             className="rounded-md border border-slate-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary min-w-[160px]"
           >
             <option value="">All</option>
@@ -325,6 +335,15 @@ export const FollowUpList = ({ refreshKey, patient, onPatientClick }: FollowUpLi
           </div>
         )}
       </div>
+
+      <PaginationControls
+        page={page}
+        pageSize={pageSize}
+        totalCount={totalCount}
+        loading={loading}
+        onPageChange={setPage}
+        onPageSizeChange={(size) => { setPageSize(size); setPage(1) }}
+      />
 
       {detailName && (
         <DetailSlideOver

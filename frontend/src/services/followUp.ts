@@ -17,7 +17,12 @@ export interface GetFollowUpsParams {
   offset?: number
 }
 
-export async function getFollowUps(params: GetFollowUpsParams = {}): Promise<PatientFollowUpRow[]> {
+export interface PaginatedFollowUps {
+  data: PatientFollowUpRow[]
+  total_count: number
+}
+
+export async function getFollowUps(params: GetFollowUpsParams = {}): Promise<PaginatedFollowUps> {
   const sp = new URLSearchParams()
   if (params.status) sp.set('status', params.status)
   if (params.cost_center) sp.set('cost_center', params.cost_center)
@@ -27,7 +32,14 @@ export async function getFollowUps(params: GetFollowUpsParams = {}): Promise<Pat
   const res = await fetch(url)
   const data = await res.json()
   if (data.exc) throw new Error(data._server_messages ? JSON.parse(data._server_messages)[0] : 'Failed to fetch')
-  return (data.message || []) as PatientFollowUpRow[]
+  const msg = data.message
+  if (msg && typeof msg === 'object' && !Array.isArray(msg)) {
+    return msg as PaginatedFollowUps
+  }
+  if (msg && Array.isArray(msg)) {
+    return { data: msg as PatientFollowUpRow[], total_count: msg.length }
+  }
+  return { data: [], total_count: 0 }
 }
 
 export type ReminderChannel = 'email' | 'whatsapp' | 'sms'

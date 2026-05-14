@@ -7,8 +7,8 @@ from frappe.model.document import Document
 
 
 @frappe.whitelist()
-def get_follow_ups(status=None, cost_center=None, limit=100, offset=0):
-	"""List Patient Follow Up for UI with filters. Excludes no_follow_up_required by default."""
+def get_follow_ups(status=None, cost_center=None, limit=20, offset=0):
+	"""List Patient Follow Up for UI with filters. Returns {data, total_count}."""
 	filters = []
 	if status:
 		filters.append(["status", "=", status])
@@ -18,16 +18,20 @@ def get_follow_ups(status=None, cost_center=None, limit=100, offset=0):
 		"name", "patient", "patient_name", "follow_up_type", "follow_up_date",
 		"status", "cost_center", "remarks", "company",
 	]
+
+	total_count = frappe.count("Patient Follow Up", filters={"name": ["!=", ""]}) if not filters else len(
+		frappe.get_all("Patient Follow Up", filters=filters, fields=["name"], limit=0)
+	)
+
 	out = frappe.get_all(
 		"Patient Follow Up",
 		filters=filters,
 		fields=fields,
 		order_by="follow_up_date asc",
-		limit=int(limit) if limit else 100,
+		limit=int(limit) if limit else 20,
 		start=int(offset) if offset else 0,
 	)
-	print("Follow up here ", len(out))
-	return out
+	return {"data": out, "total_count": total_count}
 
 
 @frappe.whitelist()

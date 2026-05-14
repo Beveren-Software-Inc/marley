@@ -142,14 +142,21 @@ export interface ChecklistItem {
 }
 
 
+export interface InpatientRecordsPaginatedResponse {
+  data: InpatientRecord[]
+  total_count: number
+}
+
 export async function fetchInpatientRecords(
   status?: string,
   search?: string,
   patient?: string,
   practitioner?: string,
   fromDate?: string,
-  toDate?: string
-) {
+  toDate?: string,
+  limit?: number,
+  offset?: number
+): Promise<InpatientRecordsPaginatedResponse> {
   const params = new URLSearchParams()
   if (status) params.append('status', status)
   if (search) params.append('search', search)
@@ -157,16 +164,21 @@ export async function fetchInpatientRecords(
   if (practitioner) params.append('practitioner', practitioner)
   if (fromDate) params.append('from_date', fromDate)
   if (toDate) params.append('to_date', toDate)
+  if (limit !== undefined) params.append('limit', limit.toString())
+  if (offset !== undefined) params.append('offset', offset.toString())
 
   const url = `/api/method/healthcare.api.inpatient_admission.get_inpatient_records${params.toString() ? `?${params.toString()}` : ''}`
   const response = await fetch(url)
   const resData = await response.json()
 
-  if (resData?.message && Array.isArray(resData.message)) {
-    return resData.message as InpatientRecord[]
-  } else {
-    throw new Error('Invalid response format')
+  const msg = resData?.message
+  if (msg && typeof msg === 'object' && 'data' in msg) {
+    return { data: msg.data as InpatientRecord[], total_count: msg.total_count ?? 0 }
   }
+  if (msg && Array.isArray(msg)) {
+    return { data: msg as InpatientRecord[], total_count: msg.length }
+  }
+  throw new Error('Invalid response format')
 }
 
 export async function fetchInpatientRecord(name: string) {

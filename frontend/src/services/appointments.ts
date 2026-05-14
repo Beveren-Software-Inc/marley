@@ -33,51 +33,67 @@ export interface CreateAppointmentData {
   notes?: string
 }
 
+export interface AppointmentPage {
+  data: Appointment[]
+  total_count: number
+}
+
 export async function fetchPractitionerAppointments(
   limit: number = 50,
   offset: number = 0,
-  status?: string
-): Promise<Appointment[]> {
+  status?: string,
+  search?: string,
+  date_from?: string,
+  date_to?: string,
+): Promise<AppointmentPage> {
   const params = new URLSearchParams()
   params.append('limit', limit.toString())
   params.append('offset', offset.toString())
   if (status) params.append('status', status)
+  if (search) params.append('search', search)
+  if (date_from) params.append('date_from', date_from)
+  if (date_to) params.append('date_to', date_to)
 
   const response = await fetch(
     `/api/method/healthcare.api.patient_appointment.get_practitioner_appointments?${params.toString()}`
   )
   const resData = await response.json()
-  console.log('fetchPractitionerAppointments response:', resData)
 
-  if (resData?.message && Array.isArray(resData.message)) {
-    return resData.message as Appointment[]
-  } else {
-    return []
+  if (resData?.message && typeof resData.message === 'object' && Array.isArray(resData.message.data)) {
+    return resData.message as AppointmentPage
   }
+  return { data: [], total_count: 0 }
 }
 
 export async function fetchAllAppointments(
   limit: number = 50,
   offset: number = 0,
   status?: string,
-  patient?: string
-): Promise<Appointment[]> {
+  patient?: string,
+  search?: string,
+  practitioner?: string,
+  date_from?: string,
+  date_to?: string,
+): Promise<AppointmentPage> {
   const params = new URLSearchParams()
   params.append('limit', limit.toString())
   params.append('offset', offset.toString())
   if (status) params.append('status', status)
   if (patient) params.append('patient', patient)
-console.log("Uko hapa")
+  if (search) params.append('search', search)
+  if (practitioner) params.append('practitioner', practitioner)
+  if (date_from) params.append('date_from', date_from)
+  if (date_to) params.append('date_to', date_to)
+
   const response = await fetch(
     `/api/method/healthcare.api.patient_appointment.get_all_appointments?${params.toString()}`
   )
   const resData = await response.json()
-  console.log('fetchAllAppointments response:', resData)
-  if (resData?.message && Array.isArray(resData.message)) {
-    return resData.message as Appointment[]
-  } else {
-    return []
+
+  if (resData?.message && typeof resData.message === 'object' && Array.isArray(resData.message.data)) {
+    return resData.message as AppointmentPage
   }
+  return { data: [], total_count: 0 }
 }
 
 export async function createAppointment(data: CreateAppointmentData): Promise<Appointment> {

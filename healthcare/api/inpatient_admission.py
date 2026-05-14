@@ -49,14 +49,17 @@ def get_patient_active_admission(patient):
 
 
 @frappe.whitelist()
-def get_inpatient_records(status=None, search=None, patient=None, practitioner=None, from_date=None, to_date=None):
+def get_inpatient_records(status=None, search=None, patient=None, practitioner=None, from_date=None, to_date=None, limit=20, offset=0):
 	"""Get list of Inpatient Admissions with optional status, search, patient, practitioner and date filters.
 
 	Always enforces Cost Center User Permissions so that users restricted to a
 	specific cost center cannot see admissions belonging to other cost centers.
+	Returns { data: [...], total_count: N }
 	"""
 	from healthcare.api.common import get_permitted_cost_centers
 	permitted_cc = get_permitted_cost_centers()
+	limit = cint(limit) or 20
+	offset = cint(offset) or 0
 
 	# Use SQL path when we have search, practitioner or date filters (avoids get_all OR filter format issues)
 	use_sql = bool(search or practitioner or from_date or to_date)
@@ -86,14 +89,26 @@ def get_inpatient_records(status=None, search=None, patient=None, practitioner=N
 		# ── Cost-centre User Permission enforcement ──────────────────────────
 		if permitted_cc is not None:
 			if not permitted_cc:
-				# Restricted but permitted list is empty → return nothing
-				return []
+				return {"data": [], "total_count": 0}
 			placeholders = ", ".join(f"%(cc_{i})s" for i in range(len(permitted_cc)))
 			conditions.append(f"ia.cost_center IN ({placeholders})")
 			for i, cc in enumerate(permitted_cc):
 				params[f"cc_{i}"] = cc
 
 		where_sql = " AND ".join(conditions)
+
+		count_result = frappe.db.sql("""
+			SELECT COUNT(*) as cnt
+			FROM `tabInpatient Admission` ia
+			LEFT JOIN `tabPatient` p ON ia.patient = p.name
+			WHERE """ + where_sql,
+			params,
+			as_dict=True
+		)
+		total_count = count_result[0].cnt if count_result else 0
+
+		params['limit'] = limit
+		params['offset'] = offset
 		records = frappe.db.sql("""
 			SELECT 
 				ia.name,
@@ -112,11 +127,12 @@ def get_inpatient_records(status=None, search=None, patient=None, practitioner=N
 				ia.cost_center
 			FROM `tabInpatient Admission` ia
 			LEFT JOIN `tabPatient` p ON ia.patient = p.name
-			WHERE """ + where_sql,
+			WHERE """ + where_sql + """
+			ORDER BY ia.scheduled_date DESC
+			LIMIT %(limit)s OFFSET %(offset)s""",
 			params,
 			as_dict=True
 		)
-		records.sort(key=lambda x: x.scheduled_date or '', reverse=True)
 	else:
 		filters = {}
 		if status:
@@ -127,8 +143,15 @@ def get_inpatient_records(status=None, search=None, patient=None, practitioner=N
 		# ── Cost-centre User Permission enforcement ──────────────────────────
 		if permitted_cc is not None:
 			if not permitted_cc:
-				return []
+				return {"data": [], "total_count": 0}
 			filters['cost_center'] = ['in', permitted_cc]
+
+		total_count = len(frappe.get_all(
+			'Inpatient Admission',
+			filters=filters,
+			fields=['name'],
+			limit=0,
+		))
 
 		records = frappe.get_all(
 			'Inpatient Admission',
@@ -150,9 +173,11 @@ def get_inpatient_records(status=None, search=None, patient=None, practitioner=N
 				'cost_center',
 			],
 			order_by='scheduled_date desc',
+			limit=limit,
+			start=offset,
 		)
 
-	return records
+	return {"data": records, "total_count": total_count}
 
 
 @frappe.whitelist()

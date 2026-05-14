@@ -57,7 +57,7 @@ export const CreateInternalTransferModal = ({
       return
     }
     fetchInpatientRecords('Admitted', undefined, patient)
-      .then((rows) => setAdmissions(rows))
+      .then((response) => setAdmissions(response.data))
       .catch(() => setAdmissions([]))
   }, [patient])
 

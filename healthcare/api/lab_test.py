@@ -224,8 +224,7 @@ def get_lab_tests(
 		if nurse_templates:
 			filters["template"] = ["in", nurse_templates]
 		else:
-			# If no templates match the criteria, return empty result
-			return []
+			return {"data": [], "total_count": 0}
 
 	# OP / IP filter based on inpatient_record link
 	if patient_type == "IP":
@@ -246,8 +245,10 @@ def get_lab_tests(
 	permitted_cc = get_permitted_cost_centers()
 	if permitted_cc is not None:
 		if not permitted_cc:
-			return []
+			return {"data": [], "total_count": 0}
 		filters["cost_center"] = ["in", permitted_cc]
+
+	total_count = len(frappe.get_all("Lab Test", filters=filters, fields=["name"], limit=0))
 
 	lab_tests = frappe.get_all(
 		"Lab Test",
@@ -256,7 +257,7 @@ def get_lab_tests(
 			"name",
 			"docstatus",
 			"patient",
-   'cost_center',
+			"cost_center",
 			"patient_name",
 			"practitioner",
 			"practitioner_name",
@@ -279,8 +280,6 @@ def get_lab_tests(
 			"is_group_lab_test",
 			"lab_technician",
 			"lab_technician_name",
-			# "min_range",
-			# "max_range",
 			"results",
 			"gender",
 			"result_flag"
@@ -340,7 +339,7 @@ def get_lab_tests(
 				frappe.db.get_value("Healthcare Practitioner", lab_test.lab_technician, "practitioner_name")
 				or lab_test.lab_technician
 			)
-	return lab_tests
+	return {"data": lab_tests, "total_count": total_count}
 
 # def _calculate_result_flag(result_value, patient_gender, female_min_range=None, female_max_range=None, 
 #                            male_min_range=None, male_max_range=None, min_range=None, max_range=None):
