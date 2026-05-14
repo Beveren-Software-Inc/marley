@@ -1020,7 +1020,7 @@ def update_lab_test_basic(name, data=None):
 	if doc.docstatus != 0:
 		frappe.throw(_("Only Draft lab tests can be edited from this screen"))
 
-	allowed = {"template", "practitioner", "department", "service_unit", "date", "time", "status",
+	allowed = {"template", "practitioner", "service_unit", "date", "time", "status",
 			   "priority", "is_outsourced", "outsource_lab_name", "outsource_ref_no"}
 
 	for key, value in data.items():
