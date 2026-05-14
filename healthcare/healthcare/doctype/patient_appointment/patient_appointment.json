@@ -76,7 +76,9 @@
   "cr_date",
   "up_id",
   "up_date",
-  "doc_code"
+  "doc_code",
+  "whatsapp_section",
+  "whatsapp_template"
  ],
  "fields": [
   {
@@ -551,6 +553,18 @@
    "fieldtype": "Data",
    "label": "Trans No",
    "unique": 1
+  },
+  {
+   "fieldname": "whatsapp_section",
+   "fieldtype": "Section Break",
+   "label": "WhatsApp Notification"
+  },
+  {
+   "fieldname": "whatsapp_template",
+   "fieldtype": "Link",
+   "ignore_user_permissions": 1,
+   "label": "WhatsApp Template",
+   "options": "Digital Whatsapp Template"
   }
  ],
  "grid_page_length": 50,
@@ -571,7 +585,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2026-05-12 18:05:30.293460",
+ "modified": "2026-05-14 11:41:22.957049",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Appointment",

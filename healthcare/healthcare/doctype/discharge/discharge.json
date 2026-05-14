@@ -94,7 +94,9 @@
   "documents_tab",
   "patient_documents",
   "relatives_tab",
-  "patient_relatives"
+  "patient_relatives",
+  "whatsapp_section",
+  "whatsapp_template"
  ],
  "fields": [
   {
@@ -576,13 +578,26 @@
    "fieldname": "remark",
    "fieldtype": "Small Text",
    "label": "Remark"
+  },
+  {
+   "fieldname": "whatsapp_section",
+   "fieldtype": "Section Break",
+   "label": "WhatsApp Notification"
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "whatsapp_template",
+   "fieldtype": "Link",
+   "ignore_user_permissions": 1,
+   "label": "WhatsApp Template",
+   "options": "Digital Whatsapp Template"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-04-21 22:40:18.137130",
+ "modified": "2026-05-14 11:43:40.472380",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Discharge",
@@ -599,6 +614,35 @@
    "report": 1,
    "role": "System Manager",
    "share": 1,
+   "write": 1
+  },
+  {
+   "cancel": 1,
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Doctor",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "cancel": 1,
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Reception",
+   "select": 1,
+   "share": 1,
+   "submit": 1,
    "write": 1
   }
  ],

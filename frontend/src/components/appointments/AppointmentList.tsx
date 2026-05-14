@@ -638,7 +638,10 @@ import {
   createEncounterFromAppointment,
   getVitalSignsNewUrl,
   getPatientVisitFormUrl,
-  type Appointment
+  sendAppointmentReminder as sendAppointmentReminderAPI,
+  sendAppointmentRemindersBulk,
+  type Appointment,
+  type ReminderChannel,
 } from '../../services/appointments'
 import { StatusPill } from '../ui/StatusPill'
 import { DetailSlideOver } from '../ui/DetailSlideOver'
@@ -690,11 +693,11 @@ const CAN_POSTPONE_STATUSES = ['Scheduled', 'Open', 'Confirmed', 'Checked In']
 /** Reception can mark arrived from these statuses (DocType already includes "Patient Arrived"). */
 const CAN_MARK_ARRIVED_STATUSES = ['Scheduled', 'Open', 'Confirmed', 'Checked In']
 
-// Stub — replace with your real API call
-const sendAppointmentReminder = async (appointmentName: string): Promise<void> => {
-  await new Promise((res) => setTimeout(res, 600))
-  console.log('Reminder sent for', appointmentName)
-}
+const CHANNEL_OPTIONS: { value: ReminderChannel; label: string; icon: string }[] = [
+  { value: 'whatsapp', label: 'WhatsApp', icon: '💬' },
+  { value: 'sms', label: 'SMS', icon: '📱' },
+  { value: 'email', label: 'Email', icon: '📧' },
+]
 
 // New function to check if practitioner is on leave on a specific date
 const checkPractitionerAvailability = async (practitioner: string, date: string): Promise<AvailabilityResponse> => {
@@ -805,6 +808,8 @@ export const AppointmentList = ({ refreshKey, showAll = false, patient, onPatien
   const [filterDateFrom, setFilterDateFrom] = useState<string>('')
   const [filterDateTo, setFilterDateTo] = useState<string>('')
   const [bulkSending, setBulkSending] = useState(false)
+  const [bulkChannelMenuOpen, setBulkChannelMenuOpen] = useState(false)
+  const bulkMenuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const loadAppointments = async () => {
@@ -966,41 +971,42 @@ export const AppointmentList = ({ refreshKey, showAll = false, patient, onPatien
     }
   }
 
-  const handleSendReminder = async (apt: Appointment) => {
+  const handleSendReminder = async (apt: Appointment, channel: ReminderChannel) => {
     setOpenActionRow(null)
     setActionLoading(apt.name)
+    const channelLabel = channel === 'whatsapp' ? 'WhatsApp' : channel === 'sms' ? 'SMS' : 'Email'
     try {
-      await sendAppointmentReminder(apt.name)
-      toast.success(`Reminder sent for ${apt.patient_name || apt.patient}`)
+      await sendAppointmentReminderAPI(apt.name, channel)
+      toast.success(`${channelLabel} reminder sent for ${apt.patient_name || apt.patient}`)
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to send reminder')
+      toast.error(e instanceof Error ? e.message : `Failed to send ${channelLabel} reminder`)
     } finally {
       setActionLoading(null)
     }
   }
 
-  const handleBulkSendReminders = async () => {
+  const handleBulkSendReminders = async (channel: ReminderChannel) => {
     if (reminderEligible.length === 0) {
       toast.error('No appointments to send reminders for')
       return
     }
-    if (!window.confirm(`Send reminders to all ${reminderEligible.length} patient(s) in the current view?`)) return
+    const channelLabel = channel === 'whatsapp' ? 'WhatsApp' : channel === 'sms' ? 'SMS' : 'Email'
+    if (!window.confirm(`Send ${channelLabel} reminders to all ${reminderEligible.length} patient(s) in the current view?`)) return
     setBulkSending(true)
-    let successCount = 0
-    let failCount = 0
-    for (const apt of reminderEligible) {
-      try {
-        await sendAppointmentReminder(apt.name)
-        successCount++
-      } catch {
-        failCount++
+    try {
+      const result = await sendAppointmentRemindersBulk(
+        reminderEligible.map((a) => a.name),
+        channel
+      )
+      if (result.failed === 0) {
+        toast.success(`${channelLabel} reminders sent to ${result.sent} patient(s)`)
+      } else {
+        toast.error(`${result.sent} sent, ${result.failed} failed`)
       }
-    }
-    setBulkSending(false)
-    if (failCount === 0) {
-      toast.success(`Reminders sent to ${successCount} patient(s)`)
-    } else {
-      toast.error(`${successCount} sent, ${failCount} failed`)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to send reminders')
+    } finally {
+      setBulkSending(false)
     }
   }
 
@@ -1107,29 +1113,49 @@ export const AppointmentList = ({ refreshKey, showAll = false, patient, onPatien
 
           {/* Spacer + Bulk Reminder */}
           <div className="flex-1" />
-          <button
-            type="button"
-            onClick={handleBulkSendReminders}
-            disabled={bulkSending || reminderEligible.length === 0}
-            className="self-end inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-50 whitespace-nowrap"
-          >
-            {bulkSending ? (
-              <>
-                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                </svg>
-                Sending…
-              </>
-            ) : (
-              <>
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                </svg>
-                Bulk Send Reminders{reminderEligible.length > 0 ? ` (${reminderEligible.length})` : ''}
-              </>
+          <div className="relative self-end" ref={bulkMenuRef}>
+            <button
+              type="button"
+              onClick={() => setBulkChannelMenuOpen((p) => !p)}
+              disabled={bulkSending || reminderEligible.length === 0}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-50 whitespace-nowrap"
+            >
+              {bulkSending ? (
+                <>
+                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                  </svg>
+                  Sending…
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                  </svg>
+                  Bulk Send Reminders{reminderEligible.length > 0 ? ` (${reminderEligible.length})` : ''}
+                  <svg className="w-3 h-3 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                </>
+              )}
+            </button>
+            {bulkChannelMenuOpen && (
+              <div className="absolute right-0 z-30 mt-1 w-48 bg-white border border-slate-200 rounded-md shadow-lg py-1">
+                <div className="px-3 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wide border-b border-slate-100">
+                  Choose Channel
+                </div>
+                {CHANNEL_OPTIONS.map((ch) => (
+                  <button
+                    key={ch.value}
+                    type="button"
+                    onClick={() => { setBulkChannelMenuOpen(false); handleBulkSendReminders(ch.value) }}
+                    className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                  >
+                    <span>{ch.icon}</span> {ch.label}
+                  </button>
+                ))}
+              </div>
             )}
-          </button>
+          </div>
         </div>
 
         {/* Result count */}
@@ -1307,11 +1333,22 @@ export const AppointmentList = ({ refreshKey, showAll = false, patient, onPatien
                             </>
                           )}
                           {apt.patient && (
-                            <button type="button" onClick={() => handleSendReminder(apt)}
-                              disabled={actionLoading === apt.name}
-                              className="block w-full text-left px-3 py-2 text-sm text-primary font-medium hover:bg-primary/5 disabled:opacity-50 border-t border-slate-100 mt-1">
-                              Send Reminder
-                            </button>
+                            <>
+                              <div className="border-t border-slate-100 mt-1 px-3 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wide">
+                                Send Reminder
+                              </div>
+                              {CHANNEL_OPTIONS.map((ch) => (
+                                <button
+                                  key={ch.value}
+                                  type="button"
+                                  onClick={() => handleSendReminder(apt, ch.value)}
+                                  disabled={actionLoading === apt.name}
+                                  className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50 flex items-center gap-2"
+                                >
+                                  <span>{ch.icon}</span> {ch.label}
+                                </button>
+                              ))}
+                            </>
                           )}
                         </PortalActionsMenu>
                       </div>

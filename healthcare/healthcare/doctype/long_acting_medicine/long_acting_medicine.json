@@ -148,6 +148,17 @@
    "fieldname": "doctors_remark",
    "fieldtype": "Small Text",
    "label": "Doctors Remark"
+  },
+  {
+   "fieldname": "whatsapp_section",
+   "fieldtype": "Section Break",
+   "label": "WhatsApp Notification"
+  },
+  {
+   "fieldname": "whatsapp_template",
+   "fieldtype": "Link",
+   "label": "WhatsApp Template",
+   "options": "Digital Whatsapp Template"
   }
  ],
  "index_web_pages_for_search": 1,

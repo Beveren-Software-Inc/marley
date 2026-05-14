@@ -846,6 +846,115 @@ def reschedule_appointment(
 	return {"name": doc.name, "appointment_date": doc.appointment_date, "appointment_time": doc.appointment_time}
 
 
+@frappe.whitelist()
+def send_appointment_reminder_manual(appointment_name, channel="sms"):
+	"""Send a reminder for a single appointment via the chosen channel.
+
+	channel: 'email' | 'whatsapp' | 'sms'
+	"""
+	if not appointment_name:
+		frappe.throw(_("Appointment name is required"))
+
+	doc = frappe.get_doc("Patient Appointment", appointment_name)
+	channel = (channel or "sms").lower()
+	valid_channels = ("email", "whatsapp", "sms")
+	if channel not in valid_channels:
+		frappe.throw(_("Invalid channel '{0}'. Must be one of: {1}").format(channel, ", ".join(valid_channels)))
+
+	patient_mobile = _resolve_appointment_mobile_for_reminder(doc)
+	if channel == "whatsapp":
+		from healthcare.healthcare.doctype.digital_connect_whatsap_settings.digital_connect_whatsap_settings import (
+			send_test_message,
+		)
+		template_name = doc.get("whatsapp_template")
+		
+		if template_name:
+			result = send_test_message(phone_number=patient_mobile, template_name=template_name)
+		else:
+			body = _(
+				"Dear {0}, you have an appointment on {1} at {2} with {3}. Please arrive on time."
+			).format(
+				doc.patient_name or doc.patient,
+				format_date(doc.appointment_date),
+				doc.appointment_time or "-",
+				doc.practitioner_name or "your doctor",
+			)
+			result = send_test_message(phone_number=patient_mobile, body=body, preview_url=1)
+		chat_name = result.get("chat_name") if isinstance(result, dict) else None
+		if chat_name:
+			frappe.db.set_value(
+				"Digital Whatsapp Chat", chat_name,
+				{"reference_doctype": "Patient Appointment", "reference_name": doc.name},
+				update_modified=True,
+			)
+	elif channel == "sms":
+		if not patient_mobile:
+			frappe.throw(_("Patient has no mobile number"))
+		message = frappe.db.get_single_value("Healthcare Settings", "appointment_reminder_msg") or _(
+			"Dear {0}, you have an appointment on {1}. Please arrive on time."
+		).format(doc.patient_name or doc.patient, format_date(doc.appointment_date))
+		send_message(doc, message)
+	elif channel == "email":
+		patient_email = frappe.db.get_value("Patient", doc.patient, "email") if doc.patient else None
+		if not patient_email:
+			frappe.throw(_("Patient has no email address"))
+		frappe.sendmail(
+			recipients=[patient_email],
+			subject=_("Appointment Reminder"),
+			message=_(
+				"Dear {0}, this is a reminder for your appointment on {1} at {2} with {3}."
+			).format(
+				doc.patient_name or doc.patient,
+				format_date(doc.appointment_date),
+				doc.appointment_time or "-",
+				doc.practitioner_name or "your doctor",
+			),
+		)
+
+	return {"sent": True, "channel": channel, "appointment": doc.name}
+
+
+@frappe.whitelist()
+def send_appointment_reminders_bulk(appointment_names=None, channel="sms"):
+	"""Send reminders for multiple appointments.
+
+	appointment_names: JSON list of appointment names
+	"""
+	if isinstance(appointment_names, str):
+		appointment_names = frappe.parse_json(appointment_names)
+	if not appointment_names:
+		return {"sent": 0, "failed": 0}
+
+	sent = 0
+	failed = 0
+	for name in appointment_names:
+		try:
+			send_appointment_reminder_manual(name, channel=channel)
+			sent += 1
+		except Exception:
+			frappe.log_error(frappe.get_traceback(), f"Appointment reminder failed: {name}")
+			failed += 1
+	return {"sent": sent, "failed": failed}
+
+
+def _resolve_appointment_mobile_for_reminder(doc):
+	"""Resolve patient mobile number from appointment."""
+	temporary = (doc.get("temporary_mobile_no") or "").strip()
+	if temporary:
+		return temporary
+	if doc.patient:
+		values = frappe.db.get_value(
+			"Patient", doc.patient,
+			["mobile", "mobile_no", "mobile_no_1", "phone"],
+			as_dict=True,
+		) or {}
+		for field in ("mobile", "mobile_no", "mobile_no_1", "phone"):
+			number = (values.get(field) or "").strip()
+			if number:
+				return number
+	return ""
+
+
 def send_appointment_reminder():
 	if frappe.db.get_single_value("Healthcare Settings", "send_appointment_reminder"):
 		remind_before = datetime.datetime.strptime(

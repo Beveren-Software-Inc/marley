@@ -30,7 +30,9 @@ export async function getFollowUps(params: GetFollowUpsParams = {}): Promise<Pat
   return (data.message || []) as PatientFollowUpRow[]
 }
 
-export async function sendFollowUpReminder(patientFollowUpName: string): Promise<{ sent: boolean; message?: string }> {
+export type ReminderChannel = 'email' | 'whatsapp' | 'sms'
+
+export async function sendFollowUpReminder(patientFollowUpName: string, channel: ReminderChannel = 'sms'): Promise<{ sent: boolean; message?: string; channel?: string }> {
   const { ensureCSRF } = await import('./apiClient')
   const csrf = await ensureCSRF()
   const res = await fetch('/api/method/healthcare.healthcare.doctype.patient_follow_up.patient_follow_up.send_follow_up_reminder', {
@@ -39,7 +41,7 @@ export async function sendFollowUpReminder(patientFollowUpName: string): Promise
       'Content-Type': 'application/json',
       ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
     },
-    body: JSON.stringify({ patient_follow_up_name: patientFollowUpName }),
+    body: JSON.stringify({ patient_follow_up_name: patientFollowUpName, channel }),
     credentials: 'include',
   })
   const data = await res.json()
@@ -47,7 +49,7 @@ export async function sendFollowUpReminder(patientFollowUpName: string): Promise
   return data.message || { sent: false }
 }
 
-export async function sendFollowUpRemindersBulk(status?: string, cost_center?: string): Promise<{ sent: number; total: number }> {
+export async function sendFollowUpRemindersBulk(status?: string, cost_center?: string, channel: ReminderChannel = 'sms'): Promise<{ sent: number; total: number }> {
   const { ensureCSRF } = await import('./apiClient')
   const csrf = await ensureCSRF()
   const res = await fetch('/api/method/healthcare.healthcare.doctype.patient_follow_up.patient_follow_up.send_follow_up_reminders_bulk', {
@@ -56,7 +58,7 @@ export async function sendFollowUpRemindersBulk(status?: string, cost_center?: s
       'Content-Type': 'application/json',
       ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
     },
-    body: JSON.stringify({ status: status || 'Open', cost_center: cost_center || undefined }),
+    body: JSON.stringify({ status: status || 'Open', cost_center: cost_center || undefined, channel }),
     credentials: 'include',
   })
   const data = await res.json()
