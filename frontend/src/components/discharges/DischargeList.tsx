@@ -7,6 +7,7 @@ import { DetailSlideOver } from '../ui/DetailSlideOver'
 import { DocDetailView } from '../ui/DocDetailView'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
+import { useCardFilters } from '../../contexts/CardFilterContext'
 
 const statusColors: Record<string, string> = {
   'Draft': 'warning',
@@ -36,6 +37,10 @@ export const DischargeList = ({ patient, admission, onPatientClick }: DischargeL
   const [typeFilter, setTypeFilter] = useState<string>('')
   const [admissionFilter, setAdmissionFilter] = useState<string>('')
   const [dischargeIdFilter, setDischargeIdFilter] = useState<string>('')
+  const cardFilters = useCardFilters()
+  const [showFiltersInternal, setShowFiltersInternal] = useState(false)
+  const showFilters = cardFilters !== undefined ? cardFilters : showFiltersInternal
+  const isInsideCard = cardFilters !== undefined
   const [fromDate, setFromDate] = useState<string>('')
   const [toDate, setToDate] = useState<string>('')
   const [page, setPage] = useState(1)
@@ -225,7 +230,25 @@ export const DischargeList = ({ patient, admission, onPatientClick }: DischargeL
         </div>
       )}
 
-      {/* Filters — always visible */}
+      {/* Header row — hidden when inside a DashboardCard (card provides its own header) */}
+      {!isInsideCard && (
+        <div className="flex items-center justify-between gap-2 px-4 pt-3 pb-2">
+          <h2 className="text-xl font-semibold text-slate-900">Discharges</h2>
+          <button
+            type="button"
+            onClick={() => setShowFiltersInternal(prev => !prev)}
+            className={`p-1.5 rounded-md border transition-colors ${showFilters ? 'bg-primary/10 border-primary text-primary' : 'border-slate-300 text-slate-500 hover:bg-slate-50'}`}
+            title={showFilters ? 'Hide filters' : 'Show filters'}
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
+            </svg>
+          </button>
+        </div>
+      )}
+
+      {/* Filters — hidden by default */}
+      {showFilters && (
       <div className="flex flex-wrap gap-3 mb-4 items-end px-4 pt-3 pb-2 border-b border-slate-200">
         {/* Discharge ID — searchable dropdown (link to Discharge) */}
         <div data-discharge-filter-dropdown className="relative">
@@ -361,6 +384,7 @@ export const DischargeList = ({ patient, admission, onPatientClick }: DischargeL
           </div>
         )}
       </div>
+      )}
 
       {/* Empty or Table Data */}
       {discharges.length === 0 ? (

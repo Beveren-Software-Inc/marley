@@ -803,6 +803,9 @@ export const LabPage = () => {
   const canCreateLabServiceRequests = roles.some((role) =>
     ['Doctor', 'System Manager', 'Healthcare Administrator', 'Administrator'].includes(role)
   )
+  const isLabTechnologist = roles.includes('Laboratory User') && !roles.some((role) =>
+    ['Doctor', 'System Manager', 'Healthcare Administrator', 'Administrator'].includes(role)
+  )
 
   const rawTab = (searchParams.get('tab') ||
     (canSeeServiceRequestsTab ? 'service-requests' : 'lab-tests')) as LabTab
@@ -1164,7 +1167,7 @@ export const LabPage = () => {
               </button>
             </div>
             <div className="overflow-x-auto overflow-visible" style={{ scrollbarWidth: 'thin' }}>
-              <LabTestList patient={selectedPatient} isOutsourced={true} key={labTestRefreshKey} onPatientClick={handlePatientSelect} />
+              <LabTestList patient={selectedPatient} isOutsourced={true} key={labTestRefreshKey} onPatientClick={handlePatientSelect} hideAmount={isLabTechnologist} />
             </div>
           </section>
         </div>
@@ -1213,7 +1216,7 @@ export const LabPage = () => {
               </button>
             </div>
             <div className="overflow-x-auto overflow-visible" style={{ scrollbarWidth: 'thin' }}>
-              <LabTestList patient={selectedPatient} key={labTestRefreshKey} onPatientClick={handlePatientSelect} />
+              <LabTestList patient={selectedPatient} key={labTestRefreshKey} onPatientClick={handlePatientSelect} hideAmount={isLabTechnologist} />
             </div>
           </section>
         </div>
@@ -1339,7 +1342,7 @@ export const LabPage = () => {
               />
             )}
             {resolvedTab === 'lab-tests' && (
-              <LabTestList patient={selectedPatient} key={labTestRefreshKey} onPatientClick={handlePatientSelect} />
+              <LabTestList patient={selectedPatient} key={labTestRefreshKey} onPatientClick={handlePatientSelect} hideAmount={isLabTechnologist} />
             )}
             {resolvedTab === 'sample-collection' && (
               <div className="p-3">

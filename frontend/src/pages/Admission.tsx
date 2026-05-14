@@ -168,27 +168,13 @@ export const AdmissionPage = () => {
         </header>
 
         <div className="flex-1 overflow-y-auto p-4">
-          <div className="mb-4 flex items-center justify-between">
-            <div>
-              <h2 className="text-xl font-semibold text-slate-900">Admission Management</h2>
-              <p className="text-sm text-slate-600 mt-1">
-                Manage patient admissions. Click "Admit" on scheduled admissions to proceed.
-              </p>
-            </div>
-            <button
-              onClick={() => setShowCreateAdmission(true)}
-              className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
-              title="Add Admission"
-            >
-              +
-            </button>
-          </div>
           <AdmissionList 
             onAdmissionSelect={handleAdmissionSelect}
             onPatientFromAdmission={handlePatientFromAdmission}
             searchQuery={searchQuery}
             patient={selectedPatient || undefined}
             refreshKey={listRefreshKey}
+            onCreateNew={() => setShowCreateAdmission(true)}
           />
         </div>
       </div>

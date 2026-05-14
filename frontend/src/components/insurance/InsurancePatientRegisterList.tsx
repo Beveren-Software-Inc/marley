@@ -23,10 +23,12 @@ function Field({ label, value }: { label: string; value?: string | number | null
 
 interface InsurancePatientRegisterListProps {
   refreshKey?: number
+  showFilters?: boolean
 }
 
 export const InsurancePatientRegisterList = ({
   refreshKey = 0,
+  showFilters = true,
 }: InsurancePatientRegisterListProps) => {
   const [rows, setRows] = useState<InsurancePatientRegisterRow[]>([])
   const [loading, setLoading] = useState(false)
@@ -86,14 +88,16 @@ export const InsurancePatientRegisterList = ({
 
   return (
     <div className="flex flex-col gap-3">
-      <div>
-        <input
-          type="text" value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Search by name…"
-          className="w-full max-w-xs rounded border border-slate-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-        />
-      </div>
+      {showFilters && (
+        <div>
+          <input
+            type="text" value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search by name…"
+            className="w-full max-w-xs rounded border border-slate-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+          />
+        </div>
+      )}
 
       {loading && <div className="text-center text-sm text-slate-400 py-6">Loading…</div>}
       {error && <div className="text-sm text-red-600 py-2">{error}</div>}

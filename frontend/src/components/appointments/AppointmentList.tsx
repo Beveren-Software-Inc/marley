@@ -630,6 +630,7 @@
 // }
 
 
+import { useCardFilters } from '../../contexts/CardFilterContext'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   fetchPractitionerAppointments,
@@ -804,6 +805,10 @@ export const AppointmentList = ({ refreshKey, showAll = false, patient, onPatien
   const menuRef = useRef<HTMLDivElement>(null)
 
   // Filters (server-side)
+  const cardFilters = useCardFilters()
+  const [showFiltersInternal, setShowFiltersInternal] = useState(false)
+  const showFilters = cardFilters !== undefined ? cardFilters : showFiltersInternal
+  const isInsideCard = cardFilters !== undefined
   const [filterStatus, setFilterStatus] = useState<string>('')
   const [filterPractitioner, setFilterPractitioner] = useState<string>('')
   const [filterDateFrom, setFilterDateFrom] = useState<string>('')
@@ -1076,7 +1081,25 @@ export const AppointmentList = ({ refreshKey, showAll = false, patient, onPatien
   return (
     <>
       <div className="flex flex-col min-h-[400px]">
+      {/* Header row */}
+      {!isInsideCard && (
+      <div className="flex items-center justify-between gap-2 mb-3">
+        <h2 className="text-xl font-semibold text-slate-900">Appointments</h2>
+        <button
+          type="button"
+          onClick={() => setShowFiltersInternal(prev => !prev)}
+          className={`p-1.5 rounded-md border transition-colors ${showFilters ? 'bg-primary/10 border-primary text-primary' : 'border-slate-300 text-slate-500 hover:bg-slate-50'}`}
+          title={showFilters ? 'Hide filters' : 'Show filters'}
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
+          </svg>
+        </button>
+      </div>
+      )}
+
       {/* ── Filters + Bulk Reminder bar ── */}
+      {showFilters && (
       <div className="mb-3 space-y-2">
         {/* Top row: filters */}
         <div className="flex flex-wrap items-end gap-2">
@@ -1214,6 +1237,7 @@ export const AppointmentList = ({ refreshKey, showAll = false, patient, onPatien
           {hasActiveFilters && ' (filtered)'}
         </p>
       </div>
+      )}
 
       {/* ── Table ── */}
       {appointments.length === 0 ? (

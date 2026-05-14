@@ -5,6 +5,7 @@ import {
 } from '../../services/sessionSchedule'
 import { StatusPill } from '../ui/StatusPill'
 import { toast } from '../../hooks/useToast'
+import { useCardFilters } from '../../contexts/CardFilterContext'
 
 interface SessionScheduleListProps {
   refreshKey?: string | number
@@ -26,6 +27,10 @@ export const SessionScheduleList = ({ refreshKey, patient, admissionNumber }: Se
   const [refreshTrigger, _setRefreshTrigger] = useState(0)
 
   // Filters
+  const cardFilters = useCardFilters()
+  const [showFiltersInternal, setShowFiltersInternal] = useState(false)
+  const showFilters = cardFilters !== undefined ? cardFilters : showFiltersInternal
+  const isInsideCard = cardFilters !== undefined
   const [filterStatus, setFilterStatus] = useState<string>('')
   const [filterDateFrom, setFilterDateFrom] = useState<string>('')
   const [filterDateTo, setFilterDateTo] = useState<string>('')
@@ -96,7 +101,25 @@ export const SessionScheduleList = ({ refreshKey, patient, admissionNumber }: Se
 
   return (
     <>
+      {/* Header row */}
+      {!isInsideCard && (
+      <div className="flex items-center justify-between gap-2 mb-3">
+        <h2 className="text-xl font-semibold text-slate-900">Session Schedules</h2>
+        <button
+          type="button"
+          onClick={() => setShowFiltersInternal(prev => !prev)}
+          className={`p-1.5 rounded-md border transition-colors ${showFilters ? 'bg-primary/10 border-primary text-primary' : 'border-slate-300 text-slate-500 hover:bg-slate-50'}`}
+          title={showFilters ? 'Hide filters' : 'Show filters'}
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
+          </svg>
+        </button>
+      </div>
+      )}
+
       {/* ── Filters bar ── */}
+      {showFilters && (
       <div className="mb-3 space-y-2">
         {/* Top row: filters */}
         <div className="flex flex-wrap items-end gap-2">
@@ -152,6 +175,7 @@ export const SessionScheduleList = ({ refreshKey, patient, admissionNumber }: Se
           {hasActiveFilters && ' (filtered)'}
         </p>
       </div>
+      )}
 
       {/* ── Table ── */}
       {filtered.length === 0 ? (

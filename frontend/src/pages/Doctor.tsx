@@ -82,42 +82,7 @@ import { getPatientActiveAdmission } from '../services/inpatientRecords'
 import { AdmissionPage } from './Admission'
 import { PatientVisitPage } from './PatientVisit'
 
-// Dashboard Card Component - makes all cards uniform height with scrollable content
-const DashboardCard = ({ 
-  title, 
-  onAdd, 
-  children, 
-  className = "",
-  addButtonTitle = `Add ${title}`,
-  noHeightLimit = false,
-  fixedHeight = false,
-}: { 
-  title: string
-  onAdd?: () => void
-  children: React.ReactNode
-  className?: string
-  addButtonTitle?: string
-  noHeightLimit?: boolean
-  fixedHeight?: boolean
-}) => (
-  <section className={`bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col ${fixedHeight && !noHeightLimit ? 'min-h-[400px] max-h-[400px]' : ''} ${className}`}>
-    <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
-      <span>{title}</span>
-      {onAdd && (
-        <button
-          onClick={onAdd}
-          className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
-          title={addButtonTitle}
-        >
-          +
-        </button>
-      )}
-    </div>
-    <div className={`overflow-x-auto ${fixedHeight && !noHeightLimit ? 'overflow-y-auto flex-1 min-h-0' : 'overflow-visible'}`} style={{ scrollbarWidth: 'thin' }}>
-      {children}
-    </div>
-  </section>
-)
+import { DashboardCard } from '../components/ui/DashboardCard'
 
 const CreateLabRequestModal = ({ 
   onClose, 

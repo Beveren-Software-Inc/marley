@@ -9,7 +9,8 @@ type DetailTab = 'overview' | 'inclusive' | 'exclusive' | 'groups'
 
 interface Props {
   refreshKey?: number
-  onCreateNew: () => void
+  onCreateNew?: () => void
+  showFilters?: boolean
 }
 
 function Pct({ value }: { value?: number | null }) {
@@ -34,7 +35,7 @@ function ItemTag({ name }: { name: string }) {
   )
 }
 
-export const HealthInsuranceList = ({ refreshKey = 0, onCreateNew }: Props) => {
+export const HealthInsuranceList = ({ refreshKey = 0, showFilters = true }: Props) => {
   const [rows, setRows] = useState<HealthInsuranceRow[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -116,78 +117,72 @@ export const HealthInsuranceList = ({ refreshKey = 0, onCreateNew }: Props) => {
   return (
     <div className="flex flex-col gap-3">
       {/* Filter bar */}
-      <div className="flex flex-wrap items-center gap-2">
-        <input
-          type="text"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Search by name…"
-          className="rounded border border-slate-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary w-48"
-        />
+      {showFilters && (
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search by name…"
+            className="rounded border border-slate-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary w-48"
+          />
 
-        {/* Insurance company filter */}
-        <div className="relative" ref={companyRef}>
-          <button
-            type="button"
-            onClick={() => setCompanyOpen(v => !v)}
-            className="flex items-center gap-1.5 rounded border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary"
-          >
-            <span>{selectedCompany ? selectedCompany.label : 'All Companies'}</span>
-            <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
-          </button>
-          {companyOpen && (
-            <div className="absolute z-20 mt-1 w-56 bg-white border border-slate-200 rounded-md shadow-lg">
-              <div className="p-2 border-b border-slate-100">
-                <input
-                  autoFocus
-                  type="text"
-                  value={companyQuery}
-                  onChange={e => setCompanyQuery(e.target.value)}
-                  placeholder="Search company…"
-                  className="w-full rounded border border-slate-300 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
-                />
-              </div>
-              <div className="max-h-48 overflow-y-auto">
-                <button
-                  type="button"
-                  onClick={() => { setSelectedCompany(null); setCompanyOpen(false); setCompanyQuery('') }}
-                  className="w-full text-left px-3 py-2 text-sm text-slate-500 hover:bg-slate-50"
-                >
-                  All Companies
-                </button>
-                {companyOptions.map(opt => (
+          {/* Insurance company filter */}
+          <div className="relative" ref={companyRef}>
+            <button
+              type="button"
+              onClick={() => setCompanyOpen(v => !v)}
+              className="flex items-center gap-1.5 rounded border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary"
+            >
+              <span>{selectedCompany ? selectedCompany.label : 'All Companies'}</span>
+              <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+            </button>
+            {companyOpen && (
+              <div className="absolute z-20 mt-1 w-56 bg-white border border-slate-200 rounded-md shadow-lg">
+                <div className="p-2 border-b border-slate-100">
+                  <input
+                    autoFocus
+                    type="text"
+                    value={companyQuery}
+                    onChange={e => setCompanyQuery(e.target.value)}
+                    placeholder="Search company…"
+                    className="w-full rounded border border-slate-300 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                </div>
+                <div className="max-h-48 overflow-y-auto">
                   <button
-                    key={opt.name}
                     type="button"
-                    onClick={() => { setSelectedCompany(opt); setCompanyOpen(false); setCompanyQuery('') }}
-                    className="w-full text-left px-3 py-2 text-sm text-slate-800 hover:bg-slate-50"
+                    onClick={() => { setSelectedCompany(null); setCompanyOpen(false); setCompanyQuery('') }}
+                    className="w-full text-left px-3 py-2 text-sm text-slate-500 hover:bg-slate-50"
                   >
-                    {opt.label}
+                    All Companies
                   </button>
-                ))}
+                  {companyOptions.map(opt => (
+                    <button
+                      key={opt.name}
+                      type="button"
+                      onClick={() => { setSelectedCompany(opt); setCompanyOpen(false); setCompanyQuery('') }}
+                      className="w-full text-left px-3 py-2 text-sm text-slate-800 hover:bg-slate-50"
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
+          </div>
+
+          {selectedCompany && (
+            <button
+              type="button"
+              onClick={() => setSelectedCompany(null)}
+              className="flex items-center gap-1 text-xs text-slate-500 hover:text-red-500"
+            >
+              <X className="w-3.5 h-3.5" /> Clear filter
+            </button>
           )}
         </div>
-
-        {selectedCompany && (
-          <button
-            type="button"
-            onClick={() => setSelectedCompany(null)}
-            className="flex items-center gap-1 text-xs text-slate-500 hover:text-red-500"
-          >
-            <X className="w-3.5 h-3.5" /> Clear filter
-          </button>
-        )}
-
-        <button
-          type="button"
-          onClick={onCreateNew}
-          className="ml-auto flex items-center gap-1.5 rounded bg-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-primary/90 transition"
-        >
-          <span className="text-base leading-none">+</span> New Insurance
-        </button>
-      </div>
+      )}
 
       {loading && <div className="py-6 text-center text-sm text-slate-400">Loading…</div>}
       {error && <div className="py-2 text-sm text-red-600">{error}</div>}

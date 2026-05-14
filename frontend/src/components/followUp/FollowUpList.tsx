@@ -13,6 +13,7 @@ import { DetailSlideOver } from '../ui/DetailSlideOver'
 import { DocDetailView } from '../ui/DocDetailView'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
+import { useCardFilters } from '../../contexts/CardFilterContext'
 
 const CHANNEL_OPTIONS: { value: ReminderChannel; label: string; icon: string }[] = [
   { value: 'whatsapp', label: 'WhatsApp', icon: '💬' },
@@ -54,6 +55,10 @@ export const FollowUpList = ({ refreshKey, patient, onPatientClick }: FollowUpLi
   const [openActionRow, setOpenActionRow] = useState<string | null>(null)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [detailName, setDetailName] = useState<string | null>(null)
+  const cardFilters = useCardFilters()
+  const [showFiltersInternal, setShowFiltersInternal] = useState(false)
+  const showFilters = cardFilters !== undefined ? cardFilters : showFiltersInternal
+  const isInsideCard = cardFilters !== undefined
   const menuRef = useRef<HTMLDivElement>(null)
   const bulkMenuRef = useRef<HTMLDivElement>(null)
 
@@ -159,7 +164,27 @@ export const FollowUpList = ({ refreshKey, patient, onPatientClick }: FollowUpLi
 
   return (
     <div className="flex flex-col gap-4 min-h-[400px]">
+      {/* Header row */}
+      {!isInsideCard && (
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-xl font-semibold text-slate-900">Follow Ups</h2>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowFiltersInternal(prev => !prev)}
+            className={`p-1.5 rounded-md border transition-colors ${showFilters ? 'bg-primary/10 border-primary text-primary' : 'border-slate-300 text-slate-500 hover:bg-slate-50'}`}
+            title={showFilters ? 'Hide filters' : 'Show filters'}
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
+            </svg>
+          </button>
+        </div>
+      </div>
+      )}
+
       {/* Filters + Send all reminders */}
+      {showFilters && (
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-2">
           <label className="text-sm font-medium text-slate-700">Status</label>
@@ -217,6 +242,7 @@ export const FollowUpList = ({ refreshKey, patient, onPatientClick }: FollowUpLi
           )}
         </div>
       </div>
+      )}
 
       {/* List */}
       <div className="border border-slate-200 rounded-lg bg-white">

@@ -1,5 +1,6 @@
 
 import { useState, useEffect, useRef } from 'react'
+import { useCardFilters } from '../../contexts/CardFilterContext'
 import { useInpatientRecords } from '../../hooks/useInpatientRecords'
 import { fetchInpatientRecords } from '../../services/inpatientRecords'
 import { fetchHealthcarePractitioners, type LinkFieldOption } from '../../services/common'
@@ -47,9 +48,10 @@ interface AdmissionListProps {
   searchQuery?: string
   patient?: string
   refreshKey?: string | number
+  onCreateNew?: () => void
 }
 
-export const AdmissionList = ({ onAdmissionSelect, onPatientFromAdmission, searchQuery: externalSearchQuery = '', patient, refreshKey }: AdmissionListProps = {}) => {
+export const AdmissionList = ({ onAdmissionSelect, onPatientFromAdmission, searchQuery: externalSearchQuery = '', patient, refreshKey, onCreateNew }: AdmissionListProps = {}) => {
   const { mode, activeAdmission, selectedPatient: contextPatient } = useCareContext()
 
   // When IP mode has a specific admission selected globally, lock the list to that admission.
@@ -58,6 +60,10 @@ export const AdmissionList = ({ onAdmissionSelect, onPatientFromAdmission, searc
   const effectivePatient = patient ?? (contextPatient || undefined)
 
   const [selectedStatus, setSelectedStatus] = useState<string>('')
+  const cardFilters = useCardFilters()
+  const [showFiltersInternal, setShowFiltersInternal] = useState(false)
+  const showFilters = cardFilters !== undefined ? cardFilters : showFiltersInternal
+  const isInsideCard = cardFilters !== undefined
   const [selectedRecord, setSelectedRecord] = useState<string | null>(null)
   const [showPackages, setShowPackages] = useState(false)
   const [showAdmissionForm, setShowAdmissionForm] = useState(false)
@@ -340,10 +346,35 @@ export const AdmissionList = ({ onAdmissionSelect, onPatientFromAdmission, searc
   return (
     <>
       <div className="space-y-4">
-        <div className="flex items-center justify-end gap-2">
+        {!isInsideCard && (
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-xl font-semibold text-slate-900">Admission Management</h2>
+          <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowFiltersInternal(prev => !prev)}
+            className={`p-1.5 rounded-md border transition-colors ${showFilters ? 'bg-primary/10 border-primary text-primary' : 'border-slate-300 text-slate-500 hover:bg-slate-50'}`}
+            title={showFilters ? 'Hide filters' : 'Show filters'}
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
+            </svg>
+          </button>
           <button type="button" onClick={printFilteredList} className="px-3 py-1.5 text-xs border border-slate-300 rounded-md hover:bg-slate-50">PDF</button>
           <button type="button" onClick={exportFilteredCsv} className="px-3 py-1.5 text-xs border border-slate-300 rounded-md hover:bg-slate-50">Excel</button>
+          {onCreateNew && (
+            <button
+              type="button"
+              onClick={onCreateNew}
+              className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
+              title="Add Admission"
+            >
+              +
+            </button>
+          )}
+          </div>
         </div>
+        )}
         {/* Global-context active admission banner */}
         {effectiveNameFilter && (
           <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-blue-50 border border-blue-200 text-blue-800 text-xs mb-2">
@@ -355,7 +386,7 @@ export const AdmissionList = ({ onAdmissionSelect, onPatientFromAdmission, searc
         )}
 
         {/* Filters — same layout as Patient Visit List */}
-        {!effectiveNameFilter && (
+        {!effectiveNameFilter && showFilters && (
         <div className="flex flex-wrap gap-3 mb-4 items-end">
           {/* Admission No — searchable dropdown */}
           <div data-filter-dropdown className="relative">

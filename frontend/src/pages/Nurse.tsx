@@ -68,6 +68,7 @@ import { CreateSessionScheduleModal } from '../components/sessionSchedule/Create
 import { PatientList } from '../components/patients/PatientList'
 import { RxPage } from '../components/prescriptions/SinglePrescription'
 import { NursingInventoryDashboard } from '../components/nursingInventory/NursingInventoryDashboard'
+import { DashboardCard } from '../components/ui/DashboardCard'
 
 /** Icon-only toolbar buttons for Given Medicines (native `title` = hover tooltip) */
 const gmIconBtn =
@@ -510,10 +511,7 @@ export const NursePage = () => {
           </div>
         </header>
         <div className="p-4">
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4 flex items-center justify-between">
-              <span>Lab Reports Status</span>
-            </div>
+          <DashboardCard title="Lab Reports Status">
             <LabTestList
               patient={selectedPatient}
               defaultStatus="Requested"
@@ -521,7 +519,7 @@ export const NursePage = () => {
               key={labTestRefreshKey}
               onPatientClick={handlePatientSelect}
             />
-          </section>
+          </DashboardCard>
         </div>
       </div>
     )
@@ -625,10 +623,7 @@ export const NursePage = () => {
           </div>
         </header>
         <div className="p-4">
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4 flex items-center justify-between">
-              <span>Laboratory</span>
-            </div>
+          <DashboardCard title="Laboratory">
             <LabTestList
               patient={selectedPatient}
               defaultStatus="Requested"
@@ -636,7 +631,7 @@ export const NursePage = () => {
               key={labTestRefreshKey}
               onPatientClick={handlePatientSelect}
             />
-          </section>
+          </DashboardCard>
         </div>
       </div>
     )
@@ -1371,19 +1366,9 @@ export const NursePage = () => {
           </div>
         </header>
         <div className="p-4">
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4 flex items-center justify-between">
-              <span>{screen === 'n-ref' ? 'Referral Services' : 'Other Services'}</span>
-              <button
-                onClick={() => setShowServiceRequestModal(true)}
-                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
-                title="Add Service Request"
-              >
-                +
-              </button>
-            </div>
+          <DashboardCard title={screen === 'n-ref' ? 'Referral Services' : 'Other Services'} onAdd={() => setShowServiceRequestModal(true)} addButtonTitle="Add Service Request">
             <ServiceRequestList patient={selectedPatient} refreshKey={serviceRequestRefreshKey} onPatientClick={handlePatientSelect} />
-          </section>
+          </DashboardCard>
         </div>
         {showServiceRequestModal && (
           <CreateServiceRequestModal
@@ -1419,29 +1404,18 @@ export const NursePage = () => {
         </header>
         <div className="p-4 space-y-4">
           {/* Appointments Section */}
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4">Appointments</div>
+          <DashboardCard title="Appointments">
             <AppointmentList patient={selectedPatient} onPatientClick={handlePatientSelect} />
-          </section>
+          </DashboardCard>
 
           {/* Session Schedules Section */}
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4 flex items-center justify-between">
-              <span>Session Schedules</span>
-              <button
-                onClick={() => setShowSessionScheduleModal(true)}
-                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
-                title="Add Session Schedule"
-              >
-                +
-              </button>
-            </div>
+          <DashboardCard title="Session Schedules" onAdd={() => setShowSessionScheduleModal(true)} addButtonTitle="Add Session Schedule">
             <SessionScheduleList 
               patient={selectedPatient}
               admissionNumber={activeAdmission}
               refreshKey={sessionScheduleRefreshKey}
             />
-          </section>
+          </DashboardCard>
         </div>
 
         {showSessionScheduleModal && (
@@ -1648,19 +1622,9 @@ export const NursePage = () => {
           </div>
         </header>
         <div className="p-4">
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4 flex items-center justify-between">
-              <span>Discharge Form / Procedure</span>
-              <button
-                onClick={handleCreateDischarge}
-                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
-                title="Add Discharge"
-              >
-                +
-              </button>
-            </div>
+          <DashboardCard title="Discharge Form / Procedure" onAdd={handleCreateDischarge} addButtonTitle="Add Discharge">
             <DischargeList patient={selectedPatient} key={dischargeRefreshKey} onPatientClick={handlePatientSelect} />
-          </section>
+          </DashboardCard>
         </div>
         {showDischargeModal && selectedAdmission && (
           <DischargeModal
@@ -1961,34 +1925,29 @@ export const NursePage = () => {
       {((mode === 'OP') || (costCenterCareScope !== 'op_only' && mode === 'IP')) &&
       !selectedPatient ? (
         <div className="px-4 pt-4 pb-0">
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[420px]">
-            <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
-              <span>{mode === 'OP' ? 'Patient Visits (OP)' : 'Inpatient Admissions (IP)'}</span>
-            </div>
-            <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-              {mode === 'OP' ? (
-                <PatientVisitList
-                  patient={selectedPatient || undefined}
-                  onPatientFromVisit={(p) => {
-                    setSelectedPatient(p)
-                    const sp = new URLSearchParams(searchParams)
-                    sp.set('patient', p)
-                    setSearchParams(sp, { replace: true })
-                  }}
-                />
-              ) : (
-                <AdmissionList
-                  patient={selectedPatient || undefined}
-                  onPatientFromAdmission={(p) => {
-                    setSelectedPatient(p)
-                    const sp = new URLSearchParams(searchParams)
-                    sp.set('patient', p)
-                    setSearchParams(sp, { replace: true })
-                  }}
-                />
-              )}
-            </div>
-          </section>
+          <DashboardCard title={mode === 'OP' ? 'Patient Visits (OP)' : 'Inpatient Admissions (IP)'} fixedHeight>
+            {mode === 'OP' ? (
+              <PatientVisitList
+                patient={selectedPatient || undefined}
+                onPatientFromVisit={(p) => {
+                  setSelectedPatient(p)
+                  const sp = new URLSearchParams(searchParams)
+                  sp.set('patient', p)
+                  setSearchParams(sp, { replace: true })
+                }}
+              />
+            ) : (
+              <AdmissionList
+                patient={selectedPatient || undefined}
+                onPatientFromAdmission={(p) => {
+                  setSelectedPatient(p)
+                  const sp = new URLSearchParams(searchParams)
+                  sp.set('patient', p)
+                  setSearchParams(sp, { replace: true })
+                }}
+              />
+            )}
+          </DashboardCard>
         </div>
       ) : null}
 
@@ -2047,43 +2006,19 @@ export const NursePage = () => {
           {/* Row 2: Lab Test Reports + Service Requests */}
           <div className="grid gap-4 md:grid-cols-2 px-4 pb-4">
             {/* Lab Test Reports */}
-            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-              <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
-                <span>Lab Test</span>
-                {/* <button
-                  onClick={() => setShowLabTestModal(true)}
-                  className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
-                  title="Add Lab Test Report"
-                >
-                  +
-                </button> */}
-              </div>
-              <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                <LabTestList patient={selectedPatient} byNurse={true} key={labTestRefreshKey} onPatientClick={handlePatientSelect} />
-              </div>
-            </section>
+            <DashboardCard title="Lab Test" fixedHeight>
+              <LabTestList patient={selectedPatient} byNurse={true} key={labTestRefreshKey} onPatientClick={handlePatientSelect} />
+            </DashboardCard>
 
             {/* Service Requests */}
-            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-              <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
-                <span>Service Requests</span>
-                <button
-                  onClick={() => setShowServiceRequestModal(true)}
-                  className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
-                  title="Add Service Request"
-                >
-                  +
-                </button>
-              </div>
-              <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                <ServiceRequestList
-                  patient={selectedPatient}
-                  refreshKey={serviceRequestRefreshKey}
-                  isNurseContext={true}
-                  onPatientClick={handlePatientSelect}
-                />
-              </div>
-            </section>
+            <DashboardCard title="Service Requests" fixedHeight onAdd={() => setShowServiceRequestModal(true)} addButtonTitle="Add Service Request">
+              <ServiceRequestList
+                patient={selectedPatient}
+                refreshKey={serviceRequestRefreshKey}
+                isNurseContext={true}
+                onPatientClick={handlePatientSelect}
+              />
+            </DashboardCard>
           </div>
 
           {/* Row 3: Prescription + Doctors Notes — OP-only sites omit inpatient-style prescription grid */}

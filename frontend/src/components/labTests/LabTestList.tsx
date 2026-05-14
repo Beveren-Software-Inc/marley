@@ -1703,6 +1703,7 @@ import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/Pagi
 import { toast } from '../../hooks/useToast'
 import { canEditLabTestResults } from '../../config/permissions'
 import { Search, X, ChevronDown, ChevronRight } from 'lucide-react'
+import { useCardFilters } from '../../contexts/CardFilterContext'
 
 // ─── Constants ─────────────────────────────────────────────────────────────
 
@@ -1952,8 +1953,8 @@ const getGroupCompletionStatus = (children: LabTest[]) => {
 // ─── Main Component ──────────────────────────────────────────────────────────
 
 export const LabTestList = ({
-  patient, isOutsourced, defaultStatus, byNurse, onPatientClick,
-}: { patient?: string; isOutsourced?: boolean; defaultStatus?: string; byNurse?: boolean; onPatientClick?: (patient: string) => void }) => {
+  patient, isOutsourced, defaultStatus, byNurse, onPatientClick, hideAmount,
+}: { patient?: string; isOutsourced?: boolean; defaultStatus?: string; byNurse?: boolean; onPatientClick?: (patient: string) => void; hideAmount?: boolean }) => {
   const { mode, selectedPatient: contextPatient, userRole } = useCareContext()
   const effectivePatient = patient ?? (contextPatient || undefined)
   const canEditResults = canEditLabTestResults(userRole)
@@ -1962,6 +1963,10 @@ export const LabTestList = ({
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState<PageSize>(DEFAULT_PAGE_SIZE)
 
+  const cardFilters = useCardFilters()
+  const [showFiltersInternal, setShowFiltersInternal] = useState(false)
+  const showFilters = cardFilters !== undefined ? cardFilters : showFiltersInternal
+  const isInsideCard = cardFilters !== undefined
   const [filters, setFilters] = useState<Filters>(() => ({
     ...makeEmptyFilters(),
     status: defaultStatus ?? '',
@@ -2702,13 +2707,32 @@ export const LabTestList = ({
   // ── Render ───────────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col min-w-full min-h-[400px]">
-      <FilterBar
-        filters={filters}
-        onChange={setFilters}
-        onClear={() => setFilters(makeEmptyFilters())}
-        activeCount={activeCount}
-        byNurse={byNurse}
-      />
+      {/* Header row */}
+      {!isInsideCard && (
+      <div className="flex items-center justify-between gap-2 px-4 py-3">
+        <h2 className="text-xl font-semibold text-slate-900">Lab Tests</h2>
+        <button
+          type="button"
+          onClick={() => setShowFiltersInternal(prev => !prev)}
+          className={`p-1.5 rounded-md border transition-colors ${showFilters ? 'bg-primary/10 border-primary text-primary' : 'border-slate-300 text-slate-500 hover:bg-slate-50'}`}
+          title={showFilters ? 'Hide filters' : 'Show filters'}
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
+          </svg>
+        </button>
+      </div>
+      )}
+
+      {showFilters && (
+        <FilterBar
+          filters={filters}
+          onChange={setFilters}
+          onClear={() => setFilters(makeEmptyFilters())}
+          activeCount={activeCount}
+          byNurse={byNurse}
+        />
+      )}
 
       {loading ? (
         <div className="flex items-center justify-center p-8"><div className="text-slate-600">Loading lab tests...</div></div>
@@ -2740,7 +2764,7 @@ export const LabTestList = ({
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Status</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Outsourced</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Date</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase">Amount</th>
+                {!hideAmount && <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase">Amount</th>}
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Actions</th>
                 {rangeHeaders.showFemale && <><th className="px-4 py-3 text-center text-xs font-semibold text-slate-600 uppercase">F-Min</th><th className="px-4 py-3 text-center text-xs font-semibold text-slate-600 uppercase">F-Max</th></>}
                 {rangeHeaders.showMale && <><th className="px-4 py-3 text-center text-xs font-semibold text-slate-600 uppercase">M-Min</th><th className="px-4 py-3 text-center text-xs font-semibold text-slate-600 uppercase">M-Max</th></>}
@@ -2811,7 +2835,7 @@ export const LabTestList = ({
                        </td>
                       <td className="px-4 py-3"><span className="text-slate-400 text-xs">—</span></td>
                       <td className="px-4 py-3 text-sm text-slate-700">{latestDate ? new Date(latestDate).toLocaleDateString() : '-'}</td>
-                      <td className="px-4 py-3 text-sm font-semibold text-indigo-700 text-right">{combinedAmount > 0 ? combinedAmount.toFixed(3) : '-'}</td>
+                      {!hideAmount && <td className="px-4 py-3 text-sm font-semibold text-indigo-700 text-right">{combinedAmount > 0 ? combinedAmount.toFixed(3) : '-'}</td>}
                       <td className="px-4 py-3 text-sm text-slate-700">
                         <div className="flex items-center gap-2">
                           <button type="button" data-no-row-click
@@ -2878,9 +2902,9 @@ export const LabTestList = ({
                         <td className="px-4 py-2.5 text-sm text-slate-700">
                           {child.result_date ? new Date(child.result_date).toLocaleDateString() : child.submitted_date ? new Date(child.submitted_date).toLocaleDateString() : '-'}
                         </td>
-                        <td className="px-4 py-2.5 text-sm text-slate-700 text-right">
+                        {!hideAmount && <td className="px-4 py-2.5 text-sm text-slate-700 text-right">
                           {typeof child.grand_total === 'number' ? child.grand_total.toFixed(3) : typeof child.amount === 'number' ? child.amount.toFixed(3) : '-'}
-                        </td>
+                        </td>}
                         {renderActionsCell(child)}
                         {renderRangeCells(child)}
                         {renderResultCell(child)}
@@ -2929,9 +2953,9 @@ export const LabTestList = ({
                   <td className="px-4 py-3 text-sm text-slate-700">
                     {labTest.result_date ? new Date(labTest.result_date).toLocaleDateString() : labTest.submitted_date ? new Date(labTest.submitted_date).toLocaleDateString() : '-'}
                   </td>
-                  <td className="px-4 py-3 text-sm text-slate-700 text-right">
+                  {!hideAmount && <td className="px-4 py-3 text-sm text-slate-700 text-right">
                     {typeof labTest.grand_total === 'number' ? labTest.grand_total.toFixed(3) : typeof labTest.amount === 'number' ? labTest.amount.toFixed(3) : '-'}
-                  </td>
+                  </td>}
                   {renderActionsCell(labTest)}
                   {renderRangeCells(labTest)}
                   {renderResultCell(labTest)}
