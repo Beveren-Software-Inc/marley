@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useCareContext } from '../providers/CareContextProvider'
 import { PatientVisitList } from '../components/patientVisits/PatientVisitList'
@@ -21,6 +21,16 @@ export const PatientVisitPage = ({ initialPatient }: PatientVisitPageProps = {})
   const [showCreateVisit, setShowCreateVisit] = useState(false)
   const [visitRefreshKey, setVisitRefreshKey] = useState(0)
   const [selectedPatient, setSelectedPatient] = useState<string>(() => patientFromUrl || globalPatient || '')
+
+  // Keep local state in sync when the global patient is cleared (e.g. via the navbar X button)
+  useEffect(() => {
+    if (!globalPatient && selectedPatient) {
+      setSelectedPatient('')
+      const newSearchParams = new URLSearchParams(searchParams)
+      newSearchParams.delete('patient')
+      setSearchParams(newSearchParams, { replace: true })
+    }
+  }, [globalPatient])
 
   const handlePatientSelect = (patient: string | undefined) => {
     const value = patient || ''

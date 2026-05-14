@@ -101,6 +101,13 @@ export const ReceptionistPage = () => {
     setGlobalPatient(patient)
   }
 
+  // Keep local state in sync when the global patient is cleared (e.g. via the navbar X button)
+  useEffect(() => {
+    if (!globalPatient && selectedPatient) {
+      setSelectedPatient('')
+    }
+  }, [globalPatient])
+
   useLayoutEffect(() => {
     if (!screen || !isReceptionScreenBlocked(screen, costCenterCareScope)) return
     const np = new URLSearchParams(searchParams)

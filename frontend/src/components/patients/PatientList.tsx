@@ -3,6 +3,7 @@ import { usePatients } from '../../hooks/usePatients'
 import { EditPatientModal } from './EditPatientModal'
 import { Pencil } from 'lucide-react'
 import { useCareContext } from '../../providers/CareContextProvider'
+import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
 
 interface PatientListProps {
   refreshKey?: string | number
@@ -58,6 +59,9 @@ export const PatientList = ({ refreshKey }: PatientListProps = {}) => {
   const [debouncedQuery, setDebouncedQuery] = useState<string>('')
   const previousPatientRef = useRef<string>('')
   const isInitialLoadRef = useRef<boolean>(true)
+
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState<PageSize>(DEFAULT_PAGE_SIZE)
   
   // Track loading with a delay to prevent flashing
   const [showRefreshing, setShowRefreshing] = useState<boolean>(false)
@@ -67,6 +71,7 @@ export const PatientList = ({ refreshKey }: PatientListProps = {}) => {
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedQuery(searchQuery)
+      setPage(1)
     }, 500)
     
     return () => clearTimeout(timer)
@@ -80,8 +85,14 @@ export const PatientList = ({ refreshKey }: PatientListProps = {}) => {
       setSearchQuery(newQuery)
     }
   }, [globalSelectedPatient])
-  
-  const { patients, loading, error, refetch } = usePatients(debouncedQuery || undefined)
+
+  const offset = (page - 1) * pageSize
+  const { patients, totalCount, loading, error, refetch } = usePatients(debouncedQuery || undefined, pageSize, offset)
+
+  const handlePageSizeChange = useCallback((size: PageSize) => {
+    setPageSize(size)
+    setPage(1)
+  }, [])
 
   // Handle loading state with delay to prevent blinking
   useEffect(() => {
@@ -340,6 +351,16 @@ export const PatientList = ({ refreshKey }: PatientListProps = {}) => {
           </table>
         </div>
       </div>
+
+      {/* Pagination */}
+      <PaginationControls
+        page={page}
+        pageSize={pageSize}
+        totalCount={totalCount}
+        loading={loading}
+        onPageChange={setPage}
+        onPageSizeChange={handlePageSizeChange}
+      />
 
       {/* Edit Modal */}
       {editPatientName && (

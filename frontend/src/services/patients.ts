@@ -58,11 +58,25 @@ export async function searchPatients(query: string, limit?: number): Promise<Pat
   }
 }
 
+export interface PaginatedPatients {
+  data: PatientListItem[]
+  total_count: number
+}
+
 export async function fetchPatients(
-  limit: number = 50,
+  limit: number = 20,
   offset: number = 0,
   search?: string
 ): Promise<PatientListItem[]> {
+  const result = await fetchPatientsPaginated(limit, offset, search)
+  return result.data
+}
+
+export async function fetchPatientsPaginated(
+  limit: number = 20,
+  offset: number = 0,
+  search?: string
+): Promise<PaginatedPatients> {
   const params = new URLSearchParams()
   params.append('limit', limit.toString())
   params.append('offset', offset.toString())
@@ -72,12 +86,15 @@ export async function fetchPatients(
     `/api/method/healthcare.api.patient.get_patients?${params.toString()}`
   )
   const resData = await response.json()
+  const msg = resData?.message
 
-  if (resData?.message && Array.isArray(resData.message)) {
-    return resData.message as PatientListItem[]
-  } else {
-    return []
+  if (msg && typeof msg === 'object' && 'data' in msg) {
+    return { data: msg.data as PatientListItem[], total_count: msg.total_count ?? 0 }
   }
+  if (msg && Array.isArray(msg)) {
+    return { data: msg as PatientListItem[], total_count: msg.length }
+  }
+  return { data: [], total_count: 0 }
 }
 
 

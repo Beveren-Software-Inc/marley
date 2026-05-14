@@ -58,6 +58,16 @@ export const AdmissionPage = () => {
     }
   }, [patientFromUrl])
 
+  // Keep local state in sync when the global patient is cleared (e.g. via the navbar X button)
+  useEffect(() => {
+    if (!globalPatient && selectedPatient) {
+      setSelectedPatient('')
+      const newSearchParams = new URLSearchParams(searchParams)
+      newSearchParams.delete('patient')
+      setSearchParams(newSearchParams, { replace: true })
+    }
+  }, [globalPatient])
+
   // When used from Admission Management screens, we rely on the list's slide-over
   // instead of navigating to a separate details page, so this is a no-op.
   const handleAdmissionSelect = (_admissionName: string) => {

@@ -56,59 +56,68 @@ def search_patients(search=None, limit=20):
 
 
 @frappe.whitelist()
-def get_patients(limit=50, offset=0, search=None):
-	"""Get list of patients"""
-	# Convert limit and offset to integers (they come as strings from URL params)
-	limit = int(limit) if limit else 50
+def get_patients(limit=20, offset=0, search=None):
+	"""Get list of patients with server-side pagination."""
+	limit = int(limit) if limit else 20
 	offset = int(offset) if offset else 0
-	
-	filters = {}
-	
+
 	if search:
-		# Search by name, file number, or patient ID
-		patients = frappe.db.sql("""
-			SELECT 
-				p.name,
-				p.patient_name,
-				p.file_no as file_number,
-				p.mobile,
-				p.email,
-				p.sex,
-				p.id_number,
-				p.category
-			FROM `tabPatient` p
-			WHERE 
-				p.patient_name LIKE %(search)s
+		search_param = f'%{search}%'
+		where_clause = """
+			WHERE p.patient_name LIKE %(search)s
 				OR p.name LIKE %(search)s
 				OR p.file_no LIKE %(search)s
 				OR p.id_number LIKE %(search)s
+				OR p.mobile LIKE %(search)s
+		"""
+
+		total_count = frappe.db.sql(
+			f"SELECT COUNT(*) as cnt FROM `tabPatient` p {where_clause}",
+			{'search': search_param},
+			as_dict=True,
+		)[0].cnt
+
+		patients = frappe.db.sql(
+			f"""SELECT p.name, p.patient_name, p.file_no as file_number,
+				p.mobile, p.email, p.sex, p.id_number, p.category
+			FROM `tabPatient` p {where_clause}
 			ORDER BY p.patient_name
-			LIMIT %(limit)s OFFSET %(offset)s
-		""", {
-			'search': f'%{search}%',
-			'limit': limit,
-			'offset': offset
-		}, as_dict=True)
-		
-		return [{'name': p.name, 'patient_name': p.patient_name or p.name, 'file_number': p.file_number, 'mobile': p.mobile, 'email': p.email, 'sex': p.sex, 'id_number': p.id_number, 'category': p.category} for p in patients]
+			LIMIT %(limit)s OFFSET %(offset)s""",
+			{'search': search_param, 'limit': limit, 'offset': offset},
+			as_dict=True,
+		)
+
+		data = [
+			{'name': p.name, 'patient_name': p.patient_name or p.name,
+			 'file_number': p.file_number, 'mobile': p.mobile, 'email': p.email,
+			 'sex': p.sex, 'id_number': p.id_number, 'category': p.category}
+			for p in patients
+		]
+		return {"data": data, "total_count": total_count}
 	else:
+		total_count = frappe.db.count('Patient')
+
 		patients = frappe.get_all(
 			'Patient',
-			filters=filters,
 			fields=['name', 'patient_name', 'file_no', 'mobile', 'email', 'sex', 'id_number', 'category'],
 			limit=limit,
 			limit_start=offset,
-			order_by='patient_name'
+			order_by='patient_name',
 		)
 		patient_names = [p.name for p in patients]
 
 		appointment_map = get_latest_appointment_status(patient_names)
 		inpatient_map = get_latest_inpatient_status(patient_names)
-		
-		result = [{'name': p.name, 'patient_name': p.patient_name or p.name, 'file_number': p.file_no, 'mobile': p.mobile, 'email': p.email, 'sex': p.sex, 'id_number': p.id_number, 'category': p.category,'appointment_status': appointment_map.get(p.name),
-		'inpatient_status': inpatient_map.get(p.name),} for p in patients]
-		# print("Patient list with statuses:", result)
-		return result
+
+		data = [
+			{'name': p.name, 'patient_name': p.patient_name or p.name,
+			 'file_number': p.file_no, 'mobile': p.mobile, 'email': p.email,
+			 'sex': p.sex, 'id_number': p.id_number, 'category': p.category,
+			 'appointment_status': appointment_map.get(p.name),
+			 'inpatient_status': inpatient_map.get(p.name)}
+			for p in patients
+		]
+		return {"data": data, "total_count": total_count}
 
 def get_latest_appointment_status(patient_names: list[str]) -> dict:
 	"""Return latest appointment status per patient"""
