@@ -4,7 +4,7 @@
 
 import frappe
 from frappe import _
-from frappe.utils import nowdate
+from frappe.utils import cint, nowdate
 
 
 def _get_or_create_clinical_note_type(name: str | None) -> str | None:
@@ -77,11 +77,24 @@ def get_clinical_notes(**kwargs):
 	note_type = kwargs.get('note_type')
 	reference_doctype = kwargs.get('ref_doctype')
 	reference_document = kwargs.get('ref_document')
-	
+	practitioner = kwargs.get('practitioner')
+	mine_only = cint(kwargs.get('mine_only'))
+
 	filters = {}
-	
+
 	if patient:
 		filters['patient'] = patient
+
+	# Without a patient context, optional "only my notes" (linked Healthcare Practitioner).
+	if mine_only and not patient:
+		practitioner = frappe.db.get_value(
+			'Healthcare Practitioner', {'user_id': frappe.session.user}, 'name'
+		)
+		if not practitioner:
+			return []
+
+	if practitioner:
+		filters['practitioner'] = practitioner
 	
 	if medical_role:
 		roles_to_filter = resolve_medical_role_filter(medical_role)
@@ -102,8 +115,6 @@ def get_clinical_notes(**kwargs):
 	
 	if reference_document:
 		filters['reference_document'] = reference_document
-	
-	print("Final filters:", filters)
 	
 	clinical_notes = frappe.get_all(
 		'Clinical Note',
@@ -149,6 +160,88 @@ def get_clinical_notes(**kwargs):
 				note['clinical_note_type_name'] = clinical_note_type_name
 	
 	return clinical_notes
+
+
+@frappe.whitelist()
+def get_encounters_pending_doctor_progress_note(clinical_note_type='Doctor Progress Note'):
+	"""Encounters (IP or same-day OP) with no Doctor Progress Note yet — any doctor.
+
+	Once any Doctor Progress Note exists for that admission/visit, the row is omitted.
+	"""
+	if not clinical_note_type or not frappe.db.exists('Clinical Note Type', clinical_note_type):
+		return []
+
+	today = nowdate()
+	rows = []
+
+	admissions = frappe.db.sql(
+		"""
+		SELECT ia.name AS reference_document, ia.patient, ia.status AS context_status
+		FROM `tabInpatient Admission` ia
+		WHERE ia.docstatus = 1
+			AND ia.status IN ('Admission Scheduled', 'Admitted')
+			AND NOT EXISTS (
+				SELECT 1 FROM `tabClinical Note` cn
+				WHERE cn.docstatus != 2
+					AND cn.clinical_note_type = %(cnt)s
+					AND cn.reference_doctype = 'Inpatient Admission'
+					AND cn.reference_document = ia.name
+			)
+		ORDER BY ia.modified DESC
+		LIMIT 200
+		""",
+		{'cnt': clinical_note_type},
+		as_dict=True,
+	)
+
+	for a in admissions:
+		pname = frappe.db.get_value('Patient', a.patient, 'patient_name') or a.patient
+		rows.append({
+			'patient': a.patient,
+			'patient_name': pname,
+			'reference_doctype': 'Inpatient Admission',
+			'reference_document': a.reference_document,
+			'context_label': 'Inpatient',
+			'context_status': a.context_status,
+		})
+
+	visits = frappe.db.sql(
+		"""
+		SELECT pv.name AS reference_document, pv.patient, pv.status AS context_status,
+			pv.encounter_date
+		FROM `tabPatient Visit` pv
+		WHERE pv.docstatus = 1
+			AND pv.status IN ('Open', 'Medication In Progress', 'Ordered')
+			AND pv.encounter_date = %(today)s
+			AND NOT EXISTS (
+				SELECT 1 FROM `tabClinical Note` cn
+				WHERE cn.docstatus != 2
+					AND cn.clinical_note_type = %(cnt)s
+					AND cn.reference_doctype = 'Patient Visit'
+					AND cn.reference_document = pv.name
+			)
+		ORDER BY pv.encounter_time ASC, pv.name ASC
+		LIMIT 200
+		""",
+		{'cnt': clinical_note_type, 'today': today},
+		as_dict=True,
+	)
+
+	for v in visits:
+		pname = frappe.db.get_value('Patient', v.patient, 'patient_name') or v.patient
+		rows.append({
+			'patient': v.patient,
+			'patient_name': pname,
+			'reference_doctype': 'Patient Visit',
+			'reference_document': v.reference_document,
+			'context_label': 'Outpatient (today)',
+			'context_status': v.context_status,
+			'encounter_date': v.encounter_date,
+		})
+
+	# De-duplicate by patient + reference (same patient could appear twice if multiple visits — keep all visits)
+	return rows
+
 
 @frappe.whitelist()
 def create_clinical_note(data):

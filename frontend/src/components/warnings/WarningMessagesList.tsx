@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useWarningMessages } from '../../hooks/useWarningMessages'
 import { DetailSlideOver } from '../ui/DetailSlideOver'
 import { DocDetailView } from '../ui/DocDetailView'
+import type { NoPatientWarningScope } from '../../services/warningMessages'
 
 // Helper function to strip HTML tags and clean text
 const stripHtml = (html: string | undefined): string => {
@@ -18,11 +19,17 @@ const stripHtml = (html: string | undefined): string => {
 
 interface WarningMessagesListProps {
   patient?: string
+  /** When there is no patient filter: show only organisation notices, or all warnings (default). */
+  noPatientScope?: NoPatientWarningScope
   onPatientClick?: (patient: string) => void
 }
 
-export const WarningMessagesList = ({ patient, onPatientClick }: WarningMessagesListProps) => {
-  const { warnings, loading, error, refetch } = useWarningMessages(patient)
+export const WarningMessagesList = ({
+  patient,
+  noPatientScope = 'all',
+  onPatientClick,
+}: WarningMessagesListProps) => {
+  const { warnings, loading, error, refetch } = useWarningMessages(patient, noPatientScope)
   const [detailName, setDetailName] = useState<string | null>(null)
 
   if (loading) {
@@ -69,6 +76,9 @@ export const WarningMessagesList = ({ patient, onPatientClick }: WarningMessages
               </th>
             )}
             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+              Type
+            </th>
+            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
               Posting Date
             </th>
             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
@@ -98,6 +108,9 @@ export const WarningMessagesList = ({ patient, onPatientClick }: WarningMessages
                   )}
                 </td>
               )}
+              <td className="px-4 py-3 text-sm text-slate-700">
+                {warning.type_of_warning || 'Medical'}
+              </td>
               <td
                 className="px-4 py-3 text-sm text-slate-700 cursor-pointer"
                 onClick={() => setDetailName(warning.name)}

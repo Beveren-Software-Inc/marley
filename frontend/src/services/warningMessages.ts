@@ -1,6 +1,6 @@
 export interface WarningMessage {
   name: string
-  patient: string
+  patient?: string
   patient_name?: string
   posting_date?: string
   practitioner?: string
@@ -9,19 +9,26 @@ export interface WarningMessage {
   reference_doc?: string
   reference_name?: string
   medical_role?: string
+  type_of_warning?: string
   gender?: string
   blood_group?: string
 }
 
+export type NoPatientWarningScope = 'all' | 'organisation'
+
 export async function fetchWarningMessages(
   limit: number = 50,
   offset: number = 0,
-  patient?: string
+  patient?: string,
+  noPatientScope: NoPatientWarningScope = 'all',
 ): Promise<WarningMessage[]> {
   const params = new URLSearchParams()
   params.append('limit', limit.toString())
   params.append('offset', offset.toString())
   if (patient) params.append('patient', patient)
+  if (!patient && noPatientScope === 'organisation') {
+    params.append('no_patient_scope', 'organisation')
+  }
 
   const response = await fetch(
     `/api/method/healthcare.api.warning_message.get_warning_messages?${params.toString()}`
@@ -49,7 +56,8 @@ export async function fetchWarningMessage(name: string): Promise<WarningMessage>
 }
 
 export interface CreateWarningMessageData {
-  patient: string
+  patient?: string
+  type_of_warning?: 'Medical' | 'Organisation'
   warning?: string
   practitioner?: string
   posting_date?: string

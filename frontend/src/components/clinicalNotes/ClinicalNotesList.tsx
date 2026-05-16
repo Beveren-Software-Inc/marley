@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { fetchClinicalNotes, type ClinicalNote } from '../../services/clinicalNotes'
+import { fetchClinicalNotes, fetchPendingDoctorProgressEncounters, type ClinicalNote, type PendingDoctorProgressEncounter } from '../../services/clinicalNotes'
 import { DetailSlideOver } from '../ui/DetailSlideOver'
 import { DocDetailView } from '../ui/DocDetailView'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
@@ -32,9 +32,18 @@ export const ClinicalNotesList = ({
 }: ClinicalNotesListProps) => {
   const { mode, activeVisit, activeAdmission } = useCareContext()
   const [clinicalNotes, setClinicalNotes] = useState<ClinicalNote[]>([])
+  const [pendingEncounters, setPendingEncounters] = useState<PendingDoctorProgressEncounter[]>([])
+  const [pendingLoading, setPendingLoading] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
   const [detailName, setDetailName] = useState<string | null>(null)
+
+  /** Without a patient: Doctor Progress Note list is limited to the logged-in practitioner only, unless filtered to a specific visit/admission. */
+  const hasRefContext = Boolean(
+    (mode === 'OP' && activeVisit) || (mode === 'IP' && activeAdmission),
+  )
+  const useDoctorProgressMineOnly =
+    clinicalNoteType === 'Doctor Progress Note' && !patient && !hasRefContext
 
   useEffect(() => {
     const loadClinicalNotes = async () => {
@@ -49,13 +58,9 @@ export const ClinicalNotesList = ({
         if (mode === 'OP' && activeVisit) {
           referenceDoctype = 'Patient Visit'
           referenceDocument = activeVisit
-          console.log('🔵 Filtering by OP Visit:', { referenceDoctype, referenceDocument })
         } else if (mode === 'IP' && activeAdmission) {
           referenceDoctype = 'Inpatient Admission'
           referenceDocument = activeAdmission
-          console.log('🟢 Filtering by IP Admission:', { referenceDoctype, referenceDocument })
-        } else {
-          console.log('⚪ No care context filter - mode:', mode, 'activeVisit:', activeVisit, 'activeAdmission:', activeAdmission)
         }
         
         const response = await fetchClinicalNotes(
@@ -66,7 +71,8 @@ export const ClinicalNotesList = ({
           clinicalNoteType,
           noteType,
           referenceDoctype,
-          referenceDocument
+          referenceDocument,
+          useDoctorProgressMineOnly ? true : undefined,
         )
         
         setClinicalNotes(response)
@@ -79,7 +85,31 @@ export const ClinicalNotesList = ({
     }
 
     loadClinicalNotes()
-  }, [patient, medicalRole, clinicalNoteType, noteType, mode, activeVisit, activeAdmission])
+  }, [patient, medicalRole, clinicalNoteType, noteType, mode, activeVisit, activeAdmission, useDoctorProgressMineOnly])
+
+  useEffect(() => {
+    if (!useDoctorProgressMineOnly || !clinicalNoteType) {
+      setPendingEncounters([])
+      return
+    }
+    let cancelled = false
+    const loadPending = async () => {
+      setPendingLoading(true)
+      try {
+        const rows = await fetchPendingDoctorProgressEncounters(clinicalNoteType)
+        if (!cancelled) setPendingEncounters(rows)
+      } catch (e) {
+        console.error(e)
+        if (!cancelled) setPendingEncounters([])
+      } finally {
+        if (!cancelled) setPendingLoading(false)
+      }
+    }
+    loadPending()
+    return () => {
+      cancelled = true
+    }
+  }, [useDoctorProgressMineOnly, clinicalNoteType])
 
   const getContextLabel = () => {
     if (mode === 'OP' && activeVisit) {
@@ -91,15 +121,10 @@ export const ClinicalNotesList = ({
     return null
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center p-8">
-        <div className="text-slate-600">Loading clinical notes...</div>
-      </div>
-    )
-  }
+  const contextLabel = getContextLabel()
+  const aggregateDoctorProgressLayout = useDoctorProgressMineOnly
 
-  if (error) {
+  if (error && !loading) {
     return (
       <div className="flex flex-col items-center justify-center p-8">
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 max-w-2xl w-full">
@@ -110,20 +135,124 @@ export const ClinicalNotesList = ({
     )
   }
 
-  const contextLabel = getContextLabel()
-  
-  if (clinicalNotes.length === 0) {
+  if (loading && !aggregateDoctorProgressLayout) {
     return (
-      <div className="flex flex-col items-center justify-center p-8">
-        <div className="text-slate-500 text-center">
-          {contextLabel && (
-            <p className="text-sm text-slate-600 mb-2">{contextLabel}</p>
-          )}
-          <p>No clinical notes found</p>
-        </div>
+      <div className="flex items-center justify-center p-8">
+        <div className="text-slate-600">Loading clinical notes...</div>
       </div>
     )
   }
+
+  const notesTable = (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[1000px]">
+        <thead className="bg-slate-50 border-b border-slate-200">
+          <tr>
+            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+              Date
+            </th>
+            {!patient && (
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+                Patient
+              </th>
+            )}
+            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+              Practitioner
+            </th>
+            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+              Medical Role
+            </th>
+            {!hideTypes && (
+              <>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+                  Note Type
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+                  Clinical Note Type
+                </th>
+              </>
+            )}
+            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+              Reference
+            </th>
+            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+              Note
+            </th>
+            <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600 uppercase">
+              Actions
+            </th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-200">
+          {clinicalNotes.map((note) => (
+            <tr key={note.name} className="hover:bg-slate-50">
+              <td
+                className="px-4 py-3 text-sm text-slate-700 cursor-pointer"
+                onClick={() => setDetailName(note.name)}
+              >
+                <span className="text-primary hover:underline">
+                  {note.posting_date
+                    ? new Date(note.posting_date).toLocaleString()
+                    : '-'}
+                </span>
+              </td>
+              {!patient && (
+                <td
+                  className="px-4 py-3 text-sm text-slate-700 cursor-pointer"
+                  onClick={() => note.patient && onPatientClick?.(note.patient)}
+                >
+                  <span className="font-medium text-primary hover:underline">{note.patient_name || note.patient || '-'}</span>
+                </td>
+              )}
+              <td className="px-4 py-3 text-sm text-slate-700">
+                {note.practitioner_name || note.practitioner || '-'}
+              </td>
+              <td className="px-4 py-3 text-sm text-slate-700">
+                {note.medical_role_name || note.medical_role || '-'}
+              </td>
+              {!hideTypes && (
+                <>
+                  <td className="px-4 py-3 text-sm text-slate-700">
+                    {note.note_type || '-'}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-slate-700">
+                    {note.clinical_note_type_name || note.clinical_note_type || '-'}
+                  </td>
+                </>
+              )}
+              <td className="px-4 py-3 text-sm text-slate-700">
+                {note.reference_doctype && note.reference_document ? (
+                  <div className="text-xs">
+                    <div className="font-semibold text-slate-800">{note.reference_doctype}</div>
+                    <div className="text-slate-500 truncate max-w-[150px]">{note.reference_document}</div>
+                  </div>
+                ) : (
+                  '-'
+                )}
+              </td>
+              <td className="px-4 py-3 text-sm text-slate-700 max-w-md">
+                <div className="truncate" title={note.note ? stripHtml(note.note) : ''}>
+                  {note.note ? (() => {
+                    const plainText = stripHtml(note.note)
+                    return plainText.length > 100 ? `${plainText.substring(0, 100)}...` : plainText
+                  })() : '-'}
+                </div>
+              </td>
+              <td className="px-4 py-3 text-sm text-slate-700 text-center">
+                <PrintFormatDropdown
+                  doctype="Clinical Note"
+                  docName={note.name}
+                  noLetterhead={0}
+                  triggerPrint={1}
+                  className="inline-flex items-center justify-center w-8 h-8 rounded border border-slate-300 bg-white text-primary hover:bg-slate-50"
+                />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
 
   return (
     <div className="min-w-full">
@@ -132,114 +261,89 @@ export const ClinicalNotesList = ({
           {contextLabel}
         </div>
       )}
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[1000px]">
-          <thead className="bg-slate-50 border-b border-slate-200">
-            <tr>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-                Date
-              </th>
-              {!patient && (
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-                  Patient
-                </th>
-              )}
-              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-                Practitioner
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-                Medical Role
-              </th>
-              {!hideTypes && (
-                <>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-                    Note Type
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-                    Clinical Note Type
-                  </th>
-                </>
-              )}
-              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-                Reference
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-                Note
-              </th>
-              <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600 uppercase">
-                Actions
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-200">
-            {clinicalNotes.map((note) => (
-              <tr key={note.name} className="hover:bg-slate-50">
-                <td
-                  className="px-4 py-3 text-sm text-slate-700 cursor-pointer"
-                  onClick={() => setDetailName(note.name)}
-                >
-                  <span className="text-primary hover:underline">
-                    {note.posting_date 
-                      ? new Date(note.posting_date).toLocaleString() 
-                      : '-'}
-                  </span>
-                </td>
-                {!patient && (
-                  <td
-                    className="px-4 py-3 text-sm text-slate-700 cursor-pointer"
-                    onClick={() => note.patient && onPatientClick?.(note.patient)}
-                  >
-                    <span className="font-medium text-primary hover:underline">{note.patient_name || note.patient || '-'}</span>
-                  </td>
-                )}
-                <td className="px-4 py-3 text-sm text-slate-700">
-                  {note.practitioner_name || note.practitioner || '-'}
-                </td>
-                <td className="px-4 py-3 text-sm text-slate-700">
-                  {note.medical_role_name || note.medical_role || '-'}
-                </td>
-                {!hideTypes && (
-                  <>
-                    <td className="px-4 py-3 text-sm text-slate-700">
-                      {note.note_type || '-'}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-slate-700">
-                      {note.clinical_note_type_name || note.clinical_note_type || '-'}
-                    </td>
-                  </>
-                )}
-                <td className="px-4 py-3 text-sm text-slate-700">
-                  {note.reference_doctype && note.reference_document ? (
-                    <div className="text-xs">
-                      <div className="font-semibold text-slate-800">{note.reference_doctype}</div>
-                      <div className="text-slate-500 truncate max-w-[150px]">{note.reference_document}</div>
-                    </div>
-                  ) : (
-                    '-'
-                  )}
-                </td>
-                <td className="px-4 py-3 text-sm text-slate-700 max-w-md">
-                  <div className="truncate" title={note.note ? stripHtml(note.note) : ''}>
-                    {note.note ? (() => {
-                      const plainText = stripHtml(note.note)
-                      return plainText.length > 100 ? `${plainText.substring(0, 100)}...` : plainText
-                    })() : '-'}
-                  </div>
-                </td>
-                <td className="px-4 py-3 text-sm text-slate-700 text-center">
-                  <PrintFormatDropdown
-                    doctype="Clinical Note"
-                    docName={note.name}
-                    noLetterhead={0}
-                    triggerPrint={1}
-                    className="inline-flex items-center justify-center w-8 h-8 rounded border border-slate-300 bg-white text-primary hover:bg-slate-50"
-                  />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+
+      {aggregateDoctorProgressLayout && (
+        <div className="mb-6 border border-amber-200 rounded-lg bg-amber-50/60 overflow-hidden">
+          <div className="px-4 py-2 border-b border-amber-200 bg-amber-50">
+            <h3 className="text-sm font-semibold text-slate-800">
+              Admitted or today&apos;s visits — no Doctor Progress Note yet
+            </h3>
+            <p className="text-xs text-slate-600 mt-0.5">
+              Shown until any practitioner adds a Doctor Progress Note for that admission or visit. Click a patient to open their file.
+            </p>
+          </div>
+          {pendingLoading ? (
+            <div className="px-4 py-3 text-sm text-slate-600">Loading pending encounters…</div>
+          ) : pendingEncounters.length === 0 ? (
+            <div className="px-4 py-3 text-sm text-slate-500">None at the moment.</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[720px]">
+                <thead className="bg-amber-100/80 border-b border-amber-200">
+                  <tr>
+                    <th className="px-4 py-2 text-left text-xs font-semibold text-slate-600 uppercase">
+                      Patient
+                    </th>
+                    <th className="px-4 py-2 text-left text-xs font-semibold text-slate-600 uppercase">
+                      Context
+                    </th>
+                    <th className="px-4 py-2 text-left text-xs font-semibold text-slate-600 uppercase">
+                      Status
+                    </th>
+                    <th className="px-4 py-2 text-left text-xs font-semibold text-slate-600 uppercase">
+                      Reference
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-amber-100">
+                  {pendingEncounters.map((row) => (
+                    <tr key={`${row.reference_doctype}:${row.reference_document}`} className="hover:bg-white/80">
+                      <td
+                        className="px-4 py-2 text-sm cursor-pointer text-primary font-medium hover:underline"
+                        onClick={() => row.patient && onPatientClick?.(row.patient)}
+                      >
+                        {row.patient_name || row.patient}
+                      </td>
+                      <td className="px-4 py-2 text-sm text-slate-700">
+                        {row.context_label}
+                        {row.encounter_date ? (
+                          <span className="text-slate-500"> · {row.encounter_date}</span>
+                        ) : null}
+                      </td>
+                      <td className="px-4 py-2 text-sm text-slate-700">
+                        {row.context_status || '—'}
+                      </td>
+                      <td className="px-4 py-2 text-xs text-slate-600 font-mono">
+                        {row.reference_document}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {aggregateDoctorProgressLayout && (
+        <p className="text-xs text-slate-500 mb-2 px-1">
+          Progress notes below are yours only (other doctors&apos; notes appear when you open a patient&apos;s file).
+        </p>
+      )}
+
+      {loading && aggregateDoctorProgressLayout ? (
+        <div className="flex items-center justify-center p-8">
+          <div className="text-slate-600">Loading clinical notes…</div>
+        </div>
+      ) : clinicalNotes.length === 0 ? (
+        <div className="flex flex-col items-center justify-center p-8">
+          <div className="text-slate-500 text-center">
+            <p>No clinical notes found</p>
+          </div>
+        </div>
+      ) : (
+        notesTable
+      )}
 
       {detailName && (
         <DetailSlideOver

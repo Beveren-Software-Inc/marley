@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { fetchPrescriptions, type Prescription, type PrescriptionFilters, createPrescriptionSalesOrder } from '../../services/prescriptions'
 import { toast } from '../../hooks/useToast'
-import { fetchHealthcarePractitioners, type LinkFieldOption } from '../../services/common'
+import { fetchHealthcarePractitioners, getCurrentUserPractitioner, type LinkFieldOption } from '../../services/common'
 import { StatusPill } from '../ui/StatusPill'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
@@ -27,12 +27,21 @@ const STATUS_OPTIONS = [
   { value: 'Cancelled', label: 'Cancelled' },
 ]
 
+function localDateISO(d = new Date()): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
 interface PrescriptionListProps {
   patient?: string
   refreshKey?: string | number
   onPrescriptionSelect?: (name: string) => void
   onPatientClick?: (patient: string) => void
   careContext?: 'Patient Visit' | 'Inpatient Admission'
+  /** Default to logged-in practitioner and today's posting date (when patient is set and no visit/admission lock). */
+  doctorPrescriptionDefaults?: boolean
 }
 
 export const PrescriptionList = ({
@@ -41,6 +50,7 @@ export const PrescriptionList = ({
   onPrescriptionSelect,
   onPatientClick,
   careContext: careContextProp,
+  doctorPrescriptionDefaults = false,
 }: PrescriptionListProps) => {
   const { mode, activeVisit, activeAdmission, selectedPatient: contextPatient } = useCareContext()
 
@@ -74,6 +84,37 @@ export const PrescriptionList = ({
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
+  const [myPractitionerId, setMyPractitionerId] = useState<string | null>(null)
+  const [restrictToMyPractitioner, setRestrictToMyPractitioner] = useState(true)
+
+  useEffect(() => {
+    if (!doctorPrescriptionDefaults) return
+    getCurrentUserPractitioner().then(setMyPractitionerId)
+  }, [doctorPrescriptionDefaults])
+
+  useEffect(() => {
+    if (!doctorPrescriptionDefaults || !effectivePatient || hasContextLock) return
+    const t = localDateISO()
+    setDateFrom(t)
+    setDateTo(t)
+    setRestrictToMyPractitioner(true)
+  }, [doctorPrescriptionDefaults, effectivePatient, hasContextLock])
+
+  useEffect(() => {
+    if (!doctorPrescriptionDefaults || hasContextLock) return
+    if (restrictToMyPractitioner) {
+      if (myPractitionerId) setPractitionerFilter(myPractitionerId)
+      else setPractitionerFilter('')
+    } else {
+      setPractitionerFilter('')
+      setPractitionerQuery('')
+    }
+  }, [
+    restrictToMyPractitioner,
+    myPractitionerId,
+    doctorPrescriptionDefaults,
+    hasContextLock,
+  ])
 
   const filters: PrescriptionFilters = {
     patient: effectivePatient,
@@ -87,7 +128,23 @@ export const PrescriptionList = ({
     inpatientRecord: effectiveAdmissionFilter,
   }
 
-  const hasActiveFilters = !!(statusFilter || practitionerFilter || dateFrom || dateTo || searchQuery.trim())
+  const todayStr = localDateISO()
+  const doctorFilterIsDefault =
+    doctorPrescriptionDefaults &&
+    effectivePatient &&
+    !hasContextLock &&
+    restrictToMyPractitioner &&
+    (myPractitionerId ? practitionerFilter === myPractitionerId : !practitionerFilter) &&
+    dateFrom === todayStr &&
+    dateTo === todayStr
+
+  const hasActiveFilters = Boolean(
+    statusFilter ||
+    searchQuery.trim() ||
+    (doctorPrescriptionDefaults && effectivePatient && !hasContextLock
+      ? !doctorFilterIsDefault
+      : !!(practitionerFilter || dateFrom || dateTo)),
+  )
   const [actionLoading, setActionLoading] = useState<string | null>(null)
 
   const load = () => {
@@ -123,6 +180,7 @@ export const PrescriptionList = ({
     setDateFrom('')
     setDateTo('')
     setSearchQuery('')
+    setRestrictToMyPractitioner(false)
   }
 
   // Close actions dropdown when clicking outside (ignore portaled menu and trigger button)
@@ -188,6 +246,45 @@ export const PrescriptionList = ({
 
   return (
     <div className="min-w-full">
+      {doctorPrescriptionDefaults && effectivePatient && !hasContextLock && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-2 text-sm text-slate-700">
+          <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={restrictToMyPractitioner}
+              onChange={(e) => setRestrictToMyPractitioner(e.target.checked)}
+              className="rounded border-slate-300 text-primary focus:ring-primary"
+            />
+            <span>Only my prescriptions</span>
+          </label>
+          <span className="hidden sm:inline text-slate-300" aria-hidden>|</span>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs text-slate-500">Posting date:</span>
+            <button
+              type="button"
+              onClick={() => {
+                const t = localDateISO()
+                setDateFrom(t)
+                setDateTo(t)
+              }}
+              className="text-xs font-medium text-primary hover:underline"
+            >
+              Today
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setDateFrom('')
+                setDateTo('')
+              }}
+              className="text-xs font-medium text-slate-600 hover:underline"
+            >
+              Any date
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Active-context banner — shown when filtering by a specific visit or admission */}
       {hasContextLock && (
         <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-blue-50 border border-blue-200 text-blue-800 text-xs mb-2">
