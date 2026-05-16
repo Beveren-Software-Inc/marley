@@ -31,6 +31,16 @@ export interface CreateClinicalNoteData {
   patient_visit?: string
 }
 
+export interface PendingDoctorProgressEncounter {
+  patient: string
+  patient_name?: string
+  reference_doctype: string
+  reference_document: string
+  context_label: string
+  context_status?: string
+  encounter_date?: string
+}
+
 export async function fetchClinicalNotes(
   limit: number = 50,
   offset: number = 0,
@@ -39,7 +49,8 @@ export async function fetchClinicalNotes(
   clinical_note_type?: string,
   note_type?: string,
   reference_doctype?: string,
-  reference_document?: string
+  reference_document?: string,
+  mine_only?: boolean,
 ): Promise<ClinicalNote[]> {
   const params = new URLSearchParams()
   params.append('limit', limit.toString())
@@ -50,6 +61,7 @@ export async function fetchClinicalNotes(
   if (note_type) params.append('note_type', note_type)
   if (reference_doctype) params.append('ref_doctype', reference_doctype)
   if (reference_document) params.append('ref_document', reference_document)
+  if (mine_only) params.append('mine_only', '1')
   const url = `/api/method/healthcare.api.clinical_note.get_clinical_notes?${params.toString()}`
   
   try {
@@ -68,6 +80,24 @@ export async function fetchClinicalNotes(
     console.error('Error fetching clinical notes:', error)
     throw error
   }
+}
+
+export async function fetchPendingDoctorProgressEncounters(
+  clinicalNoteType: string = 'Doctor Progress Note',
+): Promise<PendingDoctorProgressEncounter[]> {
+  const params = new URLSearchParams()
+  params.append('clinical_note_type', clinicalNoteType)
+  const response = await fetch(
+    `/api/method/healthcare.api.clinical_note.get_encounters_pending_doctor_progress_note?${params.toString()}`,
+  )
+  const resData = await response.json()
+  if (!response.ok) {
+    throw new Error(resData.message || 'Failed to fetch pending encounters')
+  }
+  if (resData?.message && Array.isArray(resData.message)) {
+    return resData.message as PendingDoctorProgressEncounter[]
+  }
+  return []
 }
 
 export async function createClinicalNote(data: CreateClinicalNoteData) {

@@ -87,7 +87,7 @@ export const PatientList = ({ refreshKey }: PatientListProps = {}) => {
   }, [globalSelectedPatient])
 
   const offset = (page - 1) * pageSize
-  const { patients, totalCount, loading, error, refetch } = usePatients(debouncedQuery || undefined, pageSize, offset)
+  const { patients, totalCount, fullDirectoryRestricted, loading, error, refetch } = usePatients(debouncedQuery || undefined, pageSize, offset)
 
   const handlePageSizeChange = useCallback((size: PageSize) => {
     setPageSize(size)
@@ -198,6 +198,11 @@ export const PatientList = ({ refreshKey }: PatientListProps = {}) => {
     <div className="w-full h-full flex flex-col min-h-[400px]">
       {/* Fixed height container for search hint - prevents layout shift */}
       <div className="flex-shrink-0]">
+        {!debouncedQuery && fullDirectoryRestricted && (
+          <div className="text-sm text-slate-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 mb-2">
+            The full patient directory is restricted to users with the <strong>Data Officer</strong> role. Type in the search box to find patients by name, file number, or ID.
+          </div>
+        )}
         {searchQuery && debouncedQuery && (
           <div className="text-sm text-slate-500 bg-slate-50 rounded-md px-3 py-2 mb-2">
             Showing patients matching: <span className="font-medium text-slate-700">{searchQuery}</span>
@@ -270,7 +275,11 @@ export const PatientList = ({ refreshKey }: PatientListProps = {}) => {
               {patients.length === 0 && !loading ? (
                 <tr>
                   <td colSpan={8} className="px-4 py-8 text-center text-slate-500">
-                    {debouncedQuery ? 'No patients match your search.' : 'No patients found.'}
+                    {debouncedQuery
+                      ? 'No patients match your search.'
+                      : fullDirectoryRestricted
+                        ? 'Use search above to find a patient.'
+                        : 'No patients found.'}
                   </td>
                 </tr>
               ) : (

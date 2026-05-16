@@ -20,9 +20,18 @@ def user_can_view_patient_history_billing() -> bool:
 	return bool(PATIENT_HISTORY_BILLING_ROLES & set(frappe.get_roles(frappe.session.user)))
 
 
+# Portal/API: paging through every Patient without a search term is restricted to this role (GDPR-style minimisation).
+DATA_OFFICER_ROLE = "Data Officer"
+
+
+def user_can_browse_full_patient_directory() -> bool:
+	return DATA_OFFICER_ROLE in frappe.get_roles(frappe.session.user)
+
+
 @frappe.whitelist()
 def search_patients(search=None, limit=20):
 	"""Search patients by name or file number"""
+	search = (search or "").strip()
 	if not search:
 		return []
 	
@@ -61,6 +70,9 @@ def get_patients(limit=20, offset=0, search=None):
 	limit = int(limit) if limit else 20
 	offset = int(offset) if offset else 0
 
+	search = (search or "").strip()
+	search = search if search else None
+
 	if search:
 		search_param = f'%{search}%'
 		where_clause = """
@@ -95,6 +107,9 @@ def get_patients(limit=20, offset=0, search=None):
 		]
 		return {"data": data, "total_count": total_count}
 	else:
+		if not user_can_browse_full_patient_directory():
+			return {"data": [], "total_count": 0, "full_directory_restricted": True}
+
 		total_count = frappe.db.count('Patient')
 
 		patients = frappe.get_all(

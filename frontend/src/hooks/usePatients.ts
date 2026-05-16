@@ -4,6 +4,7 @@ import { fetchPatientsPaginated, type PatientListItem } from '../services/patien
 export function usePatients(search?: string, limit: number = 20, offset: number = 0) {
   const [patients, setPatients] = useState<PatientListItem[]>([])
   const [totalCount, setTotalCount] = useState(0)
+  const [fullDirectoryRestricted, setFullDirectoryRestricted] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
 
@@ -14,6 +15,7 @@ export function usePatients(search?: string, limit: number = 20, offset: number 
       const response = await fetchPatientsPaginated(limit, offset, search)
       setPatients(response.data)
       setTotalCount(response.total_count)
+      setFullDirectoryRestricted(Boolean(response.full_directory_restricted))
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Failed to fetch patients'))
     } finally {
@@ -25,5 +27,5 @@ export function usePatients(search?: string, limit: number = 20, offset: number 
     loadPatients()
   }, [loadPatients])
 
-  return { patients, totalCount, loading, error, refetch: loadPatients }
+  return { patients, totalCount, fullDirectoryRestricted, loading, error, refetch: loadPatients }
 }

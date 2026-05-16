@@ -61,6 +61,8 @@ export async function searchPatients(query: string, limit?: number): Promise<Pat
 export interface PaginatedPatients {
   data: PatientListItem[]
   total_count: number
+  /** True when browse-all without search is denied (requires Data Officer role). */
+  full_directory_restricted?: boolean
 }
 
 export async function fetchPatients(
@@ -89,7 +91,11 @@ export async function fetchPatientsPaginated(
   const msg = resData?.message
 
   if (msg && typeof msg === 'object' && 'data' in msg) {
-    return { data: msg.data as PatientListItem[], total_count: msg.total_count ?? 0 }
+    return {
+      data: msg.data as PatientListItem[],
+      total_count: msg.total_count ?? 0,
+      full_directory_restricted: Boolean((msg as { full_directory_restricted?: unknown }).full_directory_restricted),
+    }
   }
   if (msg && Array.isArray(msg)) {
     return { data: msg as PatientListItem[], total_count: msg.length }

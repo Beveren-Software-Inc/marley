@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { CreatePatientModal } from './CreatePatientModal'
 import { PatientAlertsBanner } from './PatientAlertsBanner'
-import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
+import { searchPatients, fetchPatientsPaginated, type PatientListItem } from '../../services/patients'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { fetchPatientVisitsFull } from '../../services/patientVisits'
 import { fetchInpatientRecords } from '../../services/inpatientRecords'
@@ -79,6 +79,7 @@ export const PatientSearch = ({
   const [patientOpen, setPatientOpen] = useState(false)
   const [showCreatePatient, setShowCreatePatient] = useState(false)
   const [patients, setPatients] = useState<PatientListItem[]>([])
+  const [fullDirectoryRestricted, setFullDirectoryRestricted] = useState(false)
   const [loading, setLoading] = useState(false)
   const [selectedPatientName, setSelectedPatientName] = useState<string>('')
   const [secondaryQuery, setSecondaryQuery] = useState('')
@@ -238,8 +239,11 @@ export const PatientSearch = ({
       try {
         let results: PatientListItem[] = []
         if (patientQuery.trim() === '') {
-          results = await fetchPatients(20, 0)
+          const page = await fetchPatientsPaginated(20, 0)
+          results = page.data
+          setFullDirectoryRestricted(Boolean(page.full_directory_restricted))
         } else {
+          setFullDirectoryRestricted(false)
           results = await searchPatients(patientQuery, 20)
         }
         setPatients(results)
@@ -484,8 +488,14 @@ export const PatientSearch = ({
                     </button>
                   ))
                 ) : (
-                  <div className="px-3 py-2 text-xs text-slate-500">
-                    {patientQuery ? 'No patients match your search.' : 'No patients found.'}
+                  <div className="px-3 py-2 text-xs text-slate-600 space-y-1">
+                    <p>
+                      {patientQuery
+                        ? 'No patients match your search.'
+                        : fullDirectoryRestricted
+                          ? 'Full patient list is restricted. Start typing to search by name, file number, or ID.'
+                          : 'No patients found.'}
+                    </p>
                   </div>
                 )}
               </div>

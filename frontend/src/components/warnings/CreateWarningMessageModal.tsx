@@ -35,12 +35,13 @@ interface CreateWarningMessageModalProps {
 
 export const CreateWarningMessageModal = ({ onClose, onSuccess, initialPatient }: CreateWarningMessageModalProps) => {
   const [formData, setFormData] = useState({
+    type_of_warning: 'Medical' as 'Medical' | 'Organisation',
     patient: initialPatient || '',
     warning: '',
     practitioner: '',
     posting_date: new Date().toISOString().slice(0, 16),
     clinical_note_type: '',
-    medical_role: ''
+    medical_role: '',
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -74,8 +75,8 @@ export const CreateWarningMessageModal = ({ onClose, onSuccess, initialPatient }
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (!formData.patient) {
-      setError('Patient is required')
+    if (formData.type_of_warning === 'Medical' && !formData.patient) {
+      setError('Patient is required for medical warnings')
       return
     }
 
@@ -89,12 +90,13 @@ export const CreateWarningMessageModal = ({ onClose, onSuccess, initialPatient }
       setError(null)
 
       await createWarningMessage({
-        patient: formData.patient,
+        type_of_warning: formData.type_of_warning,
+        patient: formData.type_of_warning === 'Organisation' ? (formData.patient || undefined) : formData.patient,
         warning: formData.warning,
         practitioner: formData.practitioner || undefined,
         posting_date: formData.posting_date || undefined,
         clinical_note_type: formData.clinical_note_type || undefined,
-        medical_role: formData.medical_role || undefined
+        medical_role: formData.medical_role || undefined,
       })
       
       toast.success('Warning message created successfully')
@@ -360,13 +362,51 @@ export const CreateWarningMessageModal = ({ onClose, onSuccess, initialPatient }
             setMedicalRoleOpen(false)
           }
         }}>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Type of warning</label>
+            <select
+              value={formData.type_of_warning}
+              onChange={(e) => {
+                const v = e.target.value as 'Medical' | 'Organisation'
+                if (v === 'Organisation') {
+                  setFormData((prev) => ({ ...prev, type_of_warning: v, patient: '' }))
+                  setPatientQuery('')
+                if (v === 'Organisation') {
+                  setFormData((prev) => ({ ...prev, type_of_warning: v, patient: '' }))
+                  setPatientQuery('')
+                } else {
+                  setFormData((prev) => ({
+                    ...prev,
+                    type_of_warning: v,
+                    patient: initialPatient || prev.patient,
+                  }))
+                  if (initialPatient) {
+                    fetchPatients(1, 0, initialPatient).then((patients) => {
+                      if (patients[0]) setPatientQuery(patients[0].patient_name)
+                    }).catch(() => {})
+                  }
+                }
+              }}
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            >
+              <option value="Medical">Medical (patient-specific)</option>
+              <option value="Organisation">Organisation (facility-wide notice)</option>
+            </select>
+            <p className="text-xs text-slate-500 mt-1">
+              Organisation warnings are shown on dashboards before a patient is chosen (e.g. stock-outs, maintenance).
+            </p>
+          </div>
+
           {/* Patient Information */}
           <div>
             <h3 className="text-sm font-semibold text-slate-700 mb-3">Patient Information</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Patient <span className="text-red-500">*</span>
+                  Patient {formData.type_of_warning === 'Medical' && <span className="text-red-500">*</span>}
+                  {formData.type_of_warning === 'Organisation' && (
+                    <span className="text-slate-400 font-normal"> (optional)</span>
+                  )}
                 </label>
                 <div className="relative flex items-center">
                   <input
@@ -379,7 +419,7 @@ export const CreateWarningMessageModal = ({ onClose, onSuccess, initialPatient }
                     onFocus={() => setPatientOpen(true)}
                     placeholder="Search patient..."
                     className={linkComboboxInputWithClearClass}
-                    required
+                    required={formData.type_of_warning === 'Medical'}
                   />
                   {patientLoading && (
                     <div className="absolute right-10 top-2.5 text-slate-400 text-sm">Loading...</div>
