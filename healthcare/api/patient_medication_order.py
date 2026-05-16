@@ -1025,47 +1025,6 @@ def get_prescriptions_by_inpatient_record(inpatient_record: str):
 
 
 @frappe.whitelist()
-def get_medication_order_by_id(name: str):
-    """
-    Get a single medication order by ID
-    """
-    if not name:
-        frappe.throw(_("Medication order name is required"))
-    
-    doc = frappe.get_doc("Patient Medication Order", name)
-    
-    medications = []
-    for item in doc.medication_order:
-        medications.append({
-            "name": item.name,
-            "drug": item.drug,
-            "drug_name": frappe.get_cached_value("Item", item.drug, "item_name") if item.drug else "",
-            "dosage": item.dosage,
-            "dosage_form": item.dosage_form,
-            "frequency": item.frequency,
-            "period": item.period,
-            "instructions": item.instructions,
-            "status": item.status if hasattr(item, 'status') else "Active"
-        })
-    
-    return {
-        "name": doc.name,
-        "patient": doc.patient,
-        "patient_name": doc.patient_name,
-        "care_context": doc.care_context,
-        "inpatient_record": doc.inpatient_record if hasattr(doc, 'inpatient_record') else None,
-        "patient_visit": doc.patient_visit if hasattr(doc, 'patient_visit') else None,
-        "status": doc.status,
-        "from_date": doc.from_date,
-        "to_date": doc.to_date,
-        "practitioner": doc.practitioner,
-        "practitioner_name": doc.practitioner_name,
-        "notes": doc.notes if hasattr(doc, 'notes') else None,
-        "medications": medications
-    }
-
-
-@frappe.whitelist()
 def update_medication_order_status(name: str, status: str):
     """
     Update medication order status
