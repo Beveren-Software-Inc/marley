@@ -10,7 +10,6 @@ const MED_TYPES = [
   { key: 'Regular -Med (Active)',      label: 'Reg Med Active',  icon: '💉', color: '#4080e1' },
   { key: 'Regular - Psy (Inactive)',   label: 'Reg Psy Inactive',icon: '🧠', color: 'slate'   },
   { key: 'Regular - Med (Inactive)',   label: 'Reg Med Inactive',icon: '💉', color: 'slate'   },
-  { key: 'Contraindicated',            label: 'Contraindicated', icon: '🚫', color: 'rose'    },
   { key: 'Long Acting Medicine',       label: 'Long Acting',     icon: '⏳', color: 'teal'    },
   { key: 'Future Plan',                label: 'Future Plan',     icon: '📅', color: 'indigo'  },
 ]

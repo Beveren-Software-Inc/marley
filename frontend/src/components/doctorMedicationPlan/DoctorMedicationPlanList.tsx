@@ -72,8 +72,8 @@ export const DoctorMedicationPlanList = ({ patient, onPatientClick }: DoctorMedi
         })
         setRows(data)
       } catch (err) {
-        console.error('Error loading doctor medication plans:', err)
-        setError(err instanceof Error ? err : new Error('Failed to fetch medication plans'))
+        console.error("Error loading doctor's plans:", err)
+        setError(err instanceof Error ? err : new Error("Failed to fetch doctors' plans"))
       } finally {
         setLoading(false)
       }
@@ -82,9 +82,7 @@ export const DoctorMedicationPlanList = ({ patient, onPatientClick }: DoctorMedi
   }, [patient, mode, activeVisit, listRefreshTick, practitionerFilter, fromDate, toDate])
 
   const contextLabel =
-    mode === 'OP' && activeVisit
-      ? `Showing plans for OP visit: ${activeVisit}`
-      : null
+    mode === 'OP' && activeVisit ? `Doctor's Plan for OP visit: ${activeVisit}` : null
 
   const hasActiveFilters = Boolean(practitionerFilter || fromDate || toDate)
 
@@ -98,7 +96,7 @@ export const DoctorMedicationPlanList = ({ patient, onPatientClick }: DoctorMedi
   if (loading && rows.length === 0) {
     return (
       <div className="flex items-center justify-center p-8">
-        <div className="text-slate-600">Loading medication plans...</div>
+        <div className="text-slate-600">Loading doctors' plans...</div>
       </div>
     )
   }
@@ -107,7 +105,7 @@ export const DoctorMedicationPlanList = ({ patient, onPatientClick }: DoctorMedi
     return (
       <div className="flex flex-col items-center justify-center p-8">
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 max-w-2xl w-full">
-          <h3 className="text-red-800 font-semibold mb-2">Error Loading Medication Plans</h3>
+          <h3 className="text-red-800 font-semibold mb-2">Could not load doctors' plans</h3>
           <p className="text-red-700 text-sm">{error.message}</p>
         </div>
       </div>
@@ -213,7 +211,7 @@ export const DoctorMedicationPlanList = ({ patient, onPatientClick }: DoctorMedi
             <div className="flex flex-col items-center justify-center p-8">
               <div className="text-slate-500 text-center">
                 {contextLabel && <p className="text-sm text-slate-600 mb-2">{contextLabel}</p>}
-                <p>{hasActiveFilters ? 'No plans match the filters.' : 'No doctor medication plans found'}</p>
+                <p>{hasActiveFilters ? 'No plans match the filters.' : "No doctors' plans found yet"}</p>
               </div>
             </div>
           ) : (
@@ -309,7 +307,7 @@ export const DoctorMedicationPlanList = ({ patient, onPatientClick }: DoctorMedi
 
       {detailName && (
         <DetailSlideOver
-          title="Doctor Medication Plan"
+          title="Doctor's Plan"
           subtitle={detailName}
           onClose={() => setDetailName(null)}
         >

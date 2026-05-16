@@ -20,7 +20,7 @@ import {
   linkComboboxOptionClassCompact,
 } from '../ui/linkComboboxStyles'
 import {
-  fetchItems,
+  fetchPrescriptionItems,
   fetchPrescriptionFrequencies,
   fetchRouteOfAdministrationList,
   fetchDosageForms,
@@ -128,7 +128,6 @@ const MED_TYPES = [
   { key: 'Regular -Med (Active)',      label: 'Reg Med Active',   icon: '💉', color: '#4080e1' },
   { key: 'Regular - Psy (Inactive)',   label: 'Reg Psy Inactive', icon: '🧠', color: 'slate'   },
   { key: 'Regular - Med (Inactive)',   label: 'Reg Med Inactive', icon: '💉', color: 'slate'   },
-  { key: 'Contraindicated',            label: 'Contraindicated',  icon: '🚫', color: 'rose'    },
   { key: 'Long Acting Medicine',       label: 'Long Acting',      icon: '⏳', color: 'teal'    },
   { key: 'Future Plan',                label: 'Future Plan',      icon: '📅', color: 'indigo'  },
   { key: '__stopped__',                label: 'Stopped',          icon: '🛑', color: 'rose'    },
@@ -228,7 +227,8 @@ const EditMedicationEntryModal = ({
     is_prn: order.is_prn || false,
     is_long_acting: order.is_long_acting_medicine || false,
     long_acting_frequency: order.long_acting_frequency || '',
-    medication_type: order.medication_type || '',
+    medication_type:
+      order.medication_type === 'Contraindicated' ? '' : (order.medication_type || ''),
   })
   const [saving, setSaving] = useState(false)
   const [givenCheck, setGivenCheck] = useState<{ loading: boolean; given: boolean }>({ loading: true, given: false })
@@ -356,7 +356,7 @@ const EditMedicationEntryModal = ({
               <div className="text-[10px] text-slate-400 mt-0.5">{form.drug}</div>
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Medication Type</label>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Prescription Type</label>
               <select
                 value={form.medication_type}
                 onChange={(e) => updateField('medication_type', e.target.value)}
@@ -378,14 +378,6 @@ const EditMedicationEntryModal = ({
                 className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25 disabled:bg-slate-100 disabled:text-slate-500" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Dosage Form</label>
-              <select value={form.dosage_form} onChange={(e) => updateField('dosage_form', e.target.value)} disabled={disabled}
-                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25 disabled:bg-slate-100 disabled:text-slate-500">
-                <option value="">Select...</option>
-                {dosageFormOptions.map((df) => <option key={df.name} value={df.name}>{df.label || df.name}</option>)}
-              </select>
-            </div>
-            <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">UOM</label>
               <MiniCombobox
                 value={form.uom}
@@ -399,6 +391,14 @@ const EditMedicationEntryModal = ({
                 onSelect={(opt) => { updateField('uom', opt.name); setUomQuery(opt.label || opt.name) }}
                 onClear={() => { updateField('uom', ''); setUomQuery('') }}
               />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Dosage Form</label>
+              <select value={form.dosage_form} onChange={(e) => updateField('dosage_form', e.target.value)} disabled={disabled}
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25 disabled:bg-slate-100 disabled:text-slate-500">
+                <option value="">Select...</option>
+                {dosageFormOptions.map((df) => <option key={df.name} value={df.name}>{df.label || df.name}</option>)}
+              </select>
             </div>
           </div>
 
@@ -578,7 +578,7 @@ const AddMedicationEntryModal = ({
   const loadDrugOptions = (query: string) => {
     if (!query || query.length < 1) { setDrugOpts([]); return }
     setDrugLoading(true)
-    fetchItems(query)
+    fetchPrescriptionItems(query)
       .then((opts) => setDrugOpts(opts))
       .catch(() => setDrugOpts([]))
       .finally(() => setDrugLoading(false))
@@ -649,11 +649,19 @@ const AddMedicationEntryModal = ({
               onQueryChange={(q) => { setDrugQuery(q); loadDrugOptions(q) }}
               onOpen={() => loadDrugOptions(drugQuery || '')}
               onSelect={(opt) => {
-                updateField('drug', opt.name)
-                updateField('drug_name', opt.label || opt.name)
-                const stockUom = ((opt as any).stock_uom || '').trim()
-                updateField('uom', stockUom)
+                const route = opt.default_route_of_administration?.trim()
+                const stockUom = (opt.stock_uom || '').trim()
+                setForm((f) => ({
+                  ...f,
+                  drug: opt.name,
+                  drug_name: opt.label || opt.name,
+                  uom: stockUom,
+                  ...(route ? { route_of_administration: route } : {}),
+                }))
                 setAddUomQuery(stockUom)
+                if (route) {
+                  setAddRouteQuery(route)
+                }
                 setDrugQuery(opt.label || opt.name)
               }}
               onClear={() => { updateField('drug', ''); updateField('drug_name', ''); setDrugQuery('') }}
@@ -661,7 +669,7 @@ const AddMedicationEntryModal = ({
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Medication Type</label>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Prescription Type</label>
             <select value={form.medication_type} onChange={(e) => updateField('medication_type', e.target.value)}
               className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25">
               <option value="">— Select —</option>
@@ -678,14 +686,6 @@ const AddMedicationEntryModal = ({
                 className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Dosage Form *</label>
-              <select value={form.dosage_form} onChange={(e) => updateField('dosage_form', e.target.value)}
-                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25">
-                <option value="">Select...</option>
-                {addDosageForms.map((df) => <option key={df.name} value={df.name}>{df.label || df.name}</option>)}
-              </select>
-            </div>
-            <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">UOM</label>
               <MiniCombobox
                 value={form.uom}
@@ -698,6 +698,14 @@ const AddMedicationEntryModal = ({
                 onSelect={(opt) => { updateField('uom', opt.name); setAddUomQuery(opt.label || opt.name) }}
                 onClear={() => { updateField('uom', ''); setAddUomQuery('') }}
               />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Dosage Form *</label>
+              <select value={form.dosage_form} onChange={(e) => updateField('dosage_form', e.target.value)}
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25">
+                <option value="">Select...</option>
+                {addDosageForms.map((df) => <option key={df.name} value={df.name}>{df.label || df.name}</option>)}
+              </select>
             </div>
           </div>
 

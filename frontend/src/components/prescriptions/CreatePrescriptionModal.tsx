@@ -10,7 +10,7 @@ import {
   getCurrentUserPractitioner,
   fetchPatientVisits,
   fetchInpatientAdmissions,
-  fetchItems,
+  fetchPrescriptionItems,
   fetchStandardUoms,
   fetchDosageForms,
   fetchPrescriptionFrequencies,
@@ -71,7 +71,6 @@ const MEDICATION_TYPES = [
   'PRN',
   'Regular - Psy (Active)',
   'Regular - Med (Active)',
-  'Contraindicated',
   'Future Plan',
   'Long Acting Medicine'
 ]
@@ -250,7 +249,7 @@ export const CreatePrescriptionModal = ({
   editMode = false,
   prescriptionData = null,
 }: CreatePrescriptionModalProps) => {
-  const { mode, activeVisit, activeAdmission } = useCareContext()
+  const { mode, activeVisit, activeAdmission, costCenterCompany } = useCareContext()
   const [activeTab, setActiveTab] = useState<TabId>('details')
   const [expandedMedications, setExpandedMedications] = useState<Set<number>>(new Set([0]))
 
@@ -401,7 +400,8 @@ export const CreatePrescriptionModal = ({
           is_long_acting: med.is_long_acting || false,
           long_acting_frequency: med.long_acting_frequency || 'Weekly',
           route_of_administration: med.route_of_administration || '',
-          medication_type: med.medication_type || '',
+          medication_type:
+            med.medication_type === 'Contraindicated' ? '' : (med.medication_type || ''),
         }))
         setMedications(loadedMedications)
         
@@ -527,10 +527,19 @@ export const CreatePrescriptionModal = ({
   }, [mode, activeVisit, activeAdmission])
 
   useEffect(() => {
-    if (companies.length === 1 && !formData.company) {
-      setFormData((p) => ({ ...p, company: companies[0].name }))
-    }
-  }, [companies])
+    if (isEditing) return
+    if (!companies.length) return
+    setFormData((p) => {
+      if (p.company) return p
+      if (costCenterCompany && companies.some((c) => c.name === costCenterCompany)) {
+        return { ...p, company: costCenterCompany }
+      }
+      if (companies.length === 1) {
+        return { ...p, company: companies[0].name }
+      }
+      return p
+    })
+  }, [companies, costCenterCompany, isEditing])
 
   const loadDrugOptions = (index: number, query: string) => {
     if (!query || query.length < 1) {
@@ -538,7 +547,7 @@ export const CreatePrescriptionModal = ({
       return
     }
     setDrugLoading((prev) => ({ ...prev, [index]: true }))
-    fetchItems(query)
+    fetchPrescriptionItems(query)
       .then((opts) => setDrugOptions((prev) => ({ ...prev, [index]: opts })))
       .catch(() => setDrugOptions((prev) => ({ ...prev, [index]: [] })))
       .finally(() => setDrugLoading((prev) => ({ ...prev, [index]: false })))
@@ -1045,11 +1054,25 @@ export const CreatePrescriptionModal = ({
                                 }}
                                 onOpen={() => loadDrugOptions(index, drugQueries[index] || row.drug || '')}
                                 onSelect={(opt) => {
-                                  updateMedicationRow(index, 'drug', opt.name)
-                                  updateMedicationRow(index, 'drug_name', opt.label || opt.name)
-                                  updateMedicationRow(index, 'uom', (opt.stock_uom || '').trim())
+                                  const route = opt.default_route_of_administration?.trim()
+                                  setMedications((prev) => {
+                                    const next = [...prev]
+                                    if (!next[index]) return prev
+                                    const row = {
+                                      ...next[index],
+                                      drug: opt.name,
+                                      drug_name: opt.label || opt.name,
+                                      uom: (opt.stock_uom || '').trim(),
+                                      ...(route ? { route_of_administration: route } : {}),
+                                    }
+                                    next[index] = row
+                                    return next
+                                  })
                                   setUomQueries((prev) => ({ ...prev, [index]: (opt.stock_uom || '').trim() }))
                                   setDrugQueries((prev) => ({ ...prev, [index]: opt.label || opt.name }))
+                                  if (route) {
+                                    setRouteQueries((prev) => ({ ...prev, [index]: route }))
+                                  }
                                   setDrugOptions((prev) => ({ ...prev, [index]: [] }))
                                 }}
                               />
@@ -1065,19 +1088,6 @@ export const CreatePrescriptionModal = ({
                                 placeholder="e.g. 1-0-1"
                                 className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
                               />
-                            </div>
-                            <div>
-                              <label className="block text-xs font-medium text-slate-600 mb-1">
-                                Dosage Form <span className="text-red-500">*</span>
-                              </label>
-                              <select
-                                value={row.dosage_form}
-                                onChange={(e) => updateMedicationRow(index, 'dosage_form', e.target.value)}
-                                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
-                              >
-                                <option value="">Select...</option>
-                                {dosageForms.map((df) => <option key={df.name} value={df.name}>{df.label || df.name}</option>)}
-                              </select>
                             </div>
                             <div>
                               <label className="block text-xs font-medium text-slate-600 mb-1">
@@ -1108,6 +1118,19 @@ export const CreatePrescriptionModal = ({
                                   setUomQueries((prev) => ({ ...prev, [index]: '' }))
                                 }}
                               />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-slate-600 mb-1">
+                                Dosage Form <span className="text-red-500">*</span>
+                              </label>
+                              <select
+                                value={row.dosage_form}
+                                onChange={(e) => updateMedicationRow(index, 'dosage_form', e.target.value)}
+                                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+                              >
+                                <option value="">Select...</option>
+                                {dosageForms.map((df) => <option key={df.name} value={df.name}>{df.label || df.name}</option>)}
+                              </select>
                             </div>
                           </div>
 
@@ -1212,7 +1235,7 @@ export const CreatePrescriptionModal = ({
                           <div className="grid grid-cols-4 gap-4">
                             <div>
                               <label className="block text-xs font-medium text-slate-600 mb-1">
-                                Medication Type <span className="text-red-500">*</span>
+                                Prescription Type <span className="text-red-500">*</span>
                               </label>
                               <select
                                 value={row.medication_type || ''}

@@ -199,7 +199,9 @@ export const CreateDoctorMedicationPlanModal = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!isOPMode) {
-      setError('Doctor Medication Plan is for outpatient (OP) visits. Switch to OP mode in the navbar.')
+      setError(
+        `Doctor's Plan applies to outpatient (OP) visits. Switch to OP mode in the navbar.`,
+      )
       return
     }
     if (!formData.patient) {
@@ -232,11 +234,11 @@ export const CreateDoctorMedicationPlanModal = ({
         recommendation: formData.recommendation.trim() || undefined,
         reception_note: formData.reception_note.trim() || undefined,
       })
-      toast.success('Doctor medication plan saved')
+      toast.success("Doctor's plan saved")
       onSuccess?.()
       onClose()
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to save medication plan'
+      const message = err instanceof Error ? err.message : "Failed to save doctor's plan"
       setError(message)
       toast.error(message)
     } finally {
@@ -259,7 +261,7 @@ export const CreateDoctorMedicationPlanModal = ({
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-lg font-semibold tracking-tight text-emerald-950">
-                Add Doctor Medication Plan
+                Add Doctor's Plan
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
                 {isOPMode && (
@@ -267,7 +269,7 @@ export const CreateDoctorMedicationPlanModal = ({
                     OP — linked to visit
                   </span>
                 )}
-                Outpatient medication plan for the selected patient visit.
+                Free-text plan for the visit — e.g. review timing, referrals, investigations, trials.
               </p>
             </div>
             <button
@@ -296,7 +298,7 @@ export const CreateDoctorMedicationPlanModal = ({
           <div className="p-6 space-y-4 overflow-y-auto flex-1">
             {!isOPMode && (
               <div className="rounded-md bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-900">
-                Switch to <strong>OP</strong> mode in the navbar to create a Doctor Medication Plan.
+                Switch to <strong>OP</strong> mode in the navbar to create a Doctor's Plan.
               </div>
             )}
             {error && (
