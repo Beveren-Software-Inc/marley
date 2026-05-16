@@ -860,12 +860,28 @@ export const CreateClinicalNoteModal = ({
     return () => clearTimeout(timeoutId)
   }, [patientQuery, patientOpen])
 
+  useEffect(() => {
+    if (!isOPMode || !formData.patient || visitOptions.length === 0) return
+    setFormData((prev) => {
+      const hasVisit = (id: string) => visitOptions.some((v) => v.name === id)
+      let next = prev.patient_visit
+      if (activeVisit && hasVisit(activeVisit)) next = activeVisit
+      else if (defaultVisit && hasVisit(defaultVisit)) next = defaultVisit
+      else if (prev.patient_visit && hasVisit(prev.patient_visit)) next = prev.patient_visit
+      else next = visitOptions[0]?.name || ''
+      return next === prev.patient_visit ? prev : { ...prev, patient_visit: next }
+    })
+  }, [isOPMode, formData.patient, activeVisit, defaultVisit, visitOptions])
+
   const handlePatientSelect = (patient: PatientListItem) => {
-    setFormData(prev => ({ ...prev, patient: patient.name }))
+    setFormData((prev) => ({
+      ...prev,
+      patient: patient.name,
+      admission_no: '',
+      patient_visit: '',
+    }))
     setPatientQuery(patient.patient_name)
     setPatientOpen(false)
-    // Reset admission/visit selections when patient changes
-    setFormData(prev => ({ ...prev, admission_no: '', patient_visit: '' }))
   }
 
   const handlePractitionerSelect = (pract: LinkFieldOption) => {
@@ -887,7 +903,7 @@ export const CreateClinicalNoteModal = ({
 
   return (
     <div className={CREATE_MODAL_OVERLAY}>
-      <div className={createModalShellClass('max-w-xl w-full max-h-[90vh]')}>
+      <div className={createModalShellClass('max-w-3xl w-full max-h-[94vh] min-h-[min(560px,90vh)]')}>
         <div className="p-6 border-b border-slate-200 bg-white z-10 shrink-0">
           <div className="flex items-center justify-between">
             <div>
@@ -921,7 +937,7 @@ export const CreateClinicalNoteModal = ({
           }}
         >
           {/* Scrollable body */}
-          <div className="p-6 space-y-4 overflow-y-auto flex-1">
+          <div className="p-6 space-y-4 overflow-y-auto flex-1 min-h-[min(44vh,480px)]">
             {error && (
               <div className="bg-red-50 border border-red-200 rounded-md p-3 text-sm text-red-700">
                 {error}
@@ -1165,8 +1181,8 @@ export const CreateClinicalNoteModal = ({
                 <textarea
                   value={formData.note}
                   onChange={e => handleChange('note', e.target.value)}
-                  rows={5}
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  rows={12}
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary min-h-[25vh]"
                   placeholder="Enter clinical note..."
                 />
               </div>

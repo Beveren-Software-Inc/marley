@@ -245,7 +245,7 @@ export const PrescriptionList = ({
   }
 
   return (
-    <div className="min-w-full">
+    <div className="min-w-full flex flex-col flex-1 min-h-0 h-full">
       {doctorPrescriptionDefaults && effectivePatient && !hasContextLock && (
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-2 text-sm text-slate-700">
           <label className="inline-flex items-center gap-2 cursor-pointer select-none">
@@ -405,6 +405,8 @@ export const PrescriptionList = ({
       </div>
       )}
 
+      <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+        <div className="flex-1 min-h-0 overflow-auto">
       {prescriptions.length === 0 ? (
         <div className="flex items-center justify-center p-8">
           <div className="text-slate-500">
@@ -549,6 +551,8 @@ export const PrescriptionList = ({
         </tbody>
       </table>
       )}
+        </div>
+      </div>
 
       {detailName && (
   <PrescriptionSlideOver

@@ -219,7 +219,7 @@ export const DischargeList = ({ patient, admission, onPatientClick }: DischargeL
   }
 
   return (
-    <div className="bg-white border border-slate-200 rounded-lg flex flex-col min-h-[400px]">
+    <div className="bg-white border border-slate-200 rounded-lg flex flex-col flex-1 min-h-0 h-full">
       {/* Global-context active admission banner */}
       {effectiveAdmission && mode === 'IP' && activeAdmission && (
         <div className="flex items-center gap-2 px-4 py-2 rounded-t-lg bg-blue-50 border-b border-blue-200 text-blue-800 text-xs">
@@ -387,8 +387,9 @@ export const DischargeList = ({ patient, admission, onPatientClick }: DischargeL
       )}
 
       {/* Empty or Table Data */}
+      <div className="flex flex-col flex-1 min-h-0 overflow-hidden px-4 pb-3">
       {discharges.length === 0 ? (
-        <div className="flex items-center justify-center p-8">
+        <div className="flex flex-1 min-h-0 items-center justify-center p-8">
           <div className="text-slate-500 text-center">
             <svg className="w-12 h-12 mx-auto mb-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -399,6 +400,7 @@ export const DischargeList = ({ patient, admission, onPatientClick }: DischargeL
         </div>
       ) : (
         <>
+          <div className="flex-1 min-h-0 overflow-auto">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-slate-50 border-b border-slate-200">
@@ -485,6 +487,7 @@ export const DischargeList = ({ patient, admission, onPatientClick }: DischargeL
               </tbody>
             </table>
           </div>
+          </div>
           <PaginationControls
             page={page}
             pageSize={pageSize}
@@ -493,17 +496,18 @@ export const DischargeList = ({ patient, admission, onPatientClick }: DischargeL
             onPageChange={setPage}
             onPageSizeChange={(size) => { setPageSize(size); setPage(1) }}
           />
-
-          {detailName && (
-            <DetailSlideOver
-              title="Discharge"
-              subtitle={detailName}
-              onClose={() => setDetailName(null)}
-            >
-              <DocDetailView doctype="Discharge" name={detailName} />
-            </DetailSlideOver>
-          )}
         </>
+      )}
+      </div>
+
+      {detailName && (
+        <DetailSlideOver
+          title="Discharge"
+          subtitle={detailName}
+          onClose={() => setDetailName(null)}
+        >
+          <DocDetailView doctype="Discharge" name={detailName} />
+        </DetailSlideOver>
       )}
     </div>
   )

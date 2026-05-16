@@ -15,12 +15,19 @@ def get_warning_messages(
 	patient=None,
 	active_only=True,
 	no_patient_scope=None,
+	type_of_warning=None,
+	practitioner=None,
+	posting_date_from=None,
+	posting_date_to=None,
 ):
 	"""Get list of Warning Messages.
 
 	:param no_patient_scope: When ``patient`` is not set: ``organisation`` = only
 		organisation-level warnings (``type_of_warning`` = Organisation); ``all`` or
 		omitted = legacy behaviour (every warning).
+	:param type_of_warning: Optional ``Medical`` / ``Organisation`` filter (also when patient is set).
+	:param practitioner: Optional Healthcare Practitioner id.
+	:param posting_date_from / posting_date_to: Optional posting_date range (YYYY-MM-DD).
 	"""
 	filters = {}
 
@@ -28,6 +35,19 @@ def get_warning_messages(
 		filters['patient'] = patient
 	elif no_patient_scope and str(no_patient_scope).lower() in ('organisation', 'organization'):
 		filters['type_of_warning'] = 'Organisation'
+
+	if type_of_warning:
+		filters['type_of_warning'] = type_of_warning
+
+	if practitioner:
+		filters['practitioner'] = practitioner
+
+	if posting_date_from and posting_date_to:
+		filters['posting_date'] = ['between', [posting_date_from, posting_date_to]]
+	elif posting_date_from:
+		filters['posting_date'] = ['>=', posting_date_from]
+	elif posting_date_to:
+		filters['posting_date'] = ['<=', posting_date_to]
 
 	if active_only:
 		# Only get active warnings if there's an active field

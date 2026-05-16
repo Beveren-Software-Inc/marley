@@ -16,11 +16,19 @@ export interface WarningMessage {
 
 export type NoPatientWarningScope = 'all' | 'organisation'
 
+export interface WarningMessageListQuery {
+  typeOfWarning?: string
+  practitioner?: string
+  fromDate?: string
+  toDate?: string
+}
+
 export async function fetchWarningMessages(
   limit: number = 50,
   offset: number = 0,
   patient?: string,
   noPatientScope: NoPatientWarningScope = 'all',
+  query?: WarningMessageListQuery,
 ): Promise<WarningMessage[]> {
   const params = new URLSearchParams()
   params.append('limit', limit.toString())
@@ -29,6 +37,10 @@ export async function fetchWarningMessages(
   if (!patient && noPatientScope === 'organisation') {
     params.append('no_patient_scope', 'organisation')
   }
+  if (query?.typeOfWarning) params.append('type_of_warning', query.typeOfWarning)
+  if (query?.practitioner) params.append('practitioner', query.practitioner)
+  if (query?.fromDate) params.append('posting_date_from', query.fromDate)
+  if (query?.toDate) params.append('posting_date_to', query.toDate)
 
   const response = await fetch(
     `/api/method/healthcare.api.warning_message.get_warning_messages?${params.toString()}`

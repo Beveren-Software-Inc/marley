@@ -7,7 +7,7 @@ import {
   bookSession,
   type ServiceRequest
 } from '../../services/serviceRequests'
-import { fetchServiceRequestTemplateTypes, type LinkFieldOption } from '../../services/common'
+import { fetchServiceRequestTemplateTypes, fetchHealthcarePractitioners, type LinkFieldOption } from '../../services/common'
 import { toast } from '../../hooks/useToast'
 import { StatusPill } from '../ui/StatusPill'
 import { DetailSlideOver } from '../ui/DetailSlideOver'
@@ -17,6 +17,7 @@ import { BookConsultationSessionModal } from './BookConsultationSessionModal'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
 import { Search, X } from 'lucide-react'
+import { useFormatMoney } from '../../hooks/useFormatMoney'
 import { useCardFilters } from '../../contexts/CardFilterContext'
 
 interface ServiceRequestListProps {
@@ -59,9 +60,20 @@ const refetch = (
   search?: string,
   limit: number = 20,
   offset: number = 0,
+  practitioner?: string,
+  patientSearch?: string,
 ) => {
   setLoading(true)
-  fetchServiceRequests(limit, offset, patient, template_dt || undefined, statusFilter || undefined, search || undefined)
+  fetchServiceRequests(
+    limit,
+    offset,
+    patient,
+    template_dt || undefined,
+    statusFilter || undefined,
+    search || undefined,
+    practitioner || undefined,
+    !patient ? patientSearch?.trim() || undefined : undefined,
+  )
     .then((result) => {
       setServiceRequests(result.data)
       setTotalCount(result.total_count)
@@ -79,6 +91,7 @@ export const ServiceRequestList = ({
   isNurseContext = false,
   onPatientClick,
 }: ServiceRequestListProps) => {
+  const formatMoney = useFormatMoney()
   const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
@@ -103,10 +116,26 @@ export const ServiceRequestList = ({
   const [statusFilter, setStatusFilter] = useState('')
   const [templateDtFilter, setTemplateDtFilter] = useState(template_dt || '')
   const [templateTypes, setTemplateTypes] = useState<LinkFieldOption[]>([])
+  const [practitionerFilter, setPractitionerFilter] = useState('')
+  const [practitionerQuery, setPractitionerQuery] = useState('')
+  const [practitionerOpen, setPractitionerOpen] = useState(false)
+  const [practitionerOptions, setPractitionerOptions] = useState<LinkFieldOption[]>([])
+  const [patientSearchInput, setPatientSearchInput] = useState('')
+  const [debouncedPatientSearch, setDebouncedPatientSearch] = useState('')
 
   useEffect(() => {
     fetchServiceRequestTemplateTypes().then(setTemplateTypes).catch(() => {})
   }, [])
+
+  useEffect(() => {
+    if (!practitionerOpen) return
+    const t = setTimeout(() => {
+      fetchHealthcarePractitioners(practitionerQuery || undefined)
+        .then(setPractitionerOptions)
+        .catch(() => setPractitionerOptions([]))
+    }, practitionerQuery.trim() === '' ? 0 : 300)
+    return () => clearTimeout(t)
+  }, [practitionerOpen, practitionerQuery])
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -124,7 +153,7 @@ export const ServiceRequestList = ({
   // Reset page when filters change
   useEffect(() => {
     setPage(1)
-  }, [patient, refreshKey, templateDtFilter, statusFilter])
+  }, [patient, refreshKey, templateDtFilter, statusFilter, practitionerFilter, debouncedPatientSearch])
 
   // Debounced search - reset page
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -138,13 +167,50 @@ export const ServiceRequestList = ({
     return () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current) }
   }, [search])
 
+  const patientSearchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => {
+    if (patientSearchTimerRef.current) clearTimeout(patientSearchTimerRef.current)
+    patientSearchTimerRef.current = setTimeout(() => {
+      setDebouncedPatientSearch(patientSearchInput)
+      setPage(1)
+    }, 400)
+    return () => { if (patientSearchTimerRef.current) clearTimeout(patientSearchTimerRef.current) }
+  }, [patientSearchInput])
+
   // Single fetch effect
   useEffect(() => {
     setError(null)
-    refetch(setLoading, setServiceRequests, setTotalCount, setError, patient, templateDtFilter, statusFilter, debouncedSearch, pageSize, (page - 1) * pageSize)
-  }, [patient, refreshKey, templateDtFilter, statusFilter, debouncedSearch, page, pageSize])
+    refetch(
+      setLoading,
+      setServiceRequests,
+      setTotalCount,
+      setError,
+      patient,
+      templateDtFilter,
+      statusFilter,
+      debouncedSearch,
+      pageSize,
+      (page - 1) * pageSize,
+      practitionerFilter || undefined,
+      debouncedPatientSearch,
+    )
+  }, [patient, refreshKey, templateDtFilter, statusFilter, debouncedSearch, debouncedPatientSearch, practitionerFilter, page, pageSize])
 
-  const doRefetch = () => refetch(setLoading, setServiceRequests, setTotalCount, setError, patient, templateDtFilter, statusFilter, debouncedSearch, pageSize, (page - 1) * pageSize)
+  const doRefetch = () =>
+    refetch(
+      setLoading,
+      setServiceRequests,
+      setTotalCount,
+      setError,
+      patient,
+      templateDtFilter,
+      statusFilter,
+      debouncedSearch,
+      pageSize,
+      (page - 1) * pageSize,
+      practitionerFilter || undefined,
+      debouncedPatientSearch,
+    )
 
   const handleConfirmPayment = async (sr: ServiceRequest) => {
     setOpenActionRow(null)
@@ -198,6 +264,15 @@ export const ServiceRequestList = ({
     }
   }
 
+  const displayedPrice = (sr: ServiceRequest) => {
+    const g = sr.grand_total != null ? Number(sr.grand_total) : NaN
+    if (Number.isFinite(g)) return g
+    const c = sr.cost != null ? Number(sr.cost) : NaN
+    if (Number.isFinite(c)) return c
+    const a = sr.amount != null ? Number(sr.amount) : NaN
+    return Number.isFinite(a) ? a : null
+  }
+
   const handleBookSession = async (sr: ServiceRequest) => {
     setOpenActionRow(null)
     // Consultation Service Template → open slot-picker modal
@@ -245,10 +320,10 @@ export const ServiceRequestList = ({
   }
 
   return (
-    <div className="min-w-full flex flex-col min-h-[400px]">
+    <div className="min-w-full flex flex-col flex-1 min-h-0 h-full">
       {/* Header row */}
       {!isInsideCard && (
-      <div className="flex items-center justify-between gap-2 mb-3">
+      <div className="flex items-center justify-between gap-2 mb-3 flex-shrink-0">
         <h2 className="text-xl font-semibold text-slate-900">Service Requests</h2>
         <button
           type="button"
@@ -265,7 +340,7 @@ export const ServiceRequestList = ({
 
       {/* ── FILTER BAR ── */}
       {showFilters && (
-      <div className="flex flex-wrap items-center gap-3 mb-4">
+      <div className="flex flex-wrap items-center gap-3 mb-4 flex-shrink-0">
         {/* Search */}
         <div className="relative flex-1 min-w-[180px]">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
@@ -310,11 +385,70 @@ export const ServiceRequestList = ({
           ))}
         </select>
 
+        {!patient && (
+          <div className="relative flex-1 min-w-[160px]">
+            <label className="sr-only">Patient search</label>
+            <input
+              type="text"
+              value={patientSearchInput}
+              onChange={(e) => setPatientSearchInput(e.target.value)}
+              placeholder="Patient name or ID…"
+              className="w-full py-2 px-3 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+          </div>
+        )}
+
+        <div data-filter-dropdown className="relative min-w-[180px]">
+          <label className="sr-only">Practitioner</label>
+          <input
+            type="text"
+            value={
+              practitionerFilter
+                ? practitionerOptions.find((p) => p.name === practitionerFilter)?.label || practitionerQuery
+                : practitionerQuery
+            }
+            onChange={(e) => {
+              setPractitionerQuery(e.target.value)
+              setPractitionerFilter('')
+              setPractitionerOpen(true)
+            }}
+            onFocus={() => setPractitionerOpen(true)}
+            placeholder="Practitioner…"
+            className="w-full py-2 px-3 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+          />
+          {practitionerOpen && practitionerOptions.length > 0 && (
+            <div className="absolute z-30 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-md shadow-lg max-h-52 overflow-y-auto">
+              {practitionerOptions.map((p) => (
+                <button
+                  key={p.name}
+                  type="button"
+                  className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50"
+                  onClick={() => {
+                    setPractitionerFilter(p.name)
+                    setPractitionerQuery(p.label || p.name)
+                    setPractitionerOpen(false)
+                  }}
+                >
+                  {p.label || p.name}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
         {/* Clear filters */}
-        {(search || statusFilter || (templateDtFilter && !template_dt)) && (
+        {(search || statusFilter || (templateDtFilter && !template_dt) || practitionerFilter || patientSearchInput) && (
           <button
             type="button"
-            onClick={() => { setSearch(''); setStatusFilter(''); if (!template_dt) setTemplateDtFilter('') }}
+            onClick={() => {
+              setSearch('')
+              setStatusFilter('')
+              if (!template_dt) setTemplateDtFilter('')
+              setPractitionerFilter('')
+              setPractitionerQuery('')
+              setPatientSearchInput('')
+              setDebouncedPatientSearch('')
+            }}
             className="text-xs text-slate-500 hover:text-slate-700 underline whitespace-nowrap"
           >
             Clear filters
@@ -323,6 +457,8 @@ export const ServiceRequestList = ({
       </div>
       )}
 
+      <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+        <div className="flex-1 min-h-0 overflow-auto">
       {loading && serviceRequests.length === 0 ? (
         <div className="flex items-center justify-center p-8 text-slate-500 text-sm">Loading...</div>
       ) : serviceRequests.length === 0 ? (
@@ -352,7 +488,7 @@ export const ServiceRequestList = ({
               Order Date
             </th>
             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-              Cost
+              Price
             </th>
             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase w-[220px]">
               Actions
@@ -407,8 +543,11 @@ export const ServiceRequestList = ({
                     ? new Date(sr.order_date).toLocaleDateString()
                     : '-'}
                 </td>
-                <td className="px-4 py-3 text-sm text-slate-700">
-                  {typeof sr.cost === 'number' ? sr.cost.toFixed(3) : sr.amount != null ? sr.amount.toFixed(3) : '-'}
+                <td className="px-4 py-3 text-sm text-slate-700 tabular-nums">
+                  {(() => {
+                    const p = displayedPrice(sr)
+                    return p != null ? formatMoney(p) : '—'
+                  })()}
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex flex-wrap items-center gap-1.5">
@@ -534,6 +673,7 @@ export const ServiceRequestList = ({
         </tbody>
       </table>
       )}
+        </div>
 
       <PaginationControls
         page={page}
@@ -543,6 +683,7 @@ export const ServiceRequestList = ({
         onPageChange={setPage}
         onPageSizeChange={(size) => { setPageSize(size); setPage(1) }}
       />
+      </div>
 
       {detailName && (
         <DetailSlideOver

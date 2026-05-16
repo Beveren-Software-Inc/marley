@@ -2670,7 +2670,7 @@ def get_all_patient_diagnoses(patient):
 		rows = frappe.get_all(
 			"Patient Diagnosis",
 			filters={"parent": visit.name, "parenttype": "Patient Visit"},
-			fields=["name", "diagnosis", "details", "posting_date"],
+			fields=["name", "diagnosis", "details", "posting_date", "practitioner", "practitioner_name"],
 			order_by="posting_date desc",
 		)
 		for row in rows:
@@ -2681,6 +2681,8 @@ def get_all_patient_diagnoses(patient):
 				**meta,
 				"details": row.details or "",
 				"posting_date": str(row.posting_date) if row.posting_date else "",
+				"practitioner": row.get("practitioner") or "",
+				"practitioner_name": row.get("practitioner_name") or "",
 				"parent": visit.name,
 				"parent_type": "Patient Visit",
 				"parent_date": str(visit.encounter_date) if visit.encounter_date else "",
@@ -2691,7 +2693,7 @@ def get_all_patient_diagnoses(patient):
 		rows = frappe.get_all(
 			"Patient Diagnosis",
 			filters={"parent": admission.name, "parenttype": "Inpatient Admission"},
-			fields=["name", "diagnosis", "details", "posting_date"],
+			fields=["name", "diagnosis", "details", "posting_date", "practitioner", "practitioner_name"],
 			order_by="posting_date desc",
 		)
 		for row in rows:
@@ -2702,6 +2704,8 @@ def get_all_patient_diagnoses(patient):
 				**meta,
 				"details": row.details or "",
 				"posting_date": str(row.posting_date) if row.posting_date else "",
+				"practitioner": row.get("practitioner") or "",
+				"practitioner_name": row.get("practitioner_name") or "",
 				"parent": admission.name,
 				"parent_type": "Inpatient Admission",
 				"parent_date": str(admission.admitted_datetime) if admission.admitted_datetime else "",

@@ -47,7 +47,18 @@ export const DashboardCard = ({
           )}
         </div>
       </div>
-      <div className={`overflow-x-auto ${fixedHeight && !noHeightLimit ? 'overflow-y-auto flex-1 min-h-0' : 'overflow-visible'}`} style={{ scrollbarWidth: 'thin' }}>
+      {/*
+        Avoid overflow-y on this wrapper: it clips native <select> menus and absolute filter dropdowns.
+        Fixed-height cards rely on children using flex-1 min-h-0 overflow-auto on the table region.
+      */}
+      <div
+        className={
+          fixedHeight && !noHeightLimit
+            ? 'flex flex-col flex-1 min-h-0 overflow-hidden'
+            : 'overflow-x-auto overflow-visible'
+        }
+        style={{ scrollbarWidth: 'thin' }}
+      >
         <CardFilterContext.Provider value={showFilters}>
           {children}
         </CardFilterContext.Provider>

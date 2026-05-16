@@ -168,10 +168,17 @@ export const CreateDoctorMedicationPlanModal = ({
   }, [patientQuery, patientOpen, contextPatient])
 
   useEffect(() => {
-    if (isOPMode && activeVisit) {
-      setFormData((prev) => ({ ...prev, patient_visit: activeVisit }))
-    }
-  }, [isOPMode, activeVisit])
+    if (!isOPMode || !formData.patient || visitOptions.length === 0) return
+    setFormData((prev) => {
+      const hasVisit = (id: string) => visitOptions.some((v) => v.name === id)
+      let vid = prev.patient_visit
+      if (activeVisit && hasVisit(activeVisit)) vid = activeVisit
+      else if (vid && hasVisit(vid)) {
+        /* keep */
+      } else vid = visitOptions[0]?.name || ''
+      return vid === prev.patient_visit ? prev : { ...prev, patient_visit: vid || '' }
+    })
+  }, [isOPMode, formData.patient, activeVisit, visitOptions])
 
   const handlePatientSelect = (p: PatientListItem) => {
     setFormData((prev) => ({ ...prev, patient: p.name, patient_visit: '' }))

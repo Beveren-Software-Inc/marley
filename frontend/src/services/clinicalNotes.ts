@@ -51,6 +51,9 @@ export async function fetchClinicalNotes(
   reference_doctype?: string,
   reference_document?: string,
   mine_only?: boolean,
+  practitioner?: string,
+  postingDateFrom?: string,
+  postingDateTo?: string,
 ): Promise<ClinicalNote[]> {
   const params = new URLSearchParams()
   params.append('limit', limit.toString())
@@ -62,6 +65,9 @@ export async function fetchClinicalNotes(
   if (reference_doctype) params.append('ref_doctype', reference_doctype)
   if (reference_document) params.append('ref_document', reference_document)
   if (mine_only) params.append('mine_only', '1')
+  if (practitioner) params.append('practitioner', practitioner)
+  if (postingDateFrom) params.append('posting_date_from', postingDateFrom)
+  if (postingDateTo) params.append('posting_date_to', postingDateTo)
   const url = `/api/method/healthcare.api.clinical_note.get_clinical_notes?${params.toString()}`
   
   try {

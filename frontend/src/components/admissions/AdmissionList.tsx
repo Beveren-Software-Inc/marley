@@ -344,8 +344,8 @@ export const AdmissionList = ({ onAdmissionSelect, onPatientFromAdmission, searc
   }
 
   return (
-    <>
-      <div className="space-y-4">
+    <div className="flex flex-col flex-1 min-h-0 h-full">
+      <div className="flex flex-col flex-1 min-h-0 gap-4">
         {!isInsideCard && (
         <div className="flex items-center justify-between gap-2">
           <h2 className="text-xl font-semibold text-slate-900">Admission Management</h2>
@@ -505,7 +505,8 @@ export const AdmissionList = ({ onAdmissionSelect, onPatientFromAdmission, searc
         )}
 
         {/* Records Table */}
-        <div className="min-w-full flex flex-col min-h-[400px]">
+        <div className="flex flex-col flex-1 min-h-0 overflow-hidden min-w-0">
+          <div className="flex-1 min-h-0 overflow-auto">
           <table className="w-full min-w-[900px]">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
@@ -824,6 +825,7 @@ export const AdmissionList = ({ onAdmissionSelect, onPatientFromAdmission, searc
               )}
             </tbody>
           </table>
+          </div>
           <PaginationControls
             page={page}
             pageSize={pageSize}
@@ -1091,6 +1093,6 @@ export const AdmissionList = ({ onAdmissionSelect, onPatientFromAdmission, searc
           onSuccess={() => setReferralAdmission(null)}
         />
       )}
-    </>
+    </div>
   )
 }

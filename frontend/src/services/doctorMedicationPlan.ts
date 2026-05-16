@@ -31,12 +31,19 @@ export interface CreateDoctorMedicationPlanInput {
   reception_note?: string
 }
 
+export interface DoctorMedicationPlanListFilters {
+  practitioner?: string
+  fromDate?: string
+  toDate?: string
+}
+
 export async function fetchDoctorMedicationPlans(
   limit = 50,
   offset = 0,
   patient?: string,
   referenceDoctype?: string,
-  referenceDocument?: string
+  referenceDocument?: string,
+  extraFilters?: DoctorMedicationPlanListFilters,
 ): Promise<DoctorMedicationPlanRow[]> {
   const filters: unknown[] = []
   if (patient) filters.push(['patient', '=', patient])
@@ -44,6 +51,9 @@ export async function fetchDoctorMedicationPlans(
     filters.push(['reference_doctype', '=', referenceDoctype])
     filters.push(['reference_document', '=', referenceDocument])
   }
+  if (extraFilters?.practitioner) filters.push(['practitioner', '=', extraFilters.practitioner])
+  if (extraFilters?.fromDate) filters.push(['posting_date', '>=', extraFilters.fromDate])
+  if (extraFilters?.toDate) filters.push(['posting_date', '<=', `${extraFilters.toDate} 23:59:59`])
 
   const params = new URLSearchParams()
   params.append(

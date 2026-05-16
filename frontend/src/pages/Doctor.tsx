@@ -2074,39 +2074,25 @@ export const DoctorPage = () => {
       </div>
     ) : null}
 
-    {showDoctorOpIpStrip ? (
-      selectedPatient ? (
-        <div className="px-4 pt-4 pb-0">
-          <DashboardCard
-            fixedHeight
-            title={mode === 'OP' ? 'Patient Visits (OP)' : 'Inpatient Admissions (IP)'}
-            onAdd={mode === 'OP' ? () => setShowCreateVisitModal(true) : undefined}
-            addButtonTitle="Create Patient Visit"
-          >
-            {mode === 'OP' ? (
-              <PatientVisitList
-                patient={selectedPatient || undefined}
-                onPatientFromVisit={(p) => {
-                  setSelectedPatient(p)
-                  const sp = new URLSearchParams(searchParams)
-                  sp.set('patient', p)
-                  setSearchParams(sp, { replace: true })
-                }}
-              />
-            ) : (
-              <AdmissionList
-                patient={selectedPatient || undefined}
-                onPatientFromAdmission={(p) => {
-                  setSelectedPatient(p)
-                  const sp = new URLSearchParams(searchParams)
-                  sp.set('patient', p)
-                  setSearchParams(sp, { replace: true })
-                }}
-              />
-            )}
-          </DashboardCard>
-        </div>
-      ) : null
+    {/* IP + patient selected (+ no admission in context): show admissions here. OP visits live in the Appointments row below — avoid duplicating PatientVisitList. */}
+    {showDoctorOpIpStrip && selectedPatient && mode === 'IP' ? (
+      <div className="px-4 pt-4 pb-0">
+        <DashboardCard
+          fixedHeight
+          title="Inpatient Admissions (IP)"
+          onAdd={undefined}
+        >
+          <AdmissionList
+            patient={selectedPatient || undefined}
+            onPatientFromAdmission={(p) => {
+              setSelectedPatient(p)
+              const sp = new URLSearchParams(searchParams)
+              sp.set('patient', p)
+              setSearchParams(sp, { replace: true })
+            }}
+          />
+        </DashboardCard>
+      </div>
     ) : null}
 
     {!selectedPatient && !showDoctorOpIpStrip ? (
@@ -2218,6 +2204,7 @@ export const DoctorPage = () => {
             <ServiceRequestList
               patient={selectedPatient}
               refreshKey={serviceRequestRefreshKey}
+              template_dt="Lab Test Template"
               onPatientClick={handlePatientSelect}
             />
           </DashboardCard>

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Calendar, ClipboardList, Layers, Stethoscope, Tag, User, Wallet } from 'lucide-react'
+import { Calendar, ClipboardList, Layers, Stethoscope, User, Wallet } from 'lucide-react'
 import { fetchPatients, searchPatients, type PatientListItem } from '../../services/patients'
 import {
   fetchCostCenters,
@@ -63,46 +63,6 @@ interface PricingResponse {
   group_templates?: GroupTemplateRow[]
 }
 
-/** Visual theme for patient category pricing (Military / VIP / Regular / …). */
-function getPatientCategoryTheme(category: string): {
-  chip: string
-  card: string
-  ring: string
-  dot: string
-} {
-  const c = (category || '').toLowerCase()
-  if (c.includes('military') || c.includes('defence') || c.includes('defense')) {
-    return {
-      chip: 'bg-sky-600 text-white shadow-sm',
-      card: 'border-sky-200/90 bg-gradient-to-br from-sky-50 via-blue-50/70 to-sky-100/50',
-      ring: 'ring-2 ring-sky-400/40',
-      dot: 'bg-sky-600',
-    }
-  }
-  if (c.includes('vip') || c.includes('premium') || c.includes('executive')) {
-    return {
-      chip: 'bg-amber-500 text-amber-950 shadow-sm',
-      card: 'border-amber-300/90 bg-gradient-to-br from-amber-50 via-amber-100/50 to-orange-100/40',
-      ring: 'ring-2 ring-amber-400/45',
-      dot: 'bg-amber-500',
-    }
-  }
-  if (c.includes('regular') || c.includes('standard') || c.includes('civilian') || c === 'op' || c.includes('general')) {
-    return {
-      chip: 'bg-emerald-600 text-white shadow-sm',
-      card: 'border-emerald-300/90 bg-gradient-to-br from-emerald-50 via-teal-50/60 to-cyan-50/40',
-      ring: 'ring-2 ring-emerald-500/35',
-      dot: 'bg-emerald-600',
-    }
-  }
-  return {
-    chip: 'bg-emerald-600 text-white shadow-sm',
-    card: 'border-emerald-200/90 bg-gradient-to-br from-emerald-50 via-teal-50/50 to-cyan-50/40',
-    ring: 'ring-2 ring-emerald-400/35',
-    dot: 'bg-emerald-500',
-  }
-}
-
 const selectClass = inputClass
 
 const labelClass = 'mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500'
@@ -140,14 +100,14 @@ export const CreateServiceRequestModal = ({
 
   const [patientQuery, setPatientQuery] = useState(initialPatient || contextPatient || '')
   const [patientOptions, setPatientOptions] = useState<PatientListItem[]>([])
+  /** Loaded for internal best-price picking only — not shown on the clinician ordering UI */
   const [patientCategory, setPatientCategory] = useState('')
   const [patientOpen, setPatientOpen] = useState(false)
 
   const [pricingRows, setPricingRows] = useState<PricingRow[]>([])
   const [groupRows, setGroupRows] = useState<GroupTemplateRow[]>([])
   const [selectedGroupTemplates, setSelectedGroupTemplates] = useState<string[]>([])
-  /** Selected pricing tier (patient_category) for non-group templates — avoids duplicate-price radio bugs. */
-  const [selectedPricingCategory, setSelectedPricingCategory] = useState<string | null>(null)
+  const [discountPct, setDiscountPct] = useState(0)
 
   const [form, setForm] = useState({
     patient: initialPatient || contextPatient || '',
@@ -182,16 +142,15 @@ export const CreateServiceRequestModal = ({
     }, 0)
   }, [groupRows, isGroupTemplate, patientCategory, selectedGroupTemplates])
 
-  const nonGroupLineTotal = useMemo(() => {
+  const nonGroupListSubtotal = useMemo(() => {
     if (isGroupTemplate) return 0
-    if (selectedPricingCategory) {
-      const row = pricingRows.find((r) => r.patient_category === selectedPricingCategory)
-      return row?.price != null ? Number(row.price) : 0
-    }
     return getBestPrice(pricingRows) || 0
-  }, [isGroupTemplate, pricingRows, selectedPricingCategory, patientCategory])
+  }, [isGroupTemplate, pricingRows, patientCategory])
 
-  const grandTotal = isGroupTemplate ? groupTotal : nonGroupLineTotal
+  const listSubtotalBeforeDiscount = isGroupTemplate ? groupTotal : nonGroupListSubtotal
+
+  const clampedDiscount = Math.min(100, Math.max(0, discountPct))
+  const estimatedTotalAfterDiscount = listSubtotalBeforeDiscount * (1 - clampedDiscount / 100)
 
   useEffect(() => {
     const load = async () => {
@@ -275,12 +234,33 @@ export const CreateServiceRequestModal = ({
     return () => clearTimeout(t)
   }, [practitionerDropdownOpen, practitionerSearchQuery])
 
-  // Auto-fill current user's practitioner
+  // Auto-fill current user's practitioner and display label
   useEffect(() => {
-    getCurrentUserPractitioner().then(pract => {
-      if (pract) setForm(prev => prev.practitioner === '' ? { ...prev, practitioner: pract } : prev)
+    getCurrentUserPractitioner().then((pract) => {
+      if (!pract) return
+      fetchHealthcarePractitioners(undefined)
+        .then((opts) => {
+          const lbl = opts.find((p) => p.name === pract)?.label || pract
+          setForm((prev) => (prev.practitioner === '' ? { ...prev, practitioner: pract } : prev))
+          setPractitionerSearchQuery((q) => (q.trim() === '' ? lbl : q))
+        })
+        .catch(() => {
+          setForm((prev) => (prev.practitioner === '' ? { ...prev, practitioner: pract } : prev))
+        })
     })
   }, [])
+
+  useEffect(() => {
+    if (mode !== 'OP' || !form.patient || patientVisits.length === 0) return
+    setForm((prev) => {
+      if (activeVisit && patientVisits.some((v) => v.name === activeVisit))
+        return { ...prev, patient_visit: activeVisit }
+      const first = patientVisits[0]?.name
+      if (!first) return prev
+      const currentOk = prev.patient_visit && patientVisits.some((v) => v.name === prev.patient_visit)
+      return currentOk ? prev : { ...prev, patient_visit: first }
+    })
+  }, [mode, form.patient, activeVisit, patientVisits])
 
   useEffect(() => {
     if (!costCenterDropdownOpen) return
@@ -299,7 +279,6 @@ export const CreateServiceRequestModal = ({
       setPricingRows([])
       setGroupRows([])
       setSelectedGroupTemplates([])
-      setSelectedPricingCategory(null)
       return
     }
     fetch(
@@ -316,20 +295,15 @@ export const CreateServiceRequestModal = ({
         setGroupRows(groups)
         if (groups.length > 0) {
           setSelectedGroupTemplates(groups.map((row) => row.template_dn))
-          setSelectedPricingCategory(null)
         } else {
           setSelectedGroupTemplates([])
-          const match =
-            rows.find((r) => patientCategory && r.patient_category === patientCategory && r.price != null) ||
-            rows.find((r) => r.price != null)
-          setSelectedPricingCategory(match?.patient_category ?? null)
         }
+        setDiscountPct(0)
       })
       .catch(() => {
         setPricingRows([])
         setGroupRows([])
         setSelectedGroupTemplates([])
-        setSelectedPricingCategory(null)
       })
   }, [form.template_dt, form.template_dn, patientCategory])
 
@@ -364,6 +338,10 @@ export const CreateServiceRequestModal = ({
 
     try {
       setSubmitting(true)
+      const pct = Math.min(100, Math.max(0, discountPct))
+      const listAmount = listSubtotalBeforeDiscount
+      const discountAmount = listAmount * (pct / 100)
+      const afterDiscount = estimatedTotalAfterDiscount
       await createServiceRequest({
         patient: form.patient,
         template_dt: form.template_dt,
@@ -374,8 +352,10 @@ export const CreateServiceRequestModal = ({
         order_date: form.order_date,
         order_time: form.order_time,
         cost_center: form.cost_center || undefined,
-        cost: grandTotal,
-        grand_total: grandTotal,
+        cost: listAmount,
+        discount: pct,
+        discount_amount: discountAmount,
+        grand_total: afterDiscount,
         selected_group_templates: isGroupTemplate ? selectedGroupTemplates : undefined,
       })
       toast.success('Service Request created')
@@ -491,20 +471,9 @@ export const CreateServiceRequestModal = ({
                       )}
                     </div>
                   )}
-                  <p className="mt-1.5 text-[11px] text-slate-500">Type to search; pick a row to select (optional).</p>
+                  <p className="mt-1.5 text-[11px] text-slate-500">Defaults to your linked practitioner; type to search and change.</p>
                 </div>
               </div>
-              {patientCategory ? (
-                <div className="mt-3 flex flex-wrap items-center gap-2">
-                  <span className="text-xs font-medium text-slate-500">Patient record category</span>
-                  <span
-                    className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${getPatientCategoryTheme(patientCategory).chip}`}
-                  >
-                    {patientCategory}
-                  </span>
-                  <span className="text-xs text-slate-400">Used to pick default price tier when available.</span>
-                </div>
-              ) : null}
             </div>
 
             {/* Template */}
@@ -641,12 +610,6 @@ export const CreateServiceRequestModal = ({
                   <p className="mt-1.5 text-[11px] text-slate-500">Type to search; pick a row to select. Group templates include multiple child tests.</p>
                 </div>
               </div>
-              {!isGroupTemplate && pricingRows.length > 0 && (
-                <p className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                  <Tag className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
-                  Multiple price tiers below — colors help distinguish Military, VIP, and Regular (and other) categories.
-                </p>
-              )}
             </div>
 
             {/* Context & billing */}
@@ -762,8 +725,7 @@ export const CreateServiceRequestModal = ({
                   Tests in this group
                 </div>
                 <p className="mb-3 text-xs text-slate-600">
-                  Tick the child lab tests to include in this request. You can select any number of them. Line amounts use the patient&apos;s
-                  category when available.
+                  Tick the child lab tests to include in this request. Each line shows a single reference amount (full billing tiers are handled at reception).
                 </p>
                 <div className="space-y-2.5">
                   {groupRows.map((row) => {
@@ -791,23 +753,6 @@ export const CreateServiceRequestModal = ({
                           />
                           <span>
                             <span className="font-medium text-slate-900">{row.template_label}</span>
-                            {row.pricing && row.pricing.length > 0 && (
-                              <span className="mt-1.5 flex flex-wrap gap-1.5">
-                                {row.pricing.map((p) => {
-                                  const t = getPatientCategoryTheme(p.patient_category)
-                                  return (
-                                    <span
-                                      key={`${row.template_dn}-${p.patient_category}`}
-                                      className={`inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${t.chip}`}
-                                      title={`${p.patient_category}: ${formatMoney(p.price != null ? Number(p.price) : 0)}`}
-                                    >
-                                      {p.patient_category}
-                                      {p.price != null ? ` · ${formatMoney(Number(p.price))}` : ''}
-                                    </span>
-                                  )
-                                })}
-                              </span>
-                            )}
                           </span>
                         </span>
                         <span className="shrink-0 rounded-lg bg-emerald-100/80 px-3 py-1.5 text-right text-sm font-semibold tabular-nums text-emerald-900">
@@ -820,64 +765,58 @@ export const CreateServiceRequestModal = ({
               </div>
             )}
 
-            {/* Pricing tiers */}
-            {!isGroupTemplate && pricingRows.length > 0 && (
+            {form.template_dn && (
               <div className={sectionCard}>
                 <div className={sectionTitle}>
                   <Wallet className="h-4 w-4 text-emerald-600" />
-                  Price tier
+                  Pricing
                 </div>
                 <p className="mb-3 text-xs text-slate-600">
-                  Pick the rate that applies. <span className="font-semibold text-sky-700">Military</span> uses blue tones;{' '}
-                  <span className="font-semibold text-amber-700">VIP</span> and <span className="font-semibold text-emerald-700">regular</span> use
-                  amber and green.
+                  Reference amount before discount (reception finalises billing). Enter a clinician discount percentage if applicable.
                 </p>
-                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-                  {pricingRows.map((row) => {
-                    const price = row.price != null ? Number(row.price) : 0
-                    const theme = getPatientCategoryTheme(row.patient_category)
-                    const selected = selectedPricingCategory === row.patient_category
-                    return (
-                      <label
-                        key={row.patient_category}
-                        className={`relative flex cursor-pointer flex-col gap-2 rounded-xl border-2 p-3.5 transition ${theme.card} ${
-                          selected ? theme.ring : 'hover:border-slate-300/90'
-                        }`}
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <span className="flex items-center gap-2.5">
-                            <input
-                              type="radio"
-                              name="pricing_tier"
-                              checked={selected}
-                              onChange={() => setSelectedPricingCategory(row.patient_category)}
-                              className="mt-0.5 h-4 w-4 border-slate-300 text-emerald-600 focus:ring-emerald-500/40"
-                            />
-                            <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-bold ${theme.chip}`}>
-                              <span className={`h-1.5 w-1.5 rounded-full ${theme.dot}`} />
-                              {row.patient_category}
-                            </span>
-                          </span>
-                          <span className="text-right text-base font-bold tabular-nums text-slate-900">{formatMoney(price)}</span>
-                        </div>
-                        {row.multiplier != null && row.multiplier !== 0 && (
-                          <p className="pl-7 text-xs text-slate-600">Multiplier ×{row.multiplier}</p>
-                        )}
-                      </label>
-                    )
-                  })}
+                {listSubtotalBeforeDiscount > 0 && (
+                  <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2 text-sm">
+                    <span className="text-slate-600">List amount</span>
+                    <span className="font-semibold tabular-nums text-slate-900">{formatMoney(listSubtotalBeforeDiscount)}</span>
+                  </div>
+                )}
+                <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-medium text-slate-500">Discount (%)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      step={0.5}
+                      value={discountPct || ''}
+                      onChange={(e) => setDiscountPct(Math.min(100, Math.max(0, Number(e.target.value) || 0)))}
+                      className={inputClass}
+                      placeholder="0"
+                    />
+                  </div>
                 </div>
+                {clampedDiscount > 0 && listSubtotalBeforeDiscount > 0 && (
+                  <p className="mb-3 text-xs text-slate-500">
+                    −{formatMoney(listSubtotalBeforeDiscount * (clampedDiscount / 100))} ({clampedDiscount}%)
+                  </p>
+                )}
               </div>
             )}
 
-            {/* Total */}
+            {form.template_dn && (
             <div className="flex flex-col gap-3 rounded-xl border border-emerald-300/70 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 px-4 py-4 text-white shadow-md shadow-emerald-600/25 sm:flex-row sm:items-center sm:justify-between sm:px-5">
-              <div className="flex items-center gap-2 text-sm text-emerald-50">
-                <Wallet className="h-4 w-4 text-white/90" />
-                Estimated total
+              <div className="flex flex-col gap-0.5 text-sm text-emerald-50">
+                <span className="flex items-center gap-2 font-medium">
+                  <Wallet className="h-4 w-4 text-white/90" />
+                  Estimated patient total
+                </span>
+                {clampedDiscount > 0 ? (
+                  <span className="text-xs text-emerald-100/90">{clampedDiscount}% discount applied</span>
+                ) : null}
               </div>
-              <div className="text-2xl font-bold tabular-nums tracking-tight text-white drop-shadow-sm">{formatMoney(grandTotal)}</div>
+              <div className="text-2xl font-bold tabular-nums tracking-tight text-white drop-shadow-sm">{formatMoney(estimatedTotalAfterDiscount)}</div>
             </div>
+            )}
           </div>
 
           <div className={`${CREATE_MODAL_FOOTER_STICKY} justify-end`}>
