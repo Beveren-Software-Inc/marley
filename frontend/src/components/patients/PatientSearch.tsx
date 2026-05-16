@@ -129,7 +129,7 @@ export const PatientSearch = ({
 
     const storedPatient = getStoredValue(STORAGE_KEYS.SELECTED_PATIENT)
     const storedPatientName = getStoredValue(STORAGE_KEYS.SELECTED_PATIENT_NAME)
-    const storedMode = getStoredValue(STORAGE_KEYS.ACTIVE_MODE, 'OP') as 'OP' | 'IP'
+    const storedMode = getStoredValue(STORAGE_KEYS.ACTIVE_MODE) as 'OP' | 'IP' | ''
     const storedVisit = getStoredValue(STORAGE_KEYS.ACTIVE_VISIT)
     const storedAdmission = getStoredValue(STORAGE_KEYS.ACTIVE_ADMISSION)
     const storedVisitLabel = getStoredValue(STORAGE_KEYS.ACTIVE_VISIT_LABEL)
@@ -141,7 +141,7 @@ export const PatientSearch = ({
       setPatientQuery(storedPatientName)
     }
 
-    if (storedMode) {
+    if (storedMode === 'OP' || storedMode === 'IP') {
       setMode(storedMode)
     }
 
@@ -188,8 +188,44 @@ export const PatientSearch = ({
   }, [selectedPatient])
 
   useEffect(() => {
-    setStoredValue(STORAGE_KEYS.ACTIVE_MODE, mode)
+    setStoredValue(STORAGE_KEYS.ACTIVE_MODE, mode ?? '')
   }, [mode])
+
+  const clearIpContext = () => {
+    setActiveAdmission(undefined)
+    setStoredValue(STORAGE_KEYS.ACTIVE_ADMISSION, '')
+    setStoredValue(STORAGE_KEYS.ACTIVE_ADMISSION_LABEL, '')
+  }
+
+  const clearOpContext = () => {
+    setActiveVisit(undefined)
+    setStoredValue(STORAGE_KEYS.ACTIVE_VISIT, '')
+    setStoredValue(STORAGE_KEYS.ACTIVE_VISIT_LABEL, '')
+  }
+
+  const handleOpModeClick = () => {
+    if (mode === 'OP') {
+      setMode(null)
+      clearOpContext()
+      setSecondaryQuery('')
+      return
+    }
+    setMode('OP')
+    clearIpContext()
+    setSecondaryQuery('')
+  }
+
+  const handleIpModeClick = () => {
+    if (mode === 'IP') {
+      setMode(null)
+      clearIpContext()
+      setSecondaryQuery('')
+      return
+    }
+    setMode('IP')
+    clearOpContext()
+    setSecondaryQuery('')
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -507,7 +543,7 @@ export const PatientSearch = ({
             {costCenterCareScope !== 'ip_only' && (
               <button
                 type="button"
-                onClick={() => setMode('OP')}
+                onClick={handleOpModeClick}
                 className={`px-2 md:px-3 py-1 rounded-full text-[10px] md:text-xs font-semibold border transition-colors ${
                   mode === 'OP'
                     ? 'bg-white text-primary border-white shadow-sm'
@@ -520,7 +556,7 @@ export const PatientSearch = ({
             {costCenterCareScope !== 'op_only' && (
               <button
                 type="button"
-                onClick={() => setMode('IP')}
+                onClick={handleIpModeClick}
                 className={`px-2 md:px-3 py-1 rounded-full text-[10px] md:text-xs font-semibold border transition-colors ${
                   mode === 'IP'
                     ? 'bg-white text-primary border-white shadow-sm'

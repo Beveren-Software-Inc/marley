@@ -2,6 +2,62 @@
  {
   "docstatus": 0,
   "doctype": "Patient Relative Relationship",
+  "modified": "2026-04-21 16:52:11.672092",
+  "name": "colleagues",
+  "relationship": "colleagues"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Relative Relationship",
+  "modified": "2026-04-21 16:52:18.550878",
+  "name": "friend",
+  "relationship": "friend"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Relative Relationship",
+  "modified": "2026-04-21 16:52:22.586313",
+  "name": "aunt",
+  "relationship": "aunt"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Relative Relationship",
+  "modified": "2026-04-21 16:52:29.639341",
+  "name": "uncle",
+  "relationship": "uncle"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Relative Relationship",
+  "modified": "2026-04-23 16:01:24.195357",
+  "name": "House Maid",
+  "relationship": "House Maid"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Relative Relationship",
+  "modified": "2026-04-23 16:01:41.791571",
+  "name": "Cousin",
+  "relationship": "Cousin"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Relative Relationship",
+  "modified": "2026-04-23 16:04:31.332120",
+  "name": "French Teacher",
+  "relationship": "French Teacher"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Relative Relationship",
+  "modified": "2026-04-23 16:06:38.125677",
+  "name": "Housemaid",
+  "relationship": "Housemaid"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Relative Relationship",
   "modified": "2026-04-21 12:18:39.053566",
   "name": "Father",
   "relationship": "Father"

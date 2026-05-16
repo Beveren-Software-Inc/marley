@@ -2,7 +2,39 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import { careScopeFromCostCenterField, type CostCenterCareScope } from '../config/costCenterCareScope'
 import { fetchDefaultCompanyCurrency } from '../services/common'
 
-export type CareMode = 'OP' | 'IP'
+export type CareMode = 'OP' | 'IP' | null
+
+const CARE_MODE_STORAGE_KEY = 'care_mode'
+const CARE_MODE_LEGACY_KEY = 'patientSearch_activeMode'
+
+function readStoredCareMode(): CareMode {
+  if (typeof window === 'undefined') return null
+  try {
+    const stored =
+      window.localStorage.getItem(CARE_MODE_STORAGE_KEY) ||
+      window.localStorage.getItem(CARE_MODE_LEGACY_KEY)
+    if (stored === 'IP') return 'IP'
+    if (stored === 'OP') return 'OP'
+    return null
+  } catch {
+    return null
+  }
+}
+
+function persistCareMode(mode: CareMode) {
+  if (typeof window === 'undefined') return
+  try {
+    if (mode) {
+      window.localStorage.setItem(CARE_MODE_STORAGE_KEY, mode)
+      window.localStorage.setItem(CARE_MODE_LEGACY_KEY, mode)
+    } else {
+      window.localStorage.removeItem(CARE_MODE_STORAGE_KEY)
+      window.localStorage.removeItem(CARE_MODE_LEGACY_KEY)
+    }
+  } catch {
+    /* ignore */
+  }
+}
 
 // Re-use the same localStorage keys that PatientSearch already writes so they
 // stay in sync without double-writing.
@@ -12,7 +44,7 @@ const ADMISSION_STORAGE_KEY = 'patientSearch_activeAdmission'
 
 interface CareContextValue {
   mode: CareMode
-  setMode: (mode: CareMode) => void
+  setMode: (mode: CareMode | null) => void
   /** Currently focused patient visit (OP), if any. */
   activeVisit?: string
   setActiveVisit: (visitName: string | undefined) => void
@@ -60,11 +92,12 @@ const writeStorage = (key: string, value: string | undefined) => {
 }
 
 export const CareContextProvider = ({ children }: { children: ReactNode }) => {
-  const [mode, setMode] = useState<CareMode>(() => {
-    if (typeof window === 'undefined') return 'OP'
-    const stored = window.localStorage.getItem('care_mode')
-    return stored === 'IP' ? 'IP' : 'OP'
-  })
+  const [mode, setModeState] = useState<CareMode>(() => readStoredCareMode())
+
+  const setMode = (next: CareMode | null) => {
+    setModeState(next)
+    persistCareMode(next)
+  }
 
   // Initialise synchronously from localStorage so all pages get correct values immediately.
   const [activeVisit, setActiveVisitState] = useState<string | undefined>(
@@ -86,11 +119,6 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
   const [userRole, setUserRole] = useState<string[] | undefined>(undefined)
   const [user, setUser] = useState<any>(undefined)
   const [companyCurrency, setCompanyCurrency] = useState<string | undefined>(undefined)
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    try { window.localStorage.setItem('care_mode', mode) } catch { /* ignore */ }
-  }, [mode])
 
   // Load user cost center and roles when component mounts
   useEffect(() => {

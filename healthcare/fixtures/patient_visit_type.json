@@ -2,6 +2,27 @@
  {
   "docstatus": 0,
   "doctype": "Patient Visit Type",
+  "modified": "2026-02-15 10:29:01.854770",
+  "name": "ECT Session,",
+  "visit_type": "ECT Session,"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Visit Type",
+  "modified": "2026-02-15 10:31:33.653408",
+  "name": "Medical Report,",
+  "visit_type": "Medical Report,"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Visit Type",
+  "modified": "2026-04-23 17:55:48.892265",
+  "name": "Online-New Visit",
+  "visit_type": "Online-New Visit"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Visit Type",
   "modified": "2026-02-15 10:32:43.693711",
   "name": "Nutritionist",
   "visit_type": "Nutritionist"

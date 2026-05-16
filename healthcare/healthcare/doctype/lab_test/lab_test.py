@@ -49,7 +49,9 @@ class LabTest(Document):
 
 		validate_nursing_tasks(self)
 		# self.validate_result_values()
-		self.db_set("submitted_date", getdate())
+		now = now_datetime()
+		self.db_set("submitted_date", now)
+		self.db_set("results_entered_datetime", now)
 		self.db_set("status", "Pending Review")
 
 		# Inventory integration: auto issue lab consumables as material issue

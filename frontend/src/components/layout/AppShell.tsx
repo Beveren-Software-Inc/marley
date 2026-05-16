@@ -6,6 +6,7 @@ import { doctorScreenGroups } from '../../config/doctorScreens'
 import { useAuth } from '../../providers/AuthProvider'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { getVisibleMainLinks, type MainLinkItem, type ScreenGroup } from '../../config/permissions'
+import { SHOW_EMPLOYEE_PORTAL } from '../../config/features'
 import { careScopeFromCostCenterField, filterDoctorScreenGroups, filterNurseScreenGroups, filterReceptionScreenGroups } from '../../config/costCenterCareScope'
 
 // ─── Nurse screens ────────────────────────────────────────────────────────────
@@ -282,7 +283,9 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
       }
       return link
     })
-    return getVisibleMainLinks(links, roles)
+    const visible = getVisibleMainLinks(links, roles)
+    if (SHOW_EMPLOYEE_PORTAL) return visible
+    return visible.filter((link) => link.to !== '/employee')
   }, [
     user?.name,
     (user?.roles || []).join(','),

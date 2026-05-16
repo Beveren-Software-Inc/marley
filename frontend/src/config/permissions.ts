@@ -1,7 +1,9 @@
+import { SHOW_EMPLOYEE_PORTAL } from './features'
+
 /**
  * UI permissions: which routes and sidebar links a user can see based on roles.
  *
- * - Patient, Employee, Patient History: everyone
+ * - Patient, Employee (when enabled), Patient History: everyone
  * - Doctor, Nurse, Lab, Pharmacy, Reception: only that role (and admins)
  * - Administrator, System Manager, Healthcare Administrator, Website Manager: can view everything
  */
@@ -30,7 +32,13 @@ export function canEditLabTestResults(roles: string[] | undefined): boolean {
 }
 
 /** Paths that every authenticated user can access */
-const PUBLIC_PATHS = ['/patient', '/employee', '/patient-history', '/settings', '/patient-visit/']
+const PUBLIC_PATHS = [
+  '/patient',
+  ...(SHOW_EMPLOYEE_PORTAL ? ['/employee'] : []),
+  '/patient-history',
+  '/settings',
+  '/patient-visit/',
+]
 
 export function isAdmin(roles: string[]): boolean {
   const normalized = roles.map(r => r.trim())

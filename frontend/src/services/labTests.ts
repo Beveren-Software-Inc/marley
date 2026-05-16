@@ -44,6 +44,18 @@ export interface LabTest {
   employee?: string
   employee_designation?: string
   reviewed_by?: string
+  results_entered_datetime?: string
+  doctor_reviewed_datetime?: string
+  review_turnaround_hours?: number
+  review_report_type?: string
+  review_result_indicator?: string
+  review_follow_up_actions?: string
+  review_follow_up_other?: string
+  review_comments?: string
+  review_prescription_message?: string
+  patient_informed_of_report?: number | boolean
+  archive_report_on_review?: number | boolean
+  create_task_on_review?: number | boolean
   /** Healthcare Practitioner (Lab Technologist / Lab Technician) who entered results */
   lab_technician?: string
   lab_technician_name?: string
@@ -363,6 +375,70 @@ export async function updateLabTestRemarks(labTestName: string, remarks: LabTest
 
 import { apiRequest } from './apiClient'
 
+export interface DoctorReviewFormOptions {
+  report_types: string[]
+  result_indicators: string[]
+  follow_up_actions: string[]
+}
+
+export interface SubmitDoctorLabReviewPayload {
+  lab_test_name: string
+  new_status: 'Reviewed' | 'Rejected'
+  review_report_type?: string
+  review_result_indicator: string
+  review_follow_up_actions?: string[]
+  review_follow_up_other?: string
+  review_comments?: string
+  review_prescription_message?: string
+  patient_informed_of_report?: number
+  archive_report_on_review?: number
+  create_task_on_review?: number
+}
+
+export interface LabReviewTurnaroundMetrics {
+  reviewed_count: number
+  pending_review_count: number
+  avg_turnaround_hours: number
+  min_turnaround_hours: number
+  max_turnaround_hours: number
+}
+
+export async function fetchDoctorReviewFormOptions(): Promise<DoctorReviewFormOptions> {
+  return apiRequest<DoctorReviewFormOptions>(
+    '/api/method/healthcare.api.lab_test_doctor_review.get_doctor_review_form_options'
+  )
+}
+
+export async function submitDoctorLabTestReview(
+  payload: SubmitDoctorLabReviewPayload
+): Promise<Record<string, unknown>> {
+  return apiRequest<Record<string, unknown>>(
+    '/api/method/healthcare.api.lab_test_doctor_review.submit_doctor_lab_test_review',
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }
+  )
+}
+
+export async function fetchLabReviewTurnaroundMetrics(params?: {
+  from_date?: string
+  to_date?: string
+  company?: string
+  cost_center?: string
+}): Promise<LabReviewTurnaroundMetrics> {
+  const qs = new URLSearchParams()
+  if (params?.from_date) qs.append('from_date', params.from_date)
+  if (params?.to_date) qs.append('to_date', params.to_date)
+  if (params?.company) qs.append('company', params.company)
+  if (params?.cost_center) qs.append('cost_center', params.cost_center)
+  const suffix = qs.toString() ? `?${qs.toString()}` : ''
+  return apiRequest<LabReviewTurnaroundMetrics>(
+    `/api/method/healthcare.api.lab_test_doctor_review.get_lab_review_turnaround_metrics${suffix}`
+  )
+}
+
+/** @deprecated Use submitDoctorLabTestReview — requires structured review fields */
 export async function updateLabTestStatus(
   lab_test_name: string,
   new_status: 'Reviewed' | 'Rejected'
