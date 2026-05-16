@@ -291,7 +291,7 @@ export const PatientVisitList = ({
   }
 
   return (
-    <>
+    <div className="flex flex-col flex-1 min-h-0 h-full min-w-0">
       {/* Global-context active visit banner */}
       {effectiveVisitFilter && (
         <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-blue-50 border border-blue-200 text-blue-800 text-xs mb-2">
@@ -454,7 +454,8 @@ export const PatientVisitList = ({
       )}
 
       {/* --- Visits Table --- */}
-      <div className="overflow-x-auto flex flex-col min-h-[400px]">
+      <div className="flex flex-col flex-1 min-h-0 overflow-hidden min-w-0">
+        <div className="flex-1 min-h-0 overflow-auto overflow-x-auto">
         {loading ? (
           <div className="flex items-center justify-center p-10 text-slate-500 text-sm">
             <svg className="animate-spin w-4 h-4 mr-2 text-primary" fill="none" viewBox="0 0 24 24">
@@ -639,6 +640,7 @@ export const PatientVisitList = ({
             </tbody>
           </table>
         )}
+        </div>
         <PaginationControls
           page={page}
           pageSize={pageSize}
@@ -763,6 +765,6 @@ export const PatientVisitList = ({
           onSuccess={() => { setAdmissionModalVisit(null); fetchVisits() }}
         />
       )}
-    </>
+    </div>
   )
 }

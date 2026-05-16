@@ -22,6 +22,8 @@ export interface ServiceRequest {
   cost_center?: string
   cost?: number
   amount?: number
+  grand_total?: number
+  discount?: number
 }
 
 export interface PaginatedServiceRequests {
@@ -35,7 +37,9 @@ export async function fetchServiceRequests(
   patient?: string,
   template_dt?: string,
   status?: string,
-  search?: string
+  search?: string,
+  practitioner?: string,
+  patientSearch?: string,
 ): Promise<PaginatedServiceRequests> {
   const params = new URLSearchParams()
   params.append('limit', limit.toString())
@@ -44,6 +48,8 @@ export async function fetchServiceRequests(
   if (template_dt) params.append('template_dt', template_dt)
   if (status) params.append('status', status)
   if (search) params.append('search', search)
+  if (practitioner) params.append('practitioner', practitioner)
+  if (patientSearch?.trim()) params.append('patient_search', patientSearch.trim())
 
   const response = await fetch(
     `/api/method/healthcare.api.service_request.get_service_requests?${params.toString()}`

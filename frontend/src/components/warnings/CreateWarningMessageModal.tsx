@@ -371,9 +371,6 @@ export const CreateWarningMessageModal = ({ onClose, onSuccess, initialPatient }
                 if (v === 'Organisation') {
                   setFormData((prev) => ({ ...prev, type_of_warning: v, patient: '' }))
                   setPatientQuery('')
-                if (v === 'Organisation') {
-                  setFormData((prev) => ({ ...prev, type_of_warning: v, patient: '' }))
-                  setPatientQuery('')
                 } else {
                   setFormData((prev) => ({
                     ...prev,

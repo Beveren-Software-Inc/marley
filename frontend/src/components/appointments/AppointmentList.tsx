@@ -656,26 +656,6 @@ import { MarkPatientArrivedModal } from './MarkPatientArrivedModal'
 import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
 import { getCurrentUserPractitioner } from '../../services/common'
 
-function localDateISO(d = new Date()): string {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
-}
-
-function sortAppointmentsMineFirst(data: Appointment[], myPractitionerId: string | null): Appointment[] {
-  if (!myPractitionerId) return data
-  return [...data].sort((a, b) => {
-    const aMine = a.practitioner === myPractitionerId ? 0 : 1
-    const bMine = b.practitioner === myPractitionerId ? 0 : 1
-    if (aMine !== bMine) return aMine - bMine
-    const ad = a.appointment_date || ''
-    const bd = b.appointment_date || ''
-    if (ad !== bd) return ad.localeCompare(bd)
-    return (a.appointment_time || '').localeCompare(b.appointment_time || '')
-  })
-}
-
 const statusColors: Record<string, string> = {
   'Scheduled': 'info',
   'Open': 'warning',
@@ -694,7 +674,7 @@ const ALL_STATUSES = ['Scheduled', 'Open', 'Confirmed', 'Checked In', 'Patient A
 interface AppointmentListProps {
   refreshKey?: string | number
   showAll?: boolean
-  /** Doctor dashboard: default date = today, optional "all practitioners" with yours listed first */
+  /** Doctor dashboard: list uses the logged-in user's linked practitioner; dates/status live in filters */
   doctorScheduleMode?: boolean
   patient?: string
   onAddAppointment?: () => void
@@ -856,25 +836,45 @@ export const AppointmentList = ({
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const [myPractitionerId, setMyPractitionerId] = useState<string | null>(null)
-  const [includeAllPractitioners, setIncludeAllPractitioners] = useState(false)
-  const scheduleDatesInitialized = useRef(false)
+  const [linkedPractitionerName, setLinkedPractitionerName] = useState<string>('')
+  const [schedulePractitionerResolved, setSchedulePractitionerResolved] = useState(false)
 
-  const showPractitionerColumn = Boolean(
-    showAll || (doctorScheduleMode && includeAllPractitioners && !patient),
-  )
+  const showPractitionerColumn = Boolean(showAll)
 
   useEffect(() => {
-    if (!doctorScheduleMode || scheduleDatesInitialized.current) return
-    scheduleDatesInitialized.current = true
-    const t = localDateISO()
-    setFilterDateFrom(t)
-    setFilterDateTo(t)
+    if (!doctorScheduleMode) {
+      setSchedulePractitionerResolved(false)
+      setMyPractitionerId(null)
+      return
+    }
+    setSchedulePractitionerResolved(false)
+    getCurrentUserPractitioner()
+      .then(setMyPractitionerId)
+      .finally(() => setSchedulePractitionerResolved(true))
   }, [doctorScheduleMode])
 
   useEffect(() => {
-    if (!doctorScheduleMode) return
-    getCurrentUserPractitioner().then(setMyPractitionerId)
-  }, [doctorScheduleMode])
+    if (!doctorScheduleMode || !myPractitionerId) {
+      setLinkedPractitionerName('')
+      return
+    }
+    let cancelled = false
+    fetch(`/api/resource/Healthcare Practitioner/${encodeURIComponent(myPractitionerId)}`, {
+      credentials: 'include',
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (cancelled) return
+        const n = j?.data?.practitioner_name
+        setLinkedPractitionerName(typeof n === 'string' && n.trim() ? n.trim() : myPractitionerId)
+      })
+      .catch(() => {
+        if (!cancelled) setLinkedPractitionerName(myPractitionerId)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [doctorScheduleMode, myPractitionerId])
 
   // Debounce search input
   useEffect(() => {
@@ -902,41 +902,29 @@ export const AppointmentList = ({
         setLoading(true)
         setError(null)
         const offset = (page - 1) * pageSize
-        const useAllForSchedule =
-          doctorScheduleMode && includeAllPractitioners && !patient && !showAll
 
         let response: AppointmentPage
 
-        if (useAllForSchedule) {
+        if (showAll) {
           response = await fetchAllAppointments(
             pageSize,
             offset,
             filterStatus || undefined,
-            undefined,
+            patient,
             searchQuery || undefined,
             filterPractitioner || undefined,
             filterDateFrom || undefined,
             filterDateTo || undefined,
           )
-          response = {
-            ...response,
-            data: sortAppointmentsMineFirst(response.data, myPractitionerId),
-          }
         } else {
-          response = showAll
-            ? await fetchAllAppointments(
-              pageSize, offset,
-              filterStatus || undefined, patient,
-              searchQuery || undefined,
-              filterPractitioner || undefined,
-              filterDateFrom || undefined, filterDateTo || undefined,
-            )
-            : await fetchPractitionerAppointments(
-              pageSize, offset,
-              filterStatus || undefined,
-              searchQuery || undefined,
-              filterDateFrom || undefined, filterDateTo || undefined,
-            )
+          response = await fetchPractitionerAppointments(
+            pageSize,
+            offset,
+            filterStatus || undefined,
+            searchQuery || undefined,
+            filterDateFrom || undefined,
+            filterDateTo || undefined,
+          )
         }
 
         setAppointments(response.data)
@@ -972,7 +960,7 @@ export const AppointmentList = ({
     }
     loadAppointments()
   }, [
-    refreshKey, showAll, doctorScheduleMode, includeAllPractitioners, patient, myPractitionerId,
+    refreshKey, showAll, patient,
     refreshTrigger, page, pageSize, filterStatus, filterPractitioner, filterDateFrom, filterDateTo, searchQuery,
   ])
 
@@ -1132,32 +1120,12 @@ export const AppointmentList = ({
     setFilterPractitioner('')
     setSearchInput('')
     setSearchQuery('')
-    setIncludeAllPractitioners(false)
     setPage(1)
-    if (doctorScheduleMode) {
-      const t = localDateISO()
-      setFilterDateFrom(t)
-      setFilterDateTo(t)
-    } else {
-      setFilterDateFrom('')
-      setFilterDateTo('')
-    }
-  }
-
-  const clearDateRange = () => {
     setFilterDateFrom('')
     setFilterDateTo('')
-    setPage(1)
   }
 
-  const setDateRangeToday = () => {
-    const t = localDateISO()
-    setFilterDateFrom(t)
-    setFilterDateTo(t)
-    setPage(1)
-  }
-
-  const hasActiveFilters = filterStatus || filterPractitioner || filterDateFrom || filterDateTo || searchQuery || includeAllPractitioners
+  const hasActiveFilters = filterStatus || filterPractitioner || filterDateFrom || filterDateTo || searchQuery
 
   if (loading) {
     return <div className="flex items-center justify-center p-8 text-slate-600">Loading appointments...</div>
@@ -1174,47 +1142,18 @@ export const AppointmentList = ({
     )
   }
 
-  const handleIncludeAllChange = (checked: boolean) => {
-    setIncludeAllPractitioners(checked)
-    setPage(1)
-  }
-
   return (
     <>
-      <div className="flex flex-col min-h-[400px]">
-      {doctorScheduleMode && !patient && (
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-2 text-sm text-slate-700">
-          <label className="inline-flex items-center gap-2 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={includeAllPractitioners}
-              onChange={(e) => handleIncludeAllChange(e.target.checked)}
-              className="rounded border-slate-300 text-primary focus:ring-primary"
-            />
-            <span>Include other practitioners</span>
-          </label>
-          <span className="hidden sm:inline text-slate-300" aria-hidden>|</span>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs text-slate-500">Dates:</span>
-            <button
-              type="button"
-              onClick={setDateRangeToday}
-              className="text-xs font-medium text-primary hover:underline"
-            >
-              Today
-            </button>
-            <button
-              type="button"
-              onClick={clearDateRange}
-              className="text-xs font-medium text-slate-600 hover:underline"
-            >
-              Any date
-            </button>
-          </div>
-          <p className="text-xs text-slate-500 w-full sm:w-auto sm:ml-auto">
-            Default is today; open the filter icon for status search and custom ranges.
-          </p>
-        </div>
+      <div className="flex flex-col flex-1 min-h-0 h-full">
+      {doctorScheduleMode && !patient && schedulePractitionerResolved && linkedPractitionerName && (
+        <p className="text-xs text-slate-600 mb-2">
+          Practitioner: <span className="font-medium text-slate-800">{linkedPractitionerName}</span>
+        </p>
+      )}
+      {doctorScheduleMode && !patient && schedulePractitionerResolved && !myPractitionerId && (
+        <p className="text-xs text-amber-700 mb-2">
+          No Healthcare Practitioner is linked to your user. Appointments may be empty unless you have a reception/admin role.
+        </p>
       )}
       {/* Header row */}
       {!isInsideCard && (
@@ -1270,8 +1209,8 @@ export const AppointmentList = ({
             />
           </div>
           
-          {/* Practitioner Filter - Only show when showAll is true */}
-          {(showAll || (doctorScheduleMode && includeAllPractitioners)) && uniquePractitioners.length > 0 && (
+          {/* Practitioner filter when listing all appointments */}
+          {showAll && uniquePractitioners.length > 0 && (
             <div className="flex flex-col gap-1">
               <label className="text-xs font-medium text-slate-500">Practitioner</label>
               <select
@@ -1374,6 +1313,8 @@ export const AppointmentList = ({
       </div>
       )}
 
+      <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+        <div className="flex-1 min-h-0 overflow-auto">
       {/* ── Table ── */}
       {appointments.length === 0 ? (
         <div className="flex items-center justify-center p-8 text-slate-500">
@@ -1573,6 +1514,7 @@ export const AppointmentList = ({
           </table>
         </div>
       )}
+        </div>
 
       {/* ── Pagination ── */}
       <PaginationControls
@@ -1583,6 +1525,7 @@ export const AppointmentList = ({
         onPageChange={setPage}
         onPageSizeChange={handlePageSizeChange}
       />
+      </div>
       </div>
 
       {arrivedTarget && (

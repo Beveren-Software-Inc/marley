@@ -723,6 +723,8 @@ export interface PatientDiagnosisAggRow extends PatientDiagnosisRow {
   parent: string
   parent_type: 'Patient Visit' | 'Inpatient Admission'
   parent_date?: string
+  practitioner?: string
+  practitioner_name?: string
 }
 
 export async function getAllPatientDiagnoses(patient: string): Promise<PatientDiagnosisAggRow[]> {

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { Plus, MoreVertical, PenLine, X, ChevronRight } from 'lucide-react'
 import {
   fetchPatientMedicalHistories,
@@ -7,6 +7,7 @@ import {
 } from '../../services/patients'
 import { CreatePatientMedicalHistoryModal } from './CreatePatientMedicalHistoryModal'
 import { EditPatientMedicalHistoryModal } from './EditPatientMedicalHistoryModal'
+import { useCardFilters } from '../../contexts/CardFilterContext'
 
 interface Props {
   patient: string
@@ -189,6 +190,11 @@ function RowMenu({
   )
 }
 
+function creationDay(iso?: string | null): string {
+  if (!iso) return ''
+  return iso.slice(0, 10)
+}
+
 // ── Main list component ────────────────────────────────────────────────────────
 export function PatientMedicalHistoryList({ patient, patientName, refreshKey }: Props) {
   const [items, setItems] = useState<PatientMedicalHistory[]>([])
@@ -197,6 +203,35 @@ export function PatientMedicalHistoryList({ patient, patientName, refreshKey }: 
   const [showCreate, setShowCreate] = useState(false)
   const [detailName, setDetailName] = useState<string | null>(null)
   const [editHistory, setEditHistory] = useState<PatientMedicalHistory | null>(null)
+
+  const cardFilters = useCardFilters()
+  const [showFiltersInternal, setShowFiltersInternal] = useState(false)
+  const showFilters = cardFilters !== undefined ? cardFilters : showFiltersInternal
+  const isInsideCard = cardFilters !== undefined
+
+  const [fromDate, setFromDate] = useState('')
+  const [toDate, setToDate] = useState('')
+  const [templateFilter, setTemplateFilter] = useState('')
+
+  const templateOptions = useMemo(() => {
+    const s = new Set<string>()
+    for (const it of items) {
+      if (it.template) s.add(it.template)
+    }
+    return Array.from(s).sort()
+  }, [items])
+
+  const filteredItems = useMemo(() => {
+    return items.filter((it) => {
+      const day = creationDay(it.creation)
+      if (fromDate && day && day < fromDate) return false
+      if (toDate && day && day > toDate) return false
+      if (templateFilter && it.template !== templateFilter) return false
+      return true
+    })
+  }, [items, fromDate, toDate, templateFilter])
+
+  const hasActiveFilters = Boolean(fromDate || toDate || templateFilter)
 
   const load = useCallback(() => {
     if (!patient) return
@@ -224,25 +259,89 @@ export function PatientMedicalHistoryList({ patient, patientName, refreshKey }: 
   if (!patient) return null
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full flex-1 min-h-0">
       {/* toolbar */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-slate-200">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-slate-200 flex-shrink-0 gap-2">
         <span className="text-xs font-medium text-slate-500">
-          {items.length} record{items.length !== 1 ? 's' : ''}
+          {filteredItems.length} record{filteredItems.length !== 1 ? 's' : ''}
+          {hasActiveFilters && items.length !== filteredItems.length ? ` (of ${items.length})` : ''}
         </span>
-        <button
-          type="button"
-          onClick={() => setShowCreate(true)}
-          className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
-        >
-          +
-       
-
-        </button>
+        <div className="flex items-center gap-2">
+          {!isInsideCard && (
+            <button
+              type="button"
+              onClick={() => setShowFiltersInternal((p) => !p)}
+              className={`p-1.5 rounded-md border transition-colors ${showFilters ? 'bg-primary/10 border-primary text-primary' : 'border-slate-300 text-slate-500 hover:bg-slate-50'}`}
+              title={showFilters ? 'Hide filters' : 'Show filters'}
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
+              </svg>
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setShowCreate(true)}
+            className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
+          >
+            +
+          </button>
+        </div>
       </div>
 
+      {showFilters && (
+        <div className="flex flex-wrap items-end gap-3 px-3 py-2 border-b border-slate-100 bg-slate-50/80">
+          <div className="flex flex-col gap-1 min-w-[120px]">
+            <label className="text-xs font-medium text-slate-500">Created from</label>
+            <input
+              type="date"
+              value={fromDate}
+              onChange={(e) => setFromDate(e.target.value)}
+              className="rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white"
+            />
+          </div>
+          <div className="flex flex-col gap-1 min-w-[120px]">
+            <label className="text-xs font-medium text-slate-500">Created to</label>
+            <input
+              type="date"
+              value={toDate}
+              onChange={(e) => setToDate(e.target.value)}
+              className="rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white"
+            />
+          </div>
+          <div className="flex flex-col gap-1 min-w-[160px]">
+            <label className="text-xs font-medium text-slate-500">Template</label>
+            <select
+              value={templateFilter}
+              onChange={(e) => setTemplateFilter(e.target.value)}
+              className="rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white"
+            >
+              <option value="">All templates</option>
+              {templateOptions.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          </div>
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={() => {
+                setFromDate('')
+                setToDate('')
+                setTemplateFilter('')
+              }}
+              className="text-xs text-slate-600 underline self-end pb-1"
+            >
+              Clear filters
+            </button>
+          )}
+        </div>
+      )}
+
       {/* table */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 min-h-0 overflow-y-auto">
         {loading && (
           <div className="flex items-center justify-center py-10 text-sm text-slate-400">Loading…</div>
         )}
@@ -259,7 +358,23 @@ export function PatientMedicalHistoryList({ patient, patientName, refreshKey }: 
             </button>
           </div>
         )}
-        {!loading && items.length > 0 && (
+        {!loading && items.length > 0 && filteredItems.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-10 gap-2">
+            <p className="text-sm text-slate-500">No records match the current filters.</p>
+            <button
+              type="button"
+              onClick={() => {
+                setFromDate('')
+                setToDate('')
+                setTemplateFilter('')
+              }}
+              className="text-xs text-primary underline"
+            >
+              Clear filters
+            </button>
+          </div>
+        )}
+        {!loading && filteredItems.length > 0 && (
           <table className="w-full text-xs">
             <thead className="bg-slate-50 border-b border-slate-200 sticky top-0">
               <tr>
@@ -270,7 +385,7 @@ export function PatientMedicalHistoryList({ patient, patientName, refreshKey }: 
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {items.map((item) => (
+              {filteredItems.map((item) => (
                 <tr
                   key={item.name!}
                   className="hover:bg-slate-50 cursor-pointer group"

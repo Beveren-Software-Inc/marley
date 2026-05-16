@@ -297,18 +297,47 @@ def get_service_request_template_pricing(template_dt, template_dn):
 
 
 @frappe.whitelist()
-def get_service_requests(limit=50, offset=0, patient=None, template_dt=None, status=None, search=None):
-	"""Get list of Service Requests"""
+def get_service_requests(
+	limit=50,
+	offset=0,
+	patient=None,
+	template_dt=None,
+	status=None,
+	search=None,
+	practitioner=None,
+	patient_search=None,
+):
+	"""Get list of Service Requests.
+
+	Optional ``patient_search``: when ``patient`` is not set, narrows to Service Requests
+	whose patient id or patient_name matches (contains) the search string.
+	"""
 	from healthcare.api.common import get_permitted_cost_centers
 	filters = {'docstatus': ['!=', 2]}
 
 	if patient:
 		filters['patient'] = patient
-	# print("Template dt", str(template_dt))
-	# if template_dt:
-	# 	filters['template_dt'] = template_dt
+	elif patient_search and str(patient_search).strip():
+		ps = str(patient_search).strip()
+		matching = frappe.db.sql(
+			"""
+			SELECT name FROM `tabPatient`
+			WHERE name LIKE %(q)s OR patient_name LIKE %(q)s
+			LIMIT 500
+			""",
+			{'q': f'%{ps}%'},
+			pluck='name',
+		)
+		if not matching:
+			return {'data': [], 'total_count': 0}
+		filters['patient'] = ['in', list(matching)]
+
+	if template_dt:
+		filters['template_dt'] = template_dt
 	if status:
 		filters['status'] = status
+	if practitioner:
+		filters['practitioner'] = practitioner
 	if search:
 		filters['name'] = ['like', f'%{search}%']
 
@@ -343,7 +372,7 @@ def get_service_requests(limit=50, offset=0, patient=None, template_dt=None, sta
 			'template_dt', 'template_dn', 'status', 'order_date', 'order_time',
 			'occurrence_date', 'occurrence_time', 'medical_department',
 			'billing_status', 'priority', 'intent', 'patient_accepted_cost',
-			'booked', 'order_group', 'cost', 'cost_center',
+			'booked', 'order_group', 'cost', 'grand_total', 'amount', 'cost_center',
 		],
 		limit=limit,
 		limit_start=offset,

@@ -2706,10 +2706,10 @@ export const LabTestList = ({
 
   // ── Render ───────────────────────────────────────────────────────────────
   return (
-    <div className="flex flex-col min-w-full min-h-[400px]">
+    <div className="flex flex-col min-w-full flex-1 min-h-0 h-full">
       {/* Header row */}
       {!isInsideCard && (
-      <div className="flex items-center justify-between gap-2 px-4 py-3">
+      <div className="flex items-center justify-between gap-2 px-4 py-3 flex-shrink-0">
         <h2 className="text-xl font-semibold text-slate-900">Lab Tests</h2>
         <button
           type="button"
@@ -2734,6 +2734,8 @@ export const LabTestList = ({
         />
       )}
 
+      <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+        <div className="flex-1 min-h-0 overflow-auto">
       {loading ? (
         <div className="flex items-center justify-center p-8"><div className="text-slate-600">Loading lab tests...</div></div>
       ) : error ? (
@@ -2974,6 +2976,7 @@ export const LabTestList = ({
           </table>
         </div>
       )}
+        </div>
 
       <PaginationControls
         page={page}
@@ -2983,6 +2986,8 @@ export const LabTestList = ({
         onPageChange={setPage}
         onPageSizeChange={(size) => { setPageSize(size); setPage(1) }}
       />
+
+      </div>
 
       {/* ── Lab Test Details slide-over ── */}
       {selectedLabTestForDetails && (

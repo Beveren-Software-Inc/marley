@@ -79,6 +79,8 @@ def get_clinical_notes(**kwargs):
 	reference_document = kwargs.get('ref_document')
 	practitioner = kwargs.get('practitioner')
 	mine_only = cint(kwargs.get('mine_only'))
+	posting_date_from = kwargs.get('posting_date_from') or kwargs.get('from_date')
+	posting_date_to = kwargs.get('posting_date_to') or kwargs.get('to_date')
 
 	filters = {}
 
@@ -115,7 +117,14 @@ def get_clinical_notes(**kwargs):
 	
 	if reference_document:
 		filters['reference_document'] = reference_document
-	
+
+	if posting_date_from and posting_date_to:
+		filters['posting_date'] = ['between', [posting_date_from, posting_date_to]]
+	elif posting_date_from:
+		filters['posting_date'] = ['>=', posting_date_from]
+	elif posting_date_to:
+		filters['posting_date'] = ['<=', posting_date_to]
+
 	clinical_notes = frappe.get_all(
 		'Clinical Note',
 		filters=filters,
