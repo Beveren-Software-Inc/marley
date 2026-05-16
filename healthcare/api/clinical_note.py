@@ -22,6 +22,29 @@ def _get_or_create_clinical_note_type(name: str | None) -> str | None:
 	return name
 
 
+def _resolve_clinical_note_medical_role(data: dict) -> str:
+	"""
+	Clinical Note.medical_role is mandatory. Prefer payload, then Healthcare Practitioner,
+	then fallback to Medical Role "Doctor".
+	"""
+	mr = (data.get('medical_role') or '').strip()
+	if mr:
+		return mr
+	pr = (data.get('practitioner') or '').strip()
+	if pr:
+		from_pr = frappe.db.get_value('Healthcare Practitioner', pr, 'medical_role')
+		if from_pr:
+			return from_pr
+	if frappe.db.exists('Medical Role', 'Doctor'):
+		return 'Doctor'
+	frappe.throw(
+		_(
+			'Medical Role is missing. Either pass medical_role, set Healthcare Practitioner.medical_role, '
+			'or create a Medical Role named "Doctor".'
+		),
+	)
+
+
 # @frappe.whitelist()
 # def get_clinical_notes(limit=50, offset=0, patient=None, medical_role=None, clinical_note_type=None, note_type=None):
 # 	"""Get list of Clinical Notes with optional filters"""
@@ -294,7 +317,7 @@ def create_clinical_note(data):
 		'patient': patient,
 		
 		'clinical_note_type': clinical_note_type,
-		'medical_role': data.get('medical_role'),
+		'medical_role': _resolve_clinical_note_medical_role(data),
 		'practitioner': data.get('practitioner'),
 		'posting_date': data.get('posting_date') or nowdate(),
 		'note': note,

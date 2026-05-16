@@ -2130,7 +2130,7 @@ export const DoctorPage = () => {
           </DashboardCard>
         </div>
 
-        {/* Row 2: OP — Appointments + visits; IP — Progress notes + Diagnosis */}
+        {/* Row 2: OP — Appointments + Patient Visits only; Diagnosis row follows for everyone */}
         {costCenterCareScope !== 'ip_only' && mode === 'OP' ? (
           <div className="grid gap-4 md:grid-cols-2 auto-rows-fr px-4 pb-4">
             <DashboardCard
@@ -2151,35 +2151,56 @@ export const DoctorPage = () => {
               <PatientVisitList patient={selectedPatient} onPatientFromVisit={handlePatientSelect} />
             </DashboardCard>
           </div>
-        ) : (
-          <div className="grid gap-4 md:grid-cols-2 auto-rows-fr px-4 pb-4">
-            <DashboardCard
-              fixedHeight
-              title="Doctor Progress Notes"
-              onAdd={() => setShowDoctorProgressNoteModal(true)}
-              addButtonTitle="Add Doctor Progress Note"
-            >
-              <ClinicalNotesList
-                patient={selectedPatient}
-                medicalRole="Doctor"
-                clinicalNoteType="Doctor Progress Note"
-                key={doctorProgressNoteRefreshKey}
-                onPatientClick={handlePatientSelect}
-              />
-            </DashboardCard>
+        ) : null}
 
-            <DashboardCard
-              fixedHeight
-              title="Diagnosis Detail"
-              onAdd={() => setShowDiagnosisModal(true)}
-              addButtonTitle="Add / Edit Diagnosis"
-            >
-              <PatientDiagnosisList patient={selectedPatient} refreshKey={diagnosisRefreshKey} />
-            </DashboardCard>
-          </div>
-        )}
+        {/* Diagnosis (left) · Doctor Progress Notes (right) */}
+        <div className="grid gap-4 md:grid-cols-2 auto-rows-fr px-4 pb-4">
+          <DashboardCard
+            fixedHeight
+            title="Diagnosis Detail"
+            onAdd={() => setShowDiagnosisModal(true)}
+            addButtonTitle="Add / Edit Diagnosis"
+          >
+            <PatientDiagnosisList patient={selectedPatient} refreshKey={diagnosisRefreshKey} />
+          </DashboardCard>
 
-        {/* Row 3: Lab tests and requests */}
+          <DashboardCard
+            fixedHeight
+            title="Doctor Progress Notes"
+            onAdd={() => setShowDoctorProgressNoteModal(true)}
+            addButtonTitle="Add Doctor Progress Note"
+          >
+            <ClinicalNotesList
+              patient={selectedPatient}
+              medicalRole="Doctor"
+              clinicalNoteType="Doctor Progress Note"
+              key={doctorProgressNoteRefreshKey}
+              onPatientClick={handlePatientSelect}
+            />
+          </DashboardCard>
+        </div>
+
+        {/* Doctor's Plan + Long Acting (after Diagnosis/Notes, before Labs) */}
+        <div
+          className={`grid gap-4 px-4 pb-4 auto-rows-fr ${
+            mode === 'OP' || costCenterCareScope !== 'op_only' ? 'md:grid-cols-2' : 'md:grid-cols-1'
+          }`}
+        >
+          <DashboardCard
+            fixedHeight
+            title="Doctor's Plan"
+            onAdd={() => setShowDoctorMedicationPlanModal(true)}
+            addButtonTitle="Add Doctor's Plan"
+          >
+            <DoctorMedicationPlanList patient={selectedPatient} key={doctorMedicationPlanRefreshKey} />
+          </DashboardCard>
+
+          <DashboardCard fixedHeight title="Long Acting Medicine">
+            <LongActingMedicineList patient={selectedPatient} refreshKey={prescriptionRefreshKey} />
+          </DashboardCard>
+        </div>
+
+        {/* Labs */}
         <div className="grid gap-4 md:grid-cols-2 auto-rows-fr px-4 pb-4">
           <DashboardCard
             fixedHeight
@@ -2210,75 +2231,7 @@ export const DoctorPage = () => {
           </DashboardCard>
         </div>
 
-        {/* Row 4: OP — Progress notes + Diagnosis; IP — Medication plan + Long acting */}
-        <div
-          className={`grid gap-4 px-4 pb-4 auto-rows-fr ${
-            mode === 'OP' || costCenterCareScope !== 'op_only' ? 'md:grid-cols-2' : 'md:grid-cols-1'
-          }`}
-        >
-          {mode === 'OP' ? (
-            <>
-              <DashboardCard
-                fixedHeight
-                title="Doctor Progress Notes"
-                onAdd={() => setShowDoctorProgressNoteModal(true)}
-                addButtonTitle="Add Doctor Progress Note"
-              >
-                <ClinicalNotesList
-                  patient={selectedPatient}
-                  medicalRole="Doctor"
-                  clinicalNoteType="Doctor Progress Note"
-                  key={doctorProgressNoteRefreshKey}
-                  onPatientClick={handlePatientSelect}
-                />
-              </DashboardCard>
-
-              <DashboardCard
-                fixedHeight
-                title="Diagnosis Detail"
-                onAdd={() => setShowDiagnosisModal(true)}
-                addButtonTitle="Add / Edit Diagnosis"
-              >
-                <PatientDiagnosisList patient={selectedPatient} refreshKey={diagnosisRefreshKey} />
-              </DashboardCard>
-            </>
-          ) : (
-            <>
-              <DashboardCard
-                fixedHeight
-                title="Doctor Medication Plan"
-                onAdd={() => setShowDoctorMedicationPlanModal(true)}
-                addButtonTitle="Add Doctor Medication Plan"
-              >
-                <DoctorMedicationPlanList patient={selectedPatient} key={doctorMedicationPlanRefreshKey} />
-              </DashboardCard>
-
-              <DashboardCard fixedHeight title="Long Acting Medicine">
-                <LongActingMedicineList patient={selectedPatient} refreshKey={prescriptionRefreshKey} />
-              </DashboardCard>
-            </>
-          )}
-        </div>
-
-        {/* Row 5: OP only — Medication plan + Long acting */}
-        {mode === 'OP' && (
-          <div className="grid gap-4 md:grid-cols-2 auto-rows-fr px-4 pb-4">
-            <DashboardCard
-              fixedHeight
-              title="Doctor Medication Plan"
-              onAdd={() => setShowDoctorMedicationPlanModal(true)}
-              addButtonTitle="Add Doctor Medication Plan"
-            >
-              <DoctorMedicationPlanList patient={selectedPatient} key={doctorMedicationPlanRefreshKey} />
-            </DashboardCard>
-
-            <DashboardCard fixedHeight title="Long Acting Medicine">
-              <LongActingMedicineList patient={selectedPatient} refreshKey={prescriptionRefreshKey} />
-            </DashboardCard>
-          </div>
-        )}
-
-        {/* Row 6: Prescriptions (defaults: my practitioner + today) */}
+        {/* Prescriptions (defaults: my practitioner + today) */}
         <div className="grid gap-4 md:grid-cols-1 auto-rows-fr px-4 pb-4">
           <DashboardCard
             fixedHeight

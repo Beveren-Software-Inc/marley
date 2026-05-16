@@ -147,6 +147,7 @@ def get_default_warehouse_and_cost_center():
         dict: {
             "warehouse": warehouse_name,
             "cost_center": cost_center_name,
+            "company": company linked to the resolved cost_center (ERPNext Cost Center.company), or "",
             "can_change_warehouse": bool (True only for admin/system manager)
         }
     """
@@ -175,27 +176,33 @@ def get_default_warehouse_and_cost_center():
         can_change = _user_is_exempt(user)
 
         patient_care_type = ""
+        company_from_cc = ""
         if cost_center:
             try:
                 cc_meta = frappe.get_meta("Cost Center")
+                cc_fields = ["company"]
                 if cc_meta.has_field("custom_patient_care_type"):
-                    # Use get_all(ignore_permissions=True) so UI scope is still resolved
-                    # even for users with restricted Cost Center read permissions.
-                    rows = frappe.get_all(
-                        "Cost Center",
-                        filters={"name": cost_center},
-                        fields=["custom_patient_care_type"],
-                        limit=1,
-                        ignore_permissions=True,
-                    )
-                    patient_care_type = ((rows[0].get("custom_patient_care_type") if rows else "") or "").strip()
+                    cc_fields.append("custom_patient_care_type")
+                rows = frappe.get_all(
+                    "Cost Center",
+                    filters={"name": cost_center},
+                    fields=cc_fields,
+                    limit=1,
+                    ignore_permissions=True,
+                )
+                r0 = rows[0] if rows else {}
+                if cc_meta.has_field("custom_patient_care_type"):
+                    patient_care_type = ((r0.get("custom_patient_care_type") or "") or "").strip()
+                company_from_cc = ((r0.get("company") or "") or "").strip()
             except Exception:
                 patient_care_type = ""
+                company_from_cc = ""
         return {
             "warehouse": warehouse or "",
             "cost_center": cost_center or "",
             "can_change_warehouse": can_change,
             "cost_center_patient_care_type": patient_care_type,
+            "company": company_from_cc or "",
         }
     except Exception as e:
         frappe.log_error(f"Error getting default warehouse and cost center: {str(e)}")
@@ -204,6 +211,7 @@ def get_default_warehouse_and_cost_center():
             "cost_center": "",
             "can_change_warehouse": False,
             "cost_center_patient_care_type": "",
+            "company": "",
         }
 
 

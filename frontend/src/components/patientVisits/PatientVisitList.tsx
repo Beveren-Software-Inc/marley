@@ -133,16 +133,18 @@ export const PatientVisitList = ({
     setLoading(true)
     setError(null)
     try {
+      const visitSearch =
+        visitIdFilter || externalSearchQuery || effectiveVisitFilter || undefined
       const response = await fetchPatientVisitsFull(
-        effectiveVisitFilter ? undefined : effectivePatient,
-        effectiveVisitFilter ?? (visitIdFilter || externalSearchQuery || undefined),
-        effectiveVisitFilter ? undefined : (practitionerFilter || undefined),
-        effectiveVisitFilter ? undefined : (dateFrom || undefined),
-        effectiveVisitFilter ? undefined : (dateTo || undefined),
-        effectiveVisitFilter ? undefined : (selectedStatus || undefined),
-        effectiveVisitFilter ? undefined : (visitType || undefined),
+        effectivePatient,
+        visitSearch,
+        practitionerFilter || undefined,
+        dateFrom || undefined,
+        dateTo || undefined,
+        selectedStatus || undefined,
+        visitType || undefined,
         pageSize,
-        (page - 1) * pageSize
+        (page - 1) * pageSize,
       )
       setVisits(response.data)
       setTotalCount(response.total_count)
@@ -155,12 +157,12 @@ export const PatientVisitList = ({
 
   useEffect(() => {
     fetchVisits()
-  }, [selectedStatus, practitionerFilter, visitIdFilter, dateFrom, dateTo, effectivePatient, externalSearchQuery, refreshKey, effectiveVisitFilter, page, pageSize])
+  }, [selectedStatus, practitionerFilter, visitIdFilter, dateFrom, dateTo, effectivePatient, externalSearchQuery, refreshKey, effectiveVisitFilter, page, pageSize, visitType])
 
   // Reset page when filters change
   useEffect(() => {
     setPage(1)
-  }, [selectedStatus, practitionerFilter, visitIdFilter, dateFrom, dateTo, effectivePatient, externalSearchQuery, effectiveVisitFilter])
+  }, [selectedStatus, practitionerFilter, visitIdFilter, dateFrom, dateTo, effectivePatient, externalSearchQuery, effectiveVisitFilter, visitType])
 
   // Close action row dropdown on outside click (ignore portaled menu and trigger button)
   useEffect(() => {
@@ -333,7 +335,7 @@ export const PatientVisitList = ({
       </div>
       )}
 
-      {!effectiveVisitFilter && showFilters && (
+      {showFilters && (
       <div className="flex flex-wrap gap-3 mb-4 items-end">
 
         {/* Visit No — custom searchable dropdown (matches Title style) */}

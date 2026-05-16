@@ -2,6 +2,8 @@
 # Copyright (c) 2025, Healthcare and contributors
 # For license information, please see license.txt
 
+import re
+
 import frappe
 from frappe import _
 from healthcare.api.utils.api_utility import get_next_transaction_number
@@ -441,6 +443,124 @@ def get_items(search=None):
 		'item_group': i.item_group,
 		'stock_uom': i.stock_uom,
 	} for i in items]
+
+
+def _normalize_prescription_item_label(label):
+	if not label:
+		return ''
+	s = str(label).strip().lower()
+	return re.sub(r'\s+', ' ', s)
+
+
+def _item_group_chain_has_prescription_flag(item_group_name, cache, ig_meta_has_field):
+	"""True if Item Group.custom_added_in_prescription is set on this group or any ancestor."""
+	if not ig_meta_has_field:
+		return True
+	if not item_group_name:
+		return False
+	if item_group_name in cache:
+		return cache[item_group_name]
+	row = frappe.db.get_value(
+		'Item Group',
+		item_group_name,
+		['custom_added_in_prescription', 'parent_item_group'],
+		as_dict=True,
+	)
+	if not row:
+		cache[item_group_name] = False
+		return False
+	if row.get('custom_added_in_prescription'):
+		cache[item_group_name] = True
+		return True
+	parent = (row.get('parent_item_group') or '').strip()
+	result = _item_group_chain_has_prescription_flag(parent, cache, ig_meta_has_field) if parent else False
+	cache[item_group_name] = result
+	return result
+
+
+@frappe.whitelist()
+def get_prescription_items(search=None):
+	"""Items for prescription drug search only.
+
+	Filters:
+
+	- Item Group (or ancestor) must have ``custom_added_in_prescription`` when that field exists on Item Group.
+	- Exclude Items linked from Lab Test Template (service/lab SKU rows).
+	- Dedupe rows by normalized display name (same ``item_name`` on multiple SKUs).
+
+	Returns the same shape as ``get_items`` plus optional ``default_route_of_administration``
+	when Item.custom_route_of_administration exists on the install.
+	"""
+	exclude_templates = frappe.get_all(
+		'Lab Test Template',
+		filters={'item': ['is', 'set']},
+		pluck='item',
+	)
+	exclude_names = list({x for x in exclude_templates if x})
+
+	filters = {'disabled': 0}
+	if exclude_names:
+		filters['name'] = ['not in', exclude_names]
+
+	ig_meta_has_field = frappe.get_meta('Item Group').has_field('custom_added_in_prescription')
+
+	item_meta = frappe.get_meta('Item')
+	route_field = 'custom_route_of_administration' if item_meta.has_field('custom_route_of_administration') else None
+
+	fields = ['name', 'item_code', 'item_name', 'item_group', 'stock_uom']
+	if route_field:
+		fields.append(route_field)
+
+	or_filters = None
+	search = (search or '').strip()
+	if search:
+		or_filters = {
+			'item_name': ['like', f'%{search}%'],
+			'item_code': ['like', f'%{search}%'],
+		}
+
+	items = frappe.get_all(
+		'Item',
+		filters=filters,
+		or_filters=or_filters,
+		fields=fields,
+		order_by='item_name asc',
+		limit_page_length=200 if search else 100,
+	)
+
+	group_cache = {}
+	out = []
+	seen_labels = {}
+	for row in items:
+		ig = row.get('item_group')
+		if not _item_group_chain_has_prescription_flag(ig, group_cache, ig_meta_has_field):
+			continue
+
+		label = (row.item_name or row.item_code or row.name or '').strip()
+		key = _normalize_prescription_item_label(label)
+		if not key:
+			key = row.name
+		if key in seen_labels:
+			continue
+		seen_labels[key] = True
+
+		entry = {
+			'name': row.name,
+			'label': label,
+			'item_code': row.item_code,
+			'item_group': row.item_group,
+			'stock_uom': row.stock_uom,
+		}
+		if route_field:
+			route_val = row.get(route_field)
+			if route_val:
+				entry['default_route_of_administration'] = route_val
+
+		out.append(entry)
+		if len(out) >= 50:
+			break
+
+	return out
 
 
 @frappe.whitelist()

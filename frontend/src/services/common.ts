@@ -15,6 +15,8 @@ export interface LinkFieldOption {
   item_code?: string
   item_group?: string
   stock_uom?: string
+  /** From Item.custom_route_of_administration when present — prefills prescription route */
+  default_route_of_administration?: string
   code_value?: string
   country?: string
 }
@@ -590,6 +592,23 @@ export async function fetchItems(search?: string): Promise<LinkFieldOption[]> {
   } else {
     return []
   }
+}
+
+export async function fetchPrescriptionItems(search?: string): Promise<LinkFieldOption[]> {
+  const params = new URLSearchParams()
+  if (search) params.append('search', search)
+
+  const url =
+    `/api/method/healthcare.api.common.get_prescription_items` +
+    (params.toString() ? `?${params.toString()}` : '')
+
+  const response = await fetch(url)
+  const resData = await response.json()
+
+  if (resData?.message && Array.isArray(resData.message)) {
+    return resData.message as LinkFieldOption[]
+  }
+  return []
 }
 
 export async function fetchDosageForms(search?: string): Promise<LinkFieldOption[]> {

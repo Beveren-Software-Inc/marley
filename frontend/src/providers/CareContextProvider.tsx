@@ -28,6 +28,8 @@ interface CareContextValue {
   setSelectedPatient: (patient: string | undefined) => void
   /** Current user's cost center */
   userCostCenter?: string
+  /** ERPNext Company from the user's working cost centre (Cost Center.company) */
+  costCenterCompany?: string
   /**
    * Cost Center.custom_patient_care_type — "IP Only" | "OP Only" | "Both IP & OP" or empty when unset / N/A.
    * Drives OP vs IP UI (sidebar, header toggles). Exempt users with no mapped cost center get "" (both).
@@ -77,6 +79,7 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
 
   // User context state
   const [userCostCenter, setUserCostCenter] = useState<string | undefined>(undefined)
+  const [costCenterCompany, setCostCenterCompany] = useState<string | undefined>(undefined)
   const [costCenterPatientCareType, setCostCenterPatientCareType] = useState<string | undefined>(undefined)
 
   const costCenterCareScope = careScopeFromCostCenterField(costCenterPatientCareType)
@@ -99,6 +102,11 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
           const data = await response.json()
           const msg = data.message || {}
           setUserCostCenter(msg.cost_center || undefined)
+          setCostCenterCompany(
+            typeof msg.company === 'string' && msg.company.trim()
+              ? msg.company.trim()
+              : undefined,
+          )
           setCostCenterPatientCareType(
             typeof msg.cost_center_patient_care_type === 'string'
               ? msg.cost_center_patient_care_type
@@ -192,6 +200,7 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
       activeAdmission, setActiveAdmission,
       selectedPatient, setSelectedPatient,
       userCostCenter,
+      costCenterCompany,
       costCenterPatientCareType,
       costCenterCareScope,
       userRole,

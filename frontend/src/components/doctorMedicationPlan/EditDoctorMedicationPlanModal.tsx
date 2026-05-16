@@ -168,7 +168,7 @@ export const EditDoctorMedicationPlanModal = ({
         recommendation: formData.recommendation.trim() || undefined,
         reception_note: formData.reception_note.trim() || undefined,
       })
-      toast.success('Medication plan updated')
+      toast.success("Doctor's plan updated")
       onSuccess?.()
       onClose()
     } catch (err) {
@@ -190,7 +190,7 @@ export const EditDoctorMedicationPlanModal = ({
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-lg font-semibold tracking-tight text-emerald-950">
-                Edit Doctor Medication Plan
+                Edit Doctor's Plan
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">{planName}</p>
             </div>
