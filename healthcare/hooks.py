@@ -180,7 +180,6 @@ fixtures = [
     {
 		"doctype":"Service Template Group"
 	},
-    "role",
 ]
 
 # include js, css files in header of desk.html

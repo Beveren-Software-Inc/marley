@@ -15,6 +15,25 @@ import { PatientHistoryPage } from '../pages/PatientHistory'
 import { PsychologistPage } from '../pages/Psychologist'
 import { AnesthesiologistPage } from '../pages/Anesthesiologist'
 import { InsurancePage } from '../pages/Insurance'
+import { SHOW_EMPLOYEE_PORTAL } from '../config/features'
+import { useAuth } from '../providers/AuthProvider'
+import { getDefaultRouteForUser } from '../config/permissions'
+
+const EmployeeRoute = () => {
+  const { user } = useAuth()
+  if (!SHOW_EMPLOYEE_PORTAL) {
+    const roles =
+      user?.roles?.length
+        ? user.roles
+        : ([user?.role, user?.role_profile_name].filter(Boolean) as string[])
+    return <Navigate to={getDefaultRouteForUser(roles)} replace />
+  }
+  return (
+    <RoleGuard>
+      <EmployeePage />
+    </RoleGuard>
+  )
+}
 
 export const RouterProvider = () => {
   const routes = useRoutes([
@@ -77,11 +96,7 @@ export const RouterProvider = () => {
     },
     {
       path: '/employee',
-      element: (
-        <RoleGuard>
-          <EmployeePage />
-        </RoleGuard>
-      )
+      element: <EmployeeRoute />,
     },
     {
       path: '/settings',

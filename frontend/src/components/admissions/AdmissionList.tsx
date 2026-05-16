@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import { useCardFilters } from '../../contexts/CardFilterContext'
 import { useInpatientRecords } from '../../hooks/useInpatientRecords'
 import { fetchInpatientRecords } from '../../services/inpatientRecords'
@@ -42,6 +42,18 @@ const statusColors: Record<string, string> = {
   'Cancelled': 'danger'
 }
 
+function localDateISO(d = new Date()): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+function getIpDefaultFilters() {
+  const today = localDateISO()
+  return { status: 'Admitted', dateFrom: today, dateTo: today }
+}
+
 interface AdmissionListProps {
   onAdmissionSelect?: (admissionName: string) => void
   onPatientFromAdmission?: (patient: string) => void
@@ -58,8 +70,10 @@ export const AdmissionList = ({ onAdmissionSelect, onPatientFromAdmission, searc
   // Fall back to the patient prop, then context patient, for broader filtering.
   const effectiveNameFilter = (mode === 'IP' && activeAdmission) ? activeAdmission : undefined
   const effectivePatient = patient ?? (contextPatient || undefined)
+  const shouldUseIpDefaults = mode === 'IP' && !effectiveNameFilter
+  const ipDefaultsOnMount = shouldUseIpDefaults ? getIpDefaultFilters() : null
 
-  const [selectedStatus, setSelectedStatus] = useState<string>('')
+  const [selectedStatus, setSelectedStatus] = useState<string>(() => ipDefaultsOnMount?.status ?? '')
   const cardFilters = useCardFilters()
   const [showFiltersInternal, setShowFiltersInternal] = useState(false)
   const showFilters = cardFilters !== undefined ? cardFilters : showFiltersInternal
@@ -116,8 +130,17 @@ export const AdmissionList = ({ onAdmissionSelect, onPatientFromAdmission, searc
   const [selectedPractitioner, setSelectedPractitioner] = useState<LinkFieldOption | null>(null)
   const [practitionerFilter, setPractitionerFilter] = useState('')
 
-  const [dateFrom, setDateFrom] = useState('')
-  const [dateTo, setDateTo] = useState('')
+  const [dateFrom, setDateFrom] = useState(() => ipDefaultsOnMount?.dateFrom ?? '')
+  const [dateTo, setDateTo] = useState(() => ipDefaultsOnMount?.dateTo ?? '')
+
+  // IP mode: apply defaults before paint when switching into IP (avoids one unfiltered fetch).
+  useLayoutEffect(() => {
+    if (!shouldUseIpDefaults) return
+    const defaults = getIpDefaultFilters()
+    setSelectedStatus(defaults.status)
+    setDateFrom(defaults.dateFrom)
+    setDateTo(defaults.dateTo)
+  }, [shouldUseIpDefaults])
 
   // Actions dropdown (three-dot menu) — one row open at a time
   const [openActionRow, setOpenActionRow] = useState<string | null>(null)

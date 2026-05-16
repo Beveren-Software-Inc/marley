@@ -1,1 +1,23 @@
-[]
+[
+ {
+  "dama_type": "1",
+  "docstatus": 0,
+  "doctype": "DAMA Type",
+  "modified": "2026-04-21 22:52:50.046988",
+  "name": "1"
+ },
+ {
+  "dama_type": "2",
+  "docstatus": 0,
+  "doctype": "DAMA Type",
+  "modified": "2026-04-21 22:52:54.286449",
+  "name": "2"
+ },
+ {
+  "dama_type": "3",
+  "docstatus": 0,
+  "doctype": "DAMA Type",
+  "modified": "2026-04-21 22:52:59.447671",
+  "name": "3"
+ }
+]

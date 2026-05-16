@@ -469,6 +469,19 @@ def get_lab_test(name):
 		'grand_total': getattr(lab_test, 'grand_total', None),
 		'lab_technician': getattr(lab_test, 'lab_technician', None),
 		'lab_technician_name': getattr(lab_test, 'lab_technician_name', None),
+		'results_entered_datetime': getattr(lab_test, 'results_entered_datetime', None),
+		'doctor_reviewed_datetime': getattr(lab_test, 'doctor_reviewed_datetime', None),
+		'review_turnaround_hours': getattr(lab_test, 'review_turnaround_hours', None),
+		'review_report_type': getattr(lab_test, 'review_report_type', None),
+		'review_result_indicator': getattr(lab_test, 'review_result_indicator', None),
+		'review_follow_up_actions': getattr(lab_test, 'review_follow_up_actions', None),
+		'review_follow_up_other': getattr(lab_test, 'review_follow_up_other', None),
+		'review_comments': getattr(lab_test, 'review_comments', None),
+		'review_prescription_message': getattr(lab_test, 'review_prescription_message', None),
+		'patient_informed_of_report': getattr(lab_test, 'patient_informed_of_report', None),
+		'archive_report_on_review': getattr(lab_test, 'archive_report_on_review', None),
+		'create_task_on_review': getattr(lab_test, 'create_task_on_review', None),
+		'reviewed_by': getattr(lab_test, 'reviewed_by', None),
 	}
 	# Include documents child table (Patient Upload Document)
 	documents = getattr(lab_test, 'documents', None) or []
@@ -1144,56 +1157,25 @@ def create_lab_test(data):
 	}
 
 @frappe.whitelist()
-def update_lab_test_status(lab_test_name: str, new_status: str):
+def update_lab_test_status(lab_test_name: str, new_status: str, **kwargs):
 	"""
-	Update Lab Test review status (Reviewed / Rejected)
-	for already submitted Lab Tests.
+	Legacy entry point — forwards to structured doctor review when review fields are sent.
 	"""
+	from healthcare.api.lab_test_doctor_review import submit_doctor_lab_test_review
 
-	if not lab_test_name:
-		frappe.throw(_("Lab Test name is required"))
+	if kwargs.get("review_result_indicator"):
+		return submit_doctor_lab_test_review(
+			lab_test_name=lab_test_name,
+			new_status=new_status,
+			**kwargs,
+		)
 
-	if not new_status:
-		frappe.throw(_("New status is required"))
-
-	allowed_statuses = ["Reviewed", "Rejected"]
-	if new_status not in allowed_statuses:
-		frappe.throw(_("Invalid status change"))
-
-	doc = frappe.get_doc("Lab Test", lab_test_name)
-
-	# Prevent updates on cancelled docs
-	if doc.docstatus == 2:
-		frappe.throw(_("Cannot update a cancelled Lab Test"))
-
-	# Allow review only after submission
-	if doc.docstatus != 1:
-		frappe.throw(_("Only submitted Lab Tests can be reviewed"))
-
-	update_values = {
-		"status": new_status,
-		"reviewed_by": frappe.session.user,
-	}
-
-	if new_status == "Reviewed":
-		update_values["approved_date"] = frappe.utils.now_datetime()
-
-	# ✅ Direct DB update (safe for submitted docs)
-	frappe.db.set_value(
-		"Lab Test",
-		doc.name,
-		update_values,
-		update_modified=True
+	frappe.throw(
+		_(
+			"Lab test review requires result indicator and follow-up actions. "
+			"Please complete the review form."
+		)
 	)
-
-	frappe.db.commit()
-
-	return {
-		"name": doc.name,
-		"status": new_status,
-		"approved_date": update_values.get("approved_date"),
-		"reviewed_by": frappe.session.user,
-	}
 
 
 @frappe.whitelist()

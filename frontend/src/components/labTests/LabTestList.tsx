@@ -1674,7 +1674,6 @@ import {
   requestLabConsumables,
   fetchLabTest,
   saveAndSubmitLabTest,
-  updateLabTestStatus,
   finishGroupLabTests,
   updateLabTestRemarks,
   createSampleCollectionForLabSample,
@@ -1697,6 +1696,7 @@ import {
 import { uploadPatientFile, type PatientDocumentRow } from '../../services/patients'
 import { LabTestDetails } from './LabTestDetails'
 import { EditLabTestModal } from './EditLabTestModal'
+import { LabTestReviewModal } from './LabTestReviewModal'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
@@ -2071,7 +2071,6 @@ export const LabTestList = ({
 
   // ── Review / actions ───────────────────────────────────────────────────────
   const [openActionRow, setOpenActionRow] = useState<string | null>(null)
-  const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [selectedLabTestForDetails, setSelectedLabTestForDetails] = useState<string | null>(null)
   const [editLabTestName, setEditLabTestName] = useState<string | null>(null)
   const actionMenuRef = useRef<HTMLDivElement>(null)
@@ -2151,15 +2150,14 @@ export const LabTestList = ({
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
-  const handleStatusChange = async (name: string, newStatus: 'Reviewed' | 'Rejected') => {
-    setOpenActionRow(null); setActionLoading(name)
-    try {
-      await updateLabTestStatus(name, newStatus)
-      toast.success(newStatus === 'Reviewed' ? 'Lab test reviewed' : 'Lab test rejected')
-      refetch()
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : `Failed to ${newStatus === 'Reviewed' ? 'review' : 'reject'} lab test`)
-    } finally { setActionLoading(null) }
+  const [reviewModal, setReviewModal] = useState<{
+    name: string
+    outcome: 'Reviewed' | 'Rejected'
+  } | null>(null)
+
+  const openReviewModal = (name: string, outcome: 'Reviewed' | 'Rejected') => {
+    setOpenActionRow(null)
+    setReviewModal({ name, outcome })
   }
 
   const handleFinishGroup = async (serviceRequest: string, groupKey: string) => {
@@ -2532,19 +2530,11 @@ export const LabTestList = ({
         <div className="relative inline-block" ref={openActionRow === labTest.name ? actionMenuRef : undefined}>
           <button type="button"
             onClick={() => setOpenActionRow((prev) => prev === labTest.name ? null : labTest.name)}
-            disabled={!!actionLoading}
-            className="inline-flex items-center justify-center w-8 h-8 rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+            className="inline-flex items-center justify-center w-8 h-8 rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
             aria-label="Actions">
-            {actionLoading === labTest.name ? (
-              <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-              </svg>
-            ) : (
-              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
-              </svg>
-            )}
+            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+            </svg>
           </button>
           <PortalActionsMenu open={openActionRow === labTest.name} onClose={() => setOpenActionRow(null)} triggerRef={actionMenuRef} minWidth={160}>
             <button type="button" onClick={() => { setOpenActionRow(null); setSelectedLabTestForDetails(labTest.name) }}
@@ -2564,10 +2554,10 @@ export const LabTestList = ({
             {labTest.status === 'Pending Review' && (
               <>
                 <div className="border-t border-slate-100 my-1" />
-                <button type="button" onClick={() => handleStatusChange(labTest.name, 'Reviewed')}
-                  className="block w-full text-left px-3 py-2 text-sm text-green-700 font-medium hover:bg-green-50">✓ Reviewed</button>
-                <button type="button" onClick={() => handleStatusChange(labTest.name, 'Rejected')}
-                  className="block w-full text-left px-3 py-2 text-sm text-red-600 font-medium hover:bg-red-50">✗ Reject</button>
+                <button type="button" onClick={() => openReviewModal(labTest.name, 'Reviewed')}
+                  className="block w-full text-left px-3 py-2 text-sm text-green-700 font-medium hover:bg-green-50">Review result…</button>
+                <button type="button" onClick={() => openReviewModal(labTest.name, 'Rejected')}
+                  className="block w-full text-left px-3 py-2 text-sm text-red-600 font-medium hover:bg-red-50">Reject result…</button>
               </>
             )}
           </PortalActionsMenu>
@@ -3508,6 +3498,18 @@ export const LabTestList = ({
       {editLabTestName && (
         <EditLabTestModal labTestName={editLabTestName} onClose={() => setEditLabTestName(null)}
           onSuccess={() => { setEditLabTestName(null); refetch() }} />
+      )}
+
+      {reviewModal && (
+        <LabTestReviewModal
+          labTestName={reviewModal.name}
+          initialOutcome={reviewModal.outcome}
+          onClose={() => setReviewModal(null)}
+          onSuccess={() => {
+            setReviewModal(null)
+            refetch()
+          }}
+        />
       )}
     </div>
   )

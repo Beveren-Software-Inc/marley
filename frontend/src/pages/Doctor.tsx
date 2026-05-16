@@ -2007,10 +2007,34 @@ export const DoctorPage = () => {
     )
   }
 
-  // Main Dashboard View
-  const showDoctorOpIpStrip =
+  // Main Dashboard View — neither OP/IP: appointments only; OP/IP selected: list on top, appointments below
+  const showOpIpListStrip =
     (mode === 'OP' && !activeVisit) ||
     (costCenterCareScope !== 'op_only' && mode === 'IP' && !activeAdmission)
+
+  const showAppointmentsOnlyStrip =
+    !selectedPatient &&
+    !showOpIpListStrip &&
+    (mode === null ||
+      (mode === 'OP' && !!activeVisit) ||
+      (mode === 'IP' && !!activeAdmission))
+
+  const doctorAppointmentsCard = (
+    <DashboardCard
+      fixedHeight
+      title="Appointments"
+      onAdd={() => setShowAppointmentModal(true)}
+      addButtonTitle="Add Appointment"
+    >
+      <AppointmentList
+        doctorScheduleMode={!selectedPatient}
+        showAll={!!selectedPatient}
+        patient={selectedPatient || undefined}
+        refreshKey={appointmentRefreshKey}
+        onPatientClick={handlePatientSelect}
+      />
+    </DashboardCard>
+  )
 
   return (
   <div className="flex flex-col">
@@ -2028,21 +2052,14 @@ export const DoctorPage = () => {
       </div>
     </header>
 
-    {/* OP / IP mode: before choosing a patient, show today's appointments first, then visit/admission lists */}
-    {showDoctorOpIpStrip && !selectedPatient ? (
-      <div className="px-4 pt-4 pb-0 space-y-4">
-        <DashboardCard
-          fixedHeight
-          title="Appointments"
-          onAdd={() => setShowAppointmentModal(true)}
-          addButtonTitle="Add Appointment"
-        >
-          <AppointmentList
-            doctorScheduleMode
-            refreshKey={appointmentRefreshKey}
-            onPatientClick={handlePatientSelect}
-          />
-        </DashboardCard>
+    {/* No OP/IP: appointments only; OP/IP selected: appointments + list side by side */}
+    {showAppointmentsOnlyStrip ? (
+      <div className="px-4 pt-4 pb-0">{doctorAppointmentsCard}</div>
+    ) : null}
+
+    {showOpIpListStrip && !selectedPatient ? (
+      <div className="px-4 pt-4 pb-0 grid gap-4 md:grid-cols-2 auto-rows-fr">
+        {doctorAppointmentsCard}
         <DashboardCard
           fixedHeight
           title={mode === 'OP' ? 'Patient Visits (OP)' : 'Inpatient Admissions (IP)'}
@@ -2075,7 +2092,7 @@ export const DoctorPage = () => {
     ) : null}
 
     {/* IP + patient selected (+ no admission in context): show admissions here. OP visits live in the Appointments row below — avoid duplicating PatientVisitList. */}
-    {showDoctorOpIpStrip && selectedPatient && mode === 'IP' ? (
+    {showOpIpListStrip && selectedPatient && mode === 'IP' ? (
       <div className="px-4 pt-4 pb-0">
         <DashboardCard
           fixedHeight
@@ -2090,23 +2107,6 @@ export const DoctorPage = () => {
               sp.set('patient', p)
               setSearchParams(sp, { replace: true })
             }}
-          />
-        </DashboardCard>
-      </div>
-    ) : null}
-
-    {!selectedPatient && !showDoctorOpIpStrip ? (
-      <div className="px-4 pt-4 pb-0">
-        <DashboardCard
-          fixedHeight
-          title="Appointments"
-          onAdd={() => setShowAppointmentModal(true)}
-          addButtonTitle="Add Appointment"
-        >
-          <AppointmentList
-            doctorScheduleMode
-            refreshKey={appointmentRefreshKey}
-            onPatientClick={handlePatientSelect}
           />
         </DashboardCard>
       </div>
@@ -2130,27 +2130,22 @@ export const DoctorPage = () => {
           </DashboardCard>
         </div>
 
-        {/* Row 2: OP — Appointments + Patient Visits only; Diagnosis row follows for everyone */}
+        {/* Row 2: OP — Appointments + Patient Visits; IP — Appointments zone */}
         {costCenterCareScope !== 'ip_only' && mode === 'OP' ? (
           <div className="grid gap-4 md:grid-cols-2 auto-rows-fr px-4 pb-4">
-            <DashboardCard
-              fixedHeight
-              title="Appointments"
-              onAdd={() => setShowAppointmentModal(true)}
-              addButtonTitle="Add Appointment"
-            >
-              <AppointmentList
-                showAll
-                patient={selectedPatient}
-                refreshKey={appointmentRefreshKey}
-                onPatientClick={handlePatientSelect}
-              />
-            </DashboardCard>
-
+            {doctorAppointmentsCard}
             <DashboardCard fixedHeight title="Patient Visits (OP)" onAdd={() => setShowCreateVisitModal(true)} addButtonTitle="Create Patient Visit">
               <PatientVisitList patient={selectedPatient} onPatientFromVisit={handlePatientSelect} />
             </DashboardCard>
           </div>
+        ) : null}
+
+        {costCenterCareScope !== 'op_only' && mode === 'IP' ? (
+          <div className="px-4 pb-4">{doctorAppointmentsCard}</div>
+        ) : null}
+
+        {mode === null && costCenterCareScope !== 'ip_only' ? (
+          <div className="px-4 pb-4">{doctorAppointmentsCard}</div>
         ) : null}
 
         {/* Diagnosis (left) · Doctor Progress Notes (right) */}

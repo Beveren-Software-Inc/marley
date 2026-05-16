@@ -61,8 +61,8 @@ def get_inpatient_records(status=None, search=None, patient=None, practitioner=N
 	limit = cint(limit) or 20
 	offset = cint(offset) or 0
 
-	# Use SQL path when we have search, practitioner or date filters (avoids get_all OR filter format issues)
-	use_sql = bool(search or practitioner or from_date or to_date)
+	# Use SQL path when we have search, practitioner, date, or status filters (avoids get_all OR filter format issues)
+	use_sql = bool(search or practitioner or from_date or to_date or status)
 
 	if use_sql:
 		conditions = ["1=1"]

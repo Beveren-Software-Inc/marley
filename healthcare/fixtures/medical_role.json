@@ -3,6 +3,33 @@
   "docstatus": 0,
   "doctype": "Medical Role",
   "is_group": 0,
+  "medical_role": "Occupational Therapist",
+  "modified": "2026-04-21 14:42:46.098149",
+  "name": "Occupational Therapist",
+  "parent_medical_role": null
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Medical Role",
+  "is_group": 0,
+  "medical_role": "Lab Technician",
+  "modified": "2026-04-21 14:44:50.222555",
+  "name": "Lab Technician",
+  "parent_medical_role": null
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Medical Role",
+  "is_group": 0,
+  "medical_role": "Psychologists",
+  "modified": "2025-12-14 14:56:29.694696",
+  "name": "Psychologists",
+  "parent_medical_role": null
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Medical Role",
+  "is_group": 0,
   "medical_role": "Clinical Officer",
   "modified": "2025-12-02 16:02:21.873952",
   "name": "Clinical Officer",
