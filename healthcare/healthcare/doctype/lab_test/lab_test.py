@@ -48,11 +48,18 @@ class LabTest(Document):
 		from healthcare.healthcare.utils import validate_nursing_tasks
 
 		validate_nursing_tasks(self)
-		# self.validate_result_values()
 		now = now_datetime()
-		self.db_set("submitted_date", now)
-		self.db_set("results_entered_datetime", now)
-		self.db_set("status", "Pending Review")
+
+		if getattr(self.flags, "via_doctor_review", False):
+			if not self.submitted_date:
+				self.db_set("submitted_date", now)
+			if not self.results_entered_datetime:
+				self.db_set("results_entered_datetime", now)
+		else:
+			self.db_set("submitted_date", now)
+			self.db_set("results_entered_datetime", now)
+			if self.status not in ("Reviewed", "Rejected"):
+				self.db_set("status", "Pending Review")
 
 		# Inventory integration: auto issue lab consumables as material issue
 		# self.create_inventory_consumption()

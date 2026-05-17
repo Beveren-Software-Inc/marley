@@ -124,6 +124,20 @@
   "service_request",
   "invoiced",
   "reviewed_by",
+  "doctor_review_section",
+  "results_entered_datetime",
+  "doctor_reviewed_datetime",
+  "review_turnaround_hours",
+  "review_report_type",
+  "review_result_indicator",
+  "doctor_review_follow_ups",
+  "review_follow_up_other",
+  "column_break_review_opts",
+  "review_comments",
+  "review_prescription_message",
+  "patient_informed_of_report",
+  "archive_report_on_review",
+  "create_task_on_review",
   "doctors_remarks_section",
   "remarks",
   "section_break_50",
@@ -257,6 +271,7 @@
    "search_index": 1
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "status",
    "fieldtype": "Select",
    "in_list_view": 1,
@@ -273,6 +288,7 @@
    "report_hide": 1
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "approved_date",
    "fieldtype": "Datetime",
    "hidden": 1,
@@ -307,6 +323,7 @@
    "read_only": 1
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "result_date",
    "fieldtype": "Date",
    "label": "Result Date",
@@ -741,10 +758,106 @@
    "label": "Is Outsourced?"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "reviewed_by",
    "fieldtype": "Link",
    "label": "Reviewed By",
    "options": "User"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "doctor_review_section",
+   "fieldtype": "Section Break",
+   "label": "Doctor Review"
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "results_entered_datetime",
+   "fieldtype": "Datetime",
+   "label": "Results Entered At",
+   "read_only": 1,
+   "read_only_depends_on": "eval:doc.docstatus==1"
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "doctor_reviewed_datetime",
+   "fieldtype": "Datetime",
+   "label": "Doctor Reviewed At",
+   "read_only": 1,
+   "read_only_depends_on": "eval:doc.docstatus==1"
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "review_turnaround_hours",
+   "fieldtype": "Float",
+   "label": "Review Turnaround (Hours)",
+   "precision": "3",
+   "read_only": 1,
+   "read_only_depends_on": "eval:doc.docstatus==1"
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "review_report_type",
+   "fieldtype": "Select",
+   "label": "Review Report Type",
+   "options": "\nPathology\nRadiology\nMicrobiology\nOther"
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "review_result_indicator",
+   "fieldtype": "Select",
+   "label": "Result Indicator",
+   "options": "\nNormal\nNormal, but unexpected\nSatisfactory\nBorderline\nAbnormal, but expected\nAbnormal\nSpecimen lost / unusable\nNot responded to invitation\nPositive\nNegative\nUnknown"
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "doctor_review_follow_ups",
+   "fieldtype": "Table",
+   "label": "Follow-up Actions",
+   "options": "Lab Test Review Follow Up"
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "review_follow_up_other",
+   "fieldtype": "Small Text",
+   "label": "Other Follow-up Detail"
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "review_comments",
+   "fieldtype": "Text",
+   "label": "Review Comments"
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "review_prescription_message",
+   "fieldtype": "Small Text",
+   "label": "Message for Next Prescription"
+  },
+  {
+   "fieldname": "column_break_review_opts",
+   "fieldtype": "Column Break"
+  },
+  {
+   "allow_on_submit": 1,
+   "default": "1",
+   "fieldname": "patient_informed_of_report",
+   "fieldtype": "Check",
+   "label": "Patient Informed of Report"
+  },
+  {
+   "allow_on_submit": 1,
+   "default": "0",
+   "fieldname": "archive_report_on_review",
+   "fieldtype": "Check",
+   "label": "Archive Report"
+  },
+  {
+   "allow_on_submit": 1,
+   "default": "0",
+   "fieldname": "create_task_on_review",
+   "fieldtype": "Check",
+   "label": "Create Task on Review"
   },
   {
    "collapsible": 1,
@@ -1033,7 +1146,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2026-05-14 15:50:41.616661",
+ "modified": "2026-05-17 13:46:35.261450",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Lab Test",

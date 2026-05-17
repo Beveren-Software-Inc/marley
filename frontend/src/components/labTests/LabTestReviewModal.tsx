@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { ClipboardCheck } from 'lucide-react'
 import {
   fetchDoctorReviewFormOptions,
   fetchLabTest,
@@ -7,6 +8,16 @@ import {
   type LabTest,
 } from '../../services/labTests'
 import { toast } from '../../hooks/useToast'
+import {
+  CM_BTN_CANCEL,
+  CM_BTN_PRIMARY,
+  CREATE_MODAL_BODY_GRADIENT,
+  CREATE_MODAL_FOOTER_STICKY,
+  CREATE_MODAL_OVERLAY,
+  CreateModalHeader,
+  createModalShellClass,
+} from '../ui/CreateModalChrome'
+import { linkComboboxInputClassCompact } from '../ui/linkComboboxStyles'
 
 export interface LabTestReviewModalProps {
   labTestName: string
@@ -15,8 +26,13 @@ export interface LabTestReviewModalProps {
   onSuccess: () => void
 }
 
-const inputClass =
-  'w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white'
+const fieldClass = linkComboboxInputClassCompact
+
+const checkboxClass =
+  'mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-2 focus:ring-emerald-500/25'
+
+const radioClass =
+  'mt-1 h-4 w-4 border-slate-300 text-emerald-600 focus:ring-2 focus:ring-emerald-500/25'
 
 export const LabTestReviewModal = ({
   labTestName,
@@ -39,6 +55,7 @@ export const LabTestReviewModal = ({
   const [patientInformed, setPatientInformed] = useState(true)
   const [archiveReport, setArchiveReport] = useState(false)
   const [createTask, setCreateTask] = useState(false)
+
   useEffect(() => {
     let cancelled = false
     ;(async () => {
@@ -60,12 +77,17 @@ export const LabTestReviewModal = ({
         setArchiveReport(!!doc.archive_report_on_review)
         setCreateTask(!!doc.create_task_on_review)
         if (doc.review_follow_up_actions) {
-          try {
-            const parsed = JSON.parse(doc.review_follow_up_actions) as string[]
-            if (Array.isArray(parsed) && parsed.length) setFollowUps(new Set(parsed))
-          } catch {
-            /* ignore */
-          }
+          const actions = Array.isArray(doc.review_follow_up_actions)
+            ? doc.review_follow_up_actions
+            : (() => {
+                try {
+                  const parsed = JSON.parse(doc.review_follow_up_actions as string)
+                  return Array.isArray(parsed) ? parsed : []
+                } catch {
+                  return []
+                }
+              })()
+          if (actions.length) setFollowUps(new Set(actions))
         }
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load lab test')
@@ -137,56 +159,65 @@ export const LabTestReviewModal = ({
 
   const formatDt = (d?: string) => (d ? new Date(d).toLocaleString() : '—')
 
+  const subtitle = (
+    <>
+      {labTest?.lab_test_name || labTestName}
+      {labTest?.patient_name ? ` · ${labTest.patient_name}` : ''}
+    </>
+  )
+
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-      onClick={onClose}
-    >
+    <div className={CREATE_MODAL_OVERLAY} onClick={onClose}>
       <div
-        className="bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col"
+        className={createModalShellClass('max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col')}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="px-6 py-4 border-b border-slate-200 flex-shrink-0">
-          <h2 className="text-lg font-semibold text-slate-900">File pathology / radiology report</h2>
-          <p className="text-sm text-slate-500 mt-0.5">
-            {labTest?.lab_test_name || labTestName}
-            {labTest?.patient_name ? ` · ${labTest.patient_name}` : ''}
-          </p>
-        </div>
+        <CreateModalHeader
+          title="File pathology / radiology report"
+          subtitle={subtitle}
+          icon={<ClipboardCheck className="h-5 w-5 text-emerald-700" strokeWidth={2} />}
+          onClose={onClose}
+        />
 
         {loading ? (
-          <div className="p-8 text-center text-slate-600">Loading…</div>
+          <div className={`${CREATE_MODAL_BODY_GRADIENT} p-8 text-center text-emerald-900/70`}>
+            Loading…
+          </div>
         ) : (
-          <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
             <div
-              className="overflow-y-auto px-6 py-4 space-y-5 flex-1"
+              className={`${CREATE_MODAL_BODY_GRADIENT} flex-1 space-y-5 px-6 py-5`}
               style={{ scrollbarWidth: 'thin' }}
             >
               {error && (
-                <div className="rounded-md bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">
+                <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
                   {error}
                 </div>
               )}
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+              <div className="grid grid-cols-1 gap-4 rounded-xl border border-emerald-100/80 bg-white/70 p-4 text-sm shadow-sm sm:grid-cols-2">
                 <div>
-                  <span className="text-slate-500">Sample / investigation</span>
-                  <p className="font-medium text-slate-800">
+                  <span className="text-xs font-medium uppercase tracking-wide text-emerald-800/60">
+                    Sample / investigation
+                  </span>
+                  <p className="mt-1 font-medium text-emerald-950">
                     {formatDt(labTest?.result_date || labTest?.submitted_date)}
                   </p>
                 </div>
                 <div>
-                  <span className="text-slate-500">Results entered</span>
-                  <p className="font-medium text-slate-800">
+                  <span className="text-xs font-medium uppercase tracking-wide text-emerald-800/60">
+                    Results entered
+                  </span>
+                  <p className="mt-1 font-medium text-emerald-950">
                     {formatDt(labTest?.results_entered_datetime || labTest?.submitted_date)}
                   </p>
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Type</label>
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">Type</label>
                 <select
-                  className={inputClass}
+                  className={fieldClass}
                   value={reportType}
                   onChange={(e) => setReportType(e.target.value)}
                 >
@@ -199,17 +230,17 @@ export const LabTestReviewModal = ({
               </div>
 
               <div>
-                <p className="text-xs font-semibold text-slate-700 mb-2">Result indicator</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <p className="mb-2 text-sm font-semibold text-slate-700">Result indicator</p>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   {(options?.result_indicators || []).map((opt) => (
                     <label
                       key={opt}
-                      className="flex items-start gap-2 text-sm text-slate-700 cursor-pointer"
+                      className="flex cursor-pointer items-start gap-2 rounded-lg border border-slate-200/80 bg-white/80 px-3 py-2 text-sm text-slate-700 transition hover:border-emerald-200 hover:bg-emerald-50/50 has-[:checked]:border-emerald-300 has-[:checked]:bg-emerald-50/60"
                     >
                       <input
                         type="radio"
                         name="result_indicator"
-                        className="mt-1"
+                        className={radioClass}
                         checked={resultIndicator === opt}
                         onChange={() => setResultIndicator(opt)}
                       />
@@ -220,16 +251,16 @@ export const LabTestReviewModal = ({
               </div>
 
               <div>
-                <p className="text-xs font-semibold text-slate-700 mb-2">Follow-up action</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <p className="mb-2 text-sm font-semibold text-slate-700">Follow-up action</p>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   {(options?.follow_up_actions || []).map((action) => (
                     <label
                       key={action}
-                      className="flex items-start gap-2 text-sm text-slate-700 cursor-pointer"
+                      className="flex cursor-pointer items-start gap-2 rounded-lg border border-slate-200/80 bg-white/80 px-3 py-2 text-sm text-slate-700 transition hover:border-emerald-200 hover:bg-emerald-50/50 has-[:checked]:border-emerald-300 has-[:checked]:bg-emerald-50/60"
                     >
                       <input
                         type="checkbox"
-                        className="mt-1"
+                        className={checkboxClass}
                         checked={followUps.has(action)}
                         onChange={() => toggleFollowUp(action)}
                       />
@@ -240,7 +271,7 @@ export const LabTestReviewModal = ({
                 {followUps.has('Other') && (
                   <input
                     type="text"
-                    className={`${inputClass} mt-2`}
+                    className={`${fieldClass} mt-2`}
                     placeholder="Describe other action…"
                     value={followUpOther}
                     onChange={(e) => setFollowUpOther(e.target.value)}
@@ -249,11 +280,11 @@ export const LabTestReviewModal = ({
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">
                   Comments / patient message
                 </label>
                 <textarea
-                  className={`${inputClass} min-h-[80px]`}
+                  className={`${fieldClass} min-h-[80px] resize-y`}
                   value={comments}
                   onChange={(e) => setComments(e.target.value)}
                   rows={3}
@@ -261,37 +292,40 @@ export const LabTestReviewModal = ({
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">
                   Message for patient&apos;s next prescription
                 </label>
                 <textarea
-                  className={`${inputClass} min-h-[60px]`}
+                  className={`${fieldClass} min-h-[60px] resize-y`}
                   value={prescriptionMessage}
                   onChange={(e) => setPrescriptionMessage(e.target.value)}
                   rows={2}
                 />
               </div>
 
-              <div className="flex flex-wrap gap-4 text-sm">
-                <label className="flex items-center gap-2 cursor-pointer">
+              <div className="flex flex-wrap gap-4 rounded-xl border border-emerald-100/80 bg-white/60 px-4 py-3 text-sm">
+                <label className="flex cursor-pointer items-center gap-2 text-slate-700">
                   <input
                     type="checkbox"
+                    className={checkboxClass}
                     checked={patientInformed}
                     onChange={(e) => setPatientInformed(e.target.checked)}
                   />
                   Patient to be informed of this report
                 </label>
-                <label className="flex items-center gap-2 cursor-pointer">
+                <label className="flex cursor-pointer items-center gap-2 text-slate-700">
                   <input
                     type="checkbox"
+                    className={checkboxClass}
                     checked={archiveReport}
                     onChange={(e) => setArchiveReport(e.target.checked)}
                   />
                   Archive report
                 </label>
-                <label className="flex items-center gap-2 cursor-pointer">
+                <label className="flex cursor-pointer items-center gap-2 text-slate-700">
                   <input
                     type="checkbox"
+                    className={checkboxClass}
                     checked={createTask}
                     onChange={(e) => setCreateTask(e.target.checked)}
                   />
@@ -300,28 +334,19 @@ export const LabTestReviewModal = ({
               </div>
             </div>
 
-            <div className="px-6 py-4 border-t border-slate-200 flex flex-wrap justify-end gap-2 flex-shrink-0">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-4 py-2 text-sm border border-slate-300 rounded-md hover:bg-slate-50"
-                disabled={submitting}
-              >
+            <div className={`${CREATE_MODAL_FOOTER_STICKY} justify-end`}>
+              <button type="button" onClick={onClose} className={CM_BTN_CANCEL} disabled={submitting}>
                 Cancel
               </button>
               <button
                 type="button"
                 disabled={submitting}
                 onClick={() => void saveReview('Rejected')}
-                className="px-4 py-2 text-sm border border-red-300 text-red-700 rounded-md hover:bg-red-50 disabled:opacity-50"
+                className="rounded-lg border border-red-200/80 bg-white px-4 py-2.5 text-sm font-medium text-red-700 shadow-sm transition hover:bg-red-50 disabled:opacity-50"
               >
                 Reject
               </button>
-              <button
-                type="submit"
-                disabled={submitting}
-                className="px-4 py-2 text-sm bg-primary text-white rounded-md hover:bg-primary/90 disabled:opacity-50"
-              >
+              <button type="submit" disabled={submitting} className={CM_BTN_PRIMARY}>
                 {submitting
                   ? 'Saving…'
                   : initialOutcome === 'Rejected'

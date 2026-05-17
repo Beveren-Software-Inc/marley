@@ -44,12 +44,13 @@ export interface LabTest {
   employee?: string
   employee_designation?: string
   reviewed_by?: string
+  reviewed_by_name?: string
   results_entered_datetime?: string
   doctor_reviewed_datetime?: string
   review_turnaround_hours?: number
   review_report_type?: string
   review_result_indicator?: string
-  review_follow_up_actions?: string
+  review_follow_up_actions?: string[] | string
   review_follow_up_other?: string
   review_comments?: string
   review_prescription_message?: string
@@ -300,8 +301,9 @@ export interface SaveAndSubmitLabTestInput {
   worksheet_instructions?: string
   documents?: Array<{ file_name?: string; document_type?: string; transaction_no?: string; upload_remarks?: string; document?: string }>
   normal_test_items?: NormalTestResultRow[]
-  /** Link to Healthcare Practitioner (Lab Technologist or Lab Technician); required when submit is true */
+  /** Link to Healthcare Practitioner (Lab Technologist or Lab Technician); required when saving results */
   lab_technician?: string
+  /** @deprecated Submit occurs on doctor review only; ignored if sent */
   submit?: boolean
   amount?: number
   discount_margin?: string
