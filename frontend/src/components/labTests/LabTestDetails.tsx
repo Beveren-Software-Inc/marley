@@ -1,19 +1,20 @@
 import { useState, useEffect } from 'react'
+import { ClipboardCheck, Clock, UserCheck } from 'lucide-react'
 import { fetchLabTest, type LabTest } from '../../services/labTests'
 import { StatusPill } from '../ui/StatusPill'
 import { LabTestReviewModal } from './LabTestReviewModal'
 
 const statusColors: Record<string, string> = {
-  'Reviewed': 'success',
-  'Rejected': 'danger',
-  'Completed': 'success',
-  'Submitted': 'info',
+  Reviewed: 'success',
+  Rejected: 'danger',
+  Completed: 'success',
+  Submitted: 'info',
   'Sample collection in progress': 'warning',
   'Sample collected': 'info',
   'Pending Review': 'warning',
-  'Cancelled': 'default',
-  'Draft': 'warning',
-  'Requested': 'info',
+  Cancelled: 'default',
+  Draft: 'warning',
+  Requested: 'info',
 }
 
 interface LabTestDetailsProps {
@@ -22,7 +23,7 @@ interface LabTestDetailsProps {
 }
 
 const Field = ({ label, value }: { label: string; value?: string | null }) => {
-  if (!value) return null
+  if (value == null || value === '') return null
   return (
     <div>
       <span className="font-medium text-slate-700">{label}:</span>{' '}
@@ -32,10 +33,16 @@ const Field = ({ label, value }: { label: string; value?: string | null }) => {
 }
 
 const SectionTitle = ({ title }: { title: string }) => (
-  <h3 className="text-sm font-semibold text-slate-700 mb-2 pb-1 border-b border-slate-100">{title}</h3>
+  <h3 className="mb-2 border-b border-slate-100 pb-1 text-sm font-semibold text-slate-700">{title}</h3>
 )
 
-/** Rich-text / Quill HTML stored in a text field → readable plain text for the details panel */
+const EmeraldSectionTitle = ({ title }: { title: string }) => (
+  <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-emerald-900">
+    <ClipboardCheck className="h-4 w-4 text-emerald-600" strokeWidth={2} />
+    {title}
+  </h3>
+)
+
 function stripHtmlToPlainText(raw: string | null | undefined): string {
   if (raw == null || typeof raw !== 'string') return ''
   const s = raw.trim()
@@ -50,6 +57,44 @@ function stripHtmlToPlainText(raw: string | null | undefined): string {
     }
   }
   return s.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+}
+
+function parseFollowUpActions(raw: string[] | string | undefined): string[] {
+  if (!raw) return []
+  if (Array.isArray(raw)) return raw.filter(Boolean)
+  try {
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed.filter(Boolean) : []
+  } catch {
+    return []
+  }
+}
+
+function hasDoctorReviewData(labTest: LabTest): boolean {
+  return Boolean(
+    labTest.review_result_indicator ||
+    labTest.review_report_type ||
+    labTest.doctor_reviewed_datetime ||
+    labTest.review_comments ||
+    labTest.review_prescription_message ||
+    parseFollowUpActions(labTest.review_follow_up_actions).length ||
+    labTest.review_follow_up_other
+  )
+}
+
+function indicatorTone(indicator?: string): string {
+  if (!indicator) return 'bg-emerald-100 text-emerald-800 ring-emerald-200/80'
+  const lower = indicator.toLowerCase()
+  if (lower.includes('abnormal') || lower.includes('positive') && !lower.includes('negative')) {
+    return 'bg-amber-100 text-amber-900 ring-amber-200/80'
+  }
+  if (lower.includes('negative') || lower.includes('normal') || lower.includes('satisfactory')) {
+    return 'bg-emerald-100 text-emerald-800 ring-emerald-200/80'
+  }
+  if (lower.includes('borderline')) {
+    return 'bg-yellow-100 text-yellow-900 ring-yellow-200/80'
+  }
+  return 'bg-slate-100 text-slate-800 ring-slate-200/80'
 }
 
 export const LabTestDetails = ({ labTestName, onUpdate }: LabTestDetailsProps) => {
@@ -71,27 +116,32 @@ export const LabTestDetails = ({ labTestName, onUpdate }: LabTestDetailsProps) =
     }
   }
 
-  useEffect(() => { load() }, [labTestName])
+  useEffect(() => {
+    load()
+  }, [labTestName])
 
   const showReviewActions =
-    labTest?.status === 'Pending Review' || labTest?.status === 'Submitted' || labTest?.status === 'Completed'
+    labTest?.status === 'Pending Review' ||
+    labTest?.status === 'Submitted' ||
+    labTest?.status === 'Completed'
 
   if (loading) {
     return (
       <div className="flex items-center justify-center p-8">
-        <div className="text-slate-600">Loading lab test details...</div>
+        <div className="text-emerald-800/70">Loading lab test details…</div>
       </div>
     )
   }
 
   if (error) {
     return (
-      <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-        <h3 className="text-red-800 font-semibold mb-2">Error Loading Lab Test</h3>
-        <p className="text-red-700 text-sm mb-3">{error.message}</p>
+      <div className="rounded-lg border border-red-200 bg-red-50 p-4">
+        <h3 className="mb-2 font-semibold text-red-800">Error Loading Lab Test</h3>
+        <p className="mb-3 text-sm text-red-700">{error.message}</p>
         <button
+          type="button"
           onClick={load}
-          className="px-4 py-2 bg-red-600 text-white rounded-md text-sm hover:bg-red-700"
+          className="rounded-md bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700"
         >
           Retry
         </button>
@@ -100,33 +150,206 @@ export const LabTestDetails = ({ labTestName, onUpdate }: LabTestDetailsProps) =
   }
 
   if (!labTest) {
-    return <div className="text-slate-500 text-center p-8">Lab test not found</div>
+    return <div className="p-8 text-center text-slate-500">Lab test not found</div>
   }
 
-  const formatDate = (d?: string) => d ? new Date(d).toLocaleDateString() : undefined
-  const formatDatetime = (d?: string) => d ? new Date(d).toLocaleString() : undefined
+  const formatDate = (d?: string) => (d ? new Date(d).toLocaleDateString() : undefined)
+  const formatDatetime = (d?: string) => (d ? new Date(d).toLocaleString() : undefined)
+  const followUps = parseFollowUpActions(labTest.review_follow_up_actions)
+  const reviewRecorded = hasDoctorReviewData(labTest)
+  const isReviewFinal = labTest.status === 'Reviewed' || labTest.status === 'Rejected'
 
   return (
     <div className="space-y-5">
-
-      {/* ── Header bar ── */}
-      <div className="flex items-center justify-between flex-wrap gap-2">
+      {/* Header */}
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-emerald-100/80 bg-gradient-to-r from-emerald-50/60 via-white to-teal-50/40 px-4 py-3 ring-1 ring-emerald-100/50">
         <div>
-          <p className="text-xs text-slate-500 uppercase tracking-wide">Lab Test</p>
-          <h2 className="text-lg font-bold text-slate-900">{labTest.name}</h2>
+          <p className="text-xs font-medium uppercase tracking-wide text-emerald-800/60">Lab Test</p>
+          <h2 className="text-lg font-bold text-emerald-950">{labTest.name}</h2>
+          {labTest.lab_test_name && (
+            <p className="mt-0.5 text-sm text-emerald-900/70">{labTest.lab_test_name}</p>
+          )}
         </div>
         {labTest.status && (
-          <StatusPill
-            status={labTest.status}
-            color={statusColors[labTest.status] || 'default'}
-          />
+          <StatusPill status={labTest.status} color={statusColors[labTest.status] || 'default'} />
         )}
       </div>
 
-      {/* ── Grid sections ── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-sm">
+      {/* Doctor review — prominent when recorded or pending */}
+      {(reviewRecorded || isReviewFinal || labTest.status === 'Pending Review') && (
+        <section className="rounded-xl border border-emerald-200/80 bg-gradient-to-br from-emerald-50/90 via-white to-teal-50/50 p-4 shadow-sm ring-1 ring-emerald-100/70">
+          <EmeraldSectionTitle title="Doctor review" />
 
-        {/* Patient Information */}
+          {reviewRecorded ? (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {labTest.review_report_type && (
+                  <div className="rounded-lg border border-emerald-100 bg-white/80 px-3 py-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-700/70">
+                      Report type
+                    </p>
+                    <p className="mt-0.5 text-sm font-medium text-emerald-950">
+                      {labTest.review_report_type}
+                    </p>
+                  </div>
+                )}
+                {labTest.review_result_indicator && (
+                  <div className="rounded-lg border border-emerald-100 bg-white/80 px-3 py-2 sm:col-span-2 lg:col-span-1">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-700/70">
+                      Result indicator
+                    </p>
+                    <span
+                      className={`mt-1.5 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${indicatorTone(labTest.review_result_indicator)}`}
+                    >
+                      {labTest.review_result_indicator}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
+                <div className="flex items-start gap-2 rounded-lg border border-emerald-100/80 bg-white/60 px-3 py-2">
+                  <Clock className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                  <div>
+                    <p className="text-xs font-medium text-emerald-800/70">Results entered</p>
+                    <p className="font-medium text-emerald-950">
+                      {formatDatetime(labTest.results_entered_datetime) || '—'}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2 rounded-lg border border-emerald-100/80 bg-white/60 px-3 py-2">
+                  <UserCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                  <div>
+                    <p className="text-xs font-medium text-emerald-800/70">Reviewed by</p>
+                    <p className="font-medium text-emerald-950">
+                      {labTest.reviewed_by_name || labTest.reviewed_by || '—'}
+                    </p>
+                    {labTest.doctor_reviewed_datetime && (
+                      <p className="mt-0.5 text-xs text-emerald-800/60">
+                        {formatDatetime(labTest.doctor_reviewed_datetime)}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                {labTest.review_turnaround_hours != null && (
+                  <div className="flex items-start gap-2 rounded-lg border border-emerald-100/80 bg-white/60 px-3 py-2 sm:col-span-2">
+                    <Clock className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                    <div>
+                      <p className="text-xs font-medium text-emerald-800/70">Review turnaround</p>
+                      <p className="font-medium text-emerald-950">
+                        {labTest.review_turnaround_hours} hours
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {followUps.length > 0 && (
+                <div>
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-emerald-800/70">
+                    Follow-up actions
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {followUps.map((action) => (
+                      <span
+                        key={action}
+                        className="inline-flex rounded-full border border-emerald-200/80 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-900"
+                      >
+                        {action}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {labTest.review_follow_up_other?.trim() && (
+                <div className="rounded-lg border border-emerald-100 bg-white/70 px-3 py-2">
+                  <p className="text-xs font-semibold text-emerald-800/70">Other follow-up</p>
+                  <p className="mt-1 text-sm text-emerald-950 whitespace-pre-wrap">
+                    {labTest.review_follow_up_other}
+                  </p>
+                </div>
+              )}
+
+              {labTest.review_comments?.trim() && (
+                <div className="rounded-lg border border-emerald-100 bg-white/70 px-3 py-2">
+                  <p className="text-xs font-semibold text-emerald-800/70">Comments / patient message</p>
+                  <p className="mt-1 text-sm text-emerald-950 whitespace-pre-wrap">
+                    {labTest.review_comments}
+                  </p>
+                </div>
+              )}
+
+              {labTest.review_prescription_message?.trim() && (
+                <div className="rounded-lg border border-emerald-100 bg-white/70 px-3 py-2">
+                  <p className="text-xs font-semibold text-emerald-800/70">
+                    Message for next prescription
+                  </p>
+                  <p className="mt-1 text-sm text-emerald-950 whitespace-pre-wrap">
+                    {labTest.review_prescription_message}
+                  </p>
+                </div>
+              )}
+
+              <div className="flex flex-wrap gap-2 border-t border-emerald-100/80 pt-3">
+                <span
+                  className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${
+                    labTest.patient_informed_of_report
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : 'bg-slate-100 text-slate-500'
+                  }`}
+                >
+                  {labTest.patient_informed_of_report ? '✓' : '○'} Patient informed
+                </span>
+                <span
+                  className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${
+                    labTest.archive_report_on_review
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : 'bg-slate-100 text-slate-500'
+                  }`}
+                >
+                  {labTest.archive_report_on_review ? '✓' : '○'} Archive report
+                </span>
+                <span
+                  className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${
+                    labTest.create_task_on_review
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : 'bg-slate-100 text-slate-500'
+                  }`}
+                >
+                  {labTest.create_task_on_review ? '✓' : '○'} Task created
+                </span>
+              </div>
+            </div>
+          ) : labTest.status === 'Pending Review' ? (
+            <p className="text-sm text-amber-800/90">
+              Results are saved and awaiting doctor review. Use the actions below to file the report.
+            </p>
+          ) : null}
+
+          {showReviewActions && !isReviewFinal && (
+            <div className="mt-4 flex flex-wrap gap-2 border-t border-emerald-100/80 pt-4">
+              <button
+                type="button"
+                onClick={() => setReviewModal('Reviewed')}
+                className="rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-emerald-600/20 hover:from-emerald-500 hover:to-teal-500"
+              >
+                Review result…
+              </button>
+              <button
+                type="button"
+                onClick={() => setReviewModal('Rejected')}
+                className="rounded-lg border border-red-200/80 bg-white px-4 py-2 text-sm font-medium text-red-700 shadow-sm hover:bg-red-50"
+              >
+                Reject result…
+              </button>
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* Grid sections */}
+      <div className="grid grid-cols-1 gap-5 text-sm md:grid-cols-2">
         <div>
           <SectionTitle title="Patient Information" />
           <div className="space-y-1">
@@ -143,7 +366,6 @@ export const LabTestDetails = ({ labTestName, onUpdate }: LabTestDetailsProps) =
           </div>
         </div>
 
-        {/* Test Information */}
         <div>
           <SectionTitle title="Test Information" />
           <div className="space-y-1">
@@ -156,7 +378,6 @@ export const LabTestDetails = ({ labTestName, onUpdate }: LabTestDetailsProps) =
           </div>
         </div>
 
-        {/* Requesting Details */}
         <div>
           <SectionTitle title="Requesting Details" />
           <div className="space-y-1">
@@ -167,18 +388,18 @@ export const LabTestDetails = ({ labTestName, onUpdate }: LabTestDetailsProps) =
           </div>
         </div>
 
-        {/* Lab Technician */}
         <div>
           <SectionTitle title="Lab Technician" />
           <div className="space-y-1">
-            <Field label="Healthcare Practitioner" value={labTest.lab_technician_name || labTest.lab_technician} />
+            <Field
+              label="Healthcare Practitioner"
+              value={labTest.lab_technician_name || labTest.lab_technician}
+            />
             <Field label="Employee (legacy)" value={labTest.employee_name || labTest.employee} />
             <Field label="Designation" value={labTest.employee_designation} />
-            <Field label="Reviewed By" value={labTest.reviewed_by} />
           </div>
         </div>
 
-        {/* Dates & Timeline */}
         <div>
           <SectionTitle title="Dates & Timeline" />
           <div className="space-y-1">
@@ -186,19 +407,10 @@ export const LabTestDetails = ({ labTestName, onUpdate }: LabTestDetailsProps) =
             <Field label="Submitted" value={formatDatetime(labTest.submitted_date)} />
             <Field label="Result Date" value={formatDate(labTest.result_date)} />
             <Field label="Expected Result" value={formatDate(labTest.expected_result_date)} />
-            <Field label="Reviewed Date" value={formatDatetime(labTest.doctor_reviewed_datetime || labTest.approved_date)} />
-            <Field label="Results Entered" value={formatDatetime(labTest.results_entered_datetime)} />
-            {labTest.review_turnaround_hours != null && (
-              <Field label="Review turnaround (hours)" value={String(labTest.review_turnaround_hours)} />
-            )}
-            {labTest.review_result_indicator && (
-              <Field label="Result indicator" value={labTest.review_result_indicator} />
-            )}
             <Field label="Printed On" value={formatDatetime(labTest.printed_on)} />
           </div>
         </div>
 
-        {/* Flags */}
         <div>
           <SectionTitle title="Flags" />
           <div className="space-y-1">
@@ -206,22 +418,17 @@ export const LabTestDetails = ({ labTestName, onUpdate }: LabTestDetailsProps) =
             <Field label="Email Sent" value={labTest.email_sent ? 'Yes' : 'No'} />
             <Field label="SMS Sent" value={labTest.sms_sent ? 'Yes' : 'No'} />
             <Field label="Printed" value={labTest.printed ? 'Yes' : 'No'} />
-            {labTest.amended_from && (
-              <Field label="Amended From" value={labTest.amended_from} />
-            )}
-            {labTest.sample && (
-              <Field label="Sample ID" value={labTest.sample} />
-            )}
+            {labTest.amended_from && <Field label="Amended From" value={labTest.amended_from} />}
+            {labTest.sample && <Field label="Sample ID" value={labTest.sample} />}
           </div>
         </div>
       </div>
 
-      {/* ── Sample Collection breakdown ── */}
       {labTest.sample_instances && labTest.sample_instances.length > 0 && (
         <div>
           <SectionTitle title="Sample Collection" />
           <div className="overflow-x-auto rounded-md border border-slate-200">
-            <table className="min-w-full text-xs divide-y divide-slate-200">
+            <table className="min-w-full divide-y divide-slate-200 text-xs">
               <thead className="bg-slate-50">
                 <tr>
                   <th className="px-3 py-2 text-left font-semibold text-slate-600">Sample</th>
@@ -233,19 +440,15 @@ export const LabTestDetails = ({ labTestName, onUpdate }: LabTestDetailsProps) =
               <tbody className="divide-y divide-slate-100">
                 {labTest.sample_instances.map((row, idx) => (
                   <tr key={idx} className="bg-white">
-                    <td className="px-3 py-2 text-slate-800">
-                      {row.sample || '-'}
-                    </td>
-                    <td className="px-3 py-2 text-slate-800">
-                      {row.sample_qty ?? '-'}
-                    </td>
-                    <td className="px-3 py-2 text-slate-700 max-w-md align-top">
+                    <td className="px-3 py-2 text-slate-800">{row.sample || '-'}</td>
+                    <td className="px-3 py-2 text-slate-800">{row.sample_qty ?? '-'}</td>
+                    <td className="max-w-md px-3 py-2 align-top text-slate-700">
                       {row.sample_details ? (
                         <span className="block text-[13px] leading-snug" title={stripHtmlToPlainText(row.sample_details)}>
                           {stripHtmlToPlainText(row.sample_details)}
                         </span>
                       ) : (
-                        <span className="text-slate-400 italic">No details</span>
+                        <span className="italic text-slate-400">No details</span>
                       )}
                     </td>
                     <td className="px-3 py-2 text-slate-800">
@@ -259,7 +462,7 @@ export const LabTestDetails = ({ labTestName, onUpdate }: LabTestDetailsProps) =
                           {row.sample_collection}
                         </a>
                       ) : (
-                        <span className="text-slate-400 italic">Not collected</span>
+                        <span className="italic text-slate-400">Not collected</span>
                       )}
                     </td>
                   </tr>
@@ -270,14 +473,13 @@ export const LabTestDetails = ({ labTestName, onUpdate }: LabTestDetailsProps) =
         </div>
       )}
 
-      {/* ── Results ── */}
       {(labTest.descriptive_result || labTest.custom_result || labTest.lab_test_comment) && (
         <div className="space-y-3">
           {labTest.descriptive_result && (
             <div>
               <SectionTitle title="Descriptive Result" />
               <div
-                className="text-sm text-slate-700 bg-slate-50 rounded-md p-3 prose prose-sm max-w-none"
+                className="prose prose-sm max-w-none rounded-md bg-slate-50 p-3 text-sm text-slate-700"
                 dangerouslySetInnerHTML={{ __html: labTest.descriptive_result }}
               />
             </div>
@@ -286,15 +488,15 @@ export const LabTestDetails = ({ labTestName, onUpdate }: LabTestDetailsProps) =
             <div>
               <SectionTitle title="Custom Result" />
               <div
-                className="text-sm text-slate-700 bg-slate-50 rounded-md p-3 prose prose-sm max-w-none"
+                className="prose prose-sm max-w-none rounded-md bg-slate-50 p-3 text-sm text-slate-700"
                 dangerouslySetInnerHTML={{ __html: labTest.custom_result }}
               />
             </div>
           )}
           {labTest.lab_test_comment && (
             <div>
-              <SectionTitle title="Comments" />
-              <p className="text-sm text-slate-700 bg-slate-50 rounded-md p-3 whitespace-pre-wrap">
+              <SectionTitle title="Lab comments" />
+              <p className="whitespace-pre-wrap rounded-md bg-slate-50 p-3 text-sm text-slate-700">
                 {labTest.lab_test_comment}
               </p>
             </div>
@@ -302,30 +504,31 @@ export const LabTestDetails = ({ labTestName, onUpdate }: LabTestDetailsProps) =
         </div>
       )}
 
-      {/* ── Doctor's Remarks (table) ── */}
-      {labTest.remarks && Array.isArray(labTest.remarks) && labTest.remarks.length > 0 && labTest.remarks.some((r: { rrmark?: string }) => (r.rrmark || '').trim()) && (
-        <div className="space-y-2">
-          <SectionTitle title="Doctor's Remarks" />
+      {labTest.remarks &&
+        Array.isArray(labTest.remarks) &&
+        labTest.remarks.length > 0 &&
+        labTest.remarks.some((r: { rrmark?: string }) => (r.rrmark || '').trim()) && (
           <div className="space-y-2">
-            {labTest.remarks.map((row: { rrmark?: string }, i: number) => {
-              const text = (row.rrmark || '').trim()
-              if (!text) return null
-              return (
-                <div key={i} className="rounded-md border border-slate-200 bg-slate-50/50 px-3 py-2">
-                  <p className="text-sm text-slate-800 whitespace-pre-wrap">{text}</p>
-                </div>
-              )
-            })}
+            <SectionTitle title="Doctor's Remarks" />
+            <div className="space-y-2">
+              {labTest.remarks.map((row: { rrmark?: string }, i: number) => {
+                const text = (row.rrmark || '').trim()
+                if (!text) return null
+                return (
+                  <div key={i} className="rounded-md border border-slate-200 bg-slate-50/50 px-3 py-2">
+                    <p className="whitespace-pre-wrap text-sm text-slate-800">{text}</p>
+                  </div>
+                )
+              })}
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* ── Normal Test Items table ── */}
       {labTest.normal_test_items && labTest.normal_test_items.length > 0 && (
         <div>
           <SectionTitle title="Normal Test Results" />
           <div className="overflow-x-auto rounded-md border border-slate-200">
-            <table className="min-w-full text-sm divide-y divide-slate-200">
+            <table className="min-w-full divide-y divide-slate-200 text-sm">
               <thead className="bg-slate-50">
                 <tr>
                   <th className="px-3 py-2 text-left font-medium text-slate-600">Test</th>
@@ -336,7 +539,7 @@ export const LabTestDetails = ({ labTestName, onUpdate }: LabTestDetailsProps) =
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
-                {labTest.normal_test_items.map((item: any, i: number) => (
+                {labTest.normal_test_items.map((item: { lab_test_name?: string; result_value?: string; lab_test_uom?: string; normal_range?: string; abnormal?: boolean }, i: number) => (
                   <tr key={i} className={item.abnormal ? 'bg-red-50' : 'hover:bg-slate-50'}>
                     <td className="px-3 py-2 text-slate-800">{item.lab_test_name}</td>
                     <td className={`px-3 py-2 font-medium ${item.abnormal ? 'text-red-700' : 'text-slate-800'}`}>
@@ -345,10 +548,15 @@ export const LabTestDetails = ({ labTestName, onUpdate }: LabTestDetailsProps) =
                     <td className="px-3 py-2 text-slate-600">{item.lab_test_uom || '—'}</td>
                     <td className="px-3 py-2 text-slate-600">{item.normal_range || '—'}</td>
                     <td className="px-3 py-2">
-                      {item.abnormal
-                        ? <span className="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700">Abnormal</span>
-                        : <span className="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700">Normal</span>
-                      }
+                      {item.abnormal ? (
+                        <span className="inline-flex rounded bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
+                          Abnormal
+                        </span>
+                      ) : (
+                        <span className="inline-flex rounded bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
+                          Normal
+                        </span>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -358,12 +566,11 @@ export const LabTestDetails = ({ labTestName, onUpdate }: LabTestDetailsProps) =
         </div>
       )}
 
-      {/* ── Sensitivity Test Items table ── */}
       {labTest.sensitivity_test_items && labTest.sensitivity_test_items.length > 0 && (
         <div>
           <SectionTitle title="Sensitivity Test Results" />
           <div className="overflow-x-auto rounded-md border border-slate-200">
-            <table className="min-w-full text-sm divide-y divide-slate-200">
+            <table className="min-w-full divide-y divide-slate-200 text-sm">
               <thead className="bg-slate-50">
                 <tr>
                   <th className="px-3 py-2 text-left font-medium text-slate-600">Antibiotic</th>
@@ -371,69 +578,67 @@ export const LabTestDetails = ({ labTestName, onUpdate }: LabTestDetailsProps) =
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
-                {labTest.sensitivity_test_items.map((item: any, i: number) => (
-                  <tr key={i} className="hover:bg-slate-50">
-                    <td className="px-3 py-2 text-slate-800">{item.antibiotic}</td>
-                    <td className="px-3 py-2 text-slate-600">{item.antibiotic_sensitivity}</td>
-                  </tr>
-                ))}
+                {labTest.sensitivity_test_items.map(
+                  (item: { antibiotic?: string; antibiotic_sensitivity?: string }, i: number) => (
+                    <tr key={i} className="hover:bg-slate-50">
+                      <td className="px-3 py-2 text-slate-800">{item.antibiotic}</td>
+                      <td className="px-3 py-2 text-slate-600">{item.antibiotic_sensitivity}</td>
+                    </tr>
+                  )
+                )}
               </tbody>
             </table>
           </div>
         </div>
       )}
 
-      {/* ── Documents ── */}
       {labTest.documents && labTest.documents.length > 0 && (
         <div className="space-y-2">
           <SectionTitle title="Documents" />
           <div className="space-y-2">
-            {labTest.documents.map((doc: { file_name?: string; document_type?: string; transaction_no?: string; upload_remarks?: string; document?: string }, i: number) => {
-              const docUrl = doc.document
-              const label = doc.file_name || doc.document_type || 'Document'
-              const base = typeof window !== 'undefined' ? window.location.origin : ''
-              const href = docUrl && (docUrl.startsWith('http') ? docUrl : `${base}${docUrl}`)
-              return (
-                <div key={i} className="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-slate-50/50 px-3 py-2">
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium text-slate-800 truncate">{label}</div>
-                    {(doc.document_type || doc.transaction_no) && (
-                      <div className="text-xs text-slate-500 flex flex-wrap gap-x-3 mt-0.5">
-                        {doc.document_type && <span>Type: {doc.document_type}</span>}
-                        {doc.transaction_no && <span>Txn: {doc.transaction_no}</span>}
-                      </div>
+            {labTest.documents.map(
+              (
+                doc: {
+                  file_name?: string
+                  document_type?: string
+                  transaction_no?: string
+                  upload_remarks?: string
+                  document?: string
+                },
+                i: number
+              ) => {
+                const docUrl = doc.document
+                const label = doc.file_name || doc.document_type || 'Document'
+                const base = typeof window !== 'undefined' ? window.location.origin : ''
+                const href = docUrl && (docUrl.startsWith('http') ? docUrl : `${base}${docUrl}`)
+                return (
+                  <div
+                    key={i}
+                    className="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-slate-50/50 px-3 py-2"
+                  >
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-medium text-slate-800">{label}</div>
+                      {(doc.document_type || doc.transaction_no) && (
+                        <div className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-slate-500">
+                          {doc.document_type && <span>Type: {doc.document_type}</span>}
+                          {doc.transaction_no && <span>Txn: {doc.transaction_no}</span>}
+                        </div>
+                      )}
+                    </div>
+                    {href && (
+                      <a
+                        href={href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex shrink-0 items-center rounded-md border border-primary/30 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/5"
+                      >
+                        Open
+                      </a>
                     )}
                   </div>
-                  {href && (
-                    <a href={href} target="_blank" rel="noopener noreferrer" className="shrink-0 inline-flex items-center px-3 py-1.5 text-xs font-medium text-primary border border-primary/30 rounded-md hover:bg-primary/5">
-                      Open
-                    </a>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
-      {showReviewActions && labTest.status !== 'Reviewed' && labTest.status !== 'Rejected' && (
-        <div className="border-t border-slate-200 pt-4">
-          <SectionTitle title="Doctor review" />
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => setReviewModal('Reviewed')}
-              className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700"
-            >
-              Review result…
-            </button>
-            <button
-              type="button"
-              onClick={() => setReviewModal('Rejected')}
-              className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700"
-            >
-              Reject result…
-            </button>
+                )
+              }
+            )}
           </div>
         </div>
       )}
@@ -450,7 +655,6 @@ export const LabTestDetails = ({ labTestName, onUpdate }: LabTestDetailsProps) =
           }}
         />
       )}
-
     </div>
   )
 }

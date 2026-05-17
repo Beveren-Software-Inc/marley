@@ -5,6 +5,8 @@
 import frappe
 from frappe import _
 
+from healthcare.api.lab_test_doctor_review import follow_up_labels_from_doc, record_results_entered
+
 
 LAB_RESULT_EDIT_ROLES = frozenset(
 	("LabTest Approver", "System Manager", "Healthcare Administrator", "Administrator")
@@ -474,7 +476,7 @@ def get_lab_test(name):
 		'review_turnaround_hours': getattr(lab_test, 'review_turnaround_hours', None),
 		'review_report_type': getattr(lab_test, 'review_report_type', None),
 		'review_result_indicator': getattr(lab_test, 'review_result_indicator', None),
-		'review_follow_up_actions': getattr(lab_test, 'review_follow_up_actions', None),
+		'review_follow_up_actions': follow_up_labels_from_doc(lab_test),
 		'review_follow_up_other': getattr(lab_test, 'review_follow_up_other', None),
 		'review_comments': getattr(lab_test, 'review_comments', None),
 		'review_prescription_message': getattr(lab_test, 'review_prescription_message', None),
@@ -482,6 +484,11 @@ def get_lab_test(name):
 		'archive_report_on_review': getattr(lab_test, 'archive_report_on_review', None),
 		'create_task_on_review': getattr(lab_test, 'create_task_on_review', None),
 		'reviewed_by': getattr(lab_test, 'reviewed_by', None),
+		'reviewed_by_name': (
+			frappe.db.get_value('User', lab_test.reviewed_by, 'full_name')
+			if getattr(lab_test, 'reviewed_by', None)
+			else None
+		),
 	}
 	# Include documents child table (Patient Upload Document)
 	documents = getattr(lab_test, 'documents', None) or []
@@ -653,6 +660,17 @@ def _apply_documents_to_doc(doc, documents):
 		})
 
 
+def _lab_test_has_entered_results(doc) -> bool:
+	if (getattr(doc, "custom_result", None) or "").strip():
+		return True
+	if (getattr(doc, "results", None) or "").strip():
+		return True
+	for row in doc.normal_test_items or []:
+		if (getattr(row, "result_value", None) or "").strip():
+			return True
+	return False
+
+
 # @frappe.whitelist()
 # def save_and_submit_lab_test(
 # 	name,
@@ -783,7 +801,7 @@ def save_and_submit_lab_test(
     lab_technician=None,
     submit: bool = False,
 ):
-    """Save custom result/comment/worksheet/documents/normal_test_items/pricing on Lab Test and optionally submit it."""
+    """Save lab results on a draft Lab Test. Submit happens only on doctor review (submit arg is ignored)."""
     _ensure_lab_result_edit_permission()
 
     if not name:
@@ -904,17 +922,30 @@ def save_and_submit_lab_test(
         doc.grand_total = base - (disc_amt or 0)
 
     _apply_documents_to_doc(doc, documents)
-    if submit:
-        if doc.docstatus == 0:
-            doc.flags.ignore_permissions = True
-            doc.save(ignore_permissions=True)
-            doc.flags.ignore_permissions = True
-            doc.submit()
-        else:
-            # If already submitted, just save changes
-            doc.save(ignore_permissions=True)
-    else:
-        doc.save(ignore_permissions=True)
+
+    doc.flags.ignore_permissions = True
+    doc.save(ignore_permissions=True)
+
+    # Results are saved as draft; document submit happens only on doctor review.
+    if doc.docstatus == 0 and _lab_test_has_entered_results(doc):
+        if doc.status not in ("Reviewed", "Rejected", "Cancelled"):
+            frappe.db.set_value(
+                "Lab Test",
+                doc.name,
+                "status",
+                "Pending Review",
+                update_modified=True,
+            )
+            doc.status = "Pending Review"
+        record_results_entered(doc.name)
+
+    if submit and doc.docstatus == 0:
+        frappe.msgprint(
+            _(
+                "Lab results were saved. The Lab Test will be submitted when a doctor completes the review."
+            ),
+            alert=True,
+        )
 
     return {
         "name": doc.name,
@@ -1403,11 +1434,11 @@ def finish_group_lab_tests(service_request_name: str):
 	if not grouped:
 		frappe.throw(_("This Service Request is not a grouped lab request"))
 
-	done_statuses = {"Completed", "Pending Review", "Reviewed"}
+	done_statuses = {"Completed", "Pending Review", "Reviewed", "Rejected"}
 	incomplete = [
 		lt.get("name")
 		for lt in grouped
-		if int(lt.get("docstatus") or 0) != 1 or lt.get("status") not in done_statuses
+		if lt.get("status") not in done_statuses
 	]
 
 	if incomplete:

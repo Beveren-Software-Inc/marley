@@ -1007,7 +1007,7 @@
 //                             <span>{groupStatus.status}</span>
 //                           </span>
 //                           <span className="text-[10px] text-slate-500">
-//                             {children.filter(c => c.docstatus === 1).length}/{children.length} tests submitted
+//                             {children.filter(labTestHasResultsEntered).length}/{children.length} with results
 //                           </span>
 //                         </div>
 //                       </td>
@@ -1649,7 +1649,7 @@
 //             </div>
 //             <div className="flex justify-end gap-2 p-4 border-t border-slate-200 flex-shrink-0 bg-white">
 //               <button type="button" onClick={closeResultDialog} disabled={resultDialogLoading} className="px-3 py-1 text-sm border border-slate-300 rounded-md hover:bg-slate-50">Cancel</button>
-//               <button type="button" onClick={handleSubmitLabTestWithResults} disabled={resultDialogLoading} className="px-3 py-1 text-sm bg-primary text-white rounded-md hover:bg-primary/90 disabled:opacity-50">Save &amp; Submit</button>
+//               <button type="button" onClick={handleSubmitLabTestWithResults} disabled={resultDialogLoading} className="px-3 py-1 text-sm bg-primary text-white rounded-md hover:bg-primary/90 disabled:opacity-50">Save Results</button>
 //             </div>
 //           </div>
 //         </div>
@@ -1939,11 +1939,13 @@ const FilterBar = ({ filters, onChange, onClear, activeCount, byNurse }: {
   )
 }
 
-// Helper function to calculate group completion status based on docstatus (submitted)
+const labTestHasResultsEntered = (child: LabTest) =>
+  ['Pending Review', 'Reviewed', 'Rejected', 'Completed'].includes(child.status || '')
+
+// Helper: group progress when all child tests have results saved (Pending Review or beyond)
 const getGroupCompletionStatus = (children: LabTest[]) => {
   const total = children.length
-  // Count tests that are submitted (docstatus === 1)
-  const completedCount = children.filter(child => child.docstatus === 1).length
+  const completedCount = children.filter(labTestHasResultsEntered).length
   
   if (completedCount === 0) return { status: 'Not Started', color: 'warning', icon: '○' }
   if (completedCount === total) return { status: 'Complete', color: 'success', icon: '✓' }
@@ -2011,7 +2013,7 @@ export const LabTestList = ({
         toast.error('Select a lab technician in the Lab technician column before saving the result.')
         return
       }
-      await saveAndSubmitLabTest(labTestName, { custom_result: newResult, submit: true })
+      await saveAndSubmitLabTest(labTestName, { custom_result: newResult })
       await refetch()
       toast.success('Result updated')
     } catch (e) {
@@ -2308,10 +2310,9 @@ export const LabTestList = ({
         documents: docPayload.length ? docPayload : undefined,
         normal_test_items: normalTestItems.length ? normalTestItems : undefined,
         lab_technician: labTechnician.trim(),
-        submit: true,
       })
       await refetch(); closeResultDialog()
-    } catch (e) { setResultDialogError(e instanceof Error ? e.message : 'Failed to submit lab test with results') }
+    } catch (e) { setResultDialogError(e instanceof Error ? e.message : 'Failed to save lab results') }
     finally { setResultDialogLoading(false) }
   }
 
@@ -2543,7 +2544,7 @@ export const LabTestList = ({
               className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">Sample Collection</button>
             {labTest.docstatus === 0 && canEditResults && (
               <button type="button" onClick={() => { setOpenActionRow(null); openResultDialog(labTest.name) }}
-                className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">Enter Results &amp; Submit</button>
+                className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">Enter Results</button>
             )}
             {labTest.docstatus === 0 && (
               <button type="button" onClick={() => { setOpenActionRow(null); setEditLabTestName(labTest.name) }}
@@ -2821,7 +2822,7 @@ export const LabTestList = ({
                             <span>{groupStatus.status}</span>
                           </span>
                           <span className="text-[10px] text-slate-500">
-                            {children.filter(c => c.docstatus === 1).length}/{children.length} tests submitted
+                            {children.filter(labTestHasResultsEntered).length}/{children.length} with results
                           </span>
                         </div>
                        </td>
@@ -2982,30 +2983,35 @@ export const LabTestList = ({
       {/* ── Lab Test Details slide-over ── */}
       {selectedLabTestForDetails && (
         <div className="fixed inset-0 z-50 flex items-start justify-end" onClick={() => setSelectedLabTestForDetails(null)}>
-          <div className="absolute inset-0 bg-black/30" />
-          <div className="relative z-10 h-full w-full max-w-2xl bg-white shadow-xl flex flex-col" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50 shrink-0">
-              <div>
-                <p className="text-xs text-slate-500 uppercase tracking-wide">Lab Test Details</p>
-                <p className="text-sm font-semibold text-slate-800">{selectedLabTestForDetails}</p>
+          <div className="absolute inset-0 bg-primary/15 backdrop-blur-[2px]" />
+          <div
+            className="relative z-10 flex h-full w-full max-w-2xl flex-col border-l border-emerald-200/60 bg-white shadow-2xl shadow-emerald-900/10 ring-1 ring-emerald-100/80"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="relative flex shrink-0 items-center justify-between border-b border-emerald-100/80 bg-gradient-to-r from-emerald-100 via-teal-50 to-sky-100 px-6 py-4">
+              <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(16,185,129,0.15),transparent_55%)]" />
+              <div className="relative min-w-0">
+                <p className="text-xs font-medium uppercase tracking-wide text-emerald-800/70">Lab Test Details</p>
+                <p className="truncate text-sm font-semibold text-emerald-950">{selectedLabTestForDetails}</p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="relative flex items-center gap-2">
                 <PrintFormatDropdown doctype="Lab Test" docName={selectedLabTestForDetails} noLetterhead={0} triggerPrint={1}
-                  className="inline-flex items-center justify-center w-8 h-8 rounded border border-slate-300 bg-white text-primary hover:bg-slate-50" />
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-200/80 bg-white text-primary shadow-sm hover:bg-emerald-50" />
                 <button type="button" onClick={() => setSelectedLabTestForDetails(null)}
-                  className="inline-flex items-center justify-center w-8 h-8 rounded-md text-slate-500 hover:text-slate-800 hover:bg-slate-200" aria-label="Close">
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-emerald-800/70 transition hover:bg-emerald-200/50 hover:text-emerald-950" aria-label="Close">
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
               </div>
             </div>
-            <div className="flex-1 overflow-y-auto p-6">
+            <div className="flex-1 overflow-y-auto bg-gradient-to-b from-emerald-50/30 via-white to-teal-50/20 p-6">
               <LabTestDetails labTestName={selectedLabTestForDetails} onUpdate={() => refetch()} />
             </div>
           </div>
         </div>
       )}
+
 
       {/* ── Sample Collection Modal with instructions visible by default ── */}
       {sampleModalLabTest && !isCreatingSample && (
@@ -3488,7 +3494,7 @@ export const LabTestList = ({
             </div>
             <div className="flex justify-end gap-2 p-4 border-t border-slate-200 flex-shrink-0 bg-white">
               <button type="button" onClick={closeResultDialog} disabled={resultDialogLoading} className="px-3 py-1 text-sm border border-slate-300 rounded-md hover:bg-slate-50">Cancel</button>
-              <button type="button" onClick={handleSubmitLabTestWithResults} disabled={resultDialogLoading} className="px-3 py-1 text-sm bg-primary text-white rounded-md hover:bg-primary/90 disabled:opacity-50">Save &amp; Submit</button>
+              <button type="button" onClick={handleSubmitLabTestWithResults} disabled={resultDialogLoading} className="px-3 py-1 text-sm bg-primary text-white rounded-md hover:bg-primary/90 disabled:opacity-50">Save Results</button>
             </div>
           </div>
         </div>

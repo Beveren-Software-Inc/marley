@@ -38,6 +38,8 @@ REVIEW_FOLLOW_UP_ACTIONS = (
 	"Other",
 )
 
+FOLLOW_UP_CHILD_TABLE = "doctor_review_follow_ups"
+
 LAB_DOCTOR_REVIEW_ROLES = frozenset(
 	(
 		"LabTest Approver",
@@ -67,6 +69,61 @@ def _ensure_lab_doctor_review_permission():
 	)
 
 
+def ensure_follow_up_action(label: str) -> str:
+	"""Create master record if missing; document name equals action label."""
+	label = (label or "").strip()
+	if not label:
+		frappe.throw(_("Follow-up action label is required"))
+	if not frappe.db.exists("Lab Review Follow Up Action", label):
+		frappe.get_doc(
+			{"doctype": "Lab Review Follow Up Action", "action": label}
+		).insert(ignore_permissions=True)
+	return label
+
+
+def seed_default_follow_up_actions():
+	for label in REVIEW_FOLLOW_UP_ACTIONS:
+		ensure_follow_up_action(label)
+
+
+def get_available_follow_up_actions() -> list[str]:
+	"""Active follow-up options for UI (defaults first, then any added in Desk)."""
+	seed_default_follow_up_actions()
+
+	from_db = frappe.get_all(
+		"Lab Review Follow Up Action",
+		filters={"disabled": 0},
+		pluck="name",
+		order_by="name",
+	)
+
+	ordered: list[str] = []
+	seen: set[str] = set()
+	for label in REVIEW_FOLLOW_UP_ACTIONS:
+		if label in from_db and label not in seen:
+			ordered.append(label)
+			seen.add(label)
+	for label in from_db:
+		if label not in seen:
+			ordered.append(label)
+			seen.add(label)
+	return ordered
+
+
+def follow_up_labels_from_doc(doc) -> list[str]:
+	rows = getattr(doc, FOLLOW_UP_CHILD_TABLE, None) or []
+	labels: list[str] = []
+	for row in rows:
+		link = row.get("follow_up_action") if isinstance(row, dict) else getattr(
+			row, "follow_up_action", None
+		)
+		if link and link not in labels:
+			labels.append(link)
+	if labels:
+		return labels
+	return _parse_follow_up_actions(getattr(doc, "review_follow_up_actions", None))
+
+
 def _parse_follow_up_actions(raw) -> list[str]:
 	if not raw:
 		return []
@@ -81,12 +138,32 @@ def _parse_follow_up_actions(raw) -> list[str]:
 			items = parsed if isinstance(parsed, list) else [text]
 		except Exception:
 			items = [a.strip() for a in text.split(",") if a.strip()]
-	valid = []
+
+	valid: list[str] = []
 	for item in items:
 		label = str(item).strip()
-		if label and label in REVIEW_FOLLOW_UP_ACTIONS and label not in valid:
+		if not label:
+			continue
+		if frappe.db.exists("Lab Review Follow Up Action", label):
+			if frappe.db.get_value("Lab Review Follow Up Action", label, "disabled"):
+				continue
+		elif label in REVIEW_FOLLOW_UP_ACTIONS:
+			ensure_follow_up_action(label)
+		else:
+			continue
+		if label not in valid:
 			valid.append(label)
 	return valid
+
+
+def _set_review_follow_up_rows(doc, follow_ups: list[str]):
+	doc.set(FOLLOW_UP_CHILD_TABLE, [])
+	for label in follow_ups:
+		action_name = ensure_follow_up_action(label)
+		doc.append(
+			FOLLOW_UP_CHILD_TABLE,
+			{"follow_up_action": action_name},
+		)
 
 
 def _results_entered_at(doc):
@@ -129,7 +206,7 @@ def get_doctor_review_form_options():
 	return {
 		"report_types": list(REVIEW_REPORT_TYPES),
 		"result_indicators": list(REVIEW_RESULT_INDICATORS),
-		"follow_up_actions": list(REVIEW_FOLLOW_UP_ACTIONS),
+		"follow_up_actions": get_available_follow_up_actions(),
 	}
 
 
@@ -175,10 +252,14 @@ def submit_doctor_lab_test_review(
 	doc = frappe.get_doc("Lab Test", lab_test_name)
 	if doc.docstatus == 2:
 		frappe.throw(_("Cannot review a cancelled Lab Test"))
-	if doc.docstatus != 1:
-		frappe.throw(_("Only submitted Lab Tests can be reviewed"))
+	if doc.docstatus not in (0, 1):
+		frappe.throw(_("This Lab Test cannot be reviewed"))
 	if doc.status in ("Reviewed", "Rejected"):
 		frappe.throw(_("This lab test has already been reviewed"))
+	if doc.docstatus == 0 and doc.status != "Pending Review":
+		frappe.throw(
+			_("Save lab results first so the test is Pending Review before doctor review.")
+		)
 
 	results_entered = _results_entered_at(doc)
 	if not results_entered:
@@ -188,26 +269,35 @@ def submit_doctor_lab_test_review(
 	reviewed_at = now_datetime()
 	turnaround = _turnaround_hours(results_entered, reviewed_at)
 
-	update_values = {
-		"status": new_status,
-		"reviewed_by": frappe.session.user,
-		"doctor_reviewed_datetime": reviewed_at,
-		"review_turnaround_hours": turnaround,
-		"review_report_type": review_report_type or None,
-		"review_result_indicator": review_result_indicator,
-		"review_follow_up_actions": json.dumps(follow_ups) if follow_ups else None,
-		"review_follow_up_other": (review_follow_up_other or "").strip() or None,
-		"review_comments": (review_comments or "").strip() or None,
-		"review_prescription_message": (review_prescription_message or "").strip() or None,
-		"patient_informed_of_report": 1 if frappe.utils.cint(patient_informed_of_report) else 0,
-		"archive_report_on_review": 1 if frappe.utils.cint(archive_report_on_review) else 0,
-		"create_task_on_review": 1 if frappe.utils.cint(create_task_on_review) else 0,
-	}
+	doc.status = new_status
+	doc.reviewed_by = frappe.session.user
+	doc.doctor_reviewed_datetime = reviewed_at
+	doc.review_turnaround_hours = turnaround
+	doc.review_report_type = review_report_type or None
+	doc.review_result_indicator = review_result_indicator
+	doc.review_follow_up_other = (review_follow_up_other or "").strip() or None
+	doc.review_comments = (review_comments or "").strip() or None
+	doc.review_prescription_message = (review_prescription_message or "").strip() or None
+	doc.patient_informed_of_report = 1 if frappe.utils.cint(patient_informed_of_report) else 0
+	doc.archive_report_on_review = 1 if frappe.utils.cint(archive_report_on_review) else 0
+	doc.create_task_on_review = 1 if frappe.utils.cint(create_task_on_review) else 0
 
 	if new_status == "Reviewed":
-		update_values["approved_date"] = reviewed_at
+		doc.approved_date = reviewed_at
 
-	frappe.db.set_value("Lab Test", doc.name, update_values, update_modified=True)
+	_set_review_follow_up_rows(doc, follow_ups)
+
+	doc.flags.ignore_permissions = True
+	if doc.docstatus == 0:
+		# Submit once with all review fields — do not save() first (read-only
+		# datetime fields may not persist on draft save, then submit fails
+		# UpdateAfterSubmitError when setting them on submit).
+		doc.flags.via_doctor_review = True
+		doc.submit()
+	else:
+		# Already submitted (e.g. legacy flow); allow programmatic review updates.
+		doc.flags.ignore_validate_update_after_submit = True
+		doc.save()
 
 	if frappe.utils.cint(create_task_on_review):
 		_create_review_task(doc, review_result_indicator, follow_ups, review_comments)
