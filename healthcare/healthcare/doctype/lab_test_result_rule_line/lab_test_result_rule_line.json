@@ -1,0 +1,103 @@
+{
+ "actions": [],
+ "creation": "2026-05-17 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "rule_type",
+  "target_event",
+  "column_break_1",
+  "readonly",
+  "formula_section",
+  "formula",
+  "source_events",
+  "ratio_section",
+  "numerator_event",
+  "denominator_event"
+ ],
+ "fields": [
+  {
+   "default": "Formula",
+   "fieldname": "rule_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Rule Type",
+   "options": "Formula\nRatio",
+   "reqd": 1
+  },
+  {
+   "fieldname": "target_event",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Target Event",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "readonly",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Read Only"
+  },
+  {
+   "depends_on": "eval:doc.rule_type=='Formula'",
+   "fieldname": "formula_section",
+   "fieldtype": "Section Break",
+   "label": "Formula"
+  },
+  {
+   "depends_on": "eval:doc.rule_type=='Formula'",
+   "description": "Use lab test event names as variables, e.g. (WBC * Neutrophils) / 100",
+   "fieldname": "formula",
+   "fieldtype": "Small Text",
+   "label": "Formula",
+   "mandatory_depends_on": "eval:doc.rule_type=='Formula'"
+  },
+  {
+   "depends_on": "eval:doc.rule_type=='Formula'",
+   "description": "Optional comma-separated list of input events (for documentation)",
+   "fieldname": "source_events",
+   "fieldtype": "Small Text",
+   "label": "Source Events"
+  },
+  {
+   "depends_on": "eval:doc.rule_type=='Ratio'",
+   "fieldname": "ratio_section",
+   "fieldtype": "Section Break",
+   "label": "Ratio"
+  },
+  {
+   "depends_on": "eval:doc.rule_type=='Ratio'",
+   "fieldname": "numerator_event",
+   "fieldtype": "Data",
+   "label": "Numerator Event",
+   "mandatory_depends_on": "eval:doc.rule_type=='Ratio'"
+  },
+  {
+   "depends_on": "eval:doc.rule_type=='Ratio'",
+   "fieldname": "denominator_event",
+   "fieldtype": "Data",
+   "label": "Denominator Event",
+   "mandatory_depends_on": "eval:doc.rule_type=='Ratio'"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-05-17 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Lab Test Result Rule Line",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

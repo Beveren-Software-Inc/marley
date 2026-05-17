@@ -12,6 +12,7 @@ export interface LabTest {
   template?: string
   status?: string
   date?: string
+  creation?: string
   result_date?: string
   submitted_date?: string
   female_min_range?: number | null
@@ -79,6 +80,10 @@ export interface LabTest {
   documents?: Array<{ file_name?: string; document_type?: string; transaction_no?: string; upload_remarks?: string; document?: string }>
   /** Sample instances child table – one row per required/actual sample */
   sample_instances?: Array<{ sample?: string; sample_qty?: number; sample_details?: string; sample_collection?: string }>
+  /** Populated after save when lab result rules run */
+  rule_warnings?: Array<{ message: string; type?: string; ok?: boolean }>
+  rule_errors?: Array<{ message: string; type?: string; block_save?: boolean }>
+  calculated_updates?: Array<{ name: string; lab_test_name?: string; custom_result: string }>
 }
 
 export interface LabConsumableRow {

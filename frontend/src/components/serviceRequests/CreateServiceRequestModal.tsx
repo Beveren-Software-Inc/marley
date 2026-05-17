@@ -11,7 +11,11 @@ import {
   getCurrentUserPractitioner,
   type LinkFieldOption,
 } from '../../services/common'
-import { createServiceRequest } from '../../services/serviceRequests'
+import {
+  createServiceRequest,
+  getMultiLabRequestPricing,
+  type LabRequestItem,
+} from '../../services/serviceRequests'
 import { toast } from '../../hooks/useToast'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { useFormatMoney } from '../../hooks/useFormatMoney'
@@ -109,6 +113,12 @@ export const CreateServiceRequestModal = ({
   const [selectedGroupTemplates, setSelectedGroupTemplates] = useState<string[]>([])
   const [discountPct, setDiscountPct] = useState(0)
 
+  /** Multi-test lab basket (lab request flow only) */
+  const [labBasket, setLabBasket] = useState<LabRequestItem[]>([])
+  const [pendingTemplateDn, setPendingTemplateDn] = useState('')
+  const [pendingTemplateLabel, setPendingTemplateLabel] = useState('')
+  const [basketPricingSubtotal, setBasketPricingSubtotal] = useState(0)
+
   const [form, setForm] = useState({
     patient: initialPatient || contextPatient || '',
     template_dt: '',
@@ -122,6 +132,7 @@ export const CreateServiceRequestModal = ({
   })
 
   const isGroupTemplate = groupRows.length > 0
+  const useLabBasket = labTestTemplateOnly
 
   const getBestPrice = (rows: PricingRow[]) => {
     if (!rows.length) return null
@@ -147,10 +158,59 @@ export const CreateServiceRequestModal = ({
     return getBestPrice(pricingRows) || 0
   }, [isGroupTemplate, pricingRows, patientCategory])
 
-  const listSubtotalBeforeDiscount = isGroupTemplate ? groupTotal : nonGroupListSubtotal
+  const listSubtotalBeforeDiscount = useLabBasket
+    ? basketPricingSubtotal
+    : isGroupTemplate
+      ? groupTotal
+      : nonGroupListSubtotal
 
   const clampedDiscount = Math.min(100, Math.max(0, discountPct))
   const estimatedTotalAfterDiscount = listSubtotalBeforeDiscount * (1 - clampedDiscount / 100)
+
+  const basketLineLabel = (item: LabRequestItem) => {
+    if (item.kind === 'single') {
+      const row = templates.find((t) => t.name === item.template)
+      return row?.label || item.template
+    }
+    const row = templates.find((t) => t.name === item.parent)
+    const parentLabel = row?.label || pendingTemplateLabel || item.parent
+    const n = item.children.length
+    return n ? `${parentLabel} (${n} tests)` : parentLabel
+  }
+
+  const addPendingToBasket = () => {
+    if (!pendingTemplateDn) return
+    if (isGroupTemplate) {
+      if (selectedGroupTemplates.length === 0) {
+        setError('Select at least one child test for this group.')
+        return
+      }
+      setLabBasket((prev) => [
+        ...prev,
+        { kind: 'group', parent: pendingTemplateDn, children: [...selectedGroupTemplates] },
+      ])
+    } else {
+      setLabBasket((prev) => [...prev, { kind: 'single', template: pendingTemplateDn }])
+    }
+    setPendingTemplateDn('')
+    setPendingTemplateLabel('')
+    setTemplateSearchQuery('')
+    setForm((prev) => ({ ...prev, template_dn: '' }))
+    setPricingRows([])
+    setGroupRows([])
+    setSelectedGroupTemplates([])
+    setError(null)
+  }
+
+  useEffect(() => {
+    if (!useLabBasket || !form.patient || labBasket.length === 0) {
+      setBasketPricingSubtotal(0)
+      return
+    }
+    getMultiLabRequestPricing(labBasket, form.patient)
+      .then((p) => setBasketPricingSubtotal(p.subtotal || 0))
+      .catch(() => setBasketPricingSubtotal(0))
+  }, [useLabBasket, form.patient, labBasket])
 
   useEffect(() => {
     const load = async () => {
@@ -275,16 +335,19 @@ export const CreateServiceRequestModal = ({
   }, [costCenterDropdownOpen, costCenterSearchQuery])
 
   useEffect(() => {
-    if (!form.template_dt || !form.template_dn) {
-      setPricingRows([])
-      setGroupRows([])
-      setSelectedGroupTemplates([])
+    const templateDn = useLabBasket ? pendingTemplateDn : form.template_dn
+    if (!form.template_dt || !templateDn) {
+      if (!useLabBasket || !pendingTemplateDn) {
+        setPricingRows([])
+        setGroupRows([])
+        setSelectedGroupTemplates([])
+      }
       return
     }
     fetch(
       `/api/method/healthcare.api.service_request.get_service_request_template_pricing?template_dt=${encodeURIComponent(
         form.template_dt
-      )}&template_dn=${encodeURIComponent(form.template_dn)}`
+      )}&template_dn=${encodeURIComponent(templateDn)}`
     )
       .then((res) => res.json())
       .then((data) => {
@@ -305,7 +368,7 @@ export const CreateServiceRequestModal = ({
         setGroupRows([])
         setSelectedGroupTemplates([])
       })
-  }, [form.template_dt, form.template_dn, patientCategory])
+  }, [form.template_dt, form.template_dn, pendingTemplateDn, patientCategory, useLabBasket])
 
   useEffect(() => {
     if (!patientOpen) return
@@ -319,7 +382,16 @@ export const CreateServiceRequestModal = ({
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
     setError(null)
-    if (!form.patient || !form.template_dt || !form.template_dn) {
+    if (!form.patient || !form.template_dt) {
+      setError('Patient and Template Type are required.')
+      return
+    }
+    if (useLabBasket) {
+      if (labBasket.length === 0) {
+        setError('Add at least one lab test or group to the request.')
+        return
+      }
+    } else if (!form.template_dn) {
       setError('Patient, Template Type and Template are required.')
       return
     }
@@ -331,7 +403,7 @@ export const CreateServiceRequestModal = ({
       setError('Select an inpatient admission for this inpatient request.')
       return
     }
-    if (isGroupTemplate && selectedGroupTemplates.length === 0) {
+    if (!useLabBasket && isGroupTemplate && selectedGroupTemplates.length === 0) {
       setError('Select at least one child template for grouped lab tests.')
       return
     }
@@ -342,10 +414,17 @@ export const CreateServiceRequestModal = ({
       const listAmount = listSubtotalBeforeDiscount
       const discountAmount = listAmount * (pct / 100)
       const afterDiscount = estimatedTotalAfterDiscount
+      const primaryDn =
+        useLabBasket && labBasket.length > 0
+          ? labBasket[0].kind === 'single'
+            ? labBasket[0].template
+            : labBasket[0].parent
+          : form.template_dn
       await createServiceRequest({
         patient: form.patient,
         template_dt: form.template_dt,
-        template_dn: form.template_dn,
+        template_dn: primaryDn,
+        lab_request_items: useLabBasket ? labBasket : undefined,
         practitioner: form.practitioner || undefined,
         patient_visit: form.patient_visit || undefined,
         inpatient_record: form.inpatient_record || undefined,
@@ -356,7 +435,7 @@ export const CreateServiceRequestModal = ({
         discount: pct,
         discount_amount: discountAmount,
         grand_total: afterDiscount,
-        selected_group_templates: isGroupTemplate ? selectedGroupTemplates : undefined,
+        selected_group_templates: !useLabBasket && isGroupTemplate ? selectedGroupTemplates : undefined,
       })
       toast.success('Service Request created')
       onSuccess()
@@ -585,8 +664,14 @@ export const CreateServiceRequestModal = ({
                                 type="button"
                                 className="flex w-full items-center justify-between gap-2 border-b border-slate-50 px-3 py-2.5 text-left text-sm last:border-0 hover:bg-emerald-50/80"
                                 onMouseDown={() => {
-                                  setForm((prev) => ({ ...prev, template_dn: item.name }))
-                                  setTemplateSearchQuery(item.label || item.name)
+                                  if (useLabBasket) {
+                                    setPendingTemplateDn(item.name)
+                                    setPendingTemplateLabel(item.label || item.name)
+                                    setTemplateSearchQuery(item.label || item.name)
+                                  } else {
+                                    setForm((prev) => ({ ...prev, template_dn: item.name }))
+                                    setTemplateSearchQuery(item.label || item.name)
+                                  }
                                   setTemplateDropdownOpen(false)
                                 }}
                               >
@@ -607,10 +692,49 @@ export const CreateServiceRequestModal = ({
                       </div>
                     )}
                   </div>
-                  <p className="mt-1.5 text-[11px] text-slate-500">Type to search; pick a row to select. Group templates include multiple child tests.</p>
+                  <p className="mt-1.5 text-[11px] text-slate-500">
+                    {useLabBasket
+                      ? 'Search and pick a test, configure group children if needed, then add to the request. Repeat for more tests.'
+                      : 'Type to search; pick a row to select. Group templates include multiple child tests.'}
+                  </p>
+                  {useLabBasket && pendingTemplateDn && (
+                    <button
+                      type="button"
+                      onClick={addPendingToBasket}
+                      className="mt-3 w-full rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100"
+                    >
+                      Add to request
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
+
+            {useLabBasket && labBasket.length > 0 && (
+              <div className={sectionCard}>
+                <div className={sectionTitle}>
+                  <ClipboardList className="h-4 w-4 text-emerald-600" />
+                  Tests on this request ({labBasket.length})
+                </div>
+                <ul className="space-y-2">
+                  {labBasket.map((item, index) => (
+                    <li
+                      key={`${item.kind}-${item.kind === 'single' ? item.template : item.parent}-${index}`}
+                      className="flex items-center justify-between gap-3 rounded-xl border border-slate-200/90 bg-white px-3 py-2.5"
+                    >
+                      <span className="text-sm font-medium text-slate-900">{basketLineLabel(item)}</span>
+                      <button
+                        type="button"
+                        onClick={() => setLabBasket((prev) => prev.filter((_, i) => i !== index))}
+                        className="shrink-0 text-xs font-semibold text-red-600 hover:text-red-800"
+                      >
+                        Remove
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             {/* Context & billing */}
             <div className={sectionCard}>
@@ -718,7 +842,7 @@ export const CreateServiceRequestModal = ({
             </div>
 
             {/* Group templates */}
-            {isGroupTemplate && (
+            {(useLabBasket ? pendingTemplateDn && isGroupTemplate : isGroupTemplate) && (
               <div className={`${sectionCard} border-emerald-200/90 bg-gradient-to-br from-emerald-50/60 via-white to-teal-50/40`}>
                 <div className={sectionTitle}>
                   <Layers className="h-4 w-4 text-emerald-600" />
@@ -765,7 +889,7 @@ export const CreateServiceRequestModal = ({
               </div>
             )}
 
-            {form.template_dn && (
+            {(useLabBasket ? labBasket.length > 0 : form.template_dn) && (
               <div className={sectionCard}>
                 <div className={sectionTitle}>
                   <Wallet className="h-4 w-4 text-emerald-600" />
@@ -803,7 +927,7 @@ export const CreateServiceRequestModal = ({
               </div>
             )}
 
-            {form.template_dn && (
+            {(useLabBasket ? labBasket.length > 0 : form.template_dn) && (
             <div className="flex flex-col gap-3 rounded-xl border border-emerald-300/70 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 px-4 py-4 text-white shadow-md shadow-emerald-600/25 sm:flex-row sm:items-center sm:justify-between sm:px-5">
               <div className="flex flex-col gap-0.5 text-sm text-emerald-50">
                 <span className="flex items-center gap-2 font-medium">

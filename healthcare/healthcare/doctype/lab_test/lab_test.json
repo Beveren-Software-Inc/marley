@@ -1133,10 +1133,12 @@
    "label": "By Nurse"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "result_flag",
    "fieldtype": "Select",
    "label": "Result Flag",
-   "options": "\nHigh\nLow\nNormal\nCritically High\nCritically Low"
+   "options": "\nHigh\nLow\nNormal\nCritically High\nCritically Low",
+   "read_only": 1
   }
  ],
  "is_submittable": 1,
@@ -1146,7 +1148,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2026-05-17 13:46:35.261450",
+ "modified": "2026-05-17 15:01:37.487754",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Lab Test",

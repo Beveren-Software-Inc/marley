@@ -191,6 +191,47 @@ def get_lab_test_template_info(template):
 
 
 @frappe.whitelist(allow_guest=False)
+def get_multi_lab_request_pricing(items, patient=None):
+	"""Return pricing breakdown for a multi-line lab basket."""
+	from healthcare.healthcare.lab_request_items import (
+		expand_lab_test_specs,
+		lab_request_items_summary,
+	)
+
+	if isinstance(items, str):
+		try:
+			items = json.loads(items)
+		except Exception:
+			items = []
+	if not isinstance(items, list):
+		items = []
+
+	if not patient:
+		return {"lines": [], "subtotal": 0, "summary": ""}
+
+	specs = expand_lab_test_specs(items, patient)
+	lines = []
+	subtotal = 0.0
+	for spec in specs:
+		amount = float(spec.get("amount") or 0)
+		subtotal += amount
+		tpl = spec.get("template")
+		lines.append(
+			{
+				"template": tpl,
+				"lab_test_name": frappe.db.get_value("Lab Test Template", tpl, "lab_test_name") or tpl,
+				"parent_group": spec.get("parent_group"),
+				"amount": amount,
+			}
+		)
+	return {
+		"lines": lines,
+		"subtotal": subtotal,
+		"summary": lab_request_items_summary(items),
+	}
+
+
+@frappe.whitelist(allow_guest=False)
 # def get_service_request_template_pricing(template_dt, template_dn):
 # 	"""
 # 	Return Service Pricing rows for any service request template type.
@@ -369,7 +410,7 @@ def get_service_requests(
 		filters=filters,
 		fields=[
 			'name', 'patient', 'patient_name', 'practitioner',
-			'template_dt', 'template_dn', 'status', 'order_date', 'order_time',
+			'template_dt', 'template_dn', 'lab_request_items', 'status', 'order_date', 'order_time',
 			'occurrence_date', 'occurrence_time', 'medical_department',
 			'billing_status', 'priority', 'intent', 'patient_accepted_cost',
 			'booked', 'order_group', 'cost', 'grand_total', 'amount', 'cost_center',
@@ -388,6 +429,11 @@ def get_service_requests(
 	total_count = frappe.get_all('Service Request', **count_kwargs, limit=0, fields=['name'])
 	total_count = len(total_count)
 
+	from healthcare.healthcare.lab_request_items import (
+		lab_request_items_summary,
+		parse_lab_request_items,
+	)
+
 	service_requests = frappe.get_all('Service Request', **fetch_kwargs)
 	for sr in service_requests:
 		if sr.practitioner:
@@ -396,7 +442,10 @@ def get_service_requests(
 				or sr.practitioner
 			)
 
-		if sr.template_dn and sr.template_dt:
+		items = parse_lab_request_items(sr)
+		if items and sr.template_dt == 'Lab Test Template':
+			sr['template_name'] = lab_request_items_summary(items) or sr.template_dn
+		elif sr.template_dn and sr.template_dt:
 			name_field = _template_name_field.get(sr.template_dt)
 			if name_field and name_field != 'name':
 				resolved = frappe.db.get_value(sr.template_dt, sr.template_dn, name_field)
@@ -468,86 +517,53 @@ def generate_lab_test_trans_num(format_type="integer", prefix="", suffix="", pad
     
 @frappe.whitelist()
 def create_lab_test_from_service_request(service_request):
-	"""Create Lab Test(s) from a Service Request. For group templates, creates one per child."""
+	"""Create Lab Test(s) from a Service Request (supports multi-line lab baskets)."""
 	if not service_request:
 		frappe.throw(_("Service Request name is required"))
 
-	try:
-		from healthcare.healthcare.doctype.service_request.service_request import make_lab_test
-	except ImportError:
-		frappe.throw(_("Could not import make_lab_test function"))
+	from healthcare.healthcare.doctype.service_request.service_request import book_lab_and_forward
 
-	service_request_doc = frappe.get_doc('Service Request', service_request)
+	service_request_doc = frappe.get_doc("Service Request", service_request)
+	if service_request_doc.template_dt != "Lab Test Template":
+		frappe.throw(_("Only Lab Test Template service requests can create lab tests."))
 
-	# Handle group Lab Test Template
-	if service_request_doc.template_dt == 'Lab Test Template':
-		is_group = frappe.db.get_value('Lab Test Template', service_request_doc.template_dn, 'is_group')
-		if is_group:
-			existing = frappe.get_all(
-				'Lab Test',
-				filters={'service_request': service_request, 'docstatus': ['!=', 2]},
-				fields=['name']
-			)
-			if existing:
-				frappe.throw(
-					_("Lab Tests already exist for this Service Request: {0}").format(
-						', '.join([e.name for e in existing])
-					)
-				)
+	# book_lab_and_forward requires patient_accepted_cost; allow direct create from API otherwise
+	if not service_request_doc.patient_accepted_cost:
+		service_request_doc.db_set("patient_accepted_cost", 1)
 
-			group_rows = frappe.get_all(
-				'Lab Test Group Template',
-				filters={
-					'parent': service_request_doc.template_dn,
-					'parenttype': 'Lab Test Template',
-					'template_or_new_line': 'Add Test'
-				},
-				fields=['lab_test_template'],
-				order_by='idx asc',
-				ignore_permissions=True
-			)
+	result = book_lab_and_forward(service_request)
+	names = result.get("lab_tests") or []
+	if not names and result.get("lab_test"):
+		names = [result["lab_test"]]
 
-			created_tests = []
-			for row in group_rows:
-				if not row.lab_test_template:
-					continue
-				sr_dict = frappe._dict(service_request_doc.as_dict())
-				sr_dict.template_dn = row.lab_test_template
-				lab_test = make_lab_test(sr_dict)
-				lab_test.service_request = service_request
-				lab_test.insert(ignore_permissions=True)
-				created_tests.append({
-					'name': lab_test.name,
-					'patient': lab_test.patient,
-					'patient_name': lab_test.patient_name,
-					'template': lab_test.template,
-					'lab_test_name': lab_test.lab_test_name,
-					'status': lab_test.status,
-				})
+	lab_tests = []
+	for name in names:
+		lt = frappe.get_doc("Lab Test", name)
+		lab_tests.append(
+			{
+				"name": lt.name,
+				"patient": lt.patient,
+				"patient_name": lt.patient_name,
+				"template": lt.template,
+				"lab_test_name": lt.lab_test_name,
+				"status": lt.status,
+			}
+		)
 
-			frappe.db.commit()
-			return {'is_group': True, 'lab_tests': created_tests, 'count': len(created_tests)}
-
-	# Non-group: existing single lab test behaviour
-	existing_lab_test = frappe.db.get_value('Lab Test', {'service_request': service_request}, 'name')
-	if existing_lab_test:
-		frappe.throw(_("Lab Test {0} already exists for this Service Request").format(existing_lab_test))
-
-	service_request_dict = service_request_doc.as_dict()
-	print("Inafika hapa")
-	lab_test = make_lab_test(service_request_dict)
-	lab_test.insert(ignore_permissions=True)
-	frappe.db.commit()
-
-	return {
-		'is_group': False,
-		'name': lab_test.name,
-		'patient': lab_test.patient,
-		'patient_name': lab_test.patient_name,
-		'template': lab_test.template,
-		'lab_test_name': lab_test.lab_test_name,
-		'status': lab_test.status
-	}
+	if len(lab_tests) == 1:
+		row = lab_tests[0]
+		return {
+			"is_group": False,
+			"name": row["name"],
+			"patient": row["patient"],
+			"patient_name": row["patient_name"],
+			"template": row["template"],
+			"lab_test_name": row["lab_test_name"],
+			"status": row["status"],
+			"lab_tests": lab_tests,
+			"count": 1,
+		}
+	return {"is_group": True, "lab_tests": lab_tests, "count": len(lab_tests)}
 
 
 @frappe.whitelist()
@@ -564,6 +580,26 @@ def create_service_request(data):
 	if not data.get('template_dt'):
 		frappe.throw(_("Template Type is required"))
 	
+	from healthcare.healthcare.lab_request_items import (
+		expand_lab_test_specs,
+		primary_template_dn_for_items,
+	)
+
+	lab_request_items = data.get("lab_request_items")
+	if isinstance(lab_request_items, str):
+		try:
+			lab_request_items = json.loads(lab_request_items)
+		except Exception:
+			lab_request_items = []
+	if not isinstance(lab_request_items, list):
+		lab_request_items = []
+
+	if lab_request_items and data.get("template_dt") == "Lab Test Template":
+		data["template_dn"] = primary_template_dn_for_items(lab_request_items) or data.get("template_dn")
+		specs = expand_lab_test_specs(lab_request_items, data.get("patient"))
+		if specs and not data.get("cost"):
+			data["cost"] = sum(float(s.get("amount") or 0) for s in specs)
+
 	if not data.get('template_dn'):
 		frappe.throw(_("Template is required"))
 	_ensure_lab_service_request_create_permission(data.get("template_dt"))
@@ -580,7 +616,6 @@ def create_service_request(data):
 	# Create the service request
 	selected_group_templates = data.get("selected_group_templates") or []
 	if isinstance(selected_group_templates, str):
-		import json
 		try:
 			selected_group_templates = json.loads(selected_group_templates)
 		except Exception:
@@ -589,6 +624,24 @@ def create_service_request(data):
 		selected_group_templates = []
 	selected_group_templates = [t for t in selected_group_templates if t]
 
+	# Legacy single group: build lab_request_items when not sent from client
+	if (
+		not lab_request_items
+		and data.get("template_dt") == "Lab Test Template"
+		and data.get("template_dn")
+	):
+		is_group = frappe.db.get_value("Lab Test Template", data["template_dn"], "is_group")
+		if is_group:
+			lab_request_items = [
+				{
+					"kind": "group",
+					"parent": data["template_dn"],
+					"children": selected_group_templates,
+				}
+			]
+		else:
+			lab_request_items = [{"kind": "single", "template": data["template_dn"]}]
+
 	service_request = frappe.get_doc({
 		'doctype': 'Service Request',
 		'patient': data.get('patient'),
@@ -596,6 +649,7 @@ def create_service_request(data):
 		'inpatient_record': data.get('inpatient_record'),
 		'template_dt': data.get('template_dt'),
 		'template_dn': data.get('template_dn'),
+		'lab_request_items': frappe.as_json(lab_request_items) if lab_request_items else None,
 		'practitioner': data.get('practitioner'),
 		'order_date': data.get('order_date') or frappe.utils.today(),
 		'order_time': data.get('order_time') or frappe.utils.now_time(),
@@ -621,7 +675,10 @@ def create_service_request(data):
 	
 	# Get template name for response based on template_dt
 	template_name = None
-	if service_request.template_dn:
+	if lab_request_items and service_request.template_dt == 'Lab Test Template':
+		from healthcare.healthcare.lab_request_items import lab_request_items_summary
+		template_name = lab_request_items_summary(lab_request_items)
+	elif service_request.template_dn:
 		if service_request.template_dt == 'Lab Test Template':
 			template_name = frappe.db.get_value('Lab Test Template', service_request.template_dn, 'lab_test_name')
 		elif service_request.template_dt == 'Clinical Procedure Template':

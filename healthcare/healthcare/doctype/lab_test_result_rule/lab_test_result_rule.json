@@ -1,0 +1,139 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "field:lab_test_template",
+ "creation": "2026-05-17 00:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "lab_test_template",
+  "lab_test_name",
+  "enabled",
+  "section_sum_validation",
+  "sum_events",
+  "sum_target",
+  "sum_tolerance",
+  "sum_block_save",
+  "section_calculated",
+  "rule_lines"
+ ],
+ "fields": [
+  {
+   "fieldname": "lab_test_template",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Applies to Lab Test Template",
+   "options": "Lab Test Template",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Enabled"
+  },
+  {
+   "fieldname": "section_sum_validation",
+   "fieldtype": "Section Break",
+   "label": "Sum Validation"
+  },
+  {
+   "description": "List each child test under this panel whose results must add up to the target (e.g. on CBC: Neutrophils, Lymphocytes, Monocytes, Eosinophils, Basophils). Use Load Group Child Tests, or add rows manually.",
+   "fieldname": "sum_events",
+   "fieldtype": "Table",
+   "label": "Tests That Must Sum to Target",
+   "options": "Lab Test Result Rule Event"
+  },
+  {
+   "default": "100",
+   "fieldname": "sum_target",
+   "fieldtype": "Float",
+   "label": "Target Sum"
+  },
+  {
+   "default": "0.5",
+   "fieldname": "sum_tolerance",
+   "fieldtype": "Float",
+   "label": "Tolerance"
+  },
+  {
+   "default": "0",
+   "description": "When enabled, saving results fails if the sum is outside tolerance",
+   "fieldname": "sum_block_save",
+   "fieldtype": "Check",
+   "label": "Block Save on Sum Failure"
+  },
+  {
+   "fieldname": "section_calculated",
+   "fieldtype": "Section Break",
+   "label": "Formula and Ratio Rules"
+  },
+  {
+   "fieldname": "rule_lines",
+   "fieldtype": "Table",
+   "label": "Rules",
+   "options": "Lab Test Result Rule Line"
+  },
+  {
+   "fetch_from": "lab_test_template.lab_test_name",
+   "fieldname": "lab_test_name",
+   "fieldtype": "Data",
+   "ignore_user_permissions": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Lab Test Name"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-05-17 15:04:05.493365",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Lab Test Result Rule",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Healthcare Administrator",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "LabTest Approver"
+  },
+  {
+   "read": 1,
+   "role": "Laboratory User"
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "lab_test_template",
+ "track_changes": 1
+}

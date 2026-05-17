@@ -21,6 +21,10 @@ from healthcare.healthcare.doctype.observation_template.observation_template imp
 from healthcare.healthcare.doctype.sample_collection.sample_collection import (
 	set_component_observation_data,
 )
+from healthcare.healthcare.lab_request_items import (
+	expand_lab_test_specs,
+	parse_lab_request_items,
+)
 
 
 def _get_lab_template_base_rate(template_name):
@@ -597,6 +601,14 @@ def book_lab_and_forward(service_request_name):
 	if existing:
 		frappe.throw(_("Lab Test(s) already exist for this request."))
 
+	request_items = parse_lab_request_items(sr)
+	if not request_items:
+		frappe.throw(_("No lab tests are configured on this service request."))
+
+	specs = expand_lab_test_specs(request_items, sr.patient)
+	if not specs:
+		frappe.throw(_("No lab tests are selected on this service request."))
+
 	def _build_lab_test(template_dn, amount=None, parent_group=None):
 		"""Helper: create (but don't insert) a Lab Test for the given template."""
 		lt = frappe.new_doc("Lab Test")
@@ -645,104 +657,51 @@ def book_lab_and_forward(service_request_name):
 		
 		return lt
 
-	is_group = frappe.db.get_value("Lab Test Template", sr.template_dn, "is_group")
-	
-	if is_group:
-		selected_template_names = []
-		if getattr(sr, "selected_group_templates", None):
-			try:
-				selected_template_names = json.loads(sr.selected_group_templates)
-			except Exception:
-				selected_template_names = []
-		if not isinstance(selected_template_names, list):
-			selected_template_names = []
-		selected_template_names = [t for t in selected_template_names if t]
+	created_names = []
+	errors = []
 
-		# Find all child lab test templates where lab_group equals the parent template
-		filters = {"lab_group": sr.template_dn, "disabled": 0}
-		if selected_template_names:
-			filters["name"] = ["in", selected_template_names]
+	for spec in specs:
+		tpl = spec["template"]
+		amount = spec.get("amount")
+		parent_group = spec.get("parent_group")
+		try:
+			lt = _build_lab_test(tpl, amount=amount, parent_group=parent_group)
+			lt.insert(ignore_permissions=True)
+			created_names.append(lt.name)
 
-		child_templates = frappe.get_all(
-			"Lab Test Template",
-			filters=filters,
-			fields=["name", "lab_test_name"],
-			order_by="lab_test_name asc",
-			ignore_permissions=True,
-		)
-		
-		if not child_templates:
-			if selected_template_names:
-				frappe.throw(
-					_("No selected child templates found for this group template. Please reselect tests.")
-				)
-			frappe.throw(_("No child templates found for this group template."))
-		
-		# Compute prices from template base-rate x patient-category multiplier.
-		multiplier, _patient_category = _get_patient_category_multiplier(sr.patient)
-		
-		created_names = []
-		errors = []
-		
-		for child in child_templates:
-			if not child.name:
-				continue
-			
-			base_rate = _get_lab_template_base_rate(child.name)
-			individual_price = flt(base_rate) * flt(multiplier)
-			
-			# Create lab test with individual price
-			lt = _build_lab_test(child.name, amount=individual_price, parent_group=sr.template_dn)
-			
-			try:
-				lt.insert(ignore_permissions=True)
-				created_names.append(lt.name)
-			except Exception as e:
-				error_msg = f"Failed to create Lab Test for {child.name}: {str(e)}"
-				errors.append(error_msg)
-				frappe.log_error(
-					f"Lab Test Creation Error for {child.name}:\n"
-					f"Error: {str(e)}\n"
-					f"Lab Test data: {lt.as_dict()}",
-					"Lab Test Creation Error"
-				)
-				frappe.throw(_("Failed to create lab test for {0}: {1}").format(child.name, str(e)))
-
-			# Reflect each test on Patient Visit
 			if sr.order_group and frappe.db.exists("Patient Visit", sr.order_group):
 				visit = frappe.get_doc("Patient Visit", sr.order_group)
-				visit.append("lab_tests_charges", {
-					"test_code": lt.name,
-					"test_name": lt.lab_test_name or child.lab_test_name or child.name,
-					"amount": individual_price,
-					"net_amount": individual_price,
-				})
+				visit.append(
+					"lab_tests_charges",
+					{
+						"test_code": lt.name,
+						"test_name": lt.lab_test_name or tpl,
+						"amount": amount or 0,
+						"net_amount": amount or 0,
+					},
+				)
 				visit.save(ignore_permissions=True)
+		except Exception as e:
+			errors.append(f"{tpl}: {e}")
+			frappe.log_error(
+				title="Lab Test Creation Error",
+				message=f"Service Request {sr.name}\nTemplate {tpl}\n{frappe.get_traceback()}",
+			)
+			frappe.throw(_("Failed to create lab test for {0}: {1}").format(tpl, str(e)))
 
-		if not created_names:
-			frappe.throw(_("Failed to create any lab tests for this group. Errors: {0}").format(", ".join(errors)))
-			
-		sr.db_set("booked", 1)
-		frappe.db.commit()
-		return {"lab_tests": created_names, "count": len(created_names), "patient_visit": sr.order_group}
+	if not created_names:
+		frappe.throw(_("Failed to create any lab tests. Errors: {0}").format(", ".join(errors)))
 
-	# Non-group: single lab test
-	lab_test = _build_lab_test(sr.template_dn, amount=sr.cost or sr.amount, parent_group=None)
-	lab_test.insert(ignore_permissions=True)
 	sr.db_set("booked", 1)
-
-	if sr.order_group and frappe.db.exists("Patient Visit", sr.order_group):
-		visit = frappe.get_doc("Patient Visit", sr.order_group)
-		visit.append("lab_tests_charges", {
-			"test_code": lab_test.name,
-			"test_name": lab_test.lab_test_name or sr.template_dn,
-			"amount": sr.amount or 0,
-			"net_amount": sr.amount or 0,
-		})
-		visit.save(ignore_permissions=True)
-
 	frappe.db.commit()
-	return {"lab_test": lab_test.name, "patient_visit": sr.order_group}
+	if len(created_names) == 1:
+		return {
+			"lab_test": created_names[0],
+			"lab_tests": created_names,
+			"count": 1,
+			"patient_visit": sr.order_group,
+		}
+	return {"lab_tests": created_names, "count": len(created_names), "patient_visit": sr.order_group}
 
 @frappe.whitelist()
 def make_therapy_session(service_request):
