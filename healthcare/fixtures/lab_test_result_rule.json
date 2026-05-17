@@ -1,0 +1,197 @@
+[
+ {
+  "docstatus": 0,
+  "doctype": "Lab Test Result Rule",
+  "enabled": 1,
+  "lab_test_name": "CBC",
+  "lab_test_template": "LAB-001",
+  "modified": "2026-05-17 15:22:20.767082",
+  "name": "LAB-001",
+  "rule_lines": [],
+  "sum_block_save": 1,
+  "sum_events": [
+   {
+    "aliases": null,
+    "lab_test_event": "LAB-001-014"
+   },
+   {
+    "aliases": null,
+    "lab_test_event": "LAB-001-013"
+   },
+   {
+    "aliases": null,
+    "lab_test_event": "LAB-001-004"
+   },
+   {
+    "aliases": null,
+    "lab_test_event": "LAB-001-003"
+   },
+   {
+    "aliases": null,
+    "lab_test_event": "LAB-001-011"
+   },
+   {
+    "aliases": null,
+    "lab_test_event": "LAB-001-006"
+   },
+   {
+    "aliases": null,
+    "lab_test_event": "LAB-001-007"
+   },
+   {
+    "aliases": null,
+    "lab_test_event": "LAB-001-005"
+   },
+   {
+    "aliases": null,
+    "lab_test_event": "LAB-001-012"
+   },
+   {
+    "aliases": null,
+    "lab_test_event": "LAB-001-010"
+   },
+   {
+    "aliases": null,
+    "lab_test_event": "LAB-001-015"
+   },
+   {
+    "aliases": null,
+    "lab_test_event": "LAB-001-009"
+   },
+   {
+    "aliases": null,
+    "lab_test_event": "LAB-001-002"
+   },
+   {
+    "aliases": null,
+    "lab_test_event": "LAB-001-008"
+   },
+   {
+    "aliases": null,
+    "lab_test_event": "LAB-001-001"
+   }
+  ],
+  "sum_target": 100.0,
+  "sum_tolerance": 0.5
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Lab Test Result Rule",
+  "enabled": 1,
+  "lab_test_name": "Globulin",
+  "lab_test_template": "LAB-003-008",
+  "modified": "2026-05-17 14:33:41.788770",
+  "name": "LAB-003-008",
+  "rule_lines": [
+   {
+    "denominator_event": null,
+    "formula": "TOTAL PROTEIN - Albumin",
+    "numerator_event": null,
+    "readonly": 1,
+    "rule_type": "Formula",
+    "source_events": null,
+    "target_event": "Globulin"
+   }
+  ],
+  "sum_block_save": 0,
+  "sum_events": [],
+  "sum_target": 100.0,
+  "sum_tolerance": 0.5
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Lab Test Result Rule",
+  "enabled": 1,
+  "lab_test_name": "Indirect Bilirubin",
+  "lab_test_template": "LAB-003-003",
+  "modified": "2026-05-17 22:11:57.485949",
+  "name": "LAB-003-003",
+  "rule_lines": [
+   {
+    "denominator_event": null,
+    "formula": "T.Bilirubin - D. Bilirubin",
+    "numerator_event": null,
+    "readonly": 1,
+    "rule_type": "Formula",
+    "source_events": null,
+    "target_event": "Indirect Bilirubin"
+   }
+  ],
+  "sum_block_save": 0,
+  "sum_events": [],
+  "sum_target": 0.0,
+  "sum_tolerance": 0.0
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Lab Test Result Rule",
+  "enabled": 1,
+  "lab_test_name": "LDL-Cholesterol",
+  "lab_test_template": "LAB-004-003",
+  "modified": "2026-05-17 14:39:38.659679",
+  "name": "LAB-004-003",
+  "rule_lines": [
+   {
+    "denominator_event": null,
+    "formula": "T.Cholesterol - HDL-Cholesterol - (Triglycerides / 5)",
+    "numerator_event": null,
+    "readonly": 1,
+    "rule_type": "Formula",
+    "source_events": null,
+    "target_event": "LDL-Cholesterol"
+   }
+  ],
+  "sum_block_save": 0,
+  "sum_events": [],
+  "sum_target": 100.0,
+  "sum_tolerance": 0.5
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Lab Test Result Rule",
+  "enabled": 1,
+  "lab_test_name": "T.Cholesterol/HDL",
+  "lab_test_template": "LAB-004-005",
+  "modified": "2026-05-17 14:43:38.704121",
+  "name": "LAB-004-005",
+  "rule_lines": [
+   {
+    "denominator_event": "HDL-Cholesterol",
+    "formula": null,
+    "numerator_event": "T.Cholesterol",
+    "readonly": 1,
+    "rule_type": "Ratio",
+    "source_events": null,
+    "target_event": "T.Cholesterol/HDL"
+   }
+  ],
+  "sum_block_save": 0,
+  "sum_events": [],
+  "sum_target": 100.0,
+  "sum_tolerance": 0.5
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Lab Test Result Rule",
+  "enabled": 1,
+  "lab_test_name": "LDL/HDL",
+  "lab_test_template": "LAB-004-006",
+  "modified": "2026-05-17 14:45:29.735059",
+  "name": "LAB-004-006",
+  "rule_lines": [
+   {
+    "denominator_event": "HDL-Cholesterol",
+    "formula": null,
+    "numerator_event": "LDL-Cholesterol",
+    "readonly": 1,
+    "rule_type": "Ratio",
+    "source_events": null,
+    "target_event": "LDL/HDL"
+   }
+  ],
+  "sum_block_save": 0,
+  "sum_events": [],
+  "sum_target": 100.0,
+  "sum_tolerance": 0.5
+ }
+]

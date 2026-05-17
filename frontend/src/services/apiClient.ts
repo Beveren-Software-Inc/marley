@@ -40,6 +40,55 @@ function isUnsafeMethod(method?: string) {
   return m !== 'GET' && m !== 'HEAD' && m !== 'OPTIONS'
 }
 
+/** Extract a user-facing message from a Frappe error JSON body. */
+export function parseFrappeErrorPayload(data: unknown): string {
+  if (!data || typeof data !== 'object') return ''
+
+  const record = data as Record<string, unknown>
+
+  try {
+    const rawMsgs = record._server_messages
+    if (rawMsgs) {
+      const msgs =
+        typeof rawMsgs === 'string' ? (JSON.parse(rawMsgs) as unknown[]) : rawMsgs
+      if (Array.isArray(msgs) && msgs.length) {
+        const first = msgs[0]
+        const parsed =
+          typeof first === 'string' ? (JSON.parse(first) as { message?: string }) : first
+        if (parsed && typeof parsed === 'object' && parsed.message) {
+          return String(parsed.message).trim()
+        }
+      }
+    }
+  } catch {
+    /* fall through */
+  }
+
+  const pickFromText = (text: string): string => {
+    const trimmed = text.trim()
+    if (!trimmed) return ''
+    const validation = trimmed.match(/ValidationError:\s*(.+)$/m)
+    if (validation?.[1]) return validation[1].trim()
+    const lines = trimmed.split('\n').map((l) => l.trim()).filter(Boolean)
+    if (lines.length) {
+      const last = lines[lines.length - 1]
+      const lastMatch = last.match(/ValidationError:\s*(.+)$/)
+      if (lastMatch?.[1]) return lastMatch[1].trim()
+      return last
+    }
+    return trimmed
+  }
+
+  if (typeof record.message === 'string' && record.message.trim()) {
+    return pickFromText(record.message)
+  }
+  if (typeof record.exception === 'string' && record.exception.trim()) {
+    return pickFromText(record.exception)
+  }
+
+  return ''
+}
+
 async function doApiRequest<T = any>(path: string, options: RequestInit = {}): Promise<T> {
   const csrf = (window as any).csrf_token
 
@@ -59,48 +108,8 @@ async function doApiRequest<T = any>(path: string, options: RequestInit = {}): P
     const contentType = resp.headers.get('content-type')
     if (contentType && contentType.includes('application/json')) {
       const errorData = await resp.json().catch(() => ({}))
-
-      const raw = (errorData && (errorData.message ?? errorData.exc)) || ''
-
-      const extractUserMessage = (value: any): string => {
-        let msg: any = value
-        if (!msg) return ''
-
-        // If it's already an array, use the last entry
-        if (Array.isArray(msg)) {
-          msg = msg[msg.length - 1] || ''
-        }
-
-        // If it's a JSON-encoded array string (like Frappe tracebacks), parse it
-        if (typeof msg === 'string' && msg.trim().startsWith('[')) {
-          try {
-            const parsed = JSON.parse(msg)
-            if (Array.isArray(parsed) && parsed.length) {
-              msg = parsed[parsed.length - 1]
-            }
-          } catch {
-            // ignore JSON parse errors and fall back to raw string
-          }
-        }
-
-        if (typeof msg !== 'string') {
-          msg = String(msg)
-        }
-
-        // For traceback-like strings, take the last non-empty line as the user-facing message
-        const lines = msg
-          .split('\n')
-          .map((l: string) => l.trim())
-          .filter(Boolean)
-
-        if (lines.length) {
-          msg = lines[lines.length - 1]
-        }
-
-        return msg
-      }
-
-      const cleanMessage = extractUserMessage(raw) || `Request failed with status ${resp.status}`
+      const cleanMessage =
+        parseFrappeErrorPayload(errorData) || `Request failed with status ${resp.status}`
       throw new Error(cleanMessage)
     } else {
       // If it's HTML, it's likely a redirect or error page
@@ -116,7 +125,12 @@ async function doApiRequest<T = any>(path: string, options: RequestInit = {}): P
   }
 
   const data = await resp.json()
-  
+
+  if (data?.exc) {
+    const cleanMessage = parseFrappeErrorPayload(data)
+    throw new Error(cleanMessage || 'Request failed')
+  }
+
   // Frappe API returns data in different formats
   if (data.data !== undefined) {
     return data.data as T

@@ -74,6 +74,7 @@
   "service_details_section",
   "template_dt",
   "template_dn",
+  "lab_request_items",
   "selected_group_templates",
   "amount",
   "column_break_uafs",
@@ -492,6 +493,13 @@
    "label": "Order Template",
    "options": "template_dt",
    "search_index": 1
+  },
+  {
+   "fieldname": "lab_request_items",
+   "fieldtype": "Long Text",
+   "hidden": 1,
+   "label": "Lab Request Items",
+   "read_only": 1
   },
   {
    "fieldname": "selected_group_templates",

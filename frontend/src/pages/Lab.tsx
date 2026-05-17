@@ -704,7 +704,7 @@
 //   )
 // }
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useCareContext } from '../providers/CareContextProvider'
 import { ClipboardList, FlaskConical, BookOpen, AlertTriangle, Droplet, FileCode, History } from 'lucide-react'
@@ -712,7 +712,8 @@ import { PatientSearch } from '../components/patients/PatientSearch'
 import { NotificationBell } from '../components/notifications/NotificationBell'
 import { UserMenu } from '../components/user/UserMenu'
 import { ServiceRequestList } from '../components/serviceRequests/ServiceRequestList'
-import { LabTestList } from '../components/labTests/LabTestList'
+import { LabTestList, type LabTestListBatchSaveRef } from '../components/labTests/LabTestList'
+import { LabTestResultsSaveHeader } from '../components/labTests/LabTestResultsSaveHeader'
 import { CreateLabTestModal } from '../components/labTests/CreateLabTestModal'
 import { CreateServiceRequestModal } from '../components/serviceRequests/CreateServiceRequestModal'
 import { MedicalHistoryView } from '../components/medicalHistory/MedicalHistoryView'
@@ -835,6 +836,28 @@ export const LabPage = () => {
   const [sampleTypeRefreshKey, setSampleTypeRefreshKey] = useState(0)
   const [sampleTypes, setSampleTypes] = useState<LinkFieldOption[]>([])
   const [sampleTypesLoading, setSampleTypesLoading] = useState(false)
+
+  const [batchLabTechnician, setBatchLabTechnician] = useState('')
+  const [batchLabTechnicianLabel, setBatchLabTechnicianLabel] = useState('')
+  const [pendingResultCount, setPendingResultCount] = useState(0)
+  const [batchSaving, setBatchSaving] = useState(false)
+  const batchSaveRef = useRef<LabTestListBatchSaveRef | null>(null)
+
+  const handleBatchLabTechnicianChange = (id: string, label: string) => {
+    setBatchLabTechnician(id)
+    setBatchLabTechnicianLabel(label)
+  }
+
+  const handleBatchSave = async () => {
+    await batchSaveRef.current?.savePendingChanges()
+  }
+
+  const batchListProps = {
+    batchLabTechnician,
+    onPendingCountChange: setPendingResultCount,
+    onBatchSavingChange: setBatchSaving,
+    batchSaveRef,
+  }
 
   const loadLabSamples = useCallback(async () => {
     setSamplesLoading(true)
@@ -1156,18 +1179,20 @@ export const LabPage = () => {
 
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col">
-            <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
+            <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0 gap-2">
               <span>Outsourced Tests</span>
-              <button
-                onClick={() => setShowLabTestModal(true)}
-                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
-                title="Add Lab Test"
-              >
-                +
-              </button>
+              <LabTestResultsSaveHeader
+                pendingCount={pendingResultCount}
+                batchSaving={batchSaving}
+                batchLabTechnician={batchLabTechnician}
+                batchLabTechnicianLabel={batchLabTechnicianLabel}
+                onBatchLabTechnicianChange={handleBatchLabTechnicianChange}
+                onSave={handleBatchSave}
+                onAdd={() => setShowLabTestModal(true)}
+              />
             </div>
             <div className="overflow-x-auto overflow-visible" style={{ scrollbarWidth: 'thin' }}>
-              <LabTestList patient={selectedPatient} isOutsourced={true} key={labTestRefreshKey} onPatientClick={handlePatientSelect} hideAmount={isLabTechnologist} />
+              <LabTestList patient={selectedPatient} isOutsourced={true} key={labTestRefreshKey} onPatientClick={handlePatientSelect} hideAmount={isLabTechnologist} {...batchListProps} />
             </div>
           </section>
         </div>
@@ -1205,18 +1230,20 @@ export const LabPage = () => {
 
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col">
-            <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
+            <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0 gap-2">
               <span>Lab Test & Result</span>
-              <button
-                onClick={() => setShowLabTestModal(true)}
-                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
-                title="Add Lab Test"
-              >
-                +
-              </button>
+              <LabTestResultsSaveHeader
+                pendingCount={pendingResultCount}
+                batchSaving={batchSaving}
+                batchLabTechnician={batchLabTechnician}
+                batchLabTechnicianLabel={batchLabTechnicianLabel}
+                onBatchLabTechnicianChange={handleBatchLabTechnicianChange}
+                onSave={handleBatchSave}
+                onAdd={() => setShowLabTestModal(true)}
+              />
             </div>
             <div className="overflow-x-auto overflow-visible" style={{ scrollbarWidth: 'thin' }}>
-              <LabTestList patient={selectedPatient} key={labTestRefreshKey} onPatientClick={handlePatientSelect} hideAmount={isLabTechnologist} />
+              <LabTestList patient={selectedPatient} key={labTestRefreshKey} onPatientClick={handlePatientSelect} hideAmount={isLabTechnologist} {...batchListProps} />
             </div>
           </section>
         </div>
@@ -1310,14 +1337,16 @@ export const LabPage = () => {
               </button>
             )}
             {resolvedTab === 'lab-tests' && (
-              <button
-                type="button"
-                onClick={() => setShowLabTestModal(true)}
-                className="w-7 h-7 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-base font-bold"
-                title="New Lab Test"
-              >
-                +
-              </button>
+              <LabTestResultsSaveHeader
+                pendingCount={pendingResultCount}
+                batchSaving={batchSaving}
+                batchLabTechnician={batchLabTechnician}
+                batchLabTechnicianLabel={batchLabTechnicianLabel}
+                onBatchLabTechnicianChange={handleBatchLabTechnicianChange}
+                onSave={handleBatchSave}
+                onAdd={() => setShowLabTestModal(true)}
+                addTitle="New Lab Test"
+              />
             )}
             {resolvedTab === 'lab-templates' && (
               <button
@@ -1342,7 +1371,7 @@ export const LabPage = () => {
               />
             )}
             {resolvedTab === 'lab-tests' && (
-              <LabTestList patient={selectedPatient} key={labTestRefreshKey} onPatientClick={handlePatientSelect} hideAmount={isLabTechnologist} />
+              <LabTestList patient={selectedPatient} key={labTestRefreshKey} onPatientClick={handlePatientSelect} hideAmount={isLabTechnologist} {...batchListProps} />
             )}
             {resolvedTab === 'sample-collection' && (
               <div className="p-3">

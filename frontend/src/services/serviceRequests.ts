@@ -181,6 +181,11 @@ export async function createLabTestFromServiceRequest(serviceRequestName: string
   }
 }
 
+/** One line in a multi-test lab service request basket */
+export type LabRequestItem =
+  | { kind: 'single'; template: string }
+  | { kind: 'group'; parent: string; children: string[] }
+
 export interface CreateServiceRequestData {
   patient: string
   template_dt: string
@@ -204,6 +209,30 @@ export interface CreateServiceRequestData {
   discount_amount?: number
   grand_total?: number
   selected_group_templates?: string[]
+  lab_request_items?: LabRequestItem[]
+}
+
+export interface MultiLabRequestPricing {
+  lines: { template: string; lab_test_name?: string; parent_group?: string | null; amount: number }[]
+  subtotal: number
+  summary?: string
+}
+
+export async function getMultiLabRequestPricing(
+  items: LabRequestItem[],
+  patient: string
+): Promise<MultiLabRequestPricing> {
+  const params = new URLSearchParams()
+  params.append('items', JSON.stringify(items))
+  params.append('patient', patient)
+  const response = await fetch(
+    `/api/method/healthcare.api.service_request.get_multi_lab_request_pricing?${params.toString()}`
+  )
+  const resData = await response.json()
+  if (resData?.message && typeof resData.message === 'object') {
+    return resData.message as MultiLabRequestPricing
+  }
+  return { lines: [], subtotal: 0 }
 }
 
 export async function createServiceRequest(data: CreateServiceRequestData): Promise<ServiceRequest> {

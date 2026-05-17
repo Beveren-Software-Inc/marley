@@ -6,25 +6,47 @@ import frappe
 from frappe import _
 
 from healthcare.api.lab_test_doctor_review import follow_up_labels_from_doc, record_results_entered
+from healthcare.healthcare.lab_test_result_rules import apply_rules_to_doc
 
 
 LAB_RESULT_EDIT_ROLES = frozenset(
-	("LabTest Approver", "System Manager", "Healthcare Administrator", "Administrator")
+	(
+		"Laboratory User",
+		"LabTest Approver",
+		"System Manager",
+		"Healthcare Administrator",
+		"Administrator",
+	)
 )
 
 
 def _ensure_lab_result_edit_permission():
-	"""LabTest Approver, System Manager, Healthcare Administrator, or Administrator may enter/adjust results."""
+	"""Laboratory User, LabTest Approver, or administrators may enter/adjust results."""
 	roles = set(frappe.get_roles(frappe.session.user))
 	if roles & LAB_RESULT_EDIT_ROLES:
 		return
 
 	frappe.throw(
 		_(
-			"Only users with LabTest Approver, System Manager, Healthcare Administrator, "
-			"or Administrator role may enter or adjust Lab Test results."
+			"Only users with Laboratory User, LabTest Approver, System Manager, "
+			"Healthcare Administrator, or Administrator role may enter or adjust Lab Test results."
 		),
 		frappe.PermissionError,
+	)
+
+
+def _ensure_lab_result_save_allowed(doc):
+	"""Draft tests and reviewed (submitted) tests may have results updated."""
+	if doc.docstatus == 2:
+		frappe.throw(_("Cannot update a cancelled Lab Test"))
+	if doc.docstatus == 0:
+		return
+	if doc.docstatus == 1 and doc.status == "Reviewed":
+		return
+	frappe.throw(
+		_("Lab results cannot be changed while the test is in status {0}.").format(
+			doc.status or doc.docstatus
+		)
 	)
 
 
@@ -266,6 +288,7 @@ def get_lab_tests(
 			"lab_test_name",
 			"template",
 			"status",
+			"creation",
 			"result_date",
 			"submitted_date",
 			"approved_date",
@@ -808,6 +831,9 @@ def save_and_submit_lab_test(
         frappe.throw(_("Lab Test name is required"))
 
     doc = frappe.get_doc("Lab Test", name)
+    _ensure_lab_result_save_allowed(doc)
+    if doc.docstatus == 1:
+        doc.flags.ignore_validate_update_after_submit = True
 
     if lab_technician is not None:
         doc.lab_technician = lab_technician or None
@@ -845,6 +871,11 @@ def save_and_submit_lab_test(
                     'lab_test_comment': item.get('lab_test_comment') or '',
                     'template': item.get('template') or '',
                 })
+
+    rule_feedback = {"warnings": [], "errors": [], "calculated_updates": []}
+    if doc.template:
+        # Validate formulas/sums; defer writing calculated siblings until after this doc is saved.
+        rule_feedback = apply_rules_to_doc(doc, block_on_error=True, persist_siblings=False)
 
     # ========== ADD RESULT FLAG CALCULATION HERE ==========
     # Get patient gender
@@ -926,6 +957,35 @@ def save_and_submit_lab_test(
     doc.flags.ignore_permissions = True
     doc.save(ignore_permissions=True)
 
+    # Persist calculated siblings (e.g. Globulin) after inputs are committed.
+    if doc.template and getattr(doc, "service_request", None):
+        from healthcare.healthcare.lab_test_result_rules import (
+            recalculate_panel_for_service_request,
+        )
+
+        panel_recalc = recalculate_panel_for_service_request(
+            doc.service_request, triggering_lab_test=doc.name
+        )
+        rule_feedback["calculated_updates"] = panel_recalc.get("calculated_updates") or []
+        rule_feedback.setdefault("warnings", []).extend(panel_recalc.get("warnings") or [])
+    elif doc.template and rule_feedback.get("calculated_targets"):
+        from healthcare.healthcare.lab_test_result_rules import (
+            _resolve_panel_template_and_rule,
+            _sync_calculated_targets_to_lab_tests,
+            rule_doc_to_dict,
+        )
+
+        panel_template, rule_doc = _resolve_panel_template_and_rule(doc)
+        if rule_doc:
+            rule_feedback["calculated_updates"] = _sync_calculated_targets_to_lab_tests(
+                doc,
+                rule_doc_to_dict(rule_doc),
+                rule_feedback.get("calculated_targets") or {},
+                service_request=getattr(doc, "service_request", None),
+                lab_test_group=getattr(doc, "lab_test_group", None) or panel_template,
+                persist=True,
+            )
+
     # Results are saved as draft; document submit happens only on doctor review.
     if doc.docstatus == 0 and _lab_test_has_entered_results(doc):
         if doc.status not in ("Reviewed", "Rejected", "Cancelled"):
@@ -960,6 +1020,9 @@ def save_and_submit_lab_test(
         "discount": getattr(doc, "discount", None),
         "discount_amount": getattr(doc, "discount_amount", None),
         "grand_total": getattr(doc, "grand_total", None),
+        "rule_warnings": rule_feedback.get("warnings") or [],
+        "rule_errors": rule_feedback.get("errors") or [],
+        "calculated_updates": rule_feedback.get("calculated_updates") or [],
     }
     
 @frappe.whitelist()

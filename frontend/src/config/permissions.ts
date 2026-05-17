@@ -17,6 +17,7 @@ const ADMIN_ROLES = [
 
 /** Roles allowed to enter or adjust lab test results (must match healthcare.api.lab_test). */
 export const LAB_RESULT_EDIT_ROLES = [
+  'Laboratory User',
   'LabTest Approver',
   'System Manager',
   'Healthcare Administrator',
@@ -29,6 +30,19 @@ export function canEditLabTestResults(roles: string[] | undefined): boolean {
   return LAB_RESULT_EDIT_ROLES.some((allowed) =>
     normalized.some((r) => r === allowed.toLowerCase())
   )
+}
+
+/** Whether this lab test row allows inline / batch result editing. */
+export function canEditLabTestResultForRow(
+  labTest: { docstatus?: number; status?: string },
+  roles: string[] | undefined
+): boolean {
+  if (!canEditLabTestResults(roles)) return false
+  const status = (labTest.status || '').trim()
+  if (status === 'Rejected' || status === 'Cancelled') return false
+  if (labTest.docstatus === 0) return true
+  // After doctor review the document is submitted; lab staff may still correct results.
+  return labTest.docstatus === 1 && status === 'Reviewed'
 }
 
 /** Paths that every authenticated user can access */

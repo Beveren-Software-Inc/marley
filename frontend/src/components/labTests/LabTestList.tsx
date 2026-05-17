@@ -1665,7 +1665,7 @@
 // }
 
 
-import { useState, useEffect, useRef, useMemo, Fragment } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback, Fragment, type MutableRefObject } from 'react'
 import { useLabTests } from '../../hooks/useLabTests'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { StatusPill } from '../ui/StatusPill'
@@ -1701,9 +1701,14 @@ import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
 import { toast } from '../../hooks/useToast'
-import { canEditLabTestResults } from '../../config/permissions'
+import { canEditLabTestResults, canEditLabTestResultForRow } from '../../config/permissions'
 import { Search, X, ChevronDown, ChevronRight } from 'lucide-react'
 import { useCardFilters } from '../../contexts/CardFilterContext'
+import { useBatchLabTestResults } from '../../hooks/useBatchLabTestResults'
+
+export type LabTestListBatchSaveRef = {
+  savePendingChanges: () => Promise<void>
+}
 
 // ─── Constants ─────────────────────────────────────────────────────────────
 
@@ -1956,10 +1961,29 @@ const getGroupCompletionStatus = (children: LabTest[]) => {
 
 export const LabTestList = ({
   patient, isOutsourced, defaultStatus, byNurse, onPatientClick, hideAmount,
-}: { patient?: string; isOutsourced?: boolean; defaultStatus?: string; byNurse?: boolean; onPatientClick?: (patient: string) => void; hideAmount?: boolean }) => {
+  batchLabTechnician = '',
+  onPendingCountChange,
+  onBatchSavingChange,
+  batchSaveRef,
+}: {
+  patient?: string
+  isOutsourced?: boolean
+  defaultStatus?: string
+  byNurse?: boolean
+  onPatientClick?: (patient: string) => void
+  hideAmount?: boolean
+  batchLabTechnician?: string
+  onPendingCountChange?: (count: number) => void
+  onBatchSavingChange?: (saving: boolean) => void
+  batchSaveRef?: MutableRefObject<LabTestListBatchSaveRef | null>
+}) => {
   const { mode, selectedPatient: contextPatient, userRole } = useCareContext()
   const effectivePatient = patient ?? (contextPatient || undefined)
   const canEditResults = canEditLabTestResults(userRole)
+  const canEditResultRow = useCallback(
+    (labTest: LabTest) => canEditLabTestResultForRow(labTest, userRole),
+    [userRole]
+  )
 
   // Pagination state
   const [page, setPage] = useState(1)
@@ -1994,51 +2018,50 @@ export const LabTestList = ({
     pageSize, (page - 1) * pageSize
   )
 
+  const batch = useBatchLabTestResults(
+    labTests,
+    canEditResultRow,
+    batchLabTechnician,
+    onPendingCountChange,
+    onBatchSavingChange,
+    refetch
+  )
+
+  useEffect(() => {
+    if (!batchSaveRef) return
+    batchSaveRef.current = {
+      savePendingChanges: async () => {
+        await batch.savePendingChanges()
+      },
+    }
+  }, [batchSaveRef, batch.savePendingChanges])
+
   // ── Inline Result Editing ──
   const [editingResult, setEditingResult] = useState<string | null>(null)
   const [editingValue, setEditingValue] = useState<string>('')
-  const [updatingResult, setUpdatingResult] = useState<string | null>(null)
 
   /** Inline lab technician picker (table column after Results). */
   const [inlineLabTechLabTestName, setInlineLabTechLabTestName] = useState<string | null>(null)
   const [inlineLabTechQuery, setInlineLabTechQuery] = useState('')
   const [inlineLabTechOptions, setInlineLabTechOptions] = useState<LinkFieldOption[]>([])
-  const [updatingInlineLabTech, setUpdatingInlineLabTech] = useState<string | null>(null)
 
-  const handleInlineResultUpdate = async (labTestName: string, newResult: string) => {
-    setUpdatingResult(labTestName)
-    try {
-      const current = await fetchLabTest(labTestName)
-      if (!current.lab_technician?.trim()) {
-        toast.error('Select a lab technician in the Lab technician column before saving the result.')
-        return
-      }
-      await saveAndSubmitLabTest(labTestName, { custom_result: newResult })
-      await refetch()
-      toast.success('Result updated')
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to update result')
-    } finally {
-      setUpdatingResult(null); setEditingResult(null); setEditingValue('')
-    }
+  const finishResultEdit = (labTest: LabTest) => {
+    batch.commitEditToPending(labTest, editingValue)
+    setEditingResult(null)
+    setEditingValue('')
   }
 
-  const handleInlineLabTechSave = async (labTestName: string, practitionerId: string) => {
-    const id = practitionerId.trim()
-    if (!id) return
-    setUpdatingInlineLabTech(labTestName)
-    try {
-      await saveAndSubmitLabTest(labTestName, { lab_technician: id, submit: false })
-      await refetch()
-      toast.success('Lab technician saved')
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to save lab technician')
-    } finally {
-      setUpdatingInlineLabTech(null)
-      setInlineLabTechLabTestName(null)
-      setInlineLabTechQuery('')
-      setInlineLabTechOptions([])
-    }
+  const cancelResultEdit = (labTest: LabTest) => {
+    batch.cancelPendingFor(labTest.name)
+    setEditingResult(null)
+    setEditingValue('')
+  }
+
+  const handleInlineLabTechPick = (labTestName: string, practitionerId: string, label?: string) => {
+    batch.setPendingLabTechnician(labTestName, practitionerId)
+    setInlineLabTechLabTestName(null)
+    setInlineLabTechQuery(label || practitionerId)
+    setInlineLabTechOptions([])
   }
 
   // ── Consumables dialog ───────────────────────────────────────────────────
@@ -2324,8 +2347,20 @@ export const LabTestList = ({
     return { showFemale: false, showMale: false, showGeneric: true }
   }
 
-  // ── Group metadata ──────────────────────────────────────────────────────────
-  const { groupedData, standaloneTests } = useMemo(() => {
+  // ── Group + standalone rows in creation order (not groups-first) ───────────
+  type LabTestDisplayRow =
+    | { kind: 'group'; serviceRequest: string; children: LabTest[]; sortMs: number }
+    | { kind: 'standalone'; labTest: LabTest; sortMs: number }
+
+  const labTestCreationMs = (lt: LabTest) => {
+    if (lt.creation) {
+      const ms = new Date(lt.creation).getTime()
+      if (!Number.isNaN(ms)) return ms
+    }
+    return 0
+  }
+
+  const displayRows = useMemo((): LabTestDisplayRow[] => {
     const groups = new Map<string, LabTest[]>()
     const standalone: LabTest[] = []
 
@@ -2339,56 +2374,70 @@ export const LabTestList = ({
       }
     }
 
-    const sortedGroups = new Map<string, LabTest[]>()
-    for (const [key, children] of groups.entries()) {
-      sortedGroups.set(key, [...children].sort((a, b) => a.name.localeCompare(b.name)))
+    const rows: LabTestDisplayRow[] = []
+
+    for (const [serviceRequest, children] of groups.entries()) {
+      const sortedChildren = [...children].sort(
+        (a, b) => labTestCreationMs(b) - labTestCreationMs(a) || a.name.localeCompare(b.name)
+      )
+      const sortMs = Math.max(...sortedChildren.map(labTestCreationMs), 0)
+      rows.push({ kind: 'group', serviceRequest, children: sortedChildren, sortMs })
     }
 
-    return { groupedData: sortedGroups, standaloneTests: standalone }
+    for (const lt of standalone) {
+      rows.push({ kind: 'standalone', labTest: lt, sortMs: labTestCreationMs(lt) })
+    }
+
+    return rows.sort((a, b) => b.sortMs - a.sortMs || (a.kind === 'group' ? a.serviceRequest : a.labTest.name).localeCompare(
+      b.kind === 'group' ? b.serviceRequest : b.labTest.name
+    ))
   }, [labTests])
 
   const rangeHeaders = getRangeHeaders(labTests)
 
   // Helper: render the result edit cell for a child/standalone test
-  const renderResultCell = (labTest: LabTest) => (
+  const renderResultCell = (labTest: LabTest) => {
+    const displayResult = batch.getDisplayResult(labTest)
+    const dirty = batch.isDirty(labTest)
+    const rowEditable = canEditResultRow(labTest)
+    return (
     <td className="px-4 py-3 text-sm max-w-[200px]">
-      {updatingResult === labTest.name ? (
-        <div className="flex items-center gap-1">
-          <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-          </svg>
-          <span className="text-xs text-slate-400">Updating...</span>
-        </div>
-      ) : editingResult === labTest.name ? (
+      {editingResult === labTest.name ? (
         <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
           <input type="text" value={editingValue} onChange={(e) => setEditingValue(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') handleInlineResultUpdate(labTest.name, editingValue); else if (e.key === 'Escape') { setEditingResult(null); setEditingValue('') } }}
-            onBlur={() => handleInlineResultUpdate(labTest.name, editingValue)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') finishResultEdit(labTest)
+              else if (e.key === 'Escape') cancelResultEdit(labTest)
+            }}
+            onBlur={() => finishResultEdit(labTest)}
             className="w-full px-2 py-1 text-sm border border-primary rounded-md focus:outline-none focus:ring-2 focus:ring-primary" autoFocus />
         </div>
       ) : (
         <div onClick={(e) => {
           e.stopPropagation()
-          if (!canEditResults) return
+          if (!rowEditable) return
           setEditingResult(labTest.name)
-          setEditingValue(labTest.custom_result || '')
+          setEditingValue(displayResult)
         }}
-          className={`${canEditResults ? 'cursor-pointer hover:bg-slate-100' : 'cursor-not-allowed bg-slate-50'} rounded-md px-2 py-1 transition-colors ${labTest.custom_result ? 'text-slate-800 font-medium' : 'text-slate-300 italic'}`}
-          title={canEditResults ? 'Click to edit result' : 'Only LabTest Approver, System Manager, or Healthcare Administrator can edit results'}>
-          {labTest.custom_result || 'Click to add result'}
+          className={`${rowEditable ? 'cursor-pointer hover:bg-slate-100' : 'cursor-not-allowed bg-slate-50'} rounded-md px-2 py-1 transition-colors ${
+            dirty ? 'bg-amber-50 border border-amber-200 text-amber-900 font-medium' : displayResult ? 'text-slate-800 font-medium' : 'text-slate-300 italic'
+          }`}
+          title={rowEditable ? (dirty ? 'Unsaved — click Save in the header' : 'Click to edit result') : 'Results cannot be edited in this status'}>
+          {displayResult || 'Click to add result'}
         </div>
       )}
     </td>
   )
+  }
 
   // Helper: render result flag cell
   const renderResultFlagCell = (labTest: LabTest) => {
     // Get patient gender from the lab test
     const patientGender = labTest.gender || labTest.patient_sex
+    const resultForFlag = batch.getDisplayResult(labTest)
     
     const { flag, bgColor, textColor } = calculateResultFlag(
-      labTest.custom_result,
+      resultForFlag,
       patientGender,
       labTest.female_min_range,
       labTest.female_max_range,
@@ -2416,9 +2465,10 @@ export const LabTestList = ({
   }
 
   const renderTechnicianCell = (labTest: LabTest) => {
-    const displayName = (labTest.lab_technician_name || '').trim() || labTest.lab_technician || ''
-    const isDraft = labTest.docstatus === 0
-    if (!isDraft) {
+    const displayName = batch.getDisplayLabTechName(labTest)
+    const techPending = Boolean(batch.pendingLabTech[labTest.name])
+    const rowEditable = canEditResultRow(labTest)
+    if (!rowEditable) {
       return (
         <td className="px-4 py-3 text-sm text-slate-700 max-w-[200px]">
           <span className="truncate block" title={displayName || undefined}>{displayName || '—'}</span>
@@ -2434,15 +2484,7 @@ export const LabTestList = ({
     }
     return (
       <td className="px-4 py-3 text-sm max-w-[220px] align-top" data-inline-lab-tech-cell onClick={(e) => e.stopPropagation()}>
-        {updatingInlineLabTech === labTest.name ? (
-          <div className="flex items-center gap-1 text-xs text-slate-500">
-            <svg className="w-3 h-3 animate-spin shrink-0" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-            </svg>
-            Saving…
-          </div>
-        ) : inlineLabTechLabTestName === labTest.name ? (
+        {inlineLabTechLabTestName === labTest.name ? (
           <div className="relative z-20" data-inline-lab-tech-popover>
             <input
               type="text"
@@ -2462,7 +2504,7 @@ export const LabTestList = ({
                     type="button"
                     className="w-full text-left px-2 py-1.5 text-xs hover:bg-slate-100 border-b border-slate-50 last:border-0"
                     onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => void handleInlineLabTechSave(labTest.name, opt.name)}
+                    onClick={() => handleInlineLabTechPick(labTest.name, opt.name, opt.label || opt.name)}
                   >
                     <span className="font-medium text-slate-800">{opt.label || opt.name}</span>
                     {opt.medical_role ? <span className="block text-[10px] text-slate-500">{opt.medical_role}</span> : null}
@@ -2475,17 +2517,19 @@ export const LabTestList = ({
           <button
             type="button"
             className={`w-full text-left rounded-md px-2 py-1 text-xs transition-colors truncate ${
-              displayName
-                ? 'text-slate-800 font-medium hover:bg-slate-100 border border-transparent'
-                : 'text-amber-700 bg-amber-50 border border-amber-200 hover:bg-amber-100'
+              techPending
+                ? 'text-amber-900 bg-amber-50 border border-amber-200 hover:bg-amber-100 font-medium'
+                : displayName
+                  ? 'text-slate-800 font-medium hover:bg-slate-100 border border-transparent'
+                  : 'text-slate-500 bg-slate-50 border border-slate-200 hover:bg-slate-100'
             }`}
-            title={displayName ? 'Change lab technician' : 'Choose lab technician'}
+            title={displayName ? 'Override lab technician for this row (optional)' : 'Optional: override header lab technician'}
             onClick={() => {
               setInlineLabTechLabTestName(labTest.name)
               setInlineLabTechQuery(displayName)
             }}
           >
-            {displayName || 'Choose technician…'}
+            {displayName || 'Optional override…'}
           </button>
         )}
       </td>
@@ -2542,7 +2586,7 @@ export const LabTestList = ({
               className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">View Details</button>
             <button type="button" onClick={() => handleOpenSampleCollection(labTest)}
               className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">Sample Collection</button>
-            {labTest.docstatus === 0 && canEditResults && (
+            {canEditResultRow(labTest) && (
               <button type="button" onClick={() => { setOpenActionRow(null); openResultDialog(labTest.name) }}
                 className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">Enter Results</button>
             )}
@@ -2770,8 +2814,9 @@ export const LabTestList = ({
             </thead>
             <tbody className="divide-y divide-slate-200">
 
-              {/* ── GROUP ROWS ── */}
-              {Array.from(groupedData.entries()).map(([serviceRequest, children]) => {
+              {displayRows.map((row) => {
+                if (row.kind === 'group') {
+                const { serviceRequest, children } = row
                 const isExpanded = !!expandedGroupKeys[serviceRequest]
                 const representativeChild = children[0]
                 const groupLabel = representativeChild.lab_test_group || representativeChild.lab_test_name || representativeChild.template || 'Group'
@@ -2913,10 +2958,9 @@ export const LabTestList = ({
                     ))}
                   </Fragment>
                 )
-              })}
-
-              {/* ── STANDALONE (non-grouped) ROWS ── */}
-              {standaloneTests.map((labTest) => (
+                }
+                const labTest = row.labTest
+                return (
                 <tr key={labTest.name} className="hover:bg-slate-50">
                   <td 
                     className="px-4 py-3 text-sm font-medium text-slate-900 cursor-pointer hover:text-primary"
@@ -2961,7 +3005,8 @@ export const LabTestList = ({
                       : <span className="text-xs text-slate-400">-</span>}
                   </td>
                 </tr>
-              ))}
+                )
+              })}
 
             </tbody>
           </table>
