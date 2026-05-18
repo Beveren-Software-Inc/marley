@@ -152,7 +152,7 @@ def _get_latest_active_inpatient_medication_order(admission: str) -> str | None:
 	"""Return latest submitted inpatient PMO for this admission."""
 	rows = frappe.get_all(
 		"Patient Medication Order",
-		filters={"inpatient_record": admission, "docstatus": 1},
+		filters={"inpatient_record": admission},
 		fields=["name"],
 		order_by="modified desc, creation desc",
 		limit=1,
@@ -624,7 +624,7 @@ def reconcile_discharge_medicines(admission: str) -> dict:
 	# Get all submitted medication orders for this admission
 	order_names = frappe.get_all(
 		"Patient Medication Order",
-		filters={"inpatient_record": admission, "docstatus": 1},
+		filters={"inpatient_record": admission},
 		pluck="name",
 	)
 	if not order_names:
@@ -733,7 +733,7 @@ def _get_reconciliation_remaining_per_entry(admission: str) -> list[dict]:
 	# Original inpatient PMOs never have patient_encounter, regardless of care_context value.
 	order_names = frappe.get_all(
 		"Patient Medication Order",
-		filters={"inpatient_record": admission, "docstatus": 1, "patient_encounter": ["is", "not set"]},
+		filters={"inpatient_record": admission, "patient_encounter": ["is", "not set"]},
 		pluck="name",
 	)
 	
@@ -829,7 +829,7 @@ def get_discharge_transfer_rows(admission: str) -> list[dict]:
 
 	order_names = frappe.get_all(
 		"Patient Medication Order",
-		filters={"inpatient_record": admission, "docstatus": 1, "patient_encounter": ["is", "not set"]},
+		filters={"inpatient_record": admission, "patient_encounter": ["is", "not set"]},
 		pluck="name",
 	)
 	if not order_names:
@@ -986,7 +986,7 @@ def return_stopped_medications_to_store(admission: str, order_entry_names: str |
 		# Validate each has reason_stopped; get remaining for each
 		order_names = frappe.get_all(
 			"Patient Medication Order",
-			filters={"inpatient_record": admission, "docstatus": 1, "patient_encounter": ["is", "not set"]},
+			filters={"inpatient_record": admission, "patient_encounter": ["is", "not set"]},
 			pluck="name",
 		)
 		entries = frappe.get_all(
@@ -1084,7 +1084,7 @@ def transfer_medications_on_discharge(admission: str, order_entry_names: str | l
 	# Validate entries belong to original inpatient PMOs only (patient_encounter not set)
 	order_names = frappe.get_all(
 		"Patient Medication Order",
-		filters={"inpatient_record": admission, "docstatus": 1, "patient_encounter": ["is", "not set"]},
+		filters={"inpatient_record": admission, "patient_encounter": ["is", "not set"]},
 		pluck="name",
 	)
 	entries = frappe.get_all(

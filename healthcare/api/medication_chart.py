@@ -1,6 +1,6 @@
 import frappe
 from frappe import _
-from frappe.utils import getdate, nowdate, add_days
+from frappe.utils import cint, getdate, nowdate, add_days
 
 
 SESSION_WINDOWS = [
@@ -45,9 +45,11 @@ def get_daily_medication_chart(admission: str, date: str | None = None) -> dict:
 		"Patient Medication Order",
 		filters={
 			"inpatient_record": admission,
-			"docstatus": 1,
+			# "docstatus": 1,
 		},
 		fields=["name", "start_date", "end_date"],
+        order_by="creation desc",
+		limit=1,
 	)
 	if not prescriptions:
 		return {"sessions": _get_sessions(), "rows": []}
@@ -213,6 +215,246 @@ def get_medication_sheet(admission: str, from_date: str | None = None, to_date: 
 	)
 
 	return rows
+
+
+def _user_display_name(user_id: str | None) -> str:
+	if not user_id:
+		return ""
+	full_name = frappe.db.get_value("User", user_id, "full_name")
+	if full_name:
+		return full_name
+	practitioner = frappe.db.get_value(
+		"Healthcare Practitioner", {"user_id": user_id}, "practitioner_name"
+	)
+	return practitioner or user_id
+
+
+def _get_latest_inpatient_medication_order(admission: str) -> dict | None:
+	"""Latest submitted inpatient PMO for this admission (current medication)."""
+	from healthcare.api.medicine_given import _get_latest_active_inpatient_medication_order
+
+	name = _get_latest_active_inpatient_medication_order(admission)
+	if not name:
+		return None
+	return frappe.db.get_value(
+		"Patient Medication Order",
+		name,
+		["name", "start_date", "end_date", "posting_date", "modified", "creation"],
+		as_dict=True,
+	)
+
+
+def _admin_in_date_range(row_date, from_date, to_date) -> bool:
+	if not row_date:
+		return True
+	d = getdate(row_date)
+	if from_date and d < getdate(from_date):
+		return False
+	if to_date and d > getdate(to_date):
+		return False
+	return True
+
+
+@frappe.whitelist()
+def get_medication_sheet_detail(
+	admission: str, from_date: str | None = None, to_date: str | None = None
+) -> dict:
+	"""Prescription medicines for an IP admission with given / missed administration rows.
+
+	Used by the Medication Sheet UI: color-coded medicine list; expand each row to see
+	when given, by whom, and remarks. Missed doses appear as blank / not-given rows.
+	"""
+	if not admission:
+		frappe.throw(_("Inpatient Admission is required"))
+
+	from_date_parsed = getdate(from_date) if from_date else None
+	to_date_parsed = getdate(to_date) if to_date else None
+
+	admission_doc = frappe.get_cached_doc("Inpatient Admission", admission)
+	patient = admission_doc.patient
+	patient_name = admission_doc.patient_name or patient
+
+	latest_pmo = _get_latest_inpatient_medication_order(admission)
+	if not latest_pmo:
+		return {
+			"admission": admission,
+			"patient": patient,
+			"patient_name": patient_name,
+			"prescription": None,
+			"from_date": str(from_date_parsed) if from_date_parsed else None,
+			"to_date": str(to_date_parsed) if to_date_parsed else None,
+			"medicines": [],
+		}
+
+	current_prescription = latest_pmo.name
+	pmo_by_name = {latest_pmo.name: latest_pmo}
+	print("Nova fold", current_prescription)
+	entry_fields = [
+		"name",
+		"parent",
+		"drug",
+		"drug_name",
+		"dosage",
+		"dosage_form",
+		"patient_frequency",
+		"medication_type",
+		"is_pink",
+		"route_of_administration",
+		"date",
+		"end_date",
+		"time",
+		"stopped",
+	]
+	order_entries = frappe.get_all(
+		"Inpatient Medication Order Entry",
+		filters={"parent": current_prescription},
+		fields=entry_fields,
+		order_by="idx asc",
+	)
+
+	admission_detail_name = frappe.db.get_value("Admission Detail", {"admission": admission}, "name")
+	given_rows: list[dict] = []
+	missed_rows: list[dict] = []
+	if admission_detail_name:
+		given_fields = [
+			"name",
+			"date",
+			"time",
+			"medicine_code",
+			"medicine_name",
+			"qty",
+			"unit",
+			"frequency",
+			"dose_notes",
+			"user",
+			"medication_order",
+		]
+		given_rows = frappe.get_all(
+			"Medicine Given",
+			filters={"parent": admission_detail_name, "parenttype": "Admission Detail"},
+			fields=given_fields,
+			order_by="date desc, time desc, modified desc",
+		)
+		missed_fields = [
+			"name",
+			"date",
+			"time",
+			"medicine_code",
+			"medicine_name",
+			"medication_order",
+			"qty",
+			"unit",
+			"medicine_given_timing",
+			"dose_notes",
+			"user",
+		]
+		missed_rows = frappe.get_all(
+			"Missed Medicine",
+			filters={"parent": admission_detail_name, "parenttype": "Admission Detail"},
+			fields=missed_fields,
+			order_by="date desc, medicine_given_timing desc, modified desc",
+		)
+
+	def _rows_for_drug(drug: str, prescription: str) -> list[dict]:
+		admins: list[dict] = []
+		for row in given_rows:
+			if row.get("medicine_code") != drug:
+				continue
+			mo = row.get("medication_order")
+			if mo and mo != prescription:
+				continue
+			if not _admin_in_date_range(row.get("date"), from_date_parsed, to_date_parsed):
+				continue
+			admins.append(
+				{
+					"kind": "given",
+					"name": row.name,
+					"date": str(row.date) if row.date else None,
+					"time": str(row.time) if row.time else None,
+					"given": True,
+					"qty": row.get("qty"),
+					"unit": row.get("unit"),
+					"given_by": row.get("user"),
+					"given_by_name": _user_display_name(row.get("user")),
+					"remarks": row.get("dose_notes") or "",
+					"timing_label": None,
+				}
+			)
+		for row in missed_rows:
+			if row.get("medicine_code") != drug:
+				continue
+			mo = row.get("medication_order")
+			if mo and mo != prescription:
+				continue
+			if not _admin_in_date_range(row.get("date"), from_date_parsed, to_date_parsed):
+				continue
+			admins.append(
+				{
+					"kind": "missed",
+					"name": row.name,
+					"date": str(row.date) if row.date else None,
+					"time": str(row.time) if row.time else None,
+					"given": False,
+					"qty": row.get("qty"),
+					"unit": row.get("unit"),
+					"given_by": row.get("user"),
+					"given_by_name": _user_display_name(row.get("user")),
+					"remarks": row.get("dose_notes") or "",
+					"timing_label": row.get("medicine_given_timing"),
+				}
+			)
+		admins.sort(
+			key=lambda r: (r.get("date") or "", r.get("time") or ""),
+			reverse=True,
+		)
+		return admins
+
+	medicines_out: list[dict] = []
+	seen_drugs: set[tuple[str, str]] = set()
+
+	for entry in order_entries:
+		if cint(entry.get("stopped")):
+			continue
+		drug = entry.get("drug")
+		if not drug:
+			continue
+		prescription = entry.get("parent")
+		key = (prescription, drug)
+		if key in seen_drugs:
+			continue
+		seen_drugs.add(key)
+
+		pmo = pmo_by_name.get(prescription)
+		start_date = entry.get("date") or (pmo.start_date if pmo else None)
+		end_date = entry.get("end_date") or (pmo.end_date if pmo else None)
+
+		medicines_out.append(
+			{
+				"order_entry": entry.name,
+				"prescription": prescription,
+				"drug": drug,
+				"drug_name": entry.get("drug_name") or drug,
+				"dosage": entry.get("dosage"),
+				"dosage_form": entry.get("dosage_form"),
+				"patient_frequency": entry.get("patient_frequency"),
+				"medication_type": entry.get("medication_type") or "",
+				"is_pink": cint(entry.get("is_pink")),
+				"route_of_administration": entry.get("route_of_administration"),
+				"start_date": str(start_date) if start_date else None,
+				"end_date": str(end_date) if end_date else None,
+				"administrations": _rows_for_drug(drug, prescription),
+			}
+		)
+
+	return {
+		"admission": admission,
+		"patient": patient,
+		"patient_name": patient_name,
+		"prescription": current_prescription,
+		"from_date": str(from_date_parsed) if from_date_parsed else None,
+		"to_date": str(to_date_parsed) if to_date_parsed else None,
+		"medicines": medicines_out,
+	}
 
 
 @frappe.whitelist()

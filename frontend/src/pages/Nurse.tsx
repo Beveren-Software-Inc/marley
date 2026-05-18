@@ -1208,7 +1208,7 @@ export const NursePage = () => {
         </header>
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <MedicationSheet patient={selectedPatient} />
+            <MedicationSheet patient={selectedPatient} admission={activeAdmission} />
           </section>
         </div>
       </div>
