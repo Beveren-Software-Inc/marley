@@ -20,8 +20,24 @@ interface CreateMedicineGivenModalProps {
   initialPatient?: string
   inpatientRecord?: string | null
   patientEncounter?: string | null
+  /** Pre-select Patient Medication Order (e.g. from Daily Medication Chart). */
+  initialPrescription?: string
+  /** Pre-select Inpatient Medication Order Entry row name. */
+  initialOrderEntry?: string
+  initialDate?: string
+  initialTime?: string
   onClose: () => void
   onSuccess: () => void
+}
+
+function pickInitialOrderEntry(
+  orders: MedicationOrderEntry[],
+  initialOrderEntry?: string
+): string {
+  if (initialOrderEntry && orders.some((o) => o.name === initialOrderEntry)) {
+    return initialOrderEntry
+  }
+  return orders.length > 0 ? orders[0].name : ''
 }
 
 interface ComboboxProps {
@@ -125,6 +141,10 @@ export const CreateMedicineGivenModal = ({
   initialPatient,
   inpatientRecord: propInpatientRecord,
   patientEncounter: propPatientEncounter,
+  initialPrescription,
+  initialOrderEntry,
+  initialDate,
+  initialTime,
   onClose,
   onSuccess,
 }: CreateMedicineGivenModalProps) => {
@@ -158,9 +178,9 @@ export const CreateMedicineGivenModal = ({
 
   useEffect(() => {
     const now = new Date()
-    setDate(now.toISOString().slice(0, 10))
-    setTime(now.toTimeString().slice(0, 5))
-  }, [])
+    setDate(initialDate || now.toISOString().slice(0, 10))
+    setTime(initialTime || now.toTimeString().slice(0, 5))
+  }, [initialDate, initialTime])
 
   useEffect(() => {
     const load = async () => {
@@ -184,55 +204,80 @@ export const CreateMedicineGivenModal = ({
         setLoadingUoms(false)
 
         if (mode === 'prescription') {
-          const hasContext = propInpatientRecord || propPatientEncounter
-          if (hasContext) {
-            try {
-              const currentRx = await fetchPrescriptionByInpatientOrEncounter(
-                propInpatientRecord,
-                propPatientEncounter
-              )
-              if (currentRx) {
-                setPrescriptions([currentRx])
-                setSelectedPrescription(currentRx.name)
-                const ords = await fetchMedicationOrders(currentRx.name)
-                setOrders(ords)
-                setSelectedOrder(ords.length > 0 ? ords[0].name : '')
-              } else {
+          const loadPrescriptionOrders = async (prescriptionName: string) => {
+            const ords = await fetchMedicationOrders(prescriptionName)
+            setOrders(ords)
+            setSelectedOrder(pickInitialOrderEntry(ords, initialOrderEntry))
+          }
+
+          if (initialPrescription) {
+            const list = await fetchPrescriptions(50, 0, {
+              patient: initialPatient,
+              careContext: 'Inpatient Admission',
+              inpatientRecord: propInpatientRecord || adm.name,
+            })
+            const match = list.find((p) => p.name === initialPrescription)
+            if (match) {
+              setPrescriptions(list)
+              setSelectedPrescription(initialPrescription)
+            } else {
+              setPrescriptions([
+                {
+                  name: initialPrescription,
+                  patient: initialPatient,
+                  inpatient_record: propInpatientRecord || adm.name,
+                },
+              ])
+              setSelectedPrescription(initialPrescription)
+            }
+            await loadPrescriptionOrders(initialPrescription)
+          } else {
+            const hasContext = propInpatientRecord || propPatientEncounter
+            if (hasContext) {
+              try {
+                const currentRx = await fetchPrescriptionByInpatientOrEncounter(
+                  propInpatientRecord,
+                  propPatientEncounter
+                )
+                if (currentRx) {
+                  setPrescriptions([currentRx])
+                  setSelectedPrescription(currentRx.name)
+                  await loadPrescriptionOrders(currentRx.name)
+                } else {
+                  setPrescriptions([])
+                  setSelectedPrescription('')
+                  setOrders([])
+                  setSelectedOrder('')
+                  setError(
+                    'No current prescription found. Use "Direct Medicine" to record a dose, or create a prescription first.'
+                  )
+                }
+              } catch {
                 setPrescriptions([])
                 setSelectedPrescription('')
                 setOrders([])
                 setSelectedOrder('')
+                setError('Failed to load current prescription.')
+              }
+            } else {
+              const list = await fetchPrescriptions(50, 0, {
+                patient: initialPatient,
+                careContext: 'Inpatient Admission',
+                inpatientRecord: adm.name,
+              })
+              setPrescriptions(list)
+              if (list.length > 0) {
+                const first = list[0].name
+                setSelectedPrescription(first)
+                await loadPrescriptionOrders(first)
+              } else {
+                setSelectedPrescription('')
+                setOrders([])
+                setSelectedOrder('')
                 setError(
-                  'No current prescription found. Use "Direct Medicine" to record a dose, or create a prescription first.'
+                  `No submitted prescription (Patient Medication Order) for admission ${adm.name}. Use "Direct Medicine" to record a dose, or add a prescription for this admission.`
                 )
               }
-            } catch {
-              setPrescriptions([])
-              setSelectedPrescription('')
-              setOrders([])
-              setSelectedOrder('')
-              setError('Failed to load current prescription.')
-            }
-          } else {
-            const list = await fetchPrescriptions(50, 0, {
-              patient: initialPatient,
-              careContext: 'Inpatient Admission',
-              inpatientRecord: adm.name,
-            })
-            setPrescriptions(list)
-            if (list.length > 0) {
-              const first = list[0].name
-              setSelectedPrescription(first)
-              const ords = await fetchMedicationOrders(first)
-              setOrders(ords)
-              setSelectedOrder(ords.length > 0 ? ords[0].name : '')
-            } else {
-              setSelectedPrescription('')
-              setOrders([])
-              setSelectedOrder('')
-              setError(
-                `No submitted prescription (Patient Medication Order) for admission ${adm.name}. Use "Direct Medicine" to record a dose, or add a prescription for this admission.`
-              )
             }
           }
         } else {
@@ -252,7 +297,14 @@ export const CreateMedicineGivenModal = ({
     }
 
     load()
-  }, [initialPatient, mode, propInpatientRecord, propPatientEncounter])
+  }, [
+    initialPatient,
+    mode,
+    propInpatientRecord,
+    propPatientEncounter,
+    initialPrescription,
+    initialOrderEntry,
+  ])
 
   useEffect(() => {
     if (mode === 'prescription') {
@@ -294,9 +346,8 @@ export const CreateMedicineGivenModal = ({
     try {
       const ords = await fetchMedicationOrders(name)
       setOrders(ords)
-      if (ords.length > 0) {
-        setSelectedOrder(ords[0].name)
-      }
+      const entryHint = name === initialPrescription ? initialOrderEntry : undefined
+      setSelectedOrder(pickInitialOrderEntry(ords, entryHint))
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Failed to load medicines for this prescription'
       setError(msg)

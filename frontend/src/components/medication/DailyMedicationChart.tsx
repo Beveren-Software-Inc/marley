@@ -23,6 +23,14 @@ type PendingCell = {
   sessionId: string
 }
 
+/** Default administration time when opening Record Given from a chart session. */
+const SESSION_DEFAULT_TIME: Record<string, string> = {
+  morning: '08:00',
+  noon: '12:00',
+  evening: '17:00',
+  night: '20:00',
+}
+
 export const DailyMedicationChart = ({ patient, admission: admissionProp }: DailyMedicationChartProps) => {
   // If admission is provided from context (navbar selection), we don't show the dropdown at all.
   const admissionFromContext = !!admissionProp
@@ -250,6 +258,11 @@ export const DailyMedicationChart = ({ patient, admission: admissionProp }: Dail
       {pendingCell && selectedAdmissionName && patient && (
         <CreateMedicineGivenModal
           initialPatient={patient}
+          inpatientRecord={selectedAdmissionName}
+          initialPrescription={pendingCell.prescription}
+          initialOrderEntry={pendingCell.orderEntry}
+          initialDate={date}
+          initialTime={SESSION_DEFAULT_TIME[pendingCell.sessionId]}
           onClose={() => setPendingCell(null)}
           onSuccess={() => {
             setPendingCell(null)

@@ -215,6 +215,75 @@ export async function fetchDailyMedicationChart(
 
 export interface MedicationSheetRow extends MedicineGivenRow {}
 
+export interface MedicationSheetAdminRow {
+  kind: 'given' | 'missed'
+  name: string
+  date?: string | null
+  time?: string | null
+  given: boolean
+  qty?: number
+  unit?: string
+  given_by?: string
+  given_by_name?: string
+  remarks?: string
+  timing_label?: string | null
+}
+
+export interface MedicationSheetMedicineRow {
+  order_entry: string
+  prescription: string
+  drug: string
+  drug_name: string
+  dosage?: string
+  dosage_form?: string
+  patient_frequency?: string
+  medication_type?: string
+  is_pink?: number
+  route_of_administration?: string
+  start_date?: string | null
+  end_date?: string | null
+  administrations: MedicationSheetAdminRow[]
+}
+
+export interface MedicationSheetDetail {
+  admission: string
+  patient?: string
+  patient_name?: string
+  /** Latest submitted Patient Medication Order for this admission (current medication). */
+  prescription?: string | null
+  from_date?: string | null
+  to_date?: string | null
+  medicines: MedicationSheetMedicineRow[]
+}
+
+export async function fetchMedicationSheetDetail(
+  admission: string,
+  fromDate?: string,
+  toDate?: string
+): Promise<MedicationSheetDetail> {
+  const params = new URLSearchParams()
+  params.append('admission', admission)
+  if (fromDate) params.append('from_date', fromDate)
+  if (toDate) params.append('to_date', toDate)
+
+  const res = await fetch(
+    `/api/method/healthcare.api.medication_chart.get_medication_sheet_detail?${params.toString()}`
+  )
+  const data = await res.json()
+
+  if (data?.exc || !res.ok) {
+    throw new Error(data?.exc || data?.message || 'Failed to load medication sheet')
+  }
+
+  const message = (data?.message || data?.data) as MedicationSheetDetail | undefined
+  return (
+    message || {
+      admission,
+      medicines: [],
+    }
+  )
+}
+
 export async function fetchMedicationSheet(
   admission: string,
   fromDate?: string,

@@ -15,6 +15,8 @@ def create_suicide_risk_assessment(data):
         doc.patient = data.get("patient")
         doc.assessment_date = data.get("assessment_date")
         doc.clinician = data.get("clinician")
+        doc.inpatient_admission = data.get("inpatient_admission")
+        doc.patient_visit = data.get("patient_visit")
         
         # Section 1: Suicidal Ideation
         doc.has_ideation = data.get("has_ideation", 0)
@@ -186,23 +188,70 @@ def get_risk_level(score):
 
 
 @frappe.whitelist()
-def get_suicide_risk_assessments(patient=None, search=None):
+def get_suicide_risk_assessments(
+    patient=None,
+    search=None,
+    admission=None,
+    patient_visit=None,
+):
     """Fetch Suicide Risk assessments with optional filters."""
     filters = []
+    or_filters = []
+
     if patient:
         filters.append(["patient", "=", patient])
     if search:
-        filters.append(["patient_name", "like", f"%{search}%"])
-    
+        filters.append(["patient", "like", f"%{search}%"])
+    if patient_visit:
+        filters.append(["patient_visit", "=", patient_visit])
+    if admission:
+        # Current admission plus legacy rows without admission linked
+        or_filters = [
+            ["inpatient_admission", "=", admission],
+            ["inpatient_admission", "is", "not set"],
+        ]
+
     assessments = frappe.get_list(
         "Clinical Suicide Risk Assessment",
         fields=[
-            "name", "patient", "patient_name", "assessment_date",
-            "clinician", "risk_score", "risk_level", "docstatus"
+            "name",
+            "patient",
+            "assessment_date",
+            "clinician",
+            "inpatient_admission",
+            "patient_visit",
+            "risk_score",
+            "risk_level",
+            "docstatus",
         ],
         filters=filters,
+        or_filters=or_filters,
         limit=50,
-        order_by="assessment_date desc"
+        order_by="assessment_date desc",
     )
-    
+
+    if assessments:
+        patient_names = {
+            row.name: row.patient_name
+            for row in frappe.get_all(
+                "Patient",
+                filters={"name": ("in", list({a.patient for a in assessments}))},
+                fields=["name", "patient_name"],
+            )
+        }
+        clinician_names = {}
+        clinician_ids = [a.clinician for a in assessments if a.clinician]
+        if clinician_ids:
+            clinician_names = {
+                row.name: row.practitioner_name
+                for row in frappe.get_all(
+                    "Healthcare Practitioner",
+                    filters={"name": ("in", clinician_ids)},
+                    fields=["name", "practitioner_name"],
+                )
+            }
+        for row in assessments:
+            row["patient_name"] = patient_names.get(row.patient, row.patient)
+            row["clinician_name"] = clinician_names.get(row.clinician, row.clinician)
+
     return assessments
