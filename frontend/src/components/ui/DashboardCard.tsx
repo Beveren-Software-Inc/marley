@@ -5,10 +5,12 @@ export const DashboardCard = ({
   title,
   onAdd,
   children,
-  className = "",
+  className = '',
   addButtonTitle,
   noHeightLimit = false,
   fixedHeight = false,
+  requiresAttention = false,
+  attentionLabel = 'Required — not completed',
 }: {
   title: string
   onAdd?: () => void
@@ -17,27 +19,51 @@ export const DashboardCard = ({
   addButtonTitle?: string
   noHeightLimit?: boolean
   fixedHeight?: boolean
+  /** Red highlight when a mandatory IP document is missing. */
+  requiresAttention?: boolean
+  attentionLabel?: string
 }) => {
   const [showFilters, setShowFilters] = useState(false)
   const resolvedAddTitle = addButtonTitle ?? `Add ${title}`
 
   return (
-    <section className={`bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col ${fixedHeight && !noHeightLimit ? 'min-h-[400px] max-h-[400px]' : ''} ${className}`}>
-      <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
-        <span>{title}</span>
-        <div className="flex items-center gap-2">
+    <section
+      className={`rounded-lg p-4 shadow-sm flex flex-col ${
+        requiresAttention
+          ? 'bg-red-50/80 border-2 border-red-300/90 ring-1 ring-red-200/60'
+          : 'bg-white border border-slate-200'
+      } ${fixedHeight && !noHeightLimit ? 'min-h-[400px] max-h-[400px]' : ''} ${className}`}
+    >
+      <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0 gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className={requiresAttention ? 'text-red-950' : undefined}>{title}</span>
+          {requiresAttention && (
+            <span
+              className="shrink-0 inline-flex items-center rounded-full bg-red-200/90 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-900"
+              title={attentionLabel}
+            >
+              Required
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
           <button
             type="button"
-            onClick={() => setShowFilters(prev => !prev)}
+            onClick={() => setShowFilters((prev) => !prev)}
             className={`p-1 rounded-md border transition-colors ${showFilters ? 'bg-primary/10 border-primary text-primary' : 'border-slate-300 text-slate-500 hover:bg-slate-50'}`}
             title={showFilters ? 'Hide filters' : 'Show filters'}
           >
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z"
+              />
             </svg>
           </button>
           {onAdd && (
             <button
+              type="button"
               onClick={onAdd}
               className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
               title={resolvedAddTitle}
@@ -59,9 +85,7 @@ export const DashboardCard = ({
         }
         style={{ scrollbarWidth: 'thin' }}
       >
-        <CardFilterContext.Provider value={showFilters}>
-          {children}
-        </CardFilterContext.Provider>
+        <CardFilterContext.Provider value={showFilters}>{children}</CardFilterContext.Provider>
       </div>
     </section>
   )

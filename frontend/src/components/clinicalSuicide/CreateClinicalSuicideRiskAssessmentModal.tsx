@@ -10,6 +10,13 @@ import {
 import { Shield, AlertTriangle, Heart, Brain, Users, Target, Activity } from 'lucide-react'
 import { createSuicideRiskAssessment } from '../../services/suicideRisk'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
+import {
+  fetchHealthcarePractitioners,
+  getCurrentUserPractitioner,
+  fetchPatientVisits,
+  type LinkFieldOption,
+} from '../../services/common'
+import { useCareContext } from '../../providers/CareContextProvider'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -21,21 +28,39 @@ interface CreateSuicideRiskAssessmentModalProps {
   onClose: () => void
   onSuccess: () => void
   patient?: string
+  defaultAdmission?: string
+  defaultVisit?: string
 }
 
 export const CreateSuicideRiskAssessmentModal = ({
   onClose,
   onSuccess,
   patient,
+  defaultAdmission,
+  defaultVisit,
 }: CreateSuicideRiskAssessmentModalProps) => {
+  const { mode, activeVisit, activeAdmission, selectedPatient: contextPatient } = useCareContext()
+  const isIPMode = mode === 'IP'
+  const isOPMode = mode === 'OP'
+
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   // Basic Info
-  const [patientId, setPatientId] = useState(patient || '')
+  const [patientId, setPatientId] = useState(patient || contextPatient || '')
   const [, setPatientName] = useState('')
   const [assessmentDate, setAssessmentDate] = useState(nowDate())
   const [clinician, setClinician] = useState('')
+  const [clinicianQuery, setClinicianQuery] = useState('')
+  const [clinicianOpen, setClinicianOpen] = useState(false)
+  const [clinicianOptions, setClinicianOptions] = useState<LinkFieldOption[]>([])
+  const [inpatientAdmission, setInpatientAdmission] = useState(
+    (isIPMode && activeAdmission) ? activeAdmission : (defaultAdmission || '')
+  )
+  const [patientVisit, setPatientVisit] = useState(
+    (isOPMode && activeVisit) ? activeVisit : (defaultVisit || '')
+  )
+  const [patientVisitLabel, setPatientVisitLabel] = useState('')
 
   // Section 1: Suicidal Ideation
   const [hasIdeation, setHasIdeation] = useState(false)
@@ -83,14 +108,57 @@ export const CreateSuicideRiskAssessmentModal = ({
 
   // ── Patient label on mount ────────────────────────────────────────────────
   useEffect(() => {
-    if (!patient) return
-    fetchPatients(1, 0, patient).then((res) => {
+    const pid = patient || contextPatient
+    if (!pid) return
+    setPatientId(pid)
+    fetchPatients(1, 0, pid).then((res) => {
       if (res.length > 0) {
         setPatientQuery(res[0].patient_name)
         setPatientName(res[0].patient_name)
       }
     }).catch(() => {})
-  }, [patient])
+  }, [patient, contextPatient])
+
+  // ── Practitioner options + auto-fill ───────────────────────────────────────
+  useEffect(() => {
+    if (!clinicianOpen) return
+    const t = setTimeout(() => {
+      fetchHealthcarePractitioners(clinicianQuery.trim() || undefined)
+        .then(setClinicianOptions)
+        .catch(() => setClinicianOptions([]))
+    }, clinicianQuery.trim() ? 300 : 0)
+    return () => clearTimeout(t)
+  }, [clinicianQuery, clinicianOpen])
+
+  useEffect(() => {
+    getCurrentUserPractitioner().then((pract) => {
+      if (!pract || clinician) return
+      fetchHealthcarePractitioners(pract).then((opts) => {
+        const match = opts.find((o) => o.name === pract)
+        if (match) {
+          setClinician(match.name)
+          setClinicianQuery(match.label)
+        } else {
+          setClinician(pract)
+          setClinicianQuery(pract)
+        }
+      })
+    })
+  }, [])
+
+  useEffect(() => {
+    if (isIPMode && activeAdmission) setInpatientAdmission(activeAdmission)
+    if (isOPMode && activeVisit) setPatientVisit(activeVisit)
+  }, [isIPMode, isOPMode, activeAdmission, activeVisit])
+
+  // ── Visit label when auto-filled ───────────────────────────────────────────
+  useEffect(() => {
+    if (!patientVisit || !patientId) return
+    fetchPatientVisits(patientId).then((visits) => {
+      const match = visits.find((v) => v.name === patientVisit)
+      if (match) setPatientVisitLabel(match.label || match.name)
+    }).catch(() => {})
+  }, [patientVisit, patientId])
 
   // ── Patient options ───────────────────────────────────────────────────────
   useEffect(() => {
@@ -124,6 +192,8 @@ export const CreateSuicideRiskAssessmentModal = ({
         patient: patientId,
         assessment_date: assessmentDate,
         clinician: clinician || undefined,
+        inpatient_admission: inpatientAdmission || undefined,
+        patient_visit: patientVisit || undefined,
         
         has_ideation: hasIdeation,
         ideation_frequency: ideationFrequency || undefined,
@@ -242,15 +312,87 @@ export const CreateSuicideRiskAssessmentModal = ({
                     className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                   />
                 </div>
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Clinician</label>
+                {isIPMode ? (
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Inpatient Admission</label>
+                    <input
+                      type="text"
+                      value={inpatientAdmission}
+                      readOnly
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm bg-slate-50 cursor-not-allowed"
+                    />
+                    <p className="text-xs text-slate-400 mt-1">From current IP context</p>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Inpatient Admission</label>
+                    <input
+                      type="text"
+                      value={inpatientAdmission}
+                      onChange={(e) => setInpatientAdmission(e.target.value)}
+                      placeholder="Optional admission no."
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                  </div>
+                )}
+                {isOPMode ? (
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Patient Visit</label>
+                    <input
+                      type="text"
+                      value={patientVisitLabel || patientVisit}
+                      readOnly
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm bg-slate-50 cursor-not-allowed"
+                    />
+                    <p className="text-xs text-slate-400 mt-1">From current OP context</p>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Patient Visit</label>
+                    <input
+                      type="text"
+                      value={patientVisit}
+                      onChange={(e) => setPatientVisit(e.target.value)}
+                      placeholder="Optional visit no."
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                  </div>
+                )}
+                <div className="md:col-span-2 relative">
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Clinician (Healthcare Practitioner)</label>
                   <input
                     type="text"
-                    value={clinician}
-                    onChange={(e) => setClinician(e.target.value)}
-                    placeholder="Enter clinician name"
+                    value={clinicianQuery}
+                    onChange={(e) => {
+                      setClinicianQuery(e.target.value)
+                      setClinician('')
+                      setClinicianOpen(true)
+                    }}
+                    onFocus={() => setClinicianOpen(true)}
+                    placeholder="Search practitioner…"
                     className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                   />
+                  {clinicianOpen && clinicianOptions.length > 0 && (
+                    <div className="absolute z-20 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-48 overflow-y-auto top-full">
+                      {clinicianOptions.map((p) => (
+                        <button
+                          key={p.name}
+                          type="button"
+                          onClick={() => {
+                            setClinician(p.name)
+                            setClinicianQuery(p.label || p.name)
+                            setClinicianOpen(false)
+                          }}
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100"
+                        >
+                          <div className="font-medium">{p.label || p.name}</div>
+                          {p.department && (
+                            <div className="text-xs text-slate-500">{p.department}</div>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

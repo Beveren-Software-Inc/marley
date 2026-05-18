@@ -463,7 +463,7 @@
 //                           </div>
 //                         )}
 //                       </div>
-//                     ))}
+//                     })}
 //                   </div>
 //                 )}
 
@@ -507,7 +507,7 @@
 //                 className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50">
 //                 Cancel
 //               </button>
-//               <button type="submit" disabled={submitting}
+//               <button type="submit" disabled={submitting || (mandatoryRows.length > 0 && !mandatoryComplete)}
 //                 className="px-5 py-2 text-sm font-semibold text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-60 disabled:cursor-not-allowed">
 //                 {submitting ? 'Saving...' : 'Save History'}
 //               </button>
@@ -613,6 +613,17 @@ interface HistoryRow {
   _key: string
   attribute: string
   description: string
+  /** From template / Patient History Detail — only these require a description. */
+  is_mendatory: boolean
+}
+
+function mapTemplateHistoryRow(r: Record<string, unknown>): HistoryRow {
+  return {
+    _key: Math.random().toString(36).slice(2),
+    attribute: String(r.attribute ?? ''),
+    description: String(r.description ?? ''),
+    is_mendatory: r.is_mendatory === 1 || r.is_mendatory === true,
+  }
 }
 
 interface PatientHistoryModalProps {
@@ -714,11 +725,7 @@ export const PatientHistoryModal = ({
         const doc = data?.data ?? data?.message
         const items: any[] = Array.isArray(doc?.history_detail) ? doc.history_detail : []
         if (items.length > 0) {
-          setRows(items.map(r => ({
-            _key: Math.random().toString(36).slice(2),
-            attribute: r.attribute ?? '',
-            description: r.description ?? '',
-          })))
+          setRows(items.map((r) => mapTemplateHistoryRow(r as Record<string, unknown>)))
         }
       } catch { /* silently ignore if template not found */ } finally {
         setTemplateLoading(false)
@@ -740,12 +747,13 @@ export const PatientHistoryModal = ({
       const doc = data?.data ?? data?.message
       const items: any[] = Array.isArray(doc?.history_detail) ? doc.history_detail : []
       if (items.length > 0) {
-        setRows(items.map(r => ({
-          _key: Math.random().toString(36).slice(2),
-          attribute: r.attribute ?? '',
-          description: r.description ?? '',
-        })))
-        toast.success(`Loaded ${items.length} item${items.length !== 1 ? 's' : ''} from template.`)
+        setRows(items.map((r) => mapTemplateHistoryRow(r as Record<string, unknown>)))
+        const mandatoryCount = items.filter((r) => r.is_mendatory === 1 || r.is_mendatory === true).length
+        toast.success(
+          mandatoryCount > 0
+            ? `Loaded ${items.length} items (${mandatoryCount} mandatory).`
+            : `Loaded ${items.length} item${items.length !== 1 ? 's' : ''} from template.`
+        )
         setActiveTab('history')
       } else {
         toast.error('Template has no items.')
@@ -758,24 +766,44 @@ export const PatientHistoryModal = ({
   }
 
   const addRow = () =>
-    setRows(prev => [...prev, { _key: Math.random().toString(36).slice(2), attribute: '', description: '' }])
+    setRows((prev) => [
+      ...prev,
+      { _key: Math.random().toString(36).slice(2), attribute: '', description: '', is_mendatory: false },
+    ])
 
   const removeRow = (key: string) => setRows(prev => prev.filter(r => r._key !== key))
 
   const updateRow = (key: string, field: 'attribute' | 'description', value: string) =>
     setRows(prev => prev.map(r => r._key === key ? { ...r, [field]: value } : r))
 
-  const filledCount = rows.filter(r => r.description.trim().length > 0).length
+  const mandatoryRows = rows.filter((r) => r.is_mendatory)
+  const mandatoryFilledCount = mandatoryRows.filter((r) => r.description.trim().length > 0).length
+  const mandatoryComplete =
+    mandatoryRows.length === 0 || mandatoryFilledCount === mandatoryRows.length
+  const missingMandatoryCount = mandatoryRows.length - mandatoryFilledCount
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault(); e.stopPropagation()
+    e.preventDefault()
+    e.stopPropagation()
+    if (!mandatoryComplete) {
+      toast.error(
+        `Please complete ${missingMandatoryCount} mandatory description${missingMandatoryCount !== 1 ? 's' : ''}.`
+      )
+      setActiveTab('history')
+      return
+    }
     setSubmitting(true)
     try {
       const payload = {
         inpatient_admission: inpatientAdmission || undefined,
         patient_visit: patientVisit || undefined,
         patient: patientField || undefined,
-        history_detail: rows.map(({ _key: _unused, ...rest }) => rest),
+        template: templateName || undefined,
+        history_detail: rows.map(({ _key: _unused, attribute, description, is_mendatory }) => ({
+          attribute,
+          description,
+          is_mendatory: is_mendatory ? 1 : 0,
+        })),
       }
       await apiRequest('/api/resource/Patient%20History', {
         method: 'POST',
@@ -838,11 +866,14 @@ export const PatientHistoryModal = ({
                 activeTab === tab.id ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
               }`}>
               {tab.label}
-              {tab.id === 'history' && rows.length > 0 && (
-                <span className={`inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold ${
-                  filledCount === rows.length ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
-                }`}>
-                  {filledCount}/{rows.length}
+              {tab.id === 'history' && mandatoryRows.length > 0 && (
+                <span
+                  className={`inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold ${
+                    mandatoryComplete ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
+                  }`}
+                  title="Mandatory items completed"
+                >
+                  {mandatoryFilledCount}/{mandatoryRows.length}
                 </span>
               )}
             </button>
@@ -952,7 +983,7 @@ export const PatientHistoryModal = ({
                 <div>
                   <p className="text-sm font-semibold text-slate-800 border-b border-slate-200 pb-1.5 mb-4">Load From Template</p>
                   <p className="text-xs text-slate-500 mb-3 bg-slate-50 border border-slate-200 rounded-md px-3 py-2">
-                    Select a template to auto-populate the history attributes. You will then fill in the description for each item in the <strong>History Details</strong> tab.
+                    Select a template to auto-populate history attributes. In <strong>History Details</strong>, only items marked mandatory on the template require a description; other items are optional.
                   </p>
                   <LinkCombobox
                     label="History Template"
@@ -984,16 +1015,20 @@ export const PatientHistoryModal = ({
                 <div className="flex items-center justify-between mb-3">
                   <div>
                     <h3 className="text-sm font-semibold text-slate-800">History Detail Items</h3>
-                    {rows.length > 0 && filledCount < rows.length && (
+                    {mandatoryRows.length > 0 && !mandatoryComplete && (
                       <p className="text-xs text-amber-600 flex items-center gap-1 mt-0.5">
                         <AlertCircle className="w-3.5 h-3.5" />
-                        {rows.length - filledCount} item{rows.length - filledCount !== 1 ? 's' : ''} still need a description
+                        {missingMandatoryCount} mandatory item{missingMandatoryCount !== 1 ? 's' : ''} still need a
+                        description
                       </p>
                     )}
-                    {rows.length > 0 && filledCount === rows.length && (
+                    {mandatoryRows.length > 0 && mandatoryComplete && (
                       <p className="text-xs text-green-600 flex items-center gap-1 mt-0.5">
-                        <Check className="w-3.5 h-3.5" /> All items have descriptions
+                        <Check className="w-3.5 h-3.5" /> All mandatory items are complete
                       </p>
+                    )}
+                    {mandatoryRows.length === 0 && rows.length > 0 && (
+                      <p className="text-xs text-slate-500 mt-0.5">No mandatory items on this template — descriptions are optional.</p>
                     )}
                   </div>
                   <button type="button" onClick={addRow}
@@ -1014,11 +1049,18 @@ export const PatientHistoryModal = ({
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {rows.map((row, idx) => (
-                      <div key={row._key}
-                        className={`rounded-lg border p-4 transition-colors group ${
-                          row.description.trim() ? 'border-green-200 bg-green-50/40' : 'border-slate-200 bg-white hover:border-slate-300'
-                        }`}>
+                    {rows.map((row, idx) => {
+                      const filled = row.description.trim().length > 0
+                      const mandatory = row.is_mendatory
+                      const rowClass = mandatory
+                        ? filled
+                          ? 'border-green-200 bg-green-50/40'
+                          : 'border-amber-300 bg-amber-50/50'
+                        : filled
+                          ? 'border-slate-200 bg-slate-50/60'
+                          : 'border-slate-200 bg-white hover:border-slate-300'
+                      return (
+                      <div key={row._key} className={`rounded-lg border p-4 transition-colors group ${rowClass}`}>
                         <div className="flex items-start gap-3">
                           {/* Index badge */}
                           <span className="w-6 h-6 rounded-full bg-slate-100 text-slate-500 text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">
@@ -1027,7 +1069,12 @@ export const PatientHistoryModal = ({
                           <div className="flex-1 space-y-2 min-w-0">
                             {/* Attribute */}
                             <div>
-                              <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Attribute / Topic</label>
+                              <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">
+                                Attribute / Topic
+                                {mandatory && (
+                                  <span className="ml-1.5 text-red-600 normal-case font-semibold">(mandatory)</span>
+                                )}
+                              </label>
                               <input
                                 type="text"
                                 value={row.attribute}
@@ -1040,8 +1087,11 @@ export const PatientHistoryModal = ({
                             <div>
                               <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">
                                 Description
-                                {!row.description.trim() && (
-                                  <span className="ml-1.5 text-amber-500 normal-case font-normal">(required)</span>
+                                {mandatory && !filled && (
+                                  <span className="ml-1.5 text-amber-600 normal-case font-normal">(required)</span>
+                                )}
+                                {!mandatory && (
+                                  <span className="ml-1.5 text-slate-400 normal-case font-normal">(optional)</span>
                                 )}
                               </label>
                               <textarea
@@ -1067,17 +1117,26 @@ export const PatientHistoryModal = ({
                           </div>
                         )}
                       </div>
-                    ))}
+                    )})}
                   </div>
                 )}
 
                 {/* Summary */}
                 {rows.length > 0 && (
-                  <div className="mt-4 flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-xs text-slate-600">
+                  <div className="mt-4 flex flex-wrap items-center gap-3 bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-xs text-slate-600">
                     <span>Total: <strong>{rows.length}</strong></span>
-                    <span className="text-green-600">Filled: <strong>{filledCount}</strong></span>
-                    {rows.length - filledCount > 0 && (
-                      <span className="text-amber-600">Pending: <strong>{rows.length - filledCount}</strong></span>
+                    {mandatoryRows.length > 0 && (
+                      <>
+                        <span className="text-green-600">
+                          Mandatory done: <strong>{mandatoryFilledCount}</strong> /{' '}
+                          <strong>{mandatoryRows.length}</strong>
+                        </span>
+                        {missingMandatoryCount > 0 && (
+                          <span className="text-amber-600">
+                            Mandatory pending: <strong>{missingMandatoryCount}</strong>
+                          </span>
+                        )}
+                      </>
                     )}
                   </div>
                 )}
@@ -1111,7 +1170,7 @@ export const PatientHistoryModal = ({
                 className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50">
                 Cancel
               </button>
-              <button type="submit" disabled={submitting}
+              <button type="submit" disabled={submitting || (mandatoryRows.length > 0 && !mandatoryComplete)}
                 className="px-5 py-2 text-sm font-semibold text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-60 disabled:cursor-not-allowed">
                 {submitting ? 'Saving...' : 'Save History'}
               </button>

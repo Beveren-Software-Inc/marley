@@ -8,8 +8,10 @@
   "section_basic",
   "patient",
   "assessment_date",
-  "column_break_dqqk",
   "clinician",
+  "column_break_dqqk",
+  "inpatient_admission",
+  "patient_visit",
   "section_ideation",
   "has_ideation",
   "ideation_details",
@@ -78,8 +80,9 @@
   },
   {
    "fieldname": "clinician",
-   "fieldtype": "Data",
-   "label": "Clinician"
+   "fieldtype": "Link",
+   "label": "Clinician",
+   "options": "Healthcare Practitioner"
   },
   {
    "fieldname": "section_ideation",
@@ -325,12 +328,24 @@
   {
    "fieldname": "column_break_ymaz",
    "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "inpatient_admission",
+   "fieldtype": "Link",
+   "label": "Inpatient Admission",
+   "options": "Inpatient Admission"
+  },
+  {
+   "fieldname": "patient_visit",
+   "fieldtype": "Link",
+   "label": "Patient Visit",
+   "options": "Patient Visit"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-04-02 17:38:45.903819",
+ "modified": "2026-05-18 17:57:39.172706",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Clinical Suicide Risk Assessment",

@@ -7,7 +7,8 @@
  "engine": "InnoDB",
  "field_order": [
   "attribute",
-  "description"
+  "description",
+  "is_mendatory"
  ],
  "fields": [
   {
@@ -23,13 +24,21 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Description"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_mendatory",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Is mendatory"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-03-18 12:18:30.517817",
+ "modified": "2026-05-18 17:40:34.127819",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient History Detail",

@@ -75,7 +75,9 @@ import { YBOCSAssessmentList } from '../components/ybocs/YBOCSAssessmentList'
 import { CreateYMRSAssessmentModal } from '../components/ymrs/CreateYMRSAssessmentModal'
 import { YMRSAssessmentList } from '../components/ymrs/YMRSAssessmentList'
 import { toast } from '../hooks/useToast'
+import { useIpDoctorRequirements } from '../hooks/useIpDoctorRequirements'
 import { useCareContext } from '../providers/CareContextProvider'
+import { CreatePatientMedicalHistoryModal } from '../components/medicalHistory/CreatePatientMedicalHistoryModal'
 import { isDoctorScreenBlocked } from '../config/costCenterCareScope'
 import { draftSavedAt, hasDischargeDraft } from '../services/dischargeDraft'
 import { getPatientActiveAdmission } from '../services/inpatientRecords'
@@ -160,6 +162,8 @@ export const DoctorPage = () => {
   const [physicalExamRefreshKey, setPhysicalExamRefreshKey] = useState(0)
   const [showPatientHistoryModal, setShowPatientHistoryModal] = useState(false)
   const [patientHistoryRefreshKey, setPatientHistoryRefreshKey] = useState(0)
+  const [showCreateMedicalHistoryModal, setShowCreateMedicalHistoryModal] = useState(false)
+  const [medicalHistoryRefreshKey, setMedicalHistoryRefreshKey] = useState(0)
   const rawScreen = searchParams.get('screen')
   const screenBlocked = !!(rawScreen && isDoctorScreenBlocked(rawScreen, costCenterCareScope, mode))
   const screen = screenBlocked ? null : rawScreen
@@ -186,6 +190,15 @@ export const DoctorPage = () => {
   const [showSuicidalModal, setShowSuicidalModal] = useState(false)
   const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
   const [showCreateVisitModal, setShowCreateVisitModal] = useState(false)
+
+  const showIpRequiredDocs = Boolean(selectedPatient && mode === 'IP' && activeAdmission)
+  const ipDocsRefreshToken = `${suicideRiskRefreshKey}-${patientHistoryRefreshKey}-${medicalHistoryRefreshKey}`
+  const { status: ipDocStatus } = useIpDoctorRequirements(
+    selectedPatient,
+    activeAdmission,
+    showIpRequiredDocs,
+    ipDocsRefreshToken
+  )
 
   // Sync selectedPatient with URL on mount and when URL changes
   useEffect(() => {
@@ -1789,10 +1802,7 @@ export const DoctorPage = () => {
             onAdd={() => setShowCreateSuicideRiskModal(true)}
             addButtonTitle="Create Suicide Risk Assessment"
           >
-            <SuicideRiskAssessmentList
-              refreshKey={suicideRiskRefreshKey}
-              onCreateNew={() => setShowCreateSuicideRiskModal(true)}
-            />
+            <SuicideRiskAssessmentList refreshKey={suicideRiskRefreshKey} />
           </DashboardCard>
         </div>
         {showCreateSuicideRiskModal && (
@@ -2125,12 +2135,56 @@ export const DoctorPage = () => {
             <WarningMessagesList patient={selectedPatient} key={warningRefreshKey} onPatientClick={handlePatientSelect} />
           </DashboardCard>
 
-          <DashboardCard fixedHeight title="Patient Medical History">
-            <MedicalHistoryView patient={selectedPatient} />
+          <DashboardCard
+            fixedHeight
+            title="Patient Medical History"
+            onAdd={() => setShowCreateMedicalHistoryModal(true)}
+            addButtonTitle="Add Patient Medical History"
+            requiresAttention={showIpRequiredDocs && ipDocStatus !== null && !ipDocStatus.medical_history}
+            attentionLabel="Required for this IP admission — add patient medical history"
+          >
+            <MedicalHistoryView patient={selectedPatient} refreshKey={medicalHistoryRefreshKey} />
           </DashboardCard>
         </div>
 
-        {/* Row 2: OP — Appointments + Patient Visits; IP — Appointments zone */}
+        {/* Row 2: IP only — Suicide risk assessment + History form */}
+        {mode === 'IP' && (
+        <div className="grid gap-4 md:grid-cols-2 auto-rows-fr px-4 pb-4">
+          <DashboardCard
+            fixedHeight
+            title="Suicide Risk Assessment"
+            onAdd={() => setShowCreateSuicideRiskModal(true)}
+            addButtonTitle="Create Suicide Risk Assessment"
+            requiresAttention={showIpRequiredDocs && ipDocStatus !== null && !ipDocStatus.suicide_risk}
+            attentionLabel="Required for this IP admission — complete suicide risk assessment"
+          >
+            <SuicideRiskAssessmentList
+              patient={selectedPatient}
+              inpatientAdmission={activeAdmission || undefined}
+              refreshKey={suicideRiskRefreshKey}
+              onPatientClick={handlePatientSelect}
+            />
+          </DashboardCard>
+
+          <DashboardCard
+            fixedHeight
+            title="History Form"
+            onAdd={() => setShowPatientHistoryModal(true)}
+            addButtonTitle="New History Form"
+            requiresAttention={showIpRequiredDocs && ipDocStatus !== null && !ipDocStatus.history_form}
+            attentionLabel="Required for this IP admission — complete history form"
+          >
+            <PatientHistoryList
+              patient={selectedPatient}
+              inpatientAdmission={activeAdmission || undefined}
+              refreshKey={patientHistoryRefreshKey}
+              onPatientClick={handlePatientSelect}
+            />
+          </DashboardCard>
+        </div>
+        )}
+
+        {/* Row 3: OP — Appointments + Patient Visits; IP without admission — Appointments only */}
         {costCenterCareScope !== 'ip_only' && mode === 'OP' ? (
           <div className="grid gap-4 md:grid-cols-2 auto-rows-fr px-4 pb-4">
             {doctorAppointmentsCard}
@@ -2140,7 +2194,7 @@ export const DoctorPage = () => {
           </div>
         ) : null}
 
-        {costCenterCareScope !== 'op_only' && mode === 'IP' ? (
+        {costCenterCareScope !== 'op_only' && mode === 'IP' && !activeAdmission ? (
           <div className="px-4 pb-4">{doctorAppointmentsCard}</div>
         ) : null}
 
@@ -2226,8 +2280,17 @@ export const DoctorPage = () => {
           </DashboardCard>
         </div>
 
-        {/* Prescriptions (defaults: my practitioner + today) */}
-        <div className="grid gap-4 md:grid-cols-1 auto-rows-fr px-4 pb-4">
+        {/* Prescriptions; on IP with admission selected, Appointments share this row */}
+        <div
+          className={`grid gap-4 auto-rows-fr px-4 pb-4 ${
+            costCenterCareScope !== 'op_only' && mode === 'IP' && activeAdmission
+              ? 'md:grid-cols-2'
+              : 'md:grid-cols-1'
+          }`}
+        >
+          {costCenterCareScope !== 'op_only' && mode === 'IP' && activeAdmission
+            ? doctorAppointmentsCard
+            : null}
           <DashboardCard
             fixedHeight
             title="Prescription"
@@ -2429,6 +2492,45 @@ export const DoctorPage = () => {
           setShowCreateVisitModal(false)
         }}
         initialPatient={selectedPatient || undefined}
+      />
+    )}
+
+    {showCreateSuicideRiskModal && (
+      <CreateSuicideRiskAssessmentModal
+        patient={selectedPatient}
+        defaultAdmission={mode === 'IP' ? activeAdmission || undefined : undefined}
+        defaultVisit={mode === 'OP' ? activeVisit || undefined : undefined}
+        onClose={() => setShowCreateSuicideRiskModal(false)}
+        onSuccess={() => {
+          setShowCreateSuicideRiskModal(false)
+          setSuicideRiskRefreshKey((prev) => prev + 1)
+          toast.success('Suicide Risk Assessment created successfully')
+        }}
+      />
+    )}
+
+    {showPatientHistoryModal && (
+      <PatientHistoryModal
+        admissionNo={mode === 'IP' ? activeAdmission || '' : ''}
+        patient={selectedPatient}
+        onClose={() => setShowPatientHistoryModal(false)}
+        onSuccess={() => {
+          setPatientHistoryRefreshKey((prev) => prev + 1)
+          setShowPatientHistoryModal(false)
+        }}
+      />
+    )}
+
+    {showCreateMedicalHistoryModal && selectedPatient && (
+      <CreatePatientMedicalHistoryModal
+        patient={selectedPatient}
+        defaultAdmission={activeAdmission || undefined}
+        onClose={() => setShowCreateMedicalHistoryModal(false)}
+        onCreated={() => {
+          setMedicalHistoryRefreshKey((prev) => prev + 1)
+          setShowCreateMedicalHistoryModal(false)
+          toast.success('Patient medical history saved')
+        }}
       />
     )}
   </div>
