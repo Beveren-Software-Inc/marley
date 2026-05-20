@@ -1,25 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { saveAndSubmitLabTest, type LabTest } from '../services/labTests'
+import { showLabTestRuleFeedback } from '../utils/labTestRuleFeedback'
 import { toast } from './useToast'
 
 function stripHtml(value: string): string {
   return value.replace(/<[^>]*>/g, '').trim()
-}
-
-function showRuleFeedback(res: LabTest) {
-  for (const err of res.rule_errors || []) {
-    const text = (err as { short_message?: string }).short_message || err?.message || ''
-    if (text) toast.error(text.split('\n\n')[0] || text)
-  }
-  for (const warn of res.rule_warnings || []) {
-    const text = (warn as { short_message?: string }).short_message || warn?.message || ''
-    if (text) toast.warning(text.split('\n\n')[0] || text)
-  }
-  for (const upd of res.calculated_updates || []) {
-    if (upd.custom_result && upd.lab_test_name) {
-      toast.success(`${upd.lab_test_name} calculated: ${upd.custom_result}`)
-    }
-  }
 }
 
 export function useBatchLabTestResults(
@@ -133,6 +118,14 @@ export function useBatchLabTestResults(
     setBatchSaving(true)
     const savedNames: string[] = []
     const errors: string[] = []
+    const mergedRuleFeedback: Pick<
+      LabTest,
+      'rule_warnings' | 'rule_errors' | 'calculated_updates'
+    > = {
+      rule_warnings: [],
+      rule_errors: [],
+      calculated_updates: [],
+    }
 
     for (const lt of dirtyTests) {
       try {
@@ -145,12 +138,18 @@ export function useBatchLabTestResults(
           payload.lab_technician = headerOrPending
         }
         const res = await saveAndSubmitLabTest(lt.name, payload)
-        showRuleFeedback(res)
+        mergedRuleFeedback.rule_warnings?.push(...(res.rule_warnings || []))
+        mergedRuleFeedback.rule_errors?.push(...(res.rule_errors || []))
+        mergedRuleFeedback.calculated_updates?.push(...(res.calculated_updates || []))
         savedNames.push(lt.name)
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Failed to save result'
         errors.push(`${lt.lab_test_name || lt.name}: ${msg}`)
       }
+    }
+
+    if (savedNames.length) {
+      showLabTestRuleFeedback(mergedRuleFeedback as LabTest)
     }
 
     if (savedNames.length) {

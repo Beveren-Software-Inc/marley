@@ -967,7 +967,19 @@ def save_and_submit_lab_test(
             doc.service_request, triggering_lab_test=doc.name
         )
         rule_feedback["calculated_updates"] = panel_recalc.get("calculated_updates") or []
-        rule_feedback.setdefault("warnings", []).extend(panel_recalc.get("warnings") or [])
+        # Drop pre-save formula warnings; siblings are committed before panel re-run.
+        rule_feedback["warnings"] = [
+            w
+            for w in (rule_feedback.get("warnings") or [])
+            if w.get("type") != "formula_missing_inputs"
+        ]
+        rule_feedback["warnings"].extend(panel_recalc.get("warnings") or [])
+        if rule_feedback.get("calculated_updates"):
+            rule_feedback["warnings"] = [
+                w
+                for w in (rule_feedback.get("warnings") or [])
+                if w.get("type") != "formula_missing_inputs"
+            ]
     elif doc.template and rule_feedback.get("calculated_targets"):
         from healthcare.healthcare.lab_test_result_rules import (
             _resolve_panel_template_and_rule,
