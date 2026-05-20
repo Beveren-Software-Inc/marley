@@ -3,8 +3,13 @@ import { useWarningMessages } from '../../hooks/useWarningMessages'
 import { DetailSlideOver } from '../ui/DetailSlideOver'
 import { DocDetailView } from '../ui/DocDetailView'
 import type { NoPatientWarningScope, WarningMessageListQuery } from '../../services/warningMessages'
-import { useCardFilters } from '../../contexts/CardFilterContext'
+import { useCardFilters, useDashboardCompactClinical } from '../../contexts/CardFilterContext'
 import { fetchHealthcarePractitioners, type LinkFieldOption } from '../../services/common'
+import {
+  CardRowMetaHint,
+  dashboardCardRowHoverClass,
+  formatDashboardDate,
+} from '../ui/dashboardCardListing'
 
 // Helper function to strip HTML tags and clean text
 const stripHtml = (html: string | undefined): string => {
@@ -32,7 +37,8 @@ export const WarningMessagesList = ({
   const cardFilters = useCardFilters()
   const [showFiltersInternal, setShowFiltersInternal] = useState(false)
   const showFilters = cardFilters !== undefined ? cardFilters : showFiltersInternal
-  const isInsideCard = cardFilters !== undefined
+  const inDashboardCard = cardFilters !== undefined
+  const compactClinical = useDashboardCompactClinical()
 
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
@@ -119,7 +125,7 @@ export const WarningMessagesList = ({
           {warnings.length} warning{warnings.length !== 1 ? 's' : ''}
         </span>
         <div className="flex items-center gap-2">
-          {!isInsideCard && (
+          {!inDashboardCard && (
             <button
               type="button"
               onClick={() => setShowFiltersInternal((p) => !p)}
@@ -228,7 +234,44 @@ export const WarningMessagesList = ({
             <div className="text-slate-500">No warning messages found</div>
           </div>
         )}
-        {warnings.length > 0 && (
+        {warnings.length > 0 && compactClinical ? (
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 border-b border-slate-200">
+              <tr>
+                <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap w-[28%]">
+                  Date
+                </th>
+                <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Warning</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {warnings.map((warning) => {
+                const metaFields = [
+                  ['ID', warning.name],
+                  ['Type', warning.type_of_warning || 'Medical'],
+                  ['Practitioner', warning.practitioner_name || warning.practitioner],
+                  ['Reference', warning.reference_name ? `${warning.reference_doc}: ${warning.reference_name}` : ''],
+                ] as const
+                const text = stripHtml(warning.warning)
+                return (
+                  <tr
+                    key={warning.name}
+                    className={dashboardCardRowHoverClass}
+                    onClick={() => setDetailName(warning.name)}
+                  >
+                    <td className="px-3 py-2.5 text-xs text-slate-600 whitespace-nowrap align-top">
+                      {formatDashboardDate(warning.posting_date)}
+                      <CardRowMetaHint fields={metaFields} />
+                    </td>
+                    <td className="px-3 py-2.5 text-sm text-slate-800 align-top">
+                      <div className="line-clamp-4 font-medium">{text}</div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        ) : warnings.length > 0 ? (
           <table className="w-full min-w-[800px]">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
@@ -287,7 +330,7 @@ export const WarningMessagesList = ({
               ))}
             </tbody>
           </table>
-        )}
+        ) : null}
       </div>
 
       {detailName && (

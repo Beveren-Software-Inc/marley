@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { getAllPatientDiagnoses, fetchHealthcarePractitioners, type PatientDiagnosisAggRow, type LinkFieldOption } from '../../services/common'
-import { useCardFilters } from '../../contexts/CardFilterContext'
+import { useCardFilters, useDashboardCompactClinical } from '../../contexts/CardFilterContext'
+import { CardRowMetaHint, dashboardCardRowHoverClass } from '../ui/dashboardCardListing'
 
 interface PatientDiagnosisListProps {
   patient?: string
@@ -37,7 +38,8 @@ export function PatientDiagnosisList({ patient, refreshKey }: PatientDiagnosisLi
   const cardFilters = useCardFilters()
   const [showFiltersInternal, setShowFiltersInternal] = useState(false)
   const showFilters = cardFilters !== undefined ? cardFilters : showFiltersInternal
-  const isInsideCard = cardFilters !== undefined
+  const inDashboardCard = cardFilters !== undefined
+  const compactClinical = useDashboardCompactClinical()
 
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
@@ -111,7 +113,7 @@ export function PatientDiagnosisList({ patient, refreshKey }: PatientDiagnosisLi
 
   return (
     <div className="min-w-full flex flex-col flex-1 min-h-0">
-      {!isInsideCard && (
+      {!inDashboardCard && (
         <div className="flex justify-end mb-2">
           <button
             type="button"
@@ -206,49 +208,83 @@ export function PatientDiagnosisList({ patient, refreshKey }: PatientDiagnosisLi
         </p>
       ) : (
         <div className="overflow-x-auto flex-1 min-h-0">
-          <table className="w-full text-sm min-w-[720px]">
+          <table className={`w-full text-sm ${compactClinical ? '' : 'min-w-[720px]'}`}>
             <thead>
               <tr className="border-b border-slate-100">
-                <th className="text-left px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400 whitespace-nowrap">No.</th>
+                {!compactClinical && (
+                  <th className="text-left px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400 whitespace-nowrap">No.</th>
+                )}
                 <th className="text-left px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">Name</th>
-                <th className="text-left px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">Group</th>
+                {!compactClinical && (
+                  <th className="text-left px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">Group</th>
+                )}
                 <th className="text-left px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">Details</th>
                 <th className="text-left px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400 whitespace-nowrap">Date</th>
-                <th className="text-left px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">Practitioner</th>
-                <th className="text-left px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">Source</th>
+                {!compactClinical && (
+                  <>
+                    <th className="text-left px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">Practitioner</th>
+                    <th className="text-left px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">Source</th>
+                  </>
+                )}
               </tr>
             </thead>
             <tbody>
-              {filteredRows.map((row, idx) => (
-                <tr key={row.name || idx} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
-                  <td className="px-2 py-2 font-mono text-sm text-slate-800 whitespace-nowrap">
-                    {row.disease_no || row.diagnosis || '—'}
-                  </td>
-                  <td className="px-2 py-2 font-medium text-slate-800">
-                    {row.diagnosis_name?.trim() || row.diagnosis || '—'}
-                  </td>
-                  <td className="px-2 py-2 text-sm text-slate-600">{row.diagnosis_group_name || '—'}</td>
-                  <td className="px-2 py-2 text-slate-600 max-w-[180px] truncate" title={row.details || ''}>
-                    {row.details || <span className="text-slate-300">—</span>}
-                  </td>
-                  <td className="px-2 py-2 text-slate-500 whitespace-nowrap">{formatDate(row.posting_date)}</td>
-                  <td className="px-2 py-2 text-slate-600 text-sm">
-                    {row.practitioner_name || row.practitioner || '—'}
-                  </td>
-                  <td className="px-2 py-2">
-                    <span
-                      className={`inline-flex items-center gap-1 text-xs font-medium rounded-full px-2 py-0.5 ${
-                        row.parent_type === 'Patient Visit'
-                          ? 'bg-blue-50 text-blue-700'
-                          : 'bg-emerald-50 text-emerald-700'
-                      }`}
-                    >
-                      {row.parent_type === 'Patient Visit' ? 'OP' : 'IP'}
-                      <span className="opacity-70">{row.parent}</span>
-                    </span>
-                  </td>
-                </tr>
-              ))}
+              {filteredRows.map((row, idx) => {
+                const metaFields = [
+                  ['No.', row.disease_no || row.diagnosis],
+                  ['Group', row.diagnosis_group_name],
+                  ['Practitioner', row.practitioner_name || row.practitioner],
+                  ['Source', row.parent ? `${row.parent_type === 'Patient Visit' ? 'OP' : 'IP'} ${row.parent}` : ''],
+                  ['Record', row.name],
+                ] as const
+                return (
+                  <tr
+                    key={row.name || idx}
+                    className={`border-b border-slate-50 transition-colors ${compactClinical ? dashboardCardRowHoverClass : 'hover:bg-slate-50'}`}
+                  >
+                    {!compactClinical && (
+                      <td className="px-2 py-2 font-mono text-sm text-slate-800 whitespace-nowrap">
+                        {row.disease_no || row.diagnosis || '—'}
+                      </td>
+                    )}
+                    <td className="px-2 py-2 font-medium text-slate-800">
+                      <span className="flex items-start gap-1">
+                        <span>{row.diagnosis_name?.trim() || row.diagnosis || '—'}</span>
+                        {compactClinical ? <CardRowMetaHint fields={metaFields} /> : null}
+                      </span>
+                      {compactClinical && row.diagnosis_group_name ? (
+                        <span className="block text-xs font-normal text-slate-500 mt-0.5">{row.diagnosis_group_name}</span>
+                      ) : null}
+                    </td>
+                    {!compactClinical && (
+                      <td className="px-2 py-2 text-sm text-slate-600">{row.diagnosis_group_name || '—'}</td>
+                    )}
+                    <td className="px-2 py-2 text-slate-600 max-w-[180px] truncate" title={row.details || ''}>
+                      {row.details || <span className="text-slate-300">—</span>}
+                    </td>
+                    <td className="px-2 py-2 text-slate-500 whitespace-nowrap">{formatDate(row.posting_date)}</td>
+                    {!compactClinical && (
+                      <>
+                        <td className="px-2 py-2 text-slate-600 text-sm">
+                          {row.practitioner_name || row.practitioner || '—'}
+                        </td>
+                        <td className="px-2 py-2">
+                          <span
+                            className={`inline-flex items-center gap-1 text-xs font-medium rounded-full px-2 py-0.5 ${
+                              row.parent_type === 'Patient Visit'
+                                ? 'bg-blue-50 text-blue-700'
+                                : 'bg-emerald-50 text-emerald-700'
+                            }`}
+                          >
+                            {row.parent_type === 'Patient Visit' ? 'OP' : 'IP'}
+                            <span className="opacity-70">{row.parent}</span>
+                          </span>
+                        </td>
+                      </>
+                    )}
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>

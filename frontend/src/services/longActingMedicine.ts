@@ -8,6 +8,7 @@ export interface LongActingMedicineRow {
   next_run_date?: string
   status?: string
   remarks?: string
+  drug_name?: string
 }
 
 export type ReminderChannel = 'email' | 'whatsapp' | 'sms'

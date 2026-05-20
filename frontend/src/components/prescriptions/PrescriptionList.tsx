@@ -7,7 +7,12 @@ import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { PrescriptionSlideOver } from './PrescriptionSlideOver'
 import { useCareContext } from '../../providers/CareContextProvider'
-import { useCardFilters } from '../../contexts/CardFilterContext'
+import { useCardFilters, useDashboardCompactClinical } from '../../contexts/CardFilterContext'
+import {
+  CardRowMetaHint,
+  dashboardCardRowHoverClass,
+  formatDashboardDate,
+} from '../ui/dashboardCardListing'
 
 
 const statusColors: Record<string, string> = {
@@ -75,7 +80,8 @@ export const PrescriptionList = ({
   const cardFilters = useCardFilters()
   const [showFiltersInternal, setShowFiltersInternal] = useState(false)
   const showFilters = cardFilters !== undefined ? cardFilters : showFiltersInternal
-  const isInsideCard = cardFilters !== undefined
+  const inDashboardCard = cardFilters !== undefined
+  const compactClinical = useDashboardCompactClinical()
   const [statusFilter, setStatusFilter] = useState('')
   const [practitionerFilter, setPractitionerFilter] = useState('')
   const [practitionerOptions, setPractitionerOptions] = useState<LinkFieldOption[]>([])
@@ -293,7 +299,7 @@ export const PrescriptionList = ({
       )}
 
       {/* Header row — hidden when inside a DashboardCard */}
-      {!isInsideCard && (
+      {!inDashboardCard && (
         <div className="flex items-center justify-between gap-2 mb-3">
           <h2 className="text-xl font-semibold text-slate-900">Prescriptions</h2>
           <button
@@ -423,6 +429,63 @@ export const PrescriptionList = ({
             {hasActiveFilters ? 'No prescriptions match your filters.' : 'No prescriptions found'}
           </div>
         </div>
+      ) : compactClinical ? (
+      <table className="w-full text-sm">
+        <thead className="bg-slate-50 border-b border-slate-200">
+          <tr>
+            <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Medications</th>
+            <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Status</th>
+            <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">Period</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {prescriptions.map((row) => {
+            const n = row.total_orders ?? 0
+            const done = row.completed_orders ?? 0
+            const medLabel =
+              n === 0
+                ? 'No medications'
+                : `${n} medication${n !== 1 ? 's' : ''}${done ? ` · ${done} completed` : ''}`
+            const period =
+              row.start_date || row.end_date
+                ? `${row.start_date ? formatDashboardDate(row.start_date) : '—'} – ${row.end_date ? formatDashboardDate(row.end_date) : '—'}`
+                : formatDashboardDate(row.posting_date)
+            const metaFields = [
+              ['Prescription', row.name],
+              ['Practitioner', row.healthcare_practitioner_name || row.practitioner],
+              ['Care context', row.care_context],
+              ['Posting date', row.posting_date ? formatDashboardDate(row.posting_date) : ''],
+              ['Visit', row.patient_encounter],
+              ['Admission', row.inpatient_record],
+            ] as const
+            return (
+              <tr
+                key={row.name}
+                className={dashboardCardRowHoverClass}
+                onClick={() => {
+                  setDetailName(row.name)
+                  onPrescriptionSelect?.(row.name)
+                }}
+              >
+                <td className="px-3 py-2.5 text-slate-800 font-medium align-top">
+                  <span>{medLabel}</span>
+                  {row.is_pink ? (
+                    <span className="ml-1.5 text-[10px] font-semibold text-pink-600">Pink</span>
+                  ) : null}
+                  <CardRowMetaHint fields={metaFields} />
+                </td>
+                <td className="px-3 py-2.5 align-top">
+                  <StatusPill
+                    status={row.status || 'Draft'}
+                    color={statusColors[row.status || ''] || 'default'}
+                  />
+                </td>
+                <td className="px-3 py-2.5 text-xs text-slate-500 whitespace-nowrap align-top">{period}</td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
       ) : (
       <table className="w-full min-w-[800px]">
         <thead className="bg-slate-50 border-b border-slate-200">

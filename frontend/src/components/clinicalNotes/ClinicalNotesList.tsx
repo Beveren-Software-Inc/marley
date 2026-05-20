@@ -5,7 +5,8 @@ import { DetailSlideOver } from '../ui/DetailSlideOver'
 import { DocDetailView } from '../ui/DocDetailView'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { useCareContext } from '../../providers/CareContextProvider'
-import { useCardFilters } from '../../contexts/CardFilterContext'
+import { useCardFilters, useDashboardCompactClinical } from '../../contexts/CardFilterContext'
+import { CardRowMetaHint, dashboardCardRowHoverClass } from '../ui/dashboardCardListing'
 
 // Helper function to strip HTML tags and decode HTML entities
 const stripHtml = (html: string): string => {
@@ -43,7 +44,8 @@ export const ClinicalNotesList = ({
   const cardFilters = useCardFilters()
   const [showFiltersInternal, setShowFiltersInternal] = useState(false)
   const showFilters = cardFilters !== undefined ? cardFilters : showFiltersInternal
-  const isInsideCard = cardFilters !== undefined
+  const inDashboardCard = cardFilters !== undefined
+  const compactClinical = useDashboardCompactClinical()
 
   const [postingDateFrom, setPostingDateFrom] = useState('')
   const [postingDateTo, setPostingDateTo] = useState('')
@@ -220,7 +222,7 @@ export const ClinicalNotesList = ({
   /** Read left-to-right: date/time → note → patient (if aggregate) → metadata → actions */
   const tableColumnOrderDoctorFirst = clinicalNoteType === 'Doctor Progress Note'
   /** Dashboard cards: date and note only; full listing keeps all columns. */
-  const cardCompactLayout = isInsideCard
+  const cardCompactLayout = compactClinical
 
   if (error && !loading) {
     return (
@@ -261,24 +263,34 @@ export const ClinicalNotesList = ({
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-200">
-          {clinicalNotes.map((note) => (
-            <tr
-              key={note.name}
-              className="hover:bg-slate-50 cursor-pointer"
-              onClick={() => setDetailName(note.name)}
-            >
-              <td className="px-3 py-2.5 text-xs text-slate-700 whitespace-nowrap align-top">
-                <span className="text-primary font-medium">
-                  {note.posting_date ? new Date(note.posting_date).toLocaleString() : '-'}
-                </span>
-              </td>
-              <td className="px-3 py-2.5 text-xs text-slate-700 align-top">
-                <div className="line-clamp-4" title={note.note ? stripHtml(note.note) : ''}>
-                  {notePreview(note, 280)}
-                </div>
-              </td>
-            </tr>
-          ))}
+          {clinicalNotes.map((note) => {
+            const metaFields = [
+              ['Note ID', note.name],
+              ['Practitioner', note.practitioner_name || note.practitioner],
+              ['Medical role', note.medical_role],
+              ['Note type', note.clinical_note_type],
+              ['Reference', note.reference_document ? `${note.reference_doctype}: ${note.reference_document}` : ''],
+            ] as const
+            return (
+              <tr
+                key={note.name}
+                className={dashboardCardRowHoverClass}
+                onClick={() => setDetailName(note.name)}
+              >
+                <td className="px-3 py-2.5 text-xs text-slate-700 whitespace-nowrap align-top">
+                  <span className="text-primary font-medium">
+                    {note.posting_date ? new Date(note.posting_date).toLocaleString() : '-'}
+                  </span>
+                  <CardRowMetaHint fields={metaFields} />
+                </td>
+                <td className="px-3 py-2.5 text-xs text-slate-700 align-top">
+                  <div className="line-clamp-4" title={note.note ? stripHtml(note.note) : ''}>
+                    {notePreview(note, 280)}
+                  </div>
+                </td>
+              </tr>
+            )
+          })}
         </tbody>
       </table>
     </div>
@@ -479,7 +491,7 @@ export const ClinicalNotesList = ({
 
   return (
     <div className="min-w-full flex flex-col flex-1 min-h-0 h-full">
-      {!isInsideCard && (Boolean(patient) || applyDefaultPractitionerFilter) && (
+      {!inDashboardCard && (Boolean(patient) || applyDefaultPractitionerFilter) && (
         <div className="flex justify-end mb-2 flex-shrink-0">
           <button
             type="button"

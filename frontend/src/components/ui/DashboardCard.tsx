@@ -1,7 +1,10 @@
 import { useState } from 'react'
 import { ArrowUpRight } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
-import { CardFilterContext } from '../../contexts/CardFilterContext'
+import {
+  CardFilterContext,
+  DashboardCompactClinicalContext,
+} from '../../contexts/CardFilterContext'
 
 /** Shared class for compact list/table typography (see global.css `.dense-listing`). */
 export const DENSE_LISTING_CLASS = 'dense-listing'
@@ -74,6 +77,7 @@ export const DashboardCard = ({
   addButtonTitle,
   noHeightLimit = false,
   fixedHeight = false,
+  compactClinicalLayout,
   requiresAttention = false,
   attentionLabel = 'Required — not completed',
 }: {
@@ -89,11 +93,15 @@ export const DashboardCard = ({
   addButtonTitle?: string
   noHeightLimit?: boolean
   fixedHeight?: boolean
+  /** Brief summary table + ⓘ popover. Defaults to fixed-height dashboard tiles only. */
+  compactClinicalLayout?: boolean
   /** Red highlight when a mandatory IP document is missing. */
   requiresAttention?: boolean
   attentionLabel?: string
 }) => {
   const [showFilters, setShowFilters] = useState(false)
+  const compactClinical =
+    compactClinicalLayout ?? (fixedHeight && !noHeightLimit)
   const resolvedAddTitle = addButtonTitle ?? `Add ${title}`
   const resolvedOpenListingTitle = openListingTitle ?? `Open full ${title} list`
 
@@ -153,7 +161,9 @@ export const DashboardCard = ({
         }
         style={{ scrollbarWidth: 'thin' }}
       >
-        <CardFilterContext.Provider value={showFilters}>{children}</CardFilterContext.Provider>
+        <DashboardCompactClinicalContext.Provider value={compactClinical}>
+          <CardFilterContext.Provider value={showFilters}>{children}</CardFilterContext.Provider>
+        </DashboardCompactClinicalContext.Provider>
       </div>
     </section>
   )

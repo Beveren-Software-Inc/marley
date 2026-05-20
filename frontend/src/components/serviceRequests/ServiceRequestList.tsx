@@ -23,7 +23,12 @@ import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
 import { Search, X } from 'lucide-react'
 import { useFormatMoney } from '../../hooks/useFormatMoney'
-import { useCardFilters } from '../../contexts/CardFilterContext'
+import { useCardFilters, useDashboardCompactClinical } from '../../contexts/CardFilterContext'
+import {
+  CardRowMetaHint,
+  dashboardCardRowHoverClass,
+  formatDashboardDate,
+} from '../ui/dashboardCardListing'
 
 interface ServiceRequestListProps {
   patient?: string
@@ -116,7 +121,8 @@ export const ServiceRequestList = ({
   const cardFilters = useCardFilters()
   const [showFiltersInternal, setShowFiltersInternal] = useState(false)
   const showFilters = cardFilters !== undefined ? cardFilters : showFiltersInternal
-  const isInsideCard = cardFilters !== undefined
+  const inDashboardCard = cardFilters !== undefined
+  const compactClinical = useDashboardCompactClinical()
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [templateDtFilter, setTemplateDtFilter] = useState(template_dt || '')
@@ -362,7 +368,7 @@ export const ServiceRequestList = ({
   return (
     <div className="min-w-full flex flex-col flex-1 min-h-0 h-full">
       {/* Header row */}
-      {!isInsideCard && (
+      {!inDashboardCard && (
       <div className="flex items-center justify-between gap-2 mb-3 flex-shrink-0">
         <h2 className="text-xl font-semibold text-slate-900">Service Requests</h2>
         <button
@@ -517,6 +523,48 @@ export const ServiceRequestList = ({
         <div className="flex items-center justify-center p-8 text-slate-500 text-sm">Loading...</div>
       ) : serviceRequests.length === 0 ? (
         <div className="flex items-center justify-center p-8 text-slate-500 text-sm">No service requests found</div>
+      ) : compactClinical ? (
+      <table className="w-full text-sm">
+        <thead className="bg-slate-50 border-b border-slate-200">
+          <tr>
+            <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Test / service</th>
+            <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Status</th>
+            <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">Ordered</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {serviceRequests.map((sr) => {
+            const metaFields = [
+              ['Service Request', sr.name],
+              ['Practitioner', sr.practitioner_name || sr.practitioner],
+              ['Template type', sr.template_dt],
+              ['Price', displayedPrice(sr) != null ? formatMoney(displayedPrice(sr)!) : ''],
+            ] as const
+            return (
+              <tr
+                key={sr.name}
+                className={dashboardCardRowHoverClass}
+                onClick={() => setDetailName(sr.name)}
+              >
+                <td className="px-3 py-2.5 text-slate-800 font-medium align-top">
+                  <span className="line-clamp-2">{sr.template_name || sr.template_dn || '—'}</span>
+                  <CardRowMetaHint fields={metaFields} />
+                </td>
+                <td className="px-3 py-2.5 align-top">
+                  {sr.status ? (
+                    <StatusPill status={sr.status} color={getStatusColor(sr.status)} />
+                  ) : (
+                    <span className="text-slate-400 text-xs">—</span>
+                  )}
+                </td>
+                <td className="px-3 py-2.5 text-xs text-slate-500 whitespace-nowrap align-top">
+                  {formatDashboardDate(sr.order_date)}
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
       ) : (
       <table className="w-full min-w-[1000px]">
         <thead className="bg-slate-50 border-b border-slate-200">
