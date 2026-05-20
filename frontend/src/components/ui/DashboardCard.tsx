@@ -1,9 +1,74 @@
 import { useState } from 'react'
+import { ArrowUpRight } from 'lucide-react'
+import { useSearchParams } from 'react-router-dom'
 import { CardFilterContext } from '../../contexts/CardFilterContext'
+
+/** Shared class for compact list/table typography (see global.css `.dense-listing`). */
+export const DENSE_LISTING_CLASS = 'dense-listing'
+
+/** @deprecated Use DENSE_LISTING_CLASS */
+export const DENSE_CARD_LISTING_CLASS = DENSE_LISTING_CLASS
+
+type CardHeaderActionsProps = {
+  onAdd?: () => void
+  addButtonTitle?: string
+  onOpenListing?: () => void
+  listingScreen?: string
+  openListingTitle?: string
+}
+
+/** Filter, add (+), and open full list (↗) — use on custom landing cards outside DashboardCard. */
+export function CardHeaderActions({
+  onAdd,
+  addButtonTitle = 'Add',
+  onOpenListing,
+  listingScreen,
+  openListingTitle = 'Open full list',
+}: CardHeaderActionsProps) {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const handleOpenListing =
+    onOpenListing ??
+    (listingScreen
+      ? () => {
+          const sp = new URLSearchParams(searchParams)
+          sp.set('screen', listingScreen)
+          setSearchParams(sp, { replace: true })
+        }
+      : undefined)
+
+  return (
+    <div className="flex items-center gap-2 shrink-0">
+      {onAdd && (
+        <button
+          type="button"
+          onClick={onAdd}
+          className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
+          title={addButtonTitle}
+        >
+          +
+        </button>
+      )}
+      {handleOpenListing && (
+        <button
+          type="button"
+          onClick={handleOpenListing}
+          className="w-6 h-6 rounded-md border border-slate-300 bg-white flex items-center justify-center hover:bg-slate-50 transition-colors flex-shrink-0"
+          title={openListingTitle}
+          aria-label={openListingTitle}
+        >
+          <ArrowUpRight className="w-3.5 h-3.5 text-primary" strokeWidth={2.25} />
+        </button>
+      )}
+    </div>
+  )
+}
 
 export const DashboardCard = ({
   title,
   onAdd,
+  onOpenListing,
+  listingScreen,
+  openListingTitle,
   children,
   className = '',
   addButtonTitle,
@@ -14,6 +79,11 @@ export const DashboardCard = ({
 }: {
   title: string
   onAdd?: () => void
+  /** Navigate to full listing (sidebar screen). Use `listingScreen` or pass a custom handler. */
+  onOpenListing?: () => void
+  /** Query `screen` value for the full listing view, e.g. `rx`, `lab`, `n-given`. */
+  listingScreen?: string
+  openListingTitle?: string
   children: React.ReactNode
   className?: string
   addButtonTitle?: string
@@ -25,6 +95,7 @@ export const DashboardCard = ({
 }) => {
   const [showFilters, setShowFilters] = useState(false)
   const resolvedAddTitle = addButtonTitle ?? `Add ${title}`
+  const resolvedOpenListingTitle = openListingTitle ?? `Open full ${title} list`
 
   return (
     <section
@@ -61,16 +132,13 @@ export const DashboardCard = ({
               />
             </svg>
           </button>
-          {onAdd && (
-            <button
-              type="button"
-              onClick={onAdd}
-              className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
-              title={resolvedAddTitle}
-            >
-              +
-            </button>
-          )}
+          <CardHeaderActions
+            onAdd={onAdd}
+            addButtonTitle={resolvedAddTitle}
+            onOpenListing={onOpenListing}
+            listingScreen={listingScreen}
+            openListingTitle={resolvedOpenListingTitle}
+          />
         </div>
       </div>
       {/*
@@ -80,8 +148,8 @@ export const DashboardCard = ({
       <div
         className={
           fixedHeight && !noHeightLimit
-            ? 'flex flex-col flex-1 min-h-0 overflow-hidden'
-            : 'overflow-x-auto overflow-visible'
+            ? `flex flex-col flex-1 min-h-0 dense-listing ${showFilters ? 'overflow-visible' : 'overflow-hidden'}`
+            : 'overflow-x-auto overflow-visible dense-listing'
         }
         style={{ scrollbarWidth: 'thin' }}
       >

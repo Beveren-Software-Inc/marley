@@ -11,6 +11,7 @@ import { apiRequest } from '../../services/apiClient'
 import { 
   fetchHealthcarePractitioners, 
   fetchCompanies,
+  resolveDefaultCompany,
   fetchCostCenters,
   getCurrentUserPractitioner,
   type LinkFieldOption
@@ -106,13 +107,17 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
         const mapped: Company[] = list.map(c => ({ name: c.name, company_name: c.label }))
         setCompanies(mapped)
 
-        if (mapped.length === 1) {
-          // Single company — hide the field but store the value
-          setIsSingleCompany(true)
-          setFormData(prev => ({ ...prev, company: mapped[0].name }))
-          setCompanyQuery(mapped[0].company_name)
-          // Load cost centers for the single company immediately
-          loadCostCenters(mapped[0].name)
+        if (mapped.length >= 1) {
+          const defaultCompany = resolveDefaultCompany(
+            mapped.map((c) => ({ name: c.name, label: c.company_name }))
+          )
+          const defaultRow = mapped.find((c) => c.name === defaultCompany) || mapped[0]
+          if (mapped.length === 1) {
+            setIsSingleCompany(true)
+          }
+          setFormData((prev) => (prev.company ? prev : { ...prev, company: defaultRow.name }))
+          setCompanyQuery(defaultRow.company_name)
+          loadCostCenters(defaultRow.name)
         }
       } catch (err) {
         console.error('Failed to load companies:', err)

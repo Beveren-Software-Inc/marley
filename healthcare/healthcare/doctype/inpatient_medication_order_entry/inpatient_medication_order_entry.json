@@ -197,8 +197,8 @@
   {
    "fieldname": "medication_type",
    "fieldtype": "Select",
-   "label": "Medication Type",
-   "options": "\nSTAT\nPRN\nRegular - Psy (Active)\nRegular - Med (Active)\nRegular - Psy (Inactive)\nRegular - Med (Inactive)\nContraindicated\nLong Acting Medicine\nFuture Plan"
+   "label": "Prescription Type",
+   "options": "\nSTAT\nPRN\nRegular - Psy (Active)\nRegular - Med (Active)\nRegular - Psy (Inactive)\nRegular - Med (Inactive)\nLong Acting Medicine\nFuture Plan"
   },
   {
    "fieldname": "section_break_oruo",

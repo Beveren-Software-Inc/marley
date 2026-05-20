@@ -6,7 +6,7 @@ import {
   createModalShellClass,
 } from '../ui/CreateModalChrome'
 import { createObservation, fetchObservationLevelDetails } from '../../services/observations'
-import { fetchHealthcarePractitioners, getCurrentUserPractitioner, fetchObservationTemplates, fetchMedicalDepartments, type LinkFieldOption, fetchPatientVisits, fetchObservationLevels } from '../../services/common'
+import { fetchHealthcarePractitioners, getCurrentUserPractitioner, fetchMedicalDepartments, type LinkFieldOption, fetchPatientVisits, fetchObservationLevels } from '../../services/common'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
 import { toast } from '../../hooks/useToast'
 import { fetchInpatientRecords } from '../../services/inpatientRecords'
@@ -29,15 +29,14 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
   
   const [formData, setFormData] = useState({
     patient: initialPatient || contextPatient || '',
-    observation_template: '',
     posting_date: new Date().toISOString().slice(0, 16),
     start_date: new Date().toISOString().split('T')[0],
-    status: 'Registered',
     practitioner: '',
     department: '',
     admission_no: (isIPMode && activeAdmission) ? activeAdmission : '',
     patient_visit: (isOPMode && activeVisit) ? activeVisit : '',
     observation_level: '',
+    designated_security_personel: '',
     note: '',
     amount: 0,
     duration: '',
@@ -50,12 +49,6 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
   const [patientOpen, setPatientOpen] = useState(false)
   const [patientQuery, setPatientQuery] = useState(initialPatient || contextPatient || '')
   const [patientLoading, setPatientLoading] = useState(false)
-
-  // Template dropdown state
-  const [templateOptions, setTemplateOptions] = useState<LinkFieldOption[]>([])
-  const [templateOpen, setTemplateOpen] = useState(false)
-  const [templateQuery, setTemplateQuery] = useState('')
-  const [selectedTemplate, setSelectedTemplate] = useState<LinkFieldOption | null>(null)
 
   // Practitioner dropdown state
   const [practitionerOptions, setPractitionerOptions] = useState<LinkFieldOption[]>([])
@@ -97,11 +90,6 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
       return
     }
 
-    // if (!formData.observation_template) {
-    //   setError('Observation Template is required')
-    //   return
-    // }
-
     // Validate based on global mode
     if (isIPMode && !formData.admission_no) {
       setError('Please select an inpatient admission (IP mode active)')
@@ -118,13 +106,12 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
 
       const payload: any = {
         patient: formData.patient,
-        observation_template: formData.observation_template || undefined,
         posting_date: formData.posting_date || undefined,
         start_date: formData.start_date || undefined,
-        status: formData.status || undefined,
         practitioner: formData.practitioner || undefined,
         department: formData.department || undefined,
         observation_level: formData.observation_level || undefined,
+        designated_security_personel: formData.designated_security_personel || undefined,
         note: formData.note || undefined,
         amount: formData.amount || undefined,
         duration: formData.duration || undefined,
@@ -291,22 +278,6 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
     return () => clearTimeout(timeoutId)
   }, [patientQuery, patientOpen])
 
-  // Search observation templates
-  useEffect(() => {
-    if (!templateOpen) return
-
-    const timeoutId = setTimeout(async () => {
-      try {
-        const results = await fetchObservationTemplates(templateQuery.trim() || undefined)
-        setTemplateOptions(results)
-      } catch (err) {
-        console.error('Failed to search observation templates:', err)
-      }
-    }, templateQuery.trim() === '' ? 0 : 300)
-
-    return () => clearTimeout(timeoutId)
-  }, [templateQuery, templateOpen])
-
   // Search practitioners (with department filter)
   useEffect(() => {
     if (!practitionerOpen) return
@@ -422,13 +393,6 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
     setPatientOpen(false)
   }
 
-  const handleTemplateSelect = (template: LinkFieldOption) => {
-    setSelectedTemplate(template)
-    setFormData(prev => ({ ...prev, observation_template: template.name }))
-    setTemplateQuery(template.label)
-    setTemplateOpen(false)
-  }
-
   const handlePractitionerSelect = (pract: LinkFieldOption) => {
     setSelectedPractitioner(pract)
     setFormData(prev => ({ ...prev, practitioner: pract.name }))
@@ -449,13 +413,17 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
     setObservationLevelOpen(false)
 
     let rateFromLevel: number | undefined
+    let intervalFromLevel: string | undefined
     try {
       const details = await fetchObservationLevelDetails(obsLevel.name)
       if (details?.rate != null && Number(details.rate) > 0) {
         rateFromLevel = Number(details.rate)
       }
+      if (details?.interval) {
+        intervalFromLevel = details.interval
+      }
     } catch {
-      // amount stays as entered
+      // amount/duration stay as entered
     }
 
     setFormData(prev => {
@@ -465,6 +433,9 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
         (!prev.amount || Number(prev.amount) === 0)
       ) {
         next.amount = rateFromLevel
+      }
+      if (intervalFromLevel) {
+        next.duration = intervalFromLevel
       }
       return next
     })
@@ -587,38 +558,6 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
 
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-slate-700 mb-1">
-                Observation Template
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  value={selectedTemplate ? selectedTemplate.label : templateQuery}
-                  onChange={(e) => {
-                    setTemplateQuery(e.target.value)
-                    setTemplateOpen(true)
-                  }}
-                  onFocus={() => setTemplateOpen(true)}
-                  placeholder="Search observation template..."
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-                {templateOpen && templateOptions.length > 0 && (
-                  <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
-                    {templateOptions.map((template) => (
-                      <div
-                        key={template.name}
-                        onClick={() => handleTemplateSelect(template)}
-                        className="px-3 py-2 text-sm hover:bg-slate-100 cursor-pointer"
-                      >
-                        {template.label}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-slate-700 mb-1">
                 Observation Level
               </label>
               <div className="relative">
@@ -679,21 +618,6 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
                 onChange={(e) => handleChange('start_date', e.target.value)}
                 className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Status
-              </label>
-              <select
-                value={formData.status}
-                onChange={(e) => handleChange('status', e.target.value)}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-              >
-                <option value="Registered">Registered</option>
-                <option value="Preliminary">Preliminary</option>
-                <option value="Final">Final</option>
-              </select>
             </div>
 
             <div>
@@ -895,6 +819,19 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
+                Designated Security Personnel
+              </label>
+              <input
+                type="text"
+                value={formData.designated_security_personel}
+                onChange={(e) => handleChange('designated_security_personel', e.target.value)}
+                placeholder="Enter security personnel name..."
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
                 Amount
               </label>
               <input
@@ -915,7 +852,7 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
                 type="text"
                 value={formData.duration}
                 onChange={(e) => handleChange('duration', e.target.value)}
-                placeholder="e.g. 30 minutes"
+                placeholder="Auto-filled from observation level interval (e.g. 60M, 24H)"
                 className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>

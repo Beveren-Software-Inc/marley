@@ -903,7 +903,7 @@ export const CreateClinicalNoteModal = ({
 
   return (
     <div className={CREATE_MODAL_OVERLAY}>
-      <div className={createModalShellClass('max-w-3xl w-full max-h-[94vh] min-h-[min(560px,90vh)]')}>
+      <div className={createModalShellClass('max-w-4xl w-full max-h-[94vh] min-h-[min(640px,92vh)]')}>
         <div className="p-6 border-b border-slate-200 bg-white z-10 shrink-0">
           <div className="flex items-center justify-between">
             <div>
@@ -937,7 +937,7 @@ export const CreateClinicalNoteModal = ({
           }}
         >
           {/* Scrollable body */}
-          <div className="p-6 space-y-4 overflow-y-auto flex-1 min-h-[min(44vh,480px)]">
+          <div className="p-6 space-y-4 overflow-y-auto flex-1 min-h-[min(52vh,560px)]">
             {error && (
               <div className="bg-red-50 border border-red-200 rounded-md p-3 text-sm text-red-700">
                 {error}
@@ -945,21 +945,6 @@ export const CreateClinicalNoteModal = ({
             )}
 
             <div className="space-y-4">
-              {/* Mode indicator box */}
-              <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
-                <p className="text-xs font-semibold text-primary mb-1">
-                  {isIPMode ? '🏥 Creating Inpatient Clinical Note' : isOPMode ? '👤 Creating Outpatient Clinical Note' : '📋 Select Context'}
-                </p>
-                <p className="text-xs text-slate-600">
-                  {isIPMode
-                    ? `The clinical note will be linked to the selected inpatient admission. Make sure you have an admission selected below.`
-                    : isOPMode
-                    ? `The clinical note will be linked to the selected outpatient visit. Make sure you have a visit selected below.`
-                    : 'Please select either IP or OP mode from the top navbar before creating a clinical note.'
-                  }
-                </p>
-              </div>
-
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">
                   Patient <span className="text-red-500">*</span>
@@ -1181,8 +1166,8 @@ export const CreateClinicalNoteModal = ({
                 <textarea
                   value={formData.note}
                   onChange={e => handleChange('note', e.target.value)}
-                  rows={12}
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary min-h-[25vh]"
+                  rows={20}
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-primary min-h-[min(42vh,420px)] resize-y"
                   placeholder="Enter clinical note..."
                 />
               </div>

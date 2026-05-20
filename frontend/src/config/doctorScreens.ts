@@ -60,7 +60,7 @@ export const doctorScreenGroups: ScreenGroup[] = [
     groupTitle: 'Patient Overview',
     screens: [
       { id: 'warn', title: 'Warning Messages' },
-      { id: 'mh', title: 'Medical History (Allergies)' },
+      { id: 'mh', title: 'Past Medical History' },
       { id: 'physical-exam', title: 'Physical Examination' },
       {id:'patients', title: 'Patients List'},
       // { id: 'fall', title: 'Morse Fall Scale' }, // Risk Assessment
@@ -100,6 +100,7 @@ export const doctorScreenGroups: ScreenGroup[] = [
   {
     groupTitle: 'Patient Visit',
     screens: [
+      { id: 'appointments', title: 'Appointments' },
       { id: 'op', title: 'Patient Visit' },
       { id: 'pvh', title: 'Patient Visit History' },
       { id: 'iop', title: 'IOP Dashboard' },

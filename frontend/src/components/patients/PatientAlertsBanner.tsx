@@ -4,6 +4,7 @@ import { useWarningMessages } from '../../hooks/useWarningMessages'
 import { fetchPatientMedicalHistory, type PatientMedicalHistory } from '../../services/patients'
 import { CreateWarningMessageModal } from '../warnings/CreateWarningMessageModal'
 import { CreatePatientMedicalHistoryModal } from '../medicalHistory/CreatePatientMedicalHistoryModal'
+import { ILLNESS_FIELDS, yesNoBadgeClass } from '../medicalHistory/pastMedicalHistoryUtils'
 
 const stripHtml = (html: string | undefined): string => {
   if (!html) return '-'
@@ -72,7 +73,19 @@ export const PatientAlertsBanner = ({
   if (!patient || !visible || dismissed) return null
 
   const hasWarnings = warnings.length > 0
-  const hasMedicalHistory = medicalHistory?.patient_history_details && medicalHistory.patient_history_details.length > 0
+
+  const hasMedicalHistory = Boolean(
+    medicalHistory?.name &&
+      (ILLNESS_FIELDS.some(({ key }) => medicalHistory[key]) ||
+        medicalHistory.other_ongoing_illness?.trim() ||
+        medicalHistory.previous_surgical_history?.trim() ||
+        medicalHistory.current_and_past_medications?.trim() ||
+        medicalHistory.allergies?.trim() ||
+        medicalHistory.social_history?.trim() ||
+        medicalHistory.addiction ||
+        medicalHistory.smoking ||
+        (medicalHistory.patient_history_details?.length ?? 0) > 0)
+  )
 
   return (
     <>
@@ -141,7 +154,7 @@ export const PatientAlertsBanner = ({
             <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-3">
               <div className="mb-2 flex items-center justify-between gap-2">
                 <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                  Medical History
+                  Past Medical History
                 </span>
                 {!hasMedicalHistory && (
                   <button
@@ -156,30 +169,62 @@ export const PatientAlertsBanner = ({
               </div>
               {medicalLoading ? (
                 <p className="text-xs text-slate-500">Loading…</p>
-              ) : hasMedicalHistory ? (
+              ) : hasMedicalHistory && medicalHistory ? (
                 <ul className="max-h-28 space-y-1.5 overflow-y-auto text-sm text-slate-700">
-                  {medicalHistory.patient_history_details!.slice(0, 5).map((row, idx) => (
-                    <li key={idx} className="flex gap-2">
+                  {ILLNESS_FIELDS.filter(({ key }) => medicalHistory[key]).map(({ key, label }) => (
+                    <li key={key} className="flex gap-2 items-center">
                       <FileText className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-slate-400" />
-                      <span className="min-w-0">
-                        <span className="font-medium text-slate-700">{row.attributes || '—'}</span>
-                        {row.yesno && (
-                          <span className="text-slate-600"> · {row.yesno}</span>
-                        )}
-                        {row.description && (
-                          <span className="block truncate text-slate-500 text-xs">{row.description}</span>
-                        )}
+                      <span className="font-medium text-slate-700">{label}</span>
+                      <span
+                        className={`inline-flex px-1.5 py-0.5 rounded text-[10px] ${yesNoBadgeClass(medicalHistory[key])}`}
+                      >
+                        {medicalHistory[key]}
                       </span>
                     </li>
                   ))}
-                  {(medicalHistory.patient_history_details?.length ?? 0) > 5 && (
-                    <li className="text-xs text-slate-500 pt-0.5">
-                      +{(medicalHistory.patient_history_details?.length ?? 0) - 5} more
+                  {medicalHistory.allergies?.trim() && (
+                    <li className="flex gap-2">
+                      <span className="mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-amber-500" />
+                      <span className="min-w-0">
+                        <span className="font-semibold text-amber-800">Allergies</span>
+                        <span className="block truncate text-xs text-amber-900">
+                          {medicalHistory.allergies}
+                        </span>
+                      </span>
                     </li>
                   )}
+                  {(medicalHistory.addiction || medicalHistory.smoking) && (
+                    <li className="flex flex-wrap gap-1">
+                      {medicalHistory.addiction ? (
+                        <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-800">
+                          Addiction
+                        </span>
+                      ) : null}
+                      {medicalHistory.smoking ? (
+                        <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-800">
+                          Smoking
+                        </span>
+                      ) : null}
+                    </li>
+                  )}
+                  {medicalHistory.patient_history_details?.slice(0, 3).map((row, idx) => (
+                    <li key={`legacy-${idx}`} className="flex gap-2">
+                      <FileText className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-slate-400" />
+                      <span className="min-w-0">
+                        <span className="font-medium text-slate-700">{row.attributes || '—'}</span>
+                        {row.yesno === 'Yes' ? (
+                          <span className={`ml-1 inline-flex px-1.5 py-0.5 rounded text-[10px] ${yesNoBadgeClass('Yes')}`}>
+                            Yes
+                          </span>
+                        ) : row.yesno ? (
+                          <span className="text-slate-600"> · {row.yesno}</span>
+                        ) : null}
+                      </span>
+                    </li>
+                  ))}
                 </ul>
               ) : (
-                <p className="text-sm text-slate-500">No medical history recorded.</p>
+                <p className="text-sm text-slate-500">No past medical history recorded.</p>
               )}
             </div>
           </div>

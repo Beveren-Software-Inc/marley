@@ -8,6 +8,7 @@ import { searchPatients, fetchPatients, type PatientListItem } from '../../servi
 import {
   fetchHealthcarePractitioners,
   fetchCompanies,
+  resolveDefaultCompany,
   fetchItems,
   fetchDosageForms,
   fetchPrescriptionFrequencies,
@@ -225,12 +226,13 @@ export const CreateLongActingMedicineModal = ({
     })
   }, [])
 
-  // Set default company if only one
+  // Default company: first in list (user can change)
   useEffect(() => {
-    if (companies.length === 1 && !formData.company) {
-      setFormData((p) => ({ ...p, company: companies[0].name }))
+    if (!formData.company && companies.length) {
+      const company = resolveDefaultCompany(companies)
+      if (company) setFormData((p) => ({ ...p, company }))
     }
-  }, [companies])
+  }, [companies, formData.company])
 
   const loadDrugOptions = async (index: number, query: string) => {
     if (!query || query.length < 1) {

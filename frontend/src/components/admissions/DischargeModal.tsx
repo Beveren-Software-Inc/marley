@@ -19,7 +19,7 @@ import { toast } from '../../hooks/useToast'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { useFormatMoney } from '../../hooks/useFormatMoney'
 import { saveDischargeDraft, loadDischargeDraft, clearDischargeDraft, draftSavedAt } from '../../services/dischargeDraft'
-import { X, CheckCircle2, Circle, ChevronDown, ChevronUp, AlertCircle, Receipt, PenLine, Trash2, Check, Save, Clock, Pill, Calendar, DollarSign } from 'lucide-react'
+import { X, ArrowLeft, CheckCircle2, Circle, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, AlertCircle, Receipt, PenLine, Trash2, Check, Save, Clock, Pill, Calendar, DollarSign, ClipboardList, HeartPulse, ArrowRightLeft, FolderOpen, Users, type LucideIcon } from 'lucide-react'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -35,7 +35,7 @@ interface ChecklistItem {
   description?: string
 }
 
-interface DischargeModalProps {
+interface DischargePatientFormProps {
   admission: {
     name: string
     patient: string
@@ -516,13 +516,17 @@ const DailyVisitSetupForm = ({
   )
 }
 
-// ─── Main Modal ─────────────────────────────────────────────────────────────
+// ─── Main discharge form (full page) ────────────────────────────────────────
 
-export const DischargeModal = ({ admission, onClose, onSuccess }: DischargeModalProps) => {
+export const DischargePatientForm = ({ admission, onClose, onSuccess }: DischargePatientFormProps) => {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [unbilledServices, setUnbilledServices] = useState<{ type: string; ids: string[] }[] | null>(null)
   const [activeTab, setActiveTab] = useState<'details' | 'checklist' | 'nursing' | 'transfer' | 'medicine-sales' | 'reconcile' | 'daily-visit' | 'documents' | 'relatives'>('details')
+  const [sectionMenuOpen, setSectionMenuOpen] = useState(false)
+  const sectionMenuRef = useRef<HTMLDivElement>(null)
+  const sectionTabsScrollRef = useRef<HTMLDivElement>(null)
+  const [sectionScroll, setSectionScroll] = useState({ left: false, right: false })
 
   const { userRole } = useCareContext()
   const formatMedicineMoney = useFormatMoney()
@@ -1247,95 +1251,366 @@ const loadDailyVisitSetup = async () => {
     onClose()
   }
 
-  const tabs: { id: typeof activeTab; label: string; icon?: React.ReactNode }[] = [
-    { id: 'details', label: 'Details' },
-    { id: 'checklist', label: 'Discharge Checklist' },
-    { id: 'nursing', label: 'Nursing Checklist' },
-    ...(canViewMedicineTransfer ? [{ id: 'transfer' as const, label: 'Medicine Transfer' }] : []),
-    { id: 'medicine-sales', label: 'Sales of Medicine', icon: <DollarSign className="w-3.5 h-3.5" /> },
-    { id: 'reconcile', label: 'Medicine Reconciliation', icon: <Pill className="w-3.5 h-3.5" /> },
-    { id: 'daily-visit', label: 'Daily Visit Setup', icon: <Calendar className="w-3.5 h-3.5" /> },
-    { id: 'documents', label: 'Documents' },
-    { id: 'relatives', label: 'Relatives' },
+  const tabs: {
+    id: typeof activeTab
+    label: string
+    shortLabel?: string
+    Icon: LucideIcon
+    borderColor: string
+    activeBg: string
+    hoverBg: string
+    iconColor: string
+  }[] = [
+    {
+      id: 'details',
+      label: 'Details',
+      Icon: ClipboardList,
+      borderColor: 'border-slate-400',
+      activeBg: 'bg-slate-50/80',
+      hoverBg: 'hover:bg-slate-50/50',
+      iconColor: 'text-slate-600',
+    },
+    {
+      id: 'checklist',
+      label: 'Discharge Checklist',
+      shortLabel: 'Checklist',
+      Icon: CheckCircle2,
+      borderColor: 'border-emerald-400',
+      activeBg: 'bg-emerald-50/80',
+      hoverBg: 'hover:bg-emerald-50/50',
+      iconColor: 'text-emerald-600',
+    },
+    {
+      id: 'nursing',
+      label: 'Nursing Checklist',
+      shortLabel: 'Nursing',
+      Icon: HeartPulse,
+      borderColor: 'border-sky-400',
+      activeBg: 'bg-sky-50/80',
+      hoverBg: 'hover:bg-sky-50/50',
+      iconColor: 'text-sky-600',
+    },
+    ...(canViewMedicineTransfer
+      ? [
+          {
+            id: 'transfer' as const,
+            label: 'Medicine Transfer',
+            shortLabel: 'Transfer',
+            Icon: ArrowRightLeft,
+            borderColor: 'border-violet-400',
+            activeBg: 'bg-violet-50/80',
+            hoverBg: 'hover:bg-violet-50/50',
+            iconColor: 'text-violet-600',
+          },
+        ]
+      : []),
+    {
+      id: 'medicine-sales',
+      label: 'Sales of Medicine',
+      shortLabel: 'Med Sales',
+      Icon: DollarSign,
+      borderColor: 'border-amber-400',
+      activeBg: 'bg-amber-50/80',
+      hoverBg: 'hover:bg-amber-50/50',
+      iconColor: 'text-amber-600',
+    },
+    {
+      id: 'reconcile',
+      label: 'Medicine Reconciliation',
+      shortLabel: 'Reconcile',
+      Icon: Pill,
+      borderColor: 'border-teal-400',
+      activeBg: 'bg-teal-50/80',
+      hoverBg: 'hover:bg-teal-50/50',
+      iconColor: 'text-teal-600',
+    },
+    {
+      id: 'daily-visit',
+      label: 'Daily Visit Setup',
+      shortLabel: 'Daily Visit',
+      Icon: Calendar,
+      borderColor: 'border-indigo-400',
+      activeBg: 'bg-indigo-50/80',
+      hoverBg: 'hover:bg-indigo-50/50',
+      iconColor: 'text-indigo-600',
+    },
+    {
+      id: 'documents',
+      label: 'Documents',
+      Icon: FolderOpen,
+      borderColor: 'border-orange-400',
+      activeBg: 'bg-orange-50/80',
+      hoverBg: 'hover:bg-orange-50/50',
+      iconColor: 'text-orange-600',
+    },
+    {
+      id: 'relatives',
+      label: 'Relatives',
+      Icon: Users,
+      borderColor: 'border-rose-400',
+      activeBg: 'bg-rose-50/80',
+      hoverBg: 'hover:bg-rose-50/50',
+      iconColor: 'text-rose-600',
+    },
   ]
 
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+  const renderTabBadge = (tabId: typeof activeTab) => {
+    if (tabId === 'checklist' && totalItems > 0) {
+      return (
+        <span
+          className={`inline-flex items-center px-1 py-0.5 rounded text-[10px] font-semibold leading-none ${
+            allCompleted ? 'bg-green-200/80 text-green-800' : 'bg-amber-200/80 text-amber-900'
+          }`}
+        >
+          {completedItems}/{totalItems}
+        </span>
+      )
+    }
+    if (tabId === 'nursing' && nurseTotalItems > 0) {
+      return (
+        <span
+          className={`inline-flex items-center px-1 py-0.5 rounded text-[10px] font-semibold leading-none ${
+            nurseAllCompleted ? 'bg-green-200/80 text-green-800' : 'bg-amber-200/80 text-amber-900'
+          }`}
+        >
+          {nurseCompletedItems}/{nurseTotalItems}
+        </span>
+      )
+    }
+    if (tabId === 'documents' && documents.length > 0) {
+      return (
+        <span className="inline-flex items-center px-1 py-0.5 rounded text-[10px] font-semibold bg-white/70 text-slate-700 leading-none">
+          {documents.length}
+        </span>
+      )
+    }
+    if (tabId === 'relatives' && relatives.length > 0) {
+      return (
+        <span className="inline-flex items-center px-1 py-0.5 rounded text-[10px] font-semibold bg-white/70 text-slate-700 leading-none">
+          {relatives.length}
+        </span>
+      )
+    }
+    return null
+  }
 
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-3 border-b border-slate-200 shrink-0">
-          <div>
-            <div className="flex items-center gap-2">
+  const activeTabMeta = tabs.find((t) => t.id === activeTab) ?? tabs[0]
+  const ActiveSectionIcon = activeTabMeta.Icon
+
+  const updateSectionScrollArrows = useCallback(() => {
+    const el = sectionTabsScrollRef.current
+    if (!el) return
+    const { scrollLeft, scrollWidth, clientWidth } = el
+    setSectionScroll({
+      left: scrollLeft > 4,
+      right: scrollLeft + clientWidth < scrollWidth - 4,
+    })
+  }, [])
+
+  const scrollSectionTabs = (direction: 'left' | 'right') => {
+    const el = sectionTabsScrollRef.current
+    if (!el) return
+    el.scrollBy({ left: direction === 'left' ? -240 : 240, behavior: 'smooth' })
+  }
+
+  useEffect(() => {
+    if (!sectionMenuOpen) return
+    const onDocClick = (e: MouseEvent) => {
+      if (sectionMenuRef.current && !sectionMenuRef.current.contains(e.target as Node)) {
+        setSectionMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onDocClick)
+    return () => document.removeEventListener('mousedown', onDocClick)
+  }, [sectionMenuOpen])
+
+  useEffect(() => {
+    updateSectionScrollArrows()
+    const el = sectionTabsScrollRef.current
+    if (!el) return
+    const ro = new ResizeObserver(() => updateSectionScrollArrows())
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [tabs.length, updateSectionScrollArrows])
+
+  useEffect(() => {
+    const el = sectionTabsScrollRef.current
+    if (!el) return
+    const btn = el.querySelector<HTMLElement>(`[data-section-tab="${activeTab}"]`)
+    btn?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' })
+    updateSectionScrollArrows()
+  }, [activeTab, tabs.length, updateSectionScrollArrows])
+
+  return (
+    <div className="flex flex-col flex-1 min-h-0 h-full w-full bg-white overflow-hidden">
+
+        {/* Sub-header — below portal top bar */}
+        <div className="flex items-center justify-between gap-3 px-4 md:px-6 py-3 border-b border-slate-200 shrink-0 bg-white">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Go back"
+              className="inline-flex items-center justify-center w-8 h-8 rounded-md text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors shrink-0"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            <div className="min-w-0">
               <h2 className="text-lg font-semibold text-slate-900">Discharge Patient</h2>
-              {draftSavedAt(admission.name) && (
-                <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">
-                  <Clock className="w-3 h-3" />
-                  Draft saved
-                </span>
-              )}
+              <p className="text-sm text-slate-500 mt-0.5 truncate">
+                {admission.patient_name || admission.patient} &mdash; {admission.name}
+              </p>
             </div>
-            <p className="text-sm text-slate-500 mt-0.5">
-              {admission.patient_name || admission.patient} &mdash; {admission.name}
-            </p>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors">
-            <X className="w-5 h-5" />
-          </button>
+          {draftSavedAt(admission.name) && (
+            <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 shrink-0">
+              <Clock className="w-3 h-3" />
+              Draft saved
+            </span>
+          )}
         </div>
 
-        {/* Tabs — sticky so they stay visible while scrolling content */}
-        <div className="flex border-b border-slate-200 bg-slate-50 overflow-x-auto shrink-0" style={{ scrollbarWidth: 'thin' }}>
-          {tabs.map((tab) => (
+        {/* Section tabs — menu on small screens, cards from md up */}
+        <div className="shrink-0 px-3 md:px-4 py-2.5 border-b border-slate-200 bg-slate-50/80">
+          {/* Mobile / narrow: section picker */}
+          <div ref={sectionMenuRef} className="md:hidden relative" data-discharge-section-menu>
             <button
-              key={tab.id}
               type="button"
-              onClick={() => setActiveTab(tab.id)}
-              className={`px-3 py-2.5 text-xs sm:text-sm font-medium transition-colors border-b-2 -mb-px flex items-center gap-1 sm:gap-1.5 whitespace-nowrap ${
-                activeTab === tab.id
-                  ? 'border-green-600 text-green-700 bg-white'
-                  : 'border-transparent text-slate-500 hover:text-slate-700'
-              }`}
+              onClick={() => setSectionMenuOpen((open) => !open)}
+              aria-expanded={sectionMenuOpen}
+              aria-haspopup="listbox"
+              className={`w-full flex items-center justify-between gap-2 rounded-lg border-2 px-3 py-2.5 text-left bg-white ${activeTabMeta.borderColor} ${activeTabMeta.activeBg} shadow-sm`}
             >
-              {tab.icon}
-              {tab.label}
-              {tab.id === 'checklist' && totalItems > 0 && (
-                <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium ml-1 ${
-                  allCompleted ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
-                }`}>
-                  {completedItems}/{totalItems}
+              <span className="flex items-center gap-2 min-w-0">
+                <span className="p-1.5 rounded-md bg-white/70 shrink-0">
+                  <ActiveSectionIcon className={`w-4 h-4 ${activeTabMeta.iconColor}`} />
                 </span>
-              )}
-              {tab.id === 'nursing' && nurseTotalItems > 0 && (
-                <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium ml-1 ${
-                  nurseAllCompleted ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
-                }`}>
-                  {nurseCompletedItems}/{nurseTotalItems}
+                <span className="min-w-0">
+                  <span className="block text-[10px] font-medium text-slate-500 uppercase tracking-wide">
+                    Section
+                  </span>
+                  <span className="block text-sm font-semibold text-slate-900 truncate">
+                    {activeTabMeta.label}
+                  </span>
                 </span>
-              )}
-              {tab.id === 'documents' && documents.length > 0 && (
-                <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-slate-200 text-slate-600 ml-1">
-                  {documents.length}
-                </span>
-              )}
-              {tab.id === 'relatives' && relatives.length > 0 && (
-                <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-slate-200 text-slate-600 ml-1">
-                  {relatives.length}
-                </span>
-              )}
+                {renderTabBadge(activeTabMeta.id) && (
+                  <span className="shrink-0">{renderTabBadge(activeTabMeta.id)}</span>
+                )}
+              </span>
+              <ChevronDown
+                className={`w-5 h-5 text-slate-500 shrink-0 transition-transform ${sectionMenuOpen ? 'rotate-180' : ''}`}
+              />
             </button>
-          ))}
+            {sectionMenuOpen && (
+              <div
+                role="listbox"
+                aria-label="Discharge sections"
+                className="absolute left-0 right-0 top-full z-30 mt-1 max-h-[min(18rem,50vh)] overflow-y-auto rounded-lg border border-slate-200 bg-white py-1 shadow-lg"
+              >
+                {tabs.map((tab) => {
+                  const isActive = activeTab === tab.id
+                  const TabIcon = tab.Icon
+                  const badge = renderTabBadge(tab.id)
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      role="option"
+                      aria-selected={isActive}
+                      onClick={() => {
+                        setActiveTab(tab.id)
+                        setSectionMenuOpen(false)
+                      }}
+                      className={`w-full flex items-center gap-2 px-3 py-2.5 text-left border-l-4 ${tab.borderColor.replace(/^border-/, 'border-l-')} ${
+                        isActive ? `${tab.activeBg} font-semibold` : 'hover:bg-slate-50'
+                      }`}
+                    >
+                      <TabIcon className={`w-4 h-4 shrink-0 ${tab.iconColor}`} />
+                      <span className="flex-1 min-w-0 text-sm text-slate-800 truncate">{tab.label}</span>
+                      {badge}
+                      {isActive && <Check className="w-4 h-4 shrink-0 text-green-600" />}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* md+: single row, horizontal scroll with arrows */}
+          <div className="hidden md:flex items-stretch gap-1 min-w-0">
+            {sectionScroll.left && (
+              <button
+                type="button"
+                onClick={() => scrollSectionTabs('left')}
+                aria-label="Scroll sections left"
+                className="shrink-0 flex items-center justify-center w-8 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 shadow-sm"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+            )}
+            <div
+              ref={sectionTabsScrollRef}
+              onScroll={updateSectionScrollArrows}
+              className="flex flex-1 gap-2 overflow-x-auto scroll-smooth min-w-0 py-0.5 [scrollbar-width:thin]"
+              role="tablist"
+              aria-label="Discharge sections"
+            >
+              {tabs.map((tab) => {
+                const isActive = activeTab === tab.id
+                const TabIcon = tab.Icon
+                const badge = renderTabBadge(tab.id)
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={isActive}
+                    data-section-tab={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    title={tab.label}
+                    className={`flex items-center gap-2 rounded-lg border-2 px-2.5 py-2 text-left transition-all shrink-0 w-[8.75rem] bg-white text-slate-800 ${tab.borderColor} ${tab.hoverBg} ${
+                      isActive ? `${tab.activeBg} shadow-sm` : 'hover:shadow-sm'
+                    }`}
+                  >
+                    <div
+                      className={`p-1.5 rounded-md shrink-0 ${isActive ? 'bg-white/70' : 'bg-slate-50/80'}`}
+                    >
+                      <TabIcon className={`w-3.5 h-3.5 ${tab.iconColor}`} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[11px] font-semibold leading-tight truncate text-slate-800">
+                        {tab.shortLabel || tab.label}
+                      </p>
+                      {badge && <div className="mt-0.5">{badge}</div>}
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+            {sectionScroll.right && (
+              <button
+                type="button"
+                onClick={() => scrollSectionTabs('right')}
+                aria-label="Scroll sections right"
+                className="shrink-0 flex items-center justify-center w-8 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 shadow-sm"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
+            )}
+          </div>
         </div>
 
         <form
           onSubmit={handleSubmit}
-          className="flex-1 flex flex-col min-h-0"
+          className="flex-1 flex flex-col min-h-0 overflow-hidden"
           onClick={(e) => {
             const target = e.target as HTMLElement
-            if (!target.closest('.dropdown-container')) closeAllDropdowns()
+            if (!target.closest('.dropdown-container') && !target.closest('[data-discharge-section-menu]')) {
+              closeAllDropdowns()
+            }
           }}
         >
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto min-h-[750px]">
           {error && !unbilledServices && (
             <div className="mx-6 mt-4 p-3 bg-red-50 border border-red-200 rounded-md flex items-start gap-2 text-red-700 text-sm">
               <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
@@ -2658,7 +2933,7 @@ const loadDailyVisitSetup = async () => {
           </div>
 
           {/* Footer */}
-          <div className="px-6 py-4 border-t border-slate-200 flex items-center justify-between bg-slate-50 shrink-0">
+          <div className="px-4 md:px-6 py-4 border-t border-slate-200 flex items-center justify-between bg-slate-50 shrink-0 sticky bottom-0 z-10">
             <div className="text-xs text-slate-500">
               {totalItems > 0 && !allCompleted && (
                 <span className="flex items-center gap-1 text-amber-600">
@@ -2732,7 +3007,9 @@ const loadDailyVisitSetup = async () => {
             transferAdmission={admission.name}
           />
         )}
-      </div>
     </div>
   )
 }
+
+/** @deprecated Use DischargePatientForm on DischargePatientPage — kept for legacy imports */
+export const DischargeModal = DischargePatientForm

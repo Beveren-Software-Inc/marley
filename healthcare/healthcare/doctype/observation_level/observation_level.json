@@ -7,6 +7,7 @@
  "engine": "InnoDB",
  "field_order": [
   "observation_level",
+  "interval",
   "section_break_hhoj",
   "is_billable",
   "link_existing_item",
@@ -73,12 +74,17 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Rate"
+  },
+  {
+   "fieldname": "interval",
+   "fieldtype": "Data",
+   "label": "Interval"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-05-10 12:18:02.559039",
+ "modified": "2026-05-20 12:17:02.976888",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Observation Level",

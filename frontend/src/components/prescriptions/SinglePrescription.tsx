@@ -8,7 +8,13 @@ import {
   addMedicationOrderEntry,
   getGivenStatusForPrescription,
   type Prescription,
+  LONG_ACTING_FREQUENCY_OPTIONS,
 } from '../../services/prescriptions'
+import {
+  flagsFromPrescriptionType,
+  isLongActingPrescriptionType,
+  normalizeMedicationOrderForSave,
+} from '../../utils/prescriptionType'
 import { RefreshCw, MoreVertical, Pencil, Plus, X, ChevronDown } from 'lucide-react'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
@@ -224,11 +230,12 @@ const EditMedicationEntryModal = ({
     patient_frequency: order.patient_frequency || '',
     route_of_administration: order.route_of_administration || '',
     is_pink: order.is_pink || false,
-    is_prn: order.is_prn || false,
-    is_long_acting: order.is_long_acting_medicine || false,
     long_acting_frequency: order.long_acting_frequency || '',
     medication_type:
       order.medication_type === 'Contraindicated' ? '' : (order.medication_type || ''),
+    ...flagsFromPrescriptionType(
+      order.medication_type === 'Contraindicated' ? '' : order.medication_type
+    ),
   })
   const [saving, setSaving] = useState(false)
   const [givenCheck, setGivenCheck] = useState<{ loading: boolean; given: boolean }>({ loading: true, given: false })
@@ -305,8 +312,7 @@ const EditMedicationEntryModal = ({
     if (givenCheck.given) return
     try {
       setSaving(true)
-      const { is_long_acting, ...rest } = form
-      const payload = { ...rest, is_long_acting_medicine: is_long_acting }
+      const payload = normalizeMedicationOrderForSave(form)
       await updateMedicationOrderEntry(prescriptionName, order.name, payload)
       toast.success('Medication entry updated')
       onSaved()
@@ -317,7 +323,15 @@ const EditMedicationEntryModal = ({
     }
   }
 
-  const updateField = (field: string, value: unknown) => setForm((f) => ({ ...f, [field]: value }))
+  const updateField = (field: string, value: unknown) => {
+    setForm((f) => {
+      const next = { ...f, [field]: value }
+      if (field === 'medication_type') {
+        Object.assign(next, flagsFromPrescriptionType(String(value)))
+      }
+      return next
+    })
+  }
   const disabled = givenCheck.given
 
   return createPortal(
@@ -460,26 +474,36 @@ const EditMedicationEntryModal = ({
               rows={2} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25 disabled:bg-slate-100 disabled:text-slate-500" />
           </div>
 
-          <div className="flex flex-wrap gap-4 pt-1">
-            <label className="flex items-center gap-2 text-sm text-slate-700">
-              <input type="checkbox" checked={!!form.is_pink} onChange={(e) => updateField('is_pink', e.target.checked)} disabled={disabled}
-                className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" /> Pink
-            </label>
-            <label className="flex items-center gap-2 text-sm text-slate-700">
-              <input type="checkbox" checked={!!form.is_prn} onChange={(e) => updateField('is_prn', e.target.checked)} disabled={disabled}
-                className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" /> PRN
-            </label>
-            <label className="flex items-center gap-2 text-sm text-slate-700">
-              <input type="checkbox" checked={!!form.is_long_acting} onChange={(e) => updateField('is_long_acting', e.target.checked)} disabled={disabled}
-                className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" /> Long Acting
+          <div>
+            <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={!!form.is_pink}
+                onChange={(e) => updateField('is_pink', e.target.checked)}
+                disabled={disabled}
+                className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+              />
+              Is Pink
             </label>
           </div>
 
-          {form.is_long_acting && (
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Long Acting Frequency</label>
-              <input value={form.long_acting_frequency} onChange={(e) => updateField('long_acting_frequency', e.target.value)} disabled={disabled}
-                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25 disabled:bg-slate-100 disabled:text-slate-500" />
+          {isLongActingPrescriptionType(form.medication_type) && (
+            <div className="rounded-md bg-amber-50 border border-amber-200 p-3">
+              <label className="block text-xs font-medium text-slate-700 mb-1">
+                Long acting frequency
+              </label>
+              <select
+                value={form.long_acting_frequency ?? 'Weekly'}
+                onChange={(e) => updateField('long_acting_frequency', e.target.value)}
+                disabled={disabled}
+                className="w-full max-w-xs rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm disabled:bg-slate-100"
+              >
+                {LONG_ACTING_FREQUENCY_OPTIONS.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt}
+                  </option>
+                ))}
+              </select>
             </div>
           )}
         </div>
@@ -606,8 +630,7 @@ const AddMedicationEntryModal = ({
     }
     try {
       setSaving(true)
-      const { is_long_acting, ...rest } = form
-      const payload = { ...rest, is_long_acting_medicine: is_long_acting }
+      const payload = normalizeMedicationOrderForSave(form)
       await addMedicationOrderEntry(prescriptionName, payload)
       toast.success('Medicine added to prescription')
       onSaved()
@@ -618,7 +641,15 @@ const AddMedicationEntryModal = ({
     }
   }
 
-  const updateField = (field: string, value: unknown) => setForm((f) => ({ ...f, [field]: value }))
+  const updateField = (field: string, value: unknown) => {
+    setForm((f) => {
+      const next = { ...f, [field]: value }
+      if (field === 'medication_type') {
+        Object.assign(next, flagsFromPrescriptionType(String(value)))
+      }
+      return next
+    })
+  }
 
   return createPortal(
     <div
@@ -648,7 +679,7 @@ const AddMedicationEntryModal = ({
               loading={drugLoading}
               onQueryChange={(q) => { setDrugQuery(q); loadDrugOptions(q) }}
               onOpen={() => loadDrugOptions(drugQuery || '')}
-              onSelect={(opt) => {
+              onSelect={async (opt) => {
                 const route = opt.default_route_of_administration?.trim()
                 const stockUom = (opt.stock_uom || '').trim()
                 setForm((f) => ({
@@ -660,23 +691,18 @@ const AddMedicationEntryModal = ({
                 }))
                 setAddUomQuery(stockUom)
                 if (route) {
-                  setAddRouteQuery(route)
+                  let routes = addRouteOptions
+                  if (!routes.length) {
+                    routes = await fetchRouteOfAdministrationList().catch(() => [])
+                    setAddRouteOptions(routes)
+                  }
+                  const match = routes.find((r) => r.name === route || r.label === route)
+                  setAddRouteQuery(match?.label || match?.name || route)
                 }
                 setDrugQuery(opt.label || opt.name)
               }}
               onClear={() => { updateField('drug', ''); updateField('drug_name', ''); setDrugQuery('') }}
             />
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Prescription Type</label>
-            <select value={form.medication_type} onChange={(e) => updateField('medication_type', e.target.value)}
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25">
-              <option value="">— Select —</option>
-              {MED_TYPES.filter(t => t.key !== 'All' && t.key !== '__stopped__').map(t => (
-                <option key={t.key} value={t.key}>{t.label}</option>
-              ))}
-            </select>
           </div>
 
           <div className="grid grid-cols-3 gap-3">
@@ -707,6 +733,22 @@ const AddMedicationEntryModal = ({
                 {addDosageForms.map((df) => <option key={df.name} value={df.name}>{df.label || df.name}</option>)}
               </select>
             </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Prescription Type</label>
+            <select
+              value={form.medication_type}
+              onChange={(e) => updateField('medication_type', e.target.value)}
+              className="w-full max-w-md rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25"
+            >
+              <option value="">— Select —</option>
+              {MED_TYPES.filter((t) => t.key !== 'All' && t.key !== '__stopped__').map((t) => (
+                <option key={t.key} value={t.key}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -765,26 +807,34 @@ const AddMedicationEntryModal = ({
               rows={2} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25" />
           </div>
 
-          <div className="flex flex-wrap gap-4 pt-1">
-            <label className="flex items-center gap-2 text-sm text-slate-700">
-              <input type="checkbox" checked={!!form.is_pink} onChange={(e) => updateField('is_pink', e.target.checked)}
-                className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" /> Pink
-            </label>
-            <label className="flex items-center gap-2 text-sm text-slate-700">
-              <input type="checkbox" checked={!!form.is_prn} onChange={(e) => updateField('is_prn', e.target.checked)}
-                className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" /> PRN
-            </label>
-            <label className="flex items-center gap-2 text-sm text-slate-700">
-              <input type="checkbox" checked={!!form.is_long_acting} onChange={(e) => updateField('is_long_acting', e.target.checked)}
-                className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" /> Long Acting
+          <div>
+            <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={!!form.is_pink}
+                onChange={(e) => updateField('is_pink', e.target.checked)}
+                className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+              />
+              Is Pink
             </label>
           </div>
 
-          {form.is_long_acting && (
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Long Acting Frequency</label>
-              <input value={form.long_acting_frequency} onChange={(e) => updateField('long_acting_frequency', e.target.value)}
-                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25" />
+          {isLongActingPrescriptionType(form.medication_type) && (
+            <div className="rounded-md bg-amber-50 border border-amber-200 p-3">
+              <label className="block text-xs font-medium text-slate-700 mb-1">
+                Long acting frequency
+              </label>
+              <select
+                value={form.long_acting_frequency || 'Weekly'}
+                onChange={(e) => updateField('long_acting_frequency', e.target.value)}
+                className="w-full max-w-xs rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+              >
+                {LONG_ACTING_FREQUENCY_OPTIONS.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt}
+                  </option>
+                ))}
+              </select>
             </div>
           )}
         </div>

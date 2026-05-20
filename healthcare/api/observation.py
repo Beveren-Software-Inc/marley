@@ -43,9 +43,7 @@ def get_observations(limit=50, offset=0, patient=None):
 			'name',
 			'patient',
 			'patient_name',
-			'observation_template',
 			'observation_category',
-			'status',
 			'posting_date',
 			'start_date',
 			'dc_date',
@@ -65,6 +63,7 @@ def get_observations(limit=50, offset=0, patient=None):
 			'note',
 			'amount',
 			'duration',
+			'designated_security_personel',
 			'order_created',
 			'reference_doctype',
 			'reference_docname',
@@ -75,18 +74,13 @@ def get_observations(limit=50, offset=0, patient=None):
 		order_by='posting_date desc, start_date desc'
 	)
 	
-	# Get patient names and template names
+	# Enrich patient / practitioner names
 	for obs in observations:
 		if obs.patient and not obs.patient_name:
 			patient_name = frappe.db.get_value('Patient', obs.patient, 'patient_name')
 			if patient_name:
 				obs['patient_name'] = patient_name
-		
-		if obs.observation_template:
-			template_name = frappe.db.get_value('Observation Template', obs.observation_template, 'observation')
-			if template_name:
-				obs['template_name'] = template_name
-		
+
 		if obs.healthcare_practitioner and not obs.practitioner_name:
 			practitioner_name = frappe.db.get_value('Healthcare Practitioner', obs.healthcare_practitioner, 'practitioner_name')
 			if practitioner_name:
@@ -108,6 +102,7 @@ def get_observation_level_details(name):
 		name,
 		[
 			"observation_level",
+			"interval",
 			"is_billable",
 			"rate",
 			"item",
@@ -149,27 +144,36 @@ def create_observation(data):
 		frappe.throw(_("Company is required"))
 
 	amount = flt(data.get('amount'))
+	duration = frappe.utils.cstr(data.get('duration') or '').strip()
 	lvl_key = frappe.utils.cstr(data.get('observation_level') or '').strip()
 	if lvl_key and frappe.db.exists('Observation Level', lvl_key):
-		lvl_rate = flt(frappe.db.get_value('Observation Level', lvl_key, 'rate'))
-		if amount <= 0 and lvl_rate:
+		lvl = frappe.db.get_value(
+			'Observation Level',
+			lvl_key,
+			['rate', 'interval'],
+			as_dict=True,
+		) or {}
+		lvl_rate = flt(lvl.get('rate'))
+		if lvl_rate and amount <= 0:
 			amount = lvl_rate
+		if not duration and lvl.get('interval'):
+			duration = frappe.utils.cstr(lvl.get('interval')).strip()
 	
 	# Create the observation
 	observation = frappe.get_doc({
 		'doctype': 'Observation',
 		'patient': data.get('patient'),
-		'observation_template': data.get('observation_template') or '',
 		'posting_date': data.get('posting_date') or frappe.utils.now_datetime(),
 		'start_date': data.get('start_date') or frappe.utils.today(),
-		'status': data.get('status') or 'Registered',
+		'status': 'Registered',
 		'healthcare_practitioner': data.get('practitioner'),
 		'medical_department': data.get('department'),
 		'admission_no': data.get('admission_no'),
 		'observation_level': data.get('observation_level') or '',
+		'designated_security_personel': data.get('designated_security_personel') or '',
 		'note': data.get('note') or '',
 		'amount': amount,
-		'duration': data.get('duration') or '',
+		'duration': duration,
 		'naming_series': naming_series,
 		'company': company,
 	})
@@ -186,10 +190,10 @@ def create_observation(data):
 		'name': observation.name,
 		'patient': observation.patient,
 		'patient_name': frappe.db.get_value('Patient', observation.patient, 'patient_name') or observation.patient,
-		'observation_template': observation.observation_template,
 		'observation_level': observation.observation_level,
-		'status': observation.status,
+		'designated_security_personel': observation.designated_security_personel,
 		'amount': observation.amount,
+		'duration': observation.duration,
 		'company': observation.company,
 	}
 

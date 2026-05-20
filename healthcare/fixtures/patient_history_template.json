@@ -5,94 +5,116 @@
   "history_detail": [
    {
     "attribute": "Source and Cause of Present Illness",
-    "description": null
+    "description": null,
+    "is_mendatory": 0
    },
    {
     "attribute": "Complaint",
-    "description": null
+    "description": null,
+    "is_mendatory": 0
    },
    {
     "attribute": "History of Present Illnesss",
-    "description": null
+    "description": null,
+    "is_mendatory": 0
    },
    {
     "attribute": "Past Medical and Psychiatry History",
-    "description": null
+    "description": null,
+    "is_mendatory": 1
    },
    {
     "attribute": "Family History",
-    "description": null
+    "description": null,
+    "is_mendatory": 0
    },
    {
     "attribute": "Personal and social History",
-    "description": null
+    "description": null,
+    "is_mendatory": 0
    },
    {
     "attribute": "Scholastic and/or Work Record",
-    "description": null
+    "description": null,
+    "is_mendatory": 0
    },
    {
     "attribute": "Forensic History",
-    "description": null
+    "description": null,
+    "is_mendatory": 0
    },
    {
     "attribute": "Psychosexual History",
-    "description": null
+    "description": null,
+    "is_mendatory": 0
    },
    {
     "attribute": "Any Specific Ethnic, Cultural or Religious Factors",
-    "description": null
+    "description": null,
+    "is_mendatory": 0
    },
    {
     "attribute": "Appearance, Behaviour and Attitude",
-    "description": null
+    "description": null,
+    "is_mendatory": 0
    },
    {
     "attribute": "Orientation and Cognition",
-    "description": null
+    "description": null,
+    "is_mendatory": 0
    },
    {
     "attribute": "Speech",
-    "description": null
+    "description": null,
+    "is_mendatory": 0
    },
    {
     "attribute": "Thought Process / Content",
-    "description": null
+    "description": null,
+    "is_mendatory": 0
    },
    {
     "attribute": "Perception",
-    "description": null
+    "description": null,
+    "is_mendatory": 0
    },
    {
     "attribute": "Mood and Affect",
-    "description": null
+    "description": null,
+    "is_mendatory": 0
    },
    {
     "attribute": "Impulsivity",
-    "description": null
+    "description": null,
+    "is_mendatory": 0
    },
    {
     "attribute": "Insight and Judgement",
-    "description": null
+    "description": null,
+    "is_mendatory": 0
    },
    {
     "attribute": "Provisional Diagnosis",
-    "description": null
+    "description": null,
+    "is_mendatory": 1
    },
    {
     "attribute": "Formulation",
-    "description": null
+    "description": null,
+    "is_mendatory": 0
    },
    {
     "attribute": "Plan",
-    "description": null
+    "description": null,
+    "is_mendatory": 1
    },
    {
     "attribute": "Discharge Plan",
-    "description": null
+    "description": null,
+    "is_mendatory": 0
    }
   ],
-  "modified": "2026-05-10 11:05:27.990817",
+  "modified": "2026-05-20 17:06:18.827442",
   "name": "Default History Form",
   "template": "Default History Form"
  }

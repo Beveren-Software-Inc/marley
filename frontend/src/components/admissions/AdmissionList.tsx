@@ -1,5 +1,6 @@
 
 import { useState, useEffect, useLayoutEffect, useRef } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useCardFilters } from '../../contexts/CardFilterContext'
 import { useInpatientRecords } from '../../hooks/useInpatientRecords'
 import { fetchInpatientRecords } from '../../services/inpatientRecords'
@@ -10,11 +11,11 @@ import { StatusPill } from '../ui/StatusPill'
 import { PackageSelectionModal } from './PackageSelectionModal'
 import { AdmissionFormModal } from './AdmissionFormModal'
 import { ScheduleDischargeModal } from './ScheduleDischargeModal'
-import { DischargeModal } from './DischargeModal'
 import { TransferCostCenterModal } from './TransferCostCenterModal'
 import { InpatientAdmissionDetails } from './InpatientAdmissionDetails'
 import { AddVisitorModal } from './AddVisitorModal'
 import { SuicidalPatientAssessmentModal } from './SuicidalPatientAssessmentModal'
+import { navigateToDischarge } from '../../utils/dischargeNavigation'
 import { RecoveryRoomRecordModal } from './RecoveryRoomRecordModal'
 import { AnesthesiaRecordModal } from './AnesthesiaRecordModal'
 import { TimeOutProcedureModal } from './TimeOutProcedureModal'
@@ -64,6 +65,8 @@ interface AdmissionListProps {
 }
 
 export const AdmissionList = ({ onAdmissionSelect, onPatientFromAdmission, searchQuery: externalSearchQuery = '', patient, refreshKey, onCreateNew }: AdmissionListProps = {}) => {
+  const navigate = useNavigate()
+  const location = useLocation()
   const { mode, activeAdmission, selectedPatient: contextPatient } = useCareContext()
 
   // When IP mode has a specific admission selected globally, lock the list to that admission.
@@ -84,8 +87,6 @@ export const AdmissionList = ({ onAdmissionSelect, onPatientFromAdmission, searc
   const [selectedPackage, setSelectedPackage] = useState<InpatientPackage | null>(null)
   const [showScheduleDischarge, setShowScheduleDischarge] = useState(false)
   const [selectedAdmissionForDischarge, setSelectedAdmissionForDischarge] = useState<InpatientRecord | null>(null)
-  const [showDischargeModal, setShowDischargeModal] = useState(false)
-  const [selectedAdmissionForFinalDischarge, setSelectedAdmissionForFinalDischarge] = useState<InpatientRecord | null>(null)
   const [showTransferCostCenter, setShowTransferCostCenter] = useState(false)
   const [selectedAdmissionForTransfer, setSelectedAdmissionForTransfer] = useState<InpatientRecord | null>(null)
   const [showVisitorModal, setShowVisitorModal] = useState(false)
@@ -226,14 +227,15 @@ export const AdmissionList = ({ onAdmissionSelect, onPatientFromAdmission, searc
   }
 
   const handleDischarge = (record: InpatientRecord) => {
-    setSelectedAdmissionForFinalDischarge(record)
-    setShowDischargeModal(true)
-  }
-
-  const handleDischargeComplete = () => {
-    setShowDischargeModal(false)
-    setSelectedAdmissionForFinalDischarge(null)
-    refetch()
+    navigateToDischarge(
+      {
+        name: record.name,
+        patient: record.patient,
+        patient_name: record.patient_name,
+      },
+      navigate,
+      `${location.pathname}${location.search}`
+    )
   }
 
   const handleTransferCostCenter = (record: InpatientRecord) => {
@@ -952,18 +954,6 @@ export const AdmissionList = ({ onAdmissionSelect, onPatientFromAdmission, searc
           }}
           onClose={() => { setShowScheduleDischarge(false); setSelectedAdmissionForDischarge(null) }}
           onSuccess={handleDischargeScheduled}
-        />
-      )}
-
-      {showDischargeModal && selectedAdmissionForFinalDischarge && (
-        <DischargeModal
-          admission={{
-            name: selectedAdmissionForFinalDischarge.name,
-            patient: selectedAdmissionForFinalDischarge.patient,
-            patient_name: selectedAdmissionForFinalDischarge.patient_name
-          }}
-          onClose={() => { setShowDischargeModal(false); setSelectedAdmissionForFinalDischarge(null) }}
-          onSuccess={handleDischargeComplete}
         />
       )}
 

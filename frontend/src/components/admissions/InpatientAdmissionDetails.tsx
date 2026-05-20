@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { fetchInpatientRecord, type InpatientRecord, type InpatientPackage } from '../../services/inpatientRecords'
 import { StatusPill } from '../ui/StatusPill'
 import { PackageSelectionModal } from './PackageSelectionModal'
 import { AdmissionFormModal } from './AdmissionFormModal'
 import { ScheduleDischargeModal } from './ScheduleDischargeModal'
-import { DischargeModal } from './DischargeModal'
+import { navigateToDischarge } from '../../utils/dischargeNavigation'
 import { getInpatientDiagnoses, type DiagnosisRow } from '../../services/diagnosis'
 import { fetchMedicineGiven, type MedicineGivenRow } from '../../services/medicineGiven'
 // FIX 2: LabTestRow → LabTest (matches the actual export name in labTests service)
@@ -895,6 +896,8 @@ const PrescriptionsTab = ({
 
 // Main Component
 export const InpatientAdmissionDetails = ({ admissionName, onUpdate }: InpatientAdmissionDetailsProps) => {
+  const navigate = useNavigate()
+  const location = useLocation()
   const [record, setRecord] = useState<InpatientRecord | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
@@ -906,7 +909,6 @@ export const InpatientAdmissionDetails = ({ admissionName, onUpdate }: Inpatient
   const [showAdmissionForm, setShowAdmissionForm] = useState(false)
   const [selectedPackage, setSelectedPackage] = useState<InpatientPackage | null>(null)
   const [showScheduleDischarge, setShowScheduleDischarge] = useState(false)
-  const [showDischargeModal, setShowDischargeModal] = useState(false)
 
   const {
     diagnoses,
@@ -953,10 +955,17 @@ export const InpatientAdmissionDetails = ({ admissionName, onUpdate }: Inpatient
     onUpdate?.()
   }
 
-  const handleDischargeComplete = () => {
-    setShowDischargeModal(false)
-    loadRecord()
-    onUpdate?.()
+  const handleOpenDischarge = () => {
+    if (!record) return
+    navigateToDischarge(
+      {
+        name: record.name,
+        patient: record.patient,
+        patient_name: record.patient_name,
+      },
+      navigate,
+      `${location.pathname}${location.search}`
+    )
   }
 
   const handleDiagnosisSuccess = () => {
@@ -1019,7 +1028,7 @@ export const InpatientAdmissionDetails = ({ admissionName, onUpdate }: Inpatient
             )}
             {record.status === 'Discharge Scheduled' && (
               <button
-                onClick={() => setShowDischargeModal(true)}
+                onClick={handleOpenDischarge}
                 className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 transition-colors"
               >
                 Discharge Patient
@@ -1098,14 +1107,6 @@ export const InpatientAdmissionDetails = ({ admissionName, onUpdate }: Inpatient
           admission={{ name: record.name, patient: record.patient, patient_name: record.patient_name }}
           onClose={() => setShowScheduleDischarge(false)}
           onSuccess={handleDischargeScheduled}
-        />
-      )}
-
-      {showDischargeModal && (
-        <DischargeModal
-          admission={{ name: record.name, patient: record.patient, patient_name: record.patient_name }}
-          onClose={() => setShowDischargeModal(false)}
-          onSuccess={handleDischargeComplete}
         />
       )}
 

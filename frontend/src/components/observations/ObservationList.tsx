@@ -2,22 +2,10 @@ import { useState, useEffect, useRef } from 'react'
 import { fetchObservations, createObservationSalesOrder, type Observation } from '../../services/observations'
 import { useFormatMoney } from '../../hooks/useFormatMoney'
 import { toast } from '../../hooks/useToast'
-import { StatusPill } from '../ui/StatusPill'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { DetailSlideOver } from '../ui/DetailSlideOver'
 import { DocDetailView } from '../ui/DocDetailView'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
-
-const statusColors: Record<string, string> = {
-  'Registered': 'default',
-  'Preliminary': 'warning',
-  'Final': 'success',
-  'Approved': 'success',
-  'Rejected': 'danger',
-  'Cancelled': 'default',
-  'Amended': 'info',
-  'Corrected': 'info'
-}
 
 interface ObservationListProps {
   patient?: string
@@ -146,12 +134,6 @@ export const ObservationList = ({ patient, onPatientClick }: ObservationListProp
               </th>
             )}
             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-              Template
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-              Status
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
               Start Date
             </th>
             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
@@ -159,6 +141,9 @@ export const ObservationList = ({ patient, onPatientClick }: ObservationListProp
             </th>
             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
               Obs Level
+            </th>
+            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+              Security Personnel
             </th>
             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
               Result
@@ -195,15 +180,6 @@ export const ObservationList = ({ patient, onPatientClick }: ObservationListProp
                 </td>
               )}
               <td className="px-4 py-3 text-sm text-slate-700">
-                {obs.template_name || obs.observation_template || '-'}
-              </td>
-              <td className="px-4 py-3">
-                <StatusPill
-                  status={obs.status || 'Registered'}
-                  color={statusColors[obs.status || 'Registered'] || 'default'}
-                />
-              </td>
-              <td className="px-4 py-3 text-sm text-slate-700">
                 {obs.start_date ? new Date(obs.start_date).toLocaleDateString() : '-'}
               </td>
               <td className="px-4 py-3 text-sm text-slate-700">
@@ -211,6 +187,9 @@ export const ObservationList = ({ patient, onPatientClick }: ObservationListProp
               </td>
               <td className="px-4 py-3 text-sm text-slate-700">
                 {obs.observation_level || '-'}
+              </td>
+              <td className="px-4 py-3 text-sm text-slate-700">
+                {obs.designated_security_personel || '-'}
               </td>
               <td className="px-4 py-3 text-sm text-slate-700">
                 {getResultDisplay(obs)}
