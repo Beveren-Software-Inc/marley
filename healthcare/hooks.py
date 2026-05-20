@@ -91,12 +91,7 @@ fixtures = [
                     "Sales Invoice-custom_internal_employee",
                     "Sales Invoice-custom_created_at",
                     "Cost Center-custom_patient_care_type",
-                    "Vehicle Service Item-custom_sub_code",
-                    "Vehicle Service Item-custom_cat_code",
-                    "Vehicle Service Item-custom_frt",
-                    "Vehicle Service Item-custom_category",
-                    "Vehicle Service Item-custom_column_break_cgzhn",
-                    "Vehicle Service Item-custom_vehicle_model",
+                   
                     
                 ),
             ]
