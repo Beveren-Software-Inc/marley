@@ -422,8 +422,9 @@ def _align_values_to_rule_event_names(values: dict[str, float], rules: dict[str,
 			line.get("denominator_event"),
 		):
 			_copy_to_label((nm or "").strip())
-		for part in re.split(r"[\s+\-*/()]+", line.get("formula") or ""):
-			part = part.strip()
+		for part in _formula_terms_for_alignment(
+			line.get("formula") or "", (rules.get("lab_test_template") or "").strip()
+		):
 			if part and _norm_key(part) in by_norm:
 				_copy_to_label(part)
 
@@ -600,6 +601,55 @@ def resolve_event_value(event_name: str, index: dict[str, Any], values: dict[str
 	return _parse_float(getattr(row, "result_value", None))
 
 
+def _formula_operator_split(formula: str) -> list[str]:
+	"""Split a formula into operand labels using math operators only (not spaces)."""
+	parts: list[str] = []
+	for part in re.split(r"[+\-*/()]+", formula or ""):
+		part = part.strip()
+		if part:
+			parts.append(part)
+	return parts
+
+
+def _formula_terms_for_alignment(formula: str, panel_template: str) -> list[str]:
+	"""Operand labels to map onto stored results (panel child names first)."""
+	terms: list[str] = []
+	seen: set[str] = set()
+	formula_text = formula or ""
+
+	if panel_template:
+		for child in get_group_child_templates(panel_template):
+			for nm in _event_names_from_rule_event(
+				{"lab_test_event": child["lab_test_event"], "aliases": ""}
+			):
+				if not nm:
+					continue
+				if re.search(r"\b" + re.escape(nm) + r"\b", formula_text, re.IGNORECASE):
+					key = _norm_key(nm)
+					if key not in seen:
+						seen.add(key)
+						terms.append(nm)
+
+	for part in _formula_operator_split(formula):
+		key = _norm_key(part)
+		if key not in seen:
+			seen.add(key)
+			terms.append(part)
+	return terms
+
+
+def _missing_formula_operand_labels(
+	formula: str, values: dict[str, float], panel_template: str = ""
+) -> list[str]:
+	"""Formula operands that still have no numeric value in ``values``."""
+	by_norm = {_norm_key(k): k for k, v in values.items() if v is not None}
+	missing: list[str] = []
+	for term in _formula_terms_for_alignment(formula, panel_template):
+		if _norm_key(term) not in by_norm:
+			missing.append(term)
+	return missing
+
+
 def substitute_formula(formula: str, values: dict[str, float]) -> str | None:
 	"""Replace event names with numeric literals; return None if a name is missing."""
 	text = (formula or "").strip()
@@ -723,6 +773,7 @@ def apply_rules(
 	lab_test_group: str | None = None,
 	patient: str | None = None,
 	current_doc=None,
+	defer_formula_warnings: bool = False,
 ) -> dict[str, Any]:
 	"""Apply configured rules to a list of normal_test_item dicts (mutates copies in returned items)."""
 	out_items = [dict(row) for row in (items or [])]
@@ -846,18 +897,31 @@ def apply_rules(
 		else:
 			formula = line.get("formula") or ""
 			result_val = evaluate_formula(formula, values)
-			if result_val is None and formula.strip():
-				found = ", ".join(sorted({str(k) for k in values.keys() if values.get(k) is not None})[:12])
+			if (
+				result_val is None
+				and formula.strip()
+				and not defer_formula_warnings
+			):
+				missing = _missing_formula_operand_labels(
+					formula, values, panel_template
+				)
+				found = ", ".join(
+					sorted({str(k) for k in values.keys() if values.get(k) is not None})[:12]
+				)
+				if missing:
+					hint = _("Still need results for: {0}.").format(", ".join(missing))
+				else:
+					hint = _("Enter all component results on this panel, then save again.")
 				warnings.append(
 					{
 						"type": "formula_missing_inputs",
 						"message": _(
-							"Could not calculate {0}. Formula: {1}. "
-							"Results found for: {2}. "
-							"Save Total Protein and Albumin first (same patient), then save again."
+							"Could not calculate {0}. Formula: {1}. {2} "
+							"Results found so far: {3}."
 						).format(
 							target,
 							formula,
+							hint,
 							found or _("none yet"),
 						),
 						"ok": False,
@@ -963,6 +1027,9 @@ def apply_rules_to_doc(doc, *, block_on_error: bool = True, persist_siblings: bo
 
 	rules_dict = rule_doc_to_dict(rule_doc)
 
+	defer_formula_warnings = bool(
+		getattr(doc, "service_request", None) and not persist_siblings
+	)
 	result = apply_rules(
 		doc.template,
 		items,
@@ -972,6 +1039,7 @@ def apply_rules_to_doc(doc, *, block_on_error: bool = True, persist_siblings: bo
 		lab_test_group=getattr(doc, "lab_test_group", None) or panel_template,
 		patient=getattr(doc, "patient", None),
 		current_doc=doc,
+		defer_formula_warnings=defer_formula_warnings,
 	)
 	calculated_updates = _sync_calculated_targets_to_lab_tests(
 		doc,
@@ -1062,7 +1130,10 @@ def recalculate_panel_for_service_request(
 		service_request=service_request,
 		lab_test_group=getattr(triggering, "lab_test_group", None) or panel_template,
 	)
+	warnings = result.get("warnings") or []
+	if updates:
+		warnings = [w for w in warnings if w.get("type") != "formula_missing_inputs"]
 	return {
 		"calculated_updates": updates,
-		"warnings": result.get("warnings") or [],
+		"warnings": warnings,
 	}
