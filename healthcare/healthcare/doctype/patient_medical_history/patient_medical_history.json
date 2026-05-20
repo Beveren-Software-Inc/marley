@@ -11,7 +11,24 @@
   "inpatient_admission",
   "column_break_vdtn",
   "template",
-  "history_section",
+  "patient_visit",
+  "illness_section",
+  "heart_disease",
+  "diabetes",
+  "asthma",
+  "strokes",
+  "other_ongoing_illness",
+  "surgical_section",
+  "previous_surgical_history",
+  "medications_section",
+  "current_and_past_medications",
+  "allergies_section",
+  "allergies",
+  "social_section",
+  "social_history",
+  "addiction",
+  "smoking",
+  "legacy_section",
   "patient_history_details"
  ],
  "fields": [
@@ -21,7 +38,8 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Patient",
-   "options": "Patient"
+   "options": "Patient",
+   "reqd": 1
   },
   {
    "fieldname": "column_break_vdtn",
@@ -33,18 +51,14 @@
    "fieldtype": "Data",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "Patient Name"
+   "label": "Patient Name",
+   "read_only": 1
   },
   {
-   "fieldname": "history_section",
-   "fieldtype": "Section Break",
-   "label": "HIstory"
-  },
-  {
-   "fieldname": "patient_history_details",
-   "fieldtype": "Table",
-   "label": "Patient History Details",
-   "options": "Patient History Details"
+   "fieldname": "inpatient_admission",
+   "fieldtype": "Link",
+   "label": "Inpatient Admission",
+   "options": "Inpatient Admission"
   },
   {
    "fieldname": "template",
@@ -53,17 +67,115 @@
    "options": "Patient Health History Template"
   },
   {
-   "fieldname": "inpatient_admission",
+   "fieldname": "illness_section",
+   "fieldtype": "Section Break",
+   "label": "Previous and Ongoing Illness"
+  },
+  {
+   "fieldname": "heart_disease",
+   "fieldtype": "Select",
+   "label": "Heart Disease",
+   "options": "\nYes\nNo"
+  },
+  {
+   "fieldname": "diabetes",
+   "fieldtype": "Select",
+   "label": "Diabetes",
+   "options": "\nYes\nNo"
+  },
+  {
+   "fieldname": "asthma",
+   "fieldtype": "Select",
+   "label": "Asthma",
+   "options": "\nYes\nNo"
+  },
+  {
+   "fieldname": "strokes",
+   "fieldtype": "Select",
+   "label": "Strokes",
+   "options": "\nYes\nNo"
+  },
+  {
+   "fieldname": "other_ongoing_illness",
+   "fieldtype": "Small Text",
+   "label": "Other Illness"
+  },
+  {
+   "fieldname": "surgical_section",
+   "fieldtype": "Section Break",
+   "label": "Previous Surgical History"
+  },
+  {
+   "fieldname": "previous_surgical_history",
+   "fieldtype": "Text",
+   "label": "Previous Surgical History"
+  },
+  {
+   "fieldname": "medications_section",
+   "fieldtype": "Section Break",
+   "label": "Current and Past Medications"
+  },
+  {
+   "fieldname": "current_and_past_medications",
+   "fieldtype": "Text",
+   "label": "Current and Past Medications"
+  },
+  {
+   "fieldname": "allergies_section",
+   "fieldtype": "Section Break",
+   "label": "Allergies"
+  },
+  {
+   "fieldname": "allergies",
+   "fieldtype": "Text",
+   "label": "Allergies"
+  },
+  {
+   "fieldname": "social_section",
+   "fieldtype": "Section Break",
+   "label": "Social History"
+  },
+  {
+   "fieldname": "social_history",
+   "fieldtype": "Text",
+   "label": "Social History"
+  },
+  {
+   "default": "0",
+   "fieldname": "addiction",
+   "fieldtype": "Check",
+   "label": "Addiction"
+  },
+  {
+   "default": "0",
+   "fieldname": "smoking",
+   "fieldtype": "Check",
+   "label": "Smoking"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "legacy_section",
+   "fieldtype": "Section Break",
+   "label": "Legacy Template Rows"
+  },
+  {
+   "fieldname": "patient_history_details",
+   "fieldtype": "Table",
+   "label": "Patient History Details",
+   "options": "Patient History Details"
+  },
+  {
+   "fieldname": "patient_visit",
    "fieldtype": "Link",
-   "label": "Inpatient Admission",
-   "options": "Inpatient Admission"
+   "label": "Patient Visit",
+   "options": "Patient Visit"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-03-25 17:09:55.097278",
- "modified_by": "Administrator",
+ "modified": "2026-05-20 17:00:39.105758",
+ "modified_by": "dr.abdulla@serenehospital.com",
  "module": "Healthcare",
  "name": "Patient Medical History",
  "naming_rule": "Expression",

@@ -7,7 +7,9 @@ import {
 } from '../../services/patients'
 import { CreatePatientMedicalHistoryModal } from './CreatePatientMedicalHistoryModal'
 import { EditPatientMedicalHistoryModal } from './EditPatientMedicalHistoryModal'
+import { PastMedicalHistoryDisplay } from './PastMedicalHistoryDisplay'
 import { useCardFilters } from '../../contexts/CardFilterContext'
+import { ILLNESS_FIELDS, yesNoBadgeClass } from './pastMedicalHistoryUtils'
 
 interface Props {
   patient: string
@@ -51,9 +53,9 @@ function MedicalHistoryDetailPanel({
         {/* header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200">
           <div>
-            <h3 className="text-sm font-semibold text-slate-900">Patient Medical History</h3>
-            {detail?.template && (
-              <p className="text-xs text-slate-500 mt-0.5">Template: {detail.template}</p>
+            <h3 className="text-sm font-semibold text-slate-900">Past Medical History</h3>
+            {detail?.creation && (
+              <p className="text-xs text-slate-500 mt-0.5">{formatDate(detail.creation)}</p>
             )}
           </div>
           <div className="flex items-center gap-2">
@@ -99,46 +101,56 @@ function MedicalHistoryDetailPanel({
           )}
           {!loading && detail && (
             <>
-              {(!detail.patient_history_details || detail.patient_history_details.length === 0) ? (
-                <div className="flex items-center justify-center py-16 text-sm text-slate-400">
-                  No details recorded.
-                </div>
-              ) : (
-                <table className="w-full text-xs">
-                  <thead className="bg-slate-50 border-b border-slate-200 sticky top-0">
-                    <tr>
-                      <th className="px-4 py-2.5 text-left font-semibold text-slate-600 w-[42%]">Attribute</th>
-                      <th className="px-4 py-2.5 text-left font-semibold text-slate-600 w-[14%]">Yes / No</th>
-                      <th className="px-4 py-2.5 text-left font-semibold text-slate-600">Description</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {detail.patient_history_details.map((row, idx) => (
-                      <tr key={idx} className="hover:bg-slate-50">
-                        <td className="px-4 py-2.5 text-slate-800">{row.attributes || '—'}</td>
-                        <td className="px-4 py-2.5">
-                          {row.yesno ? (
-                            <span
-                              className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                                row.yesno === 'Yes'
-                                  ? 'bg-green-100 text-green-700'
-                                  : 'bg-red-100 text-red-600'
-                              }`}
-                            >
-                              {row.yesno}
-                            </span>
-                          ) : (
-                            <span className="text-slate-400">—</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-2.5 text-slate-700 whitespace-pre-wrap">
-                          {row.description || '—'}
-                        </td>
+              <PastMedicalHistoryDisplay history={detail} />
+              {detail.patient_history_details && detail.patient_history_details.length > 0 && (
+                <div className="px-5 pb-4 border-t border-slate-100">
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide py-3">
+                    Legacy template data
+                  </p>
+                  <table className="w-full text-xs">
+                    <thead className="bg-slate-50 border-b border-slate-200">
+                      <tr>
+                        <th className="px-4 py-2 text-left font-semibold text-slate-600">Attribute</th>
+                        <th className="px-4 py-2 text-left font-semibold text-slate-600">Yes / No</th>
+                        <th className="px-4 py-2 text-left font-semibold text-slate-600">Description</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {detail.patient_history_details.map((row, idx) => (
+                        <tr key={idx}>
+                          <td className="px-4 py-2 text-slate-800">{row.attributes || '—'}</td>
+                          <td className="px-4 py-2">
+                            {row.yesno ? (
+                              <span
+                                className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${yesNoBadgeClass(row.yesno)}`}
+                              >
+                                {row.yesno}
+                              </span>
+                            ) : (
+                              '—'
+                            )}
+                          </td>
+                          <td className="px-4 py-2 text-slate-700 whitespace-pre-wrap">
+                            {row.description || '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
+              {!ILLNESS_FIELDS.some(({ key }) => detail[key]) &&
+                !detail.allergies?.trim() &&
+                !detail.previous_surgical_history?.trim() &&
+                !detail.current_and_past_medications?.trim() &&
+                !detail.social_history?.trim() &&
+                !detail.addiction &&
+                !detail.smoking &&
+                (!detail.patient_history_details || detail.patient_history_details.length === 0) && (
+                  <div className="flex items-center justify-center py-16 text-sm text-slate-400">
+                    No details recorded.
+                  </div>
+                )}
             </>
           )}
         </div>
@@ -211,27 +223,16 @@ export function PatientMedicalHistoryList({ patient, patientName, refreshKey }: 
 
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
-  const [templateFilter, setTemplateFilter] = useState('')
-
-  const templateOptions = useMemo(() => {
-    const s = new Set<string>()
-    for (const it of items) {
-      if (it.template) s.add(it.template)
-    }
-    return Array.from(s).sort()
-  }, [items])
-
   const filteredItems = useMemo(() => {
     return items.filter((it) => {
       const day = creationDay(it.creation)
       if (fromDate && day && day < fromDate) return false
       if (toDate && day && day > toDate) return false
-      if (templateFilter && it.template !== templateFilter) return false
       return true
     })
-  }, [items, fromDate, toDate, templateFilter])
+  }, [items, fromDate, toDate])
 
-  const hasActiveFilters = Boolean(fromDate || toDate || templateFilter)
+  const hasActiveFilters = Boolean(fromDate || toDate)
 
   const load = useCallback(() => {
     if (!patient) return
@@ -268,24 +269,26 @@ export function PatientMedicalHistoryList({ patient, patientName, refreshKey }: 
         </span>
         <div className="flex items-center gap-2">
           {!isInsideCard && (
-            <button
-              type="button"
-              onClick={() => setShowFiltersInternal((p) => !p)}
-              className={`p-1.5 rounded-md border transition-colors ${showFilters ? 'bg-primary/10 border-primary text-primary' : 'border-slate-300 text-slate-500 hover:bg-slate-50'}`}
-              title={showFilters ? 'Hide filters' : 'Show filters'}
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
-              </svg>
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => setShowFiltersInternal((p) => !p)}
+                className={`p-1.5 rounded-md border transition-colors ${showFilters ? 'bg-primary/10 border-primary text-primary' : 'border-slate-300 text-slate-500 hover:bg-slate-50'}`}
+                title={showFilters ? 'Hide filters' : 'Show filters'}
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowCreate(true)}
+                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
+              >
+                +
+              </button>
+            </>
           )}
-          <button
-            type="button"
-            onClick={() => setShowCreate(true)}
-            className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
-          >
-            +
-          </button>
         </div>
       </div>
 
@@ -309,28 +312,12 @@ export function PatientMedicalHistoryList({ patient, patientName, refreshKey }: 
               className="rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white"
             />
           </div>
-          <div className="flex flex-col gap-1 min-w-[160px]">
-            <label className="text-xs font-medium text-slate-500">Template</label>
-            <select
-              value={templateFilter}
-              onChange={(e) => setTemplateFilter(e.target.value)}
-              className="rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white"
-            >
-              <option value="">All templates</option>
-              {templateOptions.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
-          </div>
           {hasActiveFilters && (
             <button
               type="button"
               onClick={() => {
                 setFromDate('')
                 setToDate('')
-                setTemplateFilter('')
               }}
               className="text-xs text-slate-600 underline self-end pb-1"
             >
@@ -347,15 +334,17 @@ export function PatientMedicalHistoryList({ patient, patientName, refreshKey }: 
         )}
         {!loading && items.length === 0 && (
           <div className="flex flex-col items-center justify-center py-10 gap-3">
-            <p className="text-sm text-slate-500">No patient medical history has been recorded yet.</p>
-            <button
-              type="button"
-              onClick={() => setShowCreate(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-white text-xs font-medium hover:bg-primary/90 transition-colors"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              Create Patient Medical History
-            </button>
+            <p className="text-sm text-slate-500">No past medical history has been recorded yet.</p>
+            {!isInsideCard && (
+              <button
+                type="button"
+                onClick={() => setShowCreate(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-white text-xs font-medium hover:bg-primary/90 transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Add Past Medical History
+              </button>
+            )}
           </div>
         )}
         {!loading && items.length > 0 && filteredItems.length === 0 && (
@@ -366,7 +355,6 @@ export function PatientMedicalHistoryList({ patient, patientName, refreshKey }: 
               onClick={() => {
                 setFromDate('')
                 setToDate('')
-                setTemplateFilter('')
               }}
               className="text-xs text-primary underline"
             >
@@ -378,7 +366,7 @@ export function PatientMedicalHistoryList({ patient, patientName, refreshKey }: 
           <table className="w-full text-xs">
             <thead className="bg-slate-50 border-b border-slate-200 sticky top-0">
               <tr>
-                <th className="px-3 py-2.5 text-left font-semibold text-slate-600">Template</th>
+                <th className="px-3 py-2.5 text-left font-semibold text-slate-600">Summary</th>
                 <th className="px-3 py-2.5 text-left font-semibold text-slate-600">Admission</th>
                 <th className="px-3 py-2.5 text-left font-semibold text-slate-600">Date</th>
                 <th className="px-3 py-2.5 w-8" />
@@ -393,8 +381,12 @@ export function PatientMedicalHistoryList({ patient, patientName, refreshKey }: 
                 >
                   <td className="px-3 py-2.5 text-slate-800">
                     <span className="flex items-center gap-1">
-                      {item.template || <span className="italic text-slate-400">—</span>}
-                      <ChevronRight className="w-3 h-3 text-slate-300 group-hover:text-slate-500 transition-colors" />
+                      <span className="line-clamp-2">
+                        {item.summary || (
+                          <span className="italic text-slate-400">Past medical history</span>
+                        )}
+                      </span>
+                      <ChevronRight className="w-3 h-3 text-slate-300 group-hover:text-slate-500 transition-colors flex-shrink-0" />
                     </span>
                   </td>
                   <td className="px-3 py-2.5 text-slate-600">

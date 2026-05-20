@@ -22,8 +22,20 @@ export interface PatientMedicalHistory {
   template?: string | null
   inpatient_admission?: string | null
   patient_visit?: string | null
-  patient_history_details?: PatientMedicalHistoryRow[]
   creation?: string
+  summary?: string
+  heart_disease?: string
+  diabetes?: string
+  asthma?: string
+  strokes?: string
+  other_ongoing_illness?: string
+  previous_surgical_history?: string
+  current_and_past_medications?: string
+  allergies?: string
+  social_history?: string
+  addiction?: number
+  smoking?: number
+  patient_history_details?: PatientMedicalHistoryRow[]
 }
 
 export interface PatientSummary {
@@ -340,8 +352,19 @@ export async function savePatientMedicalHistory(
   const payload: any = {
     patient: history.patient,
     patient_name: history.patient_name,
-    template: history.template,
+    template: history.template || null,
     inpatient_admission: history.inpatient_admission || null,
+    heart_disease: history.heart_disease || '',
+    diabetes: history.diabetes || '',
+    asthma: history.asthma || '',
+    strokes: history.strokes || '',
+    other_ongoing_illness: history.other_ongoing_illness || '',
+    previous_surgical_history: history.previous_surgical_history || '',
+    current_and_past_medications: history.current_and_past_medications || '',
+    allergies: history.allergies || '',
+    social_history: history.social_history || '',
+    addiction: history.addiction ? 1 : 0,
+    smoking: history.smoking ? 1 : 0,
     patient_history_details: (history.patient_history_details || []).map(row => ({
       attributes: row.attributes,
       yesno: row.yesno,
@@ -382,6 +405,20 @@ export async function savePatientMedicalHistory(
     patient: data.patient ?? history.patient,
     patient_name: data.patient_name ?? history.patient_name,
     template: data.template ?? history.template,
+    inpatient_admission: data.inpatient_admission ?? history.inpatient_admission,
+    creation: data.creation ?? history.creation,
+    heart_disease: data.heart_disease ?? history.heart_disease,
+    diabetes: data.diabetes ?? history.diabetes,
+    asthma: data.asthma ?? history.asthma,
+    strokes: data.strokes ?? history.strokes,
+    other_ongoing_illness: data.other_ongoing_illness ?? history.other_ongoing_illness,
+    previous_surgical_history: data.previous_surgical_history ?? history.previous_surgical_history,
+    current_and_past_medications:
+      data.current_and_past_medications ?? history.current_and_past_medications,
+    allergies: data.allergies ?? history.allergies,
+    social_history: data.social_history ?? history.social_history,
+    addiction: data.addiction ?? history.addiction,
+    smoking: data.smoking ?? history.smoking,
     patient_history_details:
       data.patient_history_details?.map((row: any) => ({
         attributes: row.attributes,

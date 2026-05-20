@@ -8,3 +8,39 @@
   font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
+/* Portal listings: 13px body cells (1px smaller than Tailwind text-sm), 11px table headers */
+.dense-listing {
+  line-height: 1.375;
+}
+
+.dense-listing table {
+  font-size: 13px;
+}
+
+.dense-listing table th {
+  font-size: 11px !important;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+}
+
+.dense-listing table td {
+  font-size: 13px !important;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+}
+
+.dense-listing input:not([type='checkbox']):not([type='radio']),
+.dense-listing select,
+.dense-listing textarea {
+  font-size: 13px;
+}
+
+.dense-listing label {
+  font-size: 11px;
+}
+
+.dense-listing .text-sm {
+  font-size: 13px;
+  line-height: 1.375;
+}
+

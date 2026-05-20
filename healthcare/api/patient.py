@@ -407,6 +407,58 @@ def get_patient_health_history_template_details(template_name: str):
 	}
 
 
+def _serialize_patient_medical_history(doc):
+	"""Serialize Patient Medical History for portal APIs."""
+	return {
+		"name": doc.name,
+		"patient": doc.patient,
+		"patient_name": getattr(doc, "patient_name", None),
+		"template": doc.get("template"),
+		"inpatient_admission": doc.get("inpatient_admission"),
+		"creation": str(doc.creation) if doc.creation else None,
+		"heart_disease": doc.get("heart_disease") or "",
+		"diabetes": doc.get("diabetes") or "",
+		"asthma": doc.get("asthma") or "",
+		"strokes": doc.get("strokes") or "",
+		"other_ongoing_illness": doc.get("other_ongoing_illness") or "",
+		"previous_surgical_history": doc.get("previous_surgical_history") or "",
+		"current_and_past_medications": doc.get("current_and_past_medications") or "",
+		"allergies": doc.get("allergies") or "",
+		"social_history": doc.get("social_history") or "",
+		"addiction": cint(doc.get("addiction")),
+		"smoking": cint(doc.get("smoking")),
+		"patient_history_details": [
+			{
+				"attributes": row.attributes,
+				"description": row.description,
+				"yesno": row.yesno,
+			}
+			for row in (doc.patient_history_details or [])
+		],
+	}
+
+
+def _patient_medical_history_summary(doc) -> str:
+	"""Short label for list views (no template name)."""
+	parts = []
+	for label, field in (
+		("Heart", "heart_disease"),
+		("Diabetes", "diabetes"),
+		("Asthma", "asthma"),
+		("Strokes", "strokes"),
+	):
+		val = doc.get(field) if isinstance(doc, dict) else getattr(doc, field, None)
+		if val == "Yes":
+			parts.append(label)
+	if doc.get("allergies") if isinstance(doc, dict) else getattr(doc, "allergies", None):
+		parts.append("Allergies")
+	if cint(doc.get("addiction") if isinstance(doc, dict) else getattr(doc, "addiction", 0)):
+		parts.append("Addiction")
+	if cint(doc.get("smoking") if isinstance(doc, dict) else getattr(doc, "smoking", 0)):
+		parts.append("Smoking")
+	return ", ".join(parts) if parts else "Past medical history"
+
+
 @frappe.whitelist()
 def get_patient_medical_histories(patient):
 	"""Return list of all Patient Medical History records for a patient."""
@@ -415,9 +467,25 @@ def get_patient_medical_histories(patient):
 	records = frappe.get_all(
 		"Patient Medical History",
 		filters={"patient": patient},
-		fields=["name", "patient", "patient_name", "template", "inpatient_admission", "creation"],
+		fields=[
+			"name",
+			"patient",
+			"patient_name",
+			"template",
+			"inpatient_admission",
+			"creation",
+			"heart_disease",
+			"diabetes",
+			"asthma",
+			"strokes",
+			"allergies",
+			"addiction",
+			"smoking",
+		],
 		order_by="creation desc",
 	)
+	for row in records:
+		row["summary"] = _patient_medical_history_summary(row)
 	return records
 
 
@@ -427,65 +495,53 @@ def get_patient_medical_history_detail(name):
 	if not name:
 		frappe.throw(_("Name is required"))
 	doc = frappe.get_doc("Patient Medical History", name)
-	return {
-		"name": doc.name,
-		"patient": doc.patient,
-		"patient_name": getattr(doc, "patient_name", None),
-		"template": doc.get("template"),
-		"inpatient_admission": doc.get("inpatient_admission"),
-		"creation": str(doc.creation) if doc.creation else None,
-		"patient_history_details": [
-			{
-				"attributes": row.attributes,
-				"description": row.description,
-				"yesno": row.yesno,
-			}
-			for row in (doc.patient_history_details or [])
-		],
-	}
+	payload = _serialize_patient_medical_history(doc)
+	payload["summary"] = _patient_medical_history_summary(doc)
+	return payload
 
 
 @frappe.whitelist()
 def get_patient_medical_history(patient: str):
-	"""Return Patient Medical History document (template-driven child table)."""
+	"""Return latest Patient Medical History for a patient."""
 	if not patient:
 		frappe.throw(_("Patient is required"))
 
-	# Try to fetch the latest Patient Medical History document for this patient
 	records = frappe.get_all(
 		"Patient Medical History",
 		filters={"patient": patient},
-		fields=["name", "patient", "patient_name", "template"],
+		fields=["name"],
 		order_by="creation desc",
 		limit_page_length=1,
 	)
 
 	if not records:
-		# No history yet – return a minimal payload so UI can still show an empty state
 		patient_doc = frappe.get_doc("Patient", patient)
 		return {
 			"name": None,
 			"patient": patient_doc.name,
 			"patient_name": patient_doc.patient_name,
 			"template": None,
+			"inpatient_admission": None,
+			"creation": None,
+			"heart_disease": "",
+			"diabetes": "",
+			"asthma": "",
+			"strokes": "",
+			"other_ongoing_illness": "",
+			"previous_surgical_history": "",
+			"current_and_past_medications": "",
+			"allergies": "",
+			"social_history": "",
+			"addiction": 0,
+			"smoking": 0,
 			"patient_history_details": [],
+			"summary": "",
 		}
 
 	doc = frappe.get_doc("Patient Medical History", records[0].name)
-	return {
-		"name": doc.name,
-		"patient": doc.patient,
-		"patient_name": getattr(doc, "patient_name", None),
-		"template": getattr(doc, "template", None),
-		"patient_history_details": [
-			{
-				"attributes": row.attributes,
-				"description": row.description,
-				"yesno": row.yesno,
-			}
-			for row in (doc.patient_history_details or [])
-		],
-	}
+	payload = _serialize_patient_medical_history(doc)
+	payload["summary"] = _patient_medical_history_summary(doc)
+	return payload
 
 
 @frappe.whitelist()

@@ -40,7 +40,7 @@ interface PrescriptionListProps {
   onPrescriptionSelect?: (name: string) => void
   onPatientClick?: (patient: string) => void
   careContext?: 'Patient Visit' | 'Inpatient Admission'
-  /** Default to logged-in practitioner and today's posting date (when patient is set and no visit/admission lock). */
+  /** Default From/To to today and practitioner filter to the logged-in user's practitioner. */
   doctorPrescriptionDefaults?: boolean
 }
 
@@ -61,8 +61,8 @@ export const PrescriptionList = ({
   // Precise filter: the specific chosen visit or admission.
   const effectiveVisitFilter = (mode === 'OP' && activeVisit) ? activeVisit : undefined
   const effectiveAdmissionFilter = (mode === 'IP' && activeAdmission) ? activeAdmission : undefined
-  // When a specific context is active, hide local filters (same UX as AdmissionList / PatientVisitList).
-  const hasContextLock = !!(effectiveVisitFilter || effectiveAdmissionFilter)
+  /** Active visit/admission scopes the list; user filters still apply on top. */
+  const hasContextScope = !!(effectiveVisitFilter || effectiveAdmissionFilter)
 
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([])
   const [loading, setLoading] = useState(true)
@@ -81,68 +81,67 @@ export const PrescriptionList = ({
   const [practitionerOptions, setPractitionerOptions] = useState<LinkFieldOption[]>([])
   const [practitionerOpen, setPractitionerOpen] = useState(false)
   const [practitionerQuery, setPractitionerQuery] = useState('')
-  const [dateFrom, setDateFrom] = useState('')
-  const [dateTo, setDateTo] = useState('')
+  const [dateFrom, setDateFrom] = useState(() =>
+    doctorPrescriptionDefaults ? localDateISO() : '',
+  )
+  const [dateTo, setDateTo] = useState(() =>
+    doctorPrescriptionDefaults ? localDateISO() : '',
+  )
   const [searchQuery, setSearchQuery] = useState('')
-  const [myPractitionerId, setMyPractitionerId] = useState<string | null>(null)
-  const [restrictToMyPractitioner, setRestrictToMyPractitioner] = useState(true)
+  const [defaultPractitionerId, setDefaultPractitionerId] = useState<string | null>(null)
+  const [defaultsReady, setDefaultsReady] = useState(!doctorPrescriptionDefaults)
 
+  // Doctor dashboard: default From/To = today; practitioner = logged-in user's link (if any).
   useEffect(() => {
-    if (!doctorPrescriptionDefaults) return
-    getCurrentUserPractitioner().then(setMyPractitionerId)
-  }, [doctorPrescriptionDefaults])
-
-  useEffect(() => {
-    if (!doctorPrescriptionDefaults || !effectivePatient || hasContextLock) return
-    const t = localDateISO()
-    setDateFrom(t)
-    setDateTo(t)
-    setRestrictToMyPractitioner(true)
-  }, [doctorPrescriptionDefaults, effectivePatient, hasContextLock])
-
-  useEffect(() => {
-    if (!doctorPrescriptionDefaults || hasContextLock) return
-    if (restrictToMyPractitioner) {
-      if (myPractitionerId) setPractitionerFilter(myPractitionerId)
-      else setPractitionerFilter('')
-    } else {
-      setPractitionerFilter('')
-      setPractitionerQuery('')
+    if (!doctorPrescriptionDefaults) {
+      setDefaultsReady(true)
+      return
     }
-  }, [
-    restrictToMyPractitioner,
-    myPractitionerId,
-    doctorPrescriptionDefaults,
-    hasContextLock,
-  ])
+    let cancelled = false
+    ;(async () => {
+      try {
+        const practId = await getCurrentUserPractitioner()
+        if (cancelled) return
+        setDefaultPractitionerId(practId)
+        if (practId) {
+          setPractitionerFilter(practId)
+          try {
+            const options = await fetchHealthcarePractitioners()
+            const match = options.find((p) => p.name === practId)
+            setPractitionerQuery(match?.label || practId)
+          } catch {
+            setPractitionerQuery(practId)
+          }
+        }
+      } finally {
+        if (!cancelled) setDefaultsReady(true)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [doctorPrescriptionDefaults])
 
   const filters: PrescriptionFilters = {
     patient: effectivePatient,
-    status: hasContextLock ? undefined : (statusFilter || undefined),
-    practitioner: hasContextLock ? undefined : (practitionerFilter || undefined),
-    fromDate: hasContextLock ? undefined : (dateFrom || undefined),
-    toDate: hasContextLock ? undefined : (dateTo || undefined),
-    search: hasContextLock ? undefined : (searchQuery.trim() || undefined),
+    status: statusFilter || undefined,
+    practitioner: practitionerFilter || undefined,
+    fromDate: dateFrom || undefined,
+    toDate: dateTo || undefined,
+    search: searchQuery.trim() || undefined,
     careContext,
     patientEncounter: effectiveVisitFilter,
     inpatientRecord: effectiveAdmissionFilter,
   }
 
   const todayStr = localDateISO()
-  const doctorFilterIsDefault =
-    doctorPrescriptionDefaults &&
-    effectivePatient &&
-    !hasContextLock &&
-    restrictToMyPractitioner &&
-    (myPractitionerId ? practitionerFilter === myPractitionerId : !practitionerFilter) &&
-    dateFrom === todayStr &&
-    dateTo === todayStr
-
   const hasActiveFilters = Boolean(
     statusFilter ||
     searchQuery.trim() ||
-    (doctorPrescriptionDefaults && effectivePatient && !hasContextLock
-      ? !doctorFilterIsDefault
+    (doctorPrescriptionDefaults
+      ? practitionerFilter !== (defaultPractitionerId || '') ||
+        dateFrom !== todayStr ||
+        dateTo !== todayStr
       : !!(practitionerFilter || dateFrom || dateTo)),
   )
   const [actionLoading, setActionLoading] = useState<string | null>(null)
@@ -157,8 +156,21 @@ export const PrescriptionList = ({
   }
 
   useEffect(() => {
+    if (!defaultsReady) return
     load()
-  }, [effectivePatient, refreshKey, statusFilter, practitionerFilter, dateFrom, dateTo, searchQuery, careContext, effectiveVisitFilter, effectiveAdmissionFilter])
+  }, [
+    defaultsReady,
+    effectivePatient,
+    refreshKey,
+    statusFilter,
+    practitionerFilter,
+    dateFrom,
+    dateTo,
+    searchQuery,
+    careContext,
+    effectiveVisitFilter,
+    effectiveAdmissionFilter,
+  ])
 
   useEffect(() => {
     if (!practitionerOpen) return
@@ -173,22 +185,43 @@ export const PrescriptionList = ({
     return () => clearTimeout(t)
   }, [practitionerQuery, practitionerOpen])
 
-  const handleClearFilters = () => {
+  const handleClearFilters = async () => {
     setStatusFilter('')
-    setPractitionerFilter('')
-    setPractitionerQuery('')
-    setDateFrom('')
-    setDateTo('')
     setSearchQuery('')
-    setRestrictToMyPractitioner(false)
+    if (doctorPrescriptionDefaults) {
+      const t = localDateISO()
+      setDateFrom(t)
+      setDateTo(t)
+      if (defaultPractitionerId) {
+        setPractitionerFilter(defaultPractitionerId)
+        try {
+          const options = await fetchHealthcarePractitioners()
+          const match = options.find((p) => p.name === defaultPractitionerId)
+          setPractitionerQuery(match?.label || defaultPractitionerId)
+        } catch {
+          setPractitionerQuery(defaultPractitionerId)
+        }
+      } else {
+        setPractitionerFilter('')
+        setPractitionerQuery('')
+      }
+    } else {
+      setPractitionerFilter('')
+      setPractitionerQuery('')
+      setDateFrom('')
+      setDateTo('')
+    }
   }
 
-  // Close actions dropdown when clicking outside (ignore portaled menu and trigger button)
+  // Close actions / filter dropdowns when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       const el = e.target as HTMLElement
       if (el.closest('[data-portal-actions-menu]')) return
       if (el.closest('button[aria-label="Actions"]')) return
+      if (!el.closest('[data-filter-dropdown]')) {
+        setPractitionerOpen(false)
+      }
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setOpenActionRow(null)
       }
@@ -225,7 +258,7 @@ export const PrescriptionList = ({
     setOpenActionRow(null)
   }
 
-  if (loading) {
+  if (!defaultsReady || loading) {
     return (
       <div className="flex items-center justify-center p-8">
         <div className="text-slate-600">Loading prescriptions...</div>
@@ -246,47 +279,8 @@ export const PrescriptionList = ({
 
   return (
     <div className="min-w-full flex flex-col flex-1 min-h-0 h-full">
-      {doctorPrescriptionDefaults && effectivePatient && !hasContextLock && (
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-2 text-sm text-slate-700">
-          <label className="inline-flex items-center gap-2 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={restrictToMyPractitioner}
-              onChange={(e) => setRestrictToMyPractitioner(e.target.checked)}
-              className="rounded border-slate-300 text-primary focus:ring-primary"
-            />
-            <span>Only my prescriptions</span>
-          </label>
-          <span className="hidden sm:inline text-slate-300" aria-hidden>|</span>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs text-slate-500">Posting date:</span>
-            <button
-              type="button"
-              onClick={() => {
-                const t = localDateISO()
-                setDateFrom(t)
-                setDateTo(t)
-              }}
-              className="text-xs font-medium text-primary hover:underline"
-            >
-              Today
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setDateFrom('')
-                setDateTo('')
-              }}
-              className="text-xs font-medium text-slate-600 hover:underline"
-            >
-              Any date
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Active-context banner — shown when filtering by a specific visit or admission */}
-      {hasContextLock && (
+      {hasContextScope && (
         <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-blue-50 border border-blue-200 text-blue-800 text-xs mb-2">
           <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
@@ -315,9 +309,9 @@ export const PrescriptionList = ({
         </div>
       )}
 
-      {/* Filter bar — hidden when a specific context lock is active or filters toggled off */}
-      {!hasContextLock && showFilters && (
-      <div className="flex flex-wrap items-end gap-3 px-4 py-3 bg-white border-b border-slate-200">
+      {/* Filter bar — toggled from DashboardCard header or standalone list header */}
+      {showFilters && (
+      <div className="flex flex-wrap items-end gap-3 mb-3 flex-shrink-0">
         <div className="flex flex-col gap-1 min-w-[120px]">
           <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Status</label>
           <select
@@ -332,38 +326,54 @@ export const PrescriptionList = ({
             ))}
           </select>
         </div>
-        <div className="flex flex-col gap-1 min-w-[180px] relative">
+        <div data-filter-dropdown className="flex flex-col gap-1 min-w-[180px]">
           <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Practitioner</label>
-          <input
-            type="text"
-            value={practitionerFilter ? (practitionerOptions.find((p) => p.name === practitionerFilter)?.label || practitionerFilter) : practitionerQuery}
-            onChange={(e) => {
-              setPractitionerQuery(e.target.value)
-              setPractitionerFilter('')
-              setPractitionerOpen(true)
-            }}
-            onFocus={() => setPractitionerOpen(true)}
-            placeholder="Search practitioner..."
-            className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-          />
-          {practitionerOpen && (
-            <div className="absolute z-20 left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-md shadow-lg max-h-48 overflow-auto">
-              {practitionerOptions.map((p) => (
-                <button
-                  key={p.name}
-                  type="button"
-                  className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50"
-                  onClick={() => {
-                    setPractitionerFilter(p.name)
-                    setPractitionerQuery(p.label || p.name)
-                    setPractitionerOpen(false)
-                  }}
-                >
-                  {p.label || p.name}
-                </button>
-              ))}
-            </div>
-          )}
+          <div className="relative">
+            <input
+              type="text"
+              value={practitionerFilter ? (practitionerOptions.find((p) => p.name === practitionerFilter)?.label || practitionerFilter) : practitionerQuery}
+              onChange={(e) => {
+                setPractitionerQuery(e.target.value)
+                setPractitionerFilter('')
+                setPractitionerOpen(true)
+              }}
+              onFocus={() => setPractitionerOpen(true)}
+              placeholder="Search practitioner..."
+              className={`w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary ${practitionerFilter ? 'pr-8' : ''}`}
+            />
+            {practitionerFilter && (
+              <button
+                type="button"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                aria-label="Clear practitioner filter"
+                onClick={() => {
+                  setPractitionerFilter('')
+                  setPractitionerQuery('')
+                  setPractitionerOpen(false)
+                }}
+              >
+                ×
+              </button>
+            )}
+            {practitionerOpen && practitionerOptions.length > 0 && (
+              <div className="absolute z-30 left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-md shadow-lg max-h-48 overflow-auto">
+                {practitionerOptions.map((p) => (
+                  <button
+                    key={p.name}
+                    type="button"
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50"
+                    onClick={() => {
+                      setPractitionerFilter(p.name)
+                      setPractitionerQuery(p.label || p.name)
+                      setPractitionerOpen(false)
+                    }}
+                  >
+                    {p.label || p.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
         <div className="flex flex-col gap-1 min-w-[120px]">
           <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">From</label>

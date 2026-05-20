@@ -676,6 +676,8 @@ interface AppointmentListProps {
   showAll?: boolean
   /** Doctor dashboard: list uses the logged-in user's linked practitioner; dates/status live in filters */
   doctorScheduleMode?: boolean
+  /** Dashboard card preview: ID, date/time, patient (if none selected), status only */
+  compact?: boolean
   patient?: string
   onAddAppointment?: () => void
   onPatientClick?: (patient: string) => void
@@ -795,6 +797,7 @@ export const AppointmentList = ({
   refreshKey,
   showAll = false,
   doctorScheduleMode = false,
+  compact = false,
   patient,
   onPatientClick,
 }: AppointmentListProps) => {
@@ -940,16 +943,18 @@ export const AppointmentList = ({
           return [...merged]
         })
 
-        for (const apt of response.data) {
-          if (apt.practitioner && apt.appointment_date && !practitionerAvailability[apt.name]) {
-            setAvailabilityLoading(prev => ({ ...prev, [apt.name]: true }))
-            checkPractitionerAvailability(apt.practitioner, apt.appointment_date)
-              .then(availabilityResponse => {
-                setPractitionerAvailability(prev => ({ ...prev, [apt.name]: availabilityResponse }))
-              })
-              .finally(() => {
-                setAvailabilityLoading(prev => ({ ...prev, [apt.name]: false }))
-              })
+        if (!compact) {
+          for (const apt of response.data) {
+            if (apt.practitioner && apt.appointment_date && !practitionerAvailability[apt.name]) {
+              setAvailabilityLoading(prev => ({ ...prev, [apt.name]: true }))
+              checkPractitionerAvailability(apt.practitioner, apt.appointment_date)
+                .then(availabilityResponse => {
+                  setPractitionerAvailability(prev => ({ ...prev, [apt.name]: availabilityResponse }))
+                })
+                .finally(() => {
+                  setAvailabilityLoading(prev => ({ ...prev, [apt.name]: false }))
+                })
+            }
           }
         }
       } catch (err) {
@@ -960,7 +965,7 @@ export const AppointmentList = ({
     }
     loadAppointments()
   }, [
-    refreshKey, showAll, patient,
+    refreshKey, showAll, compact, patient,
     refreshTrigger, page, pageSize, filterStatus, filterPractitioner, filterDateFrom, filterDateTo, searchQuery,
   ])
 
@@ -1210,7 +1215,7 @@ export const AppointmentList = ({
           </div>
           
           {/* Practitioner filter when listing all appointments */}
-          {showAll && uniquePractitioners.length > 0 && (
+          {!compact && showAll && uniquePractitioners.length > 0 && (
             <div className="flex flex-col gap-1">
               <label className="text-xs font-medium text-slate-500">Practitioner</label>
               <select
@@ -1258,7 +1263,9 @@ export const AppointmentList = ({
             </button>
           )}
 
-          {/* Spacer + Bulk Reminder */}
+          {/* Spacer + Bulk Reminder (full listing only) */}
+          {!compact && (
+          <>
           <div className="flex-1" />
           <div className="relative self-end" ref={bulkMenuRef}>
             <button
@@ -1303,12 +1310,15 @@ export const AppointmentList = ({
               </div>
             )}
           </div>
+          </>
+          )}
         </div>
 
         {/* Result count */}
         <p className="text-xs text-slate-500">
           Showing {appointments.length} of {totalCount} appointment{totalCount !== 1 ? 's' : ''}
           {hasActiveFilters && ' (filtered)'}
+          {compact ? ' — use ↗ for full list with actions and more columns' : ''}
         </p>
       </div>
       )}
@@ -1322,30 +1332,58 @@ export const AppointmentList = ({
         </div>
       ) : (
         <div className="min-w-full">
-          <table className="w-full min-w-[1120px]">
+          <table
+            className={`w-full ${compact ? 'table-fixed' : isInsideCard ? 'table-fixed' : 'min-w-[960px] table-auto'}`}
+          >
+            {compact && (
+              <colgroup>
+                <col className="w-[18%]" />
+                <col className="w-[22%]" />
+                {!patient && <col className="w-[24%]" />}
+                <col className={patient ? 'w-[18%]' : 'w-[14%]'} />
+                <col className={patient ? 'w-[42%]' : 'w-[22%]'} />
+              </colgroup>
+            )}
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Appointment ID</th>
+                <th className={`px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase ${compact ? '' : 'w-[7.5rem]'}`}>
+                  Appointment ID
+                </th>
+                <th className={`px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap ${compact ? '' : 'w-[9.5rem]'}`}>
+                  Date & Time
+                </th>
                 {!patient && (
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Patient</th>
+                  <th className={`px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase ${compact ? '' : 'w-[28%] max-w-[220px]'}`}>
+                    Patient
+                  </th>
                 )}
-                {showPractitionerColumn && (
+                {!compact && (
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase">Type</th>
+                )}
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase">
+                  Status
+                </th>
+                {compact && (
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase">
+                    Practitioner
+                  </th>
+                )}
+                {!compact && showPractitionerColumn && (
                   <>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Practitioner</th>
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase">Practitioner</th>
                     {showAll && (
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Practitioner Status</th>
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase">Practitioner Status</th>
                     )}
                   </>
                 )}
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Date & Time</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Type</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Status</th>
-                {showAll && (
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">
+                {!compact && showAll && (
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">
                     Reception
                   </th>
                 )}
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase w-[100px]">Actions</th>
+                {!compact && (
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase w-[4.5rem]">Actions</th>
+                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
@@ -1357,26 +1395,59 @@ export const AppointmentList = ({
                 const showPractitionerStatus = showAll && apt.practitioner
                 
                 return (
-                  <tr key={apt.name} className="hover:bg-slate-50">
+                  <tr
+                    key={apt.name}
+                    className={`hover:bg-slate-50 ${compact ? 'cursor-pointer' : ''}`}
+                    onClick={compact ? () => setDetailApt(apt) : undefined}
+                  >
                     <td
-                      className="px-4 py-3 text-sm font-medium text-primary cursor-pointer hover:underline"
-                      onClick={() => setDetailApt(apt)}
+                      className={`px-3 py-2.5 text-sm font-medium text-primary truncate ${compact ? '' : 'cursor-pointer hover:underline'}`}
+                      onClick={compact ? undefined : () => setDetailApt(apt)}
+                      title={apt.name}
                     >
                       {apt.name}
                     </td>
+                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">
+                      {formatDateTime(apt.appointment_date, apt.appointment_time)}
+                    </td>
                     {!patient && (
                       <td
-                        className="px-4 py-3 text-sm text-slate-700 cursor-pointer"
-                        onClick={() => apt.patient && onPatientClick?.(apt.patient)}
+                        className="px-3 py-2.5 text-sm text-slate-700 max-w-[220px]"
+                        onClick={(e) => {
+                          if (apt.patient) {
+                            e.stopPropagation()
+                            onPatientClick?.(apt.patient)
+                          }
+                        }}
                       >
-                        <span className="font-medium text-primary hover:underline">{apt.patient_name || apt.patient || '-'}</span>
+                        <span className={`truncate block ${apt.patient ? 'font-medium text-primary hover:underline cursor-pointer' : ''}`}>
+                          {apt.patient_name || apt.patient || '-'}
+                        </span>
                       </td>
                     )}
-                    {showPractitionerColumn && (
+                    {!compact && (
+                      <td className="px-3 py-2.5 text-sm text-slate-700 truncate">{apt.appointment_type || '-'}</td>
+                    )}
+                    <td className="px-3 py-2.5">
+                      {apt.status
+                        ? <StatusPill status={apt.status} color={getStatusColor(apt.status)} />
+                        : <span className="text-sm text-slate-500">-</span>}
+                    </td>
+                    {compact && (
+                      <td
+                        className="px-3 py-2.5 text-sm text-slate-700 min-w-0"
+                        title={apt.practitioner_name || apt.practitioner || undefined}
+                      >
+                        <span className="block truncate">
+                          {apt.practitioner_name || apt.practitioner || '-'}
+                        </span>
+                      </td>
+                    )}
+                    {!compact && showPractitionerColumn && (
                       <>
-                        <td className="px-4 py-3 text-sm text-slate-700">{apt.practitioner_name || apt.practitioner || '-'}</td>
+                        <td className="px-3 py-2.5 text-sm text-slate-700 truncate">{apt.practitioner_name || apt.practitioner || '-'}</td>
                         {showAll && (
-                        <td className="px-4 py-3">
+                        <td className="px-3 py-2.5">
                           {showPractitionerStatus && (
                             isLoadingAvailability ? (
                               <div className="flex items-center gap-2">
@@ -1394,17 +1465,8 @@ export const AppointmentList = ({
                         )}
                       </>
                     )}
-                    <td className="px-4 py-3 text-sm text-slate-700">
-                      {formatDateTime(apt.appointment_date, apt.appointment_time)}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-slate-700">{apt.appointment_type || '-'}</td>
-                    <td className="px-4 py-3">
-                      {apt.status
-                        ? <StatusPill status={apt.status} color={getStatusColor(apt.status)} />
-                        : <span className="text-sm text-slate-500">-</span>}
-                    </td>
-                    {showAll && (
-                      <td className="px-4 py-3 align-middle whitespace-nowrap">
+                    {!compact && showAll && (
+                      <td className="px-3 py-2.5 align-middle whitespace-nowrap">
                         {canMarkPatientArrived(apt.status) ? (
                           <button
                             type="button"
@@ -1423,7 +1485,8 @@ export const AppointmentList = ({
                         )}
                       </td>
                     )}
-                    <td className="px-4 py-2 align-middle">
+                    {!compact && (
+                    <td className="px-3 py-2 align-middle">
                       <div className="relative" ref={openActionRow === apt.name ? menuRef : undefined}>
                         <button
                           type="button"
@@ -1507,6 +1570,7 @@ export const AppointmentList = ({
                         </PortalActionsMenu>
                       </div>
                     </td>
+                    )}
                   </tr>
                 )
               })}

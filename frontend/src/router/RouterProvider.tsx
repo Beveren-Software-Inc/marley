@@ -11,6 +11,7 @@ import { SettingsPage } from '../pages/Settings'
 import { QMPSPage } from '../pages/QMPS'
 import { EmployeePage } from '../pages/Employee'
 import { PatientVisitDetailPage } from '../pages/PatientVisitDetailPage'
+import { DischargePatientPage } from '../pages/DischargePatientPage'
 import { PatientHistoryPage } from '../pages/PatientHistory'
 import { PsychologistPage } from '../pages/Psychologist'
 import { AnesthesiologistPage } from '../pages/Anesthesiologist'
@@ -119,6 +120,14 @@ export const RouterProvider = () => {
       element: (
         <RoleGuard>
           <PatientVisitDetailPage />
+        </RoleGuard>
+      )
+    },
+    {
+      path: '/discharge/:admissionName',
+      element: (
+        <RoleGuard>
+          <DischargePatientPage />
         </RoleGuard>
       )
     },

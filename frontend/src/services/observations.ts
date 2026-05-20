@@ -2,10 +2,7 @@ export interface Observation {
   name: string
   patient: string
   patient_name?: string
-  observation_template?: string
-  template_name?: string
   observation_category?: string
-  status?: string
   posting_date?: string
   start_date?: string
   dc_date?: string
@@ -13,6 +10,7 @@ export interface Observation {
   practitioner_name?: string
   obs_code?: string
   observation_level?: string
+  designated_security_personel?: string
   result_data?: string
   result_text?: string
   result_float?: number
@@ -33,15 +31,14 @@ export interface Observation {
 
 export interface CreateObservationData {
   patient: string
-  observation_template?: string
   posting_date?: string
   start_date?: string
-  status?: string
   practitioner?: string
   department?: string
   admission_no?: string
   patient_visit?: string
   observation_level?: string
+  designated_security_personel?: string
   note?: string
   amount?: number
   duration?: string
@@ -49,6 +46,7 @@ export interface CreateObservationData {
 
 export interface ObservationLevelDetails {
   observation_level?: string
+  interval?: string
   is_billable?: number
   rate?: number
   item?: string

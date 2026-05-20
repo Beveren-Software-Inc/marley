@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { fetchClinicalNotes, fetchPendingDoctorProgressEncounters, type ClinicalNote, type PendingDoctorProgressEncounter } from '../../services/clinicalNotes'
-import { fetchHealthcarePractitioners, type LinkFieldOption } from '../../services/common'
+import { fetchHealthcarePractitioners, getCurrentUserPractitioner, type LinkFieldOption } from '../../services/common'
 import { DetailSlideOver } from '../ui/DetailSlideOver'
 import { DocDetailView } from '../ui/DocDetailView'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
@@ -51,28 +51,62 @@ export const ClinicalNotesList = ({
   const [practitionerQuery, setPractitionerQuery] = useState('')
   const [practitionerOpen, setPractitionerOpen] = useState(false)
   const [practitionerOptions, setPractitionerOptions] = useState<LinkFieldOption[]>([])
+  const [myPractitionerId, setMyPractitionerId] = useState<string | null>(null)
+  const [practitionerInitDone, setPractitionerInitDone] = useState(false)
 
-  /** Without a patient: Doctor Progress Note list is limited to the logged-in practitioner only, unless filtered to a specific visit/admission. */
+  /** Any typed note/order list: default practitioner filter to logged-in user's practitioner. */
+  const applyDefaultPractitionerFilter = Boolean(clinicalNoteType?.trim())
+
+  const isOrderList = Boolean(clinicalNoteType?.trim().endsWith(' Order'))
+
+  /** Without a patient: Doctor Progress Note aggregate list (pending encounters banner). */
   const hasRefContext = Boolean(
     (mode === 'OP' && activeVisit) || (mode === 'IP' && activeAdmission),
   )
   const useDoctorProgressMineOnly =
     clinicalNoteType === 'Doctor Progress Note' && !patient && !hasRefContext
 
-  /** Aggregate Doctors Order sheet: default to own orders; staff can widen to all practitioners to avoid duplicate ordering. */
-  const useDoctorsOrderAggregateMineOnlyEligible =
-    clinicalNoteType === 'Doctors Order' && !patient && !hasRefContext
+  /** Aggregate order sheet (no patient): optional widen to all practitioners. */
+  const isAggregateOrderList = isOrderList && !patient && !hasRefContext
 
-  const [showAllDoctorsOrders, setShowAllDoctorsOrders] = useState(false)
+  const [showAllPractitionersOrders, setShowAllPractitionersOrders] = useState(false)
 
   const mineOnlyRequest =
-    useDoctorProgressMineOnly ||
-    (useDoctorsOrderAggregateMineOnlyEligible && !showAllDoctorsOrders)
+    !notePractitionerFilter &&
+    (useDoctorProgressMineOnly ||
+      (isAggregateOrderList && !showAllPractitionersOrders))
 
   const showAdvancedNoteFilters =
-    showFilters &&
-    (Boolean(patient) || (clinicalNoteType === 'Doctor Progress Note' && useDoctorProgressMineOnly))
-  const showPractitionerPicker = Boolean(patient) && showAdvancedNoteFilters
+    showFilters && (Boolean(patient) || applyDefaultPractitionerFilter)
+  const showPractitionerPicker =
+    showAdvancedNoteFilters && (Boolean(patient) || applyDefaultPractitionerFilter)
+
+  useEffect(() => {
+    if (!applyDefaultPractitionerFilter) {
+      setPractitionerInitDone(true)
+      return
+    }
+    let cancelled = false
+    ;(async () => {
+      const practId = await getCurrentUserPractitioner()
+      if (cancelled) return
+      setMyPractitionerId(practId)
+      if (practId) {
+        setNotePractitionerFilter(practId)
+        try {
+          const options = await fetchHealthcarePractitioners()
+          const match = options.find((p) => p.name === practId)
+          setPractitionerQuery(match?.label || practId)
+        } catch {
+          setPractitionerQuery(practId)
+        }
+      }
+      setPractitionerInitDone(true)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [applyDefaultPractitionerFilter])
 
   useEffect(() => {
     if (!practitionerOpen || !showPractitionerPicker) return
@@ -85,6 +119,8 @@ export const ClinicalNotesList = ({
   }, [practitionerOpen, practitionerQuery, showPractitionerPicker])
 
   useEffect(() => {
+    if (!practitionerInitDone) return
+
     const loadClinicalNotes = async () => {
       try {
         setLoading(true)
@@ -101,6 +137,8 @@ export const ClinicalNotesList = ({
           referenceDoctype = 'Inpatient Admission'
           referenceDocument = activeAdmission
         }
+
+        const practitionerForApi = notePractitionerFilter || undefined
         
         const response = await fetchClinicalNotes(
           50,
@@ -111,8 +149,8 @@ export const ClinicalNotesList = ({
           noteType,
           referenceDoctype,
           referenceDocument,
-          mineOnlyRequest ? true : undefined,
-          showPractitionerPicker ? notePractitionerFilter || undefined : undefined,
+          !practitionerForApi && mineOnlyRequest ? true : undefined,
+          practitionerForApi,
           postingDateFrom || undefined,
           postingDateTo || undefined,
         )
@@ -139,7 +177,7 @@ export const ClinicalNotesList = ({
     postingDateFrom,
     postingDateTo,
     notePractitionerFilter,
-    showPractitionerPicker,
+    practitionerInitDone,
   ])
 
   useEffect(() => {
@@ -181,6 +219,8 @@ export const ClinicalNotesList = ({
 
   /** Read left-to-right: date/time → note → patient (if aggregate) → metadata → actions */
   const tableColumnOrderDoctorFirst = clinicalNoteType === 'Doctor Progress Note'
+  /** Dashboard cards: date and note only; full listing keeps all columns. */
+  const cardCompactLayout = isInsideCard
 
   if (error && !loading) {
     return (
@@ -201,7 +241,48 @@ export const ClinicalNotesList = ({
     )
   }
 
-  const notesTable = (
+  const notePreview = (note: ClinicalNote, maxLen: number) => {
+    if (!note.note) return '-'
+    const plainText = stripHtml(note.note)
+    return plainText.length > maxLen ? `${plainText.substring(0, maxLen)}…` : plainText
+  }
+
+  const notesTable = cardCompactLayout ? (
+    <div className="overflow-x-auto">
+      <table className="w-full">
+        <thead className="bg-slate-50 border-b border-slate-200">
+          <tr>
+            <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap w-[28%]">
+              Date
+            </th>
+            <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">
+              Note
+            </th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-200">
+          {clinicalNotes.map((note) => (
+            <tr
+              key={note.name}
+              className="hover:bg-slate-50 cursor-pointer"
+              onClick={() => setDetailName(note.name)}
+            >
+              <td className="px-3 py-2.5 text-xs text-slate-700 whitespace-nowrap align-top">
+                <span className="text-primary font-medium">
+                  {note.posting_date ? new Date(note.posting_date).toLocaleString() : '-'}
+                </span>
+              </td>
+              <td className="px-3 py-2.5 text-xs text-slate-700 align-top">
+                <div className="line-clamp-4" title={note.note ? stripHtml(note.note) : ''}>
+                  {notePreview(note, 280)}
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  ) : (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[1000px]">
         <thead className="bg-slate-50 border-b border-slate-200">
@@ -280,10 +361,7 @@ export const ClinicalNotesList = ({
                   </td>
                   <td className="px-4 py-3 text-sm text-slate-700 align-top max-w-xl">
                     <div className="line-clamp-4" title={note.note ? stripHtml(note.note) : ''}>
-                      {note.note ? (() => {
-                        const plainText = stripHtml(note.note)
-                        return plainText.length > 220 ? `${plainText.substring(0, 220)}…` : plainText
-                      })() : '-'}
+                      {notePreview(note, 220)}
                     </div>
                   </td>
                   {!patient && (
@@ -378,10 +456,7 @@ export const ClinicalNotesList = ({
                   </td>
                   <td className="px-4 py-3 text-sm text-slate-700 max-w-md">
                     <div className="truncate" title={note.note ? stripHtml(note.note) : ''}>
-                      {note.note ? (() => {
-                        const plainText = stripHtml(note.note)
-                        return plainText.length > 100 ? `${plainText.substring(0, 100)}...` : plainText
-                      })() : '-'}
+                      {notePreview(note, 100)}
                     </div>
                   </td>
                   <td className="px-4 py-3 text-sm text-slate-700 text-center align-middle">
@@ -404,7 +479,7 @@ export const ClinicalNotesList = ({
 
   return (
     <div className="min-w-full flex flex-col flex-1 min-h-0 h-full">
-      {!isInsideCard && (Boolean(patient) || clinicalNoteType === 'Doctor Progress Note') && (
+      {!isInsideCard && (Boolean(patient) || applyDefaultPractitionerFilter) && (
         <div className="flex justify-end mb-2 flex-shrink-0">
           <button
             type="button"
@@ -501,24 +576,35 @@ export const ClinicalNotesList = ({
         </div>
       )}
 
-      {useDoctorsOrderAggregateMineOnlyEligible && (
+      {isAggregateOrderList && clinicalNoteType && (
         <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2 bg-slate-50 border border-slate-200 rounded-md text-sm">
           <label className="flex items-center gap-2 cursor-pointer text-slate-800 select-none">
             <input
               type="checkbox"
               className="rounded border-slate-300 text-primary focus:ring-primary"
-              checked={showAllDoctorsOrders}
-              onChange={(e) => setShowAllDoctorsOrders(e.target.checked)}
+              checked={showAllPractitionersOrders}
+              onChange={(e) => {
+                const checked = e.target.checked
+                setShowAllPractitionersOrders(checked)
+                if (checked) {
+                  setNotePractitionerFilter('')
+                  setPractitionerQuery('')
+                } else if (myPractitionerId) {
+                  setNotePractitionerFilter(myPractitionerId)
+                  const match = practitionerOptions.find((p) => p.name === myPractitionerId)
+                  setPractitionerQuery(match?.label || myPractitionerId)
+                }
+              }}
             />
             <span>Show orders from all practitioners</span>
           </label>
-          {!showAllDoctorsOrders ? (
+          {!showAllPractitionersOrders ? (
             <span className="text-xs text-slate-500">
               Default is your orders only; turn on to see the full list and avoid repeating orders others placed.
             </span>
           ) : (
             <span className="text-xs text-slate-500">
-              Showing everyone&apos;s Doctors Orders. Uncheck to return to yours only.
+              Showing everyone&apos;s {clinicalNoteType}. Uncheck to return to yours only.
             </span>
           )}
         </div>
@@ -589,7 +675,7 @@ export const ClinicalNotesList = ({
 
       {aggregateDoctorProgressLayout && (
         <p className="text-xs text-slate-500 mb-2 px-1">
-          Progress notes below are yours only (other doctors&apos; notes appear when you open a patient&apos;s file).
+          Progress notes below are filtered to your practitioner by default. Clear the practitioner filter or open a patient file to change scope.
         </p>
       )}
 

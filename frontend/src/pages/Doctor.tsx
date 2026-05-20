@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useLayoutEffect, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useEffect, useLayoutEffect, useState } from 'react'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { ADHDAssessmentList } from '../components/adhd/AdhdAssessmentList'
 import { CreateADHDAssessmentModal } from '../components/adhd/CreateADHDAssessmentModal'
 import { AdmissionList } from '../components/admissions/AdmissionList'
-import { DischargeModal } from '../components/admissions/DischargeModal'
+import { DischargeAdmissionView } from '../components/admissions/DischargeAdmissionView'
 import { SuicidalPatientAssessmentModal } from '../components/admissions/SuicidalPatientAssessmentModal'
 import { AppointmentList } from '../components/appointments/AppointmentList'
 import { CreateAppointmentModal } from '../components/appointments/CreateAppointmentModal'
@@ -81,10 +81,12 @@ import { CreatePatientMedicalHistoryModal } from '../components/medicalHistory/C
 import { isDoctorScreenBlocked } from '../config/costCenterCareScope'
 import { draftSavedAt, hasDischargeDraft } from '../services/dischargeDraft'
 import { getPatientActiveAdmission } from '../services/inpatientRecords'
+import { navigateToDischarge } from '../utils/dischargeNavigation'
 import { AdmissionPage } from './Admission'
 import { PatientVisitPage } from './PatientVisit'
 
 import { DashboardCard } from '../components/ui/DashboardCard'
+import { PortalTopBar } from '../components/layout/PortalTopBar'
 
 const CreateLabRequestModal = ({ 
   onClose, 
@@ -115,17 +117,18 @@ export const DoctorPage = () => {
     costCenterCareScope,
   } = useCareContext()
   const [searchParams, setSearchParams] = useSearchParams()
+  const navigate = useNavigate()
+  const location = useLocation()
   const patientFromUrl = searchParams.get('patient')
   const [selectedPatient, setSelectedPatient] = useState<string | undefined>(() => patientFromUrl || globalPatient || undefined)
   const [showWarningModal, setShowWarningModal] = useState(false)
   const [showLabTestModal, setShowLabTestModal] = useState(false)
-  const [showDischargeModal, setShowDischargeModal] = useState(false)
   const [showCreatePatientModal , setShowCreatePatientModal] = useState(false)
   const [patientRefreshKey, setPatientRefreshKey] = useState(0)
   const [dischargeHasDraft, setDischargeHasDraft] = useState(false)
+  const [draftAdmissionNo, setDraftAdmissionNo] = useState<string | null>(null)
   const [showObservationModal, setShowObservationModal] = useState(false)
   const [showDiagnosisModal, setShowDiagnosisModal] = useState(false)
-  const [selectedAdmission, setSelectedAdmission] = useState<{ name: string; patient: string; patient_name?: string } | null>(null)
   const [warningRefreshKey, setWarningRefreshKey] = useState(0)
   const [labTestRefreshKey, setLabTestRefreshKey] = useState(0)
   const [observationRefreshKey, setObservationRefreshKey] = useState(0)
@@ -165,6 +168,7 @@ export const DoctorPage = () => {
   const [showCreateMedicalHistoryModal, setShowCreateMedicalHistoryModal] = useState(false)
   const [medicalHistoryRefreshKey, setMedicalHistoryRefreshKey] = useState(0)
   const rawScreen = searchParams.get('screen')
+  const dischargeAdmission = searchParams.get('discharge')
   const screenBlocked = !!(rawScreen && isDoctorScreenBlocked(rawScreen, costCenterCareScope, mode))
   const screen = screenBlocked ? null : rawScreen
   const [showCreateADHDModal, setShowCreateADHDModal] = useState(false)
@@ -242,24 +246,50 @@ export const DoctorPage = () => {
         toast.error('No active admission found for this patient')
         return
       }
-      setSelectedAdmission({
-        name: admission.name,
-        patient: admission.patient,
-        patient_name: admission.patient_name
-      })
       setDischargeHasDraft(hasDischargeDraft(admission.name))
-      setShowDischargeModal(true)
+      setDraftAdmissionNo(admission.name)
+      navigateToDischarge(
+        {
+          name: admission.name,
+          patient: admission.patient,
+          patient_name: admission.patient_name,
+        },
+        navigate,
+        `/doctor?${searchParams.toString()}`
+      )
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to fetch admission')
     }
   }
 
-  const handleDischargeModalClose = useCallback(() => {
-    setShowDischargeModal(false)
-    if (selectedAdmission) {
-      setDischargeHasDraft(hasDischargeDraft(selectedAdmission.name))
+  useEffect(() => {
+    if (!selectedPatient || rawScreen !== 'df') {
+      setDischargeHasDraft(false)
+      setDraftAdmissionNo(null)
+      return
     }
-  }, [selectedAdmission])
+    getPatientActiveAdmission(selectedPatient)
+      .then((admission) => {
+        if (admission && hasDischargeDraft(admission.name)) {
+          setDischargeHasDraft(true)
+          setDraftAdmissionNo(admission.name)
+        } else {
+          setDischargeHasDraft(false)
+          setDraftAdmissionNo(null)
+        }
+      })
+      .catch(() => {
+        setDischargeHasDraft(false)
+        setDraftAdmissionNo(null)
+      })
+  }, [selectedPatient, rawScreen, dischargeRefreshKey])
+
+  useEffect(() => {
+    const state = location.state as { dischargeCompleted?: boolean } | null
+    if (!state?.dischargeCompleted) return
+    setDischargeRefreshKey((k) => k + 1)
+    navigate(`${location.pathname}?${searchParams.toString()}`, { replace: true, state: {} })
+  }, [location.state, location.pathname, navigate, searchParams])
 
   const handlePatientSelect = (patient: string | undefined) => {
     setSelectedPatient(patient)
@@ -271,6 +301,50 @@ export const DoctorPage = () => {
       newSearchParams.delete('patient')
     }
     setSearchParams(newSearchParams, { replace: true })
+  }
+
+  const closeDischarge = () => {
+    const state = location.state as { returnTo?: string } | null
+    if (state?.returnTo) {
+      navigate(state.returnTo, { replace: true })
+      return
+    }
+    const np = new URLSearchParams(searchParams)
+    np.delete('discharge')
+    setSearchParams(np, { replace: true })
+  }
+
+  const handleDischargeSuccess = () => {
+    toast.success('Discharge completed successfully')
+    const state = location.state as { returnTo?: string } | null
+    if (state?.returnTo) {
+      navigate(state.returnTo, { replace: true, state: { dischargeCompleted: true } })
+      return
+    }
+    const np = new URLSearchParams(searchParams)
+    np.delete('discharge')
+    setSearchParams(np, { replace: true, state: { dischargeCompleted: true } })
+  }
+
+  // Discharge workflow — keep portal top bar; form fills content area only
+  if (dischargeAdmission && mode !== 'OP') {
+    const navState = location.state as { patient?: string; patient_name?: string } | null
+    const patientForBar =
+      selectedPatient || navState?.patient || searchParams.get('patient') || undefined
+    return (
+      <div className="flex flex-col h-[calc(100vh-2.25rem)] max-h-[calc(100vh-2.25rem)] overflow-hidden">
+        <PortalTopBar selectedPatient={patientForBar || ''} onPatientSelect={handlePatientSelect} />
+        <div className="flex-1 min-h-0 overflow-hidden bg-white">
+          <DischargeAdmissionView
+            admissionName={dischargeAdmission}
+            patientHint={navState?.patient}
+            patientNameHint={navState?.patient_name}
+            onClose={closeDischarge}
+            onSuccess={handleDischargeSuccess}
+          />
+        </div>
+      </div>
+    )
   }
 
   // Show Admission page when screen=admission — hidden in OP mode
@@ -518,7 +592,8 @@ export const DoctorPage = () => {
             addButtonTitle="Add Doctors Order"
           >
             <ClinicalNotesList 
-              patient={selectedPatient} 
+              patient={selectedPatient}
+              medicalRole="Doctor"
               clinicalNoteType="Doctors Order"
               key={clinicalNotesRefreshKey}
               onPatientClick={handlePatientSelect}
@@ -1270,6 +1345,53 @@ export const DoctorPage = () => {
     )
   }
 
+  // Appointments — full listing
+  if (screen === 'appointments') {
+    return (
+      <div className="flex flex-col">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+        <div className="p-4">
+          <DashboardCard
+            title="Appointments"
+            onAdd={() => setShowAppointmentModal(true)}
+            addButtonTitle="Add Appointment"
+            noHeightLimit
+          >
+            <AppointmentList
+              doctorScheduleMode={!selectedPatient}
+              showAll={!!selectedPatient}
+              patient={selectedPatient || undefined}
+              refreshKey={appointmentRefreshKey}
+              onPatientClick={handlePatientSelect}
+            />
+          </DashboardCard>
+        </div>
+        {showAppointmentModal && (
+          <CreateAppointmentModal
+            onClose={() => setShowAppointmentModal(false)}
+            onSuccess={() => {
+              setAppointmentRefreshKey((prev) => prev + 1)
+              setShowAppointmentModal(false)
+            }}
+            initialPatient={selectedPatient}
+          />
+        )}
+      </div>
+    )
+  }
+
   // Show Patient Visit History
   if (screen === 'pvh') {
     return (
@@ -1402,7 +1524,7 @@ export const DoctorPage = () => {
           </div>
         </header>
         <div className="p-4">
-          <DashboardCard title="Medical History">
+          <DashboardCard title="Past Medical History">
             <MedicalHistoryView patient={selectedPatient} />
           </DashboardCard>
         </div>
@@ -1507,27 +1629,14 @@ export const DoctorPage = () => {
             onAdd={handleCreateDischarge}
             addButtonTitle={dischargeHasDraft ? 'Continue saved discharge' : 'Start discharge'}
           >
-            {dischargeHasDraft && selectedAdmission && (
+            {dischargeHasDraft && draftAdmissionNo && (
               <div className="mb-2 text-xs text-amber-700">
-                Draft — {draftSavedAt(selectedAdmission.name)}
+                Draft — {draftSavedAt(draftAdmissionNo)}
               </div>
             )}
             <DischargeList patient={selectedPatient} key={dischargeRefreshKey} onPatientClick={handlePatientSelect} />
           </DashboardCard>
         </div>
-        {showDischargeModal && selectedAdmission && (
-          <DischargeModal
-            admission={selectedAdmission}
-            onClose={handleDischargeModalClose}
-            onSuccess={() => {
-              setShowDischargeModal(false)
-              setSelectedAdmission(null)
-              setDischargeHasDraft(false)
-              setDischargeRefreshKey(prev => prev + 1)
-              toast.success('Discharge completed successfully')
-            }}
-          />
-        )}
       </div>
     )
   }
@@ -2035,8 +2144,10 @@ export const DoctorPage = () => {
       title="Appointments"
       onAdd={() => setShowAppointmentModal(true)}
       addButtonTitle="Add Appointment"
+      listingScreen="appointments"
     >
       <AppointmentList
+        compact
         doctorScheduleMode={!selectedPatient}
         showAll={!!selectedPatient}
         patient={selectedPatient || undefined}
@@ -2045,6 +2156,9 @@ export const DoctorPage = () => {
       />
     </DashboardCard>
   )
+
+  /** OP patient + specific visit: Diagnosis|Plan → Labs → Rx|Long acting */
+  const opVisitDashboardLayout = mode === 'OP' && !!activeVisit
 
   return (
   <div className="flex flex-col">
@@ -2075,6 +2189,7 @@ export const DoctorPage = () => {
           title={mode === 'OP' ? 'Patient Visits (OP)' : 'Inpatient Admissions (IP)'}
           onAdd={mode === 'OP' ? () => setShowCreateVisitModal(true) : undefined}
           addButtonTitle="Create Patient Visit"
+          listingScreen={mode === 'OP' ? 'pvh' : 'admission'}
         >
           {mode === 'OP' ? (
             <PatientVisitList
@@ -2108,6 +2223,7 @@ export const DoctorPage = () => {
           fixedHeight
           title="Inpatient Admissions (IP)"
           onAdd={undefined}
+          listingScreen="admission"
         >
           <AdmissionList
             patient={selectedPatient || undefined}
@@ -2131,15 +2247,17 @@ export const DoctorPage = () => {
             title="Warnings & Allergies"
             onAdd={() => setShowWarningModal(true)}
             addButtonTitle="Add Warning Message"
+            listingScreen="warn"
           >
             <WarningMessagesList patient={selectedPatient} key={warningRefreshKey} onPatientClick={handlePatientSelect} />
           </DashboardCard>
 
           <DashboardCard
             fixedHeight
-            title="Patient Medical History"
+            title="Past Medical History"
             onAdd={() => setShowCreateMedicalHistoryModal(true)}
-            addButtonTitle="Add Patient Medical History"
+            addButtonTitle="Add Past Medical History"
+            listingScreen="mh"
             requiresAttention={showIpRequiredDocs && ipDocStatus !== null && !ipDocStatus.medical_history}
             attentionLabel="Required for this IP admission — add patient medical history"
           >
@@ -2155,6 +2273,7 @@ export const DoctorPage = () => {
             title="Suicide Risk Assessment"
             onAdd={() => setShowCreateSuicideRiskModal(true)}
             addButtonTitle="Create Suicide Risk Assessment"
+            listingScreen="clinical-suicide-risk"
             requiresAttention={showIpRequiredDocs && ipDocStatus !== null && !ipDocStatus.suicide_risk}
             attentionLabel="Required for this IP admission — complete suicide risk assessment"
           >
@@ -2171,6 +2290,7 @@ export const DoctorPage = () => {
             title="History Form"
             onAdd={() => setShowPatientHistoryModal(true)}
             addButtonTitle="New History Form"
+            listingScreen="patient-history"
             requiresAttention={showIpRequiredDocs && ipDocStatus !== null && !ipDocStatus.history_form}
             attentionLabel="Required for this IP admission — complete history form"
           >
@@ -2188,7 +2308,7 @@ export const DoctorPage = () => {
         {costCenterCareScope !== 'ip_only' && mode === 'OP' ? (
           <div className="grid gap-4 md:grid-cols-2 auto-rows-fr px-4 pb-4">
             {doctorAppointmentsCard}
-            <DashboardCard fixedHeight title="Patient Visits (OP)" onAdd={() => setShowCreateVisitModal(true)} addButtonTitle="Create Patient Visit">
+            <DashboardCard fixedHeight title="Patient Visits (OP)" onAdd={() => setShowCreateVisitModal(true)} addButtonTitle="Create Patient Visit" listingScreen="pvh">
               <PatientVisitList patient={selectedPatient} onPatientFromVisit={handlePatientSelect} />
             </DashboardCard>
           </div>
@@ -2202,109 +2322,215 @@ export const DoctorPage = () => {
           <div className="px-4 pb-4">{doctorAppointmentsCard}</div>
         ) : null}
 
-        {/* Diagnosis (left) · Doctor Progress Notes (right) */}
-        <div className="grid gap-4 md:grid-cols-2 auto-rows-fr px-4 pb-4">
-          <DashboardCard
-            fixedHeight
-            title="Diagnosis Detail"
-            onAdd={() => setShowDiagnosisModal(true)}
-            addButtonTitle="Add / Edit Diagnosis"
-          >
-            <PatientDiagnosisList patient={selectedPatient} refreshKey={diagnosisRefreshKey} />
-          </DashboardCard>
+        {opVisitDashboardLayout ? (
+          <>
+            {/* OP + visit: Diagnosis | Doctor's Plan */}
+            <div className="grid gap-4 md:grid-cols-2 auto-rows-fr px-4 pb-4">
+              <DashboardCard
+                fixedHeight
+                title="Diagnosis Detail"
+                onAdd={() => setShowDiagnosisModal(true)}
+                addButtonTitle="Add / Edit Diagnosis"
+                listingScreen="dx"
+              >
+                <PatientDiagnosisList patient={selectedPatient} refreshKey={diagnosisRefreshKey} />
+              </DashboardCard>
 
-          <DashboardCard
-            fixedHeight
-            title="Doctor Progress Notes"
-            onAdd={() => setShowDoctorProgressNoteModal(true)}
-            addButtonTitle="Add Doctor Progress Note"
-          >
-            <ClinicalNotesList
-              patient={selectedPatient}
-              medicalRole="Doctor"
-              clinicalNoteType="Doctor Progress Note"
-              key={doctorProgressNoteRefreshKey}
-              onPatientClick={handlePatientSelect}
-            />
-          </DashboardCard>
-        </div>
+              <DashboardCard
+                fixedHeight
+                title="Doctor's Plan"
+                onAdd={() => setShowDoctorMedicationPlanModal(true)}
+                addButtonTitle="Add Doctor's Plan"
+              >
+                <DoctorMedicationPlanList patient={selectedPatient} key={doctorMedicationPlanRefreshKey} />
+              </DashboardCard>
+            </div>
 
-        {/* Doctor's Plan + Long Acting (after Diagnosis/Notes, before Labs) */}
-        <div
-          className={`grid gap-4 px-4 pb-4 auto-rows-fr ${
-            mode === 'OP' || costCenterCareScope !== 'op_only' ? 'md:grid-cols-2' : 'md:grid-cols-1'
-          }`}
-        >
-          <DashboardCard
-            fixedHeight
-            title="Doctor's Plan"
-            onAdd={() => setShowDoctorMedicationPlanModal(true)}
-            addButtonTitle="Add Doctor's Plan"
-          >
-            <DoctorMedicationPlanList patient={selectedPatient} key={doctorMedicationPlanRefreshKey} />
-          </DashboardCard>
+            {/* Lab Requests | Lab Test Reports */}
+            <div className="grid gap-4 md:grid-cols-2 auto-rows-fr px-4 pb-4">
+              <DashboardCard
+                fixedHeight
+                title="Lab Requests"
+                onAdd={() => setShowServiceRequestModal(true)}
+                addButtonTitle="Add Service Request"
+                listingScreen="lab"
+              >
+                <ServiceRequestList
+                  patient={selectedPatient}
+                  refreshKey={serviceRequestRefreshKey}
+                  template_dt="Lab Test Template"
+                  onPatientClick={handlePatientSelect}
+                />
+              </DashboardCard>
 
-          <DashboardCard fixedHeight title="Long Acting Medicine">
-            <LongActingMedicineList patient={selectedPatient} refreshKey={prescriptionRefreshKey} />
-          </DashboardCard>
-        </div>
+              <DashboardCard
+                fixedHeight
+                title="Lab Test Reports"
+                onAdd={() => setShowLabTestModal(true)}
+                addButtonTitle="Add Lab Test Report"
+                listingScreen="lab"
+              >
+                <LabTestList
+                  patient={selectedPatient}
+                  defaultStatus="Pending Review"
+                  key={labTestRefreshKey}
+                  onPatientClick={handlePatientSelect}
+                />
+              </DashboardCard>
+            </div>
 
-        {/* Labs */}
-        <div className="grid gap-4 md:grid-cols-2 auto-rows-fr px-4 pb-4">
-          <DashboardCard
-            fixedHeight
-            title="Lab Test Reports"
-            onAdd={() => setShowLabTestModal(true)}
-            addButtonTitle="Add Lab Test Report"
-          >
-            <LabTestList
-              patient={selectedPatient}
-              defaultStatus="Pending Review"
-              key={labTestRefreshKey}
-              onPatientClick={handlePatientSelect}
-            />
-          </DashboardCard>
+            {/* Prescription | Long Acting Medicine */}
+            <div className="grid gap-4 md:grid-cols-2 auto-rows-fr px-4 pb-4">
+              <DashboardCard
+                fixedHeight
+                title="Prescription"
+                onAdd={() => setShowPrescriptionModal(true)}
+                addButtonTitle="Create Prescription"
+                listingScreen="rx"
+              >
+                <PrescriptionList
+                  patient={selectedPatient}
+                  doctorPrescriptionDefaults
+                  refreshKey={prescriptionRefreshKey}
+                  onPatientClick={handlePatientSelect}
+                />
+              </DashboardCard>
 
-          <DashboardCard
-            fixedHeight
-            title="Lab Requests"
-            onAdd={() => setShowServiceRequestModal(true)}
-            addButtonTitle="Add Service Request"
-          >
-            <ServiceRequestList
-              patient={selectedPatient}
-              refreshKey={serviceRequestRefreshKey}
-              template_dt="Lab Test Template"
-              onPatientClick={handlePatientSelect}
-            />
-          </DashboardCard>
-        </div>
+              <DashboardCard fixedHeight title="Long Acting Medicine" listingScreen="d-long-acting-meds">
+                <LongActingMedicineList patient={selectedPatient} refreshKey={prescriptionRefreshKey} />
+              </DashboardCard>
+            </div>
 
-        {/* Prescriptions; on IP with admission selected, Appointments share this row */}
-        <div
-          className={`grid gap-4 auto-rows-fr px-4 pb-4 ${
-            costCenterCareScope !== 'op_only' && mode === 'IP' && activeAdmission
-              ? 'md:grid-cols-2'
-              : 'md:grid-cols-1'
-          }`}
-        >
-          {costCenterCareScope !== 'op_only' && mode === 'IP' && activeAdmission
-            ? doctorAppointmentsCard
-            : null}
-          <DashboardCard
-            fixedHeight
-            title="Prescription"
-            onAdd={() => setShowPrescriptionModal(true)}
-            addButtonTitle="Create Prescription"
-          >
-            <PrescriptionList
-              patient={selectedPatient}
-              doctorPrescriptionDefaults
-              refreshKey={prescriptionRefreshKey}
-              onPatientClick={handlePatientSelect}
-            />
-          </DashboardCard>
-        </div>
+            <div className="px-4 pb-4">
+              <DashboardCard
+                fixedHeight
+                title="Doctor Progress Notes"
+                onAdd={() => setShowDoctorProgressNoteModal(true)}
+                addButtonTitle="Add Doctor Progress Note"
+                listingScreen="dpn"
+              >
+                <ClinicalNotesList
+                  patient={selectedPatient}
+                  medicalRole="Doctor"
+                  clinicalNoteType="Doctor Progress Note"
+                  key={doctorProgressNoteRefreshKey}
+                  onPatientClick={handlePatientSelect}
+                />
+              </DashboardCard>
+            </div>
+          </>
+        ) : (
+          <>
+            {/* Diagnosis (left) · Doctor Progress Notes (right) */}
+            <div className="grid gap-4 md:grid-cols-2 auto-rows-fr px-4 pb-4">
+              <DashboardCard
+                fixedHeight
+                title="Diagnosis Detail"
+                onAdd={() => setShowDiagnosisModal(true)}
+                addButtonTitle="Add / Edit Diagnosis"
+                listingScreen="dx"
+              >
+                <PatientDiagnosisList patient={selectedPatient} refreshKey={diagnosisRefreshKey} />
+              </DashboardCard>
+
+              <DashboardCard
+                fixedHeight
+                title="Doctor Progress Notes"
+                onAdd={() => setShowDoctorProgressNoteModal(true)}
+                addButtonTitle="Add Doctor Progress Note"
+                listingScreen="dpn"
+              >
+                <ClinicalNotesList
+                  patient={selectedPatient}
+                  medicalRole="Doctor"
+                  clinicalNoteType="Doctor Progress Note"
+                  key={doctorProgressNoteRefreshKey}
+                  onPatientClick={handlePatientSelect}
+                />
+              </DashboardCard>
+            </div>
+
+            {/* Doctor's Plan + Long Acting (after Diagnosis/Notes, before Labs) */}
+            <div
+              className={`grid gap-4 px-4 pb-4 auto-rows-fr ${
+                mode === 'OP' || costCenterCareScope !== 'op_only' ? 'md:grid-cols-2' : 'md:grid-cols-1'
+              }`}
+            >
+              <DashboardCard
+                fixedHeight
+                title="Doctor's Plan"
+                onAdd={() => setShowDoctorMedicationPlanModal(true)}
+                addButtonTitle="Add Doctor's Plan"
+              >
+                <DoctorMedicationPlanList patient={selectedPatient} key={doctorMedicationPlanRefreshKey} />
+              </DashboardCard>
+
+              <DashboardCard fixedHeight title="Long Acting Medicine" listingScreen="d-long-acting-meds">
+                <LongActingMedicineList patient={selectedPatient} refreshKey={prescriptionRefreshKey} />
+              </DashboardCard>
+            </div>
+
+            {/* Labs */}
+            <div className="grid gap-4 md:grid-cols-2 auto-rows-fr px-4 pb-4">
+              <DashboardCard
+                fixedHeight
+                title="Lab Test Reports"
+                onAdd={() => setShowLabTestModal(true)}
+                addButtonTitle="Add Lab Test Report"
+                listingScreen="lab"
+              >
+                <LabTestList
+                  patient={selectedPatient}
+                  defaultStatus="Pending Review"
+                  key={labTestRefreshKey}
+                  onPatientClick={handlePatientSelect}
+                />
+              </DashboardCard>
+
+              <DashboardCard
+                fixedHeight
+                title="Lab Requests"
+                onAdd={() => setShowServiceRequestModal(true)}
+                addButtonTitle="Add Service Request"
+                listingScreen="lab"
+              >
+                <ServiceRequestList
+                  patient={selectedPatient}
+                  refreshKey={serviceRequestRefreshKey}
+                  template_dt="Lab Test Template"
+                  onPatientClick={handlePatientSelect}
+                />
+              </DashboardCard>
+            </div>
+
+            {/* Prescriptions; on IP with admission selected, Appointments share this row */}
+            <div
+              className={`grid gap-4 auto-rows-fr px-4 pb-4 ${
+                costCenterCareScope !== 'op_only' && mode === 'IP' && activeAdmission
+                  ? 'md:grid-cols-2'
+                  : 'md:grid-cols-1'
+              }`}
+            >
+              {costCenterCareScope !== 'op_only' && mode === 'IP' && activeAdmission
+                ? doctorAppointmentsCard
+                : null}
+              <DashboardCard
+                fixedHeight
+                title="Prescription"
+                onAdd={() => setShowPrescriptionModal(true)}
+                addButtonTitle="Create Prescription"
+                listingScreen="rx"
+              >
+                <PrescriptionList
+                  patient={selectedPatient}
+                  doctorPrescriptionDefaults
+                  refreshKey={prescriptionRefreshKey}
+                  onPatientClick={handlePatientSelect}
+                />
+              </DashboardCard>
+            </div>
+          </>
+        )}
 
         {/* Row 7: Patient summary + ECT chart */}
         <div className="grid gap-4 md:grid-cols-2 auto-rows-fr px-4 pb-4">
@@ -2313,11 +2539,11 @@ export const DoctorPage = () => {
           </DashboardCard>
 
           {costCenterCareScope !== 'op_only' && mode === 'IP' && activeAdmission ? (
-            <DashboardCard fixedHeight title="ECT Chart">
+            <DashboardCard fixedHeight title="ECT Chart" listingScreen="ect">
               <ECTChart patient={selectedPatient} />
             </DashboardCard>
           ) : (
-            <DashboardCard fixedHeight title="ECT Chart">
+            <DashboardCard fixedHeight title="ECT Chart" listingScreen="ect">
               <div className="text-center text-slate-500 py-8 text-sm">
                 ECT chart opens for patients on an active inpatient admission.
               </div>
@@ -2328,7 +2554,7 @@ export const DoctorPage = () => {
         {/* Row 8: IP — Admissions & discharges */}
         {costCenterCareScope !== 'op_only' && mode === 'IP' && (
           <div className="px-4 pb-4">
-            <DashboardCard fixedHeight title="Admission & Discharges">
+            <DashboardCard fixedHeight title="Admission & Discharges" listingScreen="df">
               <DischargeList patient={selectedPatient} key={dischargeRefreshKey} onPatientClick={handlePatientSelect} />
             </DashboardCard>
           </div>
@@ -2343,6 +2569,7 @@ export const DoctorPage = () => {
             title="Facility notices"
             onAdd={() => setShowWarningModal(true)}
             addButtonTitle="Add organisation notice"
+            listingScreen="warn"
           >
             <WarningMessagesList
               patient={undefined}
@@ -2357,6 +2584,7 @@ export const DoctorPage = () => {
             title="Lab Test Reports Pending for Review" 
             onAdd={() => setShowLabTestModal(true)}
             addButtonTitle="Add Lab Test Report"
+            listingScreen="lab"
           >
             <LabTestList defaultStatus="Pending Review" key={labTestRefreshKey} onPatientClick={handlePatientSelect} />
           </DashboardCard>
@@ -2368,6 +2596,7 @@ export const DoctorPage = () => {
             title="Prescription"
             onAdd={() => setShowPrescriptionModal(true)}
             addButtonTitle="Create Prescription"
+            listingScreen="rx"
           >
             <PrescriptionList refreshKey={prescriptionRefreshKey} onPatientClick={handlePatientSelect} />
           </DashboardCard>
@@ -2407,19 +2636,6 @@ export const DoctorPage = () => {
           toast.success('Lab request created successfully')
         }}
         initialPatient={selectedPatient}
-      />
-    )}
-
-    {showDischargeModal && selectedAdmission && (
-      <DischargeModal
-        admission={selectedAdmission}
-        onClose={handleDischargeModalClose}
-        onSuccess={() => {
-          setShowDischargeModal(false)
-          setSelectedAdmission(null)
-          setDischargeHasDraft(false)
-          toast.success('Discharge completed successfully')
-        }}
       />
     )}
 

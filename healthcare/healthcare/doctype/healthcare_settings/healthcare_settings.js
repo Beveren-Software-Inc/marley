@@ -2,6 +2,57 @@
 // For license information, please see license.txt
 
 frappe.ui.form.on('Healthcare Settings', {
+	refresh(frm) {
+		if (!frappe.user.has_role('System Manager') && !frappe.user.has_role('Healthcare Administrator')) {
+			return;
+		}
+
+		frm.add_custom_button(__('Migrate Patients (Category & Customer Group)'), () => {
+			frappe.confirm(
+				__(
+					'Run in background: American Navy → Military, Royal → VIP, blank → Regular; All Customer Groups → Patient. Continue?'
+				),
+				() => run_migration_job(frm, 'start_patient_migration', 'patients')
+			);
+		}, __('Data Maintenance'));
+
+		frm.add_custom_button(__('Discharge Scheduled Admissions'), () => {
+			frappe.confirm(
+				__(
+					'Run in background: set all Inpatient Admissions with status “Admission Scheduled” to “Discharged”. This may take a long time for large datasets. Continue?'
+				),
+				() => run_migration_job(frm, 'start_admission_migration', 'admissions')
+			);
+		}, __('Data Maintenance'));
+
+		frm.add_custom_button(__('Submit Visits & Mark Completed'), () => {
+			frappe.confirm(
+				__(
+					'Run in background: submit all draft Patient Visits, then set status to Completed. Already-submitted visits that are not Completed will also be marked Completed. Rows that fail validation are logged and skipped. Continue?'
+				),
+				() => run_migration_job(frm, 'start_patient_visit_migration', 'patient_visits')
+			);
+		}, __('Data Maintenance'));
+
+		frm.add_custom_button(__('Close All Appointments'), () => {
+			frappe.confirm(
+				__(
+					'Run in background: set all Patient Appointments (except Cancelled) to Closed. Continue?'
+				),
+				() => run_migration_job(frm, 'start_appointment_close_migration', 'appointments')
+			);
+		}, __('Data Maintenance'));
+
+		frm.add_custom_button(__('Complete All Medication Orders'), () => {
+			frappe.confirm(
+				__(
+					'Run in background: submit all draft Patient Medication Orders, then set completed orders to total and mark status Completed. Rows that fail validation are logged and skipped. Continue?'
+				),
+				() => run_migration_job(frm, 'start_medication_order_complete_migration', 'medication_orders')
+			);
+		}, __('Data Maintenance'));
+	},
+
 	onload: function(frm) {
 		// Keep Healthcare workspace sidebar visible when viewing Settings (e.g. after refresh)
 		if (frappe.boot.workspace_sidebar_item && frappe.boot.workspace_sidebar_item.healthcare) {
@@ -65,6 +116,59 @@ frappe.ui.form.on('Healthcare Settings', {
 		set_query_service_item(frm, 'registration_item');
 	}
 });
+
+function run_migration_job(frm, method, jobKey) {
+	frappe.call({
+		method: `healthcare.api.data_migration_jobs.${method}`,
+		freeze: true,
+		freeze_message: __('Starting background job…'),
+		callback(r) {
+			if (r.message?.ok) {
+				frappe.show_alert({
+					message: r.message.message || __('Job started'),
+					indicator: 'green',
+				});
+				poll_migration_status(jobKey);
+			}
+		},
+	});
+}
+
+function poll_migration_status(jobKey) {
+	const poll = () => {
+		frappe.call({
+			method: 'healthcare.api.data_migration_jobs.get_migration_job_status',
+			args: { job: jobKey },
+			callback(r) {
+				const s = r.message || {};
+				if (s.running && !s.done) {
+					if (s.processed) {
+						frappe.show_alert({
+							message: __('{0}: {1} records processed so far…', [jobKey, s.processed]),
+							indicator: 'blue',
+						});
+					}
+					setTimeout(poll, 15000);
+				} else if (s.done && !s.error) {
+					frappe.show_alert({
+						message: __('{0} finished ({1} records). See Error Log for summary.', [
+							jobKey,
+							s.processed || 0,
+						]),
+						indicator: 'green',
+					});
+				} else if (s.error) {
+					frappe.msgprint({
+						title: __('Job failed'),
+						indicator: 'red',
+						message: __('Check Error Log for details.'),
+					});
+				}
+			},
+		});
+	};
+	setTimeout(poll, 5000);
+}
 
 var set_query_service_item = function(frm, service_item_field) {
 	frm.set_query(service_item_field, function() {

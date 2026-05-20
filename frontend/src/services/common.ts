@@ -478,6 +478,18 @@ export async function fetchMedicalRoleByName(name: string): Promise<LinkFieldOpt
   }
 }
 
+/** Default company on create forms: preferred (e.g. cost center) if valid, else first in list. */
+export function resolveDefaultCompany(
+  companies: LinkFieldOption[],
+  preferredCompany?: string | null
+): string {
+  if (!companies.length) return ''
+  if (preferredCompany && companies.some((c) => c.name === preferredCompany)) {
+    return preferredCompany
+  }
+  return companies[0].name
+}
+
 export async function fetchCompanies(search?: string): Promise<LinkFieldOption[]> {
   const params = new URLSearchParams()
   if (search) params.append('search', search)

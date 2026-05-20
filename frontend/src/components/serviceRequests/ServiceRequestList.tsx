@@ -7,7 +7,12 @@ import {
   bookSession,
   type ServiceRequest
 } from '../../services/serviceRequests'
-import { fetchServiceRequestTemplateTypes, fetchHealthcarePractitioners, type LinkFieldOption } from '../../services/common'
+import {
+  fetchServiceRequestTemplateTypes,
+  fetchHealthcarePractitioners,
+  getCurrentUserPractitioner,
+  type LinkFieldOption,
+} from '../../services/common'
 import { toast } from '../../hooks/useToast'
 import { StatusPill } from '../ui/StatusPill'
 import { DetailSlideOver } from '../ui/DetailSlideOver'
@@ -120,11 +125,34 @@ export const ServiceRequestList = ({
   const [practitionerQuery, setPractitionerQuery] = useState('')
   const [practitionerOpen, setPractitionerOpen] = useState(false)
   const [practitionerOptions, setPractitionerOptions] = useState<LinkFieldOption[]>([])
+  const [practitionerInitDone, setPractitionerInitDone] = useState(false)
   const [patientSearchInput, setPatientSearchInput] = useState('')
   const [debouncedPatientSearch, setDebouncedPatientSearch] = useState('')
 
   useEffect(() => {
     fetchServiceRequestTemplateTypes().then(setTemplateTypes).catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const practId = await getCurrentUserPractitioner()
+      if (cancelled) return
+      if (practId) {
+        setPractitionerFilter(practId)
+        try {
+          const options = await fetchHealthcarePractitioners()
+          const match = options.find((p) => p.name === practId)
+          setPractitionerQuery(match?.label || practId)
+        } catch {
+          setPractitionerQuery(practId)
+        }
+      }
+      setPractitionerInitDone(true)
+    })()
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   useEffect(() => {
@@ -177,8 +205,9 @@ export const ServiceRequestList = ({
     return () => { if (patientSearchTimerRef.current) clearTimeout(patientSearchTimerRef.current) }
   }, [patientSearchInput])
 
-  // Single fetch effect
+  // Single fetch effect (wait until default practitioner is resolved)
   useEffect(() => {
+    if (!practitionerInitDone) return
     setError(null)
     refetch(
       setLoading,
@@ -194,7 +223,18 @@ export const ServiceRequestList = ({
       practitionerFilter || undefined,
       debouncedPatientSearch,
     )
-  }, [patient, refreshKey, templateDtFilter, statusFilter, debouncedSearch, debouncedPatientSearch, practitionerFilter, page, pageSize])
+  }, [
+    patient,
+    refreshKey,
+    templateDtFilter,
+    statusFilter,
+    debouncedSearch,
+    debouncedPatientSearch,
+    practitionerFilter,
+    page,
+    pageSize,
+    practitionerInitDone,
+  ])
 
   const doRefetch = () =>
     refetch(
@@ -414,8 +454,22 @@ export const ServiceRequestList = ({
             }}
             onFocus={() => setPractitionerOpen(true)}
             placeholder="Practitioner…"
-            className="w-full py-2 px-3 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+            className={`w-full py-2 px-3 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${practitionerFilter ? 'pr-8' : ''}`}
           />
+          {practitionerFilter && (
+            <button
+              type="button"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              aria-label="Clear practitioner filter"
+              onClick={() => {
+                setPractitionerFilter('')
+                setPractitionerQuery('')
+                setPractitionerOpen(false)
+              }}
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
           {practitionerOpen && practitionerOptions.length > 0 && (
             <div className="absolute z-30 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-md shadow-lg max-h-52 overflow-y-auto">
               {practitionerOptions.map((p) => (

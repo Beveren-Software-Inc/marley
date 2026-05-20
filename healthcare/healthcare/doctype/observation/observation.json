@@ -40,6 +40,7 @@
   "obs_level",
   "column_break_ebkc",
   "serv_amount",
+  "designated_security_personel",
   "template_details_section",
   "has_component",
   "preferred_display_name",
@@ -681,12 +682,17 @@
    "fieldtype": "Link",
    "label": "Order Created",
    "options": "Sales Order"
+  },
+  {
+   "fieldname": "designated_security_personel",
+   "fieldtype": "Data",
+   "label": "Designated Security Personel"
   }
  ],
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-05-10 11:46:41.706758",
+ "modified": "2026-05-20 12:26:15.249358",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Observation",

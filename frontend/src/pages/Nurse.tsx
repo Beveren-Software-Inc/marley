@@ -1,5 +1,5 @@
 import { useState, useEffect, useLayoutEffect } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useCareContext } from '../providers/CareContextProvider'
 import { isNurseScreenBlocked } from '../config/costCenterCareScope'
 import { PatientSearch } from '../components/patients/PatientSearch'
@@ -12,7 +12,7 @@ import { VitalSignsList } from '../components/vitalSigns/VitalSignsList'
 import { CreateObservationModal } from '../components/observations/CreateObservationModal'
 import { CreateVitalSignModal } from '../components/vitalSigns/CreateVitalSignModal'
 import { DischargeList } from '../components/discharges/DischargeList'
-import { DischargeModal } from '../components/admissions/DischargeModal'
+import { DischargeAdmissionView } from '../components/admissions/DischargeAdmissionView'
 import { PackageDetailView } from '../components/packageDetails/PackageDetailView'
 import { NursingTaskList } from '../components/nursing/NursingTaskList'
 import { NurseTaskList } from '../components/nurseTask/NurseTaskList'
@@ -20,6 +20,7 @@ import { CreateNurseTaskModal } from '../components/nurseTask/CreateNurseTaskMod
 import { PatientSummaryCard } from '../components/patients/PatientSummaryCard'
 import { CreateClinicalNoteModal } from '../components/clinicalNotes/CreateClinicalNoteModal'
 import { getPatientActiveAdmission } from '../services/inpatientRecords'
+import { navigateToDischarge } from '../utils/dischargeNavigation'
 import { toast } from '../hooks/useToast'
 import { CreateWarningMessageModal } from '../components/warnings/CreateWarningMessageModal'
 import { CreateLabTestModal } from '../components/labTests/CreateLabTestModal'
@@ -39,7 +40,6 @@ import { MedicationSheet } from '../components/medication/MedicationSheet'
 import { LongActingMedReminderList } from '../components/medication/LongActingMedReminderList'
 import { reconcileDischargeMedicines } from '../services/medicineGiven'
 import { Loader2, PackageSearch, Plus } from 'lucide-react'
-import { DiagnosisSymptomsScreen } from '../components/diagnosis/DiagnosisSymptomsScreen'
 import { AppointmentList } from '../components/appointments/AppointmentList'
 import { EnvironmentalChecklistList } from '../components/environmental/EnvironmentalChecklistList'
 import { MorseFallScaleList } from '../components/morse/MorseFallScaleList'
@@ -68,7 +68,8 @@ import { CreateSessionScheduleModal } from '../components/sessionSchedule/Create
 import { PatientList } from '../components/patients/PatientList'
 import { RxPage } from '../components/prescriptions/SinglePrescription'
 import { NursingInventoryDashboard } from '../components/nursingInventory/NursingInventoryDashboard'
-import { DashboardCard } from '../components/ui/DashboardCard'
+import { CardHeaderActions, DashboardCard } from '../components/ui/DashboardCard'
+import { PortalTopBar } from '../components/layout/PortalTopBar'
 
 /** Icon-only toolbar buttons for Given Medicines (native `title` = hover tooltip) */
 const gmIconBtn =
@@ -78,6 +79,8 @@ const gmIconBtnPrimary =
 
 export const NursePage = () => {
   const [searchParams, setSearchParams] = useSearchParams()
+  const navigate = useNavigate()
+  const location = useLocation()
   const {
     mode,
     selectedPatient: globalPatient,
@@ -91,16 +94,12 @@ export const NursePage = () => {
   const [showWarningModal, setShowWarningModal] = useState(false)
   const [showLabTestModal, setShowLabTestModal] = useState(false)
   const [showObservationModal, setShowObservationModal] = useState(false)
-  const [showDischargeModal, setShowDischargeModal] = useState(false)
-  const [showDiagnosisModal, setShowDiagnosisModal] = useState(false)
     const [showNursingNoteModal, setShowNursingNoteModal] = useState(false)
   const [showServiceModal, setShowServiceModal] = useState(false)
-  const [selectedAdmission, setSelectedAdmission] = useState<{ name: string; patient: string; patient_name?: string } | null>(null)
   const [warningRefreshKey, setWarningRefreshKey] = useState(0)
   const [labTestRefreshKey, setLabTestRefreshKey] = useState(0)
   const [observationRefreshKey, setObservationRefreshKey] = useState(0)
   const [dischargeRefreshKey, setDischargeRefreshKey] = useState(0)
-  const [_diagnosisRefreshKey, setDiagnosisRefreshKey] = useState(0)
   const [clinicalNotesRefreshKey, setClinicalNotesRefreshKey] = useState(0)
   const [vitalSignsRefreshKey, setVitalSignsRefreshKey] = useState(0)
   const [showServiceRequestModal, setShowServiceRequestModal] = useState(false)
@@ -142,6 +141,7 @@ export const NursePage = () => {
   const [showPatientHistoryModal, setShowPatientHistoryModal] = useState(false)
   const [patientHistoryRefreshKey, setPatientHistoryRefreshKey] = useState(0)
   const rawScreen = searchParams.get('screen')
+  const dischargeAdmission = searchParams.get('discharge')
   const screen =
     rawScreen && !isNurseScreenBlocked(rawScreen, costCenterCareScope, mode) ? rawScreen : null
 
@@ -173,6 +173,56 @@ export const NursePage = () => {
       newSearchParams.delete('patient')
     }
     setSearchParams(newSearchParams, { replace: true })
+  }
+
+  useEffect(() => {
+    const state = location.state as { dischargeCompleted?: boolean } | null
+    if (!state?.dischargeCompleted) return
+    setDischargeRefreshKey((k) => k + 1)
+    navigate(`${location.pathname}?${searchParams.toString()}`, { replace: true, state: {} })
+  }, [location.state, location.pathname, navigate, searchParams])
+
+  const closeDischarge = () => {
+    const state = location.state as { returnTo?: string } | null
+    if (state?.returnTo) {
+      navigate(state.returnTo, { replace: true })
+      return
+    }
+    const np = new URLSearchParams(searchParams)
+    np.delete('discharge')
+    setSearchParams(np, { replace: true })
+  }
+
+  const handleDischargeSuccess = () => {
+    toast.success('Discharge completed successfully')
+    const state = location.state as { returnTo?: string } | null
+    if (state?.returnTo) {
+      navigate(state.returnTo, { replace: true, state: { dischargeCompleted: true } })
+      return
+    }
+    const np = new URLSearchParams(searchParams)
+    np.delete('discharge')
+    setSearchParams(np, { replace: true, state: { dischargeCompleted: true } })
+  }
+
+  if (dischargeAdmission && mode !== 'OP') {
+    const navState = location.state as { patient?: string; patient_name?: string } | null
+    const patientForBar =
+      selectedPatient || navState?.patient || searchParams.get('patient') || undefined
+    return (
+      <div className="flex flex-col h-[calc(100vh-2.25rem)] max-h-[calc(100vh-2.25rem)] overflow-hidden">
+        <PortalTopBar selectedPatient={patientForBar || ''} onPatientSelect={handlePatientSelect} />
+        <div className="flex-1 min-h-0 overflow-hidden bg-white">
+          <DischargeAdmissionView
+            admissionName={dischargeAdmission}
+            patientHint={navState?.patient}
+            patientNameHint={navState?.patient_name}
+            onClose={closeDischarge}
+            onSuccess={handleDischargeSuccess}
+          />
+        </div>
+      </div>
+    )
   }
 
   const handleReconcileGiven = async () => {
@@ -883,7 +933,6 @@ export const NursePage = () => {
           <CreateClinicalNoteModal
             onClose={() => setShowPsychOrderModal(false)}
             onSuccess={() => {
-              setDiagnosisRefreshKey(prev => prev + 1)
               setShowPsychOrderModal(false)
             }}
             initialPatient={selectedPatient}
@@ -1404,7 +1453,7 @@ export const NursePage = () => {
         </header>
         <div className="p-4 space-y-4">
           {/* Appointments Section */}
-          <DashboardCard title="Appointments">
+          <DashboardCard title="Appointments" listingScreen="n-session">
             <AppointmentList patient={selectedPatient} onPatientClick={handlePatientSelect} />
           </DashboardCard>
 
@@ -1594,12 +1643,15 @@ export const NursePage = () => {
           return
         }
         
-        setSelectedAdmission({
-          name: admission.name,
-          patient: admission.patient,
-          patient_name: admission.patient_name
-        })
-        setShowDischargeModal(true)
+        navigateToDischarge(
+          {
+            name: admission.name,
+            patient: admission.patient,
+            patient_name: admission.patient_name,
+          },
+          navigate,
+          `/nurse?${searchParams.toString()}`
+        )
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to fetch admission'
         toast.error(errorMessage)
@@ -1626,46 +1678,6 @@ export const NursePage = () => {
             <DischargeList patient={selectedPatient} key={dischargeRefreshKey} onPatientClick={handlePatientSelect} />
           </DashboardCard>
         </div>
-        {showDischargeModal && selectedAdmission && (
-          <DischargeModal
-            admission={selectedAdmission}
-            onClose={() => {
-              setShowDischargeModal(false)
-              setSelectedAdmission(null)
-            }}
-            onSuccess={() => {
-              setShowDischargeModal(false)
-              setSelectedAdmission(null)
-              setDischargeRefreshKey(prev => prev + 1)
-              toast.success('Discharge completed successfully')
-            }}
-          />
-        )}
-      </div>
-    )
-  }
-
-  // Show Diagnoses (Patient Diagnosis child on active OP visit / IP admission — screen=n-dx)
-  if (screen === 'n-dx') {
-    return (
-      <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
-        <DiagnosisSymptomsScreen
-          selectedPatient={selectedPatient || ''}
-          onPatientSelect={handlePatientSelect}
-        />
       </div>
     )
   }
@@ -1925,7 +1937,11 @@ export const NursePage = () => {
       {((mode === 'OP') || (costCenterCareScope !== 'op_only' && mode === 'IP')) &&
       !selectedPatient ? (
         <div className="px-4 pt-4 pb-0">
-          <DashboardCard title={mode === 'OP' ? 'Patient Visits (OP)' : 'Inpatient Admissions (IP)'} fixedHeight>
+          <DashboardCard
+            title={mode === 'OP' ? 'Patient Visits (OP)' : 'Inpatient Admissions (IP)'}
+            fixedHeight
+            listingScreen={mode === 'OP' ? 'n-op' : 'n-reg'}
+          >
             {mode === 'OP' ? (
               <PatientVisitList
                 patient={selectedPatient || undefined}
@@ -1961,30 +1977,33 @@ export const NursePage = () => {
               <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
                 <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0 gap-2">
                   <span>Given Medicines</span>
-                  <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50/90 p-1">
-                    <button
-                      type="button"
-                      onClick={handleReconcileGiven}
-                      disabled={reconcileLoading}
-                      className={`${gmIconBtn} text-emerald-800 border-emerald-200/80 hover:bg-emerald-50`}
-                      title="Reconcile for discharge — create stock entry for remaining medicines to return"
-                    >
-                      {reconcileLoading ? (
-                        <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                      ) : (
-                        <PackageSearch className="h-4 w-4" aria-hidden />
-                      )}
-                      <span className="sr-only">Reconcile for discharge</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setShowGivenMedicineModal(true)}
-                      className={gmIconBtnPrimary}
-                      title="Record given medicine"
-                    >
-                      <Plus className="h-4 w-4" strokeWidth={2.5} aria-hidden />
-                      <span className="sr-only">Add given medicine</span>
-                    </button>
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50/90 p-1">
+                      <button
+                        type="button"
+                        onClick={handleReconcileGiven}
+                        disabled={reconcileLoading}
+                        className={`${gmIconBtn} text-emerald-800 border-emerald-200/80 hover:bg-emerald-50`}
+                        title="Reconcile for discharge — create stock entry for remaining medicines to return"
+                      >
+                        {reconcileLoading ? (
+                          <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                        ) : (
+                          <PackageSearch className="h-4 w-4" aria-hidden />
+                        )}
+                        <span className="sr-only">Reconcile for discharge</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowGivenMedicineModal(true)}
+                        className={gmIconBtnPrimary}
+                        title="Record given medicine"
+                      >
+                        <Plus className="h-4 w-4" strokeWidth={2.5} aria-hidden />
+                        <span className="sr-only">Add given medicine</span>
+                      </button>
+                    </div>
+                    <CardHeaderActions listingScreen="n-given" openListingTitle="Open full Given Medicines list" />
                   </div>
                 </div>
                 <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
@@ -1994,8 +2013,9 @@ export const NursePage = () => {
             )}
 
             <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-              <div className="font-semibold mb-4 flex-shrink-0">
+              <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0 gap-2">
                 <span>Long Acting Med Reminder</span>
+                <CardHeaderActions listingScreen="n-reminder" openListingTitle="Open full Long Acting Med Reminder list" />
               </div>
               <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
                 <LongActingMedReminderList patient={selectedPatient} daysAhead={7} />
@@ -2006,12 +2026,18 @@ export const NursePage = () => {
           {/* Row 2: Lab Test Reports + Service Requests */}
           <div className="grid gap-4 md:grid-cols-2 px-4 pb-4">
             {/* Lab Test Reports */}
-            <DashboardCard title="Lab Test" fixedHeight>
+            <DashboardCard title="Lab Test" fixedHeight listingScreen="n-lab">
               <LabTestList patient={selectedPatient} byNurse={true} key={labTestRefreshKey} onPatientClick={handlePatientSelect} />
             </DashboardCard>
 
             {/* Service Requests */}
-            <DashboardCard title="Service Requests" fixedHeight onAdd={() => setShowServiceRequestModal(true)} addButtonTitle="Add Service Request">
+            <DashboardCard
+              title="Service Requests"
+              fixedHeight
+              onAdd={() => setShowServiceRequestModal(true)}
+              addButtonTitle="Add Service Request"
+              listingScreen="n-ip-services"
+            >
               <ServiceRequestList
                 patient={selectedPatient}
                 refreshKey={serviceRequestRefreshKey}
@@ -2027,15 +2053,9 @@ export const NursePage = () => {
           >
             {costCenterCareScope !== 'op_only' && (
               <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-                <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
+                <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0 gap-2">
                   <span>Prescription</span>
-                  {/* <button
-                  onClick={() => setShowPrescriptionModal(true)}
-                  className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
-                  title="Create Prescription"
-                >
-                  +
-                </button> */}
+                  <CardHeaderActions listingScreen="rx" openListingTitle="Open full Prescription list" />
                 </div>
                 <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
                   <PrescriptionList patient={selectedPatient} refreshKey={prescriptionRefreshKey} onPatientClick={handlePatientSelect} />
@@ -2045,9 +2065,12 @@ export const NursePage = () => {
 
             {/* Doctors Notes — read-only for nurses */}
             <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-              <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
-                <span>Doctors Notes</span>
-                <span className="text-xs font-normal text-slate-400 italic">Read-only</span>
+              <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0 gap-2">
+                <span className="min-w-0">
+                  Doctors Notes
+                  <span className="ml-2 text-xs font-normal text-slate-400 italic">Read-only</span>
+                </span>
+                <CardHeaderActions listingScreen="n-doc-notes" openListingTitle="Open full Doctors Notes list" />
               </div>
               <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
                 <ClinicalNotesList
@@ -2070,15 +2093,14 @@ export const NursePage = () => {
 
             {/* Warnings & Allergies */}
             <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-              <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
+              <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0 gap-2">
                 <span>Warnings & Allergies</span>
-                <button
-                  onClick={() => setShowWarningModal(true)}
-                  className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
-                  title="Add Warning Message"
-                >
-                  +
-                </button>
+                <CardHeaderActions
+                  onAdd={() => setShowWarningModal(true)}
+                  addButtonTitle="Add Warning Message"
+                  listingScreen="n-first"
+                  openListingTitle="Open full Warnings & Allergies list"
+                />
               </div>
               <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
                 <WarningMessagesList patient={selectedPatient} key={warningRefreshKey} onPatientClick={handlePatientSelect} />
@@ -2090,8 +2112,9 @@ export const NursePage = () => {
           {costCenterCareScope !== 'op_only' && mode === 'IP' && (
             <div className="px-4 pb-4">
               <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-                <div className="font-semibold mb-4 flex-shrink-0">
+                <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0 gap-2">
                   <span>Discharges</span>
+                  <CardHeaderActions listingScreen="n-discharge" openListingTitle="Open full Discharge list" />
                 </div>
                 <div
                   className="overflow-x-auto overflow-y-auto flex-1 min-h-0"
@@ -2113,15 +2136,13 @@ export const NursePage = () => {
       ) : (
         <div className="grid gap-4 md:grid-cols-2 p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-            <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
+            <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0 gap-2">
               <span>IP Warning Messages / Medications / Allergy</span>
-              <button
-                onClick={() => setShowWarningModal(true)}
-                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
-                title="Add Warning Message"
-              >
-                +
-              </button>
+              <CardHeaderActions
+                onAdd={() => setShowWarningModal(true)}
+                addButtonTitle="Add Warning Message"
+                listingScreen="n-first"
+              />
             </div>
             <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
               <WarningMessagesList patient={undefined} key={warningRefreshKey} onPatientClick={handlePatientSelect} />
@@ -2129,15 +2150,13 @@ export const NursePage = () => {
           </section>
 
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-            <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
+            <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0 gap-2">
               <span>Lab Reports List & Status</span>
-              <button
-                onClick={() => setShowLabTestModal(true)}
-                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
-                title="Add Lab Test Report"
-              >
-                +
-              </button>
+              <CardHeaderActions
+                onAdd={() => setShowLabTestModal(true)}
+                addButtonTitle="Add Lab Test Report"
+                listingScreen="n-labs"
+              />
             </div>
             <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
               <LabTestList defaultStatus="Pending Review" byNurse={true} key={labTestRefreshKey} onPatientClick={handlePatientSelect} />
@@ -2145,7 +2164,10 @@ export const NursePage = () => {
           </section>
 
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-            <div className="font-semibold mb-4 flex-shrink-0">Prescription</div>
+            <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0 gap-2">
+              <span>Prescription</span>
+              <CardHeaderActions listingScreen="rx" openListingTitle="Open full Prescription list" />
+            </div>
             <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
               <PrescriptionList refreshKey={prescriptionRefreshKey} onPatientClick={handlePatientSelect} />
             </div>
@@ -2173,18 +2195,6 @@ export const NursePage = () => {
           }}
           initialPatient={selectedPatient}
           templatesNurseOnly
-        />
-      )}
-      {showDiagnosisModal && selectedPatient && (
-        <CreateClinicalNoteModal
-          onClose={() => setShowDiagnosisModal(false)}
-          onSuccess={() => {
-            setDiagnosisRefreshKey(prev => prev + 1)
-            setShowDiagnosisModal(false)
-          }}
-          initialPatient={selectedPatient}
-          defaultClinicalNoteType="Diagnosis Note"
-          title="Add Diagnosis Note"
         />
       )}
 

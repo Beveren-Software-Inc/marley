@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { fetchInpatientRecord, type InpatientRecord, type InpatientPackage, scheduleDischarge, cancelAdmission } from '../../services/inpatientRecords'
 import { hasDischargeDraft, draftSavedAt } from '../../services/dischargeDraft'
 import { PackageSelectionModal } from './PackageSelectionModal'
 import { AdmissionFormModal } from './AdmissionFormModal'
 import { ScheduleDischargeModal } from './ScheduleDischargeModal'
-import { DischargeModal } from './DischargeModal'
 import { SuicidalPatientAssessmentModal } from './SuicidalPatientAssessmentModal'
+import { navigateToDischarge } from '../../utils/dischargeNavigation'
 
 interface AdmissionDetailsProps {
   admissionNo: string
@@ -13,11 +14,12 @@ interface AdmissionDetailsProps {
 }
 
 export const AdmissionDetails = ({ admissionNo, onUpdate }: AdmissionDetailsProps) => {
+  const navigate = useNavigate()
+  const location = useLocation()
   const [admission, setAdmission] = useState<InpatientRecord | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
   const [showScheduleDischarge, setShowScheduleDischarge] = useState(false)
-  const [showDischargeModal, setShowDischargeModal] = useState(false)
   const [hasDraft, setHasDraft] = useState(false)
   const [showAdmitModal, setShowAdmitModal] = useState(false)
   const [showPackages, setShowPackages] = useState(false)
@@ -66,25 +68,16 @@ export const AdmissionDetails = ({ admissionNo, onUpdate }: AdmissionDetailsProp
   }
 
   const handleDischarge = () => {
-    setShowDischargeModal(true)
-  }
-
-  const handleDischargeComplete = async () => {
-    setShowDischargeModal(false)
-    setHasDraft(false)
-    try {
-      const data = await fetchInpatientRecord(admissionNo)
-      setAdmission(data)
-      onUpdate?.()
-    } catch (err) {
-      setError(err instanceof Error ? err : new Error('Failed to reload admission data'))
-    }
-  }
-
-  const handleDischargeModalClose = () => {
-    setShowDischargeModal(false)
-    // Re-check draft (user may have saved one)
-    setHasDraft(hasDischargeDraft(admissionNo))
+    if (!admission) return
+    navigateToDischarge(
+      {
+        name: admission.name,
+        patient: admission.patient,
+        patient_name: admission.patient_name,
+      },
+      navigate,
+      `${location.pathname}${location.search}`
+    )
   }
 
   const handleCancelAdmission = async () => {
@@ -336,18 +329,6 @@ export const AdmissionDetails = ({ admissionNo, onUpdate }: AdmissionDetailsProp
             setShowAdmitModal(false)
             setSelectedPackage(null)
           }}
-        />
-      )}
-
-      {showDischargeModal && admission && (
-        <DischargeModal
-          admission={{
-            name: admission.name,
-            patient: admission.patient,
-            patient_name: admission.patient_name
-          }}
-          onClose={handleDischargeModalClose}
-          onSuccess={handleDischargeComplete}
         />
       )}
 
