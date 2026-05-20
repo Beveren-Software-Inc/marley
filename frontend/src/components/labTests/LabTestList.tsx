@@ -1703,8 +1703,9 @@ import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/Pagi
 import { toast } from '../../hooks/useToast'
 import { canEditLabTestResults, canEditLabTestResultForRow } from '../../config/permissions'
 import { Search, X, ChevronDown, ChevronRight } from 'lucide-react'
-import { useCardFilters } from '../../contexts/CardFilterContext'
+import { useCardFilters, useDashboardCompactClinical } from '../../contexts/CardFilterContext'
 import { useBatchLabTestResults } from '../../hooks/useBatchLabTestResults'
+import { LabTestDashboardCardTable } from './LabTestDashboardCardTable'
 
 export type LabTestListBatchSaveRef = {
   savePendingChanges: () => Promise<void>
@@ -1992,7 +1993,8 @@ export const LabTestList = ({
   const cardFilters = useCardFilters()
   const [showFiltersInternal, setShowFiltersInternal] = useState(false)
   const showFilters = cardFilters !== undefined ? cardFilters : showFiltersInternal
-  const isInsideCard = cardFilters !== undefined
+  const inDashboardCard = cardFilters !== undefined
+  const compactClinical = useDashboardCompactClinical()
   const [filters, setFilters] = useState<Filters>(() => ({
     ...makeEmptyFilters(),
     status: defaultStatus ?? '',
@@ -2743,7 +2745,7 @@ export const LabTestList = ({
   return (
     <div className="flex flex-col min-w-full flex-1 min-h-0 h-full">
       {/* Header row */}
-      {!isInsideCard && (
+      {!inDashboardCard && (
       <div className="flex items-center justify-between gap-2 px-4 py-3 flex-shrink-0">
         <h2 className="text-xl font-semibold text-slate-900">Lab Tests</h2>
         <button
@@ -2787,6 +2789,11 @@ export const LabTestList = ({
           <p className="text-sm">{activeCount > 0 ? 'No lab tests match the current filters.' : 'No lab tests found.'}</p>
           {activeCount > 0 && <button onClick={() => setFilters(makeEmptyFilters())} className="mt-3 text-sm text-primary hover:underline">Clear filters</button>}
         </div>
+      ) : compactClinical && effectivePatient ? (
+        <LabTestDashboardCardTable
+          labTests={labTests}
+          onOpen={(name) => setSelectedLabTestForDetails(name)}
+        />
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[1300px]">

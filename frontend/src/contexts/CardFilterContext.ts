@@ -4,3 +4,7 @@ import { createContext, useContext } from 'react'
 // boolean = card controls filter visibility
 export const CardFilterContext = createContext<boolean | undefined>(undefined)
 export const useCardFilters = () => useContext(CardFilterContext)
+
+/** Compact columns + metadata popover — only on small fixed-height dashboard tiles. */
+export const DashboardCompactClinicalContext = createContext(false)
+export const useDashboardCompactClinical = () => useContext(DashboardCompactClinicalContext)

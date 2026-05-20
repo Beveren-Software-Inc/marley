@@ -125,6 +125,12 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { fetchLongActingMedicineList, type LongActingMedicineRow } from '../../services/longActingMedicine'
 import { Pill, MoreVertical } from 'lucide-react'
+import { useDashboardCompactClinical } from '../../contexts/CardFilterContext'
+import {
+  CardRowMetaHint,
+  dashboardCardRowHoverClass,
+  formatDashboardDate,
+} from '../ui/dashboardCardListing'
 
 const statusColors: Record<string, string> = {
   Draft: 'bg-slate-100 text-slate-700 border-slate-200',
@@ -221,6 +227,7 @@ interface LongActingMedicineListProps {
 }
 
 export const LongActingMedicineList = ({ patient, refreshKey }: LongActingMedicineListProps) => {
+  const compactClinical = useDashboardCompactClinical()
   const [list, setList] = useState<LongActingMedicineRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -272,6 +279,56 @@ export const LongActingMedicineList = ({ patient, refreshKey }: LongActingMedici
         <Pill className="w-8 h-8 text-slate-300 mb-2" />
         <p>No long acting medicine for this patient</p>
         <p className="text-xs mt-1">Add from Prescription with "Long Acting Medication" ticked</p>
+      </div>
+    )
+  }
+
+  if (compactClinical) {
+    return (
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-slate-50 border-b border-slate-200">
+            <tr>
+              <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Schedule</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">Next due</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Status</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {list.map((row) => {
+              const metaFields = [
+                ['Record', row.name],
+                ['Patient', row.patient_name || row.patient],
+                ['Started', formatDashboardDate(row.start_date)],
+                ['Ends', formatDashboardDate(row.end_date)],
+                ['Remarks', row.remarks],
+              ] as const
+              return (
+                <tr
+                  key={row.name}
+                  className={dashboardCardRowHoverClass}
+                >
+                  <td className="px-3 py-2.5 text-slate-800 font-medium align-top">
+                    {row.frequency || 'Long acting'}
+                    <CardRowMetaHint fields={metaFields} />
+                  </td>
+                  <td className="px-3 py-2.5 text-xs text-slate-600 whitespace-nowrap align-top">
+                    {formatDashboardDate(row.next_run_date)}
+                  </td>
+                  <td className="px-3 py-2.5 align-top">
+                    <span
+                      className={`inline-flex px-1.5 py-0.5 rounded text-xs font-medium border ${
+                        statusColors[row.status || 'Draft'] ?? 'bg-slate-100 text-slate-700 border-slate-200'
+                      }`}
+                    >
+                      {row.status || 'Draft'}
+                    </span>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
       </div>
     )
   }

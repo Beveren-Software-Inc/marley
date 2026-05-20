@@ -8,8 +8,9 @@ import {
 import { CreatePatientMedicalHistoryModal } from './CreatePatientMedicalHistoryModal'
 import { EditPatientMedicalHistoryModal } from './EditPatientMedicalHistoryModal'
 import { PastMedicalHistoryDisplay } from './PastMedicalHistoryDisplay'
-import { useCardFilters } from '../../contexts/CardFilterContext'
-import { ILLNESS_FIELDS, yesNoBadgeClass } from './pastMedicalHistoryUtils'
+import { useCardFilters, useDashboardCompactClinical } from '../../contexts/CardFilterContext'
+import { ILLNESS_FIELDS, yesNoBadgeClass, pmhClinicalBlurb } from './pastMedicalHistoryUtils'
+import { CardRowMetaHint } from '../ui/dashboardCardListing'
 
 interface Props {
   patient: string
@@ -219,7 +220,8 @@ export function PatientMedicalHistoryList({ patient, patientName, refreshKey }: 
   const cardFilters = useCardFilters()
   const [showFiltersInternal, setShowFiltersInternal] = useState(false)
   const showFilters = cardFilters !== undefined ? cardFilters : showFiltersInternal
-  const isInsideCard = cardFilters !== undefined
+  const inDashboardCard = cardFilters !== undefined
+  const compactClinical = useDashboardCompactClinical()
 
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
@@ -268,7 +270,7 @@ export function PatientMedicalHistoryList({ patient, patientName, refreshKey }: 
           {hasActiveFilters && items.length !== filteredItems.length ? ` (of ${items.length})` : ''}
         </span>
         <div className="flex items-center gap-2">
-          {!isInsideCard && (
+          {!inDashboardCard && (
             <>
               <button
                 type="button"
@@ -335,7 +337,7 @@ export function PatientMedicalHistoryList({ patient, patientName, refreshKey }: 
         {!loading && items.length === 0 && (
           <div className="flex flex-col items-center justify-center py-10 gap-3">
             <p className="text-sm text-slate-500">No past medical history has been recorded yet.</p>
-            {!isInsideCard && (
+            {!inDashboardCard && (
               <button
                 type="button"
                 onClick={() => setShowCreate(true)}
@@ -362,7 +364,48 @@ export function PatientMedicalHistoryList({ patient, patientName, refreshKey }: 
             </button>
           </div>
         )}
-        {!loading && filteredItems.length > 0 && (
+        {!loading && filteredItems.length > 0 && compactClinical && (
+          <div className="px-2 py-2 space-y-3 overflow-y-auto">
+            {filteredItems.slice(0, 3).map((item, idx) => {
+              const metaFields = [
+                ['Record', item.name],
+                ['Admission', item.inpatient_admission],
+                ['Visit', item.patient_visit],
+              ] as const
+              const isLatest = idx === 0
+              return (
+                <button
+                  key={item.name!}
+                  type="button"
+                  className={`w-full text-left rounded-lg border p-3 transition-colors ${
+                    isLatest ? 'border-emerald-200/80 bg-emerald-50/50' : 'border-slate-200'
+                  }`}
+                  onClick={() => setDetailName(item.name!)}
+                >
+                  <div className="flex items-start justify-between gap-2 mb-1">
+                    <span className="text-[11px] font-medium text-slate-500">
+                      {isLatest ? 'Latest' : formatDate(item.creation)}
+                    </span>
+                    <CardRowMetaHint fields={metaFields} />
+                  </div>
+                  {isLatest ? (
+                    <div className="text-sm max-h-[200px] overflow-y-auto">
+                      <PastMedicalHistoryDisplay history={item} />
+                    </div>
+                  ) : (
+                    <p className="text-sm text-slate-800 line-clamp-3">{pmhClinicalBlurb(item)}</p>
+                  )}
+                </button>
+              )
+            })}
+            {filteredItems.length > 3 && (
+              <p className="text-xs text-slate-500 text-center">
+                +{filteredItems.length - 3} more — open full list (↗)
+              </p>
+            )}
+          </div>
+        )}
+        {!loading && filteredItems.length > 0 && !compactClinical && (
           <table className="w-full text-xs">
             <thead className="bg-slate-50 border-b border-slate-200 sticky top-0">
               <tr>
