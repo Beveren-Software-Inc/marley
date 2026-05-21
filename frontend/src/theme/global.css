@@ -44,3 +44,12 @@
   line-height: 1.375;
 }
 
+/* Scrollable card tables: sticky header cells need opaque bg + z-index (see PatientList). */
+.dense-listing [data-sticky-table-scroll] thead th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background-color: #f8fafc;
+  box-shadow: 0 1px 0 #e2e8f0;
+}
+

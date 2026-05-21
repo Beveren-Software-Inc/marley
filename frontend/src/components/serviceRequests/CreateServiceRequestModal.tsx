@@ -18,6 +18,7 @@ import {
 } from '../../services/serviceRequests'
 import { toast } from '../../hooks/useToast'
 import { useCareContext } from '../../providers/CareContextProvider'
+import { useBlockIfActiveCareClosed } from '../../hooks/useBlockIfActiveCareClosed'
 import { useFormatMoney } from '../../hooks/useFormatMoney'
 import {
   linkComboboxDropdownClass,
@@ -83,6 +84,7 @@ export const CreateServiceRequestModal = ({
   labTestTemplateOnly = false,
 }: CreateServiceRequestModalProps) => {
   const { mode, activeVisit, activeAdmission, selectedPatient: contextPatient } = useCareContext()
+  const blockIfActiveCareClosed = useBlockIfActiveCareClosed()
   const formatMoney = useFormatMoney()
 
   const [submitting, setSubmitting] = useState(false)
@@ -382,6 +384,11 @@ export const CreateServiceRequestModal = ({
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
     setError(null)
+    try {
+      blockIfActiveCareClosed()
+    } catch {
+      return
+    }
     if (!form.patient || !form.template_dt) {
       setError('Patient and Template Type are required.')
       return

@@ -15,6 +15,7 @@ import { searchPatients, fetchPatients, type PatientListItem } from '../../servi
 import { toast } from '../../hooks/useToast'
 import { X } from 'lucide-react'
 import { CreatePractitionerModal } from '../practitioners/CreatePractitionerModal'
+import { useBlockIfActiveCareClosed } from '../../hooks/useBlockIfActiveCareClosed'
 import { CreatePatientModal } from '../patients/CreatePatientModal'
 
 function getTimePart(t: string | number | null | undefined): string {
@@ -110,6 +111,7 @@ interface CreateAppointmentModalProps {
 }
 
 export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, initialPractitioner }: CreateAppointmentModalProps) => {
+  const blockIfActiveCareClosed = useBlockIfActiveCareClosed()
   const [formData, setFormData] = useState({
     patient: initialPatient || '',
     appointment_type: '',
@@ -159,6 +161,11 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    try {
+      blockIfActiveCareClosed()
+    } catch {
+      return
+    }
 
     if (isWalkIn) {
       if (!temporaryPatientName.trim()) {

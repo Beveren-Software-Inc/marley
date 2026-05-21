@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { fetchDoc } from '../../services/common'
+import { isWalkInAppointment } from '../../services/appointments'
 import { StatusPill } from '../ui/StatusPill'
 
 type AppointmentDoc = Record<string, unknown>
@@ -9,6 +10,7 @@ const statusColorMap: Record<string, string> = {
   Open: 'warning',
   Confirmed: 'success',
   'Checked In': 'success',
+  'Patient Arrived': 'success',
   'Checked Out': 'default',
   Closed: 'default',
   Cancelled: 'danger',
@@ -67,18 +69,28 @@ function Section({ title, icon, children, accent = 'border-slate-200' }: Section
         <span className="text-slate-400">{icon}</span>
         <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">{title}</span>
       </div>
-      <div className="px-4 py-3 grid grid-cols-2 gap-x-6 gap-y-3">
-        {children}
-      </div>
+      <div className="px-4 py-3 grid grid-cols-2 gap-x-6 gap-y-3">{children}</div>
     </div>
   )
 }
 
 interface AppointmentDetailPanelProps {
   name: string
+  receptionWalkInActions?: boolean
+  onRegisterWalkIn?: () => void
+  onCreateVisit?: () => void
+  onMarkArrived?: () => void
+  onMarkCheckedOut?: () => void
 }
 
-export function AppointmentDetailPanel({ name }: AppointmentDetailPanelProps) {
+export function AppointmentDetailPanel({
+  name,
+  receptionWalkInActions = false,
+  onRegisterWalkIn,
+  onCreateVisit,
+  onMarkArrived,
+  onMarkCheckedOut,
+}: AppointmentDetailPanelProps) {
   const [doc, setDoc] = useState<AppointmentDoc | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -88,10 +100,18 @@ export function AppointmentDetailPanel({ name }: AppointmentDetailPanelProps) {
     setLoading(true)
     setError(null)
     fetchDoc('Patient Appointment', name)
-      .then((data) => { if (!cancelled) setDoc(data) })
-      .catch((err) => { if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load') })
-      .finally(() => { if (!cancelled) setLoading(false) })
-    return () => { cancelled = true }
+      .then((data) => {
+        if (!cancelled) setDoc(data)
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load')
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
   }, [name])
 
   if (loading) {
@@ -116,37 +136,90 @@ export function AppointmentDetailPanel({ name }: AppointmentDetailPanelProps) {
 
   if (!doc) return null
 
-  const isWalkIn = !doc.patient && Boolean(doc.temporary_patient_name)
+  const aptForCheck = {
+    patient: doc.patient as string | undefined,
+    temporary_patient_name: doc.temporary_patient_name as string | undefined,
+  }
+  const isWalkIn = isWalkInAppointment(aptForCheck)
   const status = str(doc.status)
-  const displayName = isWalkIn
-    ? str(doc.temporary_patient_name)
-    : str(doc.patient_name || doc.patient)
+  const displayName = isWalkIn ? str(doc.temporary_patient_name) : str(doc.patient_name || doc.patient)
+  const hasPatient = Boolean(doc.patient)
 
   return (
     <div className="space-y-4">
-
-      {/* ── Walk-in alert ── */}
       {isWalkIn && (
         <div className="flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3">
           <span className="mt-0.5 text-amber-500 shrink-0">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
+              />
             </svg>
           </span>
           <div>
             <p className="text-sm font-semibold text-amber-800">Walk-in Patient — No File on Record</p>
             <p className="text-xs text-amber-700 mt-0.5">
-              This appointment was booked for a patient without a patient file. Please register the patient to enable full clinical workflow.
+              Register a patient file when they arrive, then create an OP visit and mark them as arrived.
             </p>
           </div>
         </div>
       )}
 
-      {/* ── Hero header ── */}
+      {receptionWalkInActions &&
+        isWalkIn &&
+        (onRegisterWalkIn || onCreateVisit || onMarkArrived || onMarkCheckedOut) && (
+        <div className="flex flex-wrap gap-2">
+          {onRegisterWalkIn && (
+            <button
+              type="button"
+              onClick={onRegisterWalkIn}
+              className="inline-flex items-center px-3 py-2 text-xs font-semibold rounded-md border border-primary bg-primary text-white hover:bg-primary/90"
+            >
+              Register patient
+            </button>
+          )}
+          {onCreateVisit && (
+            <button
+              type="button"
+              onClick={onCreateVisit}
+              disabled={!hasPatient}
+              title={!hasPatient ? 'Register patient first' : undefined}
+              className="inline-flex items-center px-3 py-2 text-xs font-semibold rounded-md border border-slate-300 bg-white text-slate-800 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Create visit
+            </button>
+          )}
+          {onMarkArrived && (
+            <button
+              type="button"
+              onClick={onMarkArrived}
+              className="inline-flex items-center px-3 py-2 text-xs font-semibold rounded-md border border-emerald-600 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
+            >
+              Patient arrived
+            </button>
+          )}
+          {onMarkCheckedOut && (
+            <button
+              type="button"
+              onClick={onMarkCheckedOut}
+              className="inline-flex items-center px-3 py-2 text-xs font-semibold rounded-md border border-slate-400 bg-slate-50 text-slate-800 hover:bg-slate-100"
+            >
+              Check out patient
+            </button>
+          )}
+        </div>
+      )}
+
       <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-primary/5 to-white shadow-sm p-4 flex items-start gap-4">
         <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
           <svg className="w-6 h-6 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"
+            />
           </svg>
         </div>
         <div className="flex-1 min-w-0">
@@ -154,9 +227,6 @@ export function AppointmentDetailPanel({ name }: AppointmentDetailPanelProps) {
             <h3 className="text-base font-bold text-slate-900 truncate">{displayName}</h3>
             {isWalkIn && (
               <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide bg-amber-100 text-amber-700 border border-amber-300 rounded-full px-2 py-0.5">
-                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01" />
-                </svg>
                 Walk-in
               </span>
             )}
@@ -168,12 +238,15 @@ export function AppointmentDetailPanel({ name }: AppointmentDetailPanelProps) {
         </div>
       </div>
 
-      {/* ── Patient info ── */}
       <Section
         title="Patient"
         icon={
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+            />
           </svg>
         }
         accent={isWalkIn ? 'border-amber-200' : 'border-slate-200'}
@@ -193,12 +266,15 @@ export function AppointmentDetailPanel({ name }: AppointmentDetailPanelProps) {
         )}
       </Section>
 
-      {/* ── Appointment details ── */}
       <Section
         title="Appointment"
         icon={
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+            />
           </svg>
         }
       >
@@ -211,13 +287,16 @@ export function AppointmentDetailPanel({ name }: AppointmentDetailPanelProps) {
         {!!doc.source && <InfoRow label="Source" value={str(doc.source)} />}
       </Section>
 
-      {/* ── Practitioner ── */}
       {!!(doc.practitioner || doc.department) && (
         <Section
           title="Practitioner"
           icon={
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+              />
             </svg>
           }
         >
@@ -229,13 +308,16 @@ export function AppointmentDetailPanel({ name }: AppointmentDetailPanelProps) {
         </Section>
       )}
 
-      {/* ── Billing ── */}
       {!!(doc.mode_of_payment || doc.paid_amount) && (
         <Section
           title="Billing"
           icon={
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"
+              />
             </svg>
           }
         >
@@ -244,12 +326,15 @@ export function AppointmentDetailPanel({ name }: AppointmentDetailPanelProps) {
         </Section>
       )}
 
-      {/* ── Notes / Remarks ── */}
       {!!(doc.notes || doc.notes === '') && (
         <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
           <div className="flex items-center gap-2 px-4 py-2.5 bg-slate-50 border-b border-slate-100">
             <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+              />
             </svg>
             <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Remarks / Notes</span>
           </div>
@@ -262,7 +347,6 @@ export function AppointmentDetailPanel({ name }: AppointmentDetailPanelProps) {
           </div>
         </div>
       )}
-
     </div>
   )
 }

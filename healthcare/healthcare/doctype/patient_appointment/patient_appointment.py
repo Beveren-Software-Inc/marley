@@ -11,7 +11,7 @@ from frappe import _
 from frappe.core.doctype.sms_settings.sms_settings import send_sms
 from frappe.model.document import Document
 from frappe.model.mapper import get_mapped_doc
-from frappe.utils import cstr, flt, format_date, get_link_to_form, get_time, getdate
+from frappe.utils import cstr, flt, format_date, get_datetime, get_link_to_form, get_time, getdate, now_datetime
 
 from erpnext.setup.doctype.employee.employee import is_holiday
 
@@ -39,6 +39,7 @@ class PatientAppointment(Document):
 	def validate(self):
 		# pass
 		#Uncomment later
+		self.resolve_medical_department()
 		self.validate_overlaps()
 		self.validate_based_on_appointments_for()
 		self.validate_service_unit()
@@ -91,6 +92,29 @@ class PatientAppointment(Document):
 
 		elif appointment_date < today and self.status not in ["No Show", "Patient Arrived"]:
 			self.status = "No Show"
+
+	def resolve_medical_department(self):
+		"""Use Medical Department only; fix legacy ERPNext Department names on the appointment."""
+		dept = (self.department or "").strip()
+		if dept and frappe.db.exists("Medical Department", dept):
+			return
+
+		if self.practitioner:
+			pract_dept = frappe.db.get_value(
+				"Healthcare Practitioner", self.practitioner, "department"
+			)
+			if pract_dept and frappe.db.exists("Medical Department", pract_dept):
+				self.department = pract_dept
+				return
+
+		if dept:
+			by_label = frappe.db.get_value(
+				"Medical Department", {"department": dept}, "name"
+			)
+			if by_label:
+				self.department = by_label
+				return
+			self.department = None
 
 	def validate_overlaps(self):
 		if self.appointment_based_on_check_in:
@@ -764,8 +788,11 @@ def validate_practitioner_schedules(schedule_entry, practitioner):
 
 
 @frappe.whitelist()
-def update_status(appointment_id, status, notes=None):
-	frappe.db.set_value("Patient Appointment", appointment_id, "status", status)
+def update_status(appointment_id, status, notes=None, checkout_time=None):
+	updates = {"status": status}
+	if status == "Checked Out":
+		updates["checkout"] = get_datetime(checkout_time) if checkout_time else now_datetime()
+	frappe.db.set_value("Patient Appointment", appointment_id, updates, update_modified=True)
 	if notes is not None and cstr(notes).strip():
 		prev = frappe.db.get_value("Patient Appointment", appointment_id, "notes") or ""
 		add = cstr(notes).strip()
@@ -822,6 +849,12 @@ def make_encounter(source_name, target_doc=None):
 @frappe.whitelist()
 def create_encounter_from_appointment(appointment_id):
 	"""Create a Patient Visit (encounter) from an appointment; returns the new doc name for opening in UI."""
+	appointment = frappe.get_doc("Patient Appointment", appointment_id)
+	if not appointment.patient:
+		frappe.throw(
+			_("Register this walk-in as a patient before creating a patient visit."),
+			title=_("Patient required"),
+		)
 	doc = make_encounter(appointment_id)
 	doc.insert()
 	frappe.db.commit()

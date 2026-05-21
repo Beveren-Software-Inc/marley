@@ -213,6 +213,8 @@ interface CreatePatientModalProps {
   onSuccess?: (patientName: string) => void
   /** Pre-fill patient name (Full Name) */
   initialName?: string
+  /** Pre-fill mobile number */
+  initialMobile?: string
   /** Pre-fill ID / CPR number */
   initialNationalId?: string
   /** Pre-fill insurance provider (Health Insurance docname) — will auto-set insurance tab */
@@ -223,7 +225,7 @@ interface CreatePatientModalProps {
 
 type Tab = 'details' | 'relations' | 'insurance' | 'documents'
 
-export const CreatePatientModal = ({ onClose, onSuccess, initialName, initialNationalId, initialInsurance, initialInsuranceRegister }: CreatePatientModalProps) => {
+export const CreatePatientModal = ({ onClose, onSuccess, initialName, initialMobile, initialNationalId, initialInsurance, initialInsuranceRegister }: CreatePatientModalProps) => {
   const [activeTab, setActiveTab] = useState<Tab>(initialInsurance ? 'insurance' : 'details')
 
   const [formData, setFormData] = useState({
@@ -233,7 +235,7 @@ export const CreatePatientModal = ({ onClose, onSuccess, initialName, initialNat
     sex: '',
     dob: '',
     blood_group: '',
-    mobile: '',
+    mobile: initialMobile || '',
     alternative_mobile_no_1: '',
     alternative_mobile_no_2: '',
     phone: '',

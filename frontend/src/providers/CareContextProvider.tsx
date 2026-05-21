@@ -1,6 +1,12 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { toast } from '../hooks/useToast'
 import { careScopeFromCostCenterField, type CostCenterCareScope } from '../config/costCenterCareScope'
+import { fetchActiveCareEpisodeStatus } from '../services/careEpisode'
 import { fetchDefaultCompanyCurrency } from '../services/common'
+import {
+  getActiveCareBlockReason,
+  isActiveCareEpisodeClosedForCreate,
+} from '../utils/careEpisode'
 
 export type CareMode = 'OP' | 'IP' | null
 
@@ -75,6 +81,20 @@ interface CareContextValue {
   user?: any
   /** Default company currency (ISO), from ERPNext Company.default_currency */
   companyCurrency?: string
+  /** Status of the focused OP visit, when {@link activeVisit} is set. */
+  activeVisitStatus?: string
+  /** Status of the focused IP admission, when {@link activeAdmission} is set. */
+  activeAdmissionStatus?: string
+  /** True when the selected OP visit or IP admission is closed for new records. */
+  isActiveCareEpisodeClosed: boolean
+  /** User-facing message when {@link isActiveCareEpisodeClosed} is true. */
+  activeCareBlockReason?: string
+  /**
+   * Wrap clinical create handlers (labs, Rx, notes, etc.).
+   * Shows a toast when the active visit/admission is closed.
+   * Pass `{ allowOnClosed: true }` only for starting a new OP visit or IP admission.
+   */
+  guardClinicalCreate: (open: () => void, options?: { allowOnClosed?: boolean }) => void
 }
 
 const CareContext = createContext<CareContextValue | undefined>(undefined)
@@ -119,6 +139,59 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
   const [userRole, setUserRole] = useState<string[] | undefined>(undefined)
   const [user, setUser] = useState<any>(undefined)
   const [companyCurrency, setCompanyCurrency] = useState<string | undefined>(undefined)
+  const [activeVisitStatus, setActiveVisitStatus] = useState<string | undefined>(undefined)
+  const [activeAdmissionStatus, setActiveAdmissionStatus] = useState<string | undefined>(undefined)
+
+  useEffect(() => {
+    let cancelled = false
+    if (!activeVisit && !activeAdmission) {
+      setActiveVisitStatus(undefined)
+      setActiveAdmissionStatus(undefined)
+      return
+    }
+    fetchActiveCareEpisodeStatus(activeVisit, activeAdmission)
+      .then((msg) => {
+        if (cancelled) return
+        setActiveVisitStatus(msg.patient_visit_status ?? undefined)
+        setActiveAdmissionStatus(msg.inpatient_admission_status ?? undefined)
+      })
+      .catch(() => {
+        if (cancelled) return
+        setActiveVisitStatus(undefined)
+        setActiveAdmissionStatus(undefined)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [activeVisit, activeAdmission])
+
+  const isActiveCareEpisodeClosed = isActiveCareEpisodeClosedForCreate(
+    mode,
+    activeVisit,
+    activeAdmission,
+    activeVisitStatus,
+    activeAdmissionStatus,
+  )
+
+  const activeCareBlockReason = getActiveCareBlockReason(
+    mode,
+    activeVisitStatus,
+    activeAdmissionStatus,
+  )
+
+  const guardClinicalCreate = useCallback(
+    (open: () => void, options?: { allowOnClosed?: boolean }) => {
+      if (!options?.allowOnClosed && isActiveCareEpisodeClosed) {
+        toast.error(
+          activeCareBlockReason ??
+            'This visit or admission is closed. Select or create an open OP visit or active IP admission.',
+        )
+        return
+      }
+      open()
+    },
+    [isActiveCareEpisodeClosed, activeCareBlockReason],
+  )
 
   // Load user cost center and roles when component mounts
   useEffect(() => {
@@ -221,12 +294,16 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [costCenterCareScope])
 
-  return (
-    <CareContext.Provider value={{
-      mode, setMode,
-      activeVisit, setActiveVisit,
-      activeAdmission, setActiveAdmission,
-      selectedPatient, setSelectedPatient,
+  const contextValue = useMemo(
+    () => ({
+      mode,
+      setMode,
+      activeVisit,
+      setActiveVisit,
+      activeAdmission,
+      setActiveAdmission,
+      selectedPatient,
+      setSelectedPatient,
       userCostCenter,
       costCenterCompany,
       costCenterPatientCareType,
@@ -234,7 +311,34 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
       userRole,
       user,
       companyCurrency,
-    }}>
+      activeVisitStatus,
+      activeAdmissionStatus,
+      isActiveCareEpisodeClosed,
+      activeCareBlockReason,
+      guardClinicalCreate,
+    }),
+    [
+      mode,
+      activeVisit,
+      activeAdmission,
+      selectedPatient,
+      userCostCenter,
+      costCenterCompany,
+      costCenterPatientCareType,
+      costCenterCareScope,
+      userRole,
+      user,
+      companyCurrency,
+      activeVisitStatus,
+      activeAdmissionStatus,
+      isActiveCareEpisodeClosed,
+      activeCareBlockReason,
+      guardClinicalCreate,
+    ],
+  )
+
+  return (
+    <CareContext.Provider value={contextValue}>
       {children}
     </CareContext.Provider>
   )

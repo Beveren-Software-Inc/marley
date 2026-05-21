@@ -13,6 +13,7 @@ import { CreatePatientModal } from '../patients/CreatePatientModal'
 import { CreatePractitionerModal } from '../practitioners/CreatePractitionerModal'
 import { CreateLabTestTemplateModal } from './CreateLabTestTemplateModal'
 import { CreateDepartmentModal } from './CreateDepartmentModal'
+import { useBlockIfActiveCareClosed } from '../../hooks/useBlockIfActiveCareClosed'
 
 interface CreateLabTestModalProps {
   onClose: () => void
@@ -28,6 +29,7 @@ export const CreateLabTestModal = ({
   initialPatient,
   templatesNurseOnly = false,
 }: CreateLabTestModalProps) => {
+  const blockIfActiveCareClosed = useBlockIfActiveCareClosed()
   const [formData, setFormData] = useState({
     patient: initialPatient || '',
     cost_center: '',
@@ -113,7 +115,12 @@ export const CreateLabTestModal = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+    try {
+      blockIfActiveCareClosed()
+    } catch {
+      return
+    }
+
     if (!formData.patient) {
       setError('Patient is required')
       return

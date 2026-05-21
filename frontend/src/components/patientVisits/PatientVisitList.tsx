@@ -35,6 +35,8 @@ interface PatientVisitListProps {
   refreshKey?: string | number
   visitType?: string
   onCreateNew?: () => void
+  /** Reception portal: show linked appointment paid amount column. */
+  showAppointmentAmount?: boolean
 }
 
 export const PatientVisitList = ({
@@ -45,6 +47,7 @@ export const PatientVisitList = ({
   refreshKey,
   visitType,
   onCreateNew,
+  showAppointmentAmount = false,
 }: PatientVisitListProps = {}) => {
   const { mode, activeVisit, selectedPatient: contextPatient } = useCareContext()
   const formatMoney = useFormatMoney()
@@ -262,13 +265,26 @@ export const PatientVisitList = ({
   const statuses = ['Open', 'Ordered', 'Completed', 'Cancelled']
   const inputClass = 'w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white'
 
+  const tableColSpan = 8 + (patient ? 0 : 1) + (showAppointmentAmount ? 1 : 0)
+
   const exportFilteredCsv = () => {
-    const headers = ['Visit No', 'Patient', 'Practitioner', 'Encounter Date', 'Lab Amount', 'Pharmacy Amount', 'Service Amount', 'Status']
+    const headers = [
+      'Visit No',
+      'Patient',
+      'Practitioner',
+      'Encounter Date',
+      ...(showAppointmentAmount ? ['Appointment Amount'] : []),
+      'Lab Amount',
+      'Pharmacy Amount',
+      'Service Amount',
+      'Status',
+    ]
     const rows = visits.map((v) => [
       v.value,
       v.patient_name || '',
       v.practitioner_name || '',
       v.encounter_date || '',
+      ...(showAppointmentAmount ? [String(v.appointment_amount ?? 0)] : []),
       String(v.lab_amount ?? 0),
       String(v.pharmacy_amount ?? 0),
       String(v.service_amount ?? 0),
@@ -287,8 +303,16 @@ export const PatientVisitList = ({
   const printFilteredList = () => {
     const win = window.open('', '_blank', 'width=1200,height=800')
     if (!win) return
-    const rows = visits.map((v) => `<tr><td>${v.value}</td><td>${v.patient_name || ''}</td><td>${v.practitioner_name || ''}</td><td>${v.encounter_date || ''}</td><td>${formatAmount(v.lab_amount)}</td><td>${formatAmount(v.pharmacy_amount)}</td><td>${formatAmount(v.service_amount)}</td><td>${v.status || ''}</td></tr>`).join('')
-    win.document.write(`<html><head><title>Patient Visit Listing</title></head><body><h3>Patient Visit Listing</h3><table border="1" cellspacing="0" cellpadding="6"><thead><tr><th>Visit No</th><th>Patient</th><th>Practitioner</th><th>Encounter Date</th><th>Lab</th><th>Pharmacy</th><th>Service</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></body></html>`)
+    const apptTh = showAppointmentAmount ? '<th>Appointment</th>' : ''
+    const rows = visits
+      .map((v) => {
+        const apptTd = showAppointmentAmount
+          ? `<td>${formatAmount(v.appointment_amount)}</td>`
+          : ''
+        return `<tr><td>${v.value}</td><td>${v.patient_name || ''}</td><td>${v.practitioner_name || ''}</td><td>${v.encounter_date || ''}</td>${apptTd}<td>${formatAmount(v.lab_amount)}</td><td>${formatAmount(v.pharmacy_amount)}</td><td>${formatAmount(v.service_amount)}</td><td>${v.status || ''}</td></tr>`
+      })
+      .join('')
+    win.document.write(`<html><head><title>Patient Visit Listing</title></head><body><h3>Patient Visit Listing</h3><table border="1" cellspacing="0" cellpadding="6"><thead><tr><th>Visit No</th><th>Patient</th><th>Practitioner</th><th>Encounter Date</th>${apptTh}<th>Lab</th><th>Pharmacy</th><th>Service</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></body></html>`)
     win.document.close()
     win.print()
   }
@@ -487,6 +511,11 @@ export const PatientVisitList = ({
                 )}
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Practitioner</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Encounter Date</th>
+                {showAppointmentAmount && (
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase tracking-wide">
+                    Appointment Amount
+                  </th>
+                )}
                 <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase tracking-wide">Lab Amount</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase tracking-wide">Pharmacy Amount</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase tracking-wide">Service Amount</th>
@@ -497,7 +526,7 @@ export const PatientVisitList = ({
             <tbody className="divide-y divide-slate-200">
               {visits.length === 0 ? (
                 <tr>
-                  <td colSpan={patient ? 8 : 9} className="px-4 py-10 text-center text-slate-400 text-sm">
+                  <td colSpan={tableColSpan} className="px-4 py-10 text-center text-slate-400 text-sm">
                     {hasActiveFilters ? 'No visits match your filters.' : 'No patient visits found.'}
                   </td>
                 </tr>
@@ -523,6 +552,11 @@ export const PatientVisitList = ({
                       ? new Date(visit.encounter_date).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' })
                       : '-'}
                   </td>
+                  {showAppointmentAmount && (
+                    <td className="px-4 py-3 text-sm text-slate-700 text-right">
+                      {formatAmount(visit.appointment_amount)}
+                    </td>
+                  )}
                   <td className="px-4 py-3 text-sm text-slate-700 text-right">{formatAmount(visit.lab_amount)}</td>
                   <td className="px-4 py-3 text-sm text-slate-700 text-right">{formatAmount(visit.pharmacy_amount)}</td>
                   <td className="px-4 py-3 text-sm text-slate-700 text-right">{formatAmount(visit.service_amount)}</td>

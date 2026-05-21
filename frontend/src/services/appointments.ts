@@ -20,6 +20,17 @@ export interface Appointment {
   mode_of_payment?: string
   paid_amount?: number
   source?: string
+  invoiced?: number
+  ref_sales_invoice?: string
+  sales_order?: string
+}
+
+export interface AppointmentSalesOrderResult {
+  sales_order: string
+  sales_order_status?: string
+  existing?: boolean
+  sales_invoice?: string | null
+  invoiced?: number
 }
 
 export interface CreateAppointmentData {
@@ -124,7 +135,8 @@ export async function createAppointment(data: CreateAppointmentData): Promise<Ap
 export async function updateAppointmentStatus(
   appointmentId: string,
   status: string,
-  notes?: string
+  notes?: string,
+  checkoutTime?: string
 ): Promise<void> {
   const csrf = (window as any).csrf_token
   const body: Record<string, string> = {
@@ -133,6 +145,9 @@ export async function updateAppointmentStatus(
   }
   if (notes !== undefined && notes !== '') {
     body.notes = notes
+  }
+  if (checkoutTime !== undefined && checkoutTime !== '') {
+    body.checkout_time = checkoutTime
   }
   const response = await fetch(
     '/api/method/healthcare.healthcare.doctype.patient_appointment.patient_appointment.update_status',
@@ -154,6 +169,71 @@ export async function updateAppointmentStatus(
 }
 
 /** Create Patient Visit from appointment; returns new Patient Visit name. */
+export function isWalkInAppointment(apt: Pick<Appointment, 'patient' | 'temporary_patient_name'>): boolean {
+  return !apt.patient && Boolean(apt.temporary_patient_name?.trim())
+}
+
+export async function linkWalkInAppointmentToPatient(
+  appointmentName: string,
+  patient: string,
+): Promise<Appointment> {
+  const { ensureCSRF } = await import('./apiClient')
+  const csrf = await ensureCSRF()
+  const response = await fetch(
+    '/api/method/healthcare.api.patient_appointment.link_walk_in_appointment_to_patient',
+    {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
+      },
+      body: JSON.stringify({ appointment_name: appointmentName, patient }),
+    },
+  )
+  const resData = await response.json()
+  if (resData?.exc) {
+    throw new Error(messageFromExc(resData.exc, resData.exc_type))
+  }
+  if (resData?.message && typeof resData.message === 'object') {
+    return resData.message as Appointment
+  }
+  throw new Error('Failed to link patient to appointment')
+}
+
+export async function createAppointmentSalesOrder(
+  appointmentName: string,
+  createSalesInvoice = false,
+): Promise<AppointmentSalesOrderResult> {
+  const { ensureCSRF } = await import('./apiClient')
+  const csrf = await ensureCSRF()
+  const response = await fetch(
+    '/api/method/healthcare.api.patient_appointment.create_sales_order_from_appointment',
+    {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
+      },
+      body: JSON.stringify({
+        appointment_name: appointmentName,
+        create_sales_invoice: createSalesInvoice ? 1 : 0,
+      }),
+    },
+  )
+  const resData = await response.json()
+  if (resData?.exc) {
+    throw new Error(messageFromExc(resData.exc, resData.exc_type))
+  }
+  if (resData?.message && typeof resData.message === 'object') {
+    return resData.message as AppointmentSalesOrderResult
+  }
+  throw new Error('Failed to create Sales Order for appointment')
+}
+
 export async function createEncounterFromAppointment(appointmentId: string): Promise<string> {
   const csrf = (window as any).csrf_token
   const response = await fetch(

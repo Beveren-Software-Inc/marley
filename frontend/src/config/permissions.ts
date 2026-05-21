@@ -61,6 +61,14 @@ export function isAdmin(roles: string[]): boolean {
   )
 }
 
+/** Matches healthcare.api.patient.DATA_OFFICER_ROLE — full patient directory / list UI. */
+export const DATA_OFFICER_ROLE = 'Data Officer'
+
+export function isDataOfficer(roles: string[] | undefined): boolean {
+  if (!roles?.length) return false
+  return roles.some((r) => r.trim().toLowerCase() === DATA_OFFICER_ROLE.toLowerCase())
+}
+
 /** True if user should use the healthcare frontend (our UI); else they go to Frappe desk (/app). */
 export function hasHealthcareRole(roles: string[]): boolean {
   if (!roles || roles.length === 0) return false

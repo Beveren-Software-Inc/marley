@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { ArrowUpRight } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
+import { useCareContext } from '../../providers/CareContextProvider'
 import {
   CardFilterContext,
   DashboardCompactClinicalContext,
@@ -27,7 +28,12 @@ export function CardHeaderActions({
   onOpenListing,
   listingScreen,
   openListingTitle = 'Open full list',
-}: CardHeaderActionsProps) {
+  createDisabled = false,
+  createDisabledTitle,
+}: CardHeaderActionsProps & {
+  createDisabled?: boolean
+  createDisabledTitle?: string
+}) {
   const [searchParams, setSearchParams] = useSearchParams()
   const handleOpenListing =
     onOpenListing ??
@@ -45,8 +51,13 @@ export function CardHeaderActions({
         <button
           type="button"
           onClick={onAdd}
-          className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
-          title={addButtonTitle}
+          disabled={createDisabled}
+          className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors text-sm font-bold flex-shrink-0 ${
+            createDisabled
+              ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+              : 'bg-primary text-white hover:bg-primary/90'
+          }`}
+          title={createDisabled ? createDisabledTitle ?? addButtonTitle : addButtonTitle}
         >
           +
         </button>
@@ -80,6 +91,9 @@ export const DashboardCard = ({
   compactClinicalLayout,
   requiresAttention = false,
   attentionLabel = 'Required — not completed',
+  filterable = true,
+  disableCreate = false,
+  allowCreateOnClosedEpisode = false,
 }: {
   title: string
   onAdd?: () => void
@@ -98,12 +112,24 @@ export const DashboardCard = ({
   /** Red highlight when a mandatory IP document is missing. */
   requiresAttention?: boolean
   attentionLabel?: string
+  /** When false, hide the filter toggle (e.g. Patient List uses inline search only). */
+  filterable?: boolean
+  /** When true, disable + without hiding it (uses active visit/admission closed state by default). */
+  disableCreate?: boolean
+  /** Allow + even when the active visit/admission is closed (new OP visit / IP admission cards). */
+  allowCreateOnClosedEpisode?: boolean
 }) => {
   const [showFilters, setShowFilters] = useState(false)
+  const { guardClinicalCreate, isActiveCareEpisodeClosed, activeCareBlockReason } = useCareContext()
   const compactClinical =
     compactClinicalLayout ?? (fixedHeight && !noHeightLimit)
   const resolvedAddTitle = addButtonTitle ?? `Add ${title}`
   const resolvedOpenListingTitle = openListingTitle ?? `Open full ${title} list`
+  const createBlocked =
+    disableCreate ?? (isActiveCareEpisodeClosed && !allowCreateOnClosedEpisode)
+  const handleAdd = onAdd
+    ? () => guardClinicalCreate(onAdd, { allowOnClosed: allowCreateOnClosedEpisode })
+    : undefined
 
   return (
     <section
@@ -126,26 +152,30 @@ export const DashboardCard = ({
           )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <button
-            type="button"
-            onClick={() => setShowFilters((prev) => !prev)}
-            className={`p-1 rounded-md border transition-colors ${showFilters ? 'bg-primary/10 border-primary text-primary' : 'border-slate-300 text-slate-500 hover:bg-slate-50'}`}
-            title={showFilters ? 'Hide filters' : 'Show filters'}
-          >
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z"
-              />
-            </svg>
-          </button>
+          {filterable && (
+            <button
+              type="button"
+              onClick={() => setShowFilters((prev) => !prev)}
+              className={`p-1 rounded-md border transition-colors ${showFilters ? 'bg-primary/10 border-primary text-primary' : 'border-slate-300 text-slate-500 hover:bg-slate-50'}`}
+              title={showFilters ? 'Hide filters' : 'Show filters'}
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z"
+                />
+              </svg>
+            </button>
+          )}
           <CardHeaderActions
-            onAdd={onAdd}
+            onAdd={handleAdd}
             addButtonTitle={resolvedAddTitle}
             onOpenListing={onOpenListing}
             listingScreen={listingScreen}
             openListingTitle={resolvedOpenListingTitle}
+            createDisabled={createBlocked}
+            createDisabledTitle={activeCareBlockReason}
           />
         </div>
       </div>

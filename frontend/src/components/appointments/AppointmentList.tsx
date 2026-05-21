@@ -639,12 +639,16 @@ import {
   createEncounterFromAppointment,
   getVitalSignsNewUrl,
   getPatientVisitFormUrl,
+  isWalkInAppointment,
+  linkWalkInAppointmentToPatient,
   sendAppointmentReminder as sendAppointmentReminderAPI,
   sendAppointmentRemindersBulk,
   type Appointment,
   type AppointmentPage,
   type ReminderChannel,
 } from '../../services/appointments'
+import { CreatePatientModal } from '../patients/CreatePatientModal'
+import { CreatePatientVisitModal } from '../patientVisits/CreatePatientVisitModal'
 import { StatusPill } from '../ui/StatusPill'
 import { DetailSlideOver } from '../ui/DetailSlideOver'
 import { RescheduleAppointmentModal } from './RescheduleAppointmentModal'
@@ -653,6 +657,8 @@ import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { ConfirmDialog } from '../ui/ConfirmDialog'
 import { toast } from '../../hooks/useToast'
 import { MarkPatientArrivedModal } from './MarkPatientArrivedModal'
+import { MarkPatientCheckedOutModal } from './MarkPatientCheckedOutModal'
+import { AppointmentCreateSalesOrderModal } from './AppointmentCreateSalesOrderModal'
 import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
 import { getCurrentUserPractitioner } from '../../services/common'
 
@@ -681,6 +687,8 @@ interface AppointmentListProps {
   patient?: string
   onAddAppointment?: () => void
   onPatientClick?: (patient: string) => void
+  /** Reception: walk-in actions (register, create visit, patient arrived) in the ⋮ menu. */
+  receptionWalkInActions?: boolean
 }
 
 interface LeaveDetails {
@@ -700,6 +708,8 @@ const CAN_CONFIRM_STATUSES = ['Open', 'Scheduled']
 const CAN_POSTPONE_STATUSES = ['Scheduled', 'Open', 'Confirmed', 'Checked In']
 /** Reception can mark arrived from these statuses (DocType already includes "Patient Arrived"). */
 const CAN_MARK_ARRIVED_STATUSES = ['Scheduled', 'Open', 'Confirmed', 'Checked In']
+/** Reception can check out after patient has arrived or checked in. */
+const CAN_MARK_CHECKED_OUT_STATUSES = ['Patient Arrived', 'Checked In']
 
 const CHANNEL_OPTIONS: { value: ReminderChannel; label: string; icon: string }[] = [
   { value: 'whatsapp', label: 'WhatsApp', icon: '💬' },
@@ -800,6 +810,7 @@ export const AppointmentList = ({
   compact = false,
   patient,
   onPatientClick,
+  receptionWalkInActions = false,
 }: AppointmentListProps) => {
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [loading, setLoading] = useState(true)
@@ -811,6 +822,10 @@ export const AppointmentList = ({
   const [detailApt, setDetailApt] = useState<Appointment | null>(null)
   const [cancelTarget, setCancelTarget] = useState<Appointment | null>(null)
   const [arrivedTarget, setArrivedTarget] = useState<Appointment | null>(null)
+  const [checkoutTarget, setCheckoutTarget] = useState<Appointment | null>(null)
+  const [billingTarget, setBillingTarget] = useState<Appointment | null>(null)
+  const [registerWalkInTarget, setRegisterWalkInTarget] = useState<Appointment | null>(null)
+  const [visitFromAppointment, setVisitFromAppointment] = useState<Appointment | null>(null)
   const [cancelLoading, setCancelLoading] = useState(false)
   const [practitionerAvailability, setPractitionerAvailability] = useState<Record<string, AvailabilityResponse>>({})
   const [availabilityLoading, setAvailabilityLoading] = useState<Record<string, boolean>>({})
@@ -1006,6 +1021,20 @@ export const AppointmentList = ({
   const canPostpone = (status?: string) => status && CAN_POSTPONE_STATUSES.includes(status)
   const canMarkPatientArrived = (status?: string) =>
     Boolean(status && CAN_MARK_ARRIVED_STATUSES.includes(status))
+  const canMarkCheckedOut = (status?: string) =>
+    Boolean(status && CAN_MARK_CHECKED_OUT_STATUSES.includes(status))
+  const canBillAppointment = (apt: Appointment) =>
+    Boolean(showAll && apt.patient && apt.status === 'Checked Out' && !apt.invoiced)
+
+  const handleOpenSalesOrder = (soName: string) => {
+    setOpenActionRow(null)
+    window.open(`/app/sales-order/${encodeURIComponent(soName)}`, '_blank')
+  }
+
+  const handleOpenSalesInvoice = (siName: string) => {
+    setOpenActionRow(null)
+    window.open(`/app/sales-invoice/${encodeURIComponent(siName)}`, '_blank')
+  }
 
   const handleCancel = (apt: Appointment) => {
     setOpenActionRow(null)
@@ -1068,16 +1097,37 @@ export const AppointmentList = ({
   }
 
   const handleCreatePatientVisit = async (apt: Appointment) => {
-    setActionLoading(apt.name)
     setOpenActionRow(null)
+    if (!apt.patient) {
+      toast.error('Register the walk-in as a patient first')
+      return
+    }
+    if (receptionWalkInActions) {
+      setVisitFromAppointment(apt)
+      return
+    }
+    setActionLoading(apt.name)
     try {
       const visitName = await createEncounterFromAppointment(apt.name)
       window.open(getPatientVisitFormUrl(visitName), '_blank')
       setRefreshTrigger((t) => t + 1)
     } catch (e) {
-      window.alert(e instanceof Error ? e.message : 'Failed to create Patient Visit')
+      toast.error(e instanceof Error ? e.message : 'Failed to create Patient Visit')
     } finally {
       setActionLoading(null)
+    }
+  }
+
+  const handleRegisterWalkInSuccess = async (patientId: string) => {
+    if (!registerWalkInTarget) return
+    try {
+      await linkWalkInAppointmentToPatient(registerWalkInTarget.name, patientId)
+      toast.success(`Patient file created and linked to ${registerWalkInTarget.name}`)
+      setRegisterWalkInTarget(null)
+      setRefreshTrigger((t) => t + 1)
+      onPatientClick?.(patientId)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to link patient to appointment')
     }
   }
 
@@ -1376,11 +1426,6 @@ export const AppointmentList = ({
                     )}
                   </>
                 )}
-                {!compact && showAll && (
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">
-                    Reception
-                  </th>
-                )}
                 {!compact && (
                   <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase w-[4.5rem]">Actions</th>
                 )}
@@ -1421,7 +1466,12 @@ export const AppointmentList = ({
                         }}
                       >
                         <span className={`truncate block ${apt.patient ? 'font-medium text-primary hover:underline cursor-pointer' : ''}`}>
-                          {apt.patient_name || apt.patient || '-'}
+                          {apt.patient_name || apt.patient || apt.temporary_patient_name || '-'}
+                          {isWalkInAppointment(apt) && (
+                            <span className="ml-1.5 inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 border border-amber-200">
+                              Walk-in
+                            </span>
+                          )}
                         </span>
                       </td>
                     )}
@@ -1465,26 +1515,6 @@ export const AppointmentList = ({
                         )}
                       </>
                     )}
-                    {!compact && showAll && (
-                      <td className="px-3 py-2.5 align-middle whitespace-nowrap">
-                        {canMarkPatientArrived(apt.status) ? (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setArrivedTarget(apt)
-                            }}
-                            className="inline-flex items-center px-3 py-1.5 text-xs font-semibold rounded-md border border-emerald-600 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                          >
-                            Patient arrived
-                          </button>
-                        ) : apt.status === 'Patient Arrived' ? (
-                          <span className="text-xs font-medium text-emerald-700">Arrived</span>
-                        ) : (
-                          <span className="text-xs text-slate-400">—</span>
-                        )}
-                      </td>
-                    )}
                     {!compact && (
                     <td className="px-3 py-2 align-middle">
                       <div className="relative" ref={openActionRow === apt.name ? menuRef : undefined}>
@@ -1510,8 +1540,88 @@ export const AppointmentList = ({
                           open={openActionRow === apt.name}
                           onClose={() => setOpenActionRow(null)}
                           triggerRef={menuRef}
-                          minWidth={180}
+                          minWidth={receptionWalkInActions && isWalkInAppointment(apt) ? 220 : 180}
                         >
+                          {receptionWalkInActions && isWalkInAppointment(apt) && (
+                            <>
+                              <div className="px-3 py-1.5 text-[10px] font-semibold text-amber-700 uppercase tracking-wide border-b border-amber-100 bg-amber-50/80">
+                                Walk-in visit
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setOpenActionRow(null)
+                                  setRegisterWalkInTarget(apt)
+                                }}
+                                className="block w-full text-left px-3 py-2 text-sm text-primary font-medium hover:bg-primary/5"
+                              >
+                                Register patient
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleCreatePatientVisit(apt)}
+                                disabled={!apt.patient || actionLoading === apt.name}
+                                className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+                              >
+                                Create patient visit
+                              </button>
+                              {canMarkPatientArrived(apt.status) && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setOpenActionRow(null)
+                                    setArrivedTarget(apt)
+                                  }}
+                                  className="block w-full text-left px-3 py-2 text-sm text-emerald-800 hover:bg-emerald-50"
+                                >
+                                  Patient arrived
+                                </button>
+                              )}
+                              {canMarkCheckedOut(apt.status) && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setOpenActionRow(null)
+                                    setCheckoutTarget(apt)
+                                  }}
+                                  className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                                >
+                                  Check out patient
+                                </button>
+                              )}
+                              {canBillAppointment(apt) && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setOpenActionRow(null)
+                                    setBillingTarget(apt)
+                                  }}
+                                  className="block w-full text-left px-3 py-2 text-sm text-primary font-medium hover:bg-primary/5"
+                                >
+                                  {apt.sales_order ? 'Bill appointment…' : 'Create Sales Order…'}
+                                </button>
+                              )}
+                              {apt.sales_order && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenSalesOrder(apt.sales_order!)}
+                                  className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                                >
+                                  Open Sales Order
+                                </button>
+                              )}
+                              {apt.ref_sales_invoice && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenSalesInvoice(apt.ref_sales_invoice!)}
+                                  className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                                >
+                                  Open Sales Invoice
+                                </button>
+                              )}
+                              <div className="border-t border-slate-100 my-1" />
+                            </>
+                          )}
                           {canCancel(apt.status) && (
                             <button type="button" onClick={() => handleCancel(apt)}
                               className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">
@@ -1530,13 +1640,72 @@ export const AppointmentList = ({
                               Postpone
                             </button>
                           )}
+                          {showAll &&
+                            canMarkPatientArrived(apt.status) &&
+                            !(receptionWalkInActions && isWalkInAppointment(apt)) && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setOpenActionRow(null)
+                                  setArrivedTarget(apt)
+                                }}
+                                className="block w-full text-left px-3 py-2 text-sm text-emerald-800 hover:bg-emerald-50"
+                              >
+                                Patient arrived
+                              </button>
+                            )}
+                          {showAll &&
+                            canMarkCheckedOut(apt.status) &&
+                            !(receptionWalkInActions && isWalkInAppointment(apt)) && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setOpenActionRow(null)
+                                  setCheckoutTarget(apt)
+                                }}
+                                className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                              >
+                                Check out patient
+                              </button>
+                            )}
+                          {canBillAppointment(apt) &&
+                            !(receptionWalkInActions && isWalkInAppointment(apt)) && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setOpenActionRow(null)
+                                  setBillingTarget(apt)
+                                }}
+                                className="block w-full text-left px-3 py-2 text-sm text-primary font-medium hover:bg-primary/5"
+                              >
+                                {apt.sales_order ? 'Bill appointment…' : 'Create Sales Order…'}
+                              </button>
+                            )}
+                          {apt.sales_order && (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenSalesOrder(apt.sales_order!)}
+                              className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                            >
+                              Open Sales Order
+                            </button>
+                          )}
+                          {apt.ref_sales_invoice && (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenSalesInvoice(apt.ref_sales_invoice!)}
+                              className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                            >
+                              Open Sales Invoice
+                            </button>
+                          )}
                           {canCancel(apt.status) && (
                             <button type="button" onClick={() => handleReschedule(apt)}
                               className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">
                               Reschedule
                             </button>
                           )}
-                          {apt.patient && (
+                          {apt.patient && !isWalkInAppointment(apt) && (
                             <>
                               <button type="button" onClick={() => handleCreateVitalSign(apt)}
                                 className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">
@@ -1600,11 +1769,58 @@ export const AppointmentList = ({
         />
       )}
 
+      {checkoutTarget && (
+        <MarkPatientCheckedOutModal
+          appointment={checkoutTarget}
+          onClose={() => setCheckoutTarget(null)}
+          onSuccess={() => setRefreshTrigger((t) => t + 1)}
+        />
+      )}
+
+      {billingTarget && (
+        <AppointmentCreateSalesOrderModal
+          appointment={billingTarget}
+          onClose={() => setBillingTarget(null)}
+          onSuccess={(result) => {
+            setRefreshTrigger((t) => t + 1)
+            if (result.sales_invoice) {
+              handleOpenSalesInvoice(result.sales_invoice)
+            } else if (result.sales_order) {
+              handleOpenSalesOrder(result.sales_order)
+            }
+          }}
+        />
+      )}
+
       {rescheduleAppointment && (
         <RescheduleAppointmentModal
           appointment={rescheduleAppointment}
           onClose={() => setRescheduleAppointment(null)}
           onSuccess={() => setRefreshTrigger((t) => t + 1)}
+        />
+      )}
+
+      {registerWalkInTarget && (
+        <CreatePatientModal
+          initialName={registerWalkInTarget.temporary_patient_name || ''}
+          initialMobile={registerWalkInTarget.temporary_mobile_no || ''}
+          onClose={() => setRegisterWalkInTarget(null)}
+          onSuccess={handleRegisterWalkInSuccess}
+        />
+      )}
+
+      {visitFromAppointment?.patient && (
+        <CreatePatientVisitModal
+          initialPatient={visitFromAppointment.patient}
+          initialAppointment={visitFromAppointment.name}
+          initialPractitioner={visitFromAppointment.practitioner}
+          onClose={() => setVisitFromAppointment(null)}
+          onSuccess={(visitName) => {
+            toast.success(`Patient visit ${visitName} created`)
+            setVisitFromAppointment(null)
+            setRefreshTrigger((t) => t + 1)
+            onPatientClick?.(visitFromAppointment.patient!)
+          }}
         />
       )}
 
@@ -1614,7 +1830,42 @@ export const AppointmentList = ({
           subtitle={detailApt.patient_name || detailApt.temporary_patient_name || detailApt.name}
           onClose={() => setDetailApt(null)}
         >
-          <AppointmentDetailPanel name={detailApt.name} />
+          <AppointmentDetailPanel
+            name={detailApt.name}
+            receptionWalkInActions={receptionWalkInActions}
+            onRegisterWalkIn={
+              receptionWalkInActions && isWalkInAppointment(detailApt)
+                ? () => {
+                    setDetailApt(null)
+                    setRegisterWalkInTarget(detailApt)
+                  }
+                : undefined
+            }
+            onCreateVisit={
+              receptionWalkInActions
+                ? () => {
+                    setDetailApt(null)
+                    handleCreatePatientVisit(detailApt)
+                  }
+                : undefined
+            }
+            onMarkArrived={
+              receptionWalkInActions && canMarkPatientArrived(detailApt.status)
+                ? () => {
+                    setDetailApt(null)
+                    setArrivedTarget(detailApt)
+                  }
+                : undefined
+            }
+            onMarkCheckedOut={
+              receptionWalkInActions && canMarkCheckedOut(detailApt.status)
+                ? () => {
+                    setDetailApt(null)
+                    setCheckoutTarget(detailApt)
+                  }
+                : undefined
+            }
+          />
         </DetailSlideOver>
       )}
 

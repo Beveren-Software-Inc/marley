@@ -363,6 +363,16 @@ def get_patient_visits_full(search=None, patient=None, practitioner=None, from_d
 		for row in pharmacy_rows:
 			pharmacy_amount_map[row.visit_name] = float(row.amount or 0)
 
+	appointment_amount_map = {}
+	appointment_names = [v.appointment for v in visits if v.get("appointment")]
+	if appointment_names:
+		for row in frappe.get_all(
+			"Patient Appointment",
+			filters={"name": ["in", appointment_names]},
+			fields=["name", "paid_amount"],
+		):
+			appointment_amount_map[row.name] = float(row.paid_amount or 0)
+
 	return {
 		"data": [
 			{
@@ -376,6 +386,9 @@ def get_patient_visits_full(search=None, patient=None, practitioner=None, from_d
 				"lab_amount": lab_amount_map.get(v.name, 0),
 				"service_amount": service_amount_map.get(v.name, 0),
 				"pharmacy_amount": pharmacy_amount_map.get(v.name, 0),
+				"appointment_amount": appointment_amount_map.get(v.appointment, 0)
+				if v.get("appointment")
+				else 0,
 			}
 			for v in visits
 		],

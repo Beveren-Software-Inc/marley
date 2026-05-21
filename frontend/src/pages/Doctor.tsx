@@ -48,7 +48,8 @@ import { PatientHistoryList } from '../components/patientHistory/PatientHistoryL
 import { PatientHistoryModal } from '../components/patientHistory/PatientHistoryModal'
 import { CreatePatientModal } from '../components/patients/CreatePatientModal'
 import { PatientList } from '../components/patients/PatientList'
-import { PatientSearch } from '../components/patients/PatientSearch'
+import { PatientCareHeader } from '../components/patients/PatientCareHeader'
+import { ClosedCareEpisodeBanner } from '../components/ui/ClosedCareEpisodeBanner'
 import { PatientSummaryCard } from '../components/patients/PatientSummaryCard'
 import { CreatePatientVisitModal } from '../components/patientVisits/CreatePatientVisitModal'
 import { PatientVisitList } from '../components/patientVisits/PatientVisitList'
@@ -114,6 +115,7 @@ export const DoctorPage = () => {
     selectedPatient: globalPatient,
     setSelectedPatient: setGlobalPatient,
     costCenterCareScope,
+    guardClinicalCreate,
   } = useCareContext()
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
@@ -359,30 +361,18 @@ export const DoctorPage = () => {
   if (screen === 'suicide') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
 
         <div className="p-4">
           <DashboardCard 
             title="Suicidal Assessments" 
-            onAdd={() => setShowSuicidalModal(true)}
+            onAdd={() => guardClinicalCreate(() => setShowSuicidalModal(true))}
             addButtonTitle="Add Suicidal Assessment"
           >
             <SuicidalAssessmentList
               patient={selectedPatient}
               admission={activeAdmission}
-              onAddNew={() => setShowSuicidalModal(true)}
+              onAddNew={() => guardClinicalCreate(() => setShowSuicidalModal(true))}
               key={suicidalRefreshKey}
             />
           </DashboardCard>
@@ -408,23 +398,11 @@ export const DoctorPage = () => {
   if (screen === 'sleep') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <DashboardCard 
             title="Sleeping Pattern" 
-            onAdd={() => setShowSleepingPatternModal(true)}
+            onAdd={() => guardClinicalCreate(() => setShowSleepingPatternModal(true))}
             addButtonTitle="Create Sleeping Pattern"
           >
             <SleepingPatternList
@@ -451,19 +429,7 @@ export const DoctorPage = () => {
   if (screen === 'ect') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <ECTDashboard selectedPatient={selectedPatient} />
         </div>
@@ -475,23 +441,11 @@ export const DoctorPage = () => {
   if (screen === 'dn') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <DashboardCard 
             title="Doctors Note" 
-            onAdd={() => setShowDoctorNoteModal(true)}
+            onAdd={() => guardClinicalCreate(() => setShowDoctorNoteModal(true))}
             addButtonTitle="Add Doctors Note"
           >
             <ClinicalNotesList 
@@ -523,23 +477,11 @@ export const DoctorPage = () => {
   if (screen === 'dpn') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <DashboardCard 
             title="Doctor Progress Notes" 
-            onAdd={() => setShowDoctorProgressNoteModal(true)}
+            onAdd={() => guardClinicalCreate(() => setShowDoctorProgressNoteModal(true))}
             addButtonTitle="Add Doctor Progress Note"
           >
             <ClinicalNotesList 
@@ -571,23 +513,11 @@ export const DoctorPage = () => {
   if (screen === 'dos') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <DashboardCard 
             title="Doctors Order" 
-            onAdd={() => setShowDoctorOrderModal(true)}
+            onAdd={() => guardClinicalCreate(() => setShowDoctorOrderModal(true))}
             addButtonTitle="Add Doctors Order"
           >
             <ClinicalNotesList 
@@ -619,23 +549,11 @@ export const DoctorPage = () => {
   if (screen === 'lab-req') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <DashboardCard
             title="Lab Requests"
-            onAdd={() => setShowServiceRequestModal(true)}
+            onAdd={() => guardClinicalCreate(() => setShowServiceRequestModal(true))}
             addButtonTitle="Add Service Request"
             noHeightLimit
           >
@@ -667,23 +585,11 @@ export const DoctorPage = () => {
   if (screen === 'lab') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <DashboardCard 
             title="Laboratory" 
-            onAdd={() => setShowLabTestModal(true)}
+            onAdd={() => guardClinicalCreate(() => setShowLabTestModal(true))}
             addButtonTitle="Add Lab Test"
             noHeightLimit
           >
@@ -698,23 +604,11 @@ export const DoctorPage = () => {
   if (screen === 'psy-n') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <DashboardCard 
             title="Patient Psychologist Notes" 
-            onAdd={() => setShowPsychologistNoteModal(true)}
+            onAdd={() => guardClinicalCreate(() => setShowPsychologistNoteModal(true))}
             addButtonTitle="Add Psychologist Note"
           >
             <ClinicalNotesList 
@@ -746,23 +640,11 @@ export const DoctorPage = () => {
   if (screen === 'psy-o') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <DashboardCard 
             title="Psychologist Orders" 
-            onAdd={() => setShowDiagnosisModal(true)}
+            onAdd={() => guardClinicalCreate(() => setShowDiagnosisModal(true))}
             addButtonTitle="Add Psychologist Order"
           >
             <ClinicalNotesList
@@ -793,23 +675,11 @@ export const DoctorPage = () => {
   if (screen === 'ther') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <DashboardCard 
             title="Therapist Note" 
-            onAdd={() => setShowTherapistNoteModal(true)}
+            onAdd={() => guardClinicalCreate(() => setShowTherapistNoteModal(true))}
             addButtonTitle="Add Therapist Note"
           >
             <ClinicalNotesList 
@@ -840,23 +710,11 @@ export const DoctorPage = () => {
   if (screen === 'nurse') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <DashboardCard 
             title="Nursing Note" 
-            onAdd={() => setShowNursingNoteModal(true)}
+            onAdd={() => guardClinicalCreate(() => setShowNursingNoteModal(true))}
             addButtonTitle="Add Nursing Note"
           >
             <ClinicalNotesList 
@@ -887,23 +745,11 @@ export const DoctorPage = () => {
   if (screen === 'nurse-tasks') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <DashboardCard 
             title="Nurse Tasks" 
-            onAdd={() => setShowCreateNurseTaskModal(true)}
+            onAdd={() => guardClinicalCreate(() => setShowCreateNurseTaskModal(true))}
             addButtonTitle="New Nurse Task"
           >
             <div className="mb-3 text-xs text-slate-600">
@@ -927,23 +773,11 @@ export const DoctorPage = () => {
   if (screen === 'obs') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <DashboardCard 
             title="Observation" 
-            onAdd={() => setShowObservationModal(true)}
+            onAdd={() => guardClinicalCreate(() => setShowObservationModal(true))}
             addButtonTitle="Add Observation"
           >
             <ObservationList patient={selectedPatient} key={observationRefreshKey} onPatientClick={handlePatientSelect} />
@@ -967,23 +801,11 @@ export const DoctorPage = () => {
   if (screen === 'tpr') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <DashboardCard 
             title="Vital Signs" 
-            onAdd={() => setShowVitalSignModal(true)}
+            onAdd={() => guardClinicalCreate(() => setShowVitalSignModal(true))}
             addButtonTitle="Add Vital Signs"
           >
             <VitalSignsList patient={selectedPatient} refreshKey={vitalSignsRefreshKey} onPatientClick={handlePatientSelect} />
@@ -1007,23 +829,11 @@ export const DoctorPage = () => {
   if (screen === 'rx') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <DashboardCard 
             title="All Prescriptions" 
-            onAdd={() => setShowPrescriptionModal(true)}
+            onAdd={() => guardClinicalCreate(() => setShowPrescriptionModal(true))}
             addButtonTitle="Create Prescription"
             noHeightLimit
           >
@@ -1052,23 +862,11 @@ export const DoctorPage = () => {
   if (screen === 'gm' && mode !== 'OP') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <DashboardCard 
             title="Given Medicines" 
-            onAdd={() => setShowGivenMedicineModal(true)}
+            onAdd={() => guardClinicalCreate(() => setShowGivenMedicineModal(true))}
             addButtonTitle="Record Given Medicine"
             noHeightLimit
           >
@@ -1094,23 +892,11 @@ export const DoctorPage = () => {
   if (screen === 'ipm') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <DashboardCard 
             title="IP Medication (Inpatient Prescriptions)" 
-            onAdd={() => setShowPrescriptionModal(true)}
+            onAdd={() => guardClinicalCreate(() => setShowPrescriptionModal(true))}
             addButtonTitle="Create IP Prescription"
             noHeightLimit
           >
@@ -1140,19 +926,7 @@ export const DoctorPage = () => {
   if (screen === 'fall') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <DashboardCard title="Morse Fall Scale">
             <MorseFallScaleList patient={selectedPatient} refreshKey={morseFallRefreshKey} onPatientClick={handlePatientSelect} />
@@ -1166,19 +940,7 @@ export const DoctorPage = () => {
   if (screen === 'env') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <DashboardCard title="Environmental Checklist">
             <EnvironmentalChecklistList patient={selectedPatient} />
@@ -1192,19 +954,7 @@ export const DoctorPage = () => {
   if (screen === 'iop') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <div className="mb-4 flex items-start justify-between gap-4">
             <div>
@@ -1265,23 +1015,11 @@ export const DoctorPage = () => {
   if (screen === 'physical-exam') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <DashboardCard 
             title="Physical Examination" 
-            onAdd={() => setShowPhysicalExamModal(true)}
+            onAdd={() => guardClinicalCreate(() => setShowPhysicalExamModal(true))}
             addButtonTitle="New Physical Examination"
           >
             <div className="text-sm text-slate-600 mb-3">
@@ -1313,23 +1051,11 @@ export const DoctorPage = () => {
   if (screen === 'patient-history') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <DashboardCard 
             title="Patient History" 
-            onAdd={() => setShowPatientHistoryModal(true)}
+            onAdd={() => guardClinicalCreate(() => setShowPatientHistoryModal(true))}
             addButtonTitle="New Patient History"
           >
             <div className="text-sm text-slate-600 mb-3">
@@ -1361,19 +1087,7 @@ export const DoctorPage = () => {
   if (screen === 'd-long-acting-meds') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <div className="mb-4">
             <h2 className="text-xl font-semibold text-slate-900">Long Acting Medicine</h2>
@@ -1396,23 +1110,11 @@ export const DoctorPage = () => {
   if (screen === 'appointments') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <DashboardCard
             title="Appointments"
-            onAdd={() => setShowAppointmentModal(true)}
+            onAdd={() => guardClinicalCreate(() => setShowAppointmentModal(true))}
             addButtonTitle="Add Appointment"
             noHeightLimit
           >
@@ -1443,21 +1145,14 @@ export const DoctorPage = () => {
   if (screen === 'pvh') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
-          <DashboardCard title="Patient Visit History" onAdd={() => setShowCreateVisitModal(true)} addButtonTitle="Create Patient Visit">
+          <DashboardCard
+            title="Patient Visit History"
+            onAdd={() => setShowCreateVisitModal(true)}
+            addButtonTitle="Create Patient Visit"
+            allowCreateOnClosedEpisode
+          >
             <PatientVisitList patient={selectedPatient} onPatientFromVisit={handlePatientSelect} />
           </DashboardCard>
         </div>
@@ -1469,23 +1164,11 @@ export const DoctorPage = () => {
   if (screen === 'warn') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <DashboardCard 
             title="Warnings & Allergies" 
-            onAdd={() => setShowWarningModal(true)}
+            onAdd={() => guardClinicalCreate(() => setShowWarningModal(true))}
             addButtonTitle="Add Warning Message"
           >
             <WarningMessagesList patient={selectedPatient} key={warningRefreshKey} onPatientClick={handlePatientSelect} />
@@ -1509,23 +1192,11 @@ export const DoctorPage = () => {
   if (screen === 'nut') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <DashboardCard 
             title="Nutritionist Notes" 
-            onAdd={() => setShowNutritionNoteModal(true)}
+            onAdd={() => guardClinicalCreate(() => setShowNutritionNoteModal(true))}
             addButtonTitle="Add Nutritionist Note"
           >
             <ClinicalNotesList 
@@ -1557,19 +1228,7 @@ export const DoctorPage = () => {
   if (screen === 'mh') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <DashboardCard title="Past Medical History">
             <MedicalHistoryView patient={selectedPatient} />
@@ -1583,19 +1242,7 @@ export const DoctorPage = () => {
   if (screen === 'pkg') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <DashboardCard 
             title="Package Details" 
@@ -1632,19 +1279,7 @@ export const DoctorPage = () => {
   if (screen === 'dx') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <DiagnosisSymptomsScreen
           selectedPatient={selectedPatient || ''}
           onPatientSelect={handlePatientSelect}
@@ -1657,19 +1292,7 @@ export const DoctorPage = () => {
   if (screen === 'df' && mode !== 'OP') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <DashboardCard 
             title="Discharge Form" 
@@ -1692,23 +1315,11 @@ export const DoctorPage = () => {
   if (screen === 'patients') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <DashboardCard 
             title="Patients" 
-            onAdd={() => setShowCreatePatientModal(true)}
+            onAdd={() => guardClinicalCreate(() => setShowCreatePatientModal(true))}
             addButtonTitle="Create new patient"
           >
             <PatientList refreshKey={patientRefreshKey} />
@@ -1741,10 +1352,11 @@ export const DoctorPage = () => {
             <NotificationBell />
           </div>
         </header>
+        <ClosedCareEpisodeBanner />
         <div className="p-4">
           <DashboardCard 
             title="ADHD Assessments" 
-            onAdd={() => setShowCreateADHDModal(true)}
+            onAdd={() => guardClinicalCreate(() => setShowCreateADHDModal(true))}
             addButtonTitle="Create ADHD Assessment"
           >
             <ADHDAssessmentList
@@ -1780,10 +1392,11 @@ export const DoctorPage = () => {
             <NotificationBell />
           </div>
         </header>
+        <ClosedCareEpisodeBanner />
         <div className="p-4">
           <DashboardCard 
             title="Depression Assessments" 
-            onAdd={() => setShowCreateDepressionModal(true)}
+            onAdd={() => guardClinicalCreate(() => setShowCreateDepressionModal(true))}
             addButtonTitle="Create Depression Assessment"
           >
             <DepressionAssessmentList
@@ -1810,23 +1423,11 @@ export const DoctorPage = () => {
   if (screen === 'mood') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <DashboardCard 
             title="Mood Disorder Assessments" 
-            onAdd={() => setShowCreateMoodModal(true)}
+            onAdd={() => guardClinicalCreate(() => setShowCreateMoodModal(true))}
             addButtonTitle="Create Mood Disorder Assessment"
           >
             <MoodDisorderAssessmentList
@@ -1853,23 +1454,11 @@ export const DoctorPage = () => {
   if (screen === 'gad7') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <DashboardCard 
             title="GAD7 Assessments" 
-            onAdd={() => setShowCreateGAD7Modal(true)}
+            onAdd={() => guardClinicalCreate(() => setShowCreateGAD7Modal(true))}
             addButtonTitle="Create GAD7 Assessment"
           >
             <GAD7AssessmentList
@@ -1896,23 +1485,11 @@ export const DoctorPage = () => {
   if (screen === 'phq9') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <DashboardCard 
             title="PHQ9 Assessments" 
-            onAdd={() => setShowCreatePHQ9Modal(true)}
+            onAdd={() => guardClinicalCreate(() => setShowCreatePHQ9Modal(true))}
             addButtonTitle="Create PHQ9 Assessment"
           >
             <PHQ9AssessmentList
@@ -1939,23 +1516,11 @@ export const DoctorPage = () => {
   if (screen === 'clinical-suicide-risk') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <DashboardCard 
             title="Suicide Risk Assessments" 
-            onAdd={() => setShowCreateSuicideRiskModal(true)}
+            onAdd={() => guardClinicalCreate(() => setShowCreateSuicideRiskModal(true))}
             addButtonTitle="Create Suicide Risk Assessment"
           >
             <SuicideRiskAssessmentList refreshKey={suicideRiskRefreshKey} />
@@ -1979,23 +1544,11 @@ export const DoctorPage = () => {
   if (screen === 'homicide-risk') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <DashboardCard 
             title="Homicide Risk Assessments" 
-            onAdd={() => setShowCreateHomicideRiskModal(true)}
+            onAdd={() => guardClinicalCreate(() => setShowCreateHomicideRiskModal(true))}
             addButtonTitle="Create Homicide Risk Assessment"
           >
             <HomicideRiskAssessmentList
@@ -2022,23 +1575,11 @@ export const DoctorPage = () => {
   if (screen === 'ybocs') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <DashboardCard 
             title="YBOCS Assessments" 
-            onAdd={() => setShowCreateYBOCSModal(true)}
+            onAdd={() => guardClinicalCreate(() => setShowCreateYBOCSModal(true))}
             addButtonTitle="Create YBOCS Assessment"
           >
             <YBOCSAssessmentList
@@ -2065,23 +1606,11 @@ export const DoctorPage = () => {
   if (screen === 'ymrs') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <DashboardCard 
             title="YMRS Assessments" 
-            onAdd={() => setShowCreateYMRSModal(true)}
+            onAdd={() => guardClinicalCreate(() => setShowCreateYMRSModal(true))}
             addButtonTitle="Create YMRS Assessment"
           >
             <YMRSAssessmentList
@@ -2108,23 +1637,11 @@ export const DoctorPage = () => {
   if (screen === 'panss') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <DashboardCard 
             title="PANSS Assessments" 
-            onAdd={() => setShowCreatePANSSModal(true)}
+            onAdd={() => guardClinicalCreate(() => setShowCreatePANSSModal(true))}
             addButtonTitle="Create PANSS Assessment"
           >
             <PANSSAssessmentList
@@ -2151,19 +1668,7 @@ export const DoctorPage = () => {
   if (screen === 'single-prescription') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <DashboardCard title="Prescription Details">
             <RxPage />
@@ -2189,7 +1694,7 @@ export const DoctorPage = () => {
     <DashboardCard
       fixedHeight
       title="Appointments"
-      onAdd={() => setShowAppointmentModal(true)}
+      onAdd={() => guardClinicalCreate(() => setShowAppointmentModal(true))}
       addButtonTitle="Add Appointment"
       listingScreen="appointments"
     >
@@ -2209,19 +1714,7 @@ export const DoctorPage = () => {
 
   return (
   <div className="flex flex-col">
-    <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-      <div className="flex-1 min-w-0">
-        <PatientSearch
-          selectedPatient={selectedPatient || ''}
-          onPatientSelect={handlePatientSelect}
-          patients={[]}
-        />
-      </div>
-      <div className="flex items-center gap-3 flex-shrink-0">
-        <UserMenu />
-        <NotificationBell />
-      </div>
-    </header>
+    <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
 
     {/* No OP/IP: appointments only; OP/IP selected: appointments + list side by side */}
     {showAppointmentsOnlyStrip ? (
@@ -2237,6 +1730,7 @@ export const DoctorPage = () => {
           onAdd={mode === 'OP' ? () => setShowCreateVisitModal(true) : undefined}
           addButtonTitle="Create Patient Visit"
           listingScreen={mode === 'OP' ? 'pvh' : 'admission'}
+          allowCreateOnClosedEpisode={mode === 'OP'}
         >
           {mode === 'OP' ? (
             <PatientVisitList
@@ -2292,7 +1786,7 @@ export const DoctorPage = () => {
           <DashboardCard
             fixedHeight
             title="Warnings & Allergies"
-            onAdd={() => setShowWarningModal(true)}
+            onAdd={() => guardClinicalCreate(() => setShowWarningModal(true))}
             addButtonTitle="Add Warning Message"
             listingScreen="warn"
           >
@@ -2302,7 +1796,7 @@ export const DoctorPage = () => {
           <DashboardCard
             fixedHeight
             title="Past Medical History"
-            onAdd={() => setShowCreateMedicalHistoryModal(true)}
+            onAdd={() => guardClinicalCreate(() => setShowCreateMedicalHistoryModal(true))}
             addButtonTitle="Add Past Medical History"
             listingScreen="mh"
             requiresAttention={showIpRequiredDocs && ipDocStatus !== null && !ipDocStatus.medical_history}
@@ -2318,7 +1812,7 @@ export const DoctorPage = () => {
           <DashboardCard
             fixedHeight
             title="Suicide Risk Assessment"
-            onAdd={() => setShowCreateSuicideRiskModal(true)}
+            onAdd={() => guardClinicalCreate(() => setShowCreateSuicideRiskModal(true))}
             addButtonTitle="Create Suicide Risk Assessment"
             listingScreen="clinical-suicide-risk"
             requiresAttention={showIpRequiredDocs && ipDocStatus !== null && !ipDocStatus.suicide_risk}
@@ -2335,7 +1829,7 @@ export const DoctorPage = () => {
           <DashboardCard
             fixedHeight
             title="History Form"
-            onAdd={() => setShowPatientHistoryModal(true)}
+            onAdd={() => guardClinicalCreate(() => setShowPatientHistoryModal(true))}
             addButtonTitle="New History Form"
             listingScreen="patient-history"
             requiresAttention={showIpRequiredDocs && ipDocStatus !== null && !ipDocStatus.history_form}
@@ -2355,7 +1849,14 @@ export const DoctorPage = () => {
         {costCenterCareScope !== 'ip_only' && mode === 'OP' ? (
           <div className="grid gap-4 md:grid-cols-2 auto-rows-fr px-4 pb-4">
             {doctorAppointmentsCard}
-            <DashboardCard fixedHeight title="Patient Visits (OP)" onAdd={() => setShowCreateVisitModal(true)} addButtonTitle="Create Patient Visit" listingScreen="pvh">
+            <DashboardCard
+              fixedHeight
+              title="Patient Visits (OP)"
+              onAdd={() => setShowCreateVisitModal(true)}
+              addButtonTitle="Create Patient Visit"
+              listingScreen="pvh"
+              allowCreateOnClosedEpisode
+            >
               <PatientVisitList patient={selectedPatient} onPatientFromVisit={handlePatientSelect} />
             </DashboardCard>
           </div>
@@ -2376,7 +1877,7 @@ export const DoctorPage = () => {
               <DashboardCard
                 fixedHeight
                 title="Diagnosis Detail"
-                onAdd={() => setShowDiagnosisModal(true)}
+                onAdd={() => guardClinicalCreate(() => setShowDiagnosisModal(true))}
                 addButtonTitle="Add / Edit Diagnosis"
                 listingScreen="dx"
               >
@@ -2386,7 +1887,7 @@ export const DoctorPage = () => {
               <DashboardCard
                 fixedHeight
                 title="Doctor's Plan"
-                onAdd={() => setShowDoctorMedicationPlanModal(true)}
+                onAdd={() => guardClinicalCreate(() => setShowDoctorMedicationPlanModal(true))}
                 addButtonTitle="Add Doctor's Plan"
               >
                 <DoctorMedicationPlanList patient={selectedPatient} key={doctorMedicationPlanRefreshKey} />
@@ -2398,7 +1899,7 @@ export const DoctorPage = () => {
               <DashboardCard
                 fixedHeight
                 title="Lab Requests"
-                onAdd={() => setShowServiceRequestModal(true)}
+                onAdd={() => guardClinicalCreate(() => setShowServiceRequestModal(true))}
                 addButtonTitle="Add Service Request"
                 listingScreen="lab-req"
               >
@@ -2413,7 +1914,7 @@ export const DoctorPage = () => {
               <DashboardCard
                 fixedHeight
                 title="Lab Test Reports"
-                onAdd={() => setShowLabTestModal(true)}
+                onAdd={() => guardClinicalCreate(() => setShowLabTestModal(true))}
                 addButtonTitle="Add Lab Test Report"
                 listingScreen="lab"
               >
@@ -2431,7 +1932,7 @@ export const DoctorPage = () => {
               <DashboardCard
                 fixedHeight
                 title="Prescription"
-                onAdd={() => setShowPrescriptionModal(true)}
+                onAdd={() => guardClinicalCreate(() => setShowPrescriptionModal(true))}
                 addButtonTitle="Create Prescription"
                 listingScreen="rx"
               >
@@ -2452,7 +1953,7 @@ export const DoctorPage = () => {
               <DashboardCard
                 fixedHeight
                 title="Doctor Progress Notes"
-                onAdd={() => setShowDoctorProgressNoteModal(true)}
+                onAdd={() => guardClinicalCreate(() => setShowDoctorProgressNoteModal(true))}
                 addButtonTitle="Add Doctor Progress Note"
                 listingScreen="dpn"
               >
@@ -2477,7 +1978,7 @@ export const DoctorPage = () => {
               <DashboardCard
                 fixedHeight
                 title="Diagnosis Detail"
-                onAdd={() => setShowDiagnosisModal(true)}
+                onAdd={() => guardClinicalCreate(() => setShowDiagnosisModal(true))}
                 addButtonTitle="Add / Edit Diagnosis"
                 listingScreen="dx"
               >
@@ -2487,7 +1988,7 @@ export const DoctorPage = () => {
               <DashboardCard
                 fixedHeight
                 title="Doctor Progress Notes"
-                onAdd={() => setShowDoctorProgressNoteModal(true)}
+                onAdd={() => guardClinicalCreate(() => setShowDoctorProgressNoteModal(true))}
                 addButtonTitle="Add Doctor Progress Note"
                 listingScreen="dpn"
               >
@@ -2510,7 +2011,7 @@ export const DoctorPage = () => {
               <DashboardCard
                 fixedHeight
                 title="Doctor's Plan"
-                onAdd={() => setShowDoctorMedicationPlanModal(true)}
+                onAdd={() => guardClinicalCreate(() => setShowDoctorMedicationPlanModal(true))}
                 addButtonTitle="Add Doctor's Plan"
               >
                 <DoctorMedicationPlanList patient={selectedPatient} key={doctorMedicationPlanRefreshKey} />
@@ -2526,7 +2027,7 @@ export const DoctorPage = () => {
               <DashboardCard
                 fixedHeight
                 title="Lab Test Reports"
-                onAdd={() => setShowLabTestModal(true)}
+                onAdd={() => guardClinicalCreate(() => setShowLabTestModal(true))}
                 addButtonTitle="Add Lab Test Report"
                 listingScreen="lab"
               >
@@ -2541,7 +2042,7 @@ export const DoctorPage = () => {
               <DashboardCard
                 fixedHeight
                 title="Lab Requests"
-                onAdd={() => setShowServiceRequestModal(true)}
+                onAdd={() => guardClinicalCreate(() => setShowServiceRequestModal(true))}
                 addButtonTitle="Add Service Request"
                 listingScreen="lab-req"
               >
@@ -2568,7 +2069,7 @@ export const DoctorPage = () => {
               <DashboardCard
                 fixedHeight
                 title="Prescription"
-                onAdd={() => setShowPrescriptionModal(true)}
+                onAdd={() => guardClinicalCreate(() => setShowPrescriptionModal(true))}
                 addButtonTitle="Create Prescription"
                 listingScreen="rx"
               >
@@ -2608,7 +2109,7 @@ export const DoctorPage = () => {
           <DashboardCard
             fixedHeight
             title="Facility notices"
-            onAdd={() => setShowWarningModal(true)}
+            onAdd={() => guardClinicalCreate(() => setShowWarningModal(true))}
             addButtonTitle="Add organisation notice"
             listingScreen="warn"
           >
@@ -2623,7 +2124,7 @@ export const DoctorPage = () => {
           <DashboardCard 
             fixedHeight
             title="Lab Test Reports Pending for Review" 
-            onAdd={() => setShowLabTestModal(true)}
+            onAdd={() => guardClinicalCreate(() => setShowLabTestModal(true))}
             addButtonTitle="Add Lab Test Report"
             listingScreen="lab"
           >
@@ -2635,7 +2136,7 @@ export const DoctorPage = () => {
           <DashboardCard
             fixedHeight
             title="Prescription"
-            onAdd={() => setShowPrescriptionModal(true)}
+            onAdd={() => guardClinicalCreate(() => setShowPrescriptionModal(true))}
             addButtonTitle="Create Prescription"
             listingScreen="rx"
           >

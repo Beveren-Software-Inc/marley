@@ -321,6 +321,48 @@ doc_events = {
 	"Patient": {
 		"after_insert": "healthcare.regional.india.abdm.utils.set_consent_attachment_details"
 	},
+	"Lab Test": {
+		"validate": "healthcare.healthcare.care_episode_guard.validate_care_episode_open",
+	},
+	"Service Request": {
+		"validate": "healthcare.healthcare.care_episode_guard.validate_care_episode_open",
+	},
+	"Patient Medication Order": {
+		"validate": "healthcare.healthcare.care_episode_guard.validate_care_episode_open",
+	},
+	"Physical Examination": {
+		"validate": "healthcare.healthcare.care_episode_guard.validate_care_episode_open",
+	},
+	"Patient Medical History": {
+		"validate": "healthcare.healthcare.care_episode_guard.validate_care_episode_open",
+	},
+	"Clinical Suicide Risk Assessment": {
+		"validate": "healthcare.healthcare.care_episode_guard.validate_care_episode_open",
+	},
+	"Patient History": {
+		"validate": "healthcare.healthcare.care_episode_guard.validate_care_episode_open",
+	},
+	"Vital Signs": {
+		"validate": "healthcare.healthcare.care_episode_guard.validate_care_episode_open",
+	},
+	"Observation": {
+		"validate": "healthcare.healthcare.care_episode_guard.validate_care_episode_open",
+	},
+	"Sleeping Pattern": {
+		"validate": "healthcare.healthcare.care_episode_guard.validate_care_episode_open",
+	},
+	"IP Service": {
+		"validate": "healthcare.healthcare.care_episode_guard.validate_care_episode_open",
+	},
+	"Pre ECT Checklist": {
+		"validate": "healthcare.healthcare.care_episode_guard.validate_care_episode_open",
+	},
+	"ECT Anesthesia Consent": {
+		"validate": "healthcare.healthcare.care_episode_guard.validate_care_episode_open",
+	},
+	"Pre Anesthesia Assessment": {
+		"validate": "healthcare.healthcare.care_episode_guard.validate_care_episode_open",
+	},
 }
 
 scheduler_events = {

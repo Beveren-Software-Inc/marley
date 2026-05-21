@@ -1,5 +1,6 @@
 import type { ScreenGroup } from './doctorScreens'
 import type { CareMode } from '../providers/CareContextProvider'
+import { isDataOfficer } from './permissions'
 
 /** Must match Cost Center Select options (custom field on Cost Center). */
 export const CARE_TYPE_OP_ONLY = 'OP Only'
@@ -139,18 +140,23 @@ export function filterNurseScreenGroups(
   return filtered
 }
 
+const RECEPTION_PATIENT_LIST_SCREEN_IDS = new Set(['patients'])
+
 export function filterReceptionScreenGroups(
   groups: ScreenGroup[],
-  scope: CostCenterCareScope
+  scope: CostCenterCareScope,
+  roles?: string[]
 ): ScreenGroup[] {
-  if (scope === 'both') return groups
+  let filtered = groups
   if (scope === 'op_only') {
-    return filterGroupsByScreenIds(groups, OP_ONLY_RECEPTION_SCREEN_IDS)
+    filtered = filterGroupsByScreenIds(filtered, OP_ONLY_RECEPTION_SCREEN_IDS)
+  } else if (scope === 'ip_only') {
+    filtered = filterGroupsByScreenIds(filtered, IP_ONLY_RECEPTION_SCREEN_IDS)
   }
-  if (scope === 'ip_only') {
-    return filterGroupsByScreenIds(groups, IP_ONLY_RECEPTION_SCREEN_IDS)
+  if (!isDataOfficer(roles)) {
+    filtered = filterGroupsByScreenIds(filtered, RECEPTION_PATIENT_LIST_SCREEN_IDS)
   }
-  return groups
+  return filtered
 }
 
 /** If current ?screen= is not allowed for this scope/mode, return true so the page can redirect. */

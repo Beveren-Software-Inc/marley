@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { PatientSearch } from '../components/patients/PatientSearch'
+import { PatientCareHeader } from '../components/patients/PatientCareHeader'
 import { useCareContext } from '../providers/CareContextProvider'
 import { observationsAllowedForMode } from '../config/costCenterCareScope'
 import { PatientSummaryCard } from '../components/patients/PatientSummaryCard'
@@ -16,8 +16,6 @@ import { ServiceRequestList } from '../components/serviceRequests/ServiceRequest
 import { AppointmentList } from '../components/appointments/AppointmentList'
 import { AdmissionList } from '../components/admissions/AdmissionList'
 import { PatientVisitList } from '../components/patientVisits/PatientVisitList'
-import { NotificationBell } from '../components/notifications/NotificationBell'
-import { UserMenu } from '../components/user/UserMenu'
 import { fetchPatientHistorySummary, type PatientHistorySummary } from '../services/patients'
 import {
   CalendarCheck,
@@ -87,19 +85,7 @@ export const PatientHistoryPage = () => {
 
   return (
     <div className="flex flex-col min-h-full">
-      <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-        <div className="flex-1 min-w-0">
-          <PatientSearch
-            selectedPatient={selectedPatient || ''}
-            onPatientSelect={handlePatientSelect}
-            patients={[]}
-          />
-        </div>
-        <div className="flex items-center gap-3 flex-shrink-0">
-          <UserMenu />
-          <NotificationBell />
-        </div>
-      </header>
+      <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
 
       {!selectedPatient ? (
         <div className="flex-1 p-4 flex items-center justify-center">

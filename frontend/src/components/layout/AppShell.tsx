@@ -278,7 +278,7 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
         return { ...link, screenGroups: filterNurseScreenGroups(nurseScreenGroups, ccScope, mode) }
       }
       if (link.to === '/reception') {
-        return { ...link, screenGroups: filterReceptionScreenGroups(receptionScreenGroups, ccScope) }
+        return { ...link, screenGroups: filterReceptionScreenGroups(receptionScreenGroups, ccScope, roles) }
       }
       return link
     })
