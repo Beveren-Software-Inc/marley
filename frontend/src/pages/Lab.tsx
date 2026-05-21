@@ -708,9 +708,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useCareContext } from '../providers/CareContextProvider'
 import { ClipboardList, FlaskConical, BookOpen, AlertTriangle, Droplet, FileCode, History } from 'lucide-react'
-import { PatientSearch } from '../components/patients/PatientSearch'
-import { NotificationBell } from '../components/notifications/NotificationBell'
-import { UserMenu } from '../components/user/UserMenu'
+import { PatientCareHeader } from '../components/patients/PatientCareHeader'
 import { ServiceRequestList } from '../components/serviceRequests/ServiceRequestList'
 import { LabTestList, type LabTestListBatchSaveRef } from '../components/labTests/LabTestList'
 import { LabTestResultsSaveHeader } from '../components/labTests/LabTestResultsSaveHeader'
@@ -941,15 +939,7 @@ export const LabPage = () => {
   if (screen === 'l-setup') {
     return (
       <div className="flex flex-col min-w-0">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
 
         <div className="p-4 space-y-4">
 
@@ -1080,19 +1070,7 @@ export const LabPage = () => {
     if (!canCreateLabServiceRequests) {
       return (
         <div className="flex flex-col">
-          <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-            <div className="flex-1 min-w-0">
-              <PatientSearch
-                selectedPatient={selectedPatient || ''}
-                onPatientSelect={handlePatientSelect}
-                patients={[]}
-              />
-            </div>
-            <div className="flex items-center gap-3 flex-shrink-0">
-              <UserMenu />
-              <NotificationBell />
-            </div>
-          </header>
+          <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
           <div className="p-4">
             <section className="bg-white border border-slate-200 rounded-lg p-6 shadow-sm">
               <p className="text-sm text-slate-700">
@@ -1107,19 +1085,7 @@ export const LabPage = () => {
     // Lab Test Requests - show service requests with Lab Test Template
     return (
       <div className="flex flex-col min-w-0">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
 
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col">
@@ -1163,19 +1129,7 @@ export const LabPage = () => {
     // Outsourced Tests - show only lab tests where is_outsourced = 1
     return (
       <div className="flex flex-col min-w-0">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
 
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col">
@@ -1214,19 +1168,7 @@ export const LabPage = () => {
     // Lab Test & Result - show all lab tests
     return (
       <div className="flex flex-col min-w-0">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
 
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col">
@@ -1275,19 +1217,7 @@ export const LabPage = () => {
 
   return (
     <div className="flex flex-col h-full min-w-0">
-      <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-        <div className="flex-1 min-w-0">
-          <PatientSearch
-            selectedPatient={selectedPatient || ''}
-            onPatientSelect={handlePatientSelect}
-            patients={[]}
-          />
-        </div>
-        <div className="flex items-center gap-3 flex-shrink-0">
-          <UserMenu />
-          <NotificationBell />
-        </div>
-      </header>
+      <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
 
       <div className="flex-1 min-w-0 overflow-y-auto p-4 space-y-4">
 

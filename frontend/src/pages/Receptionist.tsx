@@ -5,9 +5,7 @@ import { dummyPatients } from '../config/patients'
 import { AdmissionList } from '../components/admissions/AdmissionList'
 import { PatientList } from '../components/patients/PatientList'
 import { toast } from '../hooks/useToast'
-import { PatientSearch } from '../components/patients/PatientSearch'
-import { NotificationBell } from '../components/notifications/NotificationBell'
-import { UserMenu } from '../components/user/UserMenu'
+import { PatientCareHeader } from '../components/patients/PatientCareHeader'
 import { AppointmentList } from '../components/appointments/AppointmentList'
 import { CreateAppointmentModal } from '../components/appointments/CreateAppointmentModal'
 import { PatientVisitList } from '../components/patientVisits/PatientVisitList'
@@ -34,6 +32,8 @@ import { DailyAutoVisitView } from '../components/patientVisits/DailyAutoVisitVi
 import { AdditionalCollectionBillingPage } from './billing/AdditionalCollectionBillingPage'
 import { InternalEmployeeBillingPage } from './billing/InternalEmployeeBillingPage'
 import { isReceptionScreenBlocked } from '../config/costCenterCareScope'
+import { isDataOfficer } from '../config/permissions'
+import { DashboardCard } from '../components/ui/DashboardCard'
 
 type View =
   | 'default'
@@ -67,7 +67,11 @@ export const ReceptionistPage = () => {
     activeAdmission,
     activeVisit,
     costCenterCareScope,
+    userRole,
+    guardClinicalCreate,
   } = useCareContext()
+
+  const canBrowsePatientList = isDataOfficer(userRole)
 
   // const { selectedPatient: globalPatient, setSelectedPatient: setGlobalPatient } = useCareContext()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -196,33 +200,28 @@ export const ReceptionistPage = () => {
     } else if (screen === 'billing-internal-employee') {
       setCurrentView('billing-internal-employee')
     } else if (screen === 'patients') {
-      setCurrentView('patients')
+      if (canBrowsePatientList) {
+        setCurrentView('patients')
+      } else {
+        setCurrentView('default')
+        const newParams = new URLSearchParams(searchParams)
+        newParams.delete('screen')
+        setSearchParams(newParams, { replace: true })
+      }
       }
     
     else {
       // No screen param or unknown: show reception homepage (e.g. after "Back to Reception" or sidebar Home)
       setCurrentView('default')
     }
-  }, [screen, searchParams, setSearchParams])
+  }, [screen, searchParams, setSearchParams, canBrowsePatientList])
 
   return (
     <div className="flex flex-col h-full">
-      <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-        <div className="flex-1 min-w-0">
-          <PatientSearch
-            selectedPatient={selectedPatient}
-            onPatientSelect={handlePatientSelect}
-            patients={dummyPatients}
-          />
-        </div>
-        <div className="flex items-center gap-3 flex-shrink-0">
-          <UserMenu />
-          <NotificationBell />
-        </div>
-      </header>
+      <PatientCareHeader selectedPatient={selectedPatient} onPatientSelect={handlePatientSelect} patients={dummyPatients} />
 
       <div className="flex-1 overflow-y-auto">
-        {currentView === 'patient' && (
+        {canBrowsePatientList && currentView === 'patient' && (
           <div className="p-4">
             <div className="mb-4 flex items-center justify-between">
               <div>
@@ -259,69 +258,59 @@ export const ReceptionistPage = () => {
 
         {costCenterCareScope !== 'op_only' && currentView === 'admission' && (
           <div className="p-4">
-            <div className="mb-4 flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-semibold text-slate-900">Admission Management</h2>
-                <p className="text-sm text-slate-600 mt-1">
-                  Manage patient admissions. Click "Admit" on scheduled admissions to proceed.
-                </p>
-              </div>
-              <button
-                onClick={() => setShowAdmissionModal(true)}
-                className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
-                title="Add Admission"
-              >
-                +
-              </button>
-            </div>
-            <AdmissionList 
-              refreshKey={admissionRefreshKey}
-              onAdmissionSelect={() => {}}
-              onPatientFromAdmission={handlePatientSelect}
-            />
+            <p className="text-sm text-slate-600 mb-4">
+              Manage patient admissions. Click &quot;Admit&quot; on scheduled admissions to proceed.
+            </p>
+            <DashboardCard
+              title="Admission Management"
+              onAdd={() => setShowAdmissionModal(true)}
+              addButtonTitle="Add Admission"
+              allowCreateOnClosedEpisode
+              noHeightLimit
+            >
+              <AdmissionList
+                refreshKey={admissionRefreshKey}
+                onAdmissionSelect={() => {}}
+                onPatientFromAdmission={handlePatientSelect}
+              />
+            </DashboardCard>
           </div>
         )}
 
         {costCenterCareScope !== 'op_only' && currentView === 'discharge' && (
           <div className="p-4">
-            <div className="mb-4 flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-semibold text-slate-900">Discharge Management</h2>
-                <p className="text-sm text-slate-600 mt-1">
-                  View and manage inpatient discharges. Click a row to see full details.
-                </p>
-              </div>
-            </div>
-            <DischargeList
-              patient={selectedPatient || undefined}
-              admission={undefined}
-              onPatientClick={handlePatientSelect}
-            />
+            <p className="text-sm text-slate-600 mb-4">
+              View and manage inpatient discharges. Click a row to see full details.
+            </p>
+            <DashboardCard title="Discharge Management" noHeightLimit>
+              <DischargeList
+                patient={selectedPatient || undefined}
+                admission={undefined}
+                onPatientClick={handlePatientSelect}
+              />
+            </DashboardCard>
           </div>
         )}
 
         {costCenterCareScope !== 'ip_only' && currentView === 'visit' && (
           <div className="p-4">
-            <div className="mb-4 flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-semibold text-slate-900">Patient Visits</h2>
-                <p className="text-sm text-slate-600 mt-1">
-                  View and manage patient visits. Use the search box to find specific visits.
-                </p>
-              </div>
-              <button
-                onClick={() => setShowPatientVisitModal(true)}
-                className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
-                title="Add Patient Visit"
-              >
-                +
-              </button>
-            </div>
-            <PatientVisitList 
-              patient={selectedPatient || undefined}
-              refreshKey={patientVisitRefreshKey}
-              onPatientFromVisit={handlePatientSelect}
-            />
+            <p className="text-sm text-slate-600 mb-4">
+              View and manage patient visits. Use the search box to find specific visits.
+            </p>
+            <DashboardCard
+              title="Patient Visits"
+              onAdd={() => setShowPatientVisitModal(true)}
+              addButtonTitle="Add Patient Visit"
+              allowCreateOnClosedEpisode
+              noHeightLimit
+            >
+              <PatientVisitList
+                patient={selectedPatient || undefined}
+                refreshKey={patientVisitRefreshKey}
+                onPatientFromVisit={handlePatientSelect}
+                showAppointmentAmount
+              />
+            </DashboardCard>
           </div>
         )}
 
@@ -337,7 +326,7 @@ export const ReceptionistPage = () => {
           </div>
         )}
 
-         {currentView === 'patients' && (
+         {canBrowsePatientList && currentView === 'patients' && (
              
                 <div className="flex flex-col">
                  
@@ -562,25 +551,23 @@ export const ReceptionistPage = () => {
 
         {currentView === 'appointments-freeze' && (
           <div className="p-4">
-            <div className="mb-4 flex items-start justify-between gap-4">
-              <div>
-                <h2 className="text-xl font-semibold text-slate-900">Appointments</h2>
-                <p className="text-sm text-slate-600 mt-1">
-                  When doctors are not available or on leave, freeze or cancel slots. Release when they return.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowAppointmentModal(true)}
-                className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 text-sm font-bold flex-shrink-0"
-                title="New Appointment"
-              >
-                +
-              </button>
-            </div>
-            <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[500px]">
-              <AppointmentList showAll={true} patient={selectedPatient || undefined} refreshKey={appointmentRefreshKey} onPatientClick={handlePatientSelect} />
-            </div>
+            <p className="text-sm text-slate-600 mb-4">
+              When doctors are not available or on leave, freeze or cancel slots. Release when they return.
+            </p>
+            <DashboardCard
+              title="Appointments"
+              onAdd={() => guardClinicalCreate(() => setShowAppointmentModal(true))}
+              addButtonTitle="New Appointment"
+              noHeightLimit
+            >
+              <AppointmentList
+                showAll={true}
+                receptionWalkInActions
+                patient={selectedPatient || undefined}
+                refreshKey={appointmentRefreshKey}
+                onPatientClick={handlePatientSelect}
+              />
+            </DashboardCard>
             {/* <div className="mt-4 bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-800">
               To freeze or release practitioner schedules, use the backend: Healthcare → Practitioner Schedule, or open Appointments in the backend.
               <a href="/app/Patient%20Appointment" target="_blank" rel="noopener noreferrer" className="ml-2 underline font-medium">Open Appointments</a>
@@ -662,216 +649,176 @@ export const ReceptionistPage = () => {
               </p>
             </div>
             {currentView === 'op-dashboard' && (
-              <div className="grid gap-4 md:grid-cols-2">
-                <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-                  <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
-                    <span>Patient List</span>
-                    <button onClick={() => setShowPatientModal(true)} className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 text-sm font-bold" title="Add Patient">+</button>
-                  </div>
-                  <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
+              <div className={`grid gap-4 ${canBrowsePatientList ? 'md:grid-cols-2' : 'md:grid-cols-1'}`}>
+                {canBrowsePatientList && (
+                  <DashboardCard
+                    fixedHeight
+                    title="Patient List"
+                    onAdd={() => setShowPatientModal(true)}
+                    addButtonTitle="Add Patient"
+                    listingScreen="patients"
+                    filterable={false}
+                    allowCreateOnClosedEpisode
+                  >
                     <PatientList refreshKey={patientRefreshKey} />
-                  </div>
-                </section>
-                <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-                  <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
-                    <span>Appointments</span>
-                    <button onClick={() => setShowAppointmentModal(true)} className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 text-sm font-bold" title="Add Appointment">+</button>
-                  </div>
-                  <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                    <AppointmentList showAll={true} patient={selectedPatient || undefined} refreshKey={appointmentRefreshKey} onPatientClick={handlePatientSelect} />
-                  </div>
-                </section>
+                  </DashboardCard>
+                )}
+                <DashboardCard
+                  fixedHeight
+                  title="Appointments"
+                  onAdd={() => guardClinicalCreate(() => setShowAppointmentModal(true))}
+                  addButtonTitle="Add Appointment"
+                  listingScreen="r-appointments-freeze"
+                >
+                  <AppointmentList
+                    showAll
+                    receptionWalkInActions
+                    patient={selectedPatient || undefined}
+                    refreshKey={appointmentRefreshKey}
+                    onPatientClick={handlePatientSelect}
+                  />
+                </DashboardCard>
               </div>
             )}
             {currentView === 'ip-dashboard' && (
-              <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[500px]">
-                <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
-                  <span>IP Admission List</span>
-                  <button onClick={() => setShowAdmissionModal(true)} className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 text-sm font-bold" title="Add Admission">+</button>
-                </div>
-                <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                  <AdmissionList patient={selectedPatient || undefined} refreshKey={admissionRefreshKey} onAdmissionSelect={() => {}} onPatientFromAdmission={handlePatientSelect} />
-                </div>
-              </div>
+              <DashboardCard
+                fixedHeight
+                title="IP Admission List"
+                onAdd={() => setShowAdmissionModal(true)}
+                addButtonTitle="Add Admission"
+                listingScreen="r-reg"
+                allowCreateOnClosedEpisode
+              >
+                <AdmissionList patient={selectedPatient || undefined} refreshKey={admissionRefreshKey} onAdmissionSelect={() => {}} onPatientFromAdmission={handlePatientSelect} />
+              </DashboardCard>
             )}
           </div>
         )}
 
         {currentView === 'default' && (
           <>
-            <div className="grid gap-4 md:grid-cols-2 p-4">
-              <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-                <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
-                  <span>Patient List</span>
-                  <button
-                    onClick={() => setShowPatientModal(true)}
-                    className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
-                    title="Add Patient"
-                  >
-                    +
-                  </button>
-                </div>
-                <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
+            <div className={`grid gap-4 p-4 ${canBrowsePatientList ? 'md:grid-cols-2' : 'md:grid-cols-1'}`}>
+              {canBrowsePatientList && (
+                <DashboardCard
+                  fixedHeight
+                  title="Patient List"
+                  onAdd={() => setShowPatientModal(true)}
+                  addButtonTitle="Add Patient"
+                  listingScreen="patients"
+                  filterable={false}
+                  allowCreateOnClosedEpisode
+                >
                   <PatientList refreshKey={patientRefreshKey} />
-                </div>
-              </section>
+                </DashboardCard>
+              )}
 
-              <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-                <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
-                  <span>Appointments</span>
-                  <button
-                    onClick={() => setShowAppointmentModal(true)}
-                    className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
-                    title="Add Appointment"
-                  >
-                    +
-                  </button>
-                </div>
-                <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                  <AppointmentList 
-                    showAll={true} 
-                    patient={selectedPatient || undefined}
-                    refreshKey={appointmentRefreshKey}
-                    onPatientClick={handlePatientSelect}
-                  />
-                </div>
-              </section>
+              <DashboardCard
+                fixedHeight
+                title="Appointments"
+                onAdd={() => guardClinicalCreate(() => setShowAppointmentModal(true))}
+                addButtonTitle="Add Appointment"
+                listingScreen="r-appointments-freeze"
+              >
+                <AppointmentList
+                  showAll
+                  receptionWalkInActions
+                  patient={selectedPatient || undefined}
+                  refreshKey={appointmentRefreshKey}
+                  onPatientClick={handlePatientSelect}
+                />
+              </DashboardCard>
             </div>
 
             <div className="grid gap-4 md:grid-cols-2 px-4 pb-4">
               {costCenterCareScope !== 'ip_only' && (
-                <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-                  <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
-                    <span>Patient Visits</span>
-                    <button
-                      onClick={() => setShowPatientVisitModal(true)}
-                      className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
-                      title="Add Patient Visit"
-                    >
-                      +
-                    </button>
-                  </div>
-                  <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                    <PatientVisitList 
-                      patient={selectedPatient || undefined}
-                      refreshKey={patientVisitRefreshKey}
-                      onPatientFromVisit={handlePatientSelect}
-                    />
-                  </div>
-                </section>
+                <DashboardCard
+                  fixedHeight
+                  title="Patient Visits"
+                  onAdd={() => setShowPatientVisitModal(true)}
+                  addButtonTitle="Add Patient Visit"
+                  listingScreen="r-visit"
+                  allowCreateOnClosedEpisode
+                >
+                  <PatientVisitList
+                    patient={selectedPatient || undefined}
+                    refreshKey={patientVisitRefreshKey}
+                    onPatientFromVisit={handlePatientSelect}
+                    showAppointmentAmount
+                  />
+                </DashboardCard>
               )}
 
               {costCenterCareScope !== 'op_only' && (
-                <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-                  <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
-                    <span>IP Admission List</span>
-                    <button
-                      onClick={() => setShowAdmissionModal(true)}
-                      className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
-                      title="Add Admission"
-                    >
-                      +
-                    </button>
-                  </div>
-                  <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                    <AdmissionList 
-                      patient={selectedPatient || undefined}
-                      refreshKey={admissionRefreshKey}
-                      onAdmissionSelect={() => {}}
-                      onPatientFromAdmission={handlePatientSelect}
-                    />
-                  </div>
-                </section>
+                <DashboardCard
+                  fixedHeight
+                  title="IP Admission List"
+                  onAdd={() => setShowAdmissionModal(true)}
+                  addButtonTitle="Add Admission"
+                  listingScreen="r-reg"
+                  allowCreateOnClosedEpisode
+                >
+                  <AdmissionList
+                    patient={selectedPatient || undefined}
+                    refreshKey={admissionRefreshKey}
+                    onAdmissionSelect={() => {}}
+                    onPatientFromAdmission={handlePatientSelect}
+                  />
+                </DashboardCard>
               )}
 
-              {/* Insurance Patient Register card */}
-              <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-                <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
-                  <span>Insurance Patient Register</span>
-                  <button
-                    type="button"
-                    onClick={() => setShowCreateInsuranceRegister(true)}
-                    className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
-                    title="New Insurance Patient Register"
-                  >
-                    +
-                  </button>
-                </div>
-                <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                  <InsurancePatientRegisterList refreshKey={insuranceRegisterRefreshKey} />
-                </div>
-              </section>
+              <DashboardCard
+                fixedHeight
+                title="Insurance Patient Register"
+                onAdd={() => guardClinicalCreate(() => setShowCreateInsuranceRegister(true))}
+                addButtonTitle="New Insurance Patient Register"
+                listingScreen="r-insurance"
+              >
+                <InsurancePatientRegisterList refreshKey={insuranceRegisterRefreshKey} />
+              </DashboardCard>
 
-              {/* Discharge card — hidden for OP-only cost centers */}
               {costCenterCareScope !== 'op_only' && (
-                <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-                  <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
-                    <span>Discharge List</span>
-                    <button
-                      type="button"
-                      onClick={() => window.open('/app/discharge/new-discharge', '_blank')}
-                      className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
-                      title="Add Discharge"
-                    >
-                      +
-                    </button>
-                  </div>
-                  <div
-                    className="overflow-x-auto overflow-y-auto flex-1 min-h-0"
-                    style={{ scrollbarWidth: 'thin' }}
-                  >
-                    <DischargeList
-                      patient={selectedPatient || undefined}
-                      admission={undefined}
-                      onPatientClick={handlePatientSelect}
-                    />
-                  </div>
-                </section>
+                <DashboardCard
+                  fixedHeight
+                  title="Discharge List"
+                  onAdd={() => window.open('/app/discharge/new-discharge', '_blank')}
+                  addButtonTitle="Add Discharge"
+                  listingScreen="r-discharge"
+                >
+                  <DischargeList
+                    patient={selectedPatient || undefined}
+                    admission={undefined}
+                    onPatientClick={handlePatientSelect}
+                  />
+                </DashboardCard>
               )}
 
-              {/* Patient Referral card */}
-              <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-                <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
-                  <span>Patient Referral</span>
-                  <button
-                    type="button"
-                    onClick={() => setShowCreateReferral(true)}
-                    className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
-                    title="New Referral"
-                  >
-                    +
-                  </button>
-                </div>
-                <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                  <PatientReferralList
-                    patient={selectedPatient || undefined}
-                    refreshKey={referralRefreshKey}
-                    onPatientClick={handlePatientSelect}
-                  />
-                </div>
-              </section>
+              <DashboardCard
+                fixedHeight
+                title="Patient Referral"
+                onAdd={() => guardClinicalCreate(() => setShowCreateReferral(true))}
+                addButtonTitle="New Referral"
+                listingScreen="r-referral"
+              >
+                <PatientReferralList
+                  patient={selectedPatient || undefined}
+                  refreshKey={referralRefreshKey}
+                  onPatientClick={handlePatientSelect}
+                />
+              </DashboardCard>
 
-              {/* Internal Transfer card */}
-              <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-                <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
-                  <span>Internal Transfer</span>
-                  <button
-                    type="button"
-                    onClick={() => setShowCreateInternalTransfer(true)}
-                    className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
-                    title="New Internal Transfer"
-                  >
-                    +
-                  </button>
-                </div>
-                <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                  <InternalTransferList
-                    patient={selectedPatient || undefined}
-                    refreshKey={internalTransferRefreshKey}
-                    onPatientClick={handlePatientSelect}
-                  />
-                </div>
-              </section>
+              <DashboardCard
+                fixedHeight
+                title="Internal Transfer"
+                onAdd={() => guardClinicalCreate(() => setShowCreateInternalTransfer(true))}
+                addButtonTitle="New Internal Transfer"
+                listingScreen="r-internal-transfer"
+              >
+                <InternalTransferList
+                  patient={selectedPatient || undefined}
+                  refreshKey={internalTransferRefreshKey}
+                  onPatientClick={handlePatientSelect}
+                />
+              </DashboardCard>
             </div>
           </>
         )}

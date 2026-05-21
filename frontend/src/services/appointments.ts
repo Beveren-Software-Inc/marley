@@ -20,6 +20,17 @@ export interface Appointment {
   mode_of_payment?: string
   paid_amount?: number
   source?: string
+  invoiced?: number
+  ref_sales_invoice?: string
+  sales_order?: string
+}
+
+export interface AppointmentSalesOrderResult {
+  sales_order: string
+  sales_order_status?: string
+  existing?: boolean
+  sales_invoice?: string | null
+  invoiced?: number
 }
 
 export interface CreateAppointmentData {
@@ -28,6 +39,8 @@ export interface CreateAppointmentData {
   appointment_date: string
   appointment_time?: string
   practitioner?: string
+  /** Duration in minutes (custom booking or slot override). */
+  duration?: number
   temporary_patient_name?: string
   temporary_mobile_no?: string
   notes?: string
@@ -124,7 +137,8 @@ export async function createAppointment(data: CreateAppointmentData): Promise<Ap
 export async function updateAppointmentStatus(
   appointmentId: string,
   status: string,
-  notes?: string
+  notes?: string,
+  checkoutTime?: string
 ): Promise<void> {
   const csrf = (window as any).csrf_token
   const body: Record<string, string> = {
@@ -133,6 +147,9 @@ export async function updateAppointmentStatus(
   }
   if (notes !== undefined && notes !== '') {
     body.notes = notes
+  }
+  if (checkoutTime !== undefined && checkoutTime !== '') {
+    body.checkout_time = checkoutTime
   }
   const response = await fetch(
     '/api/method/healthcare.healthcare.doctype.patient_appointment.patient_appointment.update_status',
@@ -154,6 +171,71 @@ export async function updateAppointmentStatus(
 }
 
 /** Create Patient Visit from appointment; returns new Patient Visit name. */
+export function isWalkInAppointment(apt: Pick<Appointment, 'patient' | 'temporary_patient_name'>): boolean {
+  return !apt.patient && Boolean(apt.temporary_patient_name?.trim())
+}
+
+export async function linkWalkInAppointmentToPatient(
+  appointmentName: string,
+  patient: string,
+): Promise<Appointment> {
+  const { ensureCSRF } = await import('./apiClient')
+  const csrf = await ensureCSRF()
+  const response = await fetch(
+    '/api/method/healthcare.api.patient_appointment.link_walk_in_appointment_to_patient',
+    {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
+      },
+      body: JSON.stringify({ appointment_name: appointmentName, patient }),
+    },
+  )
+  const resData = await response.json()
+  if (resData?.exc) {
+    throw new Error(messageFromExc(resData.exc, resData.exc_type))
+  }
+  if (resData?.message && typeof resData.message === 'object') {
+    return resData.message as Appointment
+  }
+  throw new Error('Failed to link patient to appointment')
+}
+
+export async function createAppointmentSalesOrder(
+  appointmentName: string,
+  createSalesInvoice = false,
+): Promise<AppointmentSalesOrderResult> {
+  const { ensureCSRF } = await import('./apiClient')
+  const csrf = await ensureCSRF()
+  const response = await fetch(
+    '/api/method/healthcare.api.patient_appointment.create_sales_order_from_appointment',
+    {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
+      },
+      body: JSON.stringify({
+        appointment_name: appointmentName,
+        create_sales_invoice: createSalesInvoice ? 1 : 0,
+      }),
+    },
+  )
+  const resData = await response.json()
+  if (resData?.exc) {
+    throw new Error(messageFromExc(resData.exc, resData.exc_type))
+  }
+  if (resData?.message && typeof resData.message === 'object') {
+    return resData.message as AppointmentSalesOrderResult
+  }
+  throw new Error('Failed to create Sales Order for appointment')
+}
+
 export async function createEncounterFromAppointment(appointmentId: string): Promise<string> {
   const csrf = (window as any).csrf_token
   const response = await fetch(
@@ -289,15 +371,51 @@ export interface SlotDetail {
 export interface GetAvailabilityDataResponse {
   slot_details: SlotDetail[]
   fee_validity: unknown
+  /** Set when slots cannot be loaded (e.g. practitioner has no schedule). */
+  user_message?: string
 }
 
 /** Extract a short user-facing message from Frappe exception (avoid full traceback). */
-function messageFromExc(exc: string, excType?: string): string {
+export function messageFromExc(exc: string, excType?: string): string {
   if (!exc || typeof exc !== 'string') return excType ? String(excType) : 'Request failed'
-  const trimmed = exc.trim()
-  const lastLine = trimmed.split('\n').filter(Boolean).pop() || trimmed
-  const match = lastLine.match(/^(?:[\w.]+\.)?ValidationError:\s*(.+)$/) || lastLine.match(/^(.+)$/)
+  let text = exc.trim()
+  if (text.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(text) as unknown
+      if (Array.isArray(parsed) && parsed[0]) text = String(parsed[0])
+    } catch {
+      /* use raw */
+    }
+  }
+  const validationMatch = text.match(/ValidationError:\s*(.+?)(?:\n|$)/s)
+  if (validationMatch) return validationMatch[1].trim()
+  const lastLine = text.split('\n').filter(Boolean).pop() || text
+  const match =
+    lastLine.match(/^(?:[\w.]+\.)?ValidationError:\s*(.+)$/) || lastLine.match(/^(.+)$/)
   return (match ? match[1].trim() : lastLine) || (excType ? String(excType) : 'Request failed')
+}
+
+/** Friendly copy for schedule / availability API failures. */
+export function friendlyAvailabilityMessage(raw: string): string {
+  const msg = messageFromExc(raw)
+  if (/practitioner schedule|Healthcare Practitioner Schedule/i.test(msg)) {
+    if (msg.includes('has no practitioner schedule')) {
+      return msg.includes('Custom time')
+        ? msg
+        : `${msg.replace(/\.\s*$/, '')}, or use Custom time to book.`
+    }
+    return 'This practitioner has no schedule set up. Open the Healthcare Practitioner record and add entries under Practitioner Schedules, or use Custom time to book.'
+  }
+  if (/holiday/i.test(msg)) {
+    return msg
+  }
+  if (/leave/i.test(msg)) {
+    return msg
+  }
+  if (/Traceback|File \"/i.test(msg)) {
+    return 'Could not load schedule slots. Check the practitioner schedule or use Custom time.'
+  }
+  return msg
 }
 
 /** Ensure CSRF token exists (fetch from API if missing). Required for POST on 8000/live. */
@@ -349,12 +467,13 @@ export async function getAvailabilityData(
   })
   const resData = await response.json()
   if (resData?.exc) {
-    throw new Error(messageFromExc(resData.exc, resData.exc_type))
+    throw new Error(friendlyAvailabilityMessage(String(resData.exc)))
   }
-  if (resData?.message && Array.isArray((resData.message as GetAvailabilityDataResponse)?.slot_details)) {
-    return resData.message as GetAvailabilityDataResponse
+  const payload = resData?.message as GetAvailabilityDataResponse | undefined
+  if (payload && Array.isArray(payload.slot_details)) {
+    return payload
   }
-  throw new Error('Invalid response from get_availability_data')
+  throw new Error('Could not load schedule slots. Please try again or use Custom time.')
 }
 
 /** Reschedule an appointment to a new date and time (and optional slot duration/service_unit). */

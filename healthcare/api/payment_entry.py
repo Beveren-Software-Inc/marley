@@ -70,9 +70,18 @@ def _resolve_accounts(company: str, mode_of_payment: str) -> tuple[str, str]:
     return paid_from, paid_to
 
 
-def _build_remarks(reference_doctype: str, reference_name: str, visit: str | None, patient: str | None, remarks: str) -> str:
+def _build_remarks(
+    reference_doctype: str,
+    reference_name: str,
+    visit: str | None,
+    patient: str | None,
+    remarks: str,
+    appointment: str | None = None,
+) -> str:
     """Compose the remarks string from available context."""
     parts = [f"Payment against {reference_doctype} {reference_name}"]
+    if appointment:
+        parts.append(f"Appointment: {appointment}")
     if visit:
         parts.append(f"Visit: {visit}")
     if patient:
@@ -153,8 +162,12 @@ def create_payment_entry(data: dict) -> dict:
     pe.target_exchange_rate       = 1
     pe.difference_amount          = 0
     pe.remarks                    = _build_remarks(
-        reference_doctype, reference_name,
-        data.get("visit"), data.get("patient"), data.get("remarks", "")
+        reference_doctype,
+        reference_name,
+        data.get("visit"),
+        data.get("patient"),
+        data.get("remarks", ""),
+        data.get("appointment"),
     )
     pe.custom_insurance_claim = data.get("custom_insurance_claim")  # Optional link to Insurance Claim
 

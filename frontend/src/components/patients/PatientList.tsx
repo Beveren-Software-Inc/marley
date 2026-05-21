@@ -197,7 +197,7 @@ export const PatientList = ({ refreshKey }: PatientListProps = {}) => {
   return (
     <div className="w-full h-full flex flex-col min-h-[400px]">
       {/* Fixed height container for search hint - prevents layout shift */}
-      <div className="flex-shrink-0]">
+      <div className="flex-shrink-0">
         {!debouncedQuery && fullDirectoryRestricted && (
           <div className="text-sm text-slate-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 mb-2">
             The full patient directory is restricted to users with the <strong>Data Officer</strong> role. Type in the search box to find patients by name, file number, or ID.
@@ -227,10 +227,10 @@ export const PatientList = ({ refreshKey }: PatientListProps = {}) => {
         </div>
       </div>
 
-      {/* Stable table container */}
-      <div className="flex-1 min-h-0 overflow-auto">
+      {/* Stable table container — isolate stacking so sticky headers cover scrolling rows */}
+      <div className="flex-1 min-h-0 overflow-auto relative isolate" data-sticky-table-scroll>
         <div className="min-w-[950px]">
-          <table className="w-full table-fixed">
+          <table className="w-full table-fixed border-separate border-spacing-0">
             <colgroup>
               <col className="w-[100px]" />
               <col className="w-[150px]" />
@@ -242,30 +242,30 @@ export const PatientList = ({ refreshKey }: PatientListProps = {}) => {
               <col className="w-[80px]" />
             </colgroup>
             
-            <thead className="bg--50 border-b border-slate-200 sticky top-0">
+            <thead>
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+                <th className="sticky top-0 z-10 bg-slate-50 px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase shadow-[0_1px_0_0_rgb(226_232_240)]">
                   File Number
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+                <th className="sticky top-0 z-10 bg-slate-50 px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase shadow-[0_1px_0_0_rgb(226_232_240)]">
                   Patient Name
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+                <th className="sticky top-0 z-10 bg-slate-50 px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase shadow-[0_1px_0_0_rgb(226_232_240)]">
                   Gender
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+                <th className="sticky top-0 z-10 bg-slate-50 px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase shadow-[0_1px_0_0_rgb(226_232_240)]">
                   Mobile
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+                <th className="sticky top-0 z-10 bg-slate-50 px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase shadow-[0_1px_0_0_rgb(226_232_240)]">
                   ID Number
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+                <th className="sticky top-0 z-10 bg-slate-50 px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase shadow-[0_1px_0_0_rgb(226_232_240)]">
                   Category
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+                <th className="sticky top-0 z-10 bg-slate-50 px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase shadow-[0_1px_0_0_rgb(226_232_240)]">
                   Status
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+                <th className="sticky top-0 z-10 bg-slate-50 px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase shadow-[0_1px_0_0_rgb(226_232_240)]">
                   Actions
                 </th>
               </tr>

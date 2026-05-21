@@ -22,6 +22,7 @@
   "service_unit",
   "appointment_date",
   "cost_center",
+  "checkout",
   "section_patient_details",
   "patient",
   "patient_name",
@@ -97,8 +98,7 @@
    "in_standard_filter": 1,
    "label": "Patient",
    "options": "Patient",
-   "search_index": 1,
-   "set_only_once": 1
+   "search_index": 1
   },
   {
    "fieldname": "appointment_type",
@@ -110,6 +110,7 @@
   },
   {
    "fetch_from": "appointment_type.default_duration",
+   "fetch_if_empty": 1,
    "fieldname": "duration",
    "fieldtype": "Int",
    "in_filter": 1,
@@ -129,7 +130,7 @@
    "in_list_view": 1,
    "label": "Status",
    "no_copy": 1,
-   "options": "\nScheduled\nOpen\nConfirmed\nChecked In\nChecked Out\nPostponed\nPatient Arrived\nClosed\nCancelled\nNo Show",
+   "options": "\nScheduled\nOpen\nConfirmed\nChecked In\nChecked Out\nPostponed\nPatient Arrived\nClosed\nPaid\nCancelled\nNo Show",
    "read_only": 1
   },
   {
@@ -185,7 +186,7 @@
    "fetch_from": "practitioner.department",
    "fetch_if_empty": 1,
    "fieldname": "department",
-   "fieldtype": "Link",
+   "fieldtype": "Data",
    "ignore_user_permissions": 1,
    "in_list_view": 1,
    "in_standard_filter": 1,
@@ -565,6 +566,11 @@
    "ignore_user_permissions": 1,
    "label": "WhatsApp Template",
    "options": "Digital Whatsapp Template"
+  },
+  {
+   "fieldname": "checkout",
+   "fieldtype": "Datetime",
+   "label": "Checkout Time"
   }
  ],
  "grid_page_length": 50,
@@ -585,7 +591,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2026-05-14 11:41:22.957049",
+ "modified": "2026-05-21 15:23:26.360610",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Appointment",
@@ -635,7 +641,12 @@
  "show_name_in_global_search": 1,
  "sort_field": "modified",
  "sort_order": "DESC",
- "states": [],
+ "states": [
+  {
+   "color": "Green",
+   "title": "Paid"
+  }
+ ],
  "title_field": "title",
  "track_changes": 1,
  "track_seen": 1

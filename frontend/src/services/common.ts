@@ -13,6 +13,8 @@ export interface LinkFieldOption {
   is_group?: number | boolean
   medical_role?: string
   item_code?: string
+  /** Appointment Type: default slot length in minutes */
+  default_duration?: number
   item_group?: string
   stock_uom?: string
   /** From Item.custom_route_of_administration when present — prefills prescription route */

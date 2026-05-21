@@ -1,9 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useCareContext } from '../providers/CareContextProvider'
-import { PatientSearch } from '../components/patients/PatientSearch'
-import { NotificationBell } from '../components/notifications/NotificationBell'
-import { UserMenu } from '../components/user/UserMenu'
+import { PatientCareHeader } from '../components/patients/PatientCareHeader'
 import { ClinicalNotesList } from '../components/clinicalNotes/ClinicalNotesList'
 import { CreateClinicalNoteModal } from '../components/clinicalNotes/CreateClinicalNoteModal'
 import { DiagnosisSymptomsScreen } from '../components/diagnosis/DiagnosisSymptomsScreen'
@@ -55,15 +53,7 @@ export const PsychologistPage = () => {
   }
 
   const header = (
-    <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-      <div className="flex-1 min-w-0">
-        <PatientSearch selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
-      </div>
-      <div className="flex items-center gap-3 flex-shrink-0">
-        <UserMenu />
-        <NotificationBell />
-      </div>
-    </header>
+    <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
   )
 
   // ── Psychologist Notes ────────────────────────────────────────────────────────

@@ -173,9 +173,20 @@ interface CreatePatientVisitModalProps {
   initialPatient?: string
   /** Link new visit to this IOP Enrollment. */
   initialIOPEnrollment?: string
+  /** Link new visit to this Patient Appointment. */
+  initialAppointment?: string
+  /** Pre-fill practitioner from appointment. */
+  initialPractitioner?: string
 }
 
-export const CreatePatientVisitModal = ({ onClose, onSuccess, initialPatient, initialIOPEnrollment }: CreatePatientVisitModalProps) => {
+export const CreatePatientVisitModal = ({
+  onClose,
+  onSuccess,
+  initialPatient,
+  initialIOPEnrollment,
+  initialAppointment,
+  initialPractitioner,
+}: CreatePatientVisitModalProps) => {
   const [patientQuery, setPatientQuery] = useState(initialPatient || '')
   const [selectedPatient, setSelectedPatient] = useState<PatientListItem | null>(null)
   const [patients, setPatients] = useState<PatientListItem[]>([])
@@ -197,11 +208,11 @@ export const CreatePatientVisitModal = ({ onClose, onSuccess, initialPatient, in
   const [visitTypeQuery, setVisitTypeQuery] = useState('')
 
   const [formData, setFormData] = useState({
-    practitioner: '',
+    practitioner: initialPractitioner || '',
     encounter_date: new Date().toISOString().split('T')[0],
     encounter_time: new Date().toTimeString().slice(0, 5),
     visit_type: initialIOPEnrollment ? 'IOP' : '',
-    appointment: ''
+    appointment: initialAppointment || '',
   })
   const [activeTab, setActiveTab] = useState<'details' | 'documents'>('details')
 
@@ -231,15 +242,18 @@ export const CreatePatientVisitModal = ({ onClose, onSuccess, initialPatient, in
         setPractitioners(practs)
         setVisitTypeOptions(visitTypes)
         setDocumentTypes(docTypes)
-        if (currentPract) {
-          setFormData(prev => prev.practitioner === '' ? { ...prev, practitioner: currentPract } : prev)
+        if (currentPract && !initialPractitioner) {
+          setFormData((prev) => (prev.practitioner === '' ? { ...prev, practitioner: currentPract } : prev))
+        }
+        if (initialPractitioner) {
+          setPractQuery(initialPractitioner)
         }
       } catch (err) {
         console.error('Failed to load options:', err)
       }
     }
     loadOptions()
-  }, [])
+  }, [initialPractitioner])
 
   const addDocumentRow = () => {
     setDocuments((prev) => [...prev, { file_name: '', document_type: '', transaction_no: '', upload_remarks: '' }])

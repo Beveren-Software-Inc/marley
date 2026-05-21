@@ -51,6 +51,7 @@ export interface PatientVisitListRow {
   lab_amount: number
   service_amount: number
   pharmacy_amount: number
+  appointment_amount: number
 }
 
 export interface PatientVisitsPaginatedResponse {
@@ -106,6 +107,7 @@ export async function fetchPatientVisitsFull(
         lab_amount: Number(m.lab_amount ?? 0),
         service_amount: Number(m.service_amount ?? 0),
         pharmacy_amount: Number(m.pharmacy_amount ?? 0),
+        appointment_amount: Number(m.appointment_amount ?? 0),
       })),
       total_count: msg.total_count ?? rows.length,
     }

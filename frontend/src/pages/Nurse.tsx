@@ -2,7 +2,7 @@ import { useState, useEffect, useLayoutEffect } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useCareContext } from '../providers/CareContextProvider'
 import { isNurseScreenBlocked } from '../config/costCenterCareScope'
-import { PatientSearch } from '../components/patients/PatientSearch'
+import { PatientCareHeader } from '../components/patients/PatientCareHeader'
 import { WarningMessagesList } from '../components/warnings/WarningMessagesList'
 import { LabTestList } from '../components/labTests/LabTestList'
 import { ECTDashboard } from '../components/ect/ECTDashboard'
@@ -26,8 +26,6 @@ import { CreateWarningMessageModal } from '../components/warnings/CreateWarningM
 import { CreateLabTestModal } from '../components/labTests/CreateLabTestModal'
 import { CreateDoctorServiceModal } from '../components/services/CreateDoctorServiceModal'
 import { AdmissionPage } from './Admission'
-import { NotificationBell } from '../components/notifications/NotificationBell'
-import { UserMenu } from '../components/user/UserMenu'
 import { ServiceRequestList } from '../components/serviceRequests/ServiceRequestList'
 import { CreateServiceRequestModal } from '../components/serviceRequests/CreateServiceRequestModal'
 import { IPServiceList } from '../components/ipServices/IPServiceList'
@@ -88,6 +86,7 @@ export const NursePage = () => {
     activeAdmission,
     activeVisit,
     costCenterCareScope,
+    guardClinicalCreate,
   } = useCareContext()
   const patientFromUrl = searchParams.get('patient')
   const [selectedPatient, setSelectedPatient] = useState<string | undefined>(() => patientFromUrl || globalPatient || undefined)
@@ -261,19 +260,7 @@ export const NursePage = () => {
     if (screen === 'n-inventory') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
             <div className="font-semibold mb-4">Inventory Dashboard</div>
@@ -287,19 +274,7 @@ export const NursePage = () => {
   if (screen === 'single-prescription') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
   
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
@@ -315,19 +290,7 @@ export const NursePage = () => {
   if (screen === 'n-first') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
             <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
@@ -363,19 +326,7 @@ export const NursePage = () => {
   if (screen === 'n-ect') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <ECTDashboard selectedPatient={selectedPatient} />
         </div>
@@ -387,19 +338,7 @@ export const NursePage = () => {
   if (screen === 'n-iop') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <div className="mb-4 flex items-start justify-between gap-4">
             <div>
@@ -456,19 +395,7 @@ export const NursePage = () => {
   if (screen === 'n-my-tasks') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
             <div className="flex items-center justify-between mb-4">
@@ -491,19 +418,7 @@ export const NursePage = () => {
   if (screen === 'n-nurse-tasks') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
             <div className="flex items-center justify-between mb-4">
@@ -547,19 +462,7 @@ export const NursePage = () => {
   if (screen === 'n-labs') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <DashboardCard title="Lab Reports Status">
             <LabTestList
@@ -578,19 +481,7 @@ export const NursePage = () => {
   if (screen === 'rx') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
             <div className="font-semibold mb-4">All Prescriptions</div>
@@ -608,19 +499,7 @@ export const NursePage = () => {
    if (screen === 'patients') {
       return (
         <div className="flex flex-col">
-          <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-            <div className="flex-1 min-w-0">
-              <PatientSearch
-                selectedPatient={selectedPatient || ''}
-                onPatientSelect={handlePatientSelect}
-                patients={[]}
-              />
-            </div>
-            <div className="flex items-center gap-3 flex-shrink-0">
-              <UserMenu />
-              <NotificationBell />
-            </div>
-          </header>
+          <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
    
           <div className="p-4">
             <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
@@ -659,19 +538,7 @@ export const NursePage = () => {
   if (screen === 'n-lab') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <DashboardCard title="Laboratory">
             <LabTestList
@@ -691,19 +558,7 @@ export const NursePage = () => {
   if (screen === 'n-doc-notes') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
             <div className="font-semibold mb-1 flex items-center justify-between">
@@ -727,19 +582,7 @@ export const NursePage = () => {
   if (screen === 'dos') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
             <div className="font-semibold mb-4">Doctors Order</div>
@@ -758,19 +601,7 @@ export const NursePage = () => {
   if (screen === 'nurse' || screen === 'n-nurse-notes') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
             <div className="font-semibold mb-4 flex items-center justify-between">
@@ -811,19 +642,7 @@ export const NursePage = () => {
   if (screen === 'n-psy-notes') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
             <div className="font-semibold mb-4">Psychologist Notes</div>
@@ -842,19 +661,7 @@ export const NursePage = () => {
   if (screen === 'n-nut') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
             <div className="font-semibold mb-4 flex items-center justify-between">
@@ -896,19 +703,7 @@ export const NursePage = () => {
   if (screen === 'n-psy-order') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
             <div className="font-semibold mb-4 flex items-center justify-between">
@@ -948,19 +743,7 @@ export const NursePage = () => {
   if (screen === 'n-ob') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
             <div className="font-semibold mb-4 flex items-center justify-between">
@@ -994,19 +777,7 @@ export const NursePage = () => {
   if (screen === 'n-tpr') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
             <div className="font-semibold mb-4 flex items-center justify-between">
@@ -1040,19 +811,7 @@ export const NursePage = () => {
   if (screen === 'n-env') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
             <div className="font-semibold mb-3">Environmental Checklist</div>
@@ -1067,19 +826,7 @@ export const NursePage = () => {
   if (screen === 'n-ther') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
             <div className="font-semibold mb-4 flex items-center justify-between">
@@ -1120,19 +867,7 @@ export const NursePage = () => {
   if (screen === 'n-med') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
             <div className="font-semibold mb-4">Medication (Prescriptions)</div>
@@ -1151,19 +886,7 @@ export const NursePage = () => {
   if (screen === 'n-given' && mode !== 'OP') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
             <div className="font-semibold mb-4 flex items-center justify-between gap-2">
@@ -1216,19 +939,7 @@ export const NursePage = () => {
   if (screen === 'n-daily-med') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
             <DailyMedicationChart patient={selectedPatient} admission={activeAdmission} />
@@ -1242,19 +953,7 @@ export const NursePage = () => {
   if (screen === 'n-med-sheet') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
             <MedicationSheet patient={selectedPatient} admission={activeAdmission} />
@@ -1268,19 +967,7 @@ export const NursePage = () => {
   if (screen === 'n-reminder') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
             <div className="font-semibold mb-4">
@@ -1298,19 +985,7 @@ export const NursePage = () => {
   if (screen === 'n-ip-services') {
     return (
       <div className="flex flex-col h-full min-h-0 overflow-hidden">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4 flex-1 min-h-0 overflow-hidden flex flex-col">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 min-h-0 flex-1">
             {/* Left card: Service Request – request a service (e.g. Transport) */}
@@ -1401,21 +1076,9 @@ export const NursePage = () => {
   if (screen === 'n-other' || screen === 'n-ref') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
-          <DashboardCard title={screen === 'n-ref' ? 'Referral Services' : 'Other Services'} onAdd={() => setShowServiceRequestModal(true)} addButtonTitle="Add Service Request">
+          <DashboardCard title={screen === 'n-ref' ? 'Referral Services' : 'Other Services'} onAdd={() => guardClinicalCreate(() => setShowServiceRequestModal(true))} addButtonTitle="Add Service Request">
             <ServiceRequestList patient={selectedPatient} refreshKey={serviceRequestRefreshKey} onPatientClick={handlePatientSelect} />
           </DashboardCard>
         </div>
@@ -1438,19 +1101,7 @@ export const NursePage = () => {
   if (screen === 'n-session') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4 space-y-4">
           {/* Appointments Section */}
           <DashboardCard title="Appointments" listingScreen="n-session">
@@ -1458,7 +1109,7 @@ export const NursePage = () => {
           </DashboardCard>
 
           {/* Session Schedules Section */}
-          <DashboardCard title="Session Schedules" onAdd={() => setShowSessionScheduleModal(true)} addButtonTitle="Add Session Schedule">
+          <DashboardCard title="Session Schedules" onAdd={() => guardClinicalCreate(() => setShowSessionScheduleModal(true))} addButtonTitle="Add Session Schedule">
             <SessionScheduleList 
               patient={selectedPatient}
               admissionNumber={activeAdmission}
@@ -1486,19 +1137,7 @@ export const NursePage = () => {
   if (screen === 'n-fall') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
             <div className="font-semibold mb-4 flex items-center justify-between">
@@ -1530,19 +1169,7 @@ export const NursePage = () => {
   if (screen === 'n-sleep') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
             <div className="font-semibold mb-4 flex items-center justify-between">
@@ -1578,19 +1205,7 @@ export const NursePage = () => {
   if (screen === 'n-patient-history') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
             <div className="font-semibold mb-4 flex items-center justify-between">
@@ -1660,19 +1275,7 @@ export const NursePage = () => {
 
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <DashboardCard title="Discharge Form / Procedure" onAdd={handleCreateDischarge} addButtonTitle="Add Discharge">
             <DischargeList patient={selectedPatient} key={dischargeRefreshKey} onPatientClick={handlePatientSelect} />
@@ -1686,19 +1289,7 @@ export const NursePage = () => {
   if (screen === 'n-package' && mode !== 'OP') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
             <div className="font-semibold mb-4">Package Detail</div>
@@ -1713,19 +1304,7 @@ export const NursePage = () => {
   if (screen === 'n-sick') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
             <div className="font-semibold mb-4 flex items-center justify-between">
@@ -1764,19 +1343,7 @@ export const NursePage = () => {
   if (screen === 'n-mental') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
             <div className="font-semibold mb-4 flex items-center justify-between">
@@ -1815,19 +1382,7 @@ export const NursePage = () => {
   if (screen === 'n-grooming' || screen === 'n-groom') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
             <div className="font-semibold mb-4 flex items-center justify-between">
@@ -1866,19 +1421,7 @@ export const NursePage = () => {
   if (screen === 'n-assess') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-          <div className="flex-1 min-w-0">
-            <PatientSearch
-              selectedPatient={selectedPatient || ''}
-              onPatientSelect={handlePatientSelect}
-              patients={[]}
-            />
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
-        </header>
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
             <div className="font-semibold mb-4 flex items-center justify-between">
@@ -1919,19 +1462,7 @@ export const NursePage = () => {
 
   return (
     <div className="flex flex-col">
-      <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
-        <div className="flex-1 min-w-0">
-          <PatientSearch
-            selectedPatient={selectedPatient || ''}
-            onPatientSelect={handlePatientSelect}
-            patients={[]}
-          />
-        </div>
-        <div className="flex items-center gap-3 flex-shrink-0">
-          <UserMenu />
-          <NotificationBell />
-        </div>
-      </header>
+      <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
 
       {/* OP / IP mode: list at top — hides once a patient is selected */}
       {((mode === 'OP') || (costCenterCareScope !== 'op_only' && mode === 'IP')) &&
@@ -2034,7 +1565,7 @@ export const NursePage = () => {
             <DashboardCard
               title="Service Requests"
               fixedHeight
-              onAdd={() => setShowServiceRequestModal(true)}
+              onAdd={() => guardClinicalCreate(() => setShowServiceRequestModal(true))}
               addButtonTitle="Add Service Request"
               listingScreen="n-ip-services"
             >
@@ -2096,7 +1627,7 @@ export const NursePage = () => {
               <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0 gap-2">
                 <span>Warnings & Allergies</span>
                 <CardHeaderActions
-                  onAdd={() => setShowWarningModal(true)}
+                  onAdd={() => guardClinicalCreate(() => setShowWarningModal(true))}
                   addButtonTitle="Add Warning Message"
                   listingScreen="n-first"
                   openListingTitle="Open full Warnings & Allergies list"
@@ -2139,7 +1670,7 @@ export const NursePage = () => {
             <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0 gap-2">
               <span>IP Warning Messages / Medications / Allergy</span>
               <CardHeaderActions
-                onAdd={() => setShowWarningModal(true)}
+                onAdd={() => guardClinicalCreate(() => setShowWarningModal(true))}
                 addButtonTitle="Add Warning Message"
                 listingScreen="n-first"
               />
@@ -2153,7 +1684,7 @@ export const NursePage = () => {
             <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0 gap-2">
               <span>Lab Reports List & Status</span>
               <CardHeaderActions
-                onAdd={() => setShowLabTestModal(true)}
+                onAdd={() => guardClinicalCreate(() => setShowLabTestModal(true))}
                 addButtonTitle="Add Lab Test Report"
                 listingScreen="n-labs"
               />

@@ -36,6 +36,7 @@ import {
 } from '../../utils/prescriptionType'
 import { X, Plus, Trash2, Pill, ChevronDown, ChevronUp } from 'lucide-react'
 import { useCareContext } from '../../providers/CareContextProvider'
+import { useBlockIfActiveCareClosed } from '../../hooks/useBlockIfActiveCareClosed'
 import {
   linkComboboxDropdownClass,
   linkComboboxInputWithClearClass,
@@ -256,6 +257,7 @@ export const CreatePrescriptionModal = ({
   prescriptionData = null,
 }: CreatePrescriptionModalProps) => {
   const { mode, activeVisit, activeAdmission, costCenterCompany } = useCareContext()
+  const blockIfActiveCareClosed = useBlockIfActiveCareClosed()
   const [activeTab, setActiveTab] = useState<TabId>('details')
   const [expandedMedications, setExpandedMedications] = useState<Set<number>>(new Set([0]))
 
@@ -657,6 +659,11 @@ export const CreatePrescriptionModal = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
+    try {
+      blockIfActiveCareClosed()
+    } catch {
+      return
+    }
     if (!selectedPatient) { setError('Please select a patient'); setActiveTab('details'); return }
     if (!formData.company) { setError('Please select a company'); setActiveTab('details'); return }
     if (!formData.start_date) { setError('Please set start date'); setActiveTab('details'); return }

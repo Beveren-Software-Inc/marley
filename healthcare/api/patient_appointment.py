@@ -1,7 +1,13 @@
 import frappe
 from frappe import _
+from frappe.utils import cint, flt, nowdate
 
+from healthcare.api.sales_order_cost_center import (
+	apply_cost_center_to_sales_order,
+	cost_center_from_base_reference,
+)
 from healthcare.api.utils.api_utility import get_next_prefixed, get_next_transaction_number
+from healthcare.healthcare.utils import get_appointment_billing_item_and_rate
 
 @frappe.whitelist()
 def get_practitioner_appointments(limit=50, offset=0, status=None):
@@ -68,18 +74,22 @@ def get_all_appointments(limit=50, offset=0, status=None, patient=None,
 
 	if search:
 		search_term = f"%{search}%"
-		or_filters = {
-			'patient_name': ['like', search_term],
-			'patient': ['like', search_term],
-			'practitioner_name': ['like', search_term],
-			'name': ['like', search_term],
-		}
+		or_filters = [
+			['patient_name', 'like', search_term],
+			['patient', 'like', search_term],
+			['practitioner_name', 'like', search_term],
+			['name', 'like', search_term],
+			['temporary_patient_name', 'like', search_term],
+			['temporary_mobile_no', 'like', search_term],
+		]
 
 	fields = [
 		'name', 'patient', 'patient_name',
 		'appointment_date', 'appointment_time',
 		'status', 'appointment_type', 'department',
 		'practitioner', 'practitioner_name', 'company',
+		'temporary_patient_name', 'temporary_mobile_no',
+		'invoiced', 'ref_sales_invoice',
 	]
 
 	count_args = {'doctype': 'Patient Appointment', 'filters': filters}
@@ -91,6 +101,7 @@ def get_all_appointments(limit=50, offset=0, status=None, patient=None,
 
 	total_count = len(frappe.get_all(**count_args, fields=['name'], limit=0))
 	appointments = frappe.get_all(**fetch_args)
+	_enrich_appointments_with_sales_order(appointments)
 
 	return {"data": appointments, "total_count": total_count}
 
@@ -159,8 +170,14 @@ def create_appointment(data):
 		import json
 		data = json.loads(data)
 	number = get_next_transaction_number('Patient Appointment')
+	explicit_duration = None
+	if data.get('duration') is not None:
+		explicit_duration = cint(data.get('duration'))
+		if explicit_duration < 1:
+			explicit_duration = None
+
 	# Create the appointment document
-	appointment = frappe.get_doc({
+	doc_fields = {
 		'doctype': 'Patient Appointment',
 		'patient': data.get('patient') or None,
 		'appointment_type': data.get('appointment_type'),
@@ -172,10 +189,33 @@ def create_appointment(data):
 		'temporary_patient_name': data.get('temporary_patient_name'),
 		'temporary_mobile_no': data.get('temporary_mobile_no'),
 		'notes': data.get('notes'),
-		'trans_no': number
-	})
+		'trans_no': number,
+	}
+	if explicit_duration:
+		doc_fields['duration'] = explicit_duration
+
+	appointment = frappe.get_doc(doc_fields)
+
+	if appointment.practitioner:
+		pract_dept = frappe.db.get_value(
+			'Healthcare Practitioner', appointment.practitioner, 'department'
+		)
+		if pract_dept and frappe.db.exists('Medical Department', pract_dept):
+			appointment.department = pract_dept
 	
 	appointment.insert(ignore_permissions=True)
+
+	# fetch_from on duration can still overwrite on insert until fetch_if_empty is synced
+	if explicit_duration and appointment.duration != explicit_duration:
+		frappe.db.set_value(
+			'Patient Appointment',
+			appointment.name,
+			'duration',
+			explicit_duration,
+			update_modified=False,
+		)
+		appointment.duration = explicit_duration
+
 	frappe.db.commit()
 	
 	# Get practitioner name
@@ -194,7 +234,258 @@ def create_appointment(data):
 		'practitioner': appointment.practitioner,
 		'practitioner_name': practitioner_name
 	}
- 
+
+
+@frappe.whitelist()
+def link_walk_in_appointment_to_patient(appointment_name, patient):
+	"""Attach a registered Patient to a walk-in appointment and clear temporary fields."""
+	if not appointment_name:
+		frappe.throw(_("Appointment name is required"))
+	if not patient:
+		frappe.throw(_("Patient is required"))
+	if not frappe.db.exists("Patient Appointment", appointment_name):
+		frappe.throw(_("Patient Appointment {0} not found").format(appointment_name))
+	if not frappe.db.exists("Patient", patient):
+		frappe.throw(_("Patient {0} not found").format(patient))
+
+	doc = frappe.get_doc("Patient Appointment", appointment_name)
+	if doc.patient:
+		frappe.throw(
+			_("Appointment {0} is already linked to patient {1}").format(
+				appointment_name, doc.patient
+			)
+		)
+	if not (doc.temporary_patient_name or "").strip():
+		frappe.throw(
+			_("Appointment {0} is not a walk-in (no temporary patient name)").format(
+				appointment_name
+			)
+		)
+
+	doc.patient = patient
+	doc.temporary_patient_name = None
+	doc.temporary_mobile_no = None
+	# validate() resolves department; ignore_links covers sites with stale DocField options
+	doc.flags.ignore_links = True
+	doc.save(ignore_permissions=True)
+	frappe.db.commit()
+
+	patient_name = frappe.db.get_value("Patient", patient, "patient_name")
+	return {
+		"name": doc.name,
+		"patient": doc.patient,
+		"patient_name": patient_name or doc.patient_name,
+		"status": doc.status,
+		"temporary_patient_name": doc.temporary_patient_name,
+		"temporary_mobile_no": doc.temporary_mobile_no,
+	}
+
+
+def _enrich_appointments_with_sales_order(appointments):
+	if not appointments:
+		return
+	names = [a.name for a in appointments]
+	rows = frappe.get_all(
+		"Sales Order",
+		filters={
+			"custom_base_reference": "Patient Appointment",
+			"custom_base_reference_name": ["in", names],
+			"docstatus": ["<", 2],
+		},
+		fields=["name", "custom_base_reference_name"],
+		order_by="creation desc",
+	)
+	so_by_apt = {}
+	for row in rows:
+		key = row.custom_base_reference_name
+		if key and key not in so_by_apt:
+			so_by_apt[key] = row.name
+	for apt in appointments:
+		apt["sales_order"] = so_by_apt.get(apt.name)
+
+
+def _find_appointment_sales_order(appointment_name):
+	return frappe.db.get_value(
+		"Sales Order",
+		{
+			"custom_base_reference": "Patient Appointment",
+			"custom_base_reference_name": appointment_name,
+			"docstatus": ["<", 2],
+		},
+		"name",
+		order_by="creation desc",
+	)
+
+
+def _appointment_billing_item_and_rate(appointment_doc):
+	item_code = frappe.db.get_single_value(
+		"Healthcare Settings", "default_patient_appointment_item"
+	)
+	if not item_code:
+		frappe.throw(
+			_(
+				"Set <b>Default Patient Appointment Item</b> in "
+				"<a href='/app/Form/Healthcare Settings'>Healthcare Settings</a>."
+			),
+			title=_("Missing Configuration"),
+		)
+	if not frappe.db.exists("Item", item_code):
+		frappe.throw(_("Item {0} does not exist").format(item_code))
+
+	billing_rate = flt(appointment_doc.paid_amount)
+	if billing_rate <= 0:
+		try:
+			details = get_appointment_billing_item_and_rate(appointment_doc)
+			billing_rate = flt(details.get("practitioner_charge"))
+		except Exception:
+			billing_rate = 0
+	if billing_rate <= 0:
+		billing_rate = flt(frappe.db.get_value("Item", item_code, "standard_rate"))
+
+	return item_code, billing_rate
+
+
+@frappe.whitelist()
+def create_sales_order_from_appointment(appointment_name, create_sales_invoice=0):
+	"""Create (or reuse) a draft Sales Order for a checked-out appointment.
+
+	Uses ``default_patient_appointment_item`` from Healthcare Settings.
+	Optional ``create_sales_invoice`` submits the order, creates and submits a Sales Invoice,
+	and marks the appointment invoiced.
+	"""
+	if not appointment_name:
+		frappe.throw(_("Appointment name is required"))
+
+	create_sales_invoice = cint(create_sales_invoice)
+
+	appointment = frappe.get_doc("Patient Appointment", appointment_name)
+	if not appointment.patient:
+		frappe.throw(_("Register a patient on this appointment before billing."))
+	if appointment.status != "Checked Out":
+		frappe.throw(
+			_("Appointment must be Checked Out before creating a Sales Order."),
+			title=_("Not Checked Out"),
+		)
+
+	existing_so = _find_appointment_sales_order(appointment_name)
+	if existing_so and not create_sales_invoice:
+		so = frappe.get_doc("Sales Order", existing_so)
+		return {
+			"sales_order": so.name,
+			"sales_order_status": so.status,
+			"existing": True,
+			"sales_invoice": appointment.ref_sales_invoice,
+			"invoiced": cint(appointment.invoiced),
+		}
+
+	if appointment.invoiced and appointment.ref_sales_invoice:
+		return {
+			"sales_order": existing_so,
+			"sales_order_status": frappe.db.get_value("Sales Order", existing_so, "status")
+			if existing_so
+			else None,
+			"existing": True,
+			"sales_invoice": appointment.ref_sales_invoice,
+			"invoiced": 1,
+		}
+
+	company = appointment.company or frappe.defaults.get_user_default("Company")
+	if not company:
+		frappe.throw(_("Company is required on the appointment or user defaults."))
+
+	customer = frappe.db.get_value("Patient", appointment.patient, "customer")
+	if not customer:
+		frappe.throw(
+			_("Patient {0} has no Customer linked. Link a customer on the patient record first.").format(
+				appointment.patient
+			)
+		)
+
+	item_code, billing_rate = _appointment_billing_item_and_rate(appointment)
+
+	if existing_so:
+		so_name = existing_so
+	else:
+		so = frappe.new_doc("Sales Order")
+		so.company = company
+		so.patient = appointment.patient
+		so.customer = customer
+		so.transaction_date = nowdate()
+		so.delivery_date = nowdate()
+		so.ignore_pricing_rule = 1
+
+		pname = appointment.patient_name or frappe.db.get_value(
+			"Patient", appointment.patient, "patient_name"
+		)
+		if pname and hasattr(so, "custom_patient_name"):
+			so.custom_patient_name = pname
+		if hasattr(so, "custom_patient"):
+			so.custom_patient = appointment.patient
+
+		so.custom_base_reference = "Patient Appointment"
+		so.custom_base_reference_name = appointment.name
+
+		pract = appointment.practitioner_name or appointment.practitioner or ""
+		desc = _("Appointment {0}").format(appointment.name)
+		if pract:
+			desc = _("Appointment {0} — {1}").format(appointment.name, pract)
+
+		so.append(
+			"items",
+			{
+				"item_code": item_code,
+				"qty": 1,
+				"rate": billing_rate,
+				"price_list_rate": billing_rate,
+				"description": desc,
+			},
+		)
+
+		cc = cost_center_from_base_reference("Patient Appointment", appointment.name)
+		if not cc and appointment.company:
+			cc = frappe.get_cached_value("Company", appointment.company, "cost_center")
+		apply_cost_center_to_sales_order(so, cc)
+
+		so.insert(ignore_permissions=True)
+		so_name = so.name
+
+	result = {
+		"sales_order": so_name,
+		"sales_order_status": frappe.db.get_value("Sales Order", so_name, "status"),
+		"existing": bool(existing_so),
+		"sales_invoice": None,
+		"invoiced": 0,
+	}
+
+	if create_sales_invoice:
+		so_doc = frappe.get_doc("Sales Order", so_name)
+		if so_doc.docstatus == 0:
+			so_doc.submit()
+
+		from erpnext.selling.doctype.sales_order.sales_order import make_sales_invoice
+
+		si = make_sales_invoice(so_name)
+		if hasattr(si, "patient"):
+			si.patient = appointment.patient
+		if hasattr(si, "appointment"):
+			si.appointment = appointment.name
+		si.flags.ignore_mandatory = True
+		si.save(ignore_permissions=True)
+		si.submit()
+
+		frappe.db.set_value(
+			"Patient Appointment",
+			appointment_name,
+			{"invoiced": 1, "ref_sales_invoice": si.name},
+			update_modified=True,
+		)
+		result["sales_invoice"] = si.name
+		result["invoiced"] = 1
+
+	frappe.db.commit()
+	return result
+
+
 @frappe.whitelist()
 def check_practitioner_availability(practitioner, date):
     """

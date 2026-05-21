@@ -47,6 +47,7 @@
   "op_consulting_charge_item",
   "column_break_13",
   "clinical_procedure_consumable_item",
+  "default_patient_appointment_item",
   "sb_in_ac",
   "income_account",
   "receivable_account",
@@ -548,11 +549,17 @@
    "fieldtype": "Table",
    "label": "Patient Category Pricing",
    "options": "Service Pricing"
+  },
+  {
+   "fieldname": "default_patient_appointment_item",
+   "fieldtype": "Link",
+   "label": "Default Patient Appointment Item",
+   "options": "Item"
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-04-22 17:25:02.398122",
+ "modified": "2026-05-21 15:19:03.725841",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Settings",

@@ -382,12 +382,19 @@ def get_appointment_types(search=None):
 	appointment_types = frappe.get_all(
 		'Appointment Type',
 		filters=filters,
-		fields=['name', 'appointment_type'],
+		fields=['name', 'appointment_type', 'default_duration'],
 		limit=50,
 		order_by='appointment_type'
 	)
 	
-	return [{'name': a.name, 'label': a.appointment_type or a.name} for a in appointment_types]
+	return [
+		{
+			'name': a.name,
+			'label': a.appointment_type or a.name,
+			'default_duration': a.default_duration,
+		}
+		for a in appointment_types
+	]
 
 
 @frappe.whitelist()
