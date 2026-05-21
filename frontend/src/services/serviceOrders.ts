@@ -21,6 +21,16 @@ export interface ServiceOrder {
   invoice_amount?: number
   cost_center?: string | null
   cost_center_name?: string
+  /** Reception label e.g. Consultation — Initial, Lab tests — CBC */
+  order_kind_label?: string
+  items?: {
+    item_code?: string
+    item_name?: string
+    description?: string
+    qty?: number
+    rate?: number
+    amount?: number
+  }[]
 }
 
 export interface OutpatientBalance {
@@ -247,17 +257,55 @@ export async function fetchPatientBillingCostCenterBreakdown(
   return msg && Array.isArray(msg.rows) ? msg : { restricted: false, rows: [] }
 }
 
-export async function createBulkInvoice(referenceType: string, referenceName: string): Promise<string> {
-  const params = new URLSearchParams()
-  params.append('reference_type', referenceType)
-  params.append('reference_name', referenceName)
+export interface CreateBulkInvoiceOptions {
+  salesOrderNames: string[]
+  referenceType?: string
+  referenceName?: string
+  patient?: string
+}
 
-  const response = await fetch(
-    `/api/method/healthcare.api.sales_order.create_bulk_invoice?${params.toString()}`,
-    { method: 'POST' }
-  )
+export async function createBulkInvoice(options: CreateBulkInvoiceOptions): Promise<string> {
+  const { ensureCSRF } = await import('./apiClient')
+  const csrf = await ensureCSRF()
+
+  const response = await fetch('/api/method/healthcare.api.sales_order.create_bulk_invoice', {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
+    },
+    body: JSON.stringify({
+      sales_order_names: options.salesOrderNames,
+      reference_type: options.referenceType,
+      reference_name: options.referenceName,
+      patient: options.patient,
+    }),
+  })
+
   const data = await response.json()
-  return data.message
+  if (!response.ok || data.exc) {
+    const msg =
+      typeof data._server_messages === 'string'
+        ? (() => {
+            try {
+              const parsed = JSON.parse(data._server_messages) as string[]
+              const inner = parsed[0] ? JSON.parse(parsed[0]) : null
+              return (inner as { message?: string })?.message
+            } catch {
+              return undefined
+            }
+          })()
+        : typeof data.message === 'string'
+          ? data.message
+          : undefined
+    throw new Error(msg || data.exc || 'Failed to create bulk invoice')
+  }
+  if (typeof data.message === 'string' && data.message) {
+    return data.message
+  }
+  throw new Error('Failed to create bulk invoice')
 }
 
 export async function createServiceOrder(data: any): Promise<string> {

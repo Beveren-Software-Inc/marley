@@ -956,6 +956,29 @@ def _get_or_create_employee_customer(employee_name):
     return customer_doc.name
 
 
+def _template_display_name(template_dt, template_dn):
+    """Human-readable template title for reception (not raw document ID)."""
+    if not template_dt or not template_dn:
+        return ""
+    if not frappe.db.exists(template_dt, template_dn):
+        return (template_dn or "").strip()
+    meta = frappe.get_meta(template_dt)
+    for fieldname in (
+        "template_name",
+        "lab_test_name",
+        "procedure_template",
+        "therapy_type",
+        "activity",
+        "title",
+        "name",
+    ):
+        if meta.has_field(fieldname):
+            val = frappe.db.get_value(template_dt, template_dn, fieldname)
+            if val:
+                return str(val).strip()
+    return (template_dn or "").strip()
+
+
 def _kind_label_for_service_request(sr):
     """Reception-friendly category from Service Request template."""
     if not sr:
@@ -963,7 +986,8 @@ def _kind_label_for_service_request(sr):
 
     td = (sr.get("template_dt") or "").strip()
     dn = (sr.get("template_dn") or "").strip()
-    suffix = f" — {dn}" if dn else ""
+    dn_label = _template_display_name(td, dn) if dn else ""
+    suffix = f" — {dn_label}" if dn_label else ""
 
     if td == "Lab Test Template":
         return _("Lab tests") + suffix
@@ -1003,6 +1027,34 @@ def _order_kind_label(so_row, sr_by_name):
         sr = sr_by_name.get(base_name)
         return _kind_label_for_service_request(sr)
 
+    if base_ref == "Lab Test" and base_name:
+        lt = frappe.db.get_value(
+            "Lab Test",
+            base_name,
+            ["lab_test_name", "template"],
+            as_dict=True,
+        ) or {}
+        title = (lt.get("lab_test_name") or lt.get("template") or base_name).strip()
+        return _("Lab test") + (f" — {title}" if title else "")
+
+    if base_ref == "Patient Appointment" and base_name:
+        apt_type = frappe.db.get_value("Patient Appointment", base_name, "appointment_type")
+        pract = frappe.db.get_value("Patient Appointment", base_name, "practitioner_name")
+        parts = [_("Appointment")]
+        if apt_type:
+            parts.append(str(apt_type))
+        if pract:
+            parts.append(str(pract))
+        return " — ".join(parts[:3])
+
+    if base_ref == "Inpatient Healthcare Service" and base_name:
+        svc = frappe.db.get_value("Inpatient Healthcare Service", base_name, "service") or base_name
+        return _("IP / ward service") + f" — {svc}"
+
+    if base_ref == "Clinical Procedure" and base_name:
+        title = frappe.db.get_value("Clinical Procedure", base_name, "procedure_template") or base_name
+        return _("Clinical procedure") + f" — {title}"
+
     if ref_t == "Service Request":
         sr_name = so_row.get("custom_reference_name")
         sr = sr_by_name.get(sr_name) if sr_name else None
@@ -1012,6 +1064,9 @@ def _order_kind_label(so_row, sr_by_name):
         return _("OP visit charges")
     if ref_t == "Inpatient Admission":
         return _("Admission charges")
+
+    if base_ref:
+        return base_ref + (f" — {base_name}" if base_name else "")
 
     return ref_t or _("Billing order")
 

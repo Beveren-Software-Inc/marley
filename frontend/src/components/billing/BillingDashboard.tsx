@@ -1,6 +1,7 @@
 // components/billing/BillingDashboard.tsx
 import { useState, useEffect } from 'react'
 
+import { ServiceOrderServiceCell } from './ServiceOrderServiceCell'
 import { 
   fetchServiceOrders, 
   fetchServiceInvoices,
@@ -1142,6 +1143,43 @@ const handleMakePayment = async (
         <StatCard title="Outstanding" value={formatCurrency(invoiceSummary?.total_outstanding || 0)} subValue={`${(invoiceSummary?.unpaid.count || 0) + (invoiceSummary?.overdue.count || 0)} invoices pending`} icon={AlertCircle} color="bg-red-50 text-red-600" onClick={() => handleViewChange('unpaid')} />
       </div>
 
+      {showCcBreakdown && (
+        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+          <div className="px-5 py-4 border-b border-slate-200">
+            <h3 className="font-semibold text-slate-800">Charges by Branch</h3>
+            <p className="text-xs text-slate-500 mt-1">
+              For the selected patient{effectiveReferenceName ? ` · ${effectiveReferenceType}: ${effectiveReferenceName}` : ''}. Shown when your account is not restricted to a single cost center.
+            </p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 border-b border-slate-200">
+                <tr>
+                  <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase">Branch</th>
+                  <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase">Service orders</th>
+                  <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase">Orders amount</th>
+                  <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase">Invoices</th>
+                  <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase">Invoiced total</th>
+                  <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase">Outstanding</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {ccBreakdown.map((row) => (
+                  <tr key={row.cost_center || '__none__'} className="hover:bg-slate-50">
+                    <td className="px-4 py-2.5 text-slate-800 font-medium">{row.cost_center_name}</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums text-slate-700">{row.sales_orders}</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums text-slate-700">{formatCurrency(row.orders_amount)}</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums text-slate-700">{row.invoices}</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums text-slate-700">{formatCurrency(row.invoices_grand_total)}</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums font-medium text-slate-900">{formatCurrency(row.outstanding)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         <div className="bg-white rounded-xl border border-slate-200 p-5">
           <h3 className="text-md font-semibold text-slate-800 mb-4 flex items-center gap-2"><Package className="w-4 h-4 text-primary" /> Order Summary</h3>
@@ -1181,43 +1219,6 @@ const handleMakePayment = async (
         </div>
       </div>
 
-      {showCcBreakdown && (
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-          <div className="px-5 py-4 border-b border-slate-200">
-            <h3 className="font-semibold text-slate-800">Charges by Branch</h3>
-            <p className="text-xs text-slate-500 mt-1">
-              For the selected patient{effectiveReferenceName ? ` · ${effectiveReferenceType}: ${effectiveReferenceName}` : ''}. Shown when your account is not restricted to a single cost center.
-            </p>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-slate-50 border-b border-slate-200">
-                <tr>
-                  <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase">Branch</th>
-                  <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase">Service orders</th>
-                  <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase">Orders amount</th>
-                  <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase">Invoices</th>
-                  <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase">Invoiced total</th>
-                  <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase">Outstanding</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {ccBreakdown.map((row) => (
-                  <tr key={row.cost_center || '__none__'} className="hover:bg-slate-50">
-                    <td className="px-4 py-2.5 text-slate-800 font-medium">{row.cost_center_name}</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums text-slate-700">{row.sales_orders}</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums text-slate-700">{formatCurrency(row.orders_amount)}</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums text-slate-700">{row.invoices}</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums text-slate-700">{formatCurrency(row.invoices_grand_total)}</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums font-medium text-slate-900">{formatCurrency(row.outstanding)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
       {/* Quick Stats Row */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         <div className="bg-gradient-to-r from-primary/5 to-primary/10 rounded-xl border border-primary/20 p-5">
@@ -1253,9 +1254,12 @@ const handleMakePayment = async (
               {recentOrders.map((order) => (
                 <div key={order.name} className="px-5 py-3 hover:bg-slate-50">
                   <div className="flex items-center justify-between gap-3">
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium text-primary">{order.name}</p>
                       <p className="text-xs text-slate-400">{order.transaction_date}</p>
+                      <div className="mt-1">
+                        <ServiceOrderServiceCell order={order} />
+                      </div>
                       {(order.cost_center_name || order.cost_center) && (
                         <p
                           className="text-[11px] text-slate-500 mt-0.5 truncate"
@@ -1267,9 +1271,6 @@ const handleMakePayment = async (
                     </div>
                     <div className="text-right shrink-0">
                       <p className="text-sm font-semibold text-slate-900">{formatCurrency(order.grand_total)}</p>
-                      <p className="text-xs text-slate-500 truncate max-w-[140px] ml-auto">
-                        {order.custom_base_reference_name || order.custom_base_reference}
-                      </p>
                     </div>
                   </div>
                 </div>
