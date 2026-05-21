@@ -1670,7 +1670,7 @@ export const DoctorPage = () => {
       <div className="flex flex-col">
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
-          <DashboardCard title="Prescription Details">
+          <DashboardCard title="Current Prescription" filterable={false} noHeightLimit>
             <RxPage />
           </DashboardCard>
         </div>

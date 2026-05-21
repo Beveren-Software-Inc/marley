@@ -167,7 +167,9 @@ export const RescheduleAppointmentModal = ({
       .then((res) => {
         if (!cancelled) {
           setSlotDetails(res.slot_details || [])
-          if (!res.slot_details?.length) {
+          if (res.user_message) {
+            setSlotsError(res.user_message)
+          } else if (!res.slot_details?.length) {
             setSlotsError('No slots available for this date. The practitioner may be on leave or it\'s a holiday.')
           }
         }

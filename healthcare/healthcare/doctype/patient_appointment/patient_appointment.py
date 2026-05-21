@@ -632,12 +632,14 @@ def get_availability_data(date, practitioner, appointment):
 	if practitioner_doc.practitioner_schedules:
 		slot_details = get_available_slots(practitioner_doc, date)
 	else:
-		frappe.throw(
-			_(
-				"{0} does not have a Healthcare Practitioner Schedule. Add it in Healthcare Practitioner master"
-			).format(practitioner),
-			title=_("Practitioner Schedule Not Found"),
-		)
+		display_name = practitioner_doc.practitioner_name or practitioner
+		return {
+			"slot_details": [],
+			"fee_validity": "Disabled",
+			"user_message": _(
+				"{0} has no practitioner schedule. Open the Healthcare Practitioner record and add entries under Practitioner Schedules, or use Custom time to book."
+			).format(display_name),
+		}
 
 	if not slot_details:
 		# Practitioner has no schedule for this weekday; return empty slots so UI can show a message

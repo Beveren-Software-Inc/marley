@@ -39,6 +39,8 @@ export interface CreateAppointmentData {
   appointment_date: string
   appointment_time?: string
   practitioner?: string
+  /** Duration in minutes (custom booking or slot override). */
+  duration?: number
   temporary_patient_name?: string
   temporary_mobile_no?: string
   notes?: string
@@ -369,15 +371,51 @@ export interface SlotDetail {
 export interface GetAvailabilityDataResponse {
   slot_details: SlotDetail[]
   fee_validity: unknown
+  /** Set when slots cannot be loaded (e.g. practitioner has no schedule). */
+  user_message?: string
 }
 
 /** Extract a short user-facing message from Frappe exception (avoid full traceback). */
-function messageFromExc(exc: string, excType?: string): string {
+export function messageFromExc(exc: string, excType?: string): string {
   if (!exc || typeof exc !== 'string') return excType ? String(excType) : 'Request failed'
-  const trimmed = exc.trim()
-  const lastLine = trimmed.split('\n').filter(Boolean).pop() || trimmed
-  const match = lastLine.match(/^(?:[\w.]+\.)?ValidationError:\s*(.+)$/) || lastLine.match(/^(.+)$/)
+  let text = exc.trim()
+  if (text.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(text) as unknown
+      if (Array.isArray(parsed) && parsed[0]) text = String(parsed[0])
+    } catch {
+      /* use raw */
+    }
+  }
+  const validationMatch = text.match(/ValidationError:\s*(.+?)(?:\n|$)/s)
+  if (validationMatch) return validationMatch[1].trim()
+  const lastLine = text.split('\n').filter(Boolean).pop() || text
+  const match =
+    lastLine.match(/^(?:[\w.]+\.)?ValidationError:\s*(.+)$/) || lastLine.match(/^(.+)$/)
   return (match ? match[1].trim() : lastLine) || (excType ? String(excType) : 'Request failed')
+}
+
+/** Friendly copy for schedule / availability API failures. */
+export function friendlyAvailabilityMessage(raw: string): string {
+  const msg = messageFromExc(raw)
+  if (/practitioner schedule|Healthcare Practitioner Schedule/i.test(msg)) {
+    if (msg.includes('has no practitioner schedule')) {
+      return msg.includes('Custom time')
+        ? msg
+        : `${msg.replace(/\.\s*$/, '')}, or use Custom time to book.`
+    }
+    return 'This practitioner has no schedule set up. Open the Healthcare Practitioner record and add entries under Practitioner Schedules, or use Custom time to book.'
+  }
+  if (/holiday/i.test(msg)) {
+    return msg
+  }
+  if (/leave/i.test(msg)) {
+    return msg
+  }
+  if (/Traceback|File \"/i.test(msg)) {
+    return 'Could not load schedule slots. Check the practitioner schedule or use Custom time.'
+  }
+  return msg
 }
 
 /** Ensure CSRF token exists (fetch from API if missing). Required for POST on 8000/live. */
@@ -429,12 +467,13 @@ export async function getAvailabilityData(
   })
   const resData = await response.json()
   if (resData?.exc) {
-    throw new Error(messageFromExc(resData.exc, resData.exc_type))
+    throw new Error(friendlyAvailabilityMessage(String(resData.exc)))
   }
-  if (resData?.message && Array.isArray((resData.message as GetAvailabilityDataResponse)?.slot_details)) {
-    return resData.message as GetAvailabilityDataResponse
+  const payload = resData?.message as GetAvailabilityDataResponse | undefined
+  if (payload && Array.isArray(payload.slot_details)) {
+    return payload
   }
-  throw new Error('Invalid response from get_availability_data')
+  throw new Error('Could not load schedule slots. Please try again or use Custom time.')
 }
 
 /** Reschedule an appointment to a new date and time (and optional slot duration/service_unit). */

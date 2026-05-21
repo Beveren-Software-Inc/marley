@@ -110,6 +110,7 @@
   },
   {
    "fetch_from": "appointment_type.default_duration",
+   "fetch_if_empty": 1,
    "fieldname": "duration",
    "fieldtype": "Int",
    "in_filter": 1,

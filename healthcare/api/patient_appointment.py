@@ -170,8 +170,14 @@ def create_appointment(data):
 		import json
 		data = json.loads(data)
 	number = get_next_transaction_number('Patient Appointment')
+	explicit_duration = None
+	if data.get('duration') is not None:
+		explicit_duration = cint(data.get('duration'))
+		if explicit_duration < 1:
+			explicit_duration = None
+
 	# Create the appointment document
-	appointment = frappe.get_doc({
+	doc_fields = {
 		'doctype': 'Patient Appointment',
 		'patient': data.get('patient') or None,
 		'appointment_type': data.get('appointment_type'),
@@ -183,8 +189,12 @@ def create_appointment(data):
 		'temporary_patient_name': data.get('temporary_patient_name'),
 		'temporary_mobile_no': data.get('temporary_mobile_no'),
 		'notes': data.get('notes'),
-		'trans_no': number
-	})
+		'trans_no': number,
+	}
+	if explicit_duration:
+		doc_fields['duration'] = explicit_duration
+
+	appointment = frappe.get_doc(doc_fields)
 
 	if appointment.practitioner:
 		pract_dept = frappe.db.get_value(
@@ -194,6 +204,18 @@ def create_appointment(data):
 			appointment.department = pract_dept
 	
 	appointment.insert(ignore_permissions=True)
+
+	# fetch_from on duration can still overwrite on insert until fetch_if_empty is synced
+	if explicit_duration and appointment.duration != explicit_duration:
+		frappe.db.set_value(
+			'Patient Appointment',
+			appointment.name,
+			'duration',
+			explicit_duration,
+			update_modified=False,
+		)
+		appointment.duration = explicit_duration
+
 	frappe.db.commit()
 	
 	# Get practitioner name

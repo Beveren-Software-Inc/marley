@@ -121,9 +121,15 @@ export const BookConsultationSessionModal = ({ serviceRequest: sr, onClose, onSu
       .then(res => {
         if (cancelled) return
         setSlotDetails(res.slot_details || [])
-        if (!res.slot_details?.length) setSlotsError('No slots available for this date.')
+        if (res.user_message) {
+          setSlotsError(res.user_message)
+        } else if (!res.slot_details?.length) {
+          setSlotsError('No slots available for this date.')
+        }
       })
-      .catch(err => { if (!cancelled) setSlotsError(err instanceof Error ? err.message : 'Failed to load slots') })
+      .catch(err => {
+        if (!cancelled) setSlotsError(err instanceof Error ? err.message : 'Could not load schedule slots.')
+      })
       .finally(() => { if (!cancelled) setSlotsLoading(false) })
     return () => { cancelled = true }
   }, [practitioner, appointmentDate])

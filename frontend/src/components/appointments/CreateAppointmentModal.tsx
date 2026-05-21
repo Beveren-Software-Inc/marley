@@ -153,6 +153,15 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
   const [slotDetails, setSlotDetails] = useState<SlotDetail[] | null>(null)
   const [slotsError, setSlotsError] = useState<string | null>(null)
   const [selectedSlot, setSelectedSlot] = useState<{ from_time: string; duration?: number } | null>(null)
+  const [timeMode, setTimeMode] = useState<'schedule' | 'custom'>('schedule')
+  const [customTime, setCustomTime] = useState('')
+  const [customDurationMinutes, setCustomDurationMinutes] = useState('30')
+  const [appointmentTypeDuration, setAppointmentTypeDuration] = useState<number | null>(null)
+
+  const parseCustomDurationMinutes = (raw: string, fallback = 30): number => {
+    const n = parseInt(raw.trim(), 10)
+    return Number.isFinite(n) && n >= 1 ? n : fallback
+  }
 
   const flatSlots =
     slotDetails && formData.appointment_date
@@ -189,10 +198,33 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
       return
     }
 
-    const appointmentTime = selectedSlot ? toApiTime(selectedSlot.from_time) : undefined
-    if (formData.practitioner && !appointmentTime) {
-      setError('Select a slot')
-      return
+    let appointmentTime: string | undefined
+    let durationMinutes: number | undefined
+
+    if (formData.practitioner) {
+      if (timeMode === 'schedule') {
+        if (!selectedSlot) {
+          setError('Select a slot from the schedule, or switch to Custom time.')
+          return
+        }
+        appointmentTime = toApiTime(selectedSlot.from_time)
+        durationMinutes =
+          selectedSlot.duration ??
+          appointmentTypeDuration ??
+          parseCustomDurationMinutes(customDurationMinutes)
+      } else {
+        if (!customTime.trim()) {
+          setError('Enter a start time for the custom appointment.')
+          return
+        }
+        const parsedDuration = parseCustomDurationMinutes(customDurationMinutes, 0)
+        if (!customDurationMinutes.trim() || parsedDuration < 1) {
+          setError('Enter duration in minutes (e.g. 45).')
+          return
+        }
+        appointmentTime = toApiTime(customTime)
+        durationMinutes = parsedDuration
+      }
     }
 
     try {
@@ -205,6 +237,7 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
         appointment_date: formData.appointment_date,
         appointment_time: appointmentTime,
         practitioner: formData.practitioner || undefined,
+        duration: durationMinutes,
         temporary_patient_name: isWalkIn ? temporaryPatientName.trim() : undefined,
         temporary_mobile_no: isWalkIn ? temporaryMobileNo.trim() || undefined : undefined,
         notes: notes.trim() || undefined,
@@ -279,11 +312,17 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
       .then((res) => {
         if (!cancelled) {
           setSlotDetails(res.slot_details || [])
-          if (!res.slot_details?.length) setSlotsError('No slots available for this date.')
+          if (res.user_message) {
+            setSlotsError(res.user_message)
+          } else if (!res.slot_details?.length) {
+            setSlotsError('No slots available for this date. Try another date or use Custom time.')
+          }
         }
       })
       .catch((err) => {
-        if (!cancelled) setSlotsError(err instanceof Error ? err.message : 'Failed to load slots')
+        if (!cancelled) {
+          setSlotsError(err instanceof Error ? err.message : 'Could not load schedule slots.')
+        }
       })
       .finally(() => {
         if (!cancelled) setSlotsLoading(false)
@@ -390,10 +429,17 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
     setPatientOpen(false)
   }
 
+  const applyAppointmentTypeDuration = (mins: number | null | undefined) => {
+    const d = mins != null && Number(mins) > 0 ? Number(mins) : 30
+    setAppointmentTypeDuration(d)
+    setCustomDurationMinutes(String(d))
+  }
+
   const handleAppointmentTypeSelect = (aptType: LinkFieldOption) => {
     setFormData(prev => ({ ...prev, appointment_type: aptType.name }))
     setAppointmentTypeQuery(aptType.label)
     setAppointmentTypeOpen(false)
+    applyAppointmentTypeDuration(aptType.default_duration)
   }
 
   const handlePractitionerSelect = (pract: LinkFieldOption) => {
@@ -660,41 +706,156 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">Appointment time (slot)</label>
-            {slotsLoading && <p className="text-sm text-slate-500">Loading slots…</p>}
-            {slotsError && !slotsLoading && (
-              <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-md p-2">{slotsError}</p>
-            )}
-            {!slotsLoading && !slotsError && flatSlots.length > 0 && (
-              <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto">
-                {flatSlots.map(({ slot, disabled }, idx) => {
-                  const isSelected = selectedSlot?.from_time === slot.from_time
-                  return (
-                    <button
-                      key={`${slot.from_time}-${idx}`}
-                      type="button"
-                      disabled={disabled}
-                      onClick={() => setSelectedSlot({ from_time: slot.from_time, duration: slot.duration })}
-                      className={`rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
-                        disabled
-                          ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed'
-                          : isSelected
-                            ? 'border-primary bg-primary text-white'
-                            : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
-                      }`}
-                    >
-                      {formatSlotTime(slot.from_time)}
-                      {slot.to_time ? ` – ${formatSlotTime(slot.to_time)}` : ''}
-                    </button>
-                  )
-                })}
+          {formData.practitioner && (
+            <div>
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <label className="block text-sm font-medium text-slate-700">Appointment time</label>
+                <div className="inline-flex rounded-md border border-slate-300 overflow-hidden text-xs font-medium">
+                  <button
+                    type="button"
+                    onClick={() => setTimeMode('schedule')}
+                    className={`px-3 py-1.5 transition-colors ${
+                      timeMode === 'schedule'
+                        ? 'bg-primary text-white'
+                        : 'bg-white text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    Schedule slots
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTimeMode('custom')
+                      if (selectedSlot && !customTime) {
+                        setCustomTime(formatSlotTime(selectedSlot.from_time))
+                      }
+                      if (selectedSlot?.duration) {
+                        setCustomDurationMinutes(String(selectedSlot.duration))
+                      }
+                    }}
+                    className={`px-3 py-1.5 border-l border-slate-300 transition-colors ${
+                      timeMode === 'custom'
+                        ? 'bg-primary text-white'
+                        : 'bg-white text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    Custom time
+                  </button>
+                </div>
               </div>
-            )}
-            {(!formData.practitioner || !formData.appointment_date) && !slotsLoading && (
-              <p className="text-sm text-slate-500">Select practitioner and date to see slots.</p>
-            )}
-          </div>
+
+              {timeMode === 'schedule' ? (
+                <>
+                  {slotsLoading && <p className="text-sm text-slate-500">Loading slots…</p>}
+                  {slotsError && !slotsLoading && (
+                    <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-md p-2">
+                      {slotsError}
+                    </p>
+                  )}
+                  {!slotsLoading && !slotsError && flatSlots.length > 0 && (
+                    <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto">
+                      {flatSlots.map(({ slot, disabled }, idx) => {
+                        const isSelected = selectedSlot?.from_time === slot.from_time
+                        const slotMins = slot.duration ?? appointmentTypeDuration
+                        return (
+                          <button
+                            key={`${slot.from_time}-${idx}`}
+                            type="button"
+                            disabled={disabled}
+                            onClick={() =>
+                              setSelectedSlot({ from_time: slot.from_time, duration: slot.duration })
+                            }
+                            className={`rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
+                              disabled
+                                ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed'
+                                : isSelected
+                                  ? 'border-primary bg-primary text-white'
+                                  : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+                            }`}
+                          >
+                            {formatSlotTime(slot.from_time)}
+                            {slot.to_time ? ` – ${formatSlotTime(slot.to_time)}` : ''}
+                            {slotMins ? (
+                              <span className={`block text-[10px] mt-0.5 ${isSelected ? 'text-white/80' : 'text-slate-500'}`}>
+                                {slotMins} min
+                              </span>
+                            ) : null}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+                  {selectedSlot && (
+                    <p className="text-xs text-slate-500 mt-2">
+                      Selected: {formatSlotTime(selectedSlot.from_time)}
+                      {selectedSlot.duration ? ` · ${selectedSlot.duration} minutes` : ''}
+                      {' · '}
+                      <button
+                        type="button"
+                        className="text-primary underline hover:no-underline"
+                        onClick={() => {
+                          setTimeMode('custom')
+                          setCustomTime(formatSlotTime(selectedSlot.from_time))
+                          if (selectedSlot.duration) setCustomDurationMinutes(String(selectedSlot.duration))
+                        }}
+                      >
+                        Adjust time or duration
+                      </button>
+                    </p>
+                  )}
+                  {!formData.appointment_date && !slotsLoading && (
+                    <p className="text-sm text-slate-500">Select date to see slots.</p>
+                  )}
+                </>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 rounded-lg border border-slate-200 bg-slate-50/80 p-4">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">
+                      Start time <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="time"
+                      value={customTime}
+                      onChange={(e) => setCustomTime(e.target.value)}
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                      required={timeMode === 'custom'}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">
+                      Duration (minutes) <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      value={customDurationMinutes}
+                      onChange={(e) => setCustomDurationMinutes(e.target.value.replace(/\D/g, ''))}
+                      onBlur={() => {
+                        const n = parseCustomDurationMinutes(customDurationMinutes, 0)
+                        if (n < 1) {
+                          setCustomDurationMinutes(String(appointmentTypeDuration ?? 30))
+                        } else {
+                          setCustomDurationMinutes(String(n))
+                        }
+                      }}
+                      placeholder="e.g. 45"
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                    />
+                    {appointmentTypeDuration ? (
+                      <p className="text-[11px] text-slate-500 mt-1">
+                        Appointment type default: {appointmentTypeDuration} min (you can change this)
+                      </p>
+                    ) : null}
+                  </div>
+                  <p className="sm:col-span-2 text-xs text-slate-500">
+                    Use custom time when the visit needs a length other than the standard schedule slots
+                    (e.g. 45 or 90 minutes). Overlap checks still apply.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
 
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Remarks</label>
