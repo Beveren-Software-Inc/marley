@@ -13,7 +13,7 @@ import { useFormatMoney } from '../../hooks/useFormatMoney'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { PaymentModal } from './PaymentModal'
-import { cancelOrDeleteSalesInvoice } from '../../services/billingSpecialty'
+import { cancelOrDeleteSalesInvoice, submitSalesInvoiceDoc } from '../../services/billingSpecialty'
 import {
   canRecordPaymentAgainstSalesInvoice,
   canCancelSubmittedSalesInvoiceRow,
@@ -54,6 +54,7 @@ export const ServiceInvoicesList = ({
   const [statusFilter, setStatusFilter] = useState<string>(propStatusFilter || '')
   const [paymentFor, setPaymentFor] = useState<ServiceInvoice | null>(null)
   const [openActionRow, setOpenActionRow] = useState<string | null>(null)
+  const [actionBusy, setActionBusy] = useState<{ name: string; kind: 'submit' | 'cancel' } | null>(null)
   const actionMenuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -106,6 +107,21 @@ export const ServiceInvoicesList = ({
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
+  const submitInvoice = async (inv: ServiceInvoice) => {
+    setOpenActionRow(null)
+    try {
+      setActionBusy({ name: inv.name, kind: 'submit' })
+      await submitSalesInvoiceDoc(inv.name)
+      toast.success(`Invoice ${inv.name} submitted`)
+      await loadData()
+      onAfterInvoiceMutation?.()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to submit invoice')
+    } finally {
+      setActionBusy(null)
+    }
+  }
+
   const cancelOrDiscardInvoice = async (inv: ServiceInvoice, mode: 'submitted' | 'draft') => {
     const ok =
       mode === 'draft'
@@ -116,12 +132,15 @@ export const ServiceInvoicesList = ({
     if (!ok) return
     setOpenActionRow(null)
     try {
+      setActionBusy({ name: inv.name, kind: 'cancel' })
       await cancelOrDeleteSalesInvoice(inv.name)
       toast.success(mode === 'draft' ? 'Draft discarded' : 'Invoice cancelled')
       await loadData()
       onAfterInvoiceMutation?.()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Request failed')
+    } finally {
+      setActionBusy(null)
     }
   }
 
@@ -135,6 +154,8 @@ export const ServiceInvoicesList = ({
         return 'bg-red-100 text-red-700'
       case 'Partially Paid':
         return 'bg-blue-100 text-blue-700'
+      case 'Draft':
+        return 'bg-slate-100 text-slate-700'
       default:
         return 'bg-gray-100 text-gray-700'
     }
@@ -191,6 +212,7 @@ export const ServiceInvoicesList = ({
               <option value="Unpaid">Unpaid</option>
               <option value="Overdue">Overdue</option>
               <option value="Partially Paid">Partially Paid</option>
+              <option value="Draft">Draft</option>
             </select>
           )}
         </div>
@@ -307,16 +329,28 @@ export const ServiceInvoicesList = ({
                               View details
                             </button>
                             {isDraftSalesInvoice(invoice.docstatus) && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setOpenActionRow(null)
-                                  toast.info('Edit the draft in Desk or discard below.')
-                                }}
-                                className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
-                              >
-                                Edit
-                              </button>
+                              <>
+                                <button
+                                  type="button"
+                                  disabled={!!actionBusy}
+                                  onClick={() => void submitInvoice(invoice)}
+                                  className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-primary font-medium hover:bg-primary/5 disabled:opacity-50"
+                                >
+                                  {actionBusy?.name === invoice.name && actionBusy.kind === 'submit'
+                                    ? 'Submitting…'
+                                    : 'Submit invoice'}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setOpenActionRow(null)
+                                    toast.info('Edit the draft in Desk or discard below.')
+                                  }}
+                                  className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                                >
+                                  Edit
+                                </button>
+                              </>
                             )}
                             {canRecordPaymentAgainstSalesInvoice(invoice) && (
                               <>
@@ -338,10 +372,13 @@ export const ServiceInvoicesList = ({
                                 <div className="border-t border-slate-100 my-1" />
                                 <button
                                   type="button"
+                                  disabled={!!actionBusy}
                                   onClick={() => void cancelOrDiscardInvoice(invoice, 'draft')}
-                                  className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-red-600 font-medium hover:bg-red-50"
+                                  className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-red-600 font-medium hover:bg-red-50 disabled:opacity-50"
                                 >
-                                  Discard draft
+                                  {actionBusy?.name === invoice.name && actionBusy.kind === 'cancel'
+                                    ? 'Working…'
+                                    : 'Discard draft'}
                                 </button>
                               </>
                             )}

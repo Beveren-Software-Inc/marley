@@ -21,7 +21,6 @@ def get_service_orders(
     """Get list of Sales Orders for services"""
     filters = {}
     
-    print("Ni hio ndio inakam", reference_type)
     if reference_type:
         filters['custom_reference_type'] = reference_type
     if reference_name:
@@ -98,6 +97,10 @@ def get_service_orders(
     for so in sales_orders:
         cc = so.get('cost_center')
         so['cost_center_name'] = cc_labels.get(cc) if cc else ''
+
+    from healthcare.api.billing import _attach_sales_order_items
+
+    _attach_sales_order_items(sales_orders)
 
     return sales_orders
 
@@ -234,97 +237,180 @@ def get_service_order_summary(reference_type=None, reference_name=None, patient=
     
 #     return invoice.name
 
+def _load_billable_sales_orders_by_names(names):
+	"""Return submitted, not-yet-invoiced Sales Order docs for the given names."""
+	import json
+
+	if isinstance(names, str):
+		names = json.loads(names) if names.strip().startswith("[") else [names]
+	if not names:
+		frappe.throw(frappe._("Select at least one sales order to invoice."))
+
+	from healthcare.api.common import get_permitted_cost_centers
+
+	permitted_cc = get_permitted_cost_centers()
+	docs = []
+	customer = None
+
+	for name in names:
+		name = (name or "").strip()
+		if not name:
+			continue
+		if not frappe.db.exists("Sales Order", name):
+			frappe.throw(frappe._("Sales Order {0} not found").format(name))
+
+		so = frappe.get_doc("Sales Order", name)
+		if so.docstatus != 1:
+			frappe.throw(
+				frappe._("Sales Order {0} must be submitted before invoicing.").format(name)
+			)
+		if frappe.db.exists("Sales Invoice Item", {"sales_order": name}):
+			frappe.throw(frappe._("Sales Order {0} is already invoiced.").format(name))
+
+		if permitted_cc is not None:
+			if not permitted_cc:
+				frappe.throw(frappe._("You do not have permission to bill these orders."))
+			if so.cost_center and so.cost_center not in permitted_cc:
+				frappe.throw(
+					frappe._("You do not have permission for the cost center on {0}.").format(name)
+				)
+
+		if customer and so.customer != customer:
+			frappe.throw(frappe._("All selected orders must belong to the same customer."))
+		customer = so.customer
+		docs.append(so)
+
+	if not docs:
+		frappe.throw(frappe._("Select at least one sales order to invoice."))
+	return docs
+
+
+def _create_invoice_from_sales_orders(sales_orders, reference_type=None, reference_name=None, patient=None):
+	"""Build one Sales Invoice from one or more submitted Sales Orders."""
+	first = sales_orders[0]
+	ref_type = reference_type or first.custom_reference_type
+	ref_name = reference_name or first.custom_reference_name
+	pt = patient or getattr(first, "patient", None)
+
+	invoice = frappe.new_doc("Sales Invoice")
+	invoice.customer = first.customer
+	if ref_type:
+		invoice.custom_reference_type = ref_type
+	if ref_name:
+		invoice.custom_reference_name = ref_name
+		if ref_type:
+			invoice.custom_base_reference = ref_type
+		invoice.custom_base_reference_name = ref_name
+	if pt and hasattr(invoice, "patient"):
+		invoice.patient = pt
+	invoice.posting_date = today()
+	invoice.due_date = frappe.utils.add_days(today(), 30)
+
+	items_added = 0
+	for so in sales_orders:
+		so_items = frappe.get_all(
+			"Sales Order Item",
+			filters={"parent": so.name},
+			fields=["item_code", "item_name", "qty", "rate", "amount", "description"],
+		)
+		for item in so_items:
+			invoice.append(
+				"items",
+				{
+					"item_code": item.item_code,
+					"item_name": item.item_name or item.item_code,
+					"qty": item.qty,
+					"rate": item.rate,
+					"amount": item.amount,
+					"description": item.description or frappe._("Order: {0}").format(so.name),
+					"sales_order": so.name,
+				},
+			)
+			items_added += 1
+
+	if items_added == 0:
+		frappe.throw(frappe._("No items found in the sales orders to invoice"))
+
+	invoice.save()
+	frappe.db.commit()
+	return invoice.name
+
+
 @frappe.whitelist()
-def create_bulk_invoice(reference_type, reference_name):
-    """Create a single invoice for all orders under a reference"""
-    
-    # Debug: Log the parameters
-    frappe.log_error(f"create_bulk_invoice called with reference_type={reference_type}, reference_name={reference_name}", "Bulk Invoice Debug")
-    
-    # Build filters - make sure we're using the correct field names
-    filters = {
-        'custom_reference_type': reference_type,
-        'custom_reference_name': reference_name,
-        'docstatus': 1  # Submitted/To Bill status
-    }
-    
-    # Debug: Log the filters
-    frappe.log_error(f"Filters being used: {filters}", "Bulk Invoice Debug")
-    
-    # Get all sales orders for this reference
-    sales_orders = frappe.get_all(
-        'Sales Order',
-        filters=filters,
-        fields=['name', 'customer', 'grand_total', 'status']
-    )
-    
-    # Debug: Log the found orders
-    frappe.log_error(f"Found {len(sales_orders)} sales orders: {[so.name for so in sales_orders]}", "Bulk Invoice Debug")
-    
-    if not sales_orders:
-        # Also try without docstatus filter to see if there are any orders at all
-        all_orders = frappe.get_all(
-            'Sales Order',
-            filters={
-                'custom_reference_type': reference_type,
-                'custom_reference_name': reference_name
-            },
-            fields=['name', 'docstatus', 'status']
-        )
-        frappe.log_error(f"All orders (including drafts) found: {len(all_orders)}", "Bulk Invoice Debug")
-        
-        if all_orders:
-            # Tell the user which orders exist but aren't billable
-            draft_orders = [o.name for o in all_orders if o.docstatus == 0]
-            frappe.throw(f"No billable orders found. Found {len(all_orders)} order(s) but {len(draft_orders)} are in Draft status. Please submit the orders first.")
-        else:
-            frappe.throw(f"No orders found for {reference_type}: {reference_name}")
-    
-    # Get customer from first order
-    customer = sales_orders[0].customer
-    
-    # Create Sales Invoice
-    invoice = frappe.new_doc('Sales Invoice')
-    invoice.customer = customer
-    invoice.custom_reference_type = reference_type
-    invoice.custom_reference_name = reference_name
-    invoice.custom_base_reference = reference_type
-    invoice.custom_base_reference_name = reference_name
-    invoice.posting_date = frappe.utils.today()
-    invoice.due_date = frappe.utils.add_days(frappe.utils.today(), 30)  # 30 days due date
-    
-    # Add items from each sales order
-    items_added = 0
-    for so in sales_orders:
-        # Get items from sales order
-        so_items = frappe.get_all(
-            'Sales Order Item',
-            filters={'parent': so.name},
-            fields=['item_code', 'item_name', 'qty', 'rate', 'amount', 'description']
-        )
-        
-        for item in so_items:
-            invoice.append('items', {
-                'item_code': item.item_code,
-                'item_name': item.item_name or item.item_code,
-                'qty': item.qty,
-                'rate': item.rate,
-                'amount': item.amount,
-                'description': item.description or f"Order: {so.name}",
-                'sales_order': so.name
-            })
-            items_added += 1
-    
-    if items_added == 0:
-        frappe.throw("No items found in the sales orders to invoice")
-    
-    invoice.save()
-    frappe.db.commit()
-    
-    # Debug: Log success
-    frappe.log_error(f"Invoice {invoice.name} created with {items_added} items", "Bulk Invoice Debug")
-    
-    return invoice.name
+def create_bulk_invoice(reference_type=None, reference_name=None, sales_order_names=None, patient=None):
+	"""Create a single invoice from selected sales orders or all billable orders on a reference."""
+	import json
+
+	if isinstance(sales_order_names, str):
+		try:
+			sales_order_names = json.loads(sales_order_names)
+		except json.JSONDecodeError:
+			sales_order_names = [sales_order_names]
+
+	if sales_order_names:
+		sales_orders = _load_billable_sales_orders_by_names(sales_order_names)
+		return _create_invoice_from_sales_orders(
+			sales_orders,
+			reference_type=reference_type,
+			reference_name=reference_name,
+			patient=patient,
+		)
+
+	if reference_type and reference_name:
+		filters = {
+			"custom_reference_type": reference_type,
+			"custom_reference_name": reference_name,
+			"docstatus": 1,
+		}
+		from healthcare.api.common import get_permitted_cost_centers
+
+		permitted_cc = get_permitted_cost_centers()
+		if permitted_cc is not None:
+			if not permitted_cc:
+				frappe.throw(frappe._("You do not have permission to bill these orders."))
+			filters["cost_center"] = ["in", permitted_cc]
+
+		order_rows = frappe.get_all(
+			"Sales Order",
+			filters=filters,
+			fields=["name"],
+		)
+		names = []
+		for row in order_rows:
+			if not frappe.db.exists("Sales Invoice Item", {"sales_order": row.name}):
+				names.append(row.name)
+
+		if not names:
+			all_orders = frappe.get_all(
+				"Sales Order",
+				filters={
+					"custom_reference_type": reference_type,
+					"custom_reference_name": reference_name,
+				},
+				fields=["name", "docstatus"],
+			)
+			if all_orders:
+				draft_count = sum(1 for o in all_orders if o.docstatus == 0)
+				frappe.throw(
+					frappe._(
+						"No billable orders found. Found {0} order(s); {1} are still draft or already invoiced."
+					).format(len(all_orders), draft_count)
+				)
+			frappe.throw(
+				frappe._("No orders found for {0}: {1}").format(reference_type, reference_name)
+			)
+
+		sales_orders = _load_billable_sales_orders_by_names(names)
+		return _create_invoice_from_sales_orders(
+			sales_orders,
+			reference_type=reference_type,
+			reference_name=reference_name,
+			patient=patient,
+		)
+
+	frappe.throw(
+		frappe._("Select at least one sales order to invoice, or choose a patient visit / admission.")
+	)
 
 
 @frappe.whitelist()

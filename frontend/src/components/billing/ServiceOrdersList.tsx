@@ -1,12 +1,13 @@
 // components/billing/ServiceOrdersList.tsx
 import { useState, useEffect } from 'react'
-import { 
-  fetchServiceOrders, 
+import {
+  fetchServiceOrders,
   fetchServiceOrderSummary,
-  createBulkInvoice,
   type ServiceOrder,
-  type OrderSummary 
+  type OrderSummary,
 } from '../../services/serviceOrders'
+import { BulkInvoiceModal, isBillableServiceOrder } from './BulkInvoiceModal'
+import { ServiceOrderServiceCell } from './ServiceOrderServiceCell'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { RefreshCw, FileText, AlertCircle, CheckCircle, Clock, Package } from 'lucide-react'
 import { toast } from '../../hooks/useToast'
@@ -28,7 +29,7 @@ export const ServiceOrdersList = ({ patient, admission, visit, fromDate, toDate,
   const [orders, setOrders] = useState<ServiceOrder[]>([])
   const [summary, setSummary] = useState<OrderSummary | null>(null)
   const [loading, setLoading] = useState(true)
-  const [creatingInvoice, setCreatingInvoice] = useState(false)
+  const [showBulkInvoiceModal, setShowBulkInvoiceModal] = useState(false)
   const [statusFilter, setStatusFilter] = useState<string>('')
 
   const effectivePatient = patient ?? selectedPatient
@@ -63,24 +64,7 @@ export const ServiceOrdersList = ({ patient, admission, visit, fromDate, toDate,
     loadData()
   }, [effectivePatient, effectiveReferenceName, statusFilter, fromDate, toDate])
 
-  const handleCreateBulkInvoice = async () => {
-    if (!effectiveReferenceName) {
-      toast.error('No reference selected')
-      return
-    }
-
-    try {
-      setCreatingInvoice(true)
-      const invoiceName = await createBulkInvoice(effectiveReferenceType, effectiveReferenceName)
-      toast.success(`Invoice ${invoiceName} created successfully`)
-      loadData()
-    } catch (error) {
-      console.error('Failed to create invoice:', error)
-      toast.error('Failed to create invoice')
-    } finally {
-      setCreatingInvoice(false)
-    }
-  }
+  const billableOrders = orders.filter(isBillableServiceOrder)
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -163,13 +147,13 @@ export const ServiceOrdersList = ({ patient, admission, visit, fromDate, toDate,
           >
             <RefreshCw className="w-4 h-4" />
           </button>
-          {summary && summary.not_invoiced.count > 0 && (
+          {billableOrders.length > 0 && (
             <button
-              onClick={handleCreateBulkInvoice}
-              disabled={creatingInvoice}
-              className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90 text-sm font-medium disabled:opacity-50"
+              type="button"
+              onClick={() => setShowBulkInvoiceModal(true)}
+              className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90 text-sm font-medium"
             >
-              {creatingInvoice ? 'Creating...' : 'Create Bulk Invoice'}
+              Create Bulk Invoice
             </button>
           )}
         </div>
@@ -189,7 +173,9 @@ export const ServiceOrdersList = ({ patient, admission, visit, fromDate, toDate,
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Order ID</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Date</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Service</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase min-w-[200px]">
+                    Service / type
+                  </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Amount</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Cost center</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Status</th>
@@ -202,31 +188,11 @@ export const ServiceOrdersList = ({ patient, admission, visit, fromDate, toDate,
                   <tr key={order.name} className="hover:bg-slate-50">
                     <td className="px-4 py-3 text-sm font-medium text-primary">{order.name}</td>
                     <td className="px-4 py-3 text-sm text-slate-700">{order.transaction_date}</td>
-                    <td className="px-4 py-3 text-sm text-slate-700 max-w-[280px]">
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        {order.custom_base_reference ? (
-                          <span
-                            className="inline-flex shrink-0 rounded-md bg-teal-50 px-1.5 py-0.5 text-[11px] font-semibold text-teal-900 ring-1 ring-teal-200/90"
-                            title="Source (e.g. lab, pharmacy, IP service)"
-                          >
-                            {order.custom_base_reference}
-                          </span>
-                        ) : null}
-                        {order.custom_base_reference_name ? (
-                          <span
-                            className="min-w-0 truncate font-medium text-slate-800"
-                            title={order.custom_base_reference_name}
-                          >
-                            {order.custom_base_reference_name}
-                          </span>
-                        ) : !order.custom_base_reference ? (
-                          <span className="text-slate-400">—</span>
-                        ) : null}
-                      </div>
-                      <div className="mt-1 text-xs text-slate-500">
-                        <span className="text-slate-400">Care context · </span>
+                    <td className="px-4 py-3 align-top">
+                      <ServiceOrderServiceCell order={order} />
+                      <p className="text-[10px] text-slate-400 mt-1">
                         {order.custom_reference_type}: {order.custom_reference_name}
-                      </div>
+                      </p>
                     </td>
                     <td className="px-4 py-3 text-sm font-medium text-slate-900">{formatCurrency(order.grand_total)}</td>
                     <td className="px-4 py-3 text-sm text-slate-700 max-w-[200px]">
@@ -256,6 +222,20 @@ export const ServiceOrdersList = ({ patient, admission, visit, fromDate, toDate,
             </table>
           </div>
         </div>
+      )}
+
+      {showBulkInvoiceModal && (
+        <BulkInvoiceModal
+          orders={orders}
+          patient={effectivePatient}
+          referenceType={effectiveReferenceName ? effectiveReferenceType : undefined}
+          referenceName={effectiveReferenceName || undefined}
+          onClose={() => setShowBulkInvoiceModal(false)}
+          onSuccess={() => {
+            setShowBulkInvoiceModal(false)
+            loadData()
+          }}
+        />
       )}
     </div>
   )
