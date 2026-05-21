@@ -1711,6 +1711,11 @@ export const DoctorPage = () => {
 
   /** OP patient + specific visit: Diagnosis|Plan → Labs → Rx|Long acting */
   const opVisitDashboardLayout = mode === 'OP' && !!activeVisit
+  /** OP patient chosen but no visit yet: Prescription + Patient Information on one row */
+  const opPatientNoVisitLayout = mode === 'OP' && !!selectedPatient && !activeVisit
+  /** IP patient chosen but no admission yet: Appointments + Admissions on one row */
+  const ipPatientNoAdmissionLayout =
+    costCenterCareScope !== 'op_only' && mode === 'IP' && !!selectedPatient && !activeAdmission
 
   return (
   <div className="flex flex-col">
@@ -1757,31 +1762,49 @@ export const DoctorPage = () => {
       </div>
     ) : null}
 
-    {/* IP + patient selected (+ no admission in context): show admissions here. OP visits live in the Appointments row below — avoid duplicating PatientVisitList. */}
-    {showOpIpListStrip && selectedPatient && mode === 'IP' ? (
-      <div className="px-4 pt-4 pb-0">
-        <DashboardCard
-          fixedHeight
-          title="Inpatient Admissions (IP)"
-          onAdd={undefined}
-          listingScreen="admission"
-        >
-          <AdmissionList
-            patient={selectedPatient || undefined}
-            onPatientFromAdmission={(p) => {
-              setSelectedPatient(p)
-              const sp = new URLSearchParams(searchParams)
-              sp.set('patient', p)
-              setSearchParams(sp, { replace: true })
-            }}
-          />
-        </DashboardCard>
-      </div>
-    ) : null}
-
     {selectedPatient ? (
       <>
-        {/* Row 1: Warnings first, then medical history */}
+        {/* IP patient, no admission yet: pick admission first — Appointments | Admissions */}
+        {ipPatientNoAdmissionLayout ? (
+          <div className="grid gap-4 md:grid-cols-2 auto-rows-fr p-4 pb-0">
+            {doctorAppointmentsCard}
+            <DashboardCard
+              fixedHeight
+              title="Inpatient Admissions (IP)"
+              onAdd={undefined}
+              listingScreen="admission"
+            >
+              <AdmissionList
+                patient={selectedPatient}
+                onPatientFromAdmission={(p) => {
+                  setSelectedPatient(p)
+                  const sp = new URLSearchParams(searchParams)
+                  sp.set('patient', p)
+                  setSearchParams(sp, { replace: true })
+                }}
+              />
+            </DashboardCard>
+          </div>
+        ) : null}
+
+        {/* OP patient, no visit yet: Appointments | Patient Visits first */}
+        {costCenterCareScope !== 'ip_only' && mode === 'OP' && !activeVisit ? (
+          <div className="grid gap-4 md:grid-cols-2 auto-rows-fr px-4 pb-4">
+            {doctorAppointmentsCard}
+            <DashboardCard
+              fixedHeight
+              title="Patient Visits (OP)"
+              onAdd={() => setShowCreateVisitModal(true)}
+              addButtonTitle="Create Patient Visit"
+              listingScreen="pvh"
+              allowCreateOnClosedEpisode
+            >
+              <PatientVisitList patient={selectedPatient} onPatientFromVisit={handlePatientSelect} />
+            </DashboardCard>
+          </div>
+        ) : null}
+
+        {/* Warnings + medical history */}
         <div className="grid gap-4 md:grid-cols-2 auto-rows-fr p-4">
           <DashboardCard
             fixedHeight
@@ -1845,8 +1868,8 @@ export const DoctorPage = () => {
         </div>
         )}
 
-        {/* Row 3: OP — Appointments + Patient Visits; IP without admission — Appointments only */}
-        {costCenterCareScope !== 'ip_only' && mode === 'OP' ? (
+        {/* OP with visit selected: Appointments + visits (choose/switch visit) */}
+        {costCenterCareScope !== 'ip_only' && mode === 'OP' && !!activeVisit ? (
           <div className="grid gap-4 md:grid-cols-2 auto-rows-fr px-4 pb-4">
             {doctorAppointmentsCard}
             <DashboardCard
@@ -1860,10 +1883,6 @@ export const DoctorPage = () => {
               <PatientVisitList patient={selectedPatient} onPatientFromVisit={handlePatientSelect} />
             </DashboardCard>
           </div>
-        ) : null}
-
-        {costCenterCareScope !== 'op_only' && mode === 'IP' && !activeAdmission ? (
-          <div className="px-4 pb-4">{doctorAppointmentsCard}</div>
         ) : null}
 
         {mode === null && costCenterCareScope !== 'ip_only' ? (
@@ -2055,12 +2074,14 @@ export const DoctorPage = () => {
               </DashboardCard>
             </div>
 
-            {/* Prescriptions; on IP with admission selected, Appointments share this row */}
+            {/* Prescriptions; IP+admission: share row with Appointments; OP no visit: Patient Info beside Rx */}
             <div
               className={`grid gap-4 auto-rows-fr px-4 pb-4 ${
                 costCenterCareScope !== 'op_only' && mode === 'IP' && activeAdmission
                   ? 'md:grid-cols-2'
-                  : 'md:grid-cols-1'
+                  : opPatientNoVisitLayout
+                    ? 'md:grid-cols-2'
+                    : 'md:grid-cols-1'
               }`}
             >
               {costCenterCareScope !== 'op_only' && mode === 'IP' && activeAdmission
@@ -2080,14 +2101,19 @@ export const DoctorPage = () => {
                   onPatientClick={handlePatientSelect}
                 />
               </DashboardCard>
+              {opPatientNoVisitLayout && (
+                <DashboardCard fixedHeight title="Patient Information" filterable={false}>
+                  <PatientSummaryCard patient={selectedPatient} />
+                </DashboardCard>
+              )}
             </div>
           </>
         )}
 
-        {/* Patient summary (ECT via sidebar only; on OP+visit, shown beside progress notes) */}
-        {!opVisitDashboardLayout && (
+        {/* Patient summary — IP / no OP visit context (OP+visit uses row above with progress notes) */}
+        {!opVisitDashboardLayout && !opPatientNoVisitLayout && (
           <div className="px-4 pb-4">
-            <DashboardCard fixedHeight title="Patient Information">
+            <DashboardCard fixedHeight title="Patient Information" filterable={false}>
               <PatientSummaryCard patient={selectedPatient} />
             </DashboardCard>
           </div>

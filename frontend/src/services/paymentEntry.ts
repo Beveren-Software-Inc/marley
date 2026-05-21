@@ -4,12 +4,20 @@
 
 export interface CreatePaymentEntryData {
   visit?: string
+  appointment?: string
   reference_doctype: 'Sales Invoice' | 'Sales Order'
   reference_name: string
   paid_amount: number
   mode_of_payment: string
   remarks?: string
   patient?: string
+}
+
+export interface SalesInvoiceSummary {
+  name: string
+  grand_total: number
+  outstanding_amount: number
+  status?: string
 }
 
 export interface CreatePaymentEntryResult {
@@ -71,6 +79,25 @@ export async function fetchSalesOrders(search?: string, patient?: string): Promi
   const res = await fetch(`/api/method/frappe.client.get_list?${params}`)
   const data = await res.json()
   return (data?.message ?? []).map((r: any) => ({ name: r.name, label: r.name }))
+}
+
+export async function fetchSalesInvoiceSummary(invoiceName: string): Promise<SalesInvoiceSummary> {
+  const params = new URLSearchParams({ invoice_name: invoiceName })
+  const res = await fetch(
+    `/api/method/healthcare.api.common.get_sales_invoice_with_items?${params.toString()}`,
+    { credentials: 'include' },
+  )
+  const data = await res.json()
+  const msg = data?.message
+  if (!msg || typeof msg !== 'object' || !msg.name) {
+    throw new Error('Could not load sales invoice details')
+  }
+  return {
+    name: msg.name,
+    grand_total: Number(msg.grand_total) || 0,
+    outstanding_amount: Number(msg.outstanding_amount) || 0,
+    status: msg.status,
+  }
 }
 
 export async function fetchModeOfPayments(): Promise<string[]> {

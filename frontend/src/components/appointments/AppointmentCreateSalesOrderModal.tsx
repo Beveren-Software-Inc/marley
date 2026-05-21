@@ -16,16 +16,19 @@ interface AppointmentCreateSalesOrderModalProps {
   appointment: Appointment
   onClose: () => void
   onSuccess: (result: AppointmentSalesOrderResult) => void
+  onRecordPayment?: (result: AppointmentSalesOrderResult) => void
 }
 
 export const AppointmentCreateSalesOrderModal = ({
   appointment,
   onClose,
   onSuccess,
+  onRecordPayment,
 }: AppointmentCreateSalesOrderModalProps) => {
   const [alsoInvoice, setAlsoInvoice] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [completed, setCompleted] = useState<AppointmentSalesOrderResult | null>(null)
 
   const label = appointment.patient_name || appointment.temporary_patient_name || appointment.name
   const hasExistingOrder = Boolean(appointment.sales_order)
@@ -38,13 +41,17 @@ export const AppointmentCreateSalesOrderModal = ({
       const result = await createAppointmentSalesOrder(appointment.name, alsoInvoice)
       if (result.sales_invoice) {
         toast.success(`Sales Order ${result.sales_order} and Invoice ${result.sales_invoice} created`)
+        setCompleted(result)
+        onSuccess(result)
       } else if (result.existing && !alsoInvoice) {
         toast.success(`Sales Order ${result.sales_order} already linked`)
+        onSuccess(result)
+        onClose()
       } else {
         toast.success(`Sales Order ${result.sales_order} created (Draft)`)
+        onSuccess(result)
+        onClose()
       }
-      onSuccess(result)
-      onClose()
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to create Sales Order'
       setError(msg)
@@ -52,6 +59,39 @@ export const AppointmentCreateSalesOrderModal = ({
     } finally {
       setSaving(false)
     }
+  }
+
+  if (completed?.sales_invoice) {
+    return (
+      <div className={CREATE_MODAL_OVERLAY}>
+        <div className={createModalShellClass('max-w-md w-full')}>
+          <div className="p-6 border-b border-slate-200">
+            <h2 className="text-lg font-semibold text-slate-900">Invoice created</h2>
+            <p className="text-sm text-slate-600 mt-2">
+              Sales Invoice <span className="font-mono font-medium">{completed.sales_invoice}</span> is
+              linked to this appointment. Record a payment now or do it later from the appointment menu.
+            </p>
+          </div>
+          <div className="p-6 flex flex-col gap-3">
+            {onRecordPayment && (
+              <button
+                type="button"
+                className={CM_BTN_PRIMARY}
+                onClick={() => {
+                  onRecordPayment(completed)
+                  onClose()
+                }}
+              >
+                Record payment
+              </button>
+            )}
+            <button type="button" onClick={onClose} className={CM_BTN_CANCEL}>
+              Done
+            </button>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
