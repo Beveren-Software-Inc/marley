@@ -31,6 +31,7 @@ export interface PatientMedicalHistory {
   other_ongoing_illness?: string
   previous_surgical_history?: string
   current_and_past_medications?: string
+  no_known_allergies?: number
   allergies?: string
   social_history?: string
   addiction?: number
@@ -354,6 +355,7 @@ export async function savePatientMedicalHistory(
     patient_name: history.patient_name,
     template: history.template || null,
     inpatient_admission: history.inpatient_admission || null,
+    patient_visit: history.patient_visit || null,
     heart_disease: history.heart_disease || '',
     diabetes: history.diabetes || '',
     asthma: history.asthma || '',
@@ -361,6 +363,7 @@ export async function savePatientMedicalHistory(
     other_ongoing_illness: history.other_ongoing_illness || '',
     previous_surgical_history: history.previous_surgical_history || '',
     current_and_past_medications: history.current_and_past_medications || '',
+    no_known_allergies: history.no_known_allergies ? 1 : 0,
     allergies: history.allergies || '',
     social_history: history.social_history || '',
     addiction: history.addiction ? 1 : 0,
@@ -415,7 +418,9 @@ export async function savePatientMedicalHistory(
     previous_surgical_history: data.previous_surgical_history ?? history.previous_surgical_history,
     current_and_past_medications:
       data.current_and_past_medications ?? history.current_and_past_medications,
+    no_known_allergies: data.no_known_allergies ?? history.no_known_allergies,
     allergies: data.allergies ?? history.allergies,
+    patient_visit: data.patient_visit ?? history.patient_visit,
     social_history: data.social_history ?? history.social_history,
     addiction: data.addiction ?? history.addiction,
     smoking: data.smoking ?? history.smoking,

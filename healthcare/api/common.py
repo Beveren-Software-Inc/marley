@@ -1048,6 +1048,41 @@ def _enrich_diagnosis_display(diagnosis_link_name):
 	}
 
 
+def _diagnosis_row_to_link_option(row) -> dict:
+	"""Build portal link option dict from a Diagnosis row or doc name."""
+	if isinstance(row, str):
+		if not frappe.db.exists("Diagnosis", row):
+			return {
+				"name": row,
+				"label": row,
+				"disease_no": row,
+				"diagnosis_name": "",
+				"diagnosis_group_name": "",
+			}
+		row = frappe.db.get_value(
+			"Diagnosis",
+			row,
+			["name", "disease_no", "diagnosis", "diagnosis_group_name"],
+			as_dict=True,
+		)
+	no = (row.get("disease_no") or row.get("name") or "").strip()
+	nm = (row.get("diagnosis") or "").strip()
+	gn = (row.get("diagnosis_group_name") or "").strip()
+	if nm and no:
+		label = f"[{no}] {nm}"
+	elif nm:
+		label = nm
+	else:
+		label = no
+	return {
+		"name": row.get("name") or no,
+		"label": label,
+		"disease_no": no,
+		"diagnosis_name": nm,
+		"diagnosis_group_name": gn,
+	}
+
+
 @frappe.whitelist()
 def get_diagnosis(search=None):
 	"""Get list of Diagnosis for encounter selection. Search matches Disease No (id) or Diagnosis name."""
@@ -1067,26 +1102,37 @@ def get_diagnosis(search=None):
 		order_by="disease_no asc, diagnosis asc",
 		limit=50,
 	)
+	return [_diagnosis_row_to_link_option(d) for d in items]
+
+
+@frappe.whitelist()
+def get_diagnosis_groups(search=None):
+	"""List Diagnosis Group records for the create-diagnosis form."""
+	or_filters = None
+	if search and str(search).strip():
+		s = str(search).strip()
+		or_filters = [
+			["disease_no", "like", f"%{s}%"],
+			["disease_name", "like", f"%{s}%"],
+		]
+	items = frappe.get_all(
+		"Diagnosis Group",
+		or_filters=or_filters,
+		fields=["name", "disease_no", "disease_name"],
+		order_by="disease_name asc",
+		limit=50,
+	)
 	out = []
-	for d in items:
-		no = (d.get("disease_no") or d.get("name") or "").strip()
-		nm = (d.get("diagnosis") or "").strip()
-		gn = (d.get("diagnosis_group_name") or "").strip()
+	for g in items:
+		no = (g.get("disease_no") or g.get("name") or "").strip()
+		nm = (g.get("disease_name") or "").strip()
 		if nm and no:
 			label = f"[{no}] {nm}"
 		elif nm:
 			label = nm
 		else:
-			label = no
-		out.append(
-			{
-				"name": d.name,
-				"label": label,
-				"disease_no": no,
-				"diagnosis_name": nm,
-				"diagnosis_group_name": gn,
-			}
-		)
+			label = no or g.name
+		out.append({"name": g.name, "label": label})
 	return out
 
 
@@ -1107,24 +1153,42 @@ def get_complaints(search=None):
 
 
 @frappe.whitelist()
-def create_diagnosis(diagnosis):
-	"""Create a new Diagnosis master record. Naming uses ``disease_no`` (autoname); returns new doc name."""
+def create_diagnosis(diagnosis, disease_no=None, diagnosis_group=None):
+	"""Create a Diagnosis master (template). Returns link option dict for the portal."""
 	if not diagnosis or not str(diagnosis).strip():
 		frappe.throw(_("Diagnosis text is required"))
 	text = str(diagnosis).strip()
 	existing = frappe.db.get_value("Diagnosis", {"diagnosis": text}, "name")
 	if existing:
-		return existing
-	base = frappe.scrub(text)[:120] or "diag"
-	code = base
-	idx = 1
-	while frappe.db.exists("Diagnosis", code):
-		idx += 1
-		suffix = f"-{idx}"
-		code = f"{base[: 140 - len(suffix)]}{suffix}"
-	doc = frappe.get_doc({"doctype": "Diagnosis", "disease_no": code, "diagnosis": text})
+		return _diagnosis_row_to_link_option(existing)
+
+	if disease_no and str(disease_no).strip():
+		code = str(disease_no).strip()
+		if frappe.db.exists("Diagnosis", code):
+			frappe.throw(_("Disease No {0} already exists").format(code))
+	else:
+		base = frappe.scrub(text)[:120] or "diag"
+		code = base
+		idx = 1
+		while frappe.db.exists("Diagnosis", code):
+			idx += 1
+			suffix = f"-{idx}"
+			code = f"{base[: 140 - len(suffix)]}{suffix}"
+
+	group = (diagnosis_group or "").strip() or None
+	if group and not frappe.db.exists("Diagnosis Group", group):
+		frappe.throw(_("Diagnosis Group {0} does not exist").format(group))
+
+	doc = frappe.get_doc(
+		{
+			"doctype": "Diagnosis",
+			"disease_no": code,
+			"diagnosis": text,
+			"diagnosis_group": group,
+		}
+	)
 	doc.insert(ignore_permissions=False)
-	return doc.name
+	return _diagnosis_row_to_link_option(doc.name)
 
 
 @frappe.whitelist()

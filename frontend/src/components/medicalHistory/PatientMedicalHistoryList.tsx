@@ -9,7 +9,7 @@ import { CreatePatientMedicalHistoryModal } from './CreatePatientMedicalHistoryM
 import { EditPatientMedicalHistoryModal } from './EditPatientMedicalHistoryModal'
 import { PastMedicalHistoryDisplay } from './PastMedicalHistoryDisplay'
 import { useCardFilters, useDashboardCompactClinical } from '../../contexts/CardFilterContext'
-import { ILLNESS_FIELDS, yesNoBadgeClass, pmhClinicalBlurb } from './pastMedicalHistoryUtils'
+import { ILLNESS_FIELDS, illnessIsChecked, yesNoBadgeClass, pmhClinicalBlurb } from './pastMedicalHistoryUtils'
 import { CardRowMetaHint } from '../ui/dashboardCardListing'
 
 interface Props {
@@ -140,7 +140,8 @@ function MedicalHistoryDetailPanel({
                   </table>
                 </div>
               )}
-              {!ILLNESS_FIELDS.some(({ key }) => detail[key]) &&
+              {!ILLNESS_FIELDS.some(({ key }) => illnessIsChecked(detail[key])) &&
+                !detail.no_known_allergies &&
                 !detail.allergies?.trim() &&
                 !detail.previous_surgical_history?.trim() &&
                 !detail.current_and_past_medications?.trim() &&

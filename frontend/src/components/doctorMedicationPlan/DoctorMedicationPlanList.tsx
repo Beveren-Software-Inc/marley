@@ -8,15 +8,9 @@ import { DetailSlideOver } from '../ui/DetailSlideOver'
 import { DocDetailView } from '../ui/DocDetailView'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { useCareContext } from '../../providers/CareContextProvider'
-import { useCardFilters } from '../../contexts/CardFilterContext'
+import { useCardFilters, useDashboardCompactClinical } from '../../contexts/CardFilterContext'
+import { CardRowMetaHint, dashboardCardRowHoverClass, stripHtmlToText } from '../ui/dashboardCardListing'
 import { EditDoctorMedicationPlanModal } from './EditDoctorMedicationPlanModal'
-
-const stripHtml = (html: string): string => {
-  if (!html) return ''
-  const tmp = document.createElement('div')
-  tmp.innerHTML = html
-  return tmp.textContent || tmp.innerText || ''
-}
 
 interface DoctorMedicationPlanListProps {
   patient?: string
@@ -26,6 +20,7 @@ interface DoctorMedicationPlanListProps {
 export const DoctorMedicationPlanList = ({ patient, onPatientClick }: DoctorMedicationPlanListProps) => {
   const { mode, activeVisit } = useCareContext()
   const cardFilters = useCardFilters()
+  const compactClinical = useDashboardCompactClinical()
   const [showFiltersInternal, setShowFiltersInternal] = useState(false)
   const showFilters = cardFilters !== undefined ? cardFilters : showFiltersInternal
   const isInsideCard = cardFilters !== undefined
@@ -86,6 +81,12 @@ export const DoctorMedicationPlanList = ({ patient, onPatientClick }: DoctorMedi
 
   const hasActiveFilters = Boolean(practitionerFilter || fromDate || toDate)
 
+  const planPreview = (row: DoctorMedicationPlanRow, maxLen: number) => {
+    if (!row.plan) return '—'
+    const plain = stripHtmlToText(row.plan)
+    return plain.length > maxLen ? `${plain.substring(0, maxLen)}…` : plain
+  }
+
   const clearFilters = () => {
     setFromDate('')
     setToDate('')
@@ -129,13 +130,13 @@ export const DoctorMedicationPlanList = ({ patient, onPatientClick }: DoctorMedi
         </div>
       )}
 
-      {contextLabel && (
+      {contextLabel && !compactClinical && (
         <div className="mb-3 px-4 py-2 bg-blue-50 border border-blue-200 rounded-md text-sm text-blue-700 flex-shrink-0">
           {contextLabel}
         </div>
       )}
 
-      {showFilters && (
+      {showFilters && !compactClinical && (
         <div className="flex flex-wrap items-end gap-3 mb-3 px-1 flex-shrink-0">
           <div className="flex flex-col gap-1 min-w-[140px]">
             <label className="text-xs font-medium text-slate-500">From date</label>
@@ -214,19 +215,74 @@ export const DoctorMedicationPlanList = ({ patient, onPatientClick }: DoctorMedi
                 <p>{hasActiveFilters ? 'No plans match the filters.' : "No doctors' plans found yet"}</p>
               </div>
             </div>
+          ) : compactClinical ? (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-slate-50 border-b border-slate-200">
+                  <tr>
+                    <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap w-[28%]">
+                      Date
+                    </th>
+                    <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Plan</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200">
+                  {rows.map((row) => {
+                    const metaFields = [
+                      ['Plan ID', row.name],
+                      ['Patient', row.patient],
+                      ['Practitioner', row.practitioner],
+                      ['Medical role', row.medical_role],
+                      [
+                        'Visit',
+                        row.reference_document
+                          ? `${row.reference_doctype || 'Patient Visit'}: ${row.reference_document}`
+                          : '',
+                      ],
+                      ['Recommendation', row.recommendation ? stripHtmlToText(row.recommendation) : ''],
+                      ['Reception note', row.reception_note ? stripHtmlToText(row.reception_note) : ''],
+                    ] as const
+                    const planPlain = row.plan ? stripHtmlToText(row.plan) : ''
+                    return (
+                      <tr
+                        key={row.name}
+                        className={dashboardCardRowHoverClass}
+                        onClick={() => setDetailName(row.name)}
+                      >
+                        <td className="px-3 py-2.5 text-xs text-slate-700 whitespace-nowrap align-top">
+                          <span className="text-primary font-medium">
+                            {row.posting_date ? new Date(row.posting_date).toLocaleString() : '—'}
+                          </span>
+                          <CardRowMetaHint fields={metaFields} />
+                        </td>
+                        <td className="px-3 py-2.5 text-xs text-slate-700 align-top">
+                          <div className="line-clamp-4" title={planPlain || undefined}>
+                            {planPreview(row, 280)}
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[980px]">
                 <thead className="bg-slate-50 border-b border-slate-200">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Date</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">
+                      Date
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase min-w-[260px]">
+                      Plan
+                    </th>
                     {!patient && (
                       <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Patient</th>
                     )}
                     <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Practitioner</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Medical Role</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Visit</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Plan</th>
                     <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600 uppercase">Actions</th>
                   </tr>
                 </thead>
@@ -234,35 +290,33 @@ export const DoctorMedicationPlanList = ({ patient, onPatientClick }: DoctorMedi
                   {rows.map((row) => (
                     <tr key={row.name} className="hover:bg-slate-50">
                       <td
-                        className="px-4 py-3 text-sm text-slate-700 cursor-pointer"
+                        className="px-4 py-3 text-sm text-slate-700 cursor-pointer whitespace-nowrap"
                         onClick={() => setDetailName(row.name)}
                       >
                         <span className="text-primary hover:underline">
-                          {row.posting_date ? new Date(row.posting_date).toLocaleString() : '-'}
+                          {row.posting_date ? new Date(row.posting_date).toLocaleString() : '—'}
                         </span>
+                      </td>
+                      <td
+                        className="px-4 py-3 text-sm text-slate-700 align-top max-w-xl cursor-pointer"
+                        onClick={() => setDetailName(row.name)}
+                      >
+                        <div className="line-clamp-4" title={row.plan ? stripHtmlToText(row.plan) : ''}>
+                          {planPreview(row, 220)}
+                        </div>
                       </td>
                       {!patient && (
                         <td
                           className="px-4 py-3 text-sm cursor-pointer"
                           onClick={() => row.patient && onPatientClick?.(row.patient)}
                         >
-                          <span className="font-medium text-primary hover:underline">{row.patient || '-'}</span>
+                          <span className="font-medium text-primary hover:underline">{row.patient || '—'}</span>
                         </td>
                       )}
-                      <td className="px-4 py-3 text-sm text-slate-700">{row.practitioner || '-'}</td>
-                      <td className="px-4 py-3 text-sm text-slate-700">{row.medical_role || '-'}</td>
+                      <td className="px-4 py-3 text-sm text-slate-700">{row.practitioner || '—'}</td>
+                      <td className="px-4 py-3 text-sm text-slate-700">{row.medical_role || '—'}</td>
                       <td className="px-4 py-3 text-sm text-slate-700 max-w-[140px] truncate">
-                        {row.reference_document || '-'}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-slate-700 max-w-md">
-                        <div className="truncate" title={row.plan ? stripHtml(row.plan) : ''}>
-                          {row.plan
-                            ? (() => {
-                                const t = stripHtml(row.plan)
-                                return t.length > 100 ? `${t.substring(0, 100)}...` : t
-                              })()
-                            : '-'}
-                        </div>
+                        {row.reference_document || '—'}
                       </td>
                       <td className="px-4 py-3 text-sm text-slate-700 text-center whitespace-nowrap">
                         <div className="inline-flex items-center justify-center gap-2">

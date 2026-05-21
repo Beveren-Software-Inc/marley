@@ -3,11 +3,11 @@ import {
   getPatientDiagnosis,
   savePatientDiagnosis,
   fetchDiagnosis,
-  createDiagnosis,
   fetchPatientVisits,
   fetchInpatientAdmissions,
   type LinkFieldOption,
 } from '../../services/common'
+import { CreateDiagnosisModal } from './CreateDiagnosisModal'
 import { toast } from '../../hooks/useToast'
 
 interface PatientDiagnosisModalProps {
@@ -70,8 +70,8 @@ export function PatientDiagnosisModal({
   const [searchQuery, setSearchQuery] = useState<Record<string, string>>({})
   const [searchOptions, setSearchOptions] = useState<Record<string, LinkFieldOption[]>>({})
   const [searchOpen, setSearchOpen] = useState<Record<string, boolean>>({})
-  const [creatingFor, setCreatingFor] = useState<string | null>(null)
-  const [newDiagnosisValue, setNewDiagnosisValue] = useState('')
+  const [showCreateDiagnosis, setShowCreateDiagnosis] = useState(false)
+  const [createDiagnosisForRowId, setCreateDiagnosisForRowId] = useState<string | null>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   // Load visit/admission options when in standalone mode
@@ -95,16 +95,15 @@ export function PatientDiagnosisModal({
     getPatientDiagnosis(parentDoctype, parentName)
       .then((data) => {
         if (cancelled) return
-        setRows(
-          data.map((r) => ({
-            _id: Math.random().toString(36).slice(2),
-            diagnosis: r.diagnosis || '',
-            diagnosisLabel: r.diagnosis_label || r.diagnosis || '',
-            diagnosisGroupName: r.diagnosis_group_name || '',
-            details: r.details || '',
-            posting_date: r.posting_date ? r.posting_date.slice(0, 16) : new Date().toISOString().slice(0, 16),
-          }))
-        )
+        const mapped = data.map((r) => ({
+          _id: Math.random().toString(36).slice(2),
+          diagnosis: r.diagnosis || '',
+          diagnosisLabel: r.diagnosis_label || r.diagnosis || '',
+          diagnosisGroupName: r.diagnosis_group_name || '',
+          details: r.details || '',
+          posting_date: r.posting_date ? r.posting_date.slice(0, 16) : new Date().toISOString().slice(0, 16),
+        }))
+        setRows(mapped.length > 0 ? mapped : [newDraft()])
       })
       .catch((e) => {
         if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load')
@@ -164,20 +163,10 @@ export function PatientDiagnosisModal({
     setSearchQuery((prev) => ({ ...prev, [id]: '' }))
   }
 
-  const handleCreateDiagnosis = async (id: string) => {
-    const val = newDiagnosisValue.trim()
-    if (!val) return
-    setCreatingFor(id)
-    try {
-      const name = await createDiagnosis(val)
-      selectDiagnosis(id, { name, label: val, diagnosis_group_name: '' })
-      setCreatingFor(null)
-      setNewDiagnosisValue('')
-      toast.success('Diagnosis created')
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to create')
-      setCreatingFor(null)
-    }
+  const openCreateDiagnosis = (rowId: string) => {
+    setCreateDiagnosisForRowId(rowId)
+    setShowCreateDiagnosis(true)
+    setSearchOpen((p) => ({ ...p, [rowId]: false }))
   }
 
   const handleSave = async () => {
@@ -297,7 +286,7 @@ export function PatientDiagnosisModal({
 
               {rows.length === 0 && (
                 <div className="text-center text-slate-400 text-sm py-6 border-2 border-dashed border-slate-200 rounded-lg">
-                  No diagnoses recorded yet. Click <strong>Add Row</strong> to begin.
+                  No diagnoses yet. Click <strong>Add Row</strong> or use <strong>+</strong> on the diagnosis field to create one.
                 </div>
               )}
 
@@ -322,40 +311,52 @@ export function PatientDiagnosisModal({
                     <label className="block text-xs font-medium text-slate-600 mb-1">
                       Diagnosis <span className="text-red-500">*</span>
                     </label>
-                    <input
-                      type="text"
-                      value={searchOpen[row._id] ? (searchQuery[row._id] ?? '') : row.diagnosisLabel}
-                      onFocus={() => {
-                        setSearchOpen((p) => ({ ...p, [row._id]: true }))
-                        setSearchQuery((p) => ({ ...p, [row._id]: '' }))
-                        fetchDiagnosis(undefined).then((opts) =>
-                          setSearchOptions((p) => ({ ...p, [row._id]: opts }))
-                        ).catch(() => {})
-                      }}
-                      onChange={(e) => {
-                        setSearchQuery((p) => ({ ...p, [row._id]: e.target.value }))
-                        setSearchOpen((p) => ({ ...p, [row._id]: true }))
-                      }}
-                      placeholder="Search by disease no or diagnosis name…"
-                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-                    />
+                    <div className="relative flex items-center">
+                      <input
+                        type="text"
+                        value={searchOpen[row._id] ? (searchQuery[row._id] ?? '') : row.diagnosisLabel}
+                        onFocus={() => {
+                          setSearchOpen((p) => ({ ...p, [row._id]: true }))
+                          setSearchQuery((p) => ({ ...p, [row._id]: '' }))
+                          fetchDiagnosis(undefined).then((opts) =>
+                            setSearchOptions((p) => ({ ...p, [row._id]: opts }))
+                          ).catch(() => {})
+                        }}
+                        onChange={(e) => {
+                          setSearchQuery((p) => ({ ...p, [row._id]: e.target.value }))
+                          setSearchOpen((p) => ({ ...p, [row._id]: true }))
+                        }}
+                        placeholder="Search by disease no or diagnosis name…"
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 pr-9 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                      />
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          openCreateDiagnosis(row._id)
+                        }}
+                        className="absolute right-2 p-1 text-primary hover:text-primary/80 rounded"
+                        title="Create new diagnosis"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
+                      </button>
+                    </div>
                     {!searchOpen[row._id] && row.diagnosisGroupName ? (
                       <p className="text-xs text-slate-500 mt-1">{row.diagnosisGroupName}</p>
                     ) : null}
                     {searchOpen[row._id] && (
                       <div className="absolute z-30 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg max-h-52 overflow-y-auto">
                         {(searchOptions[row._id] || []).length === 0 ? (
-                          <div className="px-3 py-2 text-sm text-slate-400">
-                            No results.
+                          <div className="px-3 py-2 text-sm text-slate-500">
+                            No results.{' '}
                             <button
                               type="button"
-                              className="ml-2 text-primary underline text-xs"
-                              onClick={() => {
-                                setNewDiagnosisValue(searchQuery[row._id] || '')
-                                setSearchOpen((p) => ({ ...p, [row._id]: false }))
-                              }}
+                              className="text-primary underline text-xs"
+                              onMouseDown={() => openCreateDiagnosis(row._id)}
                             >
-                              Create "{searchQuery[row._id]}"
+                              Create new diagnosis
                             </button>
                           </div>
                         ) : (
@@ -376,41 +377,12 @@ export function PatientDiagnosisModal({
                             <button
                               type="button"
                               className="block w-full text-left px-3 py-2 text-xs text-primary hover:bg-primary/5 border-t border-slate-100"
-                              onMouseDown={() => {
-                                setNewDiagnosisValue(searchQuery[row._id] || '')
-                                setSearchOpen((p) => ({ ...p, [row._id]: false }))
-                              }}
+                              onMouseDown={() => openCreateDiagnosis(row._id)}
                             >
                               + Create new diagnosis
                             </button>
                           </>
                         )}
-                      </div>
-                    )}
-
-                    {/* Inline create new diagnosis */}
-                    {newDiagnosisValue !== '' && !searchOpen[row._id] && (
-                      <div className="mt-2 flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-md px-3 py-2">
-                        <input
-                          type="text"
-                          value={newDiagnosisValue}
-                          onChange={(e) => setNewDiagnosisValue(e.target.value)}
-                          className="flex-1 text-sm bg-transparent outline-none"
-                          placeholder="New diagnosis name"
-                        />
-                        <button
-                          type="button"
-                          disabled={creatingFor === row._id}
-                          onClick={() => handleCreateDiagnosis(row._id)}
-                          className="text-xs bg-primary text-white rounded px-2 py-1 disabled:opacity-50"
-                        >
-                          {creatingFor === row._id ? '…' : 'Create'}
-                        </button>
-                        <button type="button" onClick={() => setNewDiagnosisValue('')} className="text-slate-400 hover:text-slate-600">
-                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
                       </div>
                     )}
                   </div>
@@ -480,6 +452,21 @@ export function PatientDiagnosisModal({
           </button>
         </div>
       </div>
+
+      {showCreateDiagnosis && createDiagnosisForRowId && (
+        <CreateDiagnosisModal
+          initialDiagnosis={searchQuery[createDiagnosisForRowId] || ''}
+          onClose={() => {
+            setShowCreateDiagnosis(false)
+            setCreateDiagnosisForRowId(null)
+          }}
+          onSuccess={(created) => {
+            selectDiagnosis(createDiagnosisForRowId, created)
+            setShowCreateDiagnosis(false)
+            setCreateDiagnosisForRowId(null)
+          }}
+        />
+      )}
     </div>
   )
 }

@@ -12,6 +12,7 @@ import { PastMedicalHistoryFields } from './PastMedicalHistoryFields'
 import {
   emptyPastMedicalHistoryFields,
   hasPastMedicalHistoryContent,
+  preparePastMedicalHistoryForSave,
   type PastMedicalHistoryFormFields,
 } from './pastMedicalHistoryUtils'
 
@@ -100,11 +101,15 @@ export const CreatePatientMedicalHistoryModal = ({
         template: null,
         inpatient_admission: selectedAdmission || null,
         patient_visit: selectedVisit || null,
-        ...fields,
+        ...preparePastMedicalHistoryForSave(fields),
         patient_history_details: [],
       }
       const created = await savePatientMedicalHistory(payload)
-      toast.success('Past medical history saved')
+      toast.success(
+        payload.allergies?.trim()
+          ? 'Past medical history saved · allergy added to Warnings'
+          : 'Past medical history saved'
+      )
       onCreated(created)
       onClose()
     } catch (err) {

@@ -5,6 +5,8 @@ import { CancelVisitModal } from './CancelVisitModal'
 import { CreateVitalSignModal } from '../vitalSigns/CreateVitalSignModal'
 import { CreateObservationModal } from '../observations/CreateObservationModal'
 import { toast } from '../../hooks/useToast'
+import { useCareContext } from '../../providers/CareContextProvider'
+import { observationsAllowedForMode } from '../../config/costCenterCareScope'
 
 interface PatientVisitDetailsProps {
   visitNo: string
@@ -12,6 +14,7 @@ interface PatientVisitDetailsProps {
 }
 
 export const PatientVisitDetails = ({ visitNo, onUpdate }: PatientVisitDetailsProps) => {
+  const { mode } = useCareContext()
   const [visit, setVisit] = useState<PatientVisit | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
@@ -180,7 +183,7 @@ const handleCancelVisitConfirm = async (reason: string) => {
               )}
 
               {/* Create Observation */}
-              {visit.status !== 'Cancelled' && (
+              {visit.status !== 'Cancelled' && observationsAllowedForMode(mode) && (
                 <button
                   onClick={() => setShowObservationModal(true)}
                   className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-violet-600 rounded-md hover:bg-violet-700"

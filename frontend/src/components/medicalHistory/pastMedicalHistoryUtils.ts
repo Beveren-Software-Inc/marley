@@ -4,7 +4,7 @@ export const ILLNESS_FIELDS = [
   { key: 'heart_disease' as const, label: 'Heart Disease' },
   { key: 'diabetes' as const, label: 'Diabetes' },
   { key: 'asthma' as const, label: 'Asthma' },
-  { key: 'strokes' as const, label: 'Strokes' },
+  { key: 'strokes' as const, label: 'Stroke' },
 ]
 
 export type IllnessFieldKey = (typeof ILLNESS_FIELDS)[number]['key']
@@ -18,11 +18,21 @@ export type PastMedicalHistoryFormFields = Pick<
   | 'other_ongoing_illness'
   | 'previous_surgical_history'
   | 'current_and_past_medications'
+  | 'no_known_allergies'
   | 'allergies'
   | 'social_history'
   | 'addiction'
   | 'smoking'
 >
+
+/** Portal UI: checked = Yes on desk (Select Yes/No). */
+export function illnessIsChecked(value?: string): boolean {
+  return value === 'Yes'
+}
+
+export function illnessValueFromChecked(checked: boolean): string {
+  return checked ? 'Yes' : ''
+}
 
 export const emptyPastMedicalHistoryFields = (): PastMedicalHistoryFormFields => ({
   heart_disease: '',
@@ -32,17 +42,29 @@ export const emptyPastMedicalHistoryFields = (): PastMedicalHistoryFormFields =>
   other_ongoing_illness: '',
   previous_surgical_history: '',
   current_and_past_medications: '',
+  no_known_allergies: 0,
   allergies: '',
   social_history: '',
   addiction: 0,
   smoking: 0,
 })
 
+/** Normalize allergies / NKDA before save. */
+export function preparePastMedicalHistoryForSave(
+  fields: PastMedicalHistoryFormFields
+): PastMedicalHistoryFormFields {
+  if (fields.no_known_allergies) {
+    return { ...fields, allergies: '' }
+  }
+  return { ...fields, allergies: (fields.allergies || '').trim() }
+}
+
 export function hasPastMedicalHistoryContent(h: Partial<PastMedicalHistoryFormFields>): boolean {
-  if (ILLNESS_FIELDS.some(({ key }) => h[key] === 'Yes' || h[key] === 'No')) return true
+  if (ILLNESS_FIELDS.some(({ key }) => illnessIsChecked(h[key]))) return true
   if (h.other_ongoing_illness?.trim()) return true
   if (h.previous_surgical_history?.trim()) return true
   if (h.current_and_past_medications?.trim()) return true
+  if (h.no_known_allergies) return true
   if (h.allergies?.trim()) return true
   if (h.social_history?.trim()) return true
   if (h.addiction) return true
@@ -59,9 +81,10 @@ export function yesNoBadgeClass(value?: string): string {
 /** One-line clinical blurb for dashboard card rows (allergies and key flags first). */
 export function pmhClinicalBlurb(h: Partial<PatientMedicalHistory>): string {
   const parts: string[] = []
-  if (h.allergies?.trim()) parts.push(`Allergies: ${h.allergies.trim()}`)
+  if (h.no_known_allergies) parts.push('No known allergies')
+  else if (h.allergies?.trim()) parts.push(`Allergies: ${h.allergies.trim()}`)
   for (const { key, label } of ILLNESS_FIELDS) {
-    if (h[key] === 'Yes') parts.push(label)
+    if (illnessIsChecked(h[key])) parts.push(label)
   }
   if (h.other_ongoing_illness?.trim()) {
     const t = h.other_ongoing_illness.trim()

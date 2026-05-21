@@ -24,8 +24,18 @@ const OP_ONLY_DOCTOR_SCREEN_IDS = new Set([
 ])
 
 /** Doctor screens hidden when the active mode is OP (regardless of cost center scope) */
-const OP_MODE_DOCTOR_SCREEN_IDS = new Set(['gm', 'admission', 'df'])
-const OP_MODE_DOCTOR_GROUP_TITLES = new Set(['Admission & Discharge'])
+const OP_MODE_DOCTOR_SCREEN_IDS = new Set(['gm', 'admission', 'df', 'obs'])
+const OP_MODE_DOCTOR_GROUP_TITLES = new Set(['Admission & Discharge', 'Observation'])
+
+/** Clinical observation — inpatient only (hidden unless mode is IP) */
+const IP_ONLY_OBSERVATION_DOCTOR_SCREEN_IDS = new Set(['obs'])
+const IP_ONLY_OBSERVATION_DOCTOR_GROUP_TITLES = new Set(['Observation'])
+const IP_ONLY_OBSERVATION_NURSE_SCREEN_IDS = new Set(['n-ob'])
+const IP_ONLY_OBSERVATION_NURSE_GROUP_TITLES = new Set(['Observation & Monitoring'])
+
+export function observationsAllowedForMode(mode?: CareMode): boolean {
+  return mode === 'IP'
+}
 
 /** Doctor sidebar / deep links blocked for IP-only sites */
 const IP_ONLY_DOCTOR_SCREEN_IDS = new Set(['iop', 'pvh', 'op'])
@@ -53,8 +63,8 @@ const OP_ONLY_NURSE_SCREEN_IDS = new Set([
 const OP_ONLY_NURSE_GROUP_TITLES = new Set(['Daily Routine Care', 'Admission & Discharge'])
 
 /** Nurse screens hidden when the active mode is OP (regardless of cost center scope) */
-const OP_MODE_NURSE_SCREEN_IDS = new Set(['n-given', 'n-reg', 'n-discharge', 'n-package'])
-const OP_MODE_NURSE_GROUP_TITLES = new Set(['Admission & Discharge'])
+const OP_MODE_NURSE_SCREEN_IDS = new Set(['n-given', 'n-reg', 'n-discharge', 'n-package', 'n-ob'])
+const OP_MODE_NURSE_GROUP_TITLES = new Set(['Admission & Discharge', 'Observation & Monitoring'])
 
 const IP_ONLY_NURSE_SCREEN_IDS = new Set(['n-op'])
 
@@ -95,6 +105,13 @@ export function filterDoctorScreenGroups(
   if (mode === 'OP') {
     filtered = filterGroupsByScreenIds(filtered, OP_MODE_DOCTOR_SCREEN_IDS, OP_MODE_DOCTOR_GROUP_TITLES)
   }
+  if (!observationsAllowedForMode(mode)) {
+    filtered = filterGroupsByScreenIds(
+      filtered,
+      IP_ONLY_OBSERVATION_DOCTOR_SCREEN_IDS,
+      IP_ONLY_OBSERVATION_DOCTOR_GROUP_TITLES
+    )
+  }
   return filtered
 }
 
@@ -111,6 +128,13 @@ export function filterNurseScreenGroups(
   }
   if (mode === 'OP') {
     filtered = filterGroupsByScreenIds(filtered, OP_MODE_NURSE_SCREEN_IDS, OP_MODE_NURSE_GROUP_TITLES)
+  }
+  if (!observationsAllowedForMode(mode)) {
+    filtered = filterGroupsByScreenIds(
+      filtered,
+      IP_ONLY_OBSERVATION_NURSE_SCREEN_IDS,
+      IP_ONLY_OBSERVATION_NURSE_GROUP_TITLES
+    )
   }
   return filtered
 }
@@ -135,6 +159,7 @@ export function isDoctorScreenBlocked(screen: string | null | undefined, scope: 
   if (scope === 'op_only' && OP_ONLY_DOCTOR_SCREEN_IDS.has(screen)) return true
   if (scope === 'ip_only' && IP_ONLY_DOCTOR_SCREEN_IDS.has(screen)) return true
   if (mode === 'OP' && OP_MODE_DOCTOR_SCREEN_IDS.has(screen)) return true
+  if (!observationsAllowedForMode(mode) && IP_ONLY_OBSERVATION_DOCTOR_SCREEN_IDS.has(screen)) return true
   return false
 }
 
@@ -143,6 +168,7 @@ export function isNurseScreenBlocked(screen: string | null | undefined, scope: C
   if (scope === 'op_only' && OP_ONLY_NURSE_SCREEN_IDS.has(screen)) return true
   if (scope === 'ip_only' && IP_ONLY_NURSE_SCREEN_IDS.has(screen)) return true
   if (mode === 'OP' && OP_MODE_NURSE_SCREEN_IDS.has(screen)) return true
+  if (!observationsAllowedForMode(mode) && IP_ONLY_OBSERVATION_NURSE_SCREEN_IDS.has(screen)) return true
   return false
 }
 
