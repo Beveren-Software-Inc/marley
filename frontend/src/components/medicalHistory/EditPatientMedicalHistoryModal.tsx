@@ -6,6 +6,7 @@ import { PastMedicalHistoryFields } from './PastMedicalHistoryFields'
 import {
   emptyPastMedicalHistoryFields,
   hasPastMedicalHistoryContent,
+  preparePastMedicalHistoryForSave,
   type PastMedicalHistoryFormFields,
 } from './pastMedicalHistoryUtils'
 
@@ -26,6 +27,7 @@ function fieldsFromHistory(history: PatientMedicalHistory | null): PastMedicalHi
     other_ongoing_illness: history.other_ongoing_illness || '',
     previous_surgical_history: history.previous_surgical_history || '',
     current_and_past_medications: history.current_and_past_medications || '',
+    no_known_allergies: history.no_known_allergies ? 1 : 0,
     allergies: history.allergies || '',
     social_history: history.social_history || '',
     addiction: history.addiction ? 1 : 0,
@@ -60,11 +62,15 @@ export const EditPatientMedicalHistoryModal = ({
         ...(history || {}),
         patient,
         template: history?.template || null,
-        ...fields,
+        ...preparePastMedicalHistoryForSave(fields),
         patient_history_details: history?.patient_history_details || [],
       }
       const updated = await savePatientMedicalHistory(payload)
-      toast.success('Past medical history saved')
+      toast.success(
+        payload.allergies?.trim()
+          ? 'Past medical history saved · allergy synced to Warnings'
+          : 'Past medical history saved'
+      )
       onSaved(updated)
       onClose()
     } catch (err) {

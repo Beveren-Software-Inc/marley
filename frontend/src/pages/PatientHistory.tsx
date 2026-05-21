@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { PatientSearch } from '../components/patients/PatientSearch'
 import { useCareContext } from '../providers/CareContextProvider'
+import { observationsAllowedForMode } from '../config/costCenterCareScope'
 import { PatientSummaryCard } from '../components/patients/PatientSummaryCard'
 import { WarningMessagesList } from '../components/warnings/WarningMessagesList'
 import { LabTestList } from '../components/labTests/LabTestList'
@@ -30,7 +31,7 @@ import { useFormatMoney } from '../hooks/useFormatMoney'
 
 export const PatientHistoryPage = () => {
   const formatCurrency = useFormatMoney()
-  const { selectedPatient: globalPatient, setSelectedPatient: setGlobalPatient } = useCareContext()
+  const { selectedPatient: globalPatient, setSelectedPatient: setGlobalPatient, mode } = useCareContext()
   const [searchParams, setSearchParams] = useSearchParams()
   const patientFromUrl = searchParams.get('patient')
   const [selectedPatient, setSelectedPatient] = useState<string | undefined>(() => patientFromUrl || globalPatient || undefined)
@@ -272,12 +273,14 @@ export const PatientHistoryPage = () => {
               </div>
             </section>
 
-            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[420px]">
-              <div className="font-semibold mb-4 flex-shrink-0">Observation</div>
-              <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                <ObservationList patient={selectedPatient} onPatientClick={handlePatientSelect} />
-              </div>
-            </section>
+            {observationsAllowedForMode(mode) && (
+              <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[420px]">
+                <div className="font-semibold mb-4 flex-shrink-0">Observation</div>
+                <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
+                  <ObservationList patient={selectedPatient} onPatientClick={handlePatientSelect} />
+                </div>
+              </section>
+            )}
           </div>
 
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">

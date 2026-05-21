@@ -16,6 +16,7 @@ import { CreateVitalSignModal } from '../vitalSigns/CreateVitalSignModal'
 import { CreateObservationModal } from '../observations/CreateObservationModal'
 import { PatientDiagnosisModal } from '../diagnosis/PatientDiagnosisModal'
 import { useCareContext } from '../../providers/CareContextProvider'
+import { observationsAllowedForMode } from '../../config/costCenterCareScope'
 import { useFormatMoney } from '../../hooks/useFormatMoney'
 import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
 
@@ -598,7 +599,7 @@ export const PatientVisitList = ({
                             Create Vital Sign
                           </button>
                         )}
-                        {visit.patient && (
+                        {visit.patient && observationsAllowedForMode(mode) && (
                           <button
                             type="button"
                             onClick={() => { setObservationVisit(visit); setOpenActionRow(null) }}

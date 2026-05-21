@@ -672,19 +672,47 @@ export async function fetchComplaints(search?: string): Promise<LinkFieldOption[
   return Array.isArray(data?.message) ? (data.message as LinkFieldOption[]) : []
 }
 
-export async function createDiagnosis(diagnosis: string): Promise<string> {
+export async function fetchDiagnosisGroups(search?: string): Promise<LinkFieldOption[]> {
+  const params = new URLSearchParams()
+  if (search) params.append('search', search)
+  const res = await fetch(`/api/method/healthcare.api.common.get_diagnosis_groups?${params.toString()}`)
+  const data = await res.json()
+  return Array.isArray(data?.message) ? (data.message as LinkFieldOption[]) : []
+}
+
+export type CreateDiagnosisPayload = {
+  diagnosis: string
+  disease_no?: string
+  diagnosis_group?: string
+}
+
+export async function createDiagnosis(payload: CreateDiagnosisPayload | string): Promise<LinkFieldOption> {
+  const body =
+    typeof payload === 'string'
+      ? { diagnosis: payload.trim() }
+      : {
+          diagnosis: payload.diagnosis.trim(),
+          disease_no: payload.disease_no?.trim() || undefined,
+          diagnosis_group: payload.diagnosis_group?.trim() || undefined,
+        }
   const csrf = await ensureCSRF()
   const res = await fetch('/api/method/healthcare.api.common.create_diagnosis', {
     method: 'POST',
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json',
+    headers: {
+      'Content-Type': 'application/json',
       ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
-     },
-    body: JSON.stringify({ diagnosis: diagnosis.trim() }),
+    },
+    body: JSON.stringify(body),
   })
   const data = await res.json()
   if (data?.exc_type) throw new Error(data?.message || 'Failed to create diagnosis')
-  return (data?.message as string) || diagnosis.trim()
+  const msg = data?.message
+  if (msg && typeof msg === 'object' && msg.name) {
+    return msg as LinkFieldOption
+  }
+  const name = typeof msg === 'string' ? msg : body.diagnosis
+  return { name, label: body.diagnosis }
 }
 
 export async function createComplaint(complaints: string): Promise<string> {

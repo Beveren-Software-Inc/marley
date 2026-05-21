@@ -41,8 +41,8 @@
 //   { id: 'patient-history', title: 'Patient History', desc: 'Structured patient history with template-driven detail items.' }
 // ].sort((a, b) => a.title.localeCompare(b.title))
 
-// Screen group type definition (if not already defined elsewhere)
-
+import type { CareMode } from '../providers/CareContextProvider'
+import { filterDoctorScreenGroups, careScopeFromCostCenterField, type CostCenterCareScope } from './costCenterCareScope'
 
 export interface ScreenItem {
   id: string
@@ -94,6 +94,7 @@ export const doctorScreenGroups: ScreenGroup[] = [
   {
     groupTitle: 'Laboratory & Diagnostics',
     screens: [
+      { id: 'lab-req', title: 'Lab Requests' },
       { id: 'lab', title: 'Laboratory' },
     ],
   },
@@ -145,8 +146,12 @@ export const doctorScreenGroups: ScreenGroup[] = [
 ]
 
 
-export const getDoctorScreenGroups = (selectedPatient?: string): ScreenGroup[] => {
-  return doctorScreenGroups
+export const getDoctorScreenGroups = (
+  selectedPatient?: string,
+  scope: CostCenterCareScope = 'both',
+  mode?: CareMode
+): ScreenGroup[] => {
+  const base = doctorScreenGroups
     .map((group) => ({
       ...group,
       screens: group.screens.filter(
@@ -154,4 +159,7 @@ export const getDoctorScreenGroups = (selectedPatient?: string): ScreenGroup[] =
       ),
     }))
     .filter((group) => group.screens.length > 0)
+  return filterDoctorScreenGroups(base, scope, mode)
 }
+
+export { careScopeFromCostCenterField }

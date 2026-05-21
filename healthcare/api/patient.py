@@ -423,7 +423,9 @@ def _serialize_patient_medical_history(doc):
 		"other_ongoing_illness": doc.get("other_ongoing_illness") or "",
 		"previous_surgical_history": doc.get("previous_surgical_history") or "",
 		"current_and_past_medications": doc.get("current_and_past_medications") or "",
+		"no_known_allergies": cint(doc.get("no_known_allergies")),
 		"allergies": doc.get("allergies") or "",
+		"patient_visit": doc.get("patient_visit"),
 		"social_history": doc.get("social_history") or "",
 		"addiction": cint(doc.get("addiction")),
 		"smoking": cint(doc.get("smoking")),
@@ -450,7 +452,11 @@ def _patient_medical_history_summary(doc) -> str:
 		val = doc.get(field) if isinstance(doc, dict) else getattr(doc, field, None)
 		if val == "Yes":
 			parts.append(label)
-	if doc.get("allergies") if isinstance(doc, dict) else getattr(doc, "allergies", None):
+	if cint(
+		doc.get("no_known_allergies") if isinstance(doc, dict) else getattr(doc, "no_known_allergies", 0)
+	):
+		parts.append("NKDA")
+	elif doc.get("allergies") if isinstance(doc, dict) else getattr(doc, "allergies", None):
 		parts.append("Allergies")
 	if cint(doc.get("addiction") if isinstance(doc, dict) else getattr(doc, "addiction", 0)):
 		parts.append("Addiction")
@@ -530,7 +536,9 @@ def get_patient_medical_history(patient: str):
 			"other_ongoing_illness": "",
 			"previous_surgical_history": "",
 			"current_and_past_medications": "",
+			"no_known_allergies": 0,
 			"allergies": "",
+			"patient_visit": None,
 			"social_history": "",
 			"addiction": 0,
 			"smoking": 0,

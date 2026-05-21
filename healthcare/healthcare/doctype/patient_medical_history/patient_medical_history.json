@@ -23,6 +23,7 @@
   "medications_section",
   "current_and_past_medications",
   "allergies_section",
+  "no_known_allergies",
   "allergies",
   "social_section",
   "social_history",
@@ -124,6 +125,12 @@
    "fieldname": "allergies_section",
    "fieldtype": "Section Break",
    "label": "Allergies"
+  },
+  {
+   "default": "0",
+   "fieldname": "no_known_allergies",
+   "fieldtype": "Check",
+   "label": "No Known Allergies"
   },
   {
    "fieldname": "allergies",

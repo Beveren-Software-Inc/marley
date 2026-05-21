@@ -20,7 +20,6 @@ import { PatientDiagnosisList } from '../components/diagnosis/PatientDiagnosisLi
 import { PatientDiagnosisModal } from '../components/diagnosis/PatientDiagnosisModal'
 import { DischargeList } from '../components/discharges/DischargeList'
 import { ECTDashboard } from '../components/ect/ECTDashboard'
-import { ECTChart } from '../components/ect/ECTChart'
 import { EnvironmentalChecklistList } from '../components/environmental/EnvironmentalChecklistList'
 import { CreateGAD7AssessmentModal } from '../components/gad7/CreateGAD7AssessmentModal'
 import { GAD7AssessmentList } from '../components/gad7/GAD7AssessmentList'
@@ -610,6 +609,54 @@ export const DoctorPage = () => {
             initialPatient={selectedPatient}
             defaultClinicalNoteType="Doctors Order"
             title="Add Doctors Order"
+          />
+        )}
+      </div>
+    )
+  }
+
+  // Lab Requests (Service Request — Lab Test Template)
+  if (screen === 'lab-req') {
+    return (
+      <div className="flex flex-col">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+          <div className="flex-1 min-w-0">
+            <PatientSearch
+              selectedPatient={selectedPatient || ''}
+              onPatientSelect={handlePatientSelect}
+              patients={[]}
+            />
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <UserMenu />
+            <NotificationBell />
+          </div>
+        </header>
+        <div className="p-4">
+          <DashboardCard
+            title="Lab Requests"
+            onAdd={() => setShowServiceRequestModal(true)}
+            addButtonTitle="Add Service Request"
+            noHeightLimit
+          >
+            <ServiceRequestList
+              patient={selectedPatient}
+              refreshKey={serviceRequestRefreshKey}
+              template_dt="Lab Test Template"
+              onPatientClick={handlePatientSelect}
+            />
+          </DashboardCard>
+        </div>
+        {showServiceRequestModal && (
+          <CreateServiceRequestModal
+            onClose={() => setShowServiceRequestModal(false)}
+            onSuccess={() => {
+              setServiceRequestRefreshKey((prev) => prev + 1)
+              setShowServiceRequestModal(false)
+              toast.success('Service request created successfully')
+            }}
+            initialPatient={selectedPatient}
+            labTestTemplateOnly
           />
         )}
       </div>
@@ -2353,7 +2400,7 @@ export const DoctorPage = () => {
                 title="Lab Requests"
                 onAdd={() => setShowServiceRequestModal(true)}
                 addButtonTitle="Add Service Request"
-                listingScreen="lab"
+                listingScreen="lab-req"
               >
                 <ServiceRequestList
                   patient={selectedPatient}
@@ -2401,7 +2448,7 @@ export const DoctorPage = () => {
               </DashboardCard>
             </div>
 
-            <div className="px-4 pb-4">
+            <div className="grid gap-4 md:grid-cols-2 auto-rows-fr px-4 pb-4">
               <DashboardCard
                 fixedHeight
                 title="Doctor Progress Notes"
@@ -2416,6 +2463,10 @@ export const DoctorPage = () => {
                   key={doctorProgressNoteRefreshKey}
                   onPatientClick={handlePatientSelect}
                 />
+              </DashboardCard>
+
+              <DashboardCard fixedHeight title="Patient Information">
+                <PatientSummaryCard patient={selectedPatient} />
               </DashboardCard>
             </div>
           </>
@@ -2492,7 +2543,7 @@ export const DoctorPage = () => {
                 title="Lab Requests"
                 onAdd={() => setShowServiceRequestModal(true)}
                 addButtonTitle="Add Service Request"
-                listingScreen="lab"
+                listingScreen="lab-req"
               >
                 <ServiceRequestList
                   patient={selectedPatient}
@@ -2532,24 +2583,14 @@ export const DoctorPage = () => {
           </>
         )}
 
-        {/* Row 7: Patient summary + ECT chart */}
-        <div className="grid gap-4 md:grid-cols-2 auto-rows-fr px-4 pb-4">
-          <DashboardCard fixedHeight title="Patient Information">
-            <PatientSummaryCard patient={selectedPatient} />
-          </DashboardCard>
-
-          {costCenterCareScope !== 'op_only' && mode === 'IP' && activeAdmission ? (
-            <DashboardCard fixedHeight title="ECT Chart" listingScreen="ect">
-              <ECTChart patient={selectedPatient} />
+        {/* Patient summary (ECT via sidebar only; on OP+visit, shown beside progress notes) */}
+        {!opVisitDashboardLayout && (
+          <div className="px-4 pb-4">
+            <DashboardCard fixedHeight title="Patient Information">
+              <PatientSummaryCard patient={selectedPatient} />
             </DashboardCard>
-          ) : (
-            <DashboardCard fixedHeight title="ECT Chart" listingScreen="ect">
-              <div className="text-center text-slate-500 py-8 text-sm">
-                ECT chart opens for patients on an active inpatient admission.
-              </div>
-            </DashboardCard>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Row 8: IP — Admissions & discharges */}
         {costCenterCareScope !== 'op_only' && mode === 'IP' && (

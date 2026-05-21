@@ -7,6 +7,46 @@ from frappe import _
 from healthcare.api.utils.api_utility import get_next_transaction_number
 
 
+def allocate_warning_trans_id() -> str:
+	"""Next ``trans_id`` for Warning Message (same sequence as portal create_warning_message)."""
+	return get_next_transaction_number("Patient Medication Order", fieldname="trans_no")
+
+
+def insert_medical_warning_message(
+	patient: str,
+	warning: str,
+	*,
+	reference_doc: str | None = None,
+	reference_name: str | None = None,
+	practitioner: str | None = None,
+	posting_date=None,
+	clinical_note_type: str | None = None,
+	medical_role: str | None = None,
+):
+	"""Insert a Medical Warning Message with mandatory ``trans_id`` set."""
+	if not patient:
+		frappe.throw(_("Patient is required for medical warnings"))
+	if not (warning or "").strip():
+		frappe.throw(_("Warning text is required"))
+
+	doc = frappe.get_doc(
+		{
+			"doctype": "Warning Message",
+			"trans_id": allocate_warning_trans_id(),
+			"type_of_warning": "Medical",
+			"patient": patient,
+			"warning": (warning or "").strip(),
+			"practitioner": practitioner,
+			"posting_date": posting_date or frappe.utils.now(),
+			"clinical_note_type": clinical_note_type,
+			"medical_role": medical_role,
+			"reference_doc": reference_doc,
+			"reference_name": reference_name,
+		}
+	)
+	doc.insert(ignore_permissions=True)
+	return doc
+
 
 @frappe.whitelist()
 def get_warning_messages(
@@ -125,21 +165,30 @@ def create_warning_message(data):
 	if wtype == 'Medical' and not data.get('patient'):
 		frappe.throw(_("Patient is required for medical warnings"))
 
-	trans_no = get_next_transaction_number('Patient Medication Order', fieldname='trans_no')
-	# Create the warning message
-	warning = frappe.get_doc({
-		'doctype': 'Warning Message',
-			'trans_id': trans_no,
-		'type_of_warning': wtype,
-		'patient': data.get('patient') or None,
-		'warning': data.get('warning', ''),
-		'practitioner': data.get('practitioner'),
-		'posting_date': data.get('posting_date') or frappe.utils.now(),
-		'clinical_note_type': data.get('clinical_note_type'),
-		'medical_role': data.get('medical_role')
-	})
-	
-	warning.insert(ignore_permissions=True)
+	if wtype == 'Medical':
+		warning = insert_medical_warning_message(
+			data.get('patient'),
+			data.get('warning', ''),
+			practitioner=data.get('practitioner'),
+			posting_date=data.get('posting_date'),
+			clinical_note_type=data.get('clinical_note_type'),
+			medical_role=data.get('medical_role'),
+		)
+	else:
+		warning = frappe.get_doc(
+			{
+				'doctype': 'Warning Message',
+				'trans_id': allocate_warning_trans_id(),
+				'type_of_warning': wtype,
+				'patient': data.get('patient') or None,
+				'warning': data.get('warning', ''),
+				'practitioner': data.get('practitioner'),
+				'posting_date': data.get('posting_date') or frappe.utils.now(),
+				'clinical_note_type': data.get('clinical_note_type'),
+				'medical_role': data.get('medical_role'),
+			}
+		)
+		warning.insert(ignore_permissions=True)
 	
 	# Return the created warning message
 	patient_name = None
