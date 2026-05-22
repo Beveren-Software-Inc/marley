@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import { useCardFilters } from '../../contexts/CardFilterContext'
 import { StatusPill } from '../ui/StatusPill'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
@@ -9,7 +9,7 @@ import { CreateAdmissionModal } from '../admissions/CreateAdmissionModal'
 import { CancelVisitModal } from './CancelVisitModal'
 import { CreatePaymentModal } from './CreatePaymentModal'
 import { toast } from '../../hooks/useToast'
-import { fetchHealthcarePractitioners, type LinkFieldOption } from '../../services/common'
+import { fetchHealthcarePractitioners, getCurrentUserPractitioner, type LinkFieldOption } from '../../services/common'
 import { fetchPatientVisitsFull } from '../../services/patientVisits'
 import { CreatePatientReferralModal } from '../referrals/CreatePatientReferralModal'
 import { CreateVitalSignModal } from '../vitalSigns/CreateVitalSignModal'
@@ -25,6 +25,18 @@ const statusColors: Record<string, string> = {
   'Ordered': 'info',
   'Completed': 'success',
   'Cancelled': 'danger'
+}
+
+function localDateISO(d = new Date()): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+function getOpDefaultDateRange() {
+  const today = localDateISO()
+  return { dateFrom: today, dateTo: today }
 }
 
 interface PatientVisitListProps {
@@ -57,6 +69,9 @@ export const PatientVisitList = ({
   // Fall back to the patient prop, then context patient, for broader filtering.
   const effectiveVisitFilter = (mode === 'OP' && activeVisit) ? activeVisit : undefined
   const effectivePatient = patient ?? (contextPatient || undefined)
+  /** OP browse (no active visit, not a typed sub-list): today + linked practitioner. */
+  const shouldUseOpDefaults = mode === 'OP' && !effectiveVisitFilter && !visitType
+  const opDefaultsOnMount = shouldUseOpDefaults ? getOpDefaultDateRange() : null
 
   const [selectedStatus, setSelectedStatus] = useState<string>('')
   const cardFilters = useCardFilters()
@@ -82,9 +97,54 @@ export const PatientVisitList = ({
   const [practitionerOpen, setPractitionerOpen] = useState(false)
   const [selectedPractitioner, setSelectedPractitioner] = useState<LinkFieldOption | null>(null)
   const [practitionerFilter, setPractitionerFilter] = useState('')
+  const [defaultPractitionerId, setDefaultPractitionerId] = useState<string | null>(null)
+  const [defaultsReady, setDefaultsReady] = useState(!shouldUseOpDefaults)
 
-  const [dateFrom, setDateFrom] = useState('')
-  const [dateTo, setDateTo] = useState('')
+  const [dateFrom, setDateFrom] = useState(() => opDefaultsOnMount?.dateFrom ?? '')
+  const [dateTo, setDateTo] = useState(() => opDefaultsOnMount?.dateTo ?? '')
+
+  useLayoutEffect(() => {
+    if (!shouldUseOpDefaults) return
+    const { dateFrom: from, dateTo: to } = getOpDefaultDateRange()
+    setDateFrom(from)
+    setDateTo(to)
+  }, [shouldUseOpDefaults])
+
+  useEffect(() => {
+    if (!shouldUseOpDefaults) {
+      setDefaultsReady(true)
+      return
+    }
+    let cancelled = false
+    setDefaultsReady(false)
+    ;(async () => {
+      try {
+        const practId = await getCurrentUserPractitioner()
+        if (cancelled) return
+        setDefaultPractitionerId(practId)
+        if (practId) {
+          setPractitionerFilter(practId)
+          try {
+            const options = await fetchHealthcarePractitioners()
+            const match = options.find((p) => p.name === practId)
+            if (match) {
+              setSelectedPractitioner(match)
+              setPractitionerQuery(match.label)
+            } else {
+              setPractitionerQuery(practId)
+            }
+          } catch {
+            setPractitionerQuery(practId)
+          }
+        }
+      } finally {
+        if (!cancelled) setDefaultsReady(true)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [shouldUseOpDefaults])
 
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState<PageSize>(DEFAULT_PAGE_SIZE)
@@ -160,8 +220,9 @@ export const PatientVisitList = ({
   }
 
   useEffect(() => {
+    if (!defaultsReady) return
     fetchVisits()
-  }, [selectedStatus, practitionerFilter, visitIdFilter, dateFrom, dateTo, effectivePatient, externalSearchQuery, refreshKey, effectiveVisitFilter, page, pageSize, visitType])
+  }, [selectedStatus, practitionerFilter, visitIdFilter, dateFrom, dateTo, effectivePatient, externalSearchQuery, refreshKey, effectiveVisitFilter, page, pageSize, visitType, defaultsReady])
 
   // Reset page when filters change
   useEffect(() => {
@@ -249,7 +310,43 @@ export const PatientVisitList = ({
     window.open(url, '_blank')
   }
 
+  const resetOpDefaultFilters = async () => {
+    const { dateFrom: from, dateTo: to } = getOpDefaultDateRange()
+    setDateFrom(from)
+    setDateTo(to)
+    setVisitIdFilter('')
+    setVisitQuery('')
+    setSelectedVisit(null)
+    setSelectedStatus('')
+    const practId = defaultPractitionerId
+    if (practId) {
+      setPractitionerFilter(practId)
+      try {
+        const options = await fetchHealthcarePractitioners()
+        const match = options.find((p) => p.name === practId)
+        if (match) {
+          setSelectedPractitioner(match)
+          setPractitionerQuery(match.label)
+        } else {
+          setSelectedPractitioner(null)
+          setPractitionerQuery(practId)
+        }
+      } catch {
+        setSelectedPractitioner(null)
+        setPractitionerQuery(practId)
+      }
+    } else {
+      setPractitionerFilter('')
+      setPractitionerQuery('')
+      setSelectedPractitioner(null)
+    }
+  }
+
   const handleClearFilters = () => {
+    if (shouldUseOpDefaults) {
+      void resetOpDefaultFilters()
+      return
+    }
     setVisitIdFilter('')
     setVisitQuery('')
     setSelectedVisit(null)
@@ -261,7 +358,16 @@ export const PatientVisitList = ({
     setSelectedStatus('')
   }
 
-  const hasActiveFilters = visitIdFilter || practitionerFilter || dateFrom || dateTo || selectedStatus
+  const todayStr = localDateISO()
+  const hasActiveFilters = shouldUseOpDefaults
+    ? Boolean(
+        visitIdFilter ||
+          selectedStatus ||
+          practitionerFilter !== (defaultPractitionerId || '') ||
+          dateFrom !== todayStr ||
+          dateTo !== todayStr,
+      )
+    : Boolean(visitIdFilter || practitionerFilter || dateFrom || dateTo || selectedStatus)
   const statuses = ['Open', 'Ordered', 'Completed', 'Cancelled']
   const inputClass = 'w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white'
 
@@ -326,6 +432,28 @@ export const PatientVisitList = ({
             <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
           </svg>
           Filtered by active visit: <span className="font-semibold ml-1">{effectiveVisitFilter}</span>
+        </div>
+      )}
+
+      {shouldUseOpDefaults && defaultsReady && !effectiveVisitFilter && (
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2 rounded-md bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs mb-2">
+          <span>
+            Showing <span className="font-semibold">today&apos;s</span> visits
+            {practitionerFilter && selectedPractitioner?.label
+              ? (
+                  <>
+                    {' '}for <span className="font-semibold">{selectedPractitioner.label}</span>
+                  </>
+                )
+              : practitionerFilter
+                ? (
+                    <>
+                      {' '}for <span className="font-semibold">{practitionerQuery || practitionerFilter}</span>
+                    </>
+                  )
+                : null}
+            . Change practitioner or dates in filters to widen the list.
+          </span>
         </div>
       )}
 

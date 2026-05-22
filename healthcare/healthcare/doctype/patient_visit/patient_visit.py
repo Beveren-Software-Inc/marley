@@ -17,6 +17,13 @@ from healthcare.healthcare.utils import get_medical_codes
 
 class PatientVisit(Document):
 	def validate(self):
+		if self.patient and self.is_new():
+			from healthcare.healthcare.doctype.patient_visit.open_visit_guard import (
+				ensure_patient_can_open_new_visit,
+			)
+
+			ensure_patient_can_open_new_visit(self.patient)
+
 		self.set_title()
 		self.validate_medications()
 		self.validate_therapies()

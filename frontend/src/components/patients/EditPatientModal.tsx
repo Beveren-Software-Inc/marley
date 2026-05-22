@@ -818,6 +818,15 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
           </div>
         </div>
 
+        {error && (
+          <div
+            className="shrink-0 px-6 py-3 bg-red-50 border-b border-red-200"
+            role="alert"
+          >
+            <p className="text-sm font-medium text-red-800">{error}</p>
+          </div>
+        )}
+
         {/* Form */}
         <form
           onSubmit={handleSubmit}
@@ -834,10 +843,6 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
           }}
         >
           <div className="overflow-y-auto p-6 space-y-4 text-slate-900" style={{ height: "520px" }}>
-            {error && (
-              <div className="bg-red-50 border border-red-200 rounded-md p-3 text-sm text-red-800">{error}</div>
-            )}
-
             {/* ── TAB: Patient Details ── */}
             {activeTab === 'details' && (
               <>

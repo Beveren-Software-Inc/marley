@@ -234,6 +234,38 @@ export async function uploadPatientFile(file: File): Promise<string> {
 
 export type CreatePatientResult = { name: string; patient_name: string; file_no: string; server_message?: string }
 
+export interface PatientDuplicateCheck {
+  duplicate: boolean
+  patient?: { name: string; patient_name?: string; file_no?: string }
+}
+
+/** Check full name + mobile before creating a patient (category is not used). */
+export async function checkPatientDuplicate(
+  patient_name: string,
+  mobile?: string,
+  phone?: string,
+): Promise<PatientDuplicateCheck> {
+  const params = new URLSearchParams()
+  params.append('patient_name', patient_name.trim())
+  if (mobile?.trim()) params.append('mobile', mobile.trim())
+  if (phone?.trim()) params.append('phone', phone.trim())
+
+  const response = await fetch(
+    `/api/method/healthcare.api.patient.check_patient_duplicate?${params}`,
+    { credentials: 'include' },
+  )
+  const resData = await response.json().catch(() => ({}))
+  if (!response.ok || resData?.exc) {
+    const msg = messageFromFrappeResponse(resData as Record<string, unknown>)
+    throw new Error(msg || `Duplicate check failed (${response.status})`)
+  }
+  const msg = resData?.message
+  if (msg && typeof msg === 'object') {
+    return msg as PatientDuplicateCheck
+  }
+  return { duplicate: false }
+}
+
 export async function fetchNextPatientFileNo(): Promise<string | null> {
   try {
     const response = await fetch('/api/method/healthcare.api.patient.get_next_patient_file_no')
