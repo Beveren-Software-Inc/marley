@@ -4,12 +4,31 @@
 
 import frappe
 from frappe import _
-from healthcare.api.utils.api_utility import get_next_transaction_number
 
 
 def allocate_warning_trans_id() -> str:
-	"""Next ``trans_id`` for Warning Message (same sequence as portal create_warning_message)."""
-	return get_next_transaction_number("Patient Medication Order", fieldname="trans_no")
+	"""Next ``trans_id`` for Warning Message (autoname ``field:trans_id`` → document name).
+
+	Uses only Warning Message rows (not Patient Medication Order). Considers both
+	``trans_id`` and ``name`` so legacy rows still advance the sequence correctly.
+	"""
+	integers: list[int] = []
+	for row in frappe.db.get_all(
+		"Warning Message",
+		fields=["name", "trans_id"],
+		limit_page_length=None,
+	):
+		for val in (row.get("trans_id"), row.get("name")):
+			if val is None:
+				continue
+			s = str(val).strip()
+			if s.isdigit():
+				integers.append(int(s))
+
+	if not integers:
+		return "1"
+
+	return str(max(integers) + 1)
 
 
 def insert_medical_warning_message(

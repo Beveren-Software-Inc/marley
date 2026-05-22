@@ -8,7 +8,22 @@ from frappe.utils import nowdate
 import json
 
 from healthcare.api.utils.api_utility import get_next_transaction_number
+from healthcare.healthcare.doctype.patient_visit.open_visit_guard import (
+	ensure_patient_can_open_new_visit,
+	get_open_patient_visits_for_patient,
+)
 
+
+@frappe.whitelist()
+def check_can_create_patient_visit(patient=None):
+	"""Portal: whether a new Patient Visit is allowed for this patient."""
+	if not patient:
+		return {"allowed": True, "open_visits": []}
+	open_visits = get_open_patient_visits_for_patient(patient)
+	return {
+		"allowed": not open_visits,
+		"open_visits": open_visits,
+	}
 
 
 @frappe.whitelist()
@@ -662,6 +677,9 @@ def create_patient_visit(data):
 	for field in required_fields:
 		if not data.get(field):
 			frappe.throw(_("{0} is required").format(field.replace("_", " ").title()))
+
+	ensure_patient_can_open_new_visit(data.get("patient"))
+
 	case_no = get_next_transaction_number('Patient Visit', fieldname='case_no')
 	visit_doc = frappe.get_doc({
 		"doctype": "Patient Visit",

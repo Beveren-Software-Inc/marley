@@ -207,6 +207,39 @@ export interface CreatePatientVisitData {
 }
 
 
+export interface OpenPatientVisitRow {
+  name: string
+  status?: string
+  encounter_date?: string
+  practitioner_name?: string
+}
+
+export interface CanCreatePatientVisitResult {
+  allowed: boolean
+  open_visits?: OpenPatientVisitRow[]
+}
+
+export async function checkCanCreatePatientVisit(
+  patient: string,
+): Promise<CanCreatePatientVisitResult> {
+  const params = new URLSearchParams({ patient })
+  const response = await fetch(
+    `/api/method/healthcare.api.patient_visit.check_can_create_patient_visit?${params}`,
+    { credentials: 'include' },
+  )
+  const resData = await response.json().catch(() => ({}))
+  if (!response.ok || resData?.exc) {
+    throw new Error(
+      (resData?.message as string) || resData?.exception || 'Could not check open visits',
+    )
+  }
+  const msg = resData?.message
+  if (msg && typeof msg === 'object') {
+    return msg as CanCreatePatientVisitResult
+  }
+  return { allowed: true, open_visits: [] }
+}
+
 export async function createPatientVisit(data: CreatePatientVisitData): Promise<PatientVisit> {
   // return await apiRequest<PatientVisit>('/api/method/healthcare.api.patient_visit.create_patient_visit', {
   //   method: 'POST',

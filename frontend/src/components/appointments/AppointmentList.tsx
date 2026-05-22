@@ -630,7 +630,7 @@
 // }
 
 
-import { useCardFilters } from '../../contexts/CardFilterContext'
+import { useCardFilters, useDashboardCompactClinical } from '../../contexts/CardFilterContext'
 import {
   CardRowMetaHint,
   dashboardCardRowHoverClass,
@@ -862,10 +862,11 @@ export const AppointmentList = ({
   const [showFiltersInternal, setShowFiltersInternal] = useState(false)
   const showFilters = cardFilters !== undefined ? cardFilters : showFiltersInternal
   const isInsideCard = cardFilters !== undefined
-  /** Reception / dashboard card: horizontal scroll instead of crushing columns. */
-  const cardHorizontalScroll = isInsideCard && !compact
-  /** Doctor dashboard with patient selected: date, status, ID + ⓘ for other fields. */
-  const doctorPatientCompact = compact && !!patient
+  const compactClinical = useDashboardCompactClinical()
+  /** Dashboard card tiles: date, status, patient (if none selected); details in ⓘ popover. */
+  const cardCompactLayout = compactClinical || (compact && isInsideCard)
+  /** Full table in card only when not using compact clinical layout (e.g. wide reception tile). */
+  const cardHorizontalScroll = isInsideCard && !cardCompactLayout
   const [filterStatus, setFilterStatus] = useState<string>('')
   const [filterPractitioner, setFilterPractitioner] = useState<string>('')
   const [filterDateFrom, setFilterDateFrom] = useState<string>('')
@@ -987,7 +988,7 @@ export const AppointmentList = ({
           return [...merged]
         })
 
-        if (!compact) {
+        if (!cardCompactLayout) {
           for (const apt of response.data) {
             if (apt.practitioner && apt.appointment_date && !practitionerAvailability[apt.name]) {
               setAvailabilityLoading(prev => ({ ...prev, [apt.name]: true }))
@@ -1009,7 +1010,7 @@ export const AppointmentList = ({
     }
     loadAppointments()
   }, [
-    refreshKey, showAll, compact, patient,
+    refreshKey, showAll, cardCompactLayout, patient,
     refreshTrigger, page, pageSize, filterStatus, filterPractitioner, filterDateFrom, filterDateTo, searchQuery,
   ])
 
@@ -1297,7 +1298,7 @@ export const AppointmentList = ({
           </div>
           
           {/* Practitioner filter when listing all appointments */}
-          {!compact && showAll && uniquePractitioners.length > 0 && (
+          {!cardCompactLayout && showAll && uniquePractitioners.length > 0 && (
             <div className="flex flex-col gap-1">
               <label className="text-xs font-medium text-slate-500">Practitioner</label>
               <select
@@ -1346,7 +1347,7 @@ export const AppointmentList = ({
           )}
 
           {/* Spacer + Bulk Reminder (full listing only) */}
-          {!compact && (
+          {!cardCompactLayout && (
           <>
           <div className="flex-1" />
           <div className="relative self-end" ref={bulkMenuRef}>
@@ -1400,11 +1401,9 @@ export const AppointmentList = ({
         <p className="text-xs text-slate-500">
           Showing {appointments.length} of {totalCount} appointment{totalCount !== 1 ? 's' : ''}
           {hasActiveFilters && ' (filtered)'}
-          {doctorPatientCompact
-            ? ' — hover ⓘ on a row for type, practitioner, and more; use ↗ for full list'
-            : compact
-              ? ' — use ↗ for full list with actions and more columns'
-              : ''}
+          {cardCompactLayout
+            ? ' — hover ⓘ for appointment ID, type, practitioner, and more; use ↗ for full list'
+            : ''}
         </p>
       </div>
       )}
@@ -1421,12 +1420,12 @@ export const AppointmentList = ({
         </div>
       ) : (
         <div className={cardHorizontalScroll ? 'inline-block min-w-full align-top' : 'min-w-full'}>
-          {doctorPatientCompact ? (
+          {cardCompactLayout ? (
             <table className="w-full table-fixed">
               <colgroup>
-                <col className="w-[38%]" />
-                <col className="w-[28%]" />
-                <col className="w-[34%]" />
+                <col className={patient ? 'w-[48%]' : 'w-[34%]'} />
+                <col className={patient ? 'w-[52%]' : 'w-[26%]'} />
+                {!patient && <col className="w-[40%]" />}
               </colgroup>
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
@@ -1436,9 +1435,11 @@ export const AppointmentList = ({
                   <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">
                     Status
                   </th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">
-                    ID
-                  </th>
+                  {!patient && (
+                    <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">
+                      Patient
+                    </th>
+                  )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
@@ -1461,9 +1462,29 @@ export const AppointmentList = ({
                         <span className="text-sm text-slate-500">-</span>
                       )}
                     </td>
-                    <td className="px-3 py-2.5 text-xs font-medium text-primary align-top truncate" title={apt.name}>
-                      {apt.name}
-                    </td>
+                    {!patient && (
+                      <td
+                        className="px-3 py-2.5 text-xs text-slate-700 align-top min-w-0"
+                        onClick={(e) => {
+                          if (apt.patient) {
+                            e.stopPropagation()
+                            onPatientClick?.(apt.patient)
+                          }
+                        }}
+                      >
+                        <span
+                          className={`block truncate ${apt.patient ? 'font-medium text-primary hover:underline' : ''}`}
+                          title={apt.patient_name || apt.patient || apt.temporary_patient_name || undefined}
+                        >
+                          {apt.patient_name || apt.patient || apt.temporary_patient_name || '—'}
+                          {isWalkInAppointment(apt) && (
+                            <span className="ml-1 inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 border border-amber-200">
+                              Walk-in
+                            </span>
+                          )}
+                        </span>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -1471,55 +1492,37 @@ export const AppointmentList = ({
           ) : (
           <table
             className={
-              compact
-                ? 'w-full table-fixed'
-                : cardHorizontalScroll
-                  ? 'w-max min-w-full table-auto'
-                  : 'w-full min-w-[960px] table-auto'
+              cardHorizontalScroll
+                ? 'w-max min-w-full table-auto'
+                : 'w-full min-w-[960px] table-auto'
             }
           >
-            {compact && !doctorPatientCompact && (
-              <colgroup>
-                <col className="w-[18%]" />
-                <col className="w-[22%]" />
-                {!patient && <col className="w-[24%]" />}
-                <col className={patient ? 'w-[18%]' : 'w-[14%]'} />
-                <col className={patient ? 'w-[42%]' : 'w-[22%]'} />
-              </colgroup>
-            )}
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
                 <th
-                  className={`px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap ${compact ? '' : cardHorizontalScroll ? 'min-w-[7.5rem]' : 'w-[7.5rem]'}`}
+                  className={`px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap ${cardHorizontalScroll ? 'min-w-[7.5rem]' : 'w-[7.5rem]'}`}
                 >
                   Appointment ID
                 </th>
                 <th
-                  className={`px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap ${compact ? '' : cardHorizontalScroll ? 'min-w-[9.5rem]' : 'w-[9.5rem]'}`}
+                  className={`px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap ${cardHorizontalScroll ? 'min-w-[9.5rem]' : 'w-[9.5rem]'}`}
                 >
                   Date & Time
                 </th>
                 {!patient && (
                   <th
-                    className={`px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap ${compact ? '' : cardHorizontalScroll ? 'min-w-[10rem]' : 'w-[28%] max-w-[220px]'}`}
+                    className={`px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap ${cardHorizontalScroll ? 'min-w-[10rem]' : 'w-[28%] max-w-[220px]'}`}
                   >
                     Patient
                   </th>
                 )}
-                {!compact && (
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap min-w-[6rem]">
-                    Type
-                  </th>
-                )}
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap min-w-[6rem]">
+                  Type
+                </th>
                 <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap min-w-[7rem]">
                   Status
                 </th>
-                {compact && (
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase">
-                    Practitioner
-                  </th>
-                )}
-                {!compact && showPractitionerColumn && (
+                {showPractitionerColumn && (
                   <>
                     <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap min-w-[8rem]">
                       Practitioner
@@ -1531,11 +1534,9 @@ export const AppointmentList = ({
                     )}
                   </>
                 )}
-                {!compact && (
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap w-[4.5rem] sticky right-0 bg-slate-50 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)]">
-                    Actions
-                  </th>
-                )}
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap w-[4.5rem] sticky right-0 bg-slate-50 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)]">
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
@@ -1549,12 +1550,11 @@ export const AppointmentList = ({
                 return (
                   <tr
                     key={apt.name}
-                    className={`group hover:bg-slate-50 ${compact ? 'cursor-pointer' : ''}`}
-                    onClick={compact ? () => setDetailApt(apt) : undefined}
+                    className="group hover:bg-slate-50"
                   >
                     <td
-                      className={`px-3 py-2.5 text-sm font-medium text-primary whitespace-nowrap ${compact && !cardHorizontalScroll ? 'truncate' : ''} ${compact ? '' : 'cursor-pointer hover:underline'}`}
-                      onClick={compact ? undefined : () => setDetailApt(apt)}
+                      className="px-3 py-2.5 text-sm font-medium text-primary whitespace-nowrap cursor-pointer hover:underline"
+                      onClick={() => setDetailApt(apt)}
                       title={apt.name}
                     >
                       {apt.name}
@@ -1582,25 +1582,13 @@ export const AppointmentList = ({
                         </span>
                       </td>
                     )}
-                    {!compact && (
-                      <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">{apt.appointment_type || '-'}</td>
-                    )}
+                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">{apt.appointment_type || '-'}</td>
                     <td className="px-3 py-2.5 whitespace-nowrap">
                       {apt.status
                         ? <StatusPill status={apt.status} color={getStatusColor(apt.status)} />
                         : <span className="text-sm text-slate-500">-</span>}
                     </td>
-                    {compact && (
-                      <td
-                        className="px-3 py-2.5 text-sm text-slate-700 min-w-0"
-                        title={apt.practitioner_name || apt.practitioner || undefined}
-                      >
-                        <span className="block truncate">
-                          {apt.practitioner_name || apt.practitioner || '-'}
-                        </span>
-                      </td>
-                    )}
-                    {!compact && showPractitionerColumn && (
+                    {showPractitionerColumn && (
                       <>
                         <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">{apt.practitioner_name || apt.practitioner || '-'}</td>
                         {showAll && (
@@ -1622,7 +1610,6 @@ export const AppointmentList = ({
                         )}
                       </>
                     )}
-                    {!compact && (
                     <td className={`px-3 py-2 align-middle ${cardHorizontalScroll ? 'sticky right-0 bg-white group-hover:bg-slate-50 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)]' : ''}`}>
                       <div className="relative" ref={openActionRow === apt.name ? menuRef : undefined}>
                         <button
@@ -1870,7 +1857,6 @@ export const AppointmentList = ({
                         </PortalActionsMenu>
                       </div>
                     </td>
-                    )}
                   </tr>
                 )
               })}

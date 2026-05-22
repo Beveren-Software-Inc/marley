@@ -37,6 +37,15 @@ class Patient(Document):
 		self.flags.is_new_doc = self.is_new()
 		self.flags.existing_customer = self.is_new() and bool(self.customer)
 
+		from healthcare.healthcare.doctype.patient.patient_duplicate import throw_if_duplicate_patient
+
+		throw_if_duplicate_patient(
+			self.patient_name,
+			mobile=self.mobile,
+			phone=self.phone,
+			exclude_name=self.name,
+		)
+
 	def before_insert(self):
 		self.set_missing_customer_details()
 

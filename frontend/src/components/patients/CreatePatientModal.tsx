@@ -6,7 +6,13 @@ import {
   CREATE_MODAL_OVERLAY,
   createModalShellClass,
 } from '../ui/CreateModalChrome'
-import { createPatient, uploadPatientFile, fetchNextPatientFileNo, type PatientDocumentRow } from '../../services/patients'
+import {
+  checkPatientDuplicate,
+  createPatient,
+  uploadPatientFile,
+  fetchNextPatientFileNo,
+  type PatientDocumentRow,
+} from '../../services/patients'
 import { fetchLeadSources, fetchNationalities, fetchCountries, fetchDocumentTypes, fetchHealthcareInsurance, fetchSalutations, fetchInsurancePatientRegisters, fetchPatientCategories, type LinkFieldOption, type InsurancePatientRegisterRow } from '../../services/common'
 import { CreateLeadSourceModal } from './CreateLeadSourceModal'
 import { CreateNationalityModal } from './CreateNationalityModal'
@@ -448,6 +454,21 @@ export const CreatePatientModal = ({ onClose, onSuccess, initialName, initialMob
       setLoading(true)
       setError(null)
 
+      const dupCheck = await checkPatientDuplicate(
+        (formData.patient_name || '').trim(),
+        formData.mobile,
+        formData.phone,
+      )
+      if (dupCheck.duplicate && dupCheck.patient) {
+        const label = dupCheck.patient.patient_name || dupCheck.patient.name
+        const fileNo = dupCheck.patient.file_no || dupCheck.patient.name
+        setError(
+          `A patient already exists with the same full name and mobile number: ${label} (File No: ${fileNo}). Open that record instead of creating a duplicate.`,
+        )
+        setActiveTab('details')
+        return
+      }
+
       const payload = {
         // Map full name into both patient_name and first_name for compatibility
         ...formData,
@@ -486,7 +507,10 @@ export const CreatePatientModal = ({ onClose, onSuccess, initialName, initialMob
       }
       onClose()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create patient')
+      const raw = err instanceof Error ? err.message : 'Failed to create patient'
+      setError(
+        raw.replace(/full name, patient category, and mobile number/gi, 'full name and mobile number'),
+      )
     } finally {
       setLoading(false)
     }
@@ -691,6 +715,15 @@ export const CreatePatientModal = ({ onClose, onSuccess, initialName, initialMob
             ))}
           </div>
         </div>
+
+        {error && (
+          <div
+            className="shrink-0 px-6 py-3 bg-red-50 border-b border-red-200"
+            role="alert"
+          >
+            <p className="text-sm font-medium text-red-800">{error}</p>
+          </div>
+        )}
 
         {/* Form */}
         <form
@@ -1362,12 +1395,6 @@ export const CreatePatientModal = ({ onClose, onSuccess, initialName, initialMob
                     Add document
                   </button>
                 </div>
-              </div>
-            )}
-
-            {error && (
-              <div className="bg-red-50 border border-red-200 rounded-md p-3 text-sm text-red-700">
-                {error}
               </div>
             )}
           </div>

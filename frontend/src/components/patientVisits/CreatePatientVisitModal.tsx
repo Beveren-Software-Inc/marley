@@ -6,7 +6,13 @@ import {
   createModalShellClass,
 } from '../ui/CreateModalChrome'
 import { searchPatients, fetchPatients, type PatientListItem, uploadPatientFile, type PatientDocumentRow } from '../../services/patients'
-import { fetchPatientVisitTypes, type PatientVisitTypeOption, createPatientVisit } from '../../services/patientVisits'
+import {
+  checkCanCreatePatientVisit,
+  fetchPatientVisitTypes,
+  type OpenPatientVisitRow,
+  type PatientVisitTypeOption,
+  createPatientVisit,
+} from '../../services/patientVisits'
 import { 
   fetchHealthcarePractitioners,
   fetchDocumentTypes,
@@ -194,6 +200,12 @@ export const CreatePatientVisitModal = ({
   const [loading, setLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [openVisits, setOpenVisits] = useState<OpenPatientVisitRow[]>([])
+  const [openVisitCheckLoading, setOpenVisitCheckLoading] = useState(false)
+  const createBlocked = openVisits.length > 0
+  const openVisitBlockMessage = createBlocked
+    ? `This patient already has an open visit. Complete it, mark External Referral, or cancel it before creating a new one.`
+    : null
   const [showCreatePatient, setShowCreatePatient] = useState(false)
   const [showCreatePractitioner, setShowCreatePractitioner] = useState(false)
 
@@ -327,6 +339,30 @@ export const CreatePatientVisitModal = ({
       }
     }).catch(() => setPatientQuery(initialPatient))
   }, [initialPatient])
+
+  useEffect(() => {
+    const patientId = selectedPatient?.name
+    if (!patientId) {
+      setOpenVisits([])
+      return
+    }
+    let cancelled = false
+    setOpenVisitCheckLoading(true)
+    checkCanCreatePatientVisit(patientId)
+      .then((result) => {
+        if (cancelled) return
+        setOpenVisits(result.allowed ? [] : result.open_visits || [])
+      })
+      .catch(() => {
+        if (!cancelled) setOpenVisits([])
+      })
+      .finally(() => {
+        if (!cancelled) setOpenVisitCheckLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [selectedPatient?.name])
 
   // Search/fetch patients
   useEffect(() => {
@@ -467,6 +503,11 @@ export const CreatePatientVisitModal = ({
       return
     }
 
+    if (createBlocked) {
+      setError(openVisitBlockMessage)
+      return
+    }
+
     if (!formData.practitioner) {
       setError('Please select a practitioner')
       return
@@ -537,6 +578,38 @@ export const CreatePatientVisitModal = ({
             ))}
           </div>
         </div>
+
+        {(openVisitCheckLoading || createBlocked) && (
+          <div
+            className={`shrink-0 px-6 py-3 border-b ${
+              createBlocked ? 'bg-amber-50 border-amber-200' : 'bg-slate-50 border-slate-200'
+            }`}
+            role="alert"
+          >
+            {openVisitCheckLoading ? (
+              <p className="text-sm text-slate-600">Checking for open visits…</p>
+            ) : (
+              <>
+                <p className="text-sm font-medium text-amber-900">{openVisitBlockMessage}</p>
+                <ul className="mt-2 space-y-1 text-xs text-amber-800">
+                  {openVisits.map((v) => (
+                    <li key={v.name}>
+                      <span className="font-semibold">{v.name}</span>
+                      {v.status ? ` — ${v.status}` : ''}
+                      {v.encounter_date ? ` (${v.encounter_date})` : ''}
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </div>
+        )}
+
+        {error && !createBlocked && (
+          <div className="shrink-0 px-6 py-3 bg-red-50 border-b border-red-200" role="alert">
+            <p className="text-sm font-medium text-red-800">{error}</p>
+          </div>
+        )}
 
         <form
           onSubmit={handleSubmit}
@@ -947,12 +1020,6 @@ export const CreatePatientVisitModal = ({
             </div>
           )}
 
-          {error && (
-            <div className="bg-red-50 border border-red-200 rounded-md p-3 text-sm text-red-700">
-              {error}
-            </div>
-          )}
-
           <div className="flex justify-end gap-3 pt-2">
             <button
               type="button"
@@ -963,8 +1030,9 @@ export const CreatePatientVisitModal = ({
             </button>
             <button
               type="submit"
-              disabled={submitting}
+              disabled={submitting || createBlocked || openVisitCheckLoading}
               className={CM_BTN_PRIMARY}
+              title={createBlocked ? openVisitBlockMessage ?? undefined : undefined}
             >
               {submitting ? 'Creating...' : 'Create Visit'}
             </button>

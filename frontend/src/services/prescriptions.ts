@@ -21,7 +21,7 @@ export interface Prescription {
   modified?: string
   modified_by?: string
   is_pink?: 0 | 1
- 
+  doctors_signature?: string
 }
 
 export interface PrescriptionFilters {
@@ -233,6 +233,8 @@ export interface CreatePrescriptionData {
   practitioner?: string
   medication_orders?: MedicationOrderRow[]
   after_discharge?: boolean
+  /** Attach URL from upload (maps to Patient Medication Order.doctors_signature). */
+  doctors_signature?: string
 }
 
 export type LongActingFrequency = 'Weekly' | 'Biweekly' | 'Monthly' | 'Every 2 Months' | 'Every 3 Months'
@@ -298,6 +300,9 @@ export async function createPrescription(
   }
   if (data.after_discharge) {
     body.after_discharge = true
+  }
+  if (data.doctors_signature) {
+    body.doctors_signature = data.doctors_signature
   }
   if (data.medication_orders && data.medication_orders.length > 0) {
     body.medication_orders = data.medication_orders.map((row) => ({

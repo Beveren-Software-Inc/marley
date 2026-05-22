@@ -312,12 +312,20 @@ export const PatientSearch = ({
       setSecondaryLoading(true)
       try {
         if (mode === 'OP') {
+          // Header visit picker: no date/practitioner limits — search any visit for this patient (or globally).
           const visitsResponse = await fetchPatientVisitsFull(
             selectedPatient || undefined,
-            secondaryQuery || undefined
+            secondaryQuery || undefined,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            50,
+            0,
           )
           setSecondaryResults(
-            visitsResponse.data.slice(0, 30).map((v) => ({
+            visitsResponse.data.slice(0, 50).map((v) => ({
               value: v.value,
               label: v.label,
               patient: v.patient,
@@ -639,9 +647,13 @@ export const PatientSearch = ({
                           ? mode === 'OP'
                             ? 'No visits match your search.'
                             : 'No admissions match your search.'
-                          : mode === 'OP'
-                            ? 'Type to search visits…'
-                            : 'Type to search admissions…'}
+                          : selectedPatient
+                            ? mode === 'OP'
+                              ? 'No visits found for this patient.'
+                              : 'No admissions found for this patient.'
+                            : mode === 'OP'
+                              ? 'Type to search visits…'
+                              : 'Type to search admissions…'}
                       </div>
                     )}
                   </div>

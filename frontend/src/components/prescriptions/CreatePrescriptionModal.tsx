@@ -3,7 +3,7 @@ import {
   CREATE_MODAL_OVERLAY,
   createModalShellClass,
 } from '../ui/CreateModalChrome'
-import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
+import { searchPatients, fetchPatients, uploadPatientFile, type PatientListItem } from '../../services/patients'
 import {
   fetchCompanies,
   resolveDefaultCompany,
@@ -34,7 +34,8 @@ import {
   isLongActingPrescriptionType,
   isPrnPrescriptionType,
 } from '../../utils/prescriptionType'
-import { X, Plus, Trash2, Pill, ChevronDown, ChevronUp } from 'lucide-react'
+import { X, Plus, Trash2, Pill, ChevronDown, ChevronUp, PenLine } from 'lucide-react'
+import { SignaturePad, attachFileDisplayUrl } from '../ui/SignaturePad'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { useBlockIfActiveCareClosed } from '../../hooks/useBlockIfActiveCareClosed'
 import {
@@ -57,7 +58,7 @@ interface CreatePrescriptionModalProps {
   prescriptionData?: Prescription | null
 }
 
-type TabId = 'details' | 'medications'
+type TabId = 'details' | 'medications' | 'signature'
 
 function addDays(dateStr: string, days: number): string {
   const d = new Date(dateStr)
@@ -307,6 +308,9 @@ export const CreatePrescriptionModal = ({
   const [createNurseTasks, setCreateNurseTasks] = useState(false)
   const [nurseTaskRows, setNurseTaskRows] = useState<Record<number, boolean>>({})
 
+  const [doctorsSignature, setDoctorsSignature] = useState<string | null>(null)
+  const [signatureUploading, setSignatureUploading] = useState(false)
+
   const isEditing = editMode
 
   const searchFrequencies = async (query: string) => {
@@ -454,6 +458,10 @@ export const CreatePrescriptionModal = ({
         })
         setDrugQueries(queries)
         setUomQueries(nextUomQueries)
+      }
+
+      if (prescriptionData.doctors_signature) {
+        setDoctorsSignature(prescriptionData.doctors_signature)
       }
     }
   }, [editMode, prescriptionData, formData.start_date])
@@ -656,6 +664,21 @@ export const CreatePrescriptionModal = ({
   const validMedications = medications
     .filter((m) => m.drug && m.dosage && m.dosage_form && m.date)
     .map((m) => ({ ...m, ...flagsFromPrescriptionType(m.medication_type) }))
+
+  const handleDoctorSignatureSave = async (file: File) => {
+    setSignatureUploading(true)
+    try {
+      const fileUrl = await uploadPatientFile(file)
+      if (!fileUrl) throw new Error('No URL returned from signature upload')
+      setDoctorsSignature(fileUrl)
+      toast.success('Signature saved')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Signature upload failed')
+    } finally {
+      setSignatureUploading(false)
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
@@ -700,6 +723,7 @@ export const CreatePrescriptionModal = ({
         if (formData.care_context === 'Inpatient Admission' && formData.inpatient_record) {
           payload.inpatient_record = formData.inpatient_record
         }
+        payload.doctors_signature = doctorsSignature || ''
 
         await updatePrescription(payload)
         toast.success('Prescription updated successfully')
@@ -717,6 +741,9 @@ export const CreatePrescriptionModal = ({
         }
         if (formData.care_context === 'Inpatient Admission' && formData.inpatient_record) {
           payload.inpatient_record = formData.inpatient_record
+        }
+        if (doctorsSignature) {
+          payload.doctors_signature = doctorsSignature
         }
 
         await createPrescription(payload)
@@ -790,18 +817,24 @@ export const CreatePrescriptionModal = ({
         </div>
 
         <div className="flex border-b border-slate-200 shrink-0 bg-slate-50">
-          {(['details', 'medications'] as TabId[]).map((tab) => (
+          {(['details', 'medications', 'signature'] as TabId[]).map((tab) => (
             <button
               key={tab}
               type="button"
               onClick={() => setActiveTab(tab)}
-              className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors capitalize ${
+              className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors ${
                 activeTab === tab
                   ? 'border-primary text-primary bg-white'
                   : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-100'
               }`}
             >
-              {tab === 'medications' ? `Medications (${validMedications.length})` : 'Details'}
+              {tab === 'medications'
+                ? `Medications (${validMedications.length})`
+                : tab === 'signature'
+                  ? doctorsSignature
+                    ? 'Signature ✓'
+                    : 'Signature'
+                  : 'Details'}
             </button>
           ))}
         </div>
@@ -1149,45 +1182,6 @@ export const CreatePrescriptionModal = ({
                             </div>
                           </div>
 
-                          <div className={`grid ${isIP ? 'grid-cols-2' : 'grid-cols-3'} gap-3`}>
-                            <div>
-                              <label className="block text-xs font-medium text-slate-600 mb-1">
-                                Start Date <span className="text-red-500">*</span>
-                              </label>
-                              <input
-                                type="date"
-                                value={row.date ?? formData.start_date}
-                                onChange={(e) => updateMedicationRow(index, 'date', e.target.value)}
-                                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-xs font-medium text-slate-600 mb-1">End Date</label>
-                              <input
-                                type="date"
-                                value={row.end_date ?? ''}
-                                onChange={(e) => updateMedicationRow(index, 'end_date', e.target.value)}
-                                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
-                              />
-                            </div>
-                            {!isIP && (
-                              <div>
-                                <label className="block text-xs font-medium text-slate-600 mb-1">Days</label>
-                                <input
-                                  type="number"
-                                  min={1}
-                                  step={1}
-                                  value={row.no_of_days ?? ''}
-                                  onChange={(e) => updateMedicationRow(index, 'no_of_days', e.target.value ? Number(e.target.value) : 1)}
-                                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
-                                />
-                              </div>
-                            )}
-                          </div>
-                          {!isIP && (
-                            <p className="text-[11px] text-slate-500">Start + End Date → Days; or Start Date + Days → End Date</p>
-                          )}
-
                           <div className="grid grid-cols-2 gap-3">
                             <div>
                               <label className="block text-xs font-medium text-slate-600 mb-1">Frequency</label>
@@ -1247,25 +1241,24 @@ export const CreatePrescriptionModal = ({
                             </div>
                           </div>
 
-                          <div>
-                            <label className="block text-xs font-medium text-slate-600 mb-1">
-                              Dosage Form <span className="text-red-500">*</span>
-                            </label>
-                            <select
-                              value={row.dosage_form}
-                              onChange={(e) => updateMedicationRow(index, 'dosage_form', e.target.value)}
-                              className="w-full max-w-md rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
-                            >
-                              <option value="">Select...</option>
-                              {dosageForms.map((df) => (
-                                <option key={df.name} value={df.name}>
-                                  {df.label || df.name}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-
-                          <div className="grid grid-cols-2 gap-4 max-w-xl">
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-xs font-medium text-slate-600 mb-1">
+                                Dosage Form <span className="text-red-500">*</span>
+                              </label>
+                              <select
+                                value={row.dosage_form}
+                                onChange={(e) => updateMedicationRow(index, 'dosage_form', e.target.value)}
+                                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+                              >
+                                <option value="">Select...</option>
+                                {dosageForms.map((df) => (
+                                  <option key={df.name} value={df.name}>
+                                    {df.label || df.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
                             <div>
                               <label className="block text-xs font-medium text-slate-600 mb-1">
                                 Prescription Type <span className="text-red-500">*</span>
@@ -1282,21 +1275,6 @@ export const CreatePrescriptionModal = ({
                                   </option>
                                 ))}
                               </select>
-                            </div>
-
-                            <div>
-                              <label className="block text-xs font-medium text-slate-600 mb-2">Is Pink</label>
-                              <div className="flex items-center">
-                                <label className="flex items-center gap-2 cursor-pointer">
-                                  <input
-                                    type="checkbox"
-                                    checked={!!row.is_pink}
-                                    onChange={(e) => updateMedicationRow(index, 'is_pink', e.target.checked)}
-                                    className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary"
-                                  />
-                                  <span className="text-sm text-slate-600">Yes</span>
-                                </label>
-                              </div>
                             </div>
                           </div>
 
@@ -1319,6 +1297,58 @@ export const CreatePrescriptionModal = ({
                               </p>
                             </div>
                           )}
+
+                          <div className={`grid ${isIP ? 'grid-cols-2' : 'grid-cols-3'} gap-3`}>
+                            <div>
+                              <label className="block text-xs font-medium text-slate-600 mb-1">
+                                Start Date <span className="text-red-500">*</span>
+                              </label>
+                              <input
+                                type="date"
+                                value={row.date ?? formData.start_date}
+                                onChange={(e) => updateMedicationRow(index, 'date', e.target.value)}
+                                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-slate-600 mb-1">End Date</label>
+                              <input
+                                type="date"
+                                value={row.end_date ?? ''}
+                                onChange={(e) => updateMedicationRow(index, 'end_date', e.target.value)}
+                                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+                              />
+                            </div>
+                            {!isIP && (
+                              <div>
+                                <label className="block text-xs font-medium text-slate-600 mb-1">Days</label>
+                                <input
+                                  type="number"
+                                  min={1}
+                                  step={1}
+                                  value={row.no_of_days ?? ''}
+                                  onChange={(e) => updateMedicationRow(index, 'no_of_days', e.target.value ? Number(e.target.value) : 1)}
+                                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+                                />
+                              </div>
+                            )}
+                          </div>
+                          {!isIP && (
+                            <p className="text-[11px] text-slate-500">Start + End Date → Days; or Start Date + Days → End Date</p>
+                          )}
+
+                          <div>
+                            <label className="block text-xs font-medium text-slate-600 mb-2">Is Pink</label>
+                            <label className="inline-flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={!!row.is_pink}
+                                onChange={(e) => updateMedicationRow(index, 'is_pink', e.target.checked)}
+                                className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary"
+                              />
+                              <span className="text-sm text-slate-600">Yes</span>
+                            </label>
+                          </div>
 
                           <div>
                             <label className="block text-xs font-medium text-slate-600 mb-1">Instructions</label>
@@ -1348,6 +1378,34 @@ export const CreatePrescriptionModal = ({
                       </button>
                     </div>
                   )}
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'signature' && (
+              <div className="space-y-4 max-w-lg">
+                <p className="text-sm text-slate-600">
+                  Capture the prescribing clinician&apos;s digital signature. It is saved to this
+                  prescription when you save.
+                </p>
+                <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-4">
+                  <div className="flex items-center gap-1.5 mb-3">
+                    <PenLine className="w-3.5 h-3.5 text-slate-400" />
+                    <span className="text-xs font-medium text-slate-600">Doctor&apos;s signature</span>
+                  </div>
+                  <SignaturePad
+                    onSave={handleDoctorSignatureSave}
+                    onClear={() => setDoctorsSignature(null)}
+                    existingUrl={attachFileDisplayUrl(doctorsSignature)}
+                    uploading={signatureUploading}
+                  />
+                  {signatureUploading && (
+                    <p className="text-xs text-slate-500 text-center mt-2">Uploading signature…</p>
+                  )}
+                  <p className="text-xs text-slate-400 leading-relaxed mt-3">
+                    Draw your signature, then tap <strong>Save signature</strong>. The image is stored on
+                    the Patient Medication Order.
+                  </p>
                 </div>
               </div>
             )}

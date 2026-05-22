@@ -197,6 +197,7 @@ def create_patient_medication_order(
 	practitioner=None,
 	medication_orders=None,
 	after_discharge=None,
+	doctors_signature=None,
 ):
 	"""Create a new Patient Medication Order (prescription) with optional medication rows.
 	medication_orders: list of dicts with keys: drug, dosage, no_of_days, dosage_form, instructions, date, time, patient_frequency, is_pink, reference_no.
@@ -257,6 +258,8 @@ def create_patient_medication_order(
 		doc.practitioner = practitioner
 	if after_discharge:
 		doc.after_discharge = 1
+	if doctors_signature:
+		doc.doctors_signature = doctors_signature
 	# Append medication rows
 	if medication_orders:
 		if isinstance(medication_orders, str):
@@ -796,6 +799,9 @@ def update_medication_order():
         doc.patient_encounter = data.get('patient_encounter')
     else:
         doc.inpatient_record = data.get('inpatient_record')
+
+    if 'doctors_signature' in data:
+        doc.doctors_signature = data.get('doctors_signature') or None
     
     # Clear and update medication orders
     doc.set('medication_orders', [])

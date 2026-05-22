@@ -173,6 +173,24 @@ def get_latest_inpatient_status(patient_names: list[str]) -> dict:
 	return {d.patient: d.status for d in data}
 
 @frappe.whitelist()
+def check_patient_duplicate(patient_name=None, mobile=None, phone=None, category=None):
+	"""Portal: check before create (full name + mobile; category is ignored)."""
+	from healthcare.healthcare.doctype.patient.patient_duplicate import find_duplicate_patient
+
+	dup = find_duplicate_patient(patient_name, mobile=mobile, phone=phone)
+	if not dup:
+		return {"duplicate": False}
+	return {
+		"duplicate": True,
+		"patient": {
+			"name": dup.get("name"),
+			"patient_name": dup.get("patient_name"),
+			"file_no": dup.get("file_no") or dup.get("name"),
+		},
+	}
+
+
+@frappe.whitelist()
 def get_next_patient_file_no():
 	"""Generate the next file number for a new Patient record."""
 	from healthcare.api.utils.api_utility import get_next_transaction_number
@@ -185,9 +203,16 @@ def create_patient(data):
 	if isinstance(data, str):
 		import json
 		data = json.loads(data)
-	print("Data received for patient creation:", data)
-	
 	_validate_patient_payload(data)
+
+	from healthcare.healthcare.doctype.patient.patient_duplicate import throw_if_duplicate_patient
+
+	throw_if_duplicate_patient(
+		data.get("patient_name") or data.get("first_name"),
+		mobile=data.get("mobile"),
+		phone=data.get("phone"),
+	)
+
 	patient = frappe.get_doc({
 		"doctype": "Patient",
 		"title": data.get("title") or None,

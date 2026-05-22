@@ -1104,7 +1104,7 @@ export const NursePage = () => {
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4 space-y-4">
           {/* Appointments Section */}
-          <DashboardCard title="Appointments" listingScreen="n-session">
+          <DashboardCard fixedHeight title="Appointments" listingScreen="n-session">
             <AppointmentList patient={selectedPatient} onPatientClick={handlePatientSelect} />
           </DashboardCard>
 
