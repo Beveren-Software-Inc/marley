@@ -34,8 +34,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Patient",
-   "options": "Patient",
-   "reqd": 1
+   "options": "Patient"
   },
   {
    "fetch_from": "patient.sex",
@@ -112,8 +111,7 @@
    "fieldname": "clinical_note_type",
    "fieldtype": "Link",
    "label": "Clinical Note Type",
-   "options": "Clinical Note Type",
-   "reqd": 1
+   "options": "Clinical Note Type"
   },
   {
    "fieldname": "terms_and_conditions",
@@ -126,8 +124,7 @@
    "fieldname": "medical_role",
    "fieldtype": "Link",
    "label": "Medical Role",
-   "options": "Medical Role",
-   "reqd": 1
+   "options": "Medical Role"
   },
   {
    "fieldname": "branch",
@@ -150,7 +147,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-02-23 12:54:22.659033",
+ "modified": "2026-05-24 09:42:48.653090",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Clinical Note",
