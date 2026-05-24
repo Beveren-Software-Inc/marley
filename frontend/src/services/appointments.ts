@@ -133,13 +133,17 @@ export async function createAppointment(data: CreateAppointmentData): Promise<Ap
   }
 }
 
+export interface UpdateAppointmentStatusResult {
+  patient_visit?: string
+}
+
 /** Update appointment status; optional `notes` appends to the appointment Notes field (e.g. reception arrival). */
 export async function updateAppointmentStatus(
   appointmentId: string,
   status: string,
   notes?: string,
   checkoutTime?: string
-): Promise<void> {
+): Promise<UpdateAppointmentStatusResult> {
   const csrf = (window as any).csrf_token
   const body: Record<string, string> = {
     appointment_id: appointmentId,
@@ -168,6 +172,10 @@ export async function updateAppointmentStatus(
   if (resData?.exc) {
     throw new Error(resData.exc_type ? `${resData.exc_type}: ${resData.exc}` : resData.exc)
   }
+  if (resData?.message && typeof resData.message === 'object') {
+    return resData.message as UpdateAppointmentStatusResult
+  }
+  return {}
 }
 
 /** Create Patient Visit from appointment; returns new Patient Visit name. */

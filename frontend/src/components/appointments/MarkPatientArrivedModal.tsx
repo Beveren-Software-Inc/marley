@@ -30,12 +30,16 @@ export const MarkPatientArrivedModal = ({
     setSaving(true)
     setError(null)
     try {
-      await updateAppointmentStatus(
+      const result = await updateAppointmentStatus(
         appointment.name,
         'Patient Arrived',
         notes.trim() || undefined
       )
-      toast.success('Patient marked as arrived')
+      if (result.patient_visit) {
+        toast.success(`Patient marked as arrived · visit ${result.patient_visit} created`)
+      } else {
+        toast.success('Patient marked as arrived')
+      }
       onSuccess()
       onClose()
     } catch (err) {

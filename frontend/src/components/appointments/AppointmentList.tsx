@@ -1129,6 +1129,15 @@ export const AppointmentList = ({
     window.open(getVitalSignsNewUrl(apt.patient, apt.name, apt.company), '_blank')
   }
 
+  const handleMarkPatientArrived = (apt: Appointment) => {
+    setOpenActionRow(null)
+    if (isWalkInAppointment(apt)) {
+      setRegisterWalkInTarget(apt)
+      return
+    }
+    setArrivedTarget(apt)
+  }
+
   const handleCreatePatientVisit = async (apt: Appointment) => {
     setOpenActionRow(null)
     if (!apt.patient) {
@@ -1643,16 +1652,6 @@ export const AppointmentList = ({
                               </div>
                               <button
                                 type="button"
-                                onClick={() => {
-                                  setOpenActionRow(null)
-                                  setRegisterWalkInTarget(apt)
-                                }}
-                                className="block w-full text-left px-3 py-2 text-sm text-primary font-medium hover:bg-primary/5"
-                              >
-                                Register patient
-                              </button>
-                              <button
-                                type="button"
                                 onClick={() => handleCreatePatientVisit(apt)}
                                 disabled={!apt.patient || actionLoading === apt.name}
                                 className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 disabled:opacity-50"
@@ -1662,13 +1661,10 @@ export const AppointmentList = ({
                               {canMarkPatientArrived(apt.status) && (
                                 <button
                                   type="button"
-                                  onClick={() => {
-                                    setOpenActionRow(null)
-                                    setArrivedTarget(apt)
-                                  }}
+                                  onClick={() => handleMarkPatientArrived(apt)}
                                   className="block w-full text-left px-3 py-2 text-sm text-emerald-800 hover:bg-emerald-50"
                                 >
-                                  Patient arrived
+                                  {isWalkInAppointment(apt) ? 'Register patient' : 'Patient arrived'}
                                 </button>
                               )}
                               {canMarkCheckedOut(apt.status) && (
@@ -1746,18 +1742,13 @@ export const AppointmentList = ({
                               Postpone
                             </button>
                           )}
-                          {showAll &&
-                            canMarkPatientArrived(apt.status) &&
-                            !(receptionWalkInActions && isWalkInAppointment(apt)) && (
+                          {showAll && canMarkPatientArrived(apt.status) && (
                               <button
                                 type="button"
-                                onClick={() => {
-                                  setOpenActionRow(null)
-                                  setArrivedTarget(apt)
-                                }}
+                                onClick={() => handleMarkPatientArrived(apt)}
                                 className="block w-full text-left px-3 py-2 text-sm text-emerald-800 hover:bg-emerald-50"
                               >
-                                Patient arrived
+                                {isWalkInAppointment(apt) ? 'Register patient' : 'Patient arrived'}
                               </button>
                             )}
                           {showAll &&
@@ -1991,7 +1982,7 @@ export const AppointmentList = ({
               receptionWalkInActions && canMarkPatientArrived(detailApt.status)
                 ? () => {
                     setDetailApt(null)
-                    setArrivedTarget(detailApt)
+                    handleMarkPatientArrived(detailApt)
                   }
                 : undefined
             }
