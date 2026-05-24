@@ -13,6 +13,7 @@
   "blood_group",
   "clinical_note_type",
   "terms_and_conditions",
+  "username",
   "column_break_jw2e",
   "posting_date",
   "practitioner",
@@ -143,11 +144,16 @@
    "fieldtype": "Dynamic Link",
    "label": "Reference Document",
    "options": "reference_doctype"
+  },
+  {
+   "fieldname": "username",
+   "fieldtype": "Data",
+   "label": "UserName"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-05-24 09:42:48.653090",
+ "modified": "2026-05-24 09:58:32.653056",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Clinical Note",
