@@ -136,7 +136,11 @@ class PatientVisit(Document):
 	def on_update(self):
 		self._track_insurance_visit()
 		if self.appointment:
-			frappe.db.set_value("Patient Appointment", self.appointment, "status", "Closed")
+			# Reception flow: appointment is already Patient Arrived / Checked In / Out — do not
+			# overwrite when the visit is first created from mark-arrived.
+			appt_status = frappe.db.get_value("Patient Appointment", self.appointment, "status")
+			if appt_status not in ("Patient Arrived", "Checked In", "Checked Out"):
+				frappe.db.set_value("Patient Appointment", self.appointment, "status", "Closed")
 
 	def on_submit(self):
 		if self.therapies:

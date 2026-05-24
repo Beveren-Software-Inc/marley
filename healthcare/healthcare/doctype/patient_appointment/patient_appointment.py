@@ -816,8 +816,13 @@ def update_status(appointment_id, status, notes=None, checkout_time=None):
 	result = {}
 	if status == "Patient Arrived":
 		patient = frappe.db.get_value("Patient Appointment", appointment_id, "patient")
-		if patient:
-			result["patient_visit"] = get_or_create_encounter_from_appointment(appointment_id)
+		if not patient:
+			frappe.throw(
+				_("Register the walk-in patient before marking as arrived."),
+				title=_("Registration required"),
+				exc=frappe.ValidationError,
+			)
+		result["patient_visit"] = get_or_create_encounter_from_appointment(appointment_id)
 
 	return result
 

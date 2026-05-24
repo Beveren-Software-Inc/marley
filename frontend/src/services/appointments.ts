@@ -178,9 +178,16 @@ export async function updateAppointmentStatus(
   return {}
 }
 
-/** Create Patient Visit from appointment; returns new Patient Visit name. */
+/** Appointment has no linked Patient record (walk-in or incomplete booking). */
+export function appointmentNeedsRegistration(
+  apt: Pick<Appointment, 'patient'>,
+): boolean {
+  return !apt.patient?.trim()
+}
+
+/** Walk-in booking: temporary name on file and no patient linked yet. */
 export function isWalkInAppointment(apt: Pick<Appointment, 'patient' | 'temporary_patient_name'>): boolean {
-  return !apt.patient && Boolean(apt.temporary_patient_name?.trim())
+  return appointmentNeedsRegistration(apt) && Boolean(apt.temporary_patient_name?.trim())
 }
 
 export async function linkWalkInAppointmentToPatient(
