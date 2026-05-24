@@ -24,6 +24,19 @@
   "reference_document",
   "note_section",
   "note",
+  "section_break_hpma",
+  "diagnosis_time",
+  "diagnosis_flag",
+  "column_break_vwvy",
+  "diagnosis_to",
+  "section_break_nwvq",
+  "cost_center",
+  "cr_id",
+  "cr_date",
+  "column_break_brfx",
+  "up_id",
+  "up_date",
+  "data_axun",
   "reference_section",
   "reference_doc",
   "reference_name"
@@ -149,11 +162,72 @@
    "fieldname": "username",
    "fieldtype": "Data",
    "label": "UserName"
+  },
+  {
+   "fieldname": "section_break_hpma",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "diagnosis_time",
+   "fieldtype": "Data",
+   "label": "Diagnosis Time"
+  },
+  {
+   "fieldname": "column_break_vwvy",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "diagnosis_to",
+   "fieldtype": "Data",
+   "label": "Diagnosis To"
+  },
+  {
+   "fieldname": "section_break_nwvq",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "cost_center",
+   "fieldtype": "Link",
+   "label": "Cost Center",
+   "options": "Cost Center"
+  },
+  {
+   "fieldname": "cr_id",
+   "fieldtype": "Data",
+   "label": "CR ID"
+  },
+  {
+   "fieldname": "cr_date",
+   "fieldtype": "Data",
+   "label": "CR Date"
+  },
+  {
+   "fieldname": "column_break_brfx",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "up_id",
+   "fieldtype": "Data",
+   "label": "UP ID"
+  },
+  {
+   "fieldname": "up_date",
+   "fieldtype": "Data",
+   "label": "UP Date"
+  },
+  {
+   "fieldname": "diagnosis_flag",
+   "fieldtype": "Data",
+   "label": "Diagnosis Flag"
+  },
+  {
+   "fieldname": "data_axun",
+   "fieldtype": "Data"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-05-24 09:58:32.653056",
+ "modified": "2026-05-24 15:29:49.171512",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Clinical Note",
