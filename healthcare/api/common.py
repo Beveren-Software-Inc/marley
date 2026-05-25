@@ -2360,34 +2360,43 @@ def get_main_nursing_notes(search=None, patient=None, admission=None, page=1, pa
 
 
 @frappe.whitelist()
+def get_next_main_nursing_note_trans_no():
+	"""Preview next trans_no for Main Nursing Note (same sequence helper as other doctypes)."""
+	return get_next_transaction_number("Main Nursing Note", fieldname="trans_no")
+
+
+@frappe.whitelist()
 def create_main_nursing_note(data):
 	"""Create a Main Nursing Note (portal — not Clinical Note)."""
 	try:
 		if isinstance(data, str):
 			data = frappe.parse_json(data)
+		data = data or {}
 
-		doc = frappe.new_doc("Main Nursing Note")
-		doc.trans_no = get_next_transaction_number("Main Nursing Note", fieldname="trans_no")
+		# trans_no is server-assigned only (autoname: field:trans_no)
+		data.pop("trans_no", None)
+		data.pop("name", None)
 
-		allowed_fields = (
-			"admission",
-			"file_no",
-			"patient_name",
-			"date",
-			"data",
-			"shift",
-			"nursing_notes",
-			"user",
-			"user_name",
-			"cost_center",
-			"admission_old_no",
+		trans_no = get_next_transaction_number("Main Nursing Note", fieldname="trans_no")
+
+		doc = frappe.get_doc(
+			{
+				"doctype": "Main Nursing Note",
+				"trans_no": trans_no,
+				"admission": data.get("admission"),
+				"file_no": data.get("file_no"),
+				"patient_name": data.get("patient_name"),
+				"date": data.get("date"),
+				"data": data.get("data"),
+				"shift": data.get("shift"),
+				"nursing_notes": data.get("nursing_notes"),
+				"user": data.get("user") or frappe.session.user,
+				"user_name": data.get("user_name"),
+				"cost_center": data.get("cost_center"),
+				"admission_old_no": data.get("admission_old_no"),
+			}
 		)
-		for field in allowed_fields:
-			if field in data and data[field] not in (None, ""):
-				doc.set(field, data[field])
 
-		if not doc.get("user"):
-			doc.user = frappe.session.user
 		if not doc.get("user_name") and doc.user:
 			doc.user_name = frappe.db.get_value("User", doc.user, "full_name") or doc.user
 
@@ -2398,7 +2407,9 @@ def create_main_nursing_note(data):
 			if admission_patient:
 				doc.file_no = admission_patient
 				if not doc.get("patient_name"):
-					doc.patient_name = frappe.db.get_value("Patient", admission_patient, "patient_name")
+					doc.patient_name = frappe.db.get_value(
+						"Patient", admission_patient, "patient_name"
+					)
 
 		doc.insert(ignore_permissions=True)
 		frappe.db.commit()

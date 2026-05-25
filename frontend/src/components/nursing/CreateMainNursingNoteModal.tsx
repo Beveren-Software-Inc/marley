@@ -5,7 +5,7 @@ import {
   CREATE_MODAL_OVERLAY,
   createModalShellClass,
 } from '../ui/CreateModalChrome'
-import { createMainNursingNote } from '../../services/mainNursingNote'
+import { createMainNursingNote, fetchNextMainNursingNoteTransNo } from '../../services/mainNursingNote'
 import {
   fetchCostCenters,
   fetchInpatientAdmissions,
@@ -29,6 +29,8 @@ export const CreateMainNursingNoteModal = ({
 
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [nextTransNo, setNextTransNo] = useState<string>('')
+  const [transNoLoading, setTransNoLoading] = useState(true)
 
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
   const [startTime, setStartTime] = useState(new Date().toTimeString().slice(0, 5))
@@ -51,6 +53,24 @@ export const CreateMainNursingNoteModal = ({
   const [ccOptions, setCcOptions] = useState<LinkFieldOption[]>([])
   const [ccOpen, setCcOpen] = useState(false)
   const [ccQuery, setCcQuery] = useState('')
+
+  useEffect(() => {
+    let cancelled = false
+    setTransNoLoading(true)
+    fetchNextMainNursingNoteTransNo()
+      .then((no) => {
+        if (!cancelled) setNextTransNo(no)
+      })
+      .catch(() => {
+        if (!cancelled) setNextTransNo('')
+      })
+      .finally(() => {
+        if (!cancelled) setTransNoLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     if (!patientProp) return
@@ -139,7 +159,14 @@ export const CreateMainNursingNoteModal = ({
       <div className={createModalShellClass('max-w-lg')}>
         <div className="px-5 py-4 border-b border-slate-200">
           <h2 className="text-lg font-semibold text-slate-900">Add Nursing Note</h2>
-          <p className="text-xs text-slate-500 mt-0.5">Saved to Main Nursing Note</p>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Saved to Main Nursing Note
+            {transNoLoading ? (
+              <span className="ml-1 text-slate-400">· assigning trans no…</span>
+            ) : nextTransNo ? (
+              <span className="ml-1 font-medium text-slate-700">· Trans no {nextTransNo}</span>
+            ) : null}
+          </p>
         </div>
 
         <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">

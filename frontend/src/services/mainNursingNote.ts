@@ -62,6 +62,15 @@ export async function fetchMainNursingNotes(
   return []
 }
 
+export async function fetchNextMainNursingNoteTransNo(): Promise<string> {
+  const res = await fetch(
+    '/api/method/healthcare.api.common.get_next_main_nursing_note_trans_no'
+  )
+  const data = await res.json()
+  const msg = data?.message
+  return typeof msg === 'string' ? msg : ''
+}
+
 export async function createMainNursingNote(
   input: CreateMainNursingNoteInput
 ): Promise<{ success: boolean; name?: string; trans_no?: string; message?: string }> {

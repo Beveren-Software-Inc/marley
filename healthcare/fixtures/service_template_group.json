@@ -2,6 +2,24 @@
  {
   "docstatus": 0,
   "doctype": "Service Template Group",
+  "group_abbreviation": null,
+  "modified": "2026-04-27 15:52:22.793030",
+  "name": "IP Service",
+  "service_template_group": "IP Service",
+  "sta_flg": 0
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Service Template Group",
+  "group_abbreviation": null,
+  "modified": "2026-04-27 15:52:30.737198",
+  "name": "OP Service",
+  "service_template_group": "OP Service",
+  "sta_flg": 0
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Service Template Group",
   "group_abbreviation": "IP",
   "modified": "2026-04-27 15:54:36.316630",
   "name": "IP Services",

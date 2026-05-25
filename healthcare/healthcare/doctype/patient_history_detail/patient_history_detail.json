@@ -8,7 +8,10 @@
  "field_order": [
   "attribute",
   "description",
-  "is_mendatory"
+  "is_mendatory",
+  "order_no",
+  "attrib_num",
+  "field_1"
  ],
  "fields": [
   {
@@ -32,13 +35,32 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Is mendatory"
+  },
+  {
+   "fieldname": "order_no",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Order No"
+  },
+  {
+   "fieldname": "attrib_num",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Attrib Num"
+  },
+  {
+   "fieldname": "field_1",
+   "fieldtype": "Small Text",
+   "label": "Field 1"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-05-18 17:40:34.127819",
+ "modified": "2026-05-25 17:20:03.189719",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient History Detail",
