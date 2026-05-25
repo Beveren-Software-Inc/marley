@@ -76,6 +76,7 @@ import { CreateYMRSAssessmentModal } from '../components/ymrs/CreateYMRSAssessme
 import { YMRSAssessmentList } from '../components/ymrs/YMRSAssessmentList'
 import { toast } from '../hooks/useToast'
 import { useIpDoctorRequirements } from '../hooks/useIpDoctorRequirements'
+import { useOpDoctorRequirements } from '../hooks/useOpDoctorRequirements'
 import { useCareContext } from '../providers/CareContextProvider'
 import { CreatePatientMedicalHistoryModal } from '../components/medicalHistory/CreatePatientMedicalHistoryModal'
 import { isDoctorScreenBlocked } from '../config/costCenterCareScope'
@@ -197,13 +198,28 @@ export const DoctorPage = () => {
   const [showCreateVisitModal, setShowCreateVisitModal] = useState(false)
 
   const showIpRequiredDocs = Boolean(selectedPatient && mode === 'IP' && activeAdmission)
+  const showOpRequiredDocs = Boolean(selectedPatient && mode === 'OP' && activeVisit)
   const ipDocsRefreshToken = `${suicideRiskRefreshKey}-${patientHistoryRefreshKey}-${medicalHistoryRefreshKey}`
+  const opDocsRefreshToken = String(medicalHistoryRefreshKey)
   const { status: ipDocStatus } = useIpDoctorRequirements(
     selectedPatient,
     activeAdmission,
     showIpRequiredDocs,
     ipDocsRefreshToken
   )
+  const { status: opDocStatus } = useOpDoctorRequirements(
+    selectedPatient,
+    activeVisit,
+    showOpRequiredDocs,
+    opDocsRefreshToken
+  )
+  const pmhRequiresAttention =
+    (showIpRequiredDocs && ipDocStatus !== null && !ipDocStatus.medical_history) ||
+    (showOpRequiredDocs && opDocStatus !== null && !opDocStatus.medical_history)
+  const pmhAttentionLabel =
+    mode === 'OP'
+      ? 'Required for this OP visit — add patient medical history'
+      : 'Required for this IP admission — add patient medical history'
 
   // Sync selectedPatient with URL on mount and when URL changes
   useEffect(() => {
@@ -1230,8 +1246,14 @@ export const DoctorPage = () => {
       <div className="flex flex-col">
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
-          <DashboardCard title="Past Medical History">
-            <MedicalHistoryView patient={selectedPatient} />
+          <DashboardCard
+            title="Past Medical History"
+            onAdd={() => guardClinicalCreate(() => setShowCreateMedicalHistoryModal(true))}
+            addButtonTitle="Add Past Medical History"
+            requiresAttention={pmhRequiresAttention}
+            attentionLabel={pmhAttentionLabel}
+          >
+            <MedicalHistoryView patient={selectedPatient} refreshKey={medicalHistoryRefreshKey} />
           </DashboardCard>
         </div>
       </div>
@@ -1822,8 +1844,8 @@ export const DoctorPage = () => {
             onAdd={() => guardClinicalCreate(() => setShowCreateMedicalHistoryModal(true))}
             addButtonTitle="Add Past Medical History"
             listingScreen="mh"
-            requiresAttention={showIpRequiredDocs && ipDocStatus !== null && !ipDocStatus.medical_history}
-            attentionLabel="Required for this IP admission — add patient medical history"
+            requiresAttention={pmhRequiresAttention}
+            attentionLabel={pmhAttentionLabel}
           >
             <MedicalHistoryView patient={selectedPatient} refreshKey={medicalHistoryRefreshKey} />
           </DashboardCard>
