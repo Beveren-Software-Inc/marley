@@ -6,16 +6,23 @@
 const key = (admissionName: string) => `discharge_draft_v1_${admissionName}`
 
 export interface DischargeSelectedOptions {
+  dischargeReceptionist?: { name: string; label: string } | null
+  dischargeDoctor?: { name: string; label: string } | null
+  dischargeNurse?: { name: string; label: string } | null
+  dischargeTemplate?: { name: string; label: string } | null
+  nurseTemplate?: { name: string; label: string } | null
+  dischargeReceptionistQuery?: string
+  dischargeDoctorQuery?: string
+  dischargeNurseQuery?: string
+  dischargeTemplateQuery?: string
+  nurseTemplateQuery?: string
+  /** @deprecated Legacy draft fields — ignored on load */
   dischargedBy?: { name: string; label: string } | null
   finalDischarge?: { name: string; label: string } | null
   receivingDoctor?: { name: string; label: string } | null
-  dischargeTemplate?: { name: string; label: string } | null
-  nurseTemplate?: { name: string; label: string } | null  // Add this
   dischargedByQuery?: string
   finalDischargeQuery?: string
   receivingDoctorsQuery?: string
-  dischargeTemplateQuery?: string
-  nurseTemplateQuery?: string  // Add this
 }
 
 export interface DischargeDraftData {

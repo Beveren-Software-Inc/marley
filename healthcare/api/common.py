@@ -153,6 +153,66 @@ def get_healthcare_practitioners(search=None, department=None):
 	return [{'name': p.name, 'label': p.practitioner_name or p.name, 'department': p.department, 'medical_role': p.medical_role} for p in practitioners]
 
 
+DISCHARGE_NURSE_MEDICAL_ROLE = "Nurse"
+
+
+def _practitioner_row_is_nurse(medical_role, parent_medical_role) -> bool:
+	"""True when Medical Role is Nurse or parent Medical Role is Nurse."""
+	role = (medical_role or "").strip()
+	parent = (parent_medical_role or "").strip()
+	return role == DISCHARGE_NURSE_MEDICAL_ROLE or parent == DISCHARGE_NURSE_MEDICAL_ROLE
+
+
+def _get_practitioners_for_discharge_role(search=None, *, nurses: bool):
+	"""Active practitioners filtered for discharge nurse vs doctor dropdowns."""
+	filters = {"status": "Active"}
+	or_filters = None
+	if search:
+		or_filters = {
+			"practitioner_name": ["like", f"%{search}%"],
+			"name": ["like", f"%{search}%"],
+		}
+
+	practitioners = frappe.get_all(
+		"Healthcare Practitioner",
+		filters=filters,
+		or_filters=or_filters,
+		fields=["name", "practitioner_name", "department", "medical_role", "parent_medical_role"],
+		limit=100,
+		order_by="practitioner_name",
+	)
+
+	rows = []
+	for p in practitioners:
+		is_nurse = _practitioner_row_is_nurse(p.medical_role, p.parent_medical_role)
+		if nurses and not is_nurse:
+			continue
+		if not nurses and is_nurse:
+			continue
+		rows.append(
+			{
+				"name": p.name,
+				"label": p.practitioner_name or p.name,
+				"department": p.department,
+				"medical_role": p.medical_role,
+				"parent_medical_role": p.parent_medical_role,
+			}
+		)
+	return rows
+
+
+@frappe.whitelist()
+def get_discharge_nurse_practitioners(search=None):
+	"""Healthcare Practitioners with Medical Role Nurse or parent Medical Role Nurse."""
+	return _get_practitioners_for_discharge_role(search, nurses=True)
+
+
+@frappe.whitelist()
+def get_discharge_doctor_practitioners(search=None):
+	"""Healthcare Practitioners who are not nurses (for Discharge Doctor)."""
+	return _get_practitioners_for_discharge_role(search, nurses=False)
+
+
 LAB_TECHNICIAN_MEDICAL_ROLES = ("Lab Technologist", "Lab Technician")
 
 

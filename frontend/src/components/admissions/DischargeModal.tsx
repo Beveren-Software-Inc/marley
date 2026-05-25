@@ -10,7 +10,18 @@ import {
   getDischargeTransferRows,
   type DischargeTransferRow,
 } from '../../services/medicineGiven'
-import { fetchHealthcarePractitioners, fetchUsers, fetchDischargeTemplates, fetchDischargeChecklist, fetchDepartments, fetchDocumentTypes, fetchNursingDischargeTemplates, type LinkFieldOption, fetchNursingDischargeChecklist } from '../../services/common'
+import {
+  fetchDischargeDoctorPractitioners,
+  fetchDischargeNursePractitioners,
+  fetchUsers,
+  fetchDischargeTemplates,
+  fetchDischargeChecklist,
+  fetchDepartments,
+  fetchDocumentTypes,
+  fetchNursingDischargeTemplates,
+  type LinkFieldOption,
+  fetchNursingDischargeChecklist,
+} from '../../services/common'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { CreatePrescriptionModal } from '../prescriptions/CreatePrescriptionModal'
 import { fetchDischargeTransferPrescriptions, fetchAfterDischargePrescriptions } from '../../services/prescriptions'
@@ -40,6 +51,9 @@ interface DischargePatientFormProps {
     name: string
     patient: string
     patient_name?: string
+    /** Practitioner who scheduled discharge — default for Discharge Doctor */
+    discharge_practitioner?: string
+    primary_practitioner?: string
   }
   onClose: () => void
   onSuccess: () => void
@@ -580,26 +594,26 @@ const [medicineSales, setMedicineSales] = useState<MedicineSalesData>({
 
   // Link field dropdowns
   const [dischargedByUsers, setDischargedByUsers] = useState<LinkFieldOption[]>([])
-  const [finalDischargeUsers, setFinalDischargeUsers] = useState<LinkFieldOption[]>([])
-  const [receivingDoctors, setReceivingDoctors] = useState<LinkFieldOption[]>([])
   const [dischargeTemplates, setDischargeTemplates] = useState<LinkFieldOption[]>([])
   const [nurseTemplateOptions, setNurseTemplateOptions] = useState<LinkFieldOption[]>([])
 
-  const [dischargedByOpen, setDischargedByOpen] = useState(false)
-  const [finalDischargeOpen, setFinalDischargeOpen] = useState(false)
-  const [receivingDoctorsOpen, setReceivingDoctorsOpen] = useState(false)
+  const [dischargeReceptionistOpen, setDischargeReceptionistOpen] = useState(false)
+  const [dischargeDoctorOpen, setDischargeDoctorOpen] = useState(false)
+  const [dischargeNurseOpen, setDischargeNurseOpen] = useState(false)
   const [dischargeTemplateOpen, setDischargeTemplateOpen] = useState(false)
   const [nurseTemplateOpen, setNurseTemplateOpen] = useState(false)
 
-  const [dischargedByQuery, setDischargedByQuery] = useState('')
-  const [finalDischargeQuery, setFinalDischargeQuery] = useState('')
-  const [receivingDoctorsQuery, setReceivingDoctorsQuery] = useState('')
+  const [dischargeReceptionistQuery, setDischargeReceptionistQuery] = useState('')
+  const [dischargeDoctorQuery, setDischargeDoctorQuery] = useState('')
+  const [dischargeNurseQuery, setDischargeNurseQuery] = useState('')
   const [dischargeTemplateQuery, setDischargeTemplateQuery] = useState('')
   const [nurseTemplateQuery, setNurseTemplateQuery] = useState('')
 
-  const [selectedDischargedBy, setSelectedDischargedBy] = useState<LinkFieldOption | null>(null)
-  const [selectedFinalDischarge, setSelectedFinalDischarge] = useState<LinkFieldOption | null>(null)
-  const [selectedReceivingDoctor, setSelectedReceivingDoctor] = useState<LinkFieldOption | null>(null)
+  const [dischargeDoctorOptions, setDischargeDoctorOptions] = useState<LinkFieldOption[]>([])
+  const [dischargeNurseOptions, setDischargeNurseOptions] = useState<LinkFieldOption[]>([])
+  const [selectedDischargeReceptionist, setSelectedDischargeReceptionist] = useState<LinkFieldOption | null>(null)
+  const [selectedDischargeDoctor, setSelectedDischargeDoctor] = useState<LinkFieldOption | null>(null)
+  const [selectedDischargeNurse, setSelectedDischargeNurse] = useState<LinkFieldOption | null>(null)
   const [selectedDischargeTemplate, setSelectedDischargeTemplate] = useState<LinkFieldOption | null>(null)
   const [selectedNurseTemplate, setSelectedNurseTemplate] = useState<LinkFieldOption | null>(null)
 
@@ -624,6 +638,9 @@ const [medicineSales, setMedicineSales] = useState<MedicineSalesData>({
     discharged_by_user: '',
     final_discharge_user_id: '',
     receiving_doctors: '',
+    discharge_receptionist: '',
+    discharge_doctor: '',
+    discharge_nurse: '',
     discharge_template: '',
     nurse_discharge_template: '',
     discharge_treatment_plan: '',
@@ -775,16 +792,17 @@ const loadDailyVisitSetup = async () => {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [users, doctors, templates, nurseTemplates, docTypes] = await Promise.all([
+        const [users, doctors, nurses, templates, nurseTemplates, docTypes] = await Promise.all([
           fetchUsers(),
-          fetchHealthcarePractitioners(),
+          fetchDischargeDoctorPractitioners(),
+          fetchDischargeNursePractitioners(),
           fetchDischargeTemplates(),
           fetchNursingDischargeTemplates(),
           fetchDocumentTypes(),
         ])
         setDischargedByUsers(users)
-        setFinalDischargeUsers(users)
-        setReceivingDoctors(doctors)
+        setDischargeDoctorOptions(doctors)
+        setDischargeNurseOptions(nurses)
         setDischargeTemplates(templates)
         setNurseTemplateOptions(nurseTemplates)
         setDocumentTypes(docTypes)
@@ -792,17 +810,40 @@ const loadDailyVisitSetup = async () => {
         const draft = loadDischargeDraft(admission.name)
         if (draft) {
           setFormData(prev => ({ ...prev, ...draft.formData }))
-          if (draft.selectedOptions.dischargedBy) {
-            setSelectedDischargedBy(draft.selectedOptions.dischargedBy)
-            setDischargedByQuery(draft.selectedOptions.dischargedByQuery || draft.selectedOptions.dischargedBy.label)
+          if (draft.selectedOptions.dischargeReceptionist) {
+            setSelectedDischargeReceptionist(draft.selectedOptions.dischargeReceptionist)
+            setDischargeReceptionistQuery(
+              draft.selectedOptions.dischargeReceptionistQuery || draft.selectedOptions.dischargeReceptionist.label
+            )
           }
-          if (draft.selectedOptions.finalDischarge) {
-            setSelectedFinalDischarge(draft.selectedOptions.finalDischarge)
-            setFinalDischargeQuery(draft.selectedOptions.finalDischargeQuery || draft.selectedOptions.finalDischarge.label)
+          if (draft.selectedOptions.dischargeDoctor) {
+            setSelectedDischargeDoctor(draft.selectedOptions.dischargeDoctor)
+            setDischargeDoctorQuery(
+              draft.selectedOptions.dischargeDoctorQuery || draft.selectedOptions.dischargeDoctor.label
+            )
+          } else if (draft.selectedOptions.receivingDoctor) {
+            setSelectedDischargeDoctor(draft.selectedOptions.receivingDoctor)
+            setDischargeDoctorQuery(
+              draft.selectedOptions.receivingDoctorsQuery || draft.selectedOptions.receivingDoctor.label
+            )
+            setFormData((prev) => ({
+              ...prev,
+              discharge_doctor: draft.selectedOptions.receivingDoctor?.name || prev.discharge_doctor,
+            }))
+          } else if (!draft.formData?.discharge_doctor) {
+            const defaultDoctorId = admission.discharge_practitioner || admission.primary_practitioner
+            const defaultDoctor = defaultDoctorId ? doctors.find((d) => d.name === defaultDoctorId) : null
+            if (defaultDoctor) {
+              setSelectedDischargeDoctor(defaultDoctor)
+              setDischargeDoctorQuery(defaultDoctor.label)
+              setFormData((prev) => ({ ...prev, discharge_doctor: defaultDoctor.name }))
+            }
           }
-          if (draft.selectedOptions.receivingDoctor) {
-            setSelectedReceivingDoctor(draft.selectedOptions.receivingDoctor)
-            setReceivingDoctorsQuery(draft.selectedOptions.receivingDoctorsQuery || draft.selectedOptions.receivingDoctor.label)
+          if (draft.selectedOptions.dischargeNurse) {
+            setSelectedDischargeNurse(draft.selectedOptions.dischargeNurse)
+            setDischargeNurseQuery(
+              draft.selectedOptions.dischargeNurseQuery || draft.selectedOptions.dischargeNurse.label
+            )
           }
           if (draft.selectedOptions.dischargeTemplate) {
             setSelectedDischargeTemplate(draft.selectedOptions.dischargeTemplate)
@@ -841,6 +882,16 @@ const loadDailyVisitSetup = async () => {
           setSelectedDischargeTemplate(defaultTemplate)
           setFormData(prev => ({ ...prev, discharge_template: defaultTemplate.name }))
           setDischargeTemplateQuery(defaultTemplate.label)
+        }
+
+        const defaultDoctorId = admission.discharge_practitioner || admission.primary_practitioner
+        if (defaultDoctorId) {
+          const defaultDoctor = doctors.find((d) => d.name === defaultDoctorId)
+          if (defaultDoctor) {
+            setSelectedDischargeDoctor(defaultDoctor)
+            setDischargeDoctorQuery(defaultDoctor.label)
+            setFormData((prev) => ({ ...prev, discharge_doctor: defaultDoctor.name }))
+          }
         }
 
         try {
@@ -975,34 +1026,46 @@ const loadDailyVisitSetup = async () => {
 
   // Search effects
   useEffect(() => {
-    if (!dischargedByOpen) return
+    if (!dischargeReceptionistOpen) return
     const search = async () => {
-      try { const results = await fetchUsers(dischargedByQuery); setDischargedByUsers(results) }
-      catch { setDischargedByUsers([]) }
+      try {
+        const results = await fetchUsers(dischargeReceptionistQuery)
+        setDischargedByUsers(results)
+      } catch {
+        setDischargedByUsers([])
+      }
     }
-    const id = setTimeout(search, dischargedByQuery.trim() === '' ? 0 : 300)
+    const id = setTimeout(search, dischargeReceptionistQuery.trim() === '' ? 0 : 300)
     return () => clearTimeout(id)
-  }, [dischargedByQuery, dischargedByOpen])
+  }, [dischargeReceptionistQuery, dischargeReceptionistOpen])
 
   useEffect(() => {
-    if (!finalDischargeOpen) return
+    if (!dischargeDoctorOpen) return
     const search = async () => {
-      try { const results = await fetchUsers(finalDischargeQuery); setFinalDischargeUsers(results) }
-      catch { setFinalDischargeUsers([]) }
+      try {
+        const results = await fetchDischargeDoctorPractitioners(dischargeDoctorQuery)
+        setDischargeDoctorOptions(results)
+      } catch {
+        setDischargeDoctorOptions([])
+      }
     }
-    const id = setTimeout(search, finalDischargeQuery.trim() === '' ? 0 : 300)
+    const id = setTimeout(search, dischargeDoctorQuery.trim() === '' ? 0 : 300)
     return () => clearTimeout(id)
-  }, [finalDischargeQuery, finalDischargeOpen])
+  }, [dischargeDoctorQuery, dischargeDoctorOpen])
 
   useEffect(() => {
-    if (!receivingDoctorsOpen) return
+    if (!dischargeNurseOpen) return
     const search = async () => {
-      try { const results = await fetchHealthcarePractitioners(receivingDoctorsQuery); setReceivingDoctors(results) }
-      catch { setReceivingDoctors([]) }
+      try {
+        const results = await fetchDischargeNursePractitioners(dischargeNurseQuery)
+        setDischargeNurseOptions(results)
+      } catch {
+        setDischargeNurseOptions([])
+      }
     }
-    const id = setTimeout(search, receivingDoctorsQuery.trim() === '' ? 0 : 300)
+    const id = setTimeout(search, dischargeNurseQuery.trim() === '' ? 0 : 300)
     return () => clearTimeout(id)
-  }, [receivingDoctorsQuery, receivingDoctorsOpen])
+  }, [dischargeNurseQuery, dischargeNurseOpen])
 
   useEffect(() => {
     if (!dischargeTemplateOpen) return
@@ -1146,9 +1209,9 @@ const loadDailyVisitSetup = async () => {
   const nurseAllCompleted = nurseTotalItems > 0 && nurseCompletedItems === nurseTotalItems
 
   const closeAllDropdowns = () => {
-    setDischargedByOpen(false)
-    setFinalDischargeOpen(false)
-    setReceivingDoctorsOpen(false)
+    setDischargeReceptionistOpen(false)
+    setDischargeDoctorOpen(false)
+    setDischargeNurseOpen(false)
     setDischargeTemplateOpen(false)
     setNurseTemplateOpen(false)
   }
@@ -1230,14 +1293,14 @@ const loadDailyVisitSetup = async () => {
     saveDischargeDraft(admission.name, {
       formData,
       selectedOptions: {
-        dischargedBy: selectedDischargedBy,
-        finalDischarge: selectedFinalDischarge,
-        receivingDoctor: selectedReceivingDoctor,
+        dischargeReceptionist: selectedDischargeReceptionist,
+        dischargeDoctor: selectedDischargeDoctor,
+        dischargeNurse: selectedDischargeNurse,
         dischargeTemplate: selectedDischargeTemplate,
         nurseTemplate: selectedNurseTemplate,
-        dischargedByQuery,
-        finalDischargeQuery,
-        receivingDoctorsQuery,
+        dischargeReceptionistQuery,
+        dischargeDoctorQuery,
+        dischargeNurseQuery,
         dischargeTemplateQuery,
         nurseTemplateQuery,
       },
@@ -1709,24 +1772,36 @@ const loadDailyVisitSetup = async () => {
 
               <section>
                 <h3 className="text-sm font-semibold text-slate-700 mb-3">Discharged By</h3>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="relative dropdown-container">
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Discharged By User</label>
-                    <input type="text" value={selectedDischargedBy ? selectedDischargedBy.label : dischargedByQuery}
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Discharge Receptionist</label>
+                    <input
+                      type="text"
+                      value={selectedDischargeReceptionist ? selectedDischargeReceptionist.label : dischargeReceptionistQuery}
                       onChange={(e) => {
-                        setSelectedDischargedBy(null)
-                        setFormData(prev => ({ ...prev, discharged_by_user: '' }))
-                        setDischargedByQuery(e.target.value)
-                        setDischargedByOpen(true)
+                        setSelectedDischargeReceptionist(null)
+                        setFormData((prev) => ({ ...prev, discharge_receptionist: '' }))
+                        setDischargeReceptionistQuery(e.target.value)
+                        setDischargeReceptionistOpen(true)
                       }}
-                      onFocus={() => setDischargedByOpen(true)}
+                      onFocus={() => setDischargeReceptionistOpen(true)}
                       placeholder="Search user..."
-                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-                    {dischargedByOpen && dischargedByUsers.length > 0 && (
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                    {dischargeReceptionistOpen && dischargedByUsers.length > 0 && (
                       <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-auto">
-                        {dischargedByUsers.map(user => (
-                          <button key={user.name} type="button" className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50"
-                            onClick={() => { setSelectedDischargedBy(user); setFormData({ ...formData, discharged_by_user: user.name }); setDischargedByQuery(user.label); setDischargedByOpen(false) }}>
+                        {dischargedByUsers.map((user) => (
+                          <button
+                            key={user.name}
+                            type="button"
+                            className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50"
+                            onClick={() => {
+                              setSelectedDischargeReceptionist(user)
+                              setFormData((prev) => ({ ...prev, discharge_receptionist: user.name }))
+                              setDischargeReceptionistQuery(user.label)
+                              setDischargeReceptionistOpen(false)
+                            }}
+                          >
                             {user.label}
                           </button>
                         ))}
@@ -1735,54 +1810,89 @@ const loadDailyVisitSetup = async () => {
                   </div>
 
                   <div className="relative dropdown-container">
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Final Discharge User</label>
-                    <input type="text" value={selectedFinalDischarge ? selectedFinalDischarge.label : finalDischargeQuery}
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Discharge Doctor</label>
+                    <input
+                      type="text"
+                      value={selectedDischargeDoctor ? selectedDischargeDoctor.label : dischargeDoctorQuery}
                       onChange={(e) => {
-                        setSelectedFinalDischarge(null)
-                        setFormData(prev => ({ ...prev, final_discharge_user_id: '' }))
-                        setFinalDischargeQuery(e.target.value)
-                        setFinalDischargeOpen(true)
+                        setSelectedDischargeDoctor(null)
+                        setFormData((prev) => ({ ...prev, discharge_doctor: '' }))
+                        setDischargeDoctorQuery(e.target.value)
+                        setDischargeDoctorOpen(true)
                       }}
-                      onFocus={() => setFinalDischargeOpen(true)}
-                      placeholder="Search user..."
-                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-                    {finalDischargeOpen && finalDischargeUsers.length > 0 && (
+                      onFocus={() => setDischargeDoctorOpen(true)}
+                      placeholder="Search practitioner..."
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                    {dischargeDoctorOpen && dischargeDoctorOptions.length > 0 && (
                       <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-auto">
-                        {finalDischargeUsers.map(user => (
-                          <button key={user.name} type="button" className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50"
-                            onClick={() => { setSelectedFinalDischarge(user); setFormData({ ...formData, final_discharge_user_id: user.name }); setFinalDischargeQuery(user.label); setFinalDischargeOpen(false) }}>
-                            {user.label}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="relative dropdown-container">
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Receiving Doctors</label>
-                    <input type="text" value={selectedReceivingDoctor ? selectedReceivingDoctor.label : receivingDoctorsQuery}
-                      onChange={(e) => {
-                        setSelectedReceivingDoctor(null)
-                        setFormData(prev => ({ ...prev, receiving_doctors: '' }))
-                        setReceivingDoctorsQuery(e.target.value)
-                        setReceivingDoctorsOpen(true)
-                      }}
-                      onFocus={() => setReceivingDoctorsOpen(true)}
-                      placeholder="Search healthcare practitioner..."
-                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-                    {receivingDoctorsOpen && receivingDoctors.length > 0 && (
-                      <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-auto">
-                        {receivingDoctors.map(doctor => (
-                          <button key={doctor.name} type="button" className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50"
-                            onClick={() => { setSelectedReceivingDoctor(doctor); setFormData({ ...formData, receiving_doctors: doctor.name }); setReceivingDoctorsQuery(doctor.label); setReceivingDoctorsOpen(false) }}>
+                        {dischargeDoctorOptions.map((doctor) => (
+                          <button
+                            key={doctor.name}
+                            type="button"
+                            className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50"
+                            onClick={() => {
+                              setSelectedDischargeDoctor(doctor)
+                              setFormData((prev) => ({ ...prev, discharge_doctor: doctor.name }))
+                              setDischargeDoctorQuery(doctor.label)
+                              setDischargeDoctorOpen(false)
+                            }}
+                          >
                             <div className="font-medium">{doctor.label}</div>
                             {doctor.department && <div className="text-xs text-slate-500">{doctor.department}</div>}
                           </button>
                         ))}
                       </div>
                     )}
+                    {admission.discharge_practitioner && (
+                      <p className="text-xs text-slate-500 mt-1">
+                        Defaults to practitioner who scheduled discharge.
+                      </p>
+                    )}
                   </div>
 
+                  <div className="relative dropdown-container">
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Discharge Nurse</label>
+                    <input
+                      type="text"
+                      value={selectedDischargeNurse ? selectedDischargeNurse.label : dischargeNurseQuery}
+                      onChange={(e) => {
+                        setSelectedDischargeNurse(null)
+                        setFormData((prev) => ({ ...prev, discharge_nurse: '' }))
+                        setDischargeNurseQuery(e.target.value)
+                        setDischargeNurseOpen(true)
+                      }}
+                      onFocus={() => setDischargeNurseOpen(true)}
+                      placeholder="Search practitioner..."
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                    {dischargeNurseOpen && dischargeNurseOptions.length > 0 && (
+                      <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-auto">
+                        {dischargeNurseOptions.map((nurse) => (
+                          <button
+                            key={nurse.name}
+                            type="button"
+                            className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50"
+                            onClick={() => {
+                              setSelectedDischargeNurse(nurse)
+                              setFormData((prev) => ({ ...prev, discharge_nurse: nurse.name }))
+                              setDischargeNurseQuery(nurse.label)
+                              setDischargeNurseOpen(false)
+                            }}
+                          >
+                            <div className="font-medium">{nurse.label}</div>
+                            {nurse.department && <div className="text-xs text-slate-500">{nurse.department}</div>}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </section>
+
+              <section>
+                <h3 className="text-sm font-semibold text-slate-700 mb-3">Discharge Templates</h3>
+                <div className="grid grid-cols-2 gap-4">
                   <div className="relative dropdown-container">
                     <label className="block text-sm font-medium text-slate-700 mb-1">Discharge Template</label>
                     <input type="text" value={selectedDischargeTemplate ? selectedDischargeTemplate.label : dischargeTemplateQuery}

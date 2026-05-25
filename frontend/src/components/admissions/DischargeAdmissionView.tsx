@@ -24,6 +24,8 @@ export const DischargeAdmissionView = ({
     name: string
     patient: string
     patient_name?: string
+    discharge_practitioner?: string
+    primary_practitioner?: string
   } | null>(null)
 
   useEffect(() => {
@@ -38,6 +40,8 @@ export const DischargeAdmissionView = ({
           name: record.name,
           patient: record.patient,
           patient_name: record.patient_name,
+          discharge_practitioner: record.discharge_practitioner,
+          primary_practitioner: record.primary_practitioner,
         })
       } catch (err) {
         if (cancelled) return

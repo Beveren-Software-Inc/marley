@@ -125,6 +125,32 @@ export async function fetchHealthcarePractitioners(search?: string, department?:
   }
 }
 
+/** Discharge form: practitioners with Medical Role Nurse or parent Medical Role Nurse. */
+export async function fetchDischargeNursePractitioners(search?: string): Promise<LinkFieldOption[]> {
+  const params = new URLSearchParams()
+  if (search) params.append('search', search)
+  const url = `/api/method/healthcare.api.common.get_discharge_nurse_practitioners${params.toString() ? `?${params.toString()}` : ''}`
+  const response = await fetch(url)
+  const resData = await response.json()
+  if (resData?.message && Array.isArray(resData.message)) {
+    return resData.message as LinkFieldOption[]
+  }
+  return []
+}
+
+/** Discharge form: practitioners who are not nurses. */
+export async function fetchDischargeDoctorPractitioners(search?: string): Promise<LinkFieldOption[]> {
+  const params = new URLSearchParams()
+  if (search) params.append('search', search)
+  const url = `/api/method/healthcare.api.common.get_discharge_doctor_practitioners${params.toString() ? `?${params.toString()}` : ''}`
+  const response = await fetch(url)
+  const resData = await response.json()
+  if (resData?.message && Array.isArray(resData.message)) {
+    return resData.message as LinkFieldOption[]
+  }
+  return []
+}
+
 /** Practitioners with Medical Role Lab Technologist or Lab Technician (active only). */
 export async function fetchLabTechnicianPractitioners(search?: string): Promise<LinkFieldOption[]> {
   const params = new URLSearchParams()

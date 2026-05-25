@@ -37,6 +37,9 @@
   "final_discharger_username",
   "prescription",
   "discharge_consultation_doc_no",
+  "discharge_receptionist",
+  "discharge_doctor",
+  "discharge_nurse",
   "section_break_tleb",
   "discharge_date",
   "discharge_time",
@@ -591,13 +594,31 @@
    "ignore_user_permissions": 1,
    "label": "WhatsApp Template",
    "options": "Digital Whatsapp Template"
+  },
+  {
+   "fieldname": "discharge_doctor",
+   "fieldtype": "Link",
+   "label": "Discharge Doctor",
+   "options": "Healthcare Practitioner"
+  },
+  {
+   "fieldname": "discharge_nurse",
+   "fieldtype": "Link",
+   "label": "Discharge Nurse",
+   "options": "Healthcare Practitioner"
+  },
+  {
+   "fieldname": "discharge_receptionist",
+   "fieldtype": "Link",
+   "label": "Discharge Receptionist",
+   "options": "User"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-05-14 11:43:40.472380",
+ "modified": "2026-05-25 11:52:01.628762",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Discharge",
