@@ -42,15 +42,25 @@ def _release_lock(job: str) -> None:
 	frappe.cache().delete_value(_job_lock_key(job))
 
 
-def _set_progress(job: str, processed: int, *, done: bool = False, error: str | None = None) -> None:
+def _set_progress(
+	job: str,
+	processed: int,
+	*,
+	done: bool = False,
+	error: str | None = None,
+	**extra,
+) -> None:
+	payload = {
+		"processed": processed,
+		"done": done,
+		"error": error,
+		"updated_at": str(now_datetime()),
+	}
+	if extra:
+		payload.update(extra)
 	frappe.cache().set_value(
 		_job_progress_key(job),
-		{
-			"processed": processed,
-			"done": done,
-			"error": error,
-			"updated_at": str(now_datetime()),
-		},
+		payload,
 		expires_in_sec=JOB_LOCK_SECONDS,
 	)
 
@@ -204,6 +214,59 @@ def get_migration_job_status(job: str) -> dict:
 	progress = frappe.cache().get_value(_job_progress_key(job)) or {}
 	running = bool(frappe.cache().get_value(_job_lock_key(job)))
 	return {"running": running, **progress}
+
+
+def _patient_history_import_admissions_cache_key() -> str:
+	return "healthcare:data_migration:patient_history_import:admissions"
+
+
+def _patient_history_import_grouped_cache_key() -> str:
+	return "healthcare:data_migration:patient_history_import:grouped"
+
+
+@frappe.whitelist()
+def start_patient_history_import_migration() -> dict:
+	_require_admin()
+	from healthcare.api.patient_history_import import (
+		_default_template_name,
+		_fetch_import_rows,
+		_group_rows_by_import_key,
+	)
+
+	_acquire_lock("patient_history_import")
+	rows = _fetch_import_rows()
+	by_admission, unresolved = _group_rows_by_import_key(rows)
+	admission_keys = sorted(by_admission.keys())
+	frappe.cache().set_value(
+		_patient_history_import_admissions_cache_key(),
+		admission_keys,
+		expires_in_sec=JOB_LOCK_SECONDS,
+	)
+	frappe.cache().set_value(
+		_patient_history_import_grouped_cache_key(),
+		by_admission,
+		expires_in_sec=JOB_LOCK_SECONDS,
+	)
+	_set_progress(
+		"patient_history_import",
+		0,
+		total_admissions=len(admission_keys),
+		unresolved_rows=len(unresolved),
+		template=_default_template_name(),
+	)
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_patient_history_import_batch",
+		offset=0,
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_patient_history_import",
+	)
+	return {
+		"ok": True,
+		"message": _(
+			"Patient History import started in the background ({0} admissions, {1} unresolved rows)."
+		).format(len(admission_keys), len(unresolved)),
+	}
 
 
 # ── Batch workers ─────────────────────────────────────────────────────────────
@@ -619,4 +682,63 @@ def process_discharge_submit_batch(offset: int = 0) -> None:
 		_set_progress("discharges", cint(offset), done=True, error=frappe.get_traceback())
 		_release_lock("discharges")
 		_clear_failed_discharges()
+		raise
+
+
+def process_patient_history_import_batch(offset: int = 0) -> None:
+	from healthcare.api.patient_history_import import (
+		_default_template_name,
+		run_patient_history_import_batch,
+	)
+
+	job = "patient_history_import"
+	try:
+		admission_keys = frappe.cache().get_value(
+			_patient_history_import_admissions_cache_key()
+		)
+		if admission_keys is None:
+			_set_progress(job, cint(offset), done=True, error="missing admission list cache")
+			_release_lock(job)
+			return
+
+		by_admission = frappe.cache().get_value(
+			_patient_history_import_grouped_cache_key()
+		)
+		result = run_patient_history_import_batch(
+			offset=offset,
+			template_name=_default_template_name(),
+			admission_keys=admission_keys,
+			by_admission=by_admission,
+		)
+		processed = cint(result.get("processed") or 0)
+		_set_progress(
+			job,
+			processed,
+			total_admissions=result.get("total_admissions"),
+			stats=result.get("stats"),
+		)
+
+		if not result.get("done"):
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_patient_history_import_batch",
+				offset=processed,
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_patient_history_import_{processed}",
+			)
+		else:
+			_set_progress(job, processed, done=True, stats=result.get("stats"))
+			_release_lock(job)
+			frappe.cache().delete_value(_patient_history_import_admissions_cache_key())
+			frappe.cache().delete_value(_patient_history_import_grouped_cache_key())
+			frappe.log_error(
+				title="Healthcare Patient History import complete",
+				message=frappe.as_json(result.get("stats") or {}),
+			)
+	except Exception:
+		frappe.db.rollback()
+		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
+		_release_lock(job)
+		frappe.cache().delete_value(_patient_history_import_admissions_cache_key())
+		frappe.cache().delete_value(_patient_history_import_grouped_cache_key())
 		raise

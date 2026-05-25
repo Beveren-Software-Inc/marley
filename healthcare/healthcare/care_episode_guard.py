@@ -84,9 +84,17 @@ def _resolve_admission_ref(doc) -> str | None:
 	return None
 
 
+def _skip_guard_for_doc(doc) -> bool:
+	if getattr(doc.flags, "skip_care_episode_guard", False):
+		return True
+	return bool(getattr(frappe.flags, "healthcare_patient_history_import", False))
+
+
 def validate_care_episode_open(doc, method=None):
 	"""Doc validate hook: reject saves linked to a closed visit or admission."""
 	if doc.doctype in SKIP_DOCTYPES:
+		return
+	if _skip_guard_for_doc(doc):
 		return
 
 	visit_name = _resolve_visit_ref(doc)

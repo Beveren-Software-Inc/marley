@@ -60,6 +60,31 @@ frappe.ui.form.on('Healthcare Settings', {
 				() => run_migration_job(frm, 'start_medication_order_complete_migration', 'medication_orders')
 			);
 		}, __('Data Maintenance'));
+
+		frm.add_custom_button(__('Import Patient History from Staging'), () => {
+			frappe.call({
+				method: 'healthcare.api.patient_history_import.run_patient_history_import_preview',
+				callback(preview) {
+					const counts = preview.message || {};
+					frappe.confirm(
+						__(
+							'Run in background: for each admission on Patient History Import, create or update one Patient History (Default History Form) and fill history_detail lines by Attrib Num. Import rows: {0}, admissions: {1}, rows without admission: {2}. Continue?',
+							[
+								counts.import_rows || 0,
+								counts.admissions || 0,
+								counts.unresolved_rows || 0,
+							]
+						),
+						() =>
+							run_migration_job(
+								frm,
+								'start_patient_history_import_migration',
+								'patient_history_import'
+							)
+					);
+				},
+			});
+		}, __('Data Maintenance'));
 	},
 
 	onload: function(frm) {
