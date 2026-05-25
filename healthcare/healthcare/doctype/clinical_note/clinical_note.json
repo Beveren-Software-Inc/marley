@@ -12,6 +12,9 @@
   "gender",
   "blood_group",
   "clinical_note_type",
+  "note_locked",
+  "locked_by",
+  "locked_on",
   "terms_and_conditions",
   "username",
   "column_break_jw2e",
@@ -126,6 +129,26 @@
    "fieldtype": "Link",
    "label": "Clinical Note Type",
    "options": "Clinical Note Type"
+  },
+  {
+   "default": "0",
+   "fieldname": "note_locked",
+   "fieldtype": "Check",
+   "label": "Note Locked",
+   "read_only": 1
+  },
+  {
+   "fieldname": "locked_by",
+   "fieldtype": "Link",
+   "label": "Locked By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "locked_on",
+   "fieldtype": "Datetime",
+   "label": "Locked On",
+   "read_only": 1
   },
   {
    "fieldname": "terms_and_conditions",
