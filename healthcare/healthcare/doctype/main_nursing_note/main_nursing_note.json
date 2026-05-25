@@ -38,7 +38,7 @@
    "options": "Inpatient Admission"
   },
   {
-   "fetch_from": "admission.file_number",
+   "fetch_from": "admission.patient",
    "fieldname": "file_no",
    "fieldtype": "Link",
    "label": "File No",
@@ -152,7 +152,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-05-25 16:07:38.220878",
+ "modified": "2026-05-25 16:39:19.696869",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Main Nursing Note",

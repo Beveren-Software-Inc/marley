@@ -19,6 +19,8 @@ import { NurseTaskList } from '../components/nurseTask/NurseTaskList'
 import { CreateNurseTaskModal } from '../components/nurseTask/CreateNurseTaskModal'
 import { PatientSummaryCard } from '../components/patients/PatientSummaryCard'
 import { CreateClinicalNoteModal } from '../components/clinicalNotes/CreateClinicalNoteModal'
+import { MainNursingNoteList } from '../components/nursing/MainNursingNoteList'
+import { CreateMainNursingNoteModal } from '../components/nursing/CreateMainNursingNoteModal'
 import { getPatientActiveAdmission } from '../services/inpatientRecords'
 import { hasAnyDischargeDraft } from '../services/dischargeDraft'
 import { navigateToDischarge } from '../utils/dischargeNavigation'
@@ -652,41 +654,40 @@ export const NursePage = () => {
     )
   }
 
-  // Show Nursing Notes (Clinical Note with Medical Role = Nurse)
+  // Show Nursing Notes (Main Nursing Note doctype)
   if (screen === 'nurse' || screen === 'n-nurse-notes') {
+    const noteAdmission = mode === 'IP' ? activeAdmission : undefined
     return (
       <div className="flex flex-col">
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
             <div className="font-semibold mb-4 flex items-center justify-between">
-              <span>Nursing Note</span>
+              <span>Nursing Notes</span>
               <button
-                onClick={() => setShowNursingNoteModal(true)}
+                onClick={() => guardClinicalCreate(() => setShowNursingNoteModal(true))}
                 className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
                 title="Add Nursing Note"
               >
                 +
               </button>
             </div>
-            <ClinicalNotesList 
-              patient={selectedPatient} 
-              medicalRole="Nurse"
+            <MainNursingNoteList
+              patient={selectedPatient}
+              admission={noteAdmission}
               key={clinicalNotesRefreshKey}
               onPatientClick={handlePatientSelect}
             />
           </section>
         </div>
         {showNursingNoteModal && (
-          <CreateClinicalNoteModal
+          <CreateMainNursingNoteModal
             onClose={() => setShowNursingNoteModal(false)}
             onSuccess={() => {
-              setClinicalNotesRefreshKey(prev => prev + 1)
+              setClinicalNotesRefreshKey((prev) => prev + 1)
               setShowNursingNoteModal(false)
             }}
-            initialPatient={selectedPatient}
-            defaultClinicalNoteType="Nursing Note"
-            title="Add Nursing Note"
+            patient={selectedPatient}
           />
         )}
       </div>
