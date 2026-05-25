@@ -813,6 +813,19 @@ def update_status(appointment_id, status, notes=None, checkout_time=None):
 			"Procedure Prescription", procedure_prescription, "appointment_booked", appointment_booked
 		)
 
+	result = {}
+	if status == "Patient Arrived":
+		patient = frappe.db.get_value("Patient Appointment", appointment_id, "patient")
+		if not patient:
+			frappe.throw(
+				_("Register the walk-in patient before marking as arrived."),
+				title=_("Registration required"),
+				exc=frappe.ValidationError,
+			)
+		result["patient_visit"] = get_or_create_encounter_from_appointment(appointment_id)
+
+	return result
+
 
 def send_confirmation_msg(doc):
 	if frappe.db.get_single_value("Healthcare Settings", "send_appointment_confirmation"):
@@ -848,9 +861,34 @@ def make_encounter(source_name, target_doc=None):
 	return doc
 
 
-@frappe.whitelist()
-def create_encounter_from_appointment(appointment_id):
-	"""Create a Patient Visit (encounter) from an appointment; returns the new doc name for opening in UI."""
+def _prepare_patient_visit_from_appointment(doc, appointment):
+	"""Set required Patient Visit fields before insert (case_no is the document name)."""
+	from healthcare.api.utils.api_utility import get_next_transaction_number
+	from healthcare.healthcare.doctype.patient_visit.open_visit_guard import (
+		ensure_patient_can_open_new_visit,
+	)
+
+	if not doc.case_no:
+		doc.case_no = get_next_transaction_number("Patient Visit", fieldname="case_no")
+	if not doc.encounter_date:
+		doc.encounter_date = appointment.appointment_date
+	if not doc.encounter_time:
+		doc.encounter_time = appointment.appointment_time or get_time("00:00:00")
+	if not doc.status:
+		doc.status = "Open"
+	if not doc.visit_type:
+		doc.visit_type = "New Visit"
+
+	ensure_patient_can_open_new_visit(appointment.patient)
+	return doc
+
+
+def get_or_create_encounter_from_appointment(appointment_id):
+	"""Return an existing Patient Visit for the appointment, or create one."""
+	existing = frappe.db.get_value("Patient Visit", {"appointment": appointment_id}, "name")
+	if existing:
+		return existing
+
 	appointment = frappe.get_doc("Patient Appointment", appointment_id)
 	if not appointment.patient:
 		frappe.throw(
@@ -858,9 +896,16 @@ def create_encounter_from_appointment(appointment_id):
 			title=_("Patient required"),
 		)
 	doc = make_encounter(appointment_id)
+	_prepare_patient_visit_from_appointment(doc, appointment)
 	doc.insert()
 	frappe.db.commit()
 	return doc.name
+
+
+@frappe.whitelist()
+def create_encounter_from_appointment(appointment_id):
+	"""Create a Patient Visit (encounter) from an appointment; returns the new doc name for opening in UI."""
+	return get_or_create_encounter_from_appointment(appointment_id)
 
 
 @frappe.whitelist()

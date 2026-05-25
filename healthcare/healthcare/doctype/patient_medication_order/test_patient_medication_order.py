@@ -65,6 +65,18 @@ class TestPatientMedicationOrder(FrappeTestCase):
 		# inpatient validation
 		self.assertRaises(frappe.ValidationError, ipmo.insert)
 
+	def test_signed_status_on_draft_with_signature(self):
+		ipmo = create_ipmo(self.patient)
+		ipmo.doctors_signature = "/files/test-signature.png"
+		ipmo.insert()
+		ipmo.reload()
+		self.assertEqual(ipmo.status, "Signed")
+
+		ipmo.doctors_signature = None
+		ipmo.save()
+		ipmo.reload()
+		self.assertEqual(ipmo.status, "Draft")
+
 	def test_status(self):
 		ipmo = create_ipmo(self.patient)
 		ipmo.submit()

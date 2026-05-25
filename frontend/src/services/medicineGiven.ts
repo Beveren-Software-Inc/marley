@@ -437,6 +437,7 @@ export async function createVisitAndPrescriptionOnDischarge(
   medicationOrders: MedicationOrderRow[],
   patientEncounter?: string,
   afterDischarge?: boolean,
+  doctorsSignature?: string,
 ): Promise<{ patient_visit: string; patient_medication_order: string }> {
   return apiRequest('/api/method/healthcare.api.medicine_given.create_visit_and_prescription_on_discharge', {
     method: 'POST',
@@ -445,6 +446,7 @@ export async function createVisitAndPrescriptionOnDischarge(
       medication_orders: medicationOrders,
       patient_encounter: patientEncounter,
       after_discharge: afterDischarge ?? false,
+      doctors_signature: doctorsSignature || undefined,
     }),
   })
 }

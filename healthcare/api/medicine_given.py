@@ -1165,6 +1165,7 @@ def create_visit_and_prescription_on_discharge(
 	medication_orders=None,
 	patient_encounter: str | None = None,
 	after_discharge: bool | str | None = None,
+	doctors_signature: str | None = None,
 ) -> dict:
 	"""Create a Patient Visit and a Patient Medication Order from discharge transfer medicines."""
 	if not admission:
@@ -1217,6 +1218,7 @@ def create_visit_and_prescription_on_discharge(
 		practitioner=practitioner,
 		medication_orders=medication_orders,
 		after_discharge=bool(str(after_discharge).lower() in ['1', 'true', 'yes']),
+		doctors_signature=doctors_signature,
 	)
 	return {
 		"patient_visit": pv.name,

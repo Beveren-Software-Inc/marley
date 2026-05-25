@@ -39,3 +39,29 @@ def get_ip_doctor_required_documents_status(
 		"history_form": history_form,
 		"all_complete": medical_history and suicide_risk and history_form,
 	}
+
+
+@frappe.whitelist()
+def get_op_doctor_required_documents_status(
+	patient: str,
+	patient_visit: str | None = None,
+) -> dict:
+	"""Return whether mandatory doctor documents exist for an OP visit.
+
+	- Patient Medical History linked to the active patient visit
+	"""
+	if not patient:
+		frappe.throw(_("Patient is required"))
+
+	medical_history_filters: dict = {"patient": patient}
+	if patient_visit:
+		medical_history_filters["patient_visit"] = patient_visit
+
+	medical_history = bool(frappe.db.exists("Patient Medical History", medical_history_filters))
+
+	return {
+		"patient": patient,
+		"patient_visit": patient_visit,
+		"medical_history": medical_history,
+		"all_complete": medical_history,
+	}

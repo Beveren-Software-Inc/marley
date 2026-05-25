@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { fetchDoc } from '../../services/common'
-import { isWalkInAppointment } from '../../services/appointments'
+import { appointmentNeedsRegistration, isWalkInAppointment } from '../../services/appointments'
 import { StatusPill } from '../ui/StatusPill'
 
 type AppointmentDoc = Record<string, unknown>
@@ -161,7 +161,7 @@ export function AppointmentDetailPanel({
           <div>
             <p className="text-sm font-semibold text-amber-800">Walk-in Patient — No File on Record</p>
             <p className="text-xs text-amber-700 mt-0.5">
-              Register a patient file when they arrive, then create an OP visit and mark them as arrived.
+              Choose Register patient when they arrive — a patient file is created, they are marked arrived, and a visit is opened automatically.
             </p>
           </div>
         </div>
@@ -171,7 +171,7 @@ export function AppointmentDetailPanel({
         isWalkIn &&
         (onRegisterWalkIn || onCreateVisit || onMarkArrived || onMarkCheckedOut) && (
         <div className="flex flex-wrap gap-2">
-          {onRegisterWalkIn && (
+          {onRegisterWalkIn && !(appointmentNeedsRegistration(aptForCheck) && onMarkArrived) && (
             <button
               type="button"
               onClick={onRegisterWalkIn}
@@ -197,7 +197,7 @@ export function AppointmentDetailPanel({
               onClick={onMarkArrived}
               className="inline-flex items-center px-3 py-2 text-xs font-semibold rounded-md border border-emerald-600 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
             >
-              Patient arrived
+              {!hasPatient ? 'Register patient' : 'Patient arrived'}
             </button>
           )}
           {onMarkCheckedOut && (

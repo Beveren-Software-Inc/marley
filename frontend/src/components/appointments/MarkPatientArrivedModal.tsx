@@ -5,19 +5,26 @@ import {
   CREATE_MODAL_OVERLAY,
   createModalShellClass,
 } from '../ui/CreateModalChrome'
-import { updateAppointmentStatus, type Appointment } from '../../services/appointments'
+import {
+  appointmentNeedsRegistration,
+  updateAppointmentStatus,
+  type Appointment,
+} from '../../services/appointments'
 import { toast } from '../../hooks/useToast'
 
 interface MarkPatientArrivedModalProps {
   appointment: Appointment
   onClose: () => void
   onSuccess: () => void
+  /** Walk-in with no patient file — open registration instead of marking arrived. */
+  onRequiresRegistration?: () => void
 }
 
 export const MarkPatientArrivedModal = ({
   appointment,
   onClose,
   onSuccess,
+  onRequiresRegistration,
 }: MarkPatientArrivedModalProps) => {
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
@@ -27,15 +34,24 @@ export const MarkPatientArrivedModal = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (appointmentNeedsRegistration(appointment)) {
+      onRequiresRegistration?.()
+      onClose()
+      return
+    }
     setSaving(true)
     setError(null)
     try {
-      await updateAppointmentStatus(
+      const result = await updateAppointmentStatus(
         appointment.name,
         'Patient Arrived',
         notes.trim() || undefined
       )
-      toast.success('Patient marked as arrived')
+      if (result.patient_visit) {
+        toast.success(`Patient marked as arrived · visit ${result.patient_visit} created`)
+      } else {
+        toast.success('Patient marked as arrived')
+      }
       onSuccess()
       onClose()
     } catch (err) {

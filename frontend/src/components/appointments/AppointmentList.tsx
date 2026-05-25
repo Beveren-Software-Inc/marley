@@ -850,6 +850,8 @@ export const AppointmentList = ({
   const [billingTarget, setBillingTarget] = useState<Appointment | null>(null)
   const [paymentTarget, setPaymentTarget] = useState<Appointment | null>(null)
   const [registerWalkInTarget, setRegisterWalkInTarget] = useState<Appointment | null>(null)
+  /** After registration, auto mark arrived and create patient visit. */
+  const [registerThenArrive, setRegisterThenArrive] = useState(false)
   const [visitFromAppointment, setVisitFromAppointment] = useState<Appointment | null>(null)
   const [cancelLoading, setCancelLoading] = useState(false)
   const [practitionerAvailability, setPractitionerAvailability] = useState<Record<string, AvailabilityResponse>>({})
@@ -1129,6 +1131,21 @@ export const AppointmentList = ({
     window.open(getVitalSignsNewUrl(apt.patient, apt.name, apt.company), '_blank')
   }
 
+  const openRegisterWalkIn = (apt: Appointment, thenMarkArrived: boolean) => {
+    setOpenActionRow(null)
+    setRegisterThenArrive(thenMarkArrived)
+    setRegisterWalkInTarget(apt)
+  }
+
+  const handleMarkPatientArrived = (apt: Appointment) => {
+    setOpenActionRow(null)
+    if (!apt.patient) {
+      openRegisterWalkIn(apt, true)
+      return
+    }
+    setArrivedTarget(apt)
+  }
+
   const handleCreatePatientVisit = async (apt: Appointment) => {
     setOpenActionRow(null)
     if (!apt.patient) {
@@ -1153,14 +1170,28 @@ export const AppointmentList = ({
 
   const handleRegisterWalkInSuccess = async (patientId: string) => {
     if (!registerWalkInTarget) return
+    const apt = registerWalkInTarget
+    const shouldMarkArrived = registerThenArrive
+    setRegisterWalkInTarget(null)
+    setRegisterThenArrive(false)
     try {
-      await linkWalkInAppointmentToPatient(registerWalkInTarget.name, patientId)
-      toast.success(`Patient file created and linked to ${registerWalkInTarget.name}`)
-      setRegisterWalkInTarget(null)
+      await linkWalkInAppointmentToPatient(apt.name, patientId)
       setRefreshTrigger((t) => t + 1)
+      if (shouldMarkArrived) {
+        const result = await updateAppointmentStatus(apt.name, 'Patient Arrived')
+        if (result.patient_visit) {
+          toast.success(
+            `Patient registered · marked arrived · visit ${result.patient_visit} created`,
+          )
+        } else {
+          toast.success('Patient registered and marked as arrived')
+        }
+      } else {
+        toast.success(`Patient file created and linked to ${apt.name}`)
+      }
       onPatientClick?.(patientId)
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to link patient to appointment')
+      toast.error(e instanceof Error ? e.message : 'Failed to complete walk-in registration')
     }
   }
 
@@ -1643,16 +1674,6 @@ export const AppointmentList = ({
                               </div>
                               <button
                                 type="button"
-                                onClick={() => {
-                                  setOpenActionRow(null)
-                                  setRegisterWalkInTarget(apt)
-                                }}
-                                className="block w-full text-left px-3 py-2 text-sm text-primary font-medium hover:bg-primary/5"
-                              >
-                                Register patient
-                              </button>
-                              <button
-                                type="button"
                                 onClick={() => handleCreatePatientVisit(apt)}
                                 disabled={!apt.patient || actionLoading === apt.name}
                                 className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 disabled:opacity-50"
@@ -1662,13 +1683,10 @@ export const AppointmentList = ({
                               {canMarkPatientArrived(apt.status) && (
                                 <button
                                   type="button"
-                                  onClick={() => {
-                                    setOpenActionRow(null)
-                                    setArrivedTarget(apt)
-                                  }}
+                                  onClick={() => handleMarkPatientArrived(apt)}
                                   className="block w-full text-left px-3 py-2 text-sm text-emerald-800 hover:bg-emerald-50"
                                 >
-                                  Patient arrived
+                                  {!apt.patient ? 'Register patient' : 'Patient arrived'}
                                 </button>
                               )}
                               {canMarkCheckedOut(apt.status) && (
@@ -1746,18 +1764,13 @@ export const AppointmentList = ({
                               Postpone
                             </button>
                           )}
-                          {showAll &&
-                            canMarkPatientArrived(apt.status) &&
-                            !(receptionWalkInActions && isWalkInAppointment(apt)) && (
+                          {showAll && canMarkPatientArrived(apt.status) && (
                               <button
                                 type="button"
-                                onClick={() => {
-                                  setOpenActionRow(null)
-                                  setArrivedTarget(apt)
-                                }}
+                                onClick={() => handleMarkPatientArrived(apt)}
                                 className="block w-full text-left px-3 py-2 text-sm text-emerald-800 hover:bg-emerald-50"
                               >
-                                Patient arrived
+                                {!apt.patient ? 'Register patient' : 'Patient arrived'}
                               </button>
                             )}
                           {showAll &&
@@ -1884,6 +1897,11 @@ export const AppointmentList = ({
           appointment={arrivedTarget}
           onClose={() => setArrivedTarget(null)}
           onSuccess={() => setRefreshTrigger((t) => t + 1)}
+          onRequiresRegistration={() => {
+            const apt = arrivedTarget
+            setArrivedTarget(null)
+            openRegisterWalkIn(apt, true)
+          }}
         />
       )}
 
@@ -1942,7 +1960,10 @@ export const AppointmentList = ({
         <CreatePatientModal
           initialName={registerWalkInTarget.temporary_patient_name || ''}
           initialMobile={registerWalkInTarget.temporary_mobile_no || ''}
-          onClose={() => setRegisterWalkInTarget(null)}
+          onClose={() => {
+            setRegisterWalkInTarget(null)
+            setRegisterThenArrive(false)
+          }}
           onSuccess={handleRegisterWalkInSuccess}
         />
       )}
@@ -1975,7 +1996,7 @@ export const AppointmentList = ({
               receptionWalkInActions && isWalkInAppointment(detailApt)
                 ? () => {
                     setDetailApt(null)
-                    setRegisterWalkInTarget(detailApt)
+                    openRegisterWalkIn(detailApt, false)
                   }
                 : undefined
             }
@@ -1991,7 +2012,7 @@ export const AppointmentList = ({
               receptionWalkInActions && canMarkPatientArrived(detailApt.status)
                 ? () => {
                     setDetailApt(null)
-                    setArrivedTarget(detailApt)
+                    handleMarkPatientArrived(detailApt)
                   }
                 : undefined
             }

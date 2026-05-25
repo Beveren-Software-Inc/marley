@@ -33,6 +33,7 @@ const STATUS_COLORS: Record<string, string> = {
   Cancelled: 'bg-slate-100 text-slate-600 border-slate-200',
   Stopped:   'bg-red-100 text-red-700 border-red-200',
   Draft:     'bg-amber-100 text-amber-700 border-amber-200',
+  Signed:    'bg-emerald-100 text-emerald-800 border-emerald-200',
 }
 
 // ─── Hex color helpers ────────────────────────────────────────────────────────
