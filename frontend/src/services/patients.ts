@@ -71,6 +71,26 @@ export async function searchPatients(query: string, limit?: number): Promise<Pat
   }
 }
 
+/** Resolve patient display name for search bar (works for Nurse and other portal roles). */
+export async function fetchPatientDisplayName(
+  patient: string
+): Promise<{ name: string; patient_name: string }> {
+  const response = await fetch(
+    `/api/method/healthcare.api.patient.get_patient_display_name?patient=${encodeURIComponent(patient)}`
+  )
+  const resData = await response.json()
+  if (resData?.exc) {
+    throw new Error(
+      typeof resData.message === 'string' ? resData.message : 'Failed to load patient name'
+    )
+  }
+  const msg = resData?.message as { name?: string; patient_name?: string } | undefined
+  return {
+    name: msg?.name ?? patient,
+    patient_name: msg?.patient_name ?? patient,
+  }
+}
+
 export interface PaginatedPatients {
   data: PatientListItem[]
   total_count: number

@@ -65,6 +65,18 @@ def search_patients(search=None, limit=20):
 
 
 @frappe.whitelist()
+def get_patient_display_name(patient: str | None = None) -> dict:
+	"""Display name for portal patient search bar (clinical roles often lack REST read on Patient)."""
+	patient = (patient or "").strip()
+	if not patient:
+		return {"name": "", "patient_name": ""}
+	if not frappe.db.exists("Patient", patient):
+		return {"name": patient, "patient_name": patient}
+	patient_name = frappe.db.get_value("Patient", patient, "patient_name") or patient
+	return {"name": patient, "patient_name": patient_name}
+
+
+@frappe.whitelist()
 def get_patients(limit=20, offset=0, search=None):
 	"""Get list of patients with server-side pagination."""
 	limit = int(limit) if limit else 20

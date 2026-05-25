@@ -1012,52 +1012,37 @@ export async function createPractitioner(data: CreatePractitionerData): Promise<
 }
 
 export const fetchDischargeChecklist = async (templateName: string): Promise<ChecklistItem[]> => {
-  const response = await fetch(
-    `/api/resource/Discharge Template/${encodeURIComponent(templateName)}`,
-    { headers: { 'Content-Type': 'application/json' } }
+  const result = await apiRequest<ChecklistItem[]>(
+    '/api/method/healthcare.api.common.get_discharge_checklist_from_template',
+    {
+      method: 'POST',
+      body: JSON.stringify({ template_name: templateName }),
+    }
   )
-  if (!response.ok) throw new Error('Failed to fetch discharge template')
-  const data = await response.json()
-
-  // The child table field name on your Discharge Template doctype —
-  // adjust `discharge_checklist` to whatever the actual fieldname is.
-  const rows = data?.data?.discharge_checklist ?? []
-
-  return rows.map((row: any) => ({
-    name: row.name,
-    action_required: row.action_required,
-    department: row.department,
-    department_label: row.department, // If you have a display label, map it here
-    user: row.user ?? '',
-    name1: row.name1 ?? '',
-    date_time: row.date_time ?? '',
-    click: row.click === 1 || row.click === true,
-    description: row.description ?? '',
-  }))
+  return Array.isArray(result) ? result : []
 }
 
-export const fetchNursingDischargeChecklist = async (templateName: string): Promise<ChecklistItem[]> => {
-  const response = await fetch(
-    `/api/resource/Discharge Nursing Template/${encodeURIComponent(templateName)}`,
-    { headers: { 'Content-Type': 'application/json' } }
+export type NursingDischargeTemplateSource = 'discharge_nursing' | 'nursing_checklist'
+
+export interface NursingDischargeTemplateOption extends LinkFieldOption {
+  template_source?: NursingDischargeTemplateSource
+}
+
+export const fetchNursingDischargeChecklist = async (
+  templateName: string,
+  templateSource?: NursingDischargeTemplateSource
+): Promise<ChecklistItem[]> => {
+  const result = await apiRequest<ChecklistItem[]>(
+    '/api/method/healthcare.api.common.get_nursing_discharge_checklist_from_template',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        template_name: templateName,
+        template_source: templateSource || '',
+      }),
+    }
   )
-  if (!response.ok) throw new Error('Failed to fetch nursing discharge template')
-  const data = await response.json()
-
-  // The child table field name on your Discharge Nursing Template doctype is `discharge_checklist`
-  const rows = data?.data?.discharge_checklist ?? []
-
-  return rows.map((row: any) => ({
-    name: row.name,
-    action_required: row.action_required,
-    department: '', // No department field in nursing template
-    department_label: 'Nursing', // Default department label
-    user: '',
-    name1: '',
-    date_time: '',
-    click: false,
-    description: '',
-  }))
+  return Array.isArray(result) ? result : []
 }
 
 export async function fetchPatientVisits(
@@ -1477,13 +1462,16 @@ export async function fetchSampleCollections(
 }
 
 
-// Fetch nursing discharge templates
-export async function fetchNursingDischargeTemplates(query?: string): Promise<LinkFieldOption[]> {
+// Fetch nursing discharge templates (Discharge Nursing + Nursing Checklist Template)
+export async function fetchNursingDischargeTemplates(query?: string): Promise<NursingDischargeTemplateOption[]> {
   try {
-    const result = await apiRequest('/api/method/healthcare.api.common.fetch_nursing_discharge_templates', {
-      method: 'POST',
-      body: JSON.stringify({ template_name: query || '' })
-    })
+    const result = await apiRequest<NursingDischargeTemplateOption[]>(
+      '/api/method/healthcare.api.common.fetch_nursing_discharge_template_options',
+      {
+        method: 'POST',
+        body: JSON.stringify({ template_name: query || '' }),
+      }
+    )
 
     return result || []
   } catch (err) {

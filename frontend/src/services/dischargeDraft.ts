@@ -3,6 +3,8 @@
  * Keyed per admission so multiple in-progress discharges can coexist.
  */
 
+import { fetchDischargeDraftForAdmission } from './inpatientRecords'
+
 const key = (admissionName: string) => `discharge_draft_v1_${admissionName}`
 
 export interface DischargeSelectedOptions {
@@ -66,6 +68,17 @@ export function hasDischargeDraft(admissionName: string): boolean {
   try {
     return localStorage.getItem(key(admissionName)) !== null
   } catch { return false }
+}
+
+/** True if a draft exists on the server and/or in localStorage. */
+export async function hasAnyDischargeDraft(admissionName: string): Promise<boolean> {
+  try {
+    const server = await fetchDischargeDraftForAdmission(admissionName)
+    if (server?.name) return true
+  } catch {
+    /* ignore */
+  }
+  return hasDischargeDraft(admissionName)
 }
 
 export function draftSavedAt(admissionName: string): string | null {

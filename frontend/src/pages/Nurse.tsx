@@ -20,7 +20,14 @@ import { CreateNurseTaskModal } from '../components/nurseTask/CreateNurseTaskMod
 import { PatientSummaryCard } from '../components/patients/PatientSummaryCard'
 import { CreateClinicalNoteModal } from '../components/clinicalNotes/CreateClinicalNoteModal'
 import { getPatientActiveAdmission } from '../services/inpatientRecords'
+import { hasAnyDischargeDraft } from '../services/dischargeDraft'
 import { navigateToDischarge } from '../utils/dischargeNavigation'
+import {
+  inpatientDischargeAllowed,
+  isInpatientDischargeRoute,
+  modeForInpatientDischargeScreens,
+  NURSE_DISCHARGE_SCREEN_ID,
+} from '../utils/inpatientDischargeRoute'
 import { toast } from '../hooks/useToast'
 import { CreateWarningMessageModal } from '../components/warnings/CreateWarningMessageModal'
 import { CreateLabTestModal } from '../components/labTests/CreateLabTestModal'
@@ -87,6 +94,7 @@ export const NursePage = () => {
     activeVisit,
     costCenterCareScope,
     guardClinicalCreate,
+    setMode,
   } = useCareContext()
   const patientFromUrl = searchParams.get('patient')
   const [selectedPatient, setSelectedPatient] = useState<string | undefined>(() => patientFromUrl || globalPatient || undefined)
@@ -99,6 +107,8 @@ export const NursePage = () => {
   const [labTestRefreshKey, setLabTestRefreshKey] = useState(0)
   const [observationRefreshKey, setObservationRefreshKey] = useState(0)
   const [dischargeRefreshKey, setDischargeRefreshKey] = useState(0)
+  const [dischargeHasDraft, setDischargeHasDraft] = useState(false)
+  const [draftAdmissionNo, setDraftAdmissionNo] = useState<string | null>(null)
   const [clinicalNotesRefreshKey, setClinicalNotesRefreshKey] = useState(0)
   const [vitalSignsRefreshKey, setVitalSignsRefreshKey] = useState(0)
   const [showServiceRequestModal, setShowServiceRequestModal] = useState(false)
@@ -141,8 +151,15 @@ export const NursePage = () => {
   const [patientHistoryRefreshKey, setPatientHistoryRefreshKey] = useState(0)
   const rawScreen = searchParams.get('screen')
   const dischargeAdmission = searchParams.get('discharge')
+  const inDischargeRoute = isInpatientDischargeRoute(searchParams, [NURSE_DISCHARGE_SCREEN_ID])
+  const modeForScreens = modeForInpatientDischargeScreens(mode, costCenterCareScope, inDischargeRoute)
   const screen =
-    rawScreen && !isNurseScreenBlocked(rawScreen, costCenterCareScope, mode) ? rawScreen : null
+    rawScreen && !isNurseScreenBlocked(rawScreen, costCenterCareScope, modeForScreens) ? rawScreen : null
+
+  useLayoutEffect(() => {
+    if (!inDischargeRoute || mode === 'IP' || costCenterCareScope === 'op_only') return
+    setMode('IP')
+  }, [inDischargeRoute, mode, costCenterCareScope, setMode])
 
   // Sync selectedPatient with URL on mount and when URL changes
   useEffect(() => {
@@ -156,11 +173,12 @@ export const NursePage = () => {
   }, [searchParams])
 
   useLayoutEffect(() => {
-    if (!rawScreen || !isNurseScreenBlocked(rawScreen, costCenterCareScope, mode)) return
+    if (dischargeAdmission) return
+    if (!rawScreen || !isNurseScreenBlocked(rawScreen, costCenterCareScope, modeForScreens)) return
     const np = new URLSearchParams(searchParams)
     np.delete('screen')
     setSearchParams(np, { replace: true })
-  }, [rawScreen, costCenterCareScope, mode, searchParams, setSearchParams])
+  }, [dischargeAdmission, rawScreen, costCenterCareScope, modeForScreens, searchParams, setSearchParams])
 
   const handlePatientSelect = (patient: string | undefined) => {
     setSelectedPatient(patient)
@@ -192,6 +210,28 @@ export const NursePage = () => {
     setSearchParams(np, { replace: true })
   }
 
+  useEffect(() => {
+    if (screen !== NURSE_DISCHARGE_SCREEN_ID || !selectedPatient) {
+      setDischargeHasDraft(false)
+      setDraftAdmissionNo(null)
+      return
+    }
+    getPatientActiveAdmission(selectedPatient)
+      .then(async (admission) => {
+        if (admission && (await hasAnyDischargeDraft(admission.name))) {
+          setDischargeHasDraft(true)
+          setDraftAdmissionNo(admission.name)
+        } else {
+          setDischargeHasDraft(false)
+          setDraftAdmissionNo(null)
+        }
+      })
+      .catch(() => {
+        setDischargeHasDraft(false)
+        setDraftAdmissionNo(null)
+      })
+  }, [screen, selectedPatient, dischargeRefreshKey])
+
   const handleDischargeSuccess = () => {
     toast.success('Discharge completed successfully')
     const state = location.state as { returnTo?: string } | null
@@ -204,7 +244,18 @@ export const NursePage = () => {
     setSearchParams(np, { replace: true, state: { dischargeCompleted: true } })
   }
 
-  if (dischargeAdmission && mode !== 'OP') {
+  if (dischargeAdmission && !inpatientDischargeAllowed(costCenterCareScope)) {
+    return (
+      <div className="flex flex-col p-6">
+        <p className="text-sm text-slate-700">
+          Inpatient discharge is not available for OP-only cost centers. Switch to a site that supports IP care or
+          use the desk Discharge form.
+        </p>
+      </div>
+    )
+  }
+
+  if (dischargeAdmission && inpatientDischargeAllowed(costCenterCareScope)) {
     const navState = location.state as { patient?: string; patient_name?: string } | null
     const patientForBar =
       selectedPatient || navState?.patient || searchParams.get('patient') || undefined
@@ -252,7 +303,11 @@ export const NursePage = () => {
   }
 
   // Show Admission page when screen=n-reg or screen=admission — hidden in OP mode
-  if ((screen === 'n-reg' || screen === 'admission') && mode !== 'OP') {
+  if (
+    !dischargeAdmission &&
+    (screen === 'n-reg' || screen === 'admission') &&
+    modeForScreens !== 'OP'
+  ) {
     return <AdmissionPage />
   }
 
@@ -1244,20 +1299,24 @@ export const NursePage = () => {
   }
 
   // Show Discharge Form (list of discharges with + button) — hidden in OP mode
-  if (screen === 'n-discharge' && mode !== 'OP') {
-    const handleCreateDischarge = async () => {
+  if (screen === NURSE_DISCHARGE_SCREEN_ID && modeForScreens !== 'OP') {
+    const handleOpenDischarge = async () => {
       if (!selectedPatient) {
         toast.error('Please select a patient first')
         return
       }
-      
+
       try {
         const admission = await getPatientActiveAdmission(selectedPatient)
         if (!admission) {
           toast.error('No active admission found for this patient')
           return
         }
-        
+
+        const hasDraft = await hasAnyDischargeDraft(admission.name)
+        setDischargeHasDraft(hasDraft)
+        setDraftAdmissionNo(admission.name)
+
         navigateToDischarge(
           {
             name: admission.name,
@@ -1277,7 +1336,16 @@ export const NursePage = () => {
       <div className="flex flex-col">
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
-          <DashboardCard title="Discharge Form / Procedure" onAdd={handleCreateDischarge} addButtonTitle="Add Discharge">
+          <DashboardCard
+            title="Discharge Form / Procedure"
+            onAdd={handleOpenDischarge}
+            addButtonTitle={dischargeHasDraft ? 'Continue discharge' : 'Start discharge'}
+          >
+            {dischargeHasDraft && draftAdmissionNo && (
+              <div className="mb-2 text-xs text-amber-700">
+                Draft on server — open from the list ⋮ menu or use + to continue
+              </div>
+            )}
             <DischargeList patient={selectedPatient} key={dischargeRefreshKey} onPatientClick={handlePatientSelect} />
           </DashboardCard>
         </div>

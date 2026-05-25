@@ -256,9 +256,11 @@
    "label": "Discharge Instructions"
   },
   {
+   "description": "Auto-filled from stopped medications on Patient Medication Orders for this admission.",
    "fieldname": "discharge_medic_stopped_reason",
    "fieldtype": "Small Text",
-   "label": "Discharge Medic Stopped Reason"
+   "label": "Discharge Medic Stopped Reason",
+   "read_only": 1
   },
   {
    "fieldname": "final_exam_mental_status_summary",
@@ -664,6 +666,13 @@
    "select": 1,
    "share": 1,
    "submit": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Nurse",
    "write": 1
   }
  ],

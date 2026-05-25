@@ -11,11 +11,54 @@ from healthcare.healthcare.utils import validate_nursing_tasks
 from healthcare.healthcare.doctype.inpatient_admission.inpatient_admission import (
 	validate_inpatient_invoicing,
 	validate_incompleted_service_requests,
-	check_out_inpatient
+	check_out_inpatient,
 )
 
 
+def get_discharge_stopped_medication_reasons_for_admission(admission: str) -> str:
+	"""Build discharge stopped-medication text from PMO line items with reason_stopped."""
+	if not admission:
+		return ""
+
+	order_names = frappe.get_all(
+		"Patient Medication Order",
+		filters={"inpatient_record": admission, "docstatus": ["!=", 2]},
+		pluck="name",
+	)
+	if not order_names:
+		return ""
+
+	entries = frappe.get_all(
+		"Inpatient Medication Order Entry",
+		filters={
+			"parent": ["in", order_names],
+			"reason_stopped": ["!=", ""],
+		},
+		fields=["parent", "drug", "drug_name", "reason_stopped"],
+		order_by="parent asc, idx asc",
+	)
+
+	lines = []
+	for entry in entries:
+		reason = (entry.get("reason_stopped") or "").strip()
+		if not reason:
+			continue
+		drug = (entry.get("drug_name") or entry.get("drug") or _("Medication")).strip()
+		order = entry.get("parent") or ""
+		if order:
+			lines.append(f"{order} — {drug}: {reason}")
+		else:
+			lines.append(f"{drug}: {reason}")
+
+	return "\n".join(lines)
+
+
 class Discharge(Document):
+	def validate(self):
+		if self.admission:
+			self.discharge_medic_stopped_reason = get_discharge_stopped_medication_reasons_for_admission(
+				self.admission
+			)
 	# def validate(self):
 	# 	# Validate that admission exists and is in correct status
 	# 	if self.admission:

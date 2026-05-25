@@ -3018,20 +3018,170 @@ def save_patient_diagnosis(parent_doctype, parent_name, rows):
 	return {"ok": True}
 
 
+def _portal_checklist_item_from_row(row, idx, department_label=None):
+	"""Shape template / draft rows for the discharge portal checklist UI."""
+	dept = department_label
+	if dept is None:
+		dept = getattr(row, "department", None) or row.get("department") if isinstance(row, dict) else None
+		dept_label = dept
+		if dept and frappe.db.exists("Medical Department", dept):
+			dept_label = frappe.db.get_value("Medical Department", dept, "department") or dept
+		else:
+			dept_label = dept or "General"
+	else:
+		dept_label = department_label
+
+	action = getattr(row, "action_required", None)
+	if action is None and isinstance(row, dict):
+		action = row.get("action_required")
+	if not action:
+		activity = getattr(row, "activity", None) or (row.get("activity") if isinstance(row, dict) else None)
+		desc = getattr(row, "description", None) or (row.get("description") if isinstance(row, dict) else None)
+		if activity:
+			action = frappe.db.get_value("Healthcare Activity", activity, "description") or activity
+		else:
+			action = desc or _("Task")
+
+	row_name = getattr(row, "name", None) or (row.get("name") if isinstance(row, dict) else None)
+
+	def _val(field):
+		v = getattr(row, field, None)
+		if v is None and isinstance(row, dict):
+			v = row.get(field)
+		return v
+
+	return {
+		"name": row_name or f"row-{idx}",
+		"action_required": action,
+		"department": dept if isinstance(dept, str) else (dept or ""),
+		"department_label": dept_label,
+		"user": _val("user") or "",
+		"name1": _val("name1") or "",
+		"date_time": _val("date_time") or "",
+		"click": bool(_val("click")),
+		"description": _val("description") or "",
+	}
+
+
+@frappe.whitelist()
+def get_discharge_checklist_from_template(template_name):
+	"""Load main discharge checklist rows for the portal (avoids /api/resource permission issues)."""
+	if not template_name:
+		return []
+	if not frappe.db.exists("Discharge Template", template_name):
+		return []
+
+	doc = frappe.get_doc("Discharge Template", template_name, ignore_permissions=True)
+	out = []
+	for idx, row in enumerate(doc.get("discharge_checklist") or [], start=1):
+		out.append(_portal_checklist_item_from_row(row, idx))
+	return out
+
+
+@frappe.whitelist()
+def get_nursing_discharge_checklist_from_template(template_name, template_source=None):
+	"""Load nursing discharge checklist rows for the portal.
+
+	template_source:
+	  - discharge_nursing: Discharge Nursing Template
+	  - nursing_checklist: Nursing Checklist Template (tasks on admission)
+	"""
+	if not template_name:
+		return []
+
+	source = (template_source or "").strip().lower()
+	if not source:
+		if frappe.db.exists("Discharge Nursing Template", template_name):
+			source = "discharge_nursing"
+		elif frappe.db.exists("Nursing Checklist Template", template_name):
+			source = "nursing_checklist"
+		else:
+			return []
+
+	if source == "nursing_checklist":
+		if not frappe.db.exists("Nursing Checklist Template", template_name):
+			return []
+		doc = frappe.get_doc("Nursing Checklist Template", template_name, ignore_permissions=True)
+		dept_label = "Nursing"
+		if doc.department:
+			dept_label = (
+				frappe.db.get_value("Medical Department", doc.department, "department")
+				or doc.department
+			)
+		out = []
+		for idx, row in enumerate(doc.get("tasks") or [], start=1):
+			out.append(_portal_checklist_item_from_row(row, idx, department_label=dept_label))
+		return out
+
+	if not frappe.db.exists("Discharge Nursing Template", template_name):
+		return []
+	doc = frappe.get_doc("Discharge Nursing Template", template_name, ignore_permissions=True)
+	out = []
+	for idx, row in enumerate(doc.get("discharge_checklist") or [], start=1):
+		out.append(_portal_checklist_item_from_row(row, idx, department_label="Nursing"))
+	return out
+
+
+@frappe.whitelist()
+def fetch_nursing_discharge_template_options(template_name=None):
+	"""Discharge nursing template picker: Discharge Nursing Template + Nursing Checklist Template."""
+	search = (template_name or "").strip()
+	out = []
+
+	dnt_filters = {}
+	if search:
+		dnt_filters["template_name"] = ["like", f"%{search}%"]
+	for row in frappe.get_all(
+		"Discharge Nursing Template",
+		filters=dnt_filters,
+		fields=["name", "template_name"],
+		limit=50,
+		order_by="template_name",
+	):
+		label = row.template_name or row.name
+		out.append(
+			{
+				"name": row.name,
+				"label": label,
+				"template_source": "discharge_nursing",
+			}
+		)
+
+	nct_filters = {"disabled": 0}
+	if search:
+		nct_filters["title"] = ["like", f"%{search}%"]
+	for row in frappe.get_all(
+		"Nursing Checklist Template",
+		filters=nct_filters,
+		fields=["name", "title"],
+		limit=50,
+		order_by="title",
+	):
+		label = row.title or row.name
+		out.append(
+			{
+				"name": row.name,
+				"label": f"{label} (Nursing Checklist)",
+				"template_source": "nursing_checklist",
+			}
+		)
+
+	return out
+
+
 @frappe.whitelist()
 def fetch_nursing_discharge_templates(template_name=None):
-    """Fetch nursing discharge templates"""
-    filters = {}
-    if template_name:
-        filters["template_name"] = ["like", f"%{template_name}%"]
-    
-    templates = frappe.get_all(
-        "Discharge Nursing Template",
-        filters=filters,
-        fields=["name", "template_name as label", "default"]
-    )
-    
-    return templates
+	"""Backward-compatible alias — returns Discharge Nursing Template rows only."""
+	return [
+		{
+			"name": t["name"],
+			"label": t["label"],
+			"default": 0,
+			"template_source": "discharge_nursing",
+		}
+		for t in fetch_nursing_discharge_template_options(template_name)
+		if t.get("template_source") == "discharge_nursing"
+	]
 
 
 @frappe.whitelist()
