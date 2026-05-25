@@ -16,8 +16,10 @@
   "patient",
   "cost_center",
   "ip_admission_form_id",
+  "old_admission_no",
   "column_break_yknb",
   "field_1",
+  "attribute_note_2",
   "section_break_gajv",
   "cr_id",
   "cr_date",
@@ -123,14 +125,24 @@
   },
   {
    "fieldname": "ip_admission_form_id",
-   "fieldtype": "Date",
+   "fieldtype": "Data",
    "label": "IP Admission Form ID"
+  },
+  {
+   "fieldname": "attribute_note_2",
+   "fieldtype": "Small Text",
+   "label": "Attribute Note 2"
+  },
+  {
+   "fieldname": "old_admission_no",
+   "fieldtype": "Data",
+   "label": "Old Admission No"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-05-25 17:50:53.265785",
+ "modified": "2026-05-25 18:14:05.967241",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient History Import",
