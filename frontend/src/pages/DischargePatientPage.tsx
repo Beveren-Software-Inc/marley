@@ -1,7 +1,11 @@
 import { useEffect } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../providers/AuthProvider'
-import { DOCTOR_DISCHARGE_SCREEN_ID, NURSE_DISCHARGE_SCREEN_ID } from '../utils/inpatientDischargeRoute'
+import {
+  DOCTOR_DISCHARGE_SCREEN_ID,
+  NURSE_DISCHARGE_SCREEN_ID,
+  RECEPTION_DISCHARGE_SCREEN_ID,
+} from '../utils/inpatientDischargeRoute'
 
 function resolveDischargePortal(roles: string[]): { path: string; screen: string } {
   const normalized = roles.map((r) => r.trim().toLowerCase())
@@ -9,13 +13,17 @@ function resolveDischargePortal(roles: string[]): { path: string; screen: string
   const isDoctor = normalized.some(
     (r) => r.includes('doctor') || r.includes('physician') || r.includes('practitioner')
   )
+  const isReception = normalized.some((r) => r.includes('reception'))
   if (isNurse) {
     return { path: '/nurse', screen: NURSE_DISCHARGE_SCREEN_ID }
   }
   if (isDoctor) {
     return { path: '/doctor', screen: DOCTOR_DISCHARGE_SCREEN_ID }
   }
-  return { path: '/nurse', screen: NURSE_DISCHARGE_SCREEN_ID }
+  if (isReception) {
+    return { path: '/reception', screen: RECEPTION_DISCHARGE_SCREEN_ID }
+  }
+  return { path: '/doctor', screen: DOCTOR_DISCHARGE_SCREEN_ID }
 }
 
 /** Legacy route — redirects into doctor/nurse portal with ?discharge= so the top navbar stays visible. */

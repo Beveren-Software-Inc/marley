@@ -136,7 +136,6 @@ const receptionScreenGroups: ScreenGroup[] = [
   {
     groupTitle: 'Appointments & Scheduling',
     screens: [
-      { id: 'r-appointment',         title: 'New Appointment' },
       { id: 'r-appointments-freeze', title: 'Appointments' },
       { id: 'r-followup',            title: 'Follow-up Dashboard' },
       { id: 'r-iop',                 title: 'IOP Dashboard' },
@@ -145,7 +144,6 @@ const receptionScreenGroups: ScreenGroup[] = [
   {
     groupTitle: 'Admission & Discharge',
     screens: [
-      { id: 'r-ip-adm',    title: 'New IP Admission' },
       { id: 'r-reg',       title: 'Admission' },
       { id: 'r-discharge', title: 'Discharge' },
     ],
@@ -154,7 +152,6 @@ const receptionScreenGroups: ScreenGroup[] = [
     groupTitle: 'Patient Visits',
     screens: [
       { id: 'r-visit',           title: 'Patient Visit' },
-      { id: 'r-new-visit',       title: 'New Patient Visit' },
       { id: 'r-daily-auto-visit', title: 'Daily Auto Visit' },
     ],
   },

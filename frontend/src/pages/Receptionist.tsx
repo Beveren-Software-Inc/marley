@@ -1,5 +1,5 @@
 import { useState, useEffect, useLayoutEffect } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useCareContext } from '../providers/CareContextProvider'
 import { dummyPatients } from '../config/patients'
 import { AdmissionList } from '../components/admissions/AdmissionList'
@@ -18,6 +18,8 @@ import { FollowUpList } from '../components/followUp/FollowUpList'
 import { IOPDayListWithHeader } from '../components/iop/IOPDayList'
 import { IOPEnrollmentListWithHeader } from '../components/iop/IOPEnrollmentList'
 import { DischargeList } from '../components/discharges/DischargeList'
+import { DischargeAdmissionView } from '../components/admissions/DischargeAdmissionView'
+import { inpatientDischargeAllowed } from '../utils/inpatientDischargeRoute'
 import { MedicalHistoryView } from '../components/medicalHistory/MedicalHistoryView'
 import { ReceptionLongActingMedicineList } from '../components/medication/ReceptionLongActingMedicineList'
 import { CreateLongActingMedicineModal } from '../components/medication/CreateLongActingMedicineModal'
@@ -75,7 +77,12 @@ export const ReceptionistPage = () => {
 
   // const { selectedPatient: globalPatient, setSelectedPatient: setGlobalPatient } = useCareContext()
   const [searchParams, setSearchParams] = useSearchParams()
-  const screen = searchParams.get('screen')
+  const navigate = useNavigate()
+  const location = useLocation()
+  const rawScreen = searchParams.get('screen')
+  const dischargeAdmission = searchParams.get('discharge')
+  const screen =
+    rawScreen && !isReceptionScreenBlocked(rawScreen, costCenterCareScope) ? rawScreen : null
   const [selectedPatient, setSelectedPatient] = useState<string>(() => searchParams.get('patient') || globalPatient || '')
   const [currentView, setCurrentView] = useState<View>('default')
   const [showAppointmentModal, setShowAppointmentModal] = useState(false)
@@ -113,11 +120,35 @@ export const ReceptionistPage = () => {
   }, [globalPatient])
 
   useLayoutEffect(() => {
-    if (!screen || !isReceptionScreenBlocked(screen, costCenterCareScope)) return
+    if (dischargeAdmission) return
+    if (!rawScreen || !isReceptionScreenBlocked(rawScreen, costCenterCareScope)) return
     const np = new URLSearchParams(searchParams)
     np.delete('screen')
     setSearchParams(np, { replace: true })
-  }, [screen, costCenterCareScope, searchParams, setSearchParams])
+  }, [dischargeAdmission, rawScreen, costCenterCareScope, searchParams, setSearchParams])
+
+  const closeDischarge = () => {
+    const state = location.state as { returnTo?: string } | null
+    if (state?.returnTo) {
+      navigate(state.returnTo, { replace: true })
+      return
+    }
+    const np = new URLSearchParams(searchParams)
+    np.delete('discharge')
+    setSearchParams(np, { replace: true })
+  }
+
+  const handleDischargeSuccess = () => {
+    toast.success('Discharge completed successfully')
+    const state = location.state as { returnTo?: string } | null
+    if (state?.returnTo) {
+      navigate(state.returnTo, { replace: true, state: { dischargeCompleted: true } })
+      return
+    }
+    const np = new URLSearchParams(searchParams)
+    np.delete('discharge')
+    setSearchParams(np, { replace: true, state: { dischargeCompleted: true } })
+  }
 
   useEffect(() => {
     if (costCenterCareScope === 'op_only') {
@@ -138,6 +169,7 @@ export const ReceptionistPage = () => {
 
   // Sync view with URL: when screen param is missing or unknown, show reception homepage
   useEffect(() => {
+    if (dischargeAdmission) return
     if (screen && isReceptionScreenBlocked(screen, costCenterCareScope)) {
       return
     }
@@ -146,14 +178,16 @@ export const ReceptionistPage = () => {
     } else if (screen === 'r-visit') {
       setCurrentView('visit')
     } else if (screen === 'r-appointment') {
+      setCurrentView('appointments-freeze')
       setShowAppointmentModal(true)
       const newParams = new URLSearchParams(searchParams)
-      newParams.delete('screen')
+      newParams.set('screen', 'r-appointments-freeze')
       setSearchParams(newParams, { replace: true })
     } else if (screen === 'r-ip-adm') {
+      setCurrentView('admission')
       setShowAdmissionModal(true)
       const newParams = new URLSearchParams(searchParams)
-      newParams.delete('screen')
+      newParams.set('screen', 'r-reg')
       setSearchParams(newParams, { replace: true })
     } else if (screen === 'r-new-op') {
       setShowPatientModal(true)
@@ -161,9 +195,10 @@ export const ReceptionistPage = () => {
       newParams.delete('screen')
       setSearchParams(newParams, { replace: true })
     } else if (screen === 'r-new-visit') {
+      setCurrentView('visit')
       setShowPatientVisitModal(true)
       const newParams = new URLSearchParams(searchParams)
-      newParams.delete('screen')
+      newParams.set('screen', 'r-visit')
       setSearchParams(newParams, { replace: true })
     } else if (screen === 'r-daily-auto-visit') {
       setCurrentView('daily-auto-visit')
@@ -214,7 +249,45 @@ export const ReceptionistPage = () => {
       // No screen param or unknown: show reception homepage (e.g. after "Back to Reception" or sidebar Home)
       setCurrentView('default')
     }
-  }, [screen, searchParams, setSearchParams, canBrowsePatientList])
+  }, [dischargeAdmission, screen, searchParams, setSearchParams, canBrowsePatientList])
+
+  if (dischargeAdmission && !inpatientDischargeAllowed(costCenterCareScope)) {
+    return (
+      <div className="flex flex-col p-6">
+        <p className="text-sm text-slate-700">
+          Inpatient discharge is not available for OP-only cost centers. Switch to a site that supports IP care or
+          use the desk Discharge form.
+        </p>
+        <button type="button" onClick={closeDischarge} className="mt-4 text-sm text-primary hover:underline w-fit">
+          Back
+        </button>
+      </div>
+    )
+  }
+
+  if (dischargeAdmission && inpatientDischargeAllowed(costCenterCareScope)) {
+    const navState = location.state as { patient?: string; patient_name?: string } | null
+    const patientForBar =
+      selectedPatient || navState?.patient || searchParams.get('patient') || ''
+    return (
+      <div className="flex flex-col h-full max-h-[calc(100vh-2.25rem)] overflow-hidden">
+        <PatientCareHeader
+          selectedPatient={patientForBar}
+          onPatientSelect={handlePatientSelect}
+          patients={dummyPatients}
+        />
+        <div className="flex-1 min-h-0 overflow-hidden bg-white">
+          <DischargeAdmissionView
+            admissionName={dischargeAdmission}
+            patientHint={navState?.patient}
+            patientNameHint={navState?.patient_name}
+            onClose={closeDischarge}
+            onSuccess={handleDischargeSuccess}
+          />
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col h-full">

@@ -25,6 +25,7 @@ import {
   fetchDepartments,
   fetchDocumentTypes,
   fetchNursingDischargeTemplates,
+  fetchNursingTemplateDisplayLabel,
   type LinkFieldOption,
   fetchNursingDischargeChecklist,
   type NursingDischargeTemplateOption,
@@ -994,13 +995,21 @@ const loadDailyVisitSetup = async () => {
             setDischargeTemplateQuery(template.label)
           }
 
-          const nurseTemplate = pickLink(fd.nurse_discharge_template, nurseTemplates)
-          if (nurseTemplate) {
-            setSelectedNurseTemplate(nurseTemplate)
-            setNurseTemplateQuery(nurseTemplate.label)
-            setNursingTemplateSource(
-              nursingTemplateSourceForName(fd.nurse_discharge_template, nurseTemplates)
-            )
+          const nurseTpl = (fd.nurse_discharge_template || '').trim()
+          let nurseSrc = nursingTemplateSourceForName(nurseTpl, nurseTemplates)
+
+          if (nurseTpl) {
+            const opt = pickLink(nurseTpl, nurseTemplates)
+            const label =
+              opt?.label ||
+              (await fetchNursingTemplateDisplayLabel(nurseTpl, nurseSrc || undefined))
+            setSelectedNurseTemplate({ name: nurseTpl, label })
+            setNurseTemplateQuery(label)
+            setNursingTemplateSource(nurseSrc)
+            setFormData((prev) => ({
+              ...prev,
+              nurse_discharge_template: nurseTpl,
+            }))
           }
 
           if (checklist?.length) {
@@ -1013,10 +1022,42 @@ const loadDailyVisitSetup = async () => {
 
           if (nursing?.length) {
             setNurseChecklistItems(nursing)
-          } else if (fd.nurse_discharge_template) {
-            const src = nursingTemplateSourceForName(fd.nurse_discharge_template, nurseTemplates)
-            setNursingTemplateSource(src)
-            await loadNurseChecklist(fd.nurse_discharge_template, src)
+            const deptMap: Record<string, boolean> = {}
+            nursing.forEach((item) => {
+              const dept = item.department_label || item.department || 'Nursing'
+              deptMap[dept] = true
+            })
+            setExpandedNurseDepts(deptMap)
+          } else if (nurseTpl && nurseSrc) {
+            await loadNurseChecklist(nurseTpl, nurseSrc)
+          } else if (!nurseTpl) {
+            try {
+              const ipRecord = await fetchInpatientRecord(admission.name)
+              const admissionNursingTemplate = ipRecord?.discharge_nursing_checklist_template as
+                | string
+                | undefined
+              if (admissionNursingTemplate) {
+                const nctOpt = nurseTemplates.find((t) => t.name === admissionNursingTemplate)
+                const label =
+                  nctOpt?.label ||
+                  (await fetchNursingTemplateDisplayLabel(
+                    admissionNursingTemplate,
+                    'nursing_checklist'
+                  ))
+                setSelectedNurseTemplate({ name: admissionNursingTemplate, label })
+                setNurseTemplateQuery(label)
+                setNursingTemplateSource('nursing_checklist')
+                setFormData((prev) => ({
+                  ...prev,
+                  nurse_discharge_template: admissionNursingTemplate,
+                }))
+                if (!nursing?.length) {
+                  await loadNurseChecklist(admissionNursingTemplate, 'nursing_checklist')
+                }
+              }
+            } catch {
+              /* ignore */
+            }
           }
 
           if (docs?.length) {
@@ -1038,6 +1079,27 @@ const loadDailyVisitSetup = async () => {
               serverDraft.patient_documents as PatientDocumentRow[] | undefined,
               serverDraft.patient_relatives as typeof relatives | undefined
             )
+            const fd = serverDraft.form_data
+            const hasNurseTemplate = Boolean((fd.nurse_discharge_template || '').trim())
+            const localDraft = loadDischargeDraft(admission.name)
+            if (!hasNurseTemplate && localDraft?.selectedOptions?.nurseTemplate) {
+              const lt = localDraft.selectedOptions.nurseTemplate
+              const src =
+                localDraft.selectedOptions.nursingTemplateSource ||
+                nursingTemplateSourceForName(lt.name, nurseTemplates)
+              setSelectedNurseTemplate(lt)
+              setNurseTemplateQuery(
+                localDraft.selectedOptions.nurseTemplateQuery || lt.label
+              )
+              setNursingTemplateSource(src)
+              setFormData((prev) => ({
+                ...prev,
+                nurse_discharge_template: lt.name,
+              }))
+              if (!serverDraft.nursing_checklist?.length) {
+                await loadNurseChecklist(lt.name, src)
+              }
+            }
             toast.info(`Resumed server draft ${serverDraft.name}`, 3000)
             resumed = true
           }
@@ -1094,6 +1156,21 @@ const loadDailyVisitSetup = async () => {
               draft.selectedOptions.dischargeNurseQuery || draft.selectedOptions.dischargeNurse.label
             )
           }
+          if (draft.selectedOptions.nurseTemplate) {
+            const lt = draft.selectedOptions.nurseTemplate
+            const src =
+              draft.selectedOptions.nursingTemplateSource ||
+              nursingTemplateSourceForName(lt.name, nurseTemplates)
+            if (!selectedNurseTemplate) {
+              setSelectedNurseTemplate(lt)
+              setNurseTemplateQuery(draft.selectedOptions.nurseTemplateQuery || lt.label)
+              setNursingTemplateSource(src)
+              setFormData((prev) => ({
+                ...prev,
+                nurse_discharge_template: lt.name,
+              }))
+            }
+          }
           if (draft.transferPrescription) {
             setTransferPrescription(draft.transferPrescription)
           }
@@ -1122,6 +1199,10 @@ const loadDailyVisitSetup = async () => {
             setSelectedNurseTemplate({ name: admissionNursingTemplate, label })
             setNurseTemplateQuery(label)
             setNursingTemplateSource('nursing_checklist')
+            setFormData((prev) => ({
+              ...prev,
+              nurse_discharge_template: admissionNursingTemplate,
+            }))
             await loadNurseChecklist(admissionNursingTemplate, 'nursing_checklist')
           }
         } catch (admissionTplErr) {
@@ -1155,7 +1236,7 @@ const loadDailyVisitSetup = async () => {
       }
     }
     loadData()
-  }, [])
+  }, [admission.name])
 
   // Load data when tabs are opened
   useEffect(() => {
@@ -1488,28 +1569,10 @@ const loadDailyVisitSetup = async () => {
           r.relative_alternative_phone_no_2
       )
 
-    return {
+    const payload: Record<string, unknown> = {
       ...formData,
       nurse_discharge_template:
-        nursingTemplateSource === 'discharge_nursing' ? formData.nurse_discharge_template : '',
-      discharge_checklist: checklistItems.map(item => ({
-        action_required: item.action_required,
-        department: item.department,
-        user: item.user,
-        name1: item.name1,
-        date_time: item.date_time ? toFrappeDateTime(item.date_time) : '',
-        click: item.click ? 1 : 0,
-        description: item.description || '',
-      })),
-      nursing_checklist: nurseChecklistItems.map(item => ({
-        action_required: item.action_required,
-        department: item.department,
-        user: item.user,
-        name1: item.name1,
-        date_time: item.date_time ? toFrappeDateTime(item.date_time) : '',
-        click: item.click ? 1 : 0,
-        description: item.description || '',
-      })),
+        selectedNurseTemplate?.name || formData.nurse_discharge_template || '',
       patient_document: documents
         .filter(r => (r.file_name || '').trim() || (r.document || '').trim())
         .map(r => ({
@@ -1521,6 +1584,32 @@ const loadDailyVisitSetup = async () => {
         })),
       patient_relatives: patientRelatives,
     }
+
+    // Doctors/reception do not load the Nursing tab; omit so Save does not clear nurse work.
+    if (visibleTabIds.includes('checklist')) {
+      payload.discharge_checklist = checklistItems.map((item) => ({
+        action_required: item.action_required,
+        department: item.department,
+        user: item.user,
+        name1: item.name1,
+        date_time: item.date_time ? toFrappeDateTime(item.date_time) : '',
+        click: item.click ? 1 : 0,
+        description: item.description || '',
+      }))
+    }
+    if (visibleTabIds.includes('nursing')) {
+      payload.nursing_checklist = nurseChecklistItems.map((item) => ({
+        action_required: item.action_required,
+        department: item.department,
+        user: item.user,
+        name1: item.name1,
+        date_time: item.date_time ? toFrappeDateTime(item.date_time) : '',
+        click: item.click ? 1 : 0,
+        description: item.description || '',
+      }))
+    }
+
+    return payload
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -1568,6 +1657,7 @@ const loadDailyVisitSetup = async () => {
           dischargeNurse: selectedDischargeNurse,
           dischargeTemplate: selectedDischargeTemplate,
           nurseTemplate: selectedNurseTemplate,
+          nursingTemplateSource,
           dischargeReceptionistQuery,
           dischargeDoctorQuery,
           dischargeNurseQuery,
@@ -1852,7 +1942,7 @@ const loadDailyVisitSetup = async () => {
             }
           }}
         >
-          <div className="flex-1 overflow-y-auto min-h-[750px]">
+          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
           {error && !unbilledServices && (
             <div className="mx-6 mt-4 p-3 bg-red-50 border border-red-200 rounded-md flex items-start gap-2 text-red-700 text-sm">
               <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
@@ -2110,7 +2200,11 @@ const loadDailyVisitSetup = async () => {
                       <input type="text" value={selectedNurseTemplate ? selectedNurseTemplate.label : nurseTemplateQuery}
                         onChange={(e) => {
                           setSelectedNurseTemplate(null)
-                          setFormData(prev => ({ ...prev, nurse_discharge_template: '' }))
+                          setFormData((prev) => ({
+                            ...prev,
+                            nurse_discharge_template: '',
+                          }))
+                          setNursingTemplateSource(null)
                           setNurseTemplateQuery(e.target.value)
                           setNurseTemplateOpen(true)
                         }}
@@ -2129,7 +2223,7 @@ const loadDailyVisitSetup = async () => {
                                 setNursingTemplateSource(src)
                                 setFormData({
                                   ...formData,
-                                  nurse_discharge_template: src === 'discharge_nursing' ? template.name : '',
+                                  nurse_discharge_template: template.name,
                                 })
                                 setNurseTemplateQuery(template.label)
                                 setNurseTemplateOpen(false)
@@ -2673,18 +2767,20 @@ const loadDailyVisitSetup = async () => {
           {/* ── TAB: MEDICINE SALES ── */}
           {/* ── TAB: MEDICINE SALES ── */}
 {canViewDischargeTabPanel('medicine-sales') && (
-  <div className="p-6 space-y-6">
-    <h3 className="text-sm font-semibold text-slate-700 mb-1">Medicine Sales Summary</h3>
-    <p className="text-xs text-slate-600 mb-2">
-      Summary of all prescriptions and medicines given during this admission.
-    </p>
+  <div className="flex flex-col min-h-0 max-h-full">
+    <div className="shrink-0 px-6 pt-6 pb-2">
+      <h3 className="text-sm font-semibold text-slate-700 mb-1">Medicine Sales Summary</h3>
+      <p className="text-xs text-slate-600">
+        Summary of all prescriptions and medicines given during this admission.
+      </p>
+    </div>
 
     {salesLoading ? (
-      <div className="flex items-center justify-center py-16">
+      <div className="flex items-center justify-center py-16 px-6">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
     ) : (
-      <div className="space-y-6">
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-6 pb-6 space-y-6">
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
@@ -2713,9 +2809,9 @@ const loadDailyVisitSetup = async () => {
       <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">After Discharge</span>
     </h4>
   </div>
-  <div className="overflow-x-auto">
+  <div className="overflow-auto max-h-[min(50vh,22rem)] [scrollbar-width:thin]">
     <table className="w-full text-sm">
-      <thead className="bg-slate-50 border-b border-slate-200">
+      <thead className="bg-slate-50 border-b border-slate-200 sticky top-0 z-[1]">
         <tr>
           <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-600">Medicine</th>
           <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-600">Dosage</th>
@@ -2780,9 +2876,9 @@ const loadDailyVisitSetup = async () => {
               <span>💊 Given Medicines (Administered during admission)</span>
             </h4>
           </div>
-          <div className="overflow-x-auto">
+          <div className="overflow-auto max-h-[min(50vh,22rem)] [scrollbar-width:thin]">
             <table className="w-full text-sm">
-              <thead className="bg-slate-50 border-b border-slate-200">
+              <thead className="bg-slate-50 border-b border-slate-200 sticky top-0 z-[1]">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-600">Medicine</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-600">Date/Time</th>
@@ -2833,8 +2929,8 @@ const loadDailyVisitSetup = async () => {
           </div>
         </div>
 
-        {/* Grand Total */}
-        <div className="flex justify-end pt-4">
+        {/* Grand Total — stays visible after scrolling tables */}
+        <div className="flex justify-end pt-2 shrink-0">
           <div className="bg-slate-100 rounded-lg p-4 min-w-[250px]">
             <div className="flex justify-between items-center mb-2">
               <span className="text-sm font-medium text-slate-600">Prescription Total:</span>

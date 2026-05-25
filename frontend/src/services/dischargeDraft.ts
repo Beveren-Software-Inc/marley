@@ -13,6 +13,7 @@ export interface DischargeSelectedOptions {
   dischargeNurse?: { name: string; label: string } | null
   dischargeTemplate?: { name: string; label: string } | null
   nurseTemplate?: { name: string; label: string } | null
+  nursingTemplateSource?: 'discharge_nursing' | 'nursing_checklist' | null
   dischargeReceptionistQuery?: string
   dischargeDoctorQuery?: string
   dischargeNurseQuery?: string

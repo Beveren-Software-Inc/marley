@@ -3,6 +3,13 @@ import type { CareMode } from '../providers/CareContextProvider'
 
 export const NURSE_DISCHARGE_SCREEN_ID = 'n-discharge'
 export const DOCTOR_DISCHARGE_SCREEN_ID = 'df'
+export const RECEPTION_DISCHARGE_SCREEN_ID = 'r-discharge'
+
+export const INPATIENT_DISCHARGE_SCREEN_IDS = [
+	NURSE_DISCHARGE_SCREEN_ID,
+	DOCTOR_DISCHARGE_SCREEN_ID,
+	RECEPTION_DISCHARGE_SCREEN_ID,
+] as const
 
 type SearchParamsLike = { get: (key: string) => string | null }
 

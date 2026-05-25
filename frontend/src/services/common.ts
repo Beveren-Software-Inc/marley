@@ -1462,6 +1462,27 @@ export async function fetchSampleCollections(
 }
 
 
+export async function fetchNursingTemplateDisplayLabel(
+  templateName: string,
+  templateSource?: NursingDischargeTemplateSource
+): Promise<string> {
+  try {
+    const result = await apiRequest<string>(
+      '/api/method/healthcare.api.common.get_nursing_template_display_label',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          template_name: templateName,
+          template_source: templateSource || '',
+        }),
+      }
+    )
+    return typeof result === 'string' && result.trim() ? result : templateName
+  } catch {
+    return templateName
+  }
+}
+
 // Fetch nursing discharge templates (Discharge Nursing + Nursing Checklist Template)
 export async function fetchNursingDischargeTemplates(query?: string): Promise<NursingDischargeTemplateOption[]> {
   try {

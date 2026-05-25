@@ -3123,6 +3123,27 @@ def get_nursing_discharge_checklist_from_template(template_name, template_source
 
 
 @frappe.whitelist()
+def get_nursing_template_display_label(template_name=None, template_source=None):
+	"""Human-readable label for portal nursing template picker (resume draft)."""
+	if not template_name:
+		return ""
+	source = (template_source or "").strip().lower()
+	if source == "nursing_checklist" or (
+		not source and frappe.db.exists("Nursing Checklist Template", template_name)
+	):
+		return (
+			frappe.db.get_value("Nursing Checklist Template", template_name, "title")
+			or template_name
+		)
+	if frappe.db.exists("Discharge Nursing Template", template_name):
+		return (
+			frappe.db.get_value("Discharge Nursing Template", template_name, "template_name")
+			or template_name
+		)
+	return template_name
+
+
+@frappe.whitelist()
 def fetch_nursing_discharge_template_options(template_name=None):
 	"""Discharge nursing template picker: Discharge Nursing Template + Nursing Checklist Template."""
 	search = (template_name or "").strip()
