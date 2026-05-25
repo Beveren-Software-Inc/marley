@@ -17,6 +17,7 @@ import {
 
 const statusColors: Record<string, string> = {
   'Draft': 'default',
+  'Signed': 'success',
   'Submitted': 'info',
   'Pending': 'warning',
   'In Process': 'info',
@@ -26,6 +27,8 @@ const statusColors: Record<string, string> = {
 
 const STATUS_OPTIONS = [
   { value: '', label: 'All' },
+  { value: 'Draft', label: 'Draft' },
+  { value: 'Signed', label: 'Signed' },
   { value: 'Pending', label: 'Pending' },
   { value: 'In Process', label: 'In Process' },
   { value: 'Completed', label: 'Completed' },

@@ -267,7 +267,7 @@ export const CreateLongActingMedicineModal = ({
         is_active: true,
       },
     ])
-    if (medications.length >= 2) {
+    if (newIndex >= 1) {
       setExpandedMedications(new Set([newIndex]))
     }
   }

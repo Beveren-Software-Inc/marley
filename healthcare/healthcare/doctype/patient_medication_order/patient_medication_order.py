@@ -68,15 +68,18 @@ class PatientMedicationOrder(Document):
 		self.db_set("total_orders", len(self.medication_orders))
 
 	def set_status(self):
-		status = {"0": "Draft", "1": "Submitted", "2": "Cancelled"}[cstr(self.docstatus or 0)]
-
-		if self.docstatus == 1:
+		if self.docstatus == 2:
+			status = "Cancelled"
+		elif self.docstatus == 1:
 			if not self.completed_orders:
 				status = "Pending"
 			elif self.completed_orders < self.total_orders:
 				status = "In Process"
 			else:
 				status = "Completed"
+		else:
+			# Draft document (docstatus 0): signed when doctor's signature is captured
+			status = "Signed" if cstr(self.doctors_signature).strip() else "Draft"
 
 		self.db_set("status", status)
 
