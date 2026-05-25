@@ -8,6 +8,7 @@
  "field_order": [
   "inpatient_admission",
   "patient_visit",
+  "cost_center",
   "column_break_utvm",
   "patient",
   "template",
@@ -54,12 +55,18 @@
    "fieldtype": "Link",
    "label": "Template",
    "options": "Patient History Template"
+  },
+  {
+   "fieldname": "cost_center",
+   "fieldtype": "Link",
+   "label": "Cost Center",
+   "options": "Cost Center"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-03-18 12:25:29.155525",
+ "modified": "2026-05-25 17:20:19.205774",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient History",
