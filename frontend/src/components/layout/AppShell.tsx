@@ -8,6 +8,12 @@ import { useCareContext } from '../../providers/CareContextProvider'
 import { getVisibleMainLinks, type MainLinkItem, type ScreenGroup } from '../../config/permissions'
 import { SHOW_EMPLOYEE_PORTAL } from '../../config/features'
 import { careScopeFromCostCenterField, filterDoctorScreenGroups, filterNurseScreenGroups, filterReceptionScreenGroups } from '../../config/costCenterCareScope'
+import {
+  DOCTOR_DISCHARGE_SCREEN_ID,
+  isInpatientDischargeRoute,
+  modeForInpatientDischargeScreens,
+  NURSE_DISCHARGE_SCREEN_ID,
+} from '../../utils/inpatientDischargeRoute'
 
 // ─── Nurse screens ────────────────────────────────────────────────────────────
 
@@ -130,7 +136,6 @@ const receptionScreenGroups: ScreenGroup[] = [
   {
     groupTitle: 'Appointments & Scheduling',
     screens: [
-      { id: 'r-appointment',         title: 'New Appointment' },
       { id: 'r-appointments-freeze', title: 'Appointments' },
       { id: 'r-followup',            title: 'Follow-up Dashboard' },
       { id: 'r-iop',                 title: 'IOP Dashboard' },
@@ -139,7 +144,6 @@ const receptionScreenGroups: ScreenGroup[] = [
   {
     groupTitle: 'Admission & Discharge',
     screens: [
-      { id: 'r-ip-adm',    title: 'New IP Admission' },
       { id: 'r-reg',       title: 'Admission' },
       { id: 'r-discharge', title: 'Discharge' },
     ],
@@ -148,7 +152,6 @@ const receptionScreenGroups: ScreenGroup[] = [
     groupTitle: 'Patient Visits',
     screens: [
       { id: 'r-visit',           title: 'Patient Visit' },
-      { id: 'r-new-visit',       title: 'New Patient Visit' },
       { id: 'r-daily-auto-visit', title: 'Daily Auto Visit' },
     ],
   },
@@ -226,9 +229,14 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
   const { selectedPatient, costCenterPatientCareType, mode } = useCareContext()
   const ccScope = careScopeFromCostCenterField(costCenterPatientCareType)
   const location = useLocation()
+  const urlSearch = new URLSearchParams(location.search)
+  const inNurseDischargeRoute = isInpatientDischargeRoute(urlSearch, [NURSE_DISCHARGE_SCREEN_ID])
+  const inDoctorDischargeRoute = isInpatientDischargeRoute(urlSearch, [DOCTOR_DISCHARGE_SCREEN_ID])
+  const sidebarModeForNurse = modeForInpatientDischargeScreens(mode, ccScope, inNurseDischargeRoute)
+  const sidebarModeForDoctor = modeForInpatientDischargeScreens(mode, ccScope, inDoctorDischargeRoute)
 
   // Derive the active screen id from the current URL query param
-  const activeScreen = new URLSearchParams(location.search).get('screen')
+  const activeScreen = urlSearch.get('screen')
 
   const roles = user?.roles?.length
     ? user.roles
@@ -271,11 +279,11 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
           : doctorScreenGroups
         return {
           ...link,
-          screenGroups: filterDoctorScreenGroups(base, ccScope, mode),
+          screenGroups: filterDoctorScreenGroups(base, ccScope, sidebarModeForDoctor),
         }
       }
       if (link.to === '/nurse') {
-        return { ...link, screenGroups: filterNurseScreenGroups(nurseScreenGroups, ccScope, mode) }
+        return { ...link, screenGroups: filterNurseScreenGroups(nurseScreenGroups, ccScope, sidebarModeForNurse) }
       }
       if (link.to === '/reception') {
         return { ...link, screenGroups: filterReceptionScreenGroups(receptionScreenGroups, ccScope, roles) }
@@ -293,6 +301,7 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
     ccScope,
     costCenterPatientCareType,
     mode,
+    location.search,
   ])
 
   return (

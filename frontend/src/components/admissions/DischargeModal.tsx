@@ -1,8 +1,14 @@
 
 
-import React, { useState, useEffect, useRef, useCallback } from 'react'
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 
-import { createDischarge, UnbilledServicesError } from '../../services/inpatientRecords'
+import {
+  createDischarge,
+  fetchDischargeDraftForAdmission,
+  fetchInpatientRecord,
+  saveDischargeDraftToServer,
+  UnbilledServicesError,
+} from '../../services/inpatientRecords'
 import { uploadPatientFile, type PatientDocumentRow } from '../../services/patients'
 import { MedicineGivenList } from '../medication/MedicineGivenList'
 import { MedicineReconciliationList } from '../medication/MedicineReconciliationList'
@@ -10,13 +16,33 @@ import {
   getDischargeTransferRows,
   type DischargeTransferRow,
 } from '../../services/medicineGiven'
-import { fetchHealthcarePractitioners, fetchUsers, fetchDischargeTemplates, fetchDischargeChecklist, fetchDepartments, fetchDocumentTypes, fetchNursingDischargeTemplates, type LinkFieldOption, fetchNursingDischargeChecklist } from '../../services/common'
+import {
+  fetchDischargeDoctorPractitioners,
+  fetchDischargeNursePractitioners,
+  fetchUsers,
+  fetchDischargeTemplates,
+  fetchDischargeChecklist,
+  fetchDepartments,
+  fetchDocumentTypes,
+  fetchNursingDischargeTemplates,
+  fetchNursingTemplateDisplayLabel,
+  type LinkFieldOption,
+  fetchNursingDischargeChecklist,
+  type NursingDischargeTemplateOption,
+  type NursingDischargeTemplateSource,
+} from '../../services/common'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { CreatePrescriptionModal } from '../prescriptions/CreatePrescriptionModal'
 import { fetchDischargeTransferPrescriptions, fetchAfterDischargePrescriptions } from '../../services/prescriptions'
 import { fetchMedicineGiven } from '../../services/medicineGiven'
 import { toast } from '../../hooks/useToast'
 import { useCareContext } from '../../providers/CareContextProvider'
+import {
+  canEditMainDischargeChecklist,
+  getVisibleDischargeTabIds,
+  isNurseRole,
+  type DischargeTabId,
+} from '../../config/permissions'
 import { useFormatMoney } from '../../hooks/useFormatMoney'
 import { saveDischargeDraft, loadDischargeDraft, clearDischargeDraft, draftSavedAt } from '../../services/dischargeDraft'
 import { X, ArrowLeft, CheckCircle2, Circle, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, AlertCircle, Receipt, PenLine, Trash2, Check, Save, Clock, Pill, Calendar, DollarSign, ClipboardList, HeartPulse, ArrowRightLeft, FolderOpen, Users, type LucideIcon } from 'lucide-react'
@@ -40,6 +66,9 @@ interface DischargePatientFormProps {
     name: string
     patient: string
     patient_name?: string
+    /** Practitioner who scheduled discharge — default for Discharge Doctor */
+    discharge_practitioner?: string
+    primary_practitioner?: string
   }
   onClose: () => void
   onSuccess: () => void
@@ -71,7 +100,104 @@ const RELATION_OPTIONS = [
   'Daughter',
 ] as const
 
-const TRANSFER_ALLOWED_ROLES = ['Doctor', 'System Manager', 'Healthcare Administrator', 'Administrator'] as const
+const DISCHARGE_TAB_DEFINITIONS: {
+  id: DischargeTabId
+  label: string
+  shortLabel?: string
+  Icon: LucideIcon
+  borderColor: string
+  activeBg: string
+  hoverBg: string
+  iconColor: string
+}[] = [
+  {
+    id: 'details',
+    label: 'Details',
+    Icon: ClipboardList,
+    borderColor: 'border-slate-400',
+    activeBg: 'bg-slate-50/80',
+    hoverBg: 'hover:bg-slate-50/50',
+    iconColor: 'text-slate-600',
+  },
+  {
+    id: 'checklist',
+    label: 'Discharge Checklist',
+    shortLabel: 'Checklist',
+    Icon: CheckCircle2,
+    borderColor: 'border-emerald-400',
+    activeBg: 'bg-emerald-50/80',
+    hoverBg: 'hover:bg-emerald-50/50',
+    iconColor: 'text-emerald-600',
+  },
+  {
+    id: 'nursing',
+    label: 'Nursing Checklist',
+    shortLabel: 'Nursing',
+    Icon: HeartPulse,
+    borderColor: 'border-sky-400',
+    activeBg: 'bg-sky-50/80',
+    hoverBg: 'hover:bg-sky-50/50',
+    iconColor: 'text-sky-600',
+  },
+  {
+    id: 'transfer',
+    label: 'Medicine Transfer',
+    shortLabel: 'Transfer',
+    Icon: ArrowRightLeft,
+    borderColor: 'border-violet-400',
+    activeBg: 'bg-violet-50/80',
+    hoverBg: 'hover:bg-violet-50/50',
+    iconColor: 'text-violet-600',
+  },
+  {
+    id: 'medicine-sales',
+    label: 'Sales of Medicine',
+    shortLabel: 'Med Sales',
+    Icon: DollarSign,
+    borderColor: 'border-amber-400',
+    activeBg: 'bg-amber-50/80',
+    hoverBg: 'hover:bg-amber-50/50',
+    iconColor: 'text-amber-600',
+  },
+  {
+    id: 'reconcile',
+    label: 'Medicine Reconciliation',
+    shortLabel: 'Reconcile',
+    Icon: Pill,
+    borderColor: 'border-teal-400',
+    activeBg: 'bg-teal-50/80',
+    hoverBg: 'hover:bg-teal-50/50',
+    iconColor: 'text-teal-600',
+  },
+  {
+    id: 'daily-visit',
+    label: 'Daily Visit Setup',
+    shortLabel: 'Daily Visit',
+    Icon: Calendar,
+    borderColor: 'border-indigo-400',
+    activeBg: 'bg-indigo-50/80',
+    hoverBg: 'hover:bg-indigo-50/50',
+    iconColor: 'text-indigo-600',
+  },
+  {
+    id: 'documents',
+    label: 'Documents',
+    Icon: FolderOpen,
+    borderColor: 'border-orange-400',
+    activeBg: 'bg-orange-50/80',
+    hoverBg: 'hover:bg-orange-50/50',
+    iconColor: 'text-orange-600',
+  },
+  {
+    id: 'relatives',
+    label: 'Relatives',
+    Icon: Users,
+    borderColor: 'border-rose-400',
+    activeBg: 'bg-rose-50/80',
+    hoverBg: 'hover:bg-rose-50/50',
+    iconColor: 'text-rose-600',
+  },
+]
 
 const groupByDepartment = (items: ChecklistItem[]) => {
   return items.reduce((acc, item) => {
@@ -516,13 +642,22 @@ const DailyVisitSetupForm = ({
   )
 }
 
+function nursingTemplateSourceForName(
+  templateName: string,
+  options: NursingDischargeTemplateOption[]
+): NursingDischargeTemplateSource {
+  const match = options.find((o) => o.name === templateName)
+  return match?.template_source ?? 'discharge_nursing'
+}
+
 // ─── Main discharge form (full page) ────────────────────────────────────────
 
 export const DischargePatientForm = ({ admission, onClose, onSuccess }: DischargePatientFormProps) => {
   const [submitting, setSubmitting] = useState(false)
+  const [savingDraft, setSavingDraft] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [unbilledServices, setUnbilledServices] = useState<{ type: string; ids: string[] }[] | null>(null)
-  const [activeTab, setActiveTab] = useState<'details' | 'checklist' | 'nursing' | 'transfer' | 'medicine-sales' | 'reconcile' | 'daily-visit' | 'documents' | 'relatives'>('details')
+  const [activeTab, setActiveTab] = useState<DischargeTabId>('details')
   const [sectionMenuOpen, setSectionMenuOpen] = useState(false)
   const sectionMenuRef = useRef<HTMLDivElement>(null)
   const sectionTabsScrollRef = useRef<HTMLDivElement>(null)
@@ -530,7 +665,21 @@ export const DischargePatientForm = ({ admission, onClose, onSuccess }: Discharg
 
   const { userRole } = useCareContext()
   const formatMedicineMoney = useFormatMoney()
-  const canViewMedicineTransfer = (userRole || []).some((role) => TRANSFER_ALLOWED_ROLES.includes(role as typeof TRANSFER_ALLOWED_ROLES[number]))
+  const visibleTabIds = useMemo(() => getVisibleDischargeTabIds(userRole), [userRole])
+  const tabs = useMemo(
+    () => DISCHARGE_TAB_DEFINITIONS.filter((t) => visibleTabIds.includes(t.id)),
+    [visibleTabIds]
+  )
+  const canEditMainChecklist = useMemo(() => canEditMainDischargeChecklist(userRole), [userRole])
+  const nursePrimaryUser = useMemo(() => isNurseRole(userRole) && !canEditMainChecklist, [userRole, canEditMainChecklist])
+  const canViewDischargeTabPanel = (tabId: DischargeTabId) =>
+    visibleTabIds.includes(tabId) && activeTab === tabId
+
+  useEffect(() => {
+    if (!visibleTabIds.includes(activeTab)) {
+      setActiveTab(visibleTabIds[0] ?? 'details')
+    }
+  }, [visibleTabIds, activeTab])
 
   const [transferRows, setTransferRows] = useState<DischargeTransferRow[]>([])
   const [transferLoading, setTransferLoading] = useState(false)
@@ -580,26 +729,27 @@ const [medicineSales, setMedicineSales] = useState<MedicineSalesData>({
 
   // Link field dropdowns
   const [dischargedByUsers, setDischargedByUsers] = useState<LinkFieldOption[]>([])
-  const [finalDischargeUsers, setFinalDischargeUsers] = useState<LinkFieldOption[]>([])
-  const [receivingDoctors, setReceivingDoctors] = useState<LinkFieldOption[]>([])
   const [dischargeTemplates, setDischargeTemplates] = useState<LinkFieldOption[]>([])
   const [nurseTemplateOptions, setNurseTemplateOptions] = useState<LinkFieldOption[]>([])
+  const [nursingTemplateSource, setNursingTemplateSource] = useState<NursingDischargeTemplateSource | null>(null)
 
-  const [dischargedByOpen, setDischargedByOpen] = useState(false)
-  const [finalDischargeOpen, setFinalDischargeOpen] = useState(false)
-  const [receivingDoctorsOpen, setReceivingDoctorsOpen] = useState(false)
+  const [dischargeReceptionistOpen, setDischargeReceptionistOpen] = useState(false)
+  const [dischargeDoctorOpen, setDischargeDoctorOpen] = useState(false)
+  const [dischargeNurseOpen, setDischargeNurseOpen] = useState(false)
   const [dischargeTemplateOpen, setDischargeTemplateOpen] = useState(false)
   const [nurseTemplateOpen, setNurseTemplateOpen] = useState(false)
 
-  const [dischargedByQuery, setDischargedByQuery] = useState('')
-  const [finalDischargeQuery, setFinalDischargeQuery] = useState('')
-  const [receivingDoctorsQuery, setReceivingDoctorsQuery] = useState('')
+  const [dischargeReceptionistQuery, setDischargeReceptionistQuery] = useState('')
+  const [dischargeDoctorQuery, setDischargeDoctorQuery] = useState('')
+  const [dischargeNurseQuery, setDischargeNurseQuery] = useState('')
   const [dischargeTemplateQuery, setDischargeTemplateQuery] = useState('')
   const [nurseTemplateQuery, setNurseTemplateQuery] = useState('')
 
-  const [selectedDischargedBy, setSelectedDischargedBy] = useState<LinkFieldOption | null>(null)
-  const [selectedFinalDischarge, setSelectedFinalDischarge] = useState<LinkFieldOption | null>(null)
-  const [selectedReceivingDoctor, setSelectedReceivingDoctor] = useState<LinkFieldOption | null>(null)
+  const [dischargeDoctorOptions, setDischargeDoctorOptions] = useState<LinkFieldOption[]>([])
+  const [dischargeNurseOptions, setDischargeNurseOptions] = useState<LinkFieldOption[]>([])
+  const [selectedDischargeReceptionist, setSelectedDischargeReceptionist] = useState<LinkFieldOption | null>(null)
+  const [selectedDischargeDoctor, setSelectedDischargeDoctor] = useState<LinkFieldOption | null>(null)
+  const [selectedDischargeNurse, setSelectedDischargeNurse] = useState<LinkFieldOption | null>(null)
   const [selectedDischargeTemplate, setSelectedDischargeTemplate] = useState<LinkFieldOption | null>(null)
   const [selectedNurseTemplate, setSelectedNurseTemplate] = useState<LinkFieldOption | null>(null)
 
@@ -624,6 +774,9 @@ const [medicineSales, setMedicineSales] = useState<MedicineSalesData>({
     discharged_by_user: '',
     final_discharge_user_id: '',
     receiving_doctors: '',
+    discharge_receptionist: '',
+    discharge_doctor: '',
+    discharge_nurse: '',
     discharge_template: '',
     nurse_discharge_template: '',
     discharge_treatment_plan: '',
@@ -631,7 +784,6 @@ const [medicineSales, setMedicineSales] = useState<MedicineSalesData>({
     discharge_diagnosis: '',
     discharge_conditions: '',
     discharge_instructions: '',
-    discharge_medic_stopped_reason: '',
     final_exam_mental_status_summary: '',
     management_in_hospital: '',
     prognosis: '',
@@ -775,58 +927,249 @@ const loadDailyVisitSetup = async () => {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [users, doctors, templates, nurseTemplates, docTypes] = await Promise.all([
+        const [users, doctors, nurses, templates, nurseTemplates, docTypes] = await Promise.all([
           fetchUsers(),
-          fetchHealthcarePractitioners(),
+          fetchDischargeDoctorPractitioners(),
+          fetchDischargeNursePractitioners(),
           fetchDischargeTemplates(),
           fetchNursingDischargeTemplates(),
           fetchDocumentTypes(),
         ])
         setDischargedByUsers(users)
-        setFinalDischargeUsers(users)
-        setReceivingDoctors(doctors)
+        setDischargeDoctorOptions(doctors)
+        setDischargeNurseOptions(nurses)
         setDischargeTemplates(templates)
         setNurseTemplateOptions(nurseTemplates)
         setDocumentTypes(docTypes)
 
-        const draft = loadDischargeDraft(admission.name)
-        if (draft) {
-          setFormData(prev => ({ ...prev, ...draft.formData }))
-          if (draft.selectedOptions.dischargedBy) {
-            setSelectedDischargedBy(draft.selectedOptions.dischargedBy)
-            setDischargedByQuery(draft.selectedOptions.dischargedByQuery || draft.selectedOptions.dischargedBy.label)
+        const pickLink = (
+          id: string | undefined,
+          options: LinkFieldOption[],
+          fallbackUsers?: LinkFieldOption[]
+        ): LinkFieldOption | null => {
+          if (!id) return null
+          return (
+            options.find((o) => o.name === id) ||
+            fallbackUsers?.find((o) => o.name === id) || { name: id, label: id }
+          )
+        }
+
+        const applyDraftForm = async (
+          fd: Record<string, string>,
+          checklist: ChecklistItem[] | undefined,
+          nursing: ChecklistItem[] | undefined,
+          docs: PatientDocumentRow[] | undefined,
+          rels: typeof relatives | undefined
+        ) => {
+          setFormData((prev) => ({ ...prev, ...fd }))
+
+          const receptionist = pickLink(fd.discharge_receptionist, users)
+          if (receptionist) {
+            setSelectedDischargeReceptionist(receptionist)
+            setDischargeReceptionistQuery(receptionist.label)
           }
-          if (draft.selectedOptions.finalDischarge) {
-            setSelectedFinalDischarge(draft.selectedOptions.finalDischarge)
-            setFinalDischargeQuery(draft.selectedOptions.finalDischargeQuery || draft.selectedOptions.finalDischarge.label)
+
+          const doctor = pickLink(fd.discharge_doctor, doctors)
+          if (doctor) {
+            setSelectedDischargeDoctor(doctor)
+            setDischargeDoctorQuery(doctor.label)
+          } else if (!fd.discharge_doctor) {
+            const defaultDoctorId = admission.discharge_practitioner || admission.primary_practitioner
+            const defaultDoctor = defaultDoctorId ? doctors.find((d) => d.name === defaultDoctorId) : null
+            if (defaultDoctor) {
+              setSelectedDischargeDoctor(defaultDoctor)
+              setDischargeDoctorQuery(defaultDoctor.label)
+              setFormData((prev) => ({ ...prev, discharge_doctor: defaultDoctor.name }))
+            }
           }
-          if (draft.selectedOptions.receivingDoctor) {
-            setSelectedReceivingDoctor(draft.selectedOptions.receivingDoctor)
-            setReceivingDoctorsQuery(draft.selectedOptions.receivingDoctorsQuery || draft.selectedOptions.receivingDoctor.label)
+
+          const nurse = pickLink(fd.discharge_nurse, nurses)
+          if (nurse) {
+            setSelectedDischargeNurse(nurse)
+            setDischargeNurseQuery(nurse.label)
           }
-          if (draft.selectedOptions.dischargeTemplate) {
-            setSelectedDischargeTemplate(draft.selectedOptions.dischargeTemplate)
-            setDischargeTemplateQuery(draft.selectedOptions.dischargeTemplateQuery || draft.selectedOptions.dischargeTemplate.label)
-            await loadChecklist(draft.selectedOptions.dischargeTemplate.name)
-          } else {
+
+          const template = pickLink(fd.discharge_template, templates)
+          if (template) {
+            setSelectedDischargeTemplate(template)
+            setDischargeTemplateQuery(template.label)
+          }
+
+          const nurseTpl = (fd.nurse_discharge_template || '').trim()
+          let nurseSrc = nursingTemplateSourceForName(nurseTpl, nurseTemplates)
+
+          if (nurseTpl) {
+            const opt = pickLink(nurseTpl, nurseTemplates)
+            const label =
+              opt?.label ||
+              (await fetchNursingTemplateDisplayLabel(nurseTpl, nurseSrc || undefined))
+            setSelectedNurseTemplate({ name: nurseTpl, label })
+            setNurseTemplateQuery(label)
+            setNursingTemplateSource(nurseSrc)
+            setFormData((prev) => ({
+              ...prev,
+              nurse_discharge_template: nurseTpl,
+            }))
+          }
+
+          if (checklist?.length) {
+            setChecklistItems(checklist)
+          } else if (fd.discharge_template) {
+            await loadChecklist(fd.discharge_template)
+          } else if (!nursePrimaryUser) {
             await loadChecklist('Inpatient Discharge')
           }
+
+          if (nursing?.length) {
+            setNurseChecklistItems(nursing)
+            const deptMap: Record<string, boolean> = {}
+            nursing.forEach((item) => {
+              const dept = item.department_label || item.department || 'Nursing'
+              deptMap[dept] = true
+            })
+            setExpandedNurseDepts(deptMap)
+          } else if (nurseTpl && nurseSrc) {
+            await loadNurseChecklist(nurseTpl, nurseSrc)
+          } else if (!nurseTpl) {
+            try {
+              const ipRecord = await fetchInpatientRecord(admission.name)
+              const admissionNursingTemplate = ipRecord?.discharge_nursing_checklist_template as
+                | string
+                | undefined
+              if (admissionNursingTemplate) {
+                const nctOpt = nurseTemplates.find((t) => t.name === admissionNursingTemplate)
+                const label =
+                  nctOpt?.label ||
+                  (await fetchNursingTemplateDisplayLabel(
+                    admissionNursingTemplate,
+                    'nursing_checklist'
+                  ))
+                setSelectedNurseTemplate({ name: admissionNursingTemplate, label })
+                setNurseTemplateQuery(label)
+                setNursingTemplateSource('nursing_checklist')
+                setFormData((prev) => ({
+                  ...prev,
+                  nurse_discharge_template: admissionNursingTemplate,
+                }))
+                if (!nursing?.length) {
+                  await loadNurseChecklist(admissionNursingTemplate, 'nursing_checklist')
+                }
+              }
+            } catch {
+              /* ignore */
+            }
+          }
+
+          if (docs?.length) {
+            setDocuments(docs)
+          }
+          if (rels?.length) {
+            setRelatives(rels)
+          }
+        }
+
+        let resumed = false
+        try {
+          const serverDraft = await fetchDischargeDraftForAdmission(admission.name)
+          if (serverDraft?.form_data) {
+            await applyDraftForm(
+              serverDraft.form_data,
+              serverDraft.discharge_checklist as ChecklistItem[] | undefined,
+              serverDraft.nursing_checklist as ChecklistItem[] | undefined,
+              serverDraft.patient_documents as PatientDocumentRow[] | undefined,
+              serverDraft.patient_relatives as typeof relatives | undefined
+            )
+            const fd = serverDraft.form_data
+            const hasNurseTemplate = Boolean((fd.nurse_discharge_template || '').trim())
+            const localDraft = loadDischargeDraft(admission.name)
+            if (!hasNurseTemplate && localDraft?.selectedOptions?.nurseTemplate) {
+              const lt = localDraft.selectedOptions.nurseTemplate
+              const src =
+                localDraft.selectedOptions.nursingTemplateSource ||
+                nursingTemplateSourceForName(lt.name, nurseTemplates)
+              setSelectedNurseTemplate(lt)
+              setNurseTemplateQuery(
+                localDraft.selectedOptions.nurseTemplateQuery || lt.label
+              )
+              setNursingTemplateSource(src)
+              setFormData((prev) => ({
+                ...prev,
+                nurse_discharge_template: lt.name,
+              }))
+              if (!serverDraft.nursing_checklist?.length) {
+                await loadNurseChecklist(lt.name, src)
+              }
+            }
+            toast.info(`Resumed server draft ${serverDraft.name}`, 3000)
+            resumed = true
+          }
+        } catch (serverDraftErr) {
+          console.error('Failed to load server discharge draft:', serverDraftErr)
+        }
+
+        if (resumed) {
+          try {
+            const existingTransfers = await fetchDischargeTransferPrescriptions(admission.patient)
+            if (existingTransfers.length > 0) {
+              const latestTransfer = existingTransfers[0]
+              setTransferPrescription({
+                name: latestTransfer.name,
+                patient_visit: latestTransfer.patient_encounter,
+              })
+            }
+          } catch {
+            /* ignore */
+          }
+          return
+        }
+
+        const draft = loadDischargeDraft(admission.name)
+        if (draft) {
+          await applyDraftForm(
+            draft.formData,
+            draft.checklistItems as ChecklistItem[] | undefined,
+            draft.nurseChecklistItems as ChecklistItem[] | undefined,
+            draft.documents as PatientDocumentRow[] | undefined,
+            draft.relatives as typeof relatives | undefined
+          )
+          if (draft.selectedOptions.dischargeReceptionist && !draft.formData.discharge_receptionist) {
+            setSelectedDischargeReceptionist(draft.selectedOptions.dischargeReceptionist)
+            setDischargeReceptionistQuery(
+              draft.selectedOptions.dischargeReceptionistQuery ||
+                draft.selectedOptions.dischargeReceptionist.label
+            )
+          }
+          if (draft.selectedOptions.dischargeDoctor && !draft.formData.discharge_doctor) {
+            setSelectedDischargeDoctor(draft.selectedOptions.dischargeDoctor)
+            setDischargeDoctorQuery(
+              draft.selectedOptions.dischargeDoctorQuery || draft.selectedOptions.dischargeDoctor.label
+            )
+          } else if (draft.selectedOptions.receivingDoctor) {
+            setSelectedDischargeDoctor(draft.selectedOptions.receivingDoctor)
+            setDischargeDoctorQuery(
+              draft.selectedOptions.receivingDoctorsQuery || draft.selectedOptions.receivingDoctor.label
+            )
+          }
+          if (draft.selectedOptions.dischargeNurse && !draft.formData.discharge_nurse) {
+            setSelectedDischargeNurse(draft.selectedOptions.dischargeNurse)
+            setDischargeNurseQuery(
+              draft.selectedOptions.dischargeNurseQuery || draft.selectedOptions.dischargeNurse.label
+            )
+          }
           if (draft.selectedOptions.nurseTemplate) {
-            setSelectedNurseTemplate(draft.selectedOptions.nurseTemplate)
-            setNurseTemplateQuery(draft.selectedOptions.nurseTemplateQuery || draft.selectedOptions.nurseTemplate.label)
-            await loadNurseChecklist(draft.selectedOptions.nurseTemplate.name)
-          }
-          if (Array.isArray(draft.checklistItems) && draft.checklistItems.length > 0) {
-            setChecklistItems(draft.checklistItems as ChecklistItem[])
-          }
-          if (Array.isArray(draft.nurseChecklistItems) && draft.nurseChecklistItems.length > 0) {
-            setNurseChecklistItems(draft.nurseChecklistItems as ChecklistItem[])
-          }
-          if (Array.isArray(draft.documents) && draft.documents.length > 0) {
-            setDocuments(draft.documents as PatientDocumentRow[])
-          }
-          if (Array.isArray(draft.relatives) && draft.relatives.length > 0) {
-            setRelatives(draft.relatives as typeof relatives)
+            const lt = draft.selectedOptions.nurseTemplate
+            const src =
+              draft.selectedOptions.nursingTemplateSource ||
+              nursingTemplateSourceForName(lt.name, nurseTemplates)
+            if (!selectedNurseTemplate) {
+              setSelectedNurseTemplate(lt)
+              setNurseTemplateQuery(draft.selectedOptions.nurseTemplateQuery || lt.label)
+              setNursingTemplateSource(src)
+              setFormData((prev) => ({
+                ...prev,
+                nurse_discharge_template: lt.name,
+              }))
+            }
           }
           if (draft.transferPrescription) {
             setTransferPrescription(draft.transferPrescription)
@@ -835,12 +1178,45 @@ const loadDailyVisitSetup = async () => {
           return
         }
 
-        await loadChecklist('Inpatient Discharge')
-        const defaultTemplate = templates.find(t => t.label === 'Inpatient Discharge' || t.name === 'Inpatient Discharge')
-        if (defaultTemplate) {
-          setSelectedDischargeTemplate(defaultTemplate)
-          setFormData(prev => ({ ...prev, discharge_template: defaultTemplate.name }))
-          setDischargeTemplateQuery(defaultTemplate.label)
+        if (!nursePrimaryUser) {
+          await loadChecklist('Inpatient Discharge')
+          const defaultTemplate = templates.find(
+            (t) => t.label === 'Inpatient Discharge' || t.name === 'Inpatient Discharge'
+          )
+          if (defaultTemplate) {
+            setSelectedDischargeTemplate(defaultTemplate)
+            setFormData((prev) => ({ ...prev, discharge_template: defaultTemplate.name }))
+            setDischargeTemplateQuery(defaultTemplate.label)
+          }
+        }
+
+        try {
+          const ipRecord = await fetchInpatientRecord(admission.name)
+          const admissionNursingTemplate = ipRecord?.discharge_nursing_checklist_template as string | undefined
+          if (admissionNursingTemplate) {
+            const nctOpt = nurseTemplates.find((t) => t.name === admissionNursingTemplate)
+            const label = nctOpt?.label || admissionNursingTemplate
+            setSelectedNurseTemplate({ name: admissionNursingTemplate, label })
+            setNurseTemplateQuery(label)
+            setNursingTemplateSource('nursing_checklist')
+            setFormData((prev) => ({
+              ...prev,
+              nurse_discharge_template: admissionNursingTemplate,
+            }))
+            await loadNurseChecklist(admissionNursingTemplate, 'nursing_checklist')
+          }
+        } catch (admissionTplErr) {
+          console.warn('Could not load admission nursing discharge template:', admissionTplErr)
+        }
+
+        const defaultDoctorId = admission.discharge_practitioner || admission.primary_practitioner
+        if (defaultDoctorId) {
+          const defaultDoctor = doctors.find((d) => d.name === defaultDoctorId)
+          if (defaultDoctor) {
+            setSelectedDischargeDoctor(defaultDoctor)
+            setDischargeDoctorQuery(defaultDoctor.label)
+            setFormData((prev) => ({ ...prev, discharge_doctor: defaultDoctor.name }))
+          }
         }
 
         try {
@@ -860,7 +1236,7 @@ const loadDailyVisitSetup = async () => {
       }
     }
     loadData()
-  }, [])
+  }, [admission.name])
 
   // Load data when tabs are opened
   useEffect(() => {
@@ -892,11 +1268,15 @@ const loadDailyVisitSetup = async () => {
     }
   }
 
-  const loadNurseChecklist = async (templateName: string) => {
+  const loadNurseChecklist = async (
+    templateName: string,
+    templateSource?: NursingDischargeTemplateSource | null
+  ) => {
     if (!templateName) return
+    const source = templateSource ?? nursingTemplateSource ?? undefined
     setNurseChecklistLoading(true)
     try {
-      const items = await fetchNursingDischargeChecklist(templateName)
+      const items = await fetchNursingDischargeChecklist(templateName, source)
       setNurseChecklistItems(items)
       const deptMap: Record<string, boolean> = {}
       items.forEach((item: ChecklistItem) => {
@@ -975,34 +1355,46 @@ const loadDailyVisitSetup = async () => {
 
   // Search effects
   useEffect(() => {
-    if (!dischargedByOpen) return
+    if (!dischargeReceptionistOpen) return
     const search = async () => {
-      try { const results = await fetchUsers(dischargedByQuery); setDischargedByUsers(results) }
-      catch { setDischargedByUsers([]) }
+      try {
+        const results = await fetchUsers(dischargeReceptionistQuery)
+        setDischargedByUsers(results)
+      } catch {
+        setDischargedByUsers([])
+      }
     }
-    const id = setTimeout(search, dischargedByQuery.trim() === '' ? 0 : 300)
+    const id = setTimeout(search, dischargeReceptionistQuery.trim() === '' ? 0 : 300)
     return () => clearTimeout(id)
-  }, [dischargedByQuery, dischargedByOpen])
+  }, [dischargeReceptionistQuery, dischargeReceptionistOpen])
 
   useEffect(() => {
-    if (!finalDischargeOpen) return
+    if (!dischargeDoctorOpen) return
     const search = async () => {
-      try { const results = await fetchUsers(finalDischargeQuery); setFinalDischargeUsers(results) }
-      catch { setFinalDischargeUsers([]) }
+      try {
+        const results = await fetchDischargeDoctorPractitioners(dischargeDoctorQuery)
+        setDischargeDoctorOptions(results)
+      } catch {
+        setDischargeDoctorOptions([])
+      }
     }
-    const id = setTimeout(search, finalDischargeQuery.trim() === '' ? 0 : 300)
+    const id = setTimeout(search, dischargeDoctorQuery.trim() === '' ? 0 : 300)
     return () => clearTimeout(id)
-  }, [finalDischargeQuery, finalDischargeOpen])
+  }, [dischargeDoctorQuery, dischargeDoctorOpen])
 
   useEffect(() => {
-    if (!receivingDoctorsOpen) return
+    if (!dischargeNurseOpen) return
     const search = async () => {
-      try { const results = await fetchHealthcarePractitioners(receivingDoctorsQuery); setReceivingDoctors(results) }
-      catch { setReceivingDoctors([]) }
+      try {
+        const results = await fetchDischargeNursePractitioners(dischargeNurseQuery)
+        setDischargeNurseOptions(results)
+      } catch {
+        setDischargeNurseOptions([])
+      }
     }
-    const id = setTimeout(search, receivingDoctorsQuery.trim() === '' ? 0 : 300)
+    const id = setTimeout(search, dischargeNurseQuery.trim() === '' ? 0 : 300)
     return () => clearTimeout(id)
-  }, [receivingDoctorsQuery, receivingDoctorsOpen])
+  }, [dischargeNurseQuery, dischargeNurseOpen])
 
   useEffect(() => {
     if (!dischargeTemplateOpen) return
@@ -1100,6 +1492,7 @@ const loadDailyVisitSetup = async () => {
   }
 
   const toggleCheck = (itemName: string) => {
+    if (!canEditMainChecklist) return
     setChecklistItems(prev =>
       prev.map(item =>
         item.name === itemName
@@ -1110,6 +1503,7 @@ const loadDailyVisitSetup = async () => {
   }
 
   const updateChecklistItem = (itemName: string, field: keyof ChecklistItem, value: string) => {
+    if (!canEditMainChecklist) return
     setChecklistItems(prev =>
       prev.map(item => item.name === itemName ? { ...item, [field]: value } : item)
     )
@@ -1146,11 +1540,76 @@ const loadDailyVisitSetup = async () => {
   const nurseAllCompleted = nurseTotalItems > 0 && nurseCompletedItems === nurseTotalItems
 
   const closeAllDropdowns = () => {
-    setDischargedByOpen(false)
-    setFinalDischargeOpen(false)
-    setReceivingDoctorsOpen(false)
+    setDischargeReceptionistOpen(false)
+    setDischargeDoctorOpen(false)
+    setDischargeNurseOpen(false)
     setDischargeTemplateOpen(false)
     setNurseTemplateOpen(false)
+  }
+
+  const buildDischargePayload = () => {
+    const patientRelatives = relatives
+      .map(r => ({
+        relationship_with_patient: r.relationship_with_patient?.trim() || '',
+        relative_name: r.relative_name?.trim() || '',
+        relative_phone_no: r.relative_phone_no?.trim() || '',
+        relative_alternative_phone_no: r.relative_alternative_phone_no?.trim() || '',
+        relative_alternative_phone_no_2: r.relative_alternative_phone_no_2?.trim() || '',
+        cpr__id_no: r.cpr__id_no?.trim() || '',
+        any_remarks: r.any_remarks?.trim() || '',
+      }))
+      .filter(
+        r =>
+          r.relationship_with_patient ||
+          r.relative_name ||
+          r.cpr__id_no ||
+          r.any_remarks ||
+          r.relative_phone_no ||
+          r.relative_alternative_phone_no ||
+          r.relative_alternative_phone_no_2
+      )
+
+    const payload: Record<string, unknown> = {
+      ...formData,
+      nurse_discharge_template:
+        selectedNurseTemplate?.name || formData.nurse_discharge_template || '',
+      patient_document: documents
+        .filter(r => (r.file_name || '').trim() || (r.document || '').trim())
+        .map(r => ({
+          file_name: (r.file_name || '').trim() || undefined,
+          document_type: (r.document_type || '').trim() || undefined,
+          transaction_no: (r.transaction_no || '').trim() || undefined,
+          upload_remarks: (r.upload_remarks || '').trim() || undefined,
+          document: (r.document || '').trim() || undefined,
+        })),
+      patient_relatives: patientRelatives,
+    }
+
+    // Doctors/reception do not load the Nursing tab; omit so Save does not clear nurse work.
+    if (visibleTabIds.includes('checklist')) {
+      payload.discharge_checklist = checklistItems.map((item) => ({
+        action_required: item.action_required,
+        department: item.department,
+        user: item.user,
+        name1: item.name1,
+        date_time: item.date_time ? toFrappeDateTime(item.date_time) : '',
+        click: item.click ? 1 : 0,
+        description: item.description || '',
+      }))
+    }
+    if (visibleTabIds.includes('nursing')) {
+      payload.nursing_checklist = nurseChecklistItems.map((item) => ({
+        action_required: item.action_required,
+        department: item.department,
+        user: item.user,
+        name1: item.name1,
+        date_time: item.date_time ? toFrappeDateTime(item.date_time) : '',
+        click: item.click ? 1 : 0,
+        description: item.description || '',
+      }))
+    }
+
+    return payload
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -1167,48 +1626,7 @@ const loadDailyVisitSetup = async () => {
 
     try {
       setSubmitting(true)
-      const patientRelatives = relatives
-        .map(r => ({
-          relationship_with_patient: r.relationship_with_patient?.trim() || '',
-          relative_name: r.relative_name?.trim() || '',
-          relative_phone_no: r.relative_phone_no?.trim() || '',
-          relative_alternative_phone_no: r.relative_alternative_phone_no?.trim() || '',
-          relative_alternative_phone_no_2: r.relative_alternative_phone_no_2?.trim() || '',
-          cpr__id_no: r.cpr__id_no?.trim() || '',
-          any_remarks: r.any_remarks?.trim() || '',
-        }))
-        .filter(r => r.relationship_with_patient || r.relative_name || r.cpr__id_no || r.any_remarks || r.relative_phone_no || r.relative_alternative_phone_no || r.relative_alternative_phone_no_2)
-
-      await createDischarge(admission.name, {
-        ...formData,
-        discharge_checklist: checklistItems.map(item => ({
-          action_required: item.action_required,
-          department: item.department,
-          user: item.user,
-          name1: item.name1,
-          date_time: item.date_time ? toFrappeDateTime(item.date_time) : '',
-          click: item.click ? 1 : 0,
-          description: item.description || ''
-        })),
-        nursing_checklist: nurseChecklistItems.map(item => ({
-          action_required: item.action_required,
-          user: item.user,
-          name1: item.name1,
-          date_time: item.date_time ? toFrappeDateTime(item.date_time) : '',
-          click: item.click ? 1 : 0,
-          description: item.description || ''
-        })),
-        patient_document: documents
-          .filter(r => (r.file_name || '').trim() || (r.document || '').trim())
-          .map(r => ({
-            file_name: (r.file_name || '').trim() || undefined,
-            document_type: (r.document_type || '').trim() || undefined,
-            transaction_no: (r.transaction_no || '').trim() || undefined,
-            upload_remarks: (r.upload_remarks || '').trim() || undefined,
-            document: (r.document || '').trim() || undefined,
-          })),
-        patient_relatives: patientRelatives,
-      })
+      await createDischarge(admission.name, buildDischargePayload())
       clearDischargeDraft(admission.name)
       toast.success('Patient discharged successfully!', 3000)
       onSuccess()
@@ -1226,135 +1644,49 @@ const loadDailyVisitSetup = async () => {
     }
   }
 
-  const handleSaveAndClose = () => {
-    saveDischargeDraft(admission.name, {
-      formData,
-      selectedOptions: {
-        dischargedBy: selectedDischargedBy,
-        finalDischarge: selectedFinalDischarge,
-        receivingDoctor: selectedReceivingDoctor,
-        dischargeTemplate: selectedDischargeTemplate,
-        nurseTemplate: selectedNurseTemplate,
-        dischargedByQuery,
-        finalDischargeQuery,
-        receivingDoctorsQuery,
-        dischargeTemplateQuery,
-        nurseTemplateQuery,
-      },
-      checklistItems,
-      nurseChecklistItems,
-      documents,
-      relatives,
-      transferPrescription,
-    })
-    toast.success('Discharge progress saved. You can continue later.', 4000)
-    onClose()
+  const handleSaveAndClose = async () => {
+    setError(null)
+    try {
+      setSavingDraft(true)
+      const result = await saveDischargeDraftToServer(admission.name, buildDischargePayload())
+      saveDischargeDraft(admission.name, {
+        formData,
+        selectedOptions: {
+          dischargeReceptionist: selectedDischargeReceptionist,
+          dischargeDoctor: selectedDischargeDoctor,
+          dischargeNurse: selectedDischargeNurse,
+          dischargeTemplate: selectedDischargeTemplate,
+          nurseTemplate: selectedNurseTemplate,
+          nursingTemplateSource,
+          dischargeReceptionistQuery,
+          dischargeDoctorQuery,
+          dischargeNurseQuery,
+          dischargeTemplateQuery,
+          nurseTemplateQuery,
+        },
+        checklistItems,
+        nurseChecklistItems,
+        documents,
+        relatives,
+        transferPrescription,
+      })
+      toast.success(
+        result?.message
+          ? `${result.message} (${result.name})`
+          : 'Discharge draft saved on server. You can continue later.',
+        4000
+      )
+      onClose()
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to save discharge draft'
+      toast.error(errorMessage, 5000)
+      setError(errorMessage)
+    } finally {
+      setSavingDraft(false)
+    }
   }
 
-  const tabs: {
-    id: typeof activeTab
-    label: string
-    shortLabel?: string
-    Icon: LucideIcon
-    borderColor: string
-    activeBg: string
-    hoverBg: string
-    iconColor: string
-  }[] = [
-    {
-      id: 'details',
-      label: 'Details',
-      Icon: ClipboardList,
-      borderColor: 'border-slate-400',
-      activeBg: 'bg-slate-50/80',
-      hoverBg: 'hover:bg-slate-50/50',
-      iconColor: 'text-slate-600',
-    },
-    {
-      id: 'checklist',
-      label: 'Discharge Checklist',
-      shortLabel: 'Checklist',
-      Icon: CheckCircle2,
-      borderColor: 'border-emerald-400',
-      activeBg: 'bg-emerald-50/80',
-      hoverBg: 'hover:bg-emerald-50/50',
-      iconColor: 'text-emerald-600',
-    },
-    {
-      id: 'nursing',
-      label: 'Nursing Checklist',
-      shortLabel: 'Nursing',
-      Icon: HeartPulse,
-      borderColor: 'border-sky-400',
-      activeBg: 'bg-sky-50/80',
-      hoverBg: 'hover:bg-sky-50/50',
-      iconColor: 'text-sky-600',
-    },
-    ...(canViewMedicineTransfer
-      ? [
-          {
-            id: 'transfer' as const,
-            label: 'Medicine Transfer',
-            shortLabel: 'Transfer',
-            Icon: ArrowRightLeft,
-            borderColor: 'border-violet-400',
-            activeBg: 'bg-violet-50/80',
-            hoverBg: 'hover:bg-violet-50/50',
-            iconColor: 'text-violet-600',
-          },
-        ]
-      : []),
-    {
-      id: 'medicine-sales',
-      label: 'Sales of Medicine',
-      shortLabel: 'Med Sales',
-      Icon: DollarSign,
-      borderColor: 'border-amber-400',
-      activeBg: 'bg-amber-50/80',
-      hoverBg: 'hover:bg-amber-50/50',
-      iconColor: 'text-amber-600',
-    },
-    {
-      id: 'reconcile',
-      label: 'Medicine Reconciliation',
-      shortLabel: 'Reconcile',
-      Icon: Pill,
-      borderColor: 'border-teal-400',
-      activeBg: 'bg-teal-50/80',
-      hoverBg: 'hover:bg-teal-50/50',
-      iconColor: 'text-teal-600',
-    },
-    {
-      id: 'daily-visit',
-      label: 'Daily Visit Setup',
-      shortLabel: 'Daily Visit',
-      Icon: Calendar,
-      borderColor: 'border-indigo-400',
-      activeBg: 'bg-indigo-50/80',
-      hoverBg: 'hover:bg-indigo-50/50',
-      iconColor: 'text-indigo-600',
-    },
-    {
-      id: 'documents',
-      label: 'Documents',
-      Icon: FolderOpen,
-      borderColor: 'border-orange-400',
-      activeBg: 'bg-orange-50/80',
-      hoverBg: 'hover:bg-orange-50/50',
-      iconColor: 'text-orange-600',
-    },
-    {
-      id: 'relatives',
-      label: 'Relatives',
-      Icon: Users,
-      borderColor: 'border-rose-400',
-      activeBg: 'bg-rose-50/80',
-      hoverBg: 'hover:bg-rose-50/50',
-      iconColor: 'text-rose-600',
-    },
-  ]
-
-  const renderTabBadge = (tabId: typeof activeTab) => {
+  const renderTabBadge = (tabId: DischargeTabId) => {
     if (tabId === 'checklist' && totalItems > 0) {
       return (
         <span
@@ -1610,7 +1942,7 @@ const loadDailyVisitSetup = async () => {
             }
           }}
         >
-          <div className="flex-1 overflow-y-auto min-h-[750px]">
+          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
           {error && !unbilledServices && (
             <div className="mx-6 mt-4 p-3 bg-red-50 border border-red-200 rounded-md flex items-start gap-2 text-red-700 text-sm">
               <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
@@ -1657,7 +1989,7 @@ const loadDailyVisitSetup = async () => {
           )}
 
           {/* ── TAB: DETAILS ── */}
-          {activeTab === 'details' && (
+          {canViewDischargeTabPanel('details') && (
             <div className="p-6 space-y-6">
               <section>
                 <h3 className="text-sm font-semibold text-slate-700 mb-3">Basic Information</h3>
@@ -1709,24 +2041,36 @@ const loadDailyVisitSetup = async () => {
 
               <section>
                 <h3 className="text-sm font-semibold text-slate-700 mb-3">Discharged By</h3>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="relative dropdown-container">
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Discharged By User</label>
-                    <input type="text" value={selectedDischargedBy ? selectedDischargedBy.label : dischargedByQuery}
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Discharge Receptionist</label>
+                    <input
+                      type="text"
+                      value={selectedDischargeReceptionist ? selectedDischargeReceptionist.label : dischargeReceptionistQuery}
                       onChange={(e) => {
-                        setSelectedDischargedBy(null)
-                        setFormData(prev => ({ ...prev, discharged_by_user: '' }))
-                        setDischargedByQuery(e.target.value)
-                        setDischargedByOpen(true)
+                        setSelectedDischargeReceptionist(null)
+                        setFormData((prev) => ({ ...prev, discharge_receptionist: '' }))
+                        setDischargeReceptionistQuery(e.target.value)
+                        setDischargeReceptionistOpen(true)
                       }}
-                      onFocus={() => setDischargedByOpen(true)}
+                      onFocus={() => setDischargeReceptionistOpen(true)}
                       placeholder="Search user..."
-                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-                    {dischargedByOpen && dischargedByUsers.length > 0 && (
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                    {dischargeReceptionistOpen && dischargedByUsers.length > 0 && (
                       <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-auto">
-                        {dischargedByUsers.map(user => (
-                          <button key={user.name} type="button" className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50"
-                            onClick={() => { setSelectedDischargedBy(user); setFormData({ ...formData, discharged_by_user: user.name }); setDischargedByQuery(user.label); setDischargedByOpen(false) }}>
+                        {dischargedByUsers.map((user) => (
+                          <button
+                            key={user.name}
+                            type="button"
+                            className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50"
+                            onClick={() => {
+                              setSelectedDischargeReceptionist(user)
+                              setFormData((prev) => ({ ...prev, discharge_receptionist: user.name }))
+                              setDischargeReceptionistQuery(user.label)
+                              setDischargeReceptionistOpen(false)
+                            }}
+                          >
                             {user.label}
                           </button>
                         ))}
@@ -1735,54 +2079,90 @@ const loadDailyVisitSetup = async () => {
                   </div>
 
                   <div className="relative dropdown-container">
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Final Discharge User</label>
-                    <input type="text" value={selectedFinalDischarge ? selectedFinalDischarge.label : finalDischargeQuery}
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Discharge Doctor</label>
+                    <input
+                      type="text"
+                      value={selectedDischargeDoctor ? selectedDischargeDoctor.label : dischargeDoctorQuery}
                       onChange={(e) => {
-                        setSelectedFinalDischarge(null)
-                        setFormData(prev => ({ ...prev, final_discharge_user_id: '' }))
-                        setFinalDischargeQuery(e.target.value)
-                        setFinalDischargeOpen(true)
+                        setSelectedDischargeDoctor(null)
+                        setFormData((prev) => ({ ...prev, discharge_doctor: '' }))
+                        setDischargeDoctorQuery(e.target.value)
+                        setDischargeDoctorOpen(true)
                       }}
-                      onFocus={() => setFinalDischargeOpen(true)}
-                      placeholder="Search user..."
-                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-                    {finalDischargeOpen && finalDischargeUsers.length > 0 && (
+                      onFocus={() => setDischargeDoctorOpen(true)}
+                      placeholder="Search practitioner..."
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                    {dischargeDoctorOpen && dischargeDoctorOptions.length > 0 && (
                       <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-auto">
-                        {finalDischargeUsers.map(user => (
-                          <button key={user.name} type="button" className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50"
-                            onClick={() => { setSelectedFinalDischarge(user); setFormData({ ...formData, final_discharge_user_id: user.name }); setFinalDischargeQuery(user.label); setFinalDischargeOpen(false) }}>
-                            {user.label}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="relative dropdown-container">
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Receiving Doctors</label>
-                    <input type="text" value={selectedReceivingDoctor ? selectedReceivingDoctor.label : receivingDoctorsQuery}
-                      onChange={(e) => {
-                        setSelectedReceivingDoctor(null)
-                        setFormData(prev => ({ ...prev, receiving_doctors: '' }))
-                        setReceivingDoctorsQuery(e.target.value)
-                        setReceivingDoctorsOpen(true)
-                      }}
-                      onFocus={() => setReceivingDoctorsOpen(true)}
-                      placeholder="Search healthcare practitioner..."
-                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-                    {receivingDoctorsOpen && receivingDoctors.length > 0 && (
-                      <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-auto">
-                        {receivingDoctors.map(doctor => (
-                          <button key={doctor.name} type="button" className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50"
-                            onClick={() => { setSelectedReceivingDoctor(doctor); setFormData({ ...formData, receiving_doctors: doctor.name }); setReceivingDoctorsQuery(doctor.label); setReceivingDoctorsOpen(false) }}>
+                        {dischargeDoctorOptions.map((doctor) => (
+                          <button
+                            key={doctor.name}
+                            type="button"
+                            className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50"
+                            onClick={() => {
+                              setSelectedDischargeDoctor(doctor)
+                              setFormData((prev) => ({ ...prev, discharge_doctor: doctor.name }))
+                              setDischargeDoctorQuery(doctor.label)
+                              setDischargeDoctorOpen(false)
+                            }}
+                          >
                             <div className="font-medium">{doctor.label}</div>
                             {doctor.department && <div className="text-xs text-slate-500">{doctor.department}</div>}
                           </button>
                         ))}
                       </div>
                     )}
+                    {admission.discharge_practitioner && (
+                      <p className="text-xs text-slate-500 mt-1">
+                        Defaults to practitioner who scheduled discharge.
+                      </p>
+                    )}
                   </div>
 
+                  <div className="relative dropdown-container">
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Discharge Nurse</label>
+                    <input
+                      type="text"
+                      value={selectedDischargeNurse ? selectedDischargeNurse.label : dischargeNurseQuery}
+                      onChange={(e) => {
+                        setSelectedDischargeNurse(null)
+                        setFormData((prev) => ({ ...prev, discharge_nurse: '' }))
+                        setDischargeNurseQuery(e.target.value)
+                        setDischargeNurseOpen(true)
+                      }}
+                      onFocus={() => setDischargeNurseOpen(true)}
+                      placeholder="Search practitioner..."
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                    {dischargeNurseOpen && dischargeNurseOptions.length > 0 && (
+                      <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-auto">
+                        {dischargeNurseOptions.map((nurse) => (
+                          <button
+                            key={nurse.name}
+                            type="button"
+                            className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50"
+                            onClick={() => {
+                              setSelectedDischargeNurse(nurse)
+                              setFormData((prev) => ({ ...prev, discharge_nurse: nurse.name }))
+                              setDischargeNurseQuery(nurse.label)
+                              setDischargeNurseOpen(false)
+                            }}
+                          >
+                            <div className="font-medium">{nurse.label}</div>
+                            {nurse.department && <div className="text-xs text-slate-500">{nurse.department}</div>}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </section>
+
+              <section>
+                <h3 className="text-sm font-semibold text-slate-700 mb-3">Discharge Templates</h3>
+                <div className={`grid gap-4 ${nursePrimaryUser ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                  {!nursePrimaryUser && (
                   <div className="relative dropdown-container">
                     <label className="block text-sm font-medium text-slate-700 mb-1">Discharge Template</label>
                     <input type="text" value={selectedDischargeTemplate ? selectedDischargeTemplate.label : dischargeTemplateQuery}
@@ -1812,36 +2192,51 @@ const loadDailyVisitSetup = async () => {
                       </div>
                     )}
                   </div>
+                  )}
 
-                  <div className="relative dropdown-container">
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Nursing Discharge Template</label>
-                    <input type="text" value={selectedNurseTemplate ? selectedNurseTemplate.label : nurseTemplateQuery}
-                      onChange={(e) => {
-                        setSelectedNurseTemplate(null)
-                        setFormData(prev => ({ ...prev, nurse_discharge_template: '' }))
-                        setNurseTemplateQuery(e.target.value)
-                        setNurseTemplateOpen(true)
-                      }}
-                      onFocus={() => setNurseTemplateOpen(true)}
-                      placeholder="Search nursing template..."
-                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-                    {nurseTemplateOpen && nurseTemplateOptions.length > 0 && (
-                      <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-auto">
-                        {nurseTemplateOptions.map(template => (
-                          <button key={template.name} type="button" className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50"
-                            onClick={() => {
-                              setSelectedNurseTemplate(template)
-                              setFormData({ ...formData, nurse_discharge_template: template.name })
-                              setNurseTemplateQuery(template.label)
-                              setNurseTemplateOpen(false)
-                              loadNurseChecklist(template.name)
-                            }}>
-                            {template.label}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                  {visibleTabIds.includes('nursing') && (
+                    <div className="relative dropdown-container">
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Nursing Discharge Template</label>
+                      <input type="text" value={selectedNurseTemplate ? selectedNurseTemplate.label : nurseTemplateQuery}
+                        onChange={(e) => {
+                          setSelectedNurseTemplate(null)
+                          setFormData((prev) => ({
+                            ...prev,
+                            nurse_discharge_template: '',
+                          }))
+                          setNursingTemplateSource(null)
+                          setNurseTemplateQuery(e.target.value)
+                          setNurseTemplateOpen(true)
+                        }}
+                        onFocus={() => setNurseTemplateOpen(true)}
+                        placeholder="Search nursing template..."
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                      {nurseTemplateOpen && nurseTemplateOptions.length > 0 && (
+                        <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-auto">
+                          {nurseTemplateOptions.map((template) => {
+                            const nct = template as NursingDischargeTemplateOption
+                            const src = nct.template_source ?? 'discharge_nursing'
+                            return (
+                            <button key={`${src}-${template.name}`} type="button" className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50"
+                              onClick={() => {
+                                setSelectedNurseTemplate(template)
+                                setNursingTemplateSource(src)
+                                setFormData({
+                                  ...formData,
+                                  nurse_discharge_template: template.name,
+                                })
+                                setNurseTemplateQuery(template.label)
+                                setNurseTemplateOpen(false)
+                                loadNurseChecklist(template.name, src)
+                              }}>
+                              {template.label}
+                            </button>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </section>
 
@@ -1872,7 +2267,6 @@ const loadDailyVisitSetup = async () => {
                     { key: 'discharge_diagnosis', label: 'Discharge Diagnosis' },
                     { key: 'discharge_conditions', label: 'Discharge Conditions' },
                     { key: 'discharge_instructions', label: 'Discharge Instructions' },
-                    { key: 'discharge_medic_stopped_reason', label: 'Discharge Medic Stopped Reason' },
                     { key: 'final_exam_mental_status_summary', label: 'Final Exam Mental Status Summary' },
                     { key: 'management_in_hospital', label: 'Management In Hospital' },
                     { key: 'prognosis', label: 'Prognosis' },
@@ -1909,8 +2303,14 @@ const loadDailyVisitSetup = async () => {
           )}
 
           {/* ── TAB: CHECKLIST ── */}
-          {activeTab === 'checklist' && (
+          {canViewDischargeTabPanel('checklist') && (
             <div className="p-6">
+              {!canEditMainChecklist && (
+                <div className="mb-4 rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
+                  This is the hospital discharge checklist (reception / doctor). You can view progress here; complete
+                  your tasks on the <strong>Nursing</strong> tab.
+                </div>
+              )}
               {totalItems > 0 && (
                 <div className="mb-6">
                   <div className="flex items-center justify-between mb-2">
@@ -1939,7 +2339,11 @@ const loadDailyVisitSetup = async () => {
               ) : checklistItems.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16 text-slate-400">
                   <Circle className="w-10 h-10 mb-3 opacity-30" />
-                  <p className="text-sm">No checklist items found for the selected template.</p>
+                  <p className="text-sm">
+                    {nursePrimaryUser
+                      ? 'No hospital checklist loaded yet. Reception or doctor will complete the main checklist.'
+                      : 'No checklist items found for the selected template.'}
+                  </p>
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -1969,7 +2373,12 @@ const loadDailyVisitSetup = async () => {
                                 <div key={item.name} className={`transition-colors ${item.click ? 'bg-green-50/40' : 'bg-white'}`}>
                                   <div className="px-4 py-3">
                                     <div className="flex items-start gap-3">
-                                      <button type="button" onClick={() => toggleCheck(item.name)} className="mt-0.5 shrink-0 focus:outline-none">
+                                      <button
+                                        type="button"
+                                        onClick={() => toggleCheck(item.name)}
+                                        disabled={!canEditMainChecklist}
+                                        className={`mt-0.5 shrink-0 focus:outline-none ${!canEditMainChecklist ? 'cursor-default opacity-80' : ''}`}
+                                      >
                                         {item.click ? <CheckCircle2 className="w-5 h-5 text-green-500" /> : <Circle className="w-5 h-5 text-slate-300 hover:text-slate-400" />}
                                       </button>
                                       <div className="flex-1 min-w-0">
@@ -2108,7 +2517,7 @@ const loadDailyVisitSetup = async () => {
           )}
 
           {/* ── TAB: NURSING CHECKLIST ── */}
-          {activeTab === 'nursing' && (
+          {canViewDischargeTabPanel('nursing') && (
             <div className="p-6">
               {nurseTotalItems > 0 && (
                 <div className="mb-6">
@@ -2273,7 +2682,7 @@ const loadDailyVisitSetup = async () => {
           )}
 
           {/* ── TAB: MEDICINE TRANSFER ── */}
-          {activeTab === 'transfer' && (
+          {canViewDischargeTabPanel('transfer') && (
             <div className="p-6 space-y-6">
               <h3 className="text-sm font-semibold text-slate-700 mb-1">Medicine Transfer</h3>
               <p className="text-xs text-slate-600 mb-2">
@@ -2357,19 +2766,21 @@ const loadDailyVisitSetup = async () => {
 
           {/* ── TAB: MEDICINE SALES ── */}
           {/* ── TAB: MEDICINE SALES ── */}
-{activeTab === 'medicine-sales' && (
-  <div className="p-6 space-y-6">
-    <h3 className="text-sm font-semibold text-slate-700 mb-1">Medicine Sales Summary</h3>
-    <p className="text-xs text-slate-600 mb-2">
-      Summary of all prescriptions and medicines given during this admission.
-    </p>
+{canViewDischargeTabPanel('medicine-sales') && (
+  <div className="flex flex-col min-h-0 max-h-full">
+    <div className="shrink-0 px-6 pt-6 pb-2">
+      <h3 className="text-sm font-semibold text-slate-700 mb-1">Medicine Sales Summary</h3>
+      <p className="text-xs text-slate-600">
+        Summary of all prescriptions and medicines given during this admission.
+      </p>
+    </div>
 
     {salesLoading ? (
-      <div className="flex items-center justify-center py-16">
+      <div className="flex items-center justify-center py-16 px-6">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
     ) : (
-      <div className="space-y-6">
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-6 pb-6 space-y-6">
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
@@ -2398,9 +2809,9 @@ const loadDailyVisitSetup = async () => {
       <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">After Discharge</span>
     </h4>
   </div>
-  <div className="overflow-x-auto">
+  <div className="overflow-auto max-h-[min(50vh,22rem)] [scrollbar-width:thin]">
     <table className="w-full text-sm">
-      <thead className="bg-slate-50 border-b border-slate-200">
+      <thead className="bg-slate-50 border-b border-slate-200 sticky top-0 z-[1]">
         <tr>
           <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-600">Medicine</th>
           <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-600">Dosage</th>
@@ -2465,9 +2876,9 @@ const loadDailyVisitSetup = async () => {
               <span>💊 Given Medicines (Administered during admission)</span>
             </h4>
           </div>
-          <div className="overflow-x-auto">
+          <div className="overflow-auto max-h-[min(50vh,22rem)] [scrollbar-width:thin]">
             <table className="w-full text-sm">
-              <thead className="bg-slate-50 border-b border-slate-200">
+              <thead className="bg-slate-50 border-b border-slate-200 sticky top-0 z-[1]">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-600">Medicine</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-600">Date/Time</th>
@@ -2518,8 +2929,8 @@ const loadDailyVisitSetup = async () => {
           </div>
         </div>
 
-        {/* Grand Total */}
-        <div className="flex justify-end pt-4">
+        {/* Grand Total — stays visible after scrolling tables */}
+        <div className="flex justify-end pt-2 shrink-0">
           <div className="bg-slate-100 rounded-lg p-4 min-w-[250px]">
             <div className="flex justify-between items-center mb-2">
               <span className="text-sm font-medium text-slate-600">Prescription Total:</span>
@@ -2549,7 +2960,7 @@ const loadDailyVisitSetup = async () => {
 )}
 
           {/* ── TAB: MEDICINE RECONCILIATION ── */}
-          {activeTab === 'reconcile' && (
+          {canViewDischargeTabPanel('reconcile') && (
             <div className="p-6 space-y-6">
               <h3 className="text-sm font-semibold text-slate-700 mb-1">Medicine Reconciliation</h3>
               <p className="text-xs text-slate-600 mb-2">
@@ -2572,7 +2983,7 @@ const loadDailyVisitSetup = async () => {
           )}
 
           {/* ── TAB: DAILY PATIENT VISIT SETUP ── */}
-          {activeTab === 'daily-visit' && (
+          {canViewDischargeTabPanel('daily-visit') && (
   <div className="p-6 space-y-6">
     <h3 className="text-sm font-semibold text-slate-700 mb-1">Daily Patient Visit Setup</h3>
     <p className="text-xs text-slate-600 mb-2">
@@ -2645,7 +3056,7 @@ const loadDailyVisitSetup = async () => {
           )}
 
           {/* ── TAB: DOCUMENTS ── */}
-          {activeTab === 'documents' && (
+          {canViewDischargeTabPanel('documents') && (
             <div className="p-6">
               <p className="text-sm text-slate-500 mb-4">
                 Attach discharge documents or capture digital signatures. You can upload a photo of a signed document <em>or</em> draw a signature directly on-screen.
@@ -2757,7 +3168,7 @@ const loadDailyVisitSetup = async () => {
           )}
 
           {/* ── TAB: RELATIVES ── */}
-          {activeTab === 'relatives' && (
+          {canViewDischargeTabPanel('relatives') && (
             <div className="p-6">
               <p className="text-sm text-slate-500 mb-4">
                 Add relatives / guardians who are relevant for this discharge record.
@@ -2959,16 +3370,16 @@ const loadDailyVisitSetup = async () => {
               <button
                 type="button"
                 onClick={handleSaveAndClose}
-                disabled={submitting}
+                disabled={submitting || savingDraft}
                 className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-amber-800 bg-amber-50 border border-amber-300 rounded-md hover:bg-amber-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                title="Save progress and close. You can continue this discharge later."
+                title="Save draft on server and close. You can continue this discharge later."
               >
                 <Save className="w-4 h-4" />
-                Save &amp; Close
+                {savingDraft ? 'Saving…' : 'Save & Close'}
               </button>
               <button
                 type="submit"
-                disabled={submitting}
+                disabled={submitting || savingDraft}
                 className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {submitting ? 'Discharging...' : 'Discharge Patient'}

@@ -3,19 +3,29 @@
  * Keyed per admission so multiple in-progress discharges can coexist.
  */
 
+import { fetchDischargeDraftForAdmission } from './inpatientRecords'
+
 const key = (admissionName: string) => `discharge_draft_v1_${admissionName}`
 
 export interface DischargeSelectedOptions {
+  dischargeReceptionist?: { name: string; label: string } | null
+  dischargeDoctor?: { name: string; label: string } | null
+  dischargeNurse?: { name: string; label: string } | null
+  dischargeTemplate?: { name: string; label: string } | null
+  nurseTemplate?: { name: string; label: string } | null
+  nursingTemplateSource?: 'discharge_nursing' | 'nursing_checklist' | null
+  dischargeReceptionistQuery?: string
+  dischargeDoctorQuery?: string
+  dischargeNurseQuery?: string
+  dischargeTemplateQuery?: string
+  nurseTemplateQuery?: string
+  /** @deprecated Legacy draft fields — ignored on load */
   dischargedBy?: { name: string; label: string } | null
   finalDischarge?: { name: string; label: string } | null
   receivingDoctor?: { name: string; label: string } | null
-  dischargeTemplate?: { name: string; label: string } | null
-  nurseTemplate?: { name: string; label: string } | null  // Add this
   dischargedByQuery?: string
   finalDischargeQuery?: string
   receivingDoctorsQuery?: string
-  dischargeTemplateQuery?: string
-  nurseTemplateQuery?: string  // Add this
 }
 
 export interface DischargeDraftData {
@@ -59,6 +69,17 @@ export function hasDischargeDraft(admissionName: string): boolean {
   try {
     return localStorage.getItem(key(admissionName)) !== null
   } catch { return false }
+}
+
+/** True if a draft exists on the server and/or in localStorage. */
+export async function hasAnyDischargeDraft(admissionName: string): Promise<boolean> {
+  try {
+    const server = await fetchDischargeDraftForAdmission(admissionName)
+    if (server?.name) return true
+  } catch {
+    /* ignore */
+  }
+  return hasDischargeDraft(admissionName)
 }
 
 export function draftSavedAt(admissionName: string): string | null {

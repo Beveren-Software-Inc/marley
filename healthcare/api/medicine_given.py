@@ -1202,9 +1202,7 @@ def create_visit_and_prescription_on_discharge(
 			pv.practitioner = practitioner
 		pv.company = company
 		pv.during_discharge = 1
-		pv.status='Completed'
 		pv.insert(ignore_permissions=True)
-		pv.submit()
 		frappe.db.commit()
 
 	from healthcare.api.patient_medication_order import create_patient_medication_order

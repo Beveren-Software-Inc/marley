@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { fetchInpatientRecord, type InpatientRecord, type InpatientPackage, scheduleDischarge, cancelAdmission } from '../../services/inpatientRecords'
-import { hasDischargeDraft, draftSavedAt } from '../../services/dischargeDraft'
+import { hasAnyDischargeDraft, draftSavedAt } from '../../services/dischargeDraft'
 import { PackageSelectionModal } from './PackageSelectionModal'
 import { AdmissionFormModal } from './AdmissionFormModal'
 import { ScheduleDischargeModal } from './ScheduleDischargeModal'
@@ -41,8 +41,11 @@ export const AdmissionDetails = ({ admissionNo, onUpdate }: AdmissionDetailsProp
       }
     }
 
-    loadAdmission()
-    setHasDraft(hasDischargeDraft(admissionNo))
+    const run = async () => {
+      await loadAdmission()
+      setHasDraft(await hasAnyDischargeDraft(admissionNo))
+    }
+    run()
   }, [admissionNo])
 
   const handleScheduleDischarge = async (dischargeData: any) => {

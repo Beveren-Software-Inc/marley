@@ -16,6 +16,7 @@ import { InpatientAdmissionDetails } from './InpatientAdmissionDetails'
 import { AddVisitorModal } from './AddVisitorModal'
 import { SuicidalPatientAssessmentModal } from './SuicidalPatientAssessmentModal'
 import { navigateToDischarge } from '../../utils/dischargeNavigation'
+import { fetchDischargeDraftForAdmission } from '../../services/inpatientRecords'
 import { RecoveryRoomRecordModal } from './RecoveryRoomRecordModal'
 import { AnesthesiaRecordModal } from './AnesthesiaRecordModal'
 import { TimeOutProcedureModal } from './TimeOutProcedureModal'
@@ -145,6 +146,7 @@ export const AdmissionList = ({ onAdmissionSelect, onPatientFromAdmission, searc
 
   // Actions dropdown (three-dot menu) — one row open at a time
   const [openActionRow, setOpenActionRow] = useState<string | null>(null)
+  const [openActionRowHasDraft, setOpenActionRowHasDraft] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
   // Slide-over detail panel (unchanged — opens on row click)
@@ -236,7 +238,30 @@ export const AdmissionList = ({ onAdmissionSelect, onPatientFromAdmission, searc
       navigate,
       `${location.pathname}${location.search}`
     )
+    setOpenActionRow(null)
   }
+
+  const handleContinueDischarge = (record: InpatientRecord) => {
+    handleDischarge(record)
+  }
+
+  useEffect(() => {
+    if (!openActionRow) {
+      setOpenActionRowHasDraft(false)
+      return
+    }
+    let cancelled = false
+    fetchDischargeDraftForAdmission(openActionRow)
+      .then((d) => {
+        if (!cancelled) setOpenActionRowHasDraft(Boolean(d?.name))
+      })
+      .catch(() => {
+        if (!cancelled) setOpenActionRowHasDraft(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [openActionRow])
 
   const handleTransferCostCenter = (record: InpatientRecord) => {
     setSelectedAdmissionForTransfer(record)
@@ -825,13 +850,24 @@ export const AdmissionList = ({ onAdmissionSelect, onPatientFromAdmission, searc
                                   Create Referral
                                 </button>
                               )}
-                              {record.status === 'Discharge Scheduled' && (
+                              {openActionRowHasDraft &&
+                                record.status !== 'Cancelled' &&
+                                record.status !== 'Discharged' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleContinueDischarge(record)}
+                                    className="block w-full text-left px-3 py-2 text-sm font-medium text-amber-800 hover:bg-amber-50"
+                                  >
+                                    Continue discharge
+                                  </button>
+                                )}
+                              {record.status === 'Discharge Scheduled' && !openActionRowHasDraft && (
                                 <button
                                   type="button"
-                                  onClick={() => { handleDischarge(record); setOpenActionRow(null) }}
+                                  onClick={() => handleContinueDischarge(record)}
                                   className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
                                 >
-                                  Discharge
+                                  Discharge patient
                                 </button>
                               )}
                             </PortalActionsMenu>

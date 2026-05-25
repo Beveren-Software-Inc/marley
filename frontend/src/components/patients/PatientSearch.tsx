@@ -2,7 +2,12 @@ import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { CreatePatientModal } from './CreatePatientModal'
 import { PatientAlertsBanner } from './PatientAlertsBanner'
-import { searchPatients, fetchPatientsPaginated, type PatientListItem } from '../../services/patients'
+import {
+  searchPatients,
+  fetchPatientsPaginated,
+  fetchPatientDisplayName,
+  type PatientListItem,
+} from '../../services/patients'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { fetchPatientVisitsFull } from '../../services/patientVisits'
 import { fetchInpatientRecords } from '../../services/inpatientRecords'
@@ -232,25 +237,33 @@ export const PatientSearch = ({
 
     if (selectedPatient) {
       const loadPatientName = async () => {
-        try {
-          const response = await fetch(
-            `/api/resource/Patient/${encodeURIComponent(selectedPatient)}?fields=["patient_name"]`
-          )
-          const resData = await response.json()
+        const storedId = getStoredValue(STORAGE_KEYS.SELECTED_PATIENT)
+        const storedName = getStoredValue(STORAGE_KEYS.SELECTED_PATIENT_NAME)
+        if (
+          storedName &&
+          storedName !== selectedPatient &&
+          storedId === selectedPatient
+        ) {
           if (cancelled) return
-          const fullName = resData?.data?.patient_name
-          if (fullName) {
-            setSelectedPatientName(fullName)
-            setPatientQuery(fullName)
-            setStoredValue(STORAGE_KEYS.SELECTED_PATIENT_NAME, fullName)
-          } else {
-            setSelectedPatientName(selectedPatient)
-            setPatientQuery(selectedPatient)
-            setStoredValue(STORAGE_KEYS.SELECTED_PATIENT_NAME, selectedPatient)
-          }
+          setSelectedPatientName(storedName)
+          setPatientQuery(storedName)
+          return
+        }
+
+        try {
+          const { patient_name: fullName } = await fetchPatientDisplayName(selectedPatient)
+          if (cancelled) return
+          const display = fullName || selectedPatient
+          setSelectedPatientName(display)
+          setPatientQuery(display)
+          setStoredValue(STORAGE_KEYS.SELECTED_PATIENT_NAME, display)
         } catch (error) {
           if (cancelled) return
           console.error('Failed to load patient name:', error)
+          if (selectedPatientName && selectedPatientName !== selectedPatient) {
+            setPatientQuery(selectedPatientName)
+            return
+          }
           setSelectedPatientName(selectedPatient)
           setPatientQuery(selectedPatient)
           setStoredValue(STORAGE_KEYS.SELECTED_PATIENT_NAME, selectedPatient)
@@ -518,6 +531,8 @@ export const PatientSearch = ({
                         setGlobalPatient(patient.name)
                         setSelectedPatientName(patientName)
                         setPatientQuery(patientName)
+                        setStoredValue(STORAGE_KEYS.SELECTED_PATIENT, patient.name)
+                        setStoredValue(STORAGE_KEYS.SELECTED_PATIENT_NAME, patientName)
                         setPatientOpen(false)
                         showPatientAlertsFromUserAction()
                       }}

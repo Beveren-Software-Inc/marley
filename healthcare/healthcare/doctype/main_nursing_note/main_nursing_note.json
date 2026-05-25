@@ -2,19 +2,20 @@
  "actions": [],
  "allow_import": 1,
  "allow_rename": 1,
+ "autoname": "field:trans_no",
  "creation": "2025-09-27 23:01:28.575766",
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
+  "trans_no",
   "admission",
-  "file_no",
   "column_break_tizg",
+  "file_no",
   "patient_name",
   "section_break_eeta",
-  "trans_num",
   "date",
-  "start_time",
+  "data",
   "shift",
   "nursing_notes",
   "column_break_whup",
@@ -34,15 +35,14 @@
    "fieldname": "admission",
    "fieldtype": "Link",
    "label": "Admission",
-   "options": "Inpatient Admission",
-   "reqd": 1
+   "options": "Inpatient Admission"
   },
   {
    "fetch_from": "admission.file_number",
    "fieldname": "file_no",
    "fieldtype": "Link",
    "label": "File No",
-   "options": "IP Patient"
+   "options": "Patient"
   },
   {
    "fieldname": "column_break_tizg",
@@ -59,24 +59,11 @@
    "fieldtype": "Section Break"
   },
   {
-   "fieldname": "trans_num",
-   "fieldtype": "Data",
-   "label": "Trans Num"
-  },
-  {
    "fieldname": "date",
    "fieldtype": "Date",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "Nursing Date",
-   "reqd": 1
-  },
-  {
-   "fieldname": "start_time",
-   "fieldtype": "Time",
-   "in_list_view": 1,
-   "in_standard_filter": 1,
-   "label": "Start Time"
+   "label": "Nursing Date"
   },
   {
    "fieldname": "shift",
@@ -147,15 +134,29 @@
    "fieldname": "up_date",
    "fieldtype": "Datetime",
    "label": "UP Date"
+  },
+  {
+   "fieldname": "trans_no",
+   "fieldtype": "Data",
+   "label": "Trans Num",
+   "unique": 1
+  },
+  {
+   "fieldname": "data",
+   "fieldtype": "Time",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Start Time"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-12-01 11:49:48.941623",
+ "modified": "2026-05-25 16:07:38.220878",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Main Nursing Note",
+ "naming_rule": "By fieldname",
  "owner": "Administrator",
  "permissions": [
   {

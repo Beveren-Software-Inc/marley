@@ -1,13 +1,16 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { fetchDischarges, type Discharge } from '../../services/discharges'
 import { fetchInpatientRecords } from '../../services/inpatientRecords'
 import { StatusPill } from '../ui/StatusPill'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
+import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { DetailSlideOver } from '../ui/DetailSlideOver'
 import { DocDetailView } from '../ui/DocDetailView'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
 import { useCardFilters } from '../../contexts/CardFilterContext'
+import { navigateToDischarge } from '../../utils/dischargeNavigation'
 
 const statusColors: Record<string, string> = {
   'Draft': 'warning',
@@ -22,7 +25,11 @@ interface DischargeListProps {
 }
 
 export const DischargeList = ({ patient, admission, onPatientClick }: DischargeListProps) => {
+  const navigate = useNavigate()
+  const location = useLocation()
   const { mode, activeAdmission, selectedPatient: contextPatient } = useCareContext()
+  const [openActionRow, setOpenActionRow] = useState<string | null>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
 
   // When IP mode has a specific admission, scope discharges to that admission.
   // Otherwise fall through to the prop, then context patient.
@@ -198,6 +205,22 @@ export const DischargeList = ({ patient, admission, onPatientClick }: DischargeL
   const statusOptions = ['Draft', 'Submitted', 'Cancelled']
   const dischargeTypeOptions = ['Home', 'Dama', 'Refer To Another Hospital']
   const inputClass = 'w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white'
+
+  const isDraftDischarge = (discharge: Discharge) => discharge.docstatus === 0
+
+  const handleContinueDraft = (discharge: Discharge) => {
+    if (!discharge.admission) return
+    navigateToDischarge(
+      {
+        name: discharge.admission,
+        patient: discharge.file_no,
+        patient_name: discharge.patient_name,
+      },
+      navigate,
+      `${location.pathname}${location.search}`
+    )
+    setOpenActionRow(null)
+  }
 
   if (loading) {
     return (
@@ -474,13 +497,60 @@ export const DischargeList = ({ patient, admission, onPatientClick }: DischargeL
                         color={statusColors[getDocStatus(discharge.docstatus)] || 'default'}
                       />
                     </td>
-                    <td className="px-4 py-2 align-middle">
-                      <PrintFormatDropdown
-                        doctype="Discharge"
-                        docName={discharge.name}
-                        noLetterhead={0}
-                        triggerPrint={1}
-                      />
+                    <td className="px-4 py-2 align-middle" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center gap-1.5">
+                        <div
+                          className="relative inline-block"
+                          ref={openActionRow === discharge.name ? menuRef : undefined}
+                        >
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setOpenActionRow((prev) =>
+                                prev === discharge.name ? null : discharge.name
+                              )
+                            }
+                            className="inline-flex items-center justify-center w-8 h-8 rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
+                            aria-label="Discharge actions"
+                          >
+                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                              <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+                            </svg>
+                          </button>
+                          <PortalActionsMenu
+                            open={openActionRow === discharge.name}
+                            onClose={() => setOpenActionRow(null)}
+                            triggerRef={menuRef}
+                            minWidth={200}
+                          >
+                            {isDraftDischarge(discharge) && discharge.admission && (
+                              <button
+                                type="button"
+                                onClick={() => handleContinueDraft(discharge)}
+                                className="block w-full text-left px-3 py-2 text-sm font-medium text-amber-800 hover:bg-amber-50"
+                              >
+                                Continue discharge
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setDetailName(discharge.name)
+                                setOpenActionRow(null)
+                              }}
+                              className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                            >
+                              View details
+                            </button>
+                          </PortalActionsMenu>
+                        </div>
+                        <PrintFormatDropdown
+                          doctype="Discharge"
+                          docName={discharge.name}
+                          noLetterhead={0}
+                          triggerPrint={1}
+                        />
+                      </div>
                     </td>
                   </tr>
                 ))}

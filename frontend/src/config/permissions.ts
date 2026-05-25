@@ -96,6 +96,10 @@ export function canAccessRoute(pathname: string, roles: string[]): boolean {
     return true
   }
 
+  if (pathname.startsWith('/discharge/')) {
+    return hasHealthcareRole(roles)
+  }
+
   // Role-specific pages
   const normalizedRoles = roles.map(r => r.trim().toLowerCase())
   if (pathname === '/doctor') return normalizedRoles.some(r => r.includes('doctor') || r.includes('physician') || r.includes('practitioner'))
@@ -134,6 +138,87 @@ export function getVisibleMainLinks(links: MainLinkItem[], roles: string[]): Mai
   if (isAdmin(roles)) return links
 
   return links.filter(link => canAccessRoute(link.to, roles))
+}
+
+/** Discharge patient modal section tabs. */
+export const DISCHARGE_TAB_IDS = [
+  'details',
+  'checklist',
+  'nursing',
+  'transfer',
+  'medicine-sales',
+  'reconcile',
+  'daily-visit',
+  'documents',
+  'relatives',
+] as const
+
+export type DischargeTabId = (typeof DISCHARGE_TAB_IDS)[number]
+
+const DISCHARGE_TABS_BY_ROLE: Record<'Reception' | 'Doctor' | 'Nurse', readonly DischargeTabId[]> = {
+  Reception: ['details', 'checklist', 'medicine-sales', 'reconcile', 'daily-visit', 'documents', 'relatives'],
+  Doctor: ['details', 'checklist', 'transfer', 'documents'],
+  Nurse: ['details', 'checklist', 'nursing', 'reconcile'],
+}
+
+function hasExactRole(roles: string[], names: string[]): boolean {
+  const normalized = new Set(roles.map((r) => r.trim().toLowerCase()))
+  return names.some((n) => normalized.has(n.toLowerCase()))
+}
+
+function roleMatches(roles: string[], matcher: (normalized: string) => boolean): boolean {
+  return roles.some((r) => matcher(r.trim().toLowerCase()))
+}
+
+export function isReceptionRole(roles: string[] | undefined): boolean {
+  if (!roles?.length) return false
+  return hasExactRole(roles, ['Reception']) || roleMatches(roles, (r) => r.includes('reception'))
+}
+
+export function isDoctorRole(roles: string[] | undefined): boolean {
+  if (!roles?.length) return false
+  return (
+    hasExactRole(roles, ['Doctor']) ||
+    roleMatches(roles, (r) => r.includes('doctor') || r.includes('physician') || r.includes('practitioner'))
+  )
+}
+
+export function isNurseRole(roles: string[] | undefined): boolean {
+  if (!roles?.length) return false
+  return hasExactRole(roles, ['Nurse']) || roleMatches(roles, (r) => r.includes('nurse') || r.includes('nursing'))
+}
+
+/** Main inpatient discharge checklist (reception/doctor); nurses usually view read-only. */
+export function canEditMainDischargeChecklist(roles: string[] | undefined): boolean {
+  if (!roles?.length) return true
+  if (isAdmin(roles)) return true
+  return isReceptionRole(roles) || isDoctorRole(roles)
+}
+
+/** Which discharge modal tabs the user may open (union when multiple roles). */
+export function getVisibleDischargeTabIds(roles: string[] | undefined): DischargeTabId[] {
+  if (!roles?.length) return ['details']
+  if (isAdmin(roles)) return [...DISCHARGE_TAB_IDS]
+
+  const allowed = new Set<DischargeTabId>()
+  if (isReceptionRole(roles)) {
+    DISCHARGE_TABS_BY_ROLE.Reception.forEach((t) => allowed.add(t))
+  }
+  if (isDoctorRole(roles)) {
+    DISCHARGE_TABS_BY_ROLE.Doctor.forEach((t) => allowed.add(t))
+  }
+  if (isNurseRole(roles)) {
+    DISCHARGE_TABS_BY_ROLE.Nurse.forEach((t) => allowed.add(t))
+  }
+
+  if (allowed.size === 0) {
+    return ['details', 'checklist']
+  }
+  return DISCHARGE_TAB_IDS.filter((t) => allowed.has(t))
+}
+
+export function canViewDischargeTab(roles: string[] | undefined, tabId: DischargeTabId): boolean {
+  return getVisibleDischargeTabIds(roles).includes(tabId)
 }
 
 /** Default route after login or when user has no access to current page */

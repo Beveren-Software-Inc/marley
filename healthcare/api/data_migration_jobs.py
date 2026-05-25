@@ -12,6 +12,7 @@ ADMISSION_BATCH_SIZE = 2000
 VISIT_BATCH_SIZE = 25
 APPOINTMENT_BATCH_SIZE = 2000
 MEDICATION_ORDER_BATCH_SIZE = 25
+DISCHARGE_BATCH_SIZE = 10
 
 JOB_LOCK_SECONDS = 7200  # 2 hours
 ALL_CUSTOMER_GROUP_NAMES = ("All Customer Groups", "All Customer Group")
@@ -175,6 +176,25 @@ def start_medication_order_complete_migration() -> dict:
 	return {
 		"ok": True,
 		"message": _("Submit & complete Patient Medication Orders job started in the background."),
+	}
+
+
+@frappe.whitelist()
+def start_discharge_submit_migration() -> dict:
+	_require_admin()
+	_acquire_lock("discharges")
+	_clear_failed_discharges()
+	_set_progress("discharges", 0)
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_discharge_submit_batch",
+		offset=0,
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_submit_discharges",
+	)
+	return {
+		"ok": True,
+		"message": _("Submit all draft Discharge documents job started in the background."),
 	}
 
 
@@ -518,4 +538,85 @@ def process_medication_order_complete_batch(offset: int = 0) -> None:
 		_set_progress("medication_orders", cint(offset), done=True, error=frappe.get_traceback())
 		_release_lock("medication_orders")
 		_clear_failed_medication_orders()
+		raise
+
+
+def _failed_discharges_key() -> str:
+	return "healthcare:data_migration:discharges:failed"
+
+
+def _mark_discharge_failed(name: str) -> None:
+	failed = set(frappe.cache().get_value(_failed_discharges_key()) or [])
+	failed.add(name)
+	frappe.cache().set_value(_failed_discharges_key(), list(failed), expires_in_sec=JOB_LOCK_SECONDS)
+
+
+def _clear_failed_discharges() -> None:
+	frappe.cache().delete_value(_failed_discharges_key())
+
+
+def process_discharge_submit_batch(offset: int = 0) -> None:
+	"""Submit draft Discharge documents (docstatus 0) in batches via RQ."""
+	try:
+		failed_skip = frappe.cache().get_value(_failed_discharges_key()) or []
+		filters: dict = {"docstatus": 0}
+		if failed_skip:
+			filters["name"] = ["not in", failed_skip]
+
+		names = frappe.get_all(
+			"Discharge",
+			filters=filters,
+			pluck="name",
+			order_by="name asc",
+			limit_page_length=DISCHARGE_BATCH_SIZE,
+		)
+
+		submitted = 0
+		failed = 0
+		for name in names:
+			try:
+				doc = frappe.get_doc("Discharge", name)
+				if doc.docstatus != 0:
+					continue
+				doc.flags.ignore_mandatory = True
+				doc.submit()
+				submitted += 1
+			except Exception:
+				failed += 1
+				_mark_discharge_failed(name)
+				frappe.log_error(
+					title=f"Discharge submit failed: {name}",
+					message=frappe.get_traceback(),
+				)
+
+		frappe.db.commit()
+		prev = frappe.cache().get_value(_job_progress_key("discharges")) or {}
+		processed = cint(prev.get("processed", 0)) + len(names)
+		_set_progress("discharges", processed)
+
+		if len(names) >= DISCHARGE_BATCH_SIZE:
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_discharge_submit_batch",
+				offset=0,
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_submit_discharges_{processed}",
+			)
+		else:
+			_set_progress("discharges", processed, done=True)
+			_release_lock("discharges")
+			_clear_failed_discharges()
+			frappe.log_error(
+				title="Healthcare Discharge submit migration complete",
+				message=(
+					f"Processed {processed} discharge(s). "
+					f"Submitted {submitted} in final batch; "
+					f"{failed} failed (see Error Log)."
+				),
+			)
+	except Exception:
+		frappe.db.rollback()
+		_set_progress("discharges", cint(offset), done=True, error=frappe.get_traceback())
+		_release_lock("discharges")
+		_clear_failed_discharges()
 		raise

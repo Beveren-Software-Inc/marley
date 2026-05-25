@@ -83,6 +83,8 @@ export interface InpatientRecord {
   discharge_note?: string
   followup_date?: string
   discharge_practitioner?: string
+  admission_nursing_checklist_template?: string
+  discharge_nursing_checklist_template?: string
   inpatient_occupancies?: InpatientOccupancy[]
   bed_no?: string
   service_unit_selections?: { service_unit?: string }[]
@@ -563,6 +565,8 @@ export async function scheduleDischarge(dischargeData: {
   patient: string
   inpatient_record: string
   discharge_practitioner?: string
+  admission_nursing_checklist_template?: string
+  discharge_nursing_checklist_template?: string
   discharge_ordered_datetime?: string
   followup_date?: string
   discharge_instructions?: string
@@ -624,6 +628,42 @@ function parseUnbilledServicesHtml(html: string): { type: string; ids: string[] 
   })
 
   return services
+}
+
+export interface ServerDischargeDraft {
+  name: string
+  docstatus?: number
+  form_data: Record<string, string>
+  discharge_checklist?: unknown[]
+  nursing_checklist?: unknown[]
+  patient_documents?: unknown[]
+  patient_relatives?: unknown[]
+}
+
+export async function fetchDischargeDraftForAdmission(
+  admissionName: string
+): Promise<ServerDischargeDraft | null> {
+  const params = new URLSearchParams({ admission_name: admissionName })
+  const draft = await apiRequest<ServerDischargeDraft | null>(
+    `/api/method/healthcare.api.inpatient_admission.get_discharge_draft_for_admission?${params.toString()}`
+  )
+  return draft && typeof draft === 'object' && draft.name ? draft : null
+}
+
+export async function saveDischargeDraftToServer(
+  admissionName: string,
+  dischargeData: Record<string, unknown>
+): Promise<{ name: string; message?: string }> {
+  return apiRequest(
+    '/api/method/healthcare.api.inpatient_admission.save_discharge_draft',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        admission_name: admissionName,
+        discharge_data: dischargeData,
+      }),
+    }
+  )
 }
 
 export async function createDischarge(admissionName: string, dischargeData: any) {

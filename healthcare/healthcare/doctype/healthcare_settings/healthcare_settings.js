@@ -25,6 +25,15 @@ frappe.ui.form.on('Healthcare Settings', {
 			);
 		}, __('Data Maintenance'));
 
+		frm.add_custom_button(__('Submit All Draft Discharges'), () => {
+			frappe.confirm(
+				__(
+					'Run in background: submit all draft Discharge documents. Each submit updates the linked Inpatient Admission to Discharged. Rows that fail validation (nursing checklist, billing, open service requests, etc.) are logged and skipped. Continue?'
+				),
+				() => run_migration_job(frm, 'start_discharge_submit_migration', 'discharges')
+			);
+		}, __('Data Maintenance'));
+
 		frm.add_custom_button(__('Submit Visits & Mark Completed'), () => {
 			frappe.confirm(
 				__(

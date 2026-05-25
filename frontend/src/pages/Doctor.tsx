@@ -80,9 +80,15 @@ import { useOpDoctorRequirements } from '../hooks/useOpDoctorRequirements'
 import { useCareContext } from '../providers/CareContextProvider'
 import { CreatePatientMedicalHistoryModal } from '../components/medicalHistory/CreatePatientMedicalHistoryModal'
 import { isDoctorScreenBlocked } from '../config/costCenterCareScope'
-import { draftSavedAt, hasDischargeDraft } from '../services/dischargeDraft'
+import { draftSavedAt, hasAnyDischargeDraft } from '../services/dischargeDraft'
 import { getPatientActiveAdmission } from '../services/inpatientRecords'
 import { navigateToDischarge } from '../utils/dischargeNavigation'
+import {
+  DOCTOR_DISCHARGE_SCREEN_ID,
+  inpatientDischargeAllowed,
+  isInpatientDischargeRoute,
+  modeForInpatientDischargeScreens,
+} from '../utils/inpatientDischargeRoute'
 import { AdmissionPage } from './Admission'
 import { PatientVisitPage } from './PatientVisit'
 
@@ -117,6 +123,7 @@ export const DoctorPage = () => {
     setSelectedPatient: setGlobalPatient,
     costCenterCareScope,
     guardClinicalCreate,
+    setMode,
   } = useCareContext()
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
@@ -171,8 +178,15 @@ export const DoctorPage = () => {
   const [medicalHistoryRefreshKey, setMedicalHistoryRefreshKey] = useState(0)
   const rawScreen = searchParams.get('screen')
   const dischargeAdmission = searchParams.get('discharge')
-  const screenBlocked = !!(rawScreen && isDoctorScreenBlocked(rawScreen, costCenterCareScope, mode))
+  const inDischargeRoute = isInpatientDischargeRoute(searchParams, [DOCTOR_DISCHARGE_SCREEN_ID])
+  const modeForScreens = modeForInpatientDischargeScreens(mode, costCenterCareScope, inDischargeRoute)
+  const screenBlocked = !!(rawScreen && isDoctorScreenBlocked(rawScreen, costCenterCareScope, modeForScreens))
   const screen = screenBlocked ? null : rawScreen
+
+  useLayoutEffect(() => {
+    if (!inDischargeRoute || mode === 'IP' || costCenterCareScope === 'op_only') return
+    setMode('IP')
+  }, [inDischargeRoute, mode, costCenterCareScope, setMode])
   const [showCreateADHDModal, setShowCreateADHDModal] = useState(false)
   const [adhdRefreshKey, setAdhdRefreshKey] = useState(0)
   const [showCreateDepressionModal, setShowCreateDepressionModal] = useState(false)
@@ -246,11 +260,12 @@ export const DoctorPage = () => {
   }, [screen, selectedPatient, searchParams, setSearchParams])
 
   useLayoutEffect(() => {
-    if (!rawScreen || !isDoctorScreenBlocked(rawScreen, costCenterCareScope, mode)) return
+    if (dischargeAdmission) return
+    if (!rawScreen || !isDoctorScreenBlocked(rawScreen, costCenterCareScope, modeForScreens)) return
     const np = new URLSearchParams(searchParams)
     np.delete('screen')
     setSearchParams(np, { replace: true })
-  }, [rawScreen, costCenterCareScope, mode, searchParams, setSearchParams])
+  }, [dischargeAdmission, rawScreen, costCenterCareScope, modeForScreens, searchParams, setSearchParams])
 
   const handleCreateDischarge = async () => {
     if (!selectedPatient) {
@@ -263,7 +278,8 @@ export const DoctorPage = () => {
         toast.error('No active admission found for this patient')
         return
       }
-      setDischargeHasDraft(hasDischargeDraft(admission.name))
+      const hasDraft = await hasAnyDischargeDraft(admission.name)
+      setDischargeHasDraft(hasDraft)
       setDraftAdmissionNo(admission.name)
       navigateToDischarge(
         {
@@ -286,8 +302,8 @@ export const DoctorPage = () => {
       return
     }
     getPatientActiveAdmission(selectedPatient)
-      .then((admission) => {
-        if (admission && hasDischargeDraft(admission.name)) {
+      .then(async (admission) => {
+        if (admission && (await hasAnyDischargeDraft(admission.name))) {
           setDischargeHasDraft(true)
           setDraftAdmissionNo(admission.name)
         } else {
@@ -344,7 +360,7 @@ export const DoctorPage = () => {
   }
 
   // Discharge workflow — keep portal top bar; form fills content area only
-  if (dischargeAdmission && mode !== 'OP') {
+  if (dischargeAdmission && inpatientDischargeAllowed(costCenterCareScope)) {
     const navState = location.state as { patient?: string; patient_name?: string } | null
     const patientForBar =
       selectedPatient || navState?.patient || searchParams.get('patient') || undefined
@@ -365,7 +381,7 @@ export const DoctorPage = () => {
   }
 
   // Show Admission page when screen=admission — hidden in OP mode
-  if (screen === 'admission' && mode !== 'OP') {
+  if (!dischargeAdmission && screen === 'admission' && modeForScreens !== 'OP') {
     return <AdmissionPage />
   }
 
@@ -1311,7 +1327,7 @@ export const DoctorPage = () => {
   }
 
   // Show Discharge Form — hidden in OP mode
-  if (screen === 'df' && mode !== 'OP') {
+  if (screen === DOCTOR_DISCHARGE_SCREEN_ID && modeForScreens !== 'OP') {
     return (
       <div className="flex flex-col">
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />

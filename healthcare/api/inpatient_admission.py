@@ -6,7 +6,9 @@
 import frappe
 import re
 from frappe import _
-from frappe.utils import cint,getdate, flt
+from datetime import timedelta
+
+from frappe.utils import cint, flt, format_timedelta, get_datetime, getdate
 from healthcare.api.patient_visit import create_invoice
 from healthcare.api.utils.api_utility import get_next_transaction_number
 from healthcare.controllers.discount_validation import apply_insurance_discounts
@@ -382,6 +384,8 @@ def get_inpatient_record(name):
 		'discharge_note': getattr(record, "discharge_note", None),
 		'followup_date': getattr(record, "followup_date", None),
 		'discharge_practitioner': getattr(record, "discharge_practitioner", None),
+		'admission_nursing_checklist_template': getattr(record, "admission_nursing_checklist_template", None),
+		'discharge_nursing_checklist_template': getattr(record, "discharge_nursing_checklist_template", None),
 	}
 
 
@@ -742,135 +746,350 @@ def add_patient_visitor(admission: str, visitors_name: str, relationship_with_pa
 	}
 
 
+DISCHARGE_CHILD_TABLE_KEYS = frozenset(
+	{
+		"patient_documents",
+		"patient_document",
+		"discharge_checklist",
+		"nursing_checklist",
+		"patient_relatives",
+	}
+)
+
+DISCHARGE_PORTAL_SCALAR_FIELDS = (
+	"discharge_type",
+	"ama_type",
+	"discharge_date",
+	"discharge_time",
+	"final_discharge_date",
+	"final_discharge_time",
+	"discharged_by_user",
+	"final_discharge_user_id",
+	"receiving_doctors",
+	"discharge_receptionist",
+	"discharge_doctor",
+	"discharge_nurse",
+	"discharge_template",
+	"nurse_discharge_template",
+	"discharge_treatment_plan",
+	"discharge_reason",
+	"discharge_diagnosis",
+	"discharge_conditions",
+	"discharge_instructions",
+	"final_exam_mental_status_summary",
+	"management_in_hospital",
+	"prognosis",
+	"next_appointment_date",
+	"next_appointment_time",
+	"nurse_discharge_template",
+)
+
+
+def _get_submitted_discharge_name(admission_name: str) -> str | None:
+	return frappe.db.get_value(
+		"Discharge",
+		{"admission": admission_name, "docstatus": 1},
+		"name",
+	)
+
+
+def _get_draft_discharge_name(admission_name: str) -> str | None:
+	
+	data =  frappe.db.get_value(
+		"Discharge",
+		{"admission": admission_name, "docstatus": 0},
+		"name",
+	)
+	return data
+
+
+def _apply_discharge_payload(discharge_doc, discharge_data: dict) -> None:
+	"""Apply portal discharge form JSON onto a Discharge document (draft or before submit)."""
+	discharge_data = discharge_data or {}
+
+	for key, value in discharge_data.items():
+		if key in DISCHARGE_CHILD_TABLE_KEYS:
+			continue
+		if hasattr(discharge_doc, key) and value not in (None, ""):
+			discharge_doc.set(key, value)
+
+	# Only replace child tables when the portal sends them. Doctors/reception do not
+	# have the Nursing tab; an empty nursing_checklist in their payload must not wipe
+	# rows nurses already completed on the same draft.
+	if "discharge_checklist" in discharge_data:
+		checklist = frappe.parse_json(discharge_data.get("discharge_checklist") or [])
+		discharge_doc.set("discharge_checklist", [])
+		if isinstance(checklist, list):
+			for idx, row in enumerate(checklist, start=1):
+				if not isinstance(row, dict):
+					continue
+				discharge_doc.append(
+					"discharge_checklist",
+					{
+						"idx": idx,
+						"action_required": (row.get("action_required") or "").strip() or None,
+						"department": (row.get("department") or "").strip() or None,
+						"user": (row.get("user") or "").strip() or None,
+						"name1": (row.get("name1") or "").strip() or None,
+						"date_time": (row.get("date_time") or "").strip() or None,
+						"click": cint(row.get("click") or 0),
+						"description": (row.get("description") or "").strip() or None,
+					},
+				)
+
+	if "nursing_checklist" in discharge_data:
+		nursing_checklist = frappe.parse_json(discharge_data.get("nursing_checklist") or [])
+		discharge_doc.set("nursing_checklist", [])
+		if isinstance(nursing_checklist, list):
+			for idx, row in enumerate(nursing_checklist, start=1):
+				if not isinstance(row, dict):
+					continue
+				discharge_doc.append(
+					"nursing_checklist",
+					{
+						"idx": idx,
+						"action_required": (row.get("action_required") or "").strip() or None,
+						"department": (row.get("department") or "").strip() or None,
+						"user": (row.get("user") or "").strip() or None,
+						"name1": (row.get("name1") or "").strip() or None,
+						"date_time": (row.get("date_time") or "").strip() or None,
+						"click": cint(row.get("click") or 0),
+						"description": (row.get("description") or "").strip() or None,
+					},
+				)
+
+	documents = frappe.parse_json(
+		discharge_data.get("patient_documents") or discharge_data.get("patient_document") or []
+	)
+	discharge_doc.set("patient_documents", [])
+	if isinstance(documents, list):
+		for idx, row in enumerate(documents, start=1):
+			if not isinstance(row, dict):
+				continue
+			if not (row.get("file_name") or row.get("document") or row.get("document_type")):
+				continue
+			discharge_doc.append(
+				"patient_documents",
+				{
+					"idx": idx,
+					"file_name": (row.get("file_name") or "").strip() or None,
+					"document_type": (row.get("document_type") or "").strip() or None,
+					"transaction_no": (row.get("transaction_no") or "").strip() or None,
+					"upload_remarks": (row.get("upload_remarks") or "").strip() or None,
+					"document": (row.get("document") or "").strip() or None,
+				},
+			)
+
+	relatives = frappe.parse_json(discharge_data.get("patient_relatives") or [])
+	discharge_doc.set("patient_relatives", [])
+	if isinstance(relatives, list):
+		for row in relatives:
+			if not isinstance(row, dict):
+				continue
+			child = discharge_doc.append("patient_relatives", {})
+			for key in (
+				"relationship_with_patient",
+				"relative_name",
+				"cpr__id_no",
+				"any_remarks",
+				"relative_phone_no",
+				"relative_alternative_phone_no",
+				"relative_alternative_phone_no_2",
+			):
+				if key in row:
+					value = (row.get(key) or "").strip()
+					if value:
+						child.set(key, value)
+
+
+def _portal_dt_string(value) -> str:
+	if not value:
+		return ""
+	from frappe.utils import get_datetime
+
+	try:
+		return get_datetime(value).strftime("%Y-%m-%dT%H:%M")
+	except Exception:
+		return str(value)
+
+
+def _portal_date_string(value) -> str:
+	if not value:
+		return ""
+	return str(getdate(value))
+
+
+def _portal_time_string(value) -> str:
+	if not value:
+		return ""
+	if isinstance(value, timedelta):
+		return format_timedelta(value)
+	return str(value)
+
+
+def _portal_scalar_string(value) -> str:
+	if value is None or value == "":
+		return ""
+	if isinstance(value, timedelta):
+		return _portal_time_string(value)
+	return str(value)
+
+
+def _serialize_checklist_row(row, default_department: str = "") -> dict:
+	"""Map discharge or nursing checklist child row for the portal."""
+	dept = (getattr(row, "department", None) or "") or default_department
+	raw_dt = getattr(row, "date_time", None)
+	if raw_dt:
+		date_time = _portal_dt_string(raw_dt)
+	else:
+		date_time = ""
+	return {
+		"name": row.name or f"row-{getattr(row, 'idx', 0)}",
+		"action_required": getattr(row, "action_required", None) or "",
+		"department": dept,
+		"department_label": dept or default_department,
+		"user": getattr(row, "user", None) or "",
+		"name1": getattr(row, "name1", None) or "",
+		"date_time": date_time,
+		"click": bool(getattr(row, "click", 0)),
+		"description": getattr(row, "description", None) or "",
+	}
+
+
+def _serialize_checklist_rows(rows, default_department: str = "") -> list[dict]:
+	return [_serialize_checklist_row(row, default_department) for row in (rows or [])]
+
+
+def _serialize_discharge_draft_for_portal(discharge_doc) -> dict:
+	form_data = {}
+	for field in DISCHARGE_PORTAL_SCALAR_FIELDS:
+		val = discharge_doc.get(field)
+		if field == "discharge_date":
+			# Portal uses datetime-local; append midnight when doctype stores Date only.
+			d = _portal_date_string(val)
+			form_data[field] = f"{d}T00:00" if d else ""
+		elif field in ("final_discharge_date", "next_appointment_date"):
+			form_data[field] = _portal_date_string(val)
+		elif field == "final_discharge_time":
+			form_data[field] = _portal_time_string(val)
+		else:
+			form_data[field] = _portal_scalar_string(val)
+	return {
+		"name": discharge_doc.name,
+		"docstatus": discharge_doc.docstatus,
+		"form_data": form_data,
+		"discharge_checklist": _serialize_checklist_rows(discharge_doc.get("discharge_checklist")),
+		"nursing_checklist": _serialize_checklist_rows(
+			discharge_doc.get("nursing_checklist"), default_department="Nursing"
+		),
+		"patient_documents": [
+			{
+				"file_name": row.file_name or "",
+				"document_type": row.document_type or "",
+				"transaction_no": row.transaction_no or "",
+				"upload_remarks": row.upload_remarks or "",
+				"document": row.document or "",
+			}
+			for row in (discharge_doc.get("patient_documents") or [])
+		],
+		"patient_relatives": [
+			{
+				"relationship_with_patient": row.relationship_with_patient or "",
+				"relative_name": row.relative_name or "",
+				"relative_phone_no": row.relative_phone_no or "",
+				"relative_alternative_phone_no": row.relative_alternative_phone_no or "",
+				"relative_alternative_phone_no_2": row.relative_alternative_phone_no_2 or "",
+				"cpr__id_no": row.cpr__id_no or "",
+				"any_remarks": row.any_remarks or "",
+			}
+			for row in (discharge_doc.get("patient_relatives") or [])
+		],
+	}
+
+
+def _get_or_create_draft_discharge(admission_name: str):
+	from healthcare.healthcare.doctype.inpatient_admission.inpatient_admission import (
+		create_discharge_from_inpatient_admission,
+	)
+
+	if _get_submitted_discharge_name(admission_name):
+		frappe.throw(_("This admission has already been discharged."))
+
+	draft_name = _get_draft_discharge_name(admission_name)
+	print("Huko ni home ama")
+	if draft_name:
+		print("Uko home")
+		return frappe.get_doc("Discharge", draft_name)
+
+	return create_discharge_from_inpatient_admission(admission_name)
+
+
+@frappe.whitelist()
+def get_discharge_draft_for_admission(admission_name):
+	"""Return draft Discharge (docstatus 0) for portal resume, or null."""
+	if not admission_name:
+		frappe.throw(_("Admission is required"))
+
+	draft_name = _get_draft_discharge_name(admission_name)
+	if not draft_name:
+		return None
+	
+	discharge_doc = frappe.get_doc("Discharge", draft_name, ignore_permissions=True)
+	
+	return _serialize_discharge_draft_for_portal(discharge_doc)
+
+
+@frappe.whitelist()
+def save_discharge_draft(admission_name, discharge_data):
+	"""Create or update a draft Discharge without submitting."""
+	if not admission_name:
+		frappe.throw(_("Admission is required"))
+
+	discharge_data = frappe.parse_json(discharge_data or {})
+	discharge_doc = _get_or_create_draft_discharge(admission_name)
+	_apply_discharge_payload(discharge_doc, discharge_data)
+	# Nursing Checklist Template names may be stored in nurse_discharge_template (Link → DNT).
+	discharge_doc.flags.ignore_links = True
+	discharge_doc.save(ignore_permissions=True)
+	frappe.db.commit()
+
+	return {
+		"name": discharge_doc.name,
+		"message": _("Discharge draft saved"),
+	}
+
+
 @frappe.whitelist()
 def create_and_submit_discharge(admission_name, discharge_data):
-    """Create and submit a Discharge document from Inpatient Admission"""
-    
-    try:
-        discharge_data = frappe.parse_json(discharge_data or {})
-        trans_no = get_next_transaction_number('Discharge')
-        if not admission_name:
-            frappe.throw(_("Admission is required"))
-            
-        frappe.logger().info(f"Creating discharge for admission {admission_name}")
-        
-        # Prevent duplicate discharge
-        existing_discharge = frappe.db.get_value(
-            "Discharge", {"admission": admission_name}, "name"
-        )
-        if existing_discharge:
-            frappe.throw(
-                _("Discharge already exists for this admission: {0}").format(
-                    frappe.get_desk_link("Discharge", existing_discharge)
-                )
-            )
-        
-        from healthcare.healthcare.doctype.inpatient_admission.inpatient_admission import (
-            create_discharge_from_inpatient_admission,
-        )
-        discharge_doc = create_discharge_from_inpatient_admission(admission_name)
-        
-        CHILD_TABLES = {"patient_documents", "patient_document", "discharge_checklist", 
-                       "nursing_checklist", "patient_relatives"}  # Add nursing_checklist
-        
-        for key, value in discharge_data.items():
-            if key in CHILD_TABLES:
-                continue
-            if hasattr(discharge_doc, key) and value not in (None, ""):
-                discharge_doc.set(key, value)
-        
-        # Handle discharge checklist
-        checklist = frappe.parse_json(discharge_data.get("discharge_checklist") or [])
-        if isinstance(checklist, list) and checklist:
-            discharge_doc.set("discharge_checklist", [])
-            for idx, row in enumerate(checklist, start=1):
-                if not isinstance(row, dict):
-                    continue
-                discharge_doc.append("discharge_checklist", {
-                    "idx": idx,
-                    "action_required": (row.get("action_required") or "").strip() or None,
-                    "department": (row.get("department") or "").strip() or None,
-                    "user": (row.get("user") or "").strip() or None,
-                    "name1": (row.get("name1") or "").strip() or None,
-                    "date_time": (row.get("date_time") or "").strip() or None,
-                    "click": cint(row.get("click") or 0),
-                    "description": (row.get("description") or "").strip() or None,
-                })
-        
-        # Handle nursing checklist (NEW)
-        nursing_checklist = frappe.parse_json(discharge_data.get("nursing_checklist") or [])
-        if isinstance(nursing_checklist, list) and nursing_checklist:
-            discharge_doc.set("nursing_checklist", [])
-            for idx, row in enumerate(nursing_checklist, start=1):
-                if not isinstance(row, dict):
-                    continue
-                discharge_doc.append("nursing_checklist", {
-                    "idx": idx,
-                    "action_required": (row.get("action_required") or "").strip() or None,
-                    "department": (row.get("department") or "").strip() or None,
-                    "user": (row.get("user") or "").strip() or None,
-                    "name1": (row.get("name1") or "").strip() or None,
-                    "date_time": (row.get("date_time") or "").strip() or None,
-                    "click": cint(row.get("click") or 0),
-                    "description": (row.get("description") or "").strip() or None,
-                })
-        
-        # Handle patient documents
-        documents = frappe.parse_json(
-            discharge_data.get("patient_documents")
-            or discharge_data.get("patient_document")
-            or []
-        )
-        if isinstance(documents, list) and documents:
-            discharge_doc.set("patient_documents", [])
-            for idx, row in enumerate(documents, start=1):
-                if not isinstance(row, dict):
-                    continue
-                discharge_doc.append("patient_documents", {
-                    "idx": idx,
-                    "file_name": (row.get("file_name") or "").strip() or None,
-                    "document_type": (row.get("document_type") or "").strip() or None,
-                    "transaction_no": (row.get("transaction_no") or "").strip() or None,
-                    "upload_remarks": (row.get("upload_remarks") or "").strip() or None,
-                    "document": (row.get("document") or "").strip() or None,
-                })
-        
-        # Handle patient relatives
-        relatives = frappe.parse_json(discharge_data.get("patient_relatives") or [])
-        if isinstance(relatives, list) and relatives:
-            discharge_doc.set("patient_relatives", [])
-            for row in relatives:
-                if not isinstance(row, dict):
-                    continue
-                child = discharge_doc.append("patient_relatives", {})
-                for key in ("relationship_with_patient", "relative_name", "cpr__id_no", 
-                           "any_remarks", "relative_phone_no", "relative_alternative_phone_no", 
-                           "relative_alternative_phone_no_2"):
-                    if key in row:
-                        value = (row.get(key) or "").strip()
-                        if value:
-                            child.set(key, value)
-        
-        discharge_doc.save(ignore_permissions=True)
-        if cint(discharge_doc.docstatus) == 0:
-            discharge_doc.submit()
-        
-        return {
-            "name": discharge_doc.name,
-            "message": _("Discharge created and submitted successfully"),
-        }
-        
-    except Exception as e:
-        import traceback
-        error_message = str(e)
-        frappe.log_error(traceback.format_exc(), "Create Discharge Error")
-        
-        # Clean message for frontend
-        clean_message = re.sub(r"<[^>]+>", "", error_message)
-        clean_message = re.sub(r"\s+", " ", clean_message).strip()
-        
-        # Frappe-friendly throw
-        frappe.throw(_("Failed to create discharge: {0}").format(clean_message))
+	"""Create or update draft Discharge, then submit."""
+	try:
+		discharge_data = frappe.parse_json(discharge_data or {})
+		if not admission_name:
+			frappe.throw(_("Admission is required"))
+
+		frappe.logger().info(f"Creating discharge for admission {admission_name}")
+
+		discharge_doc = _get_or_create_draft_discharge(admission_name)
+		_apply_discharge_payload(discharge_doc, discharge_data)
+		discharge_doc.save(ignore_permissions=True)
+		if cint(discharge_doc.docstatus) == 0:
+			discharge_doc.submit()
+
+		return {
+			"name": discharge_doc.name,
+			"message": _("Discharge created and submitted successfully"),
+		}
+
+	except Exception as e:
+		import traceback
+
+		error_message = str(e)
+		frappe.log_error(traceback.format_exc(), "Create Discharge Error")
+
+		clean_message = re.sub(r"<[^>]+>", "", error_message)
+		clean_message = re.sub(r"\s+", " ", clean_message).strip()
+
+		frappe.throw(_("Failed to create discharge: {0}").format(clean_message))
 
 @frappe.whitelist()
 def admit_patient(
@@ -1143,13 +1362,13 @@ def check_admission_quotation(admission_name, package_name):
 
 @frappe.whitelist()
 def create_invoice_from_inpatient_admission(inpatient_admission_name: str):
-    """
-    Create an invoice for an Inpatient Admission by combining all associated Sales Orders.
-    
-    Args:
-        inpatient_admission_name: Name of the Inpatient Admission
-    
-    Returns:
-        dict: Dictionary containing invoice name and status
-    """
-    return create_invoice("Inpatient Admission", inpatient_admission_name)
+	"""
+	Create an invoice for an Inpatient Admission by combining all associated Sales Orders.
+	
+	Args:
+		inpatient_admission_name: Name of the Inpatient Admission
+	
+	Returns:
+		dict: Dictionary containing invoice name and status
+	"""
+	return create_invoice("Inpatient Admission", inpatient_admission_name)

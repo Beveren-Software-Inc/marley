@@ -868,6 +868,14 @@ def create_discharge_from_inpatient_admission(source_name, target_doc=None):
 				target_row.description_on_admission = attr.description_on_admission or ""
 				target_row.description_on_discharge = ""
 
+		from healthcare.healthcare.doctype.discharge.discharge import (
+			get_discharge_stopped_medication_reasons_for_admission,
+		)
+
+		target.discharge_medic_stopped_reason = get_discharge_stopped_medication_reasons_for_admission(
+			source.name
+		)
+
 	doc = get_mapped_doc(
 		"Inpatient Admission",
 		source_name,

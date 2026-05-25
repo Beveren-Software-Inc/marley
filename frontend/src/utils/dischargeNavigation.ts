@@ -1,4 +1,9 @@
 import type { NavigateFunction } from 'react-router-dom'
+import {
+  DOCTOR_DISCHARGE_SCREEN_ID,
+  NURSE_DISCHARGE_SCREEN_ID,
+  RECEPTION_DISCHARGE_SCREEN_ID,
+} from './inpatientDischargeRoute'
 
 export interface DischargeAdmissionRef {
   name: string
@@ -16,14 +21,40 @@ export function navigateToDischarge(
   const currentSearch = window.location.search
   const onDoctor = currentPath.startsWith('/doctor')
   const onNurse = currentPath.startsWith('/nurse')
+  const onReception = currentPath.startsWith('/reception')
 
   const cleanReturn = new URL(returnTo || `${currentPath}${currentSearch}`, window.location.origin)
   cleanReturn.searchParams.delete('discharge')
 
-  const basePath = onNurse ? currentPath : onDoctor ? currentPath : '/doctor'
-  const baseSearch = onNurse || onDoctor ? currentSearch : '?screen=df'
+  const returnOnNurse = cleanReturn.pathname.startsWith('/nurse')
+  const returnOnDoctor = cleanReturn.pathname.startsWith('/doctor')
+  const returnOnReception = cleanReturn.pathname.startsWith('/reception')
 
-  const target = new URL(`${basePath}${baseSearch}`, window.location.origin)
+  const useReceptionPortal =
+    onReception || (!onDoctor && !onNurse && returnOnReception)
+  const useNursePortal =
+    onNurse || (!onDoctor && !useReceptionPortal && returnOnNurse)
+  const useDoctorPortal =
+    onDoctor || (!useNursePortal && !useReceptionPortal && returnOnDoctor)
+
+  const basePath = useReceptionPortal
+    ? '/reception'
+    : useNursePortal
+      ? '/nurse'
+      : '/doctor'
+  const dischargeScreen = useReceptionPortal
+    ? RECEPTION_DISCHARGE_SCREEN_ID
+    : useNursePortal
+      ? NURSE_DISCHARGE_SCREEN_ID
+      : DOCTOR_DISCHARGE_SCREEN_ID
+
+  const target = new URL(
+    useReceptionPortal || useNursePortal || useDoctorPortal
+      ? `${basePath}${currentSearch}`
+      : `${basePath}?screen=${DOCTOR_DISCHARGE_SCREEN_ID}`,
+    window.location.origin
+  )
+  target.searchParams.set('screen', dischargeScreen)
   target.searchParams.set('discharge', admission.name)
   if (admission.patient) {
     target.searchParams.set('patient', admission.patient)
