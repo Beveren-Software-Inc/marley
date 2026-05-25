@@ -2316,6 +2316,99 @@ def create_grooming_chart(data):
 
 
 @frappe.whitelist()
+def get_main_nursing_notes(search=None, patient=None, admission=None, page=1, page_size=50):
+	"""Fetch Main Nursing Note records for the portal."""
+	try:
+		page = frappe.utils.cint(page) or 1
+		page_size = frappe.utils.cint(page_size) or 50
+		filters = {}
+		if patient:
+			filters["file_no"] = patient
+		if admission:
+			filters["admission"] = admission
+		if search:
+			filters["patient_name"] = ["like", f"%{search}%"]
+
+		records = frappe.get_all(
+			"Main Nursing Note",
+			filters=filters,
+			fields=[
+				"name",
+				"trans_no",
+				"admission",
+				"file_no",
+				"patient_name",
+				"date",
+				"data",
+				"shift",
+				"nursing_notes",
+				"user",
+				"user_name",
+				"cost_center",
+				"creation",
+				"modified",
+			],
+			order_by="date desc, creation desc",
+			limit_page_length=page_size,
+			limit_start=(page - 1) * page_size,
+		)
+		total = frappe.db.count("Main Nursing Note", filters=filters)
+		return {"success": True, "data": records, "page": page, "page_size": page_size, "total": total}
+	except Exception as e:
+		frappe.logger().error(f"Error in get_main_nursing_notes: {str(e)}")
+		return {"success": False, "message": str(e), "data": []}
+
+
+@frappe.whitelist()
+def create_main_nursing_note(data):
+	"""Create a Main Nursing Note (portal — not Clinical Note)."""
+	try:
+		if isinstance(data, str):
+			data = frappe.parse_json(data)
+
+		doc = frappe.new_doc("Main Nursing Note")
+		doc.trans_no = get_next_transaction_number("Main Nursing Note", fieldname="trans_no")
+
+		allowed_fields = (
+			"admission",
+			"file_no",
+			"patient_name",
+			"date",
+			"data",
+			"shift",
+			"nursing_notes",
+			"user",
+			"user_name",
+			"cost_center",
+			"admission_old_no",
+		)
+		for field in allowed_fields:
+			if field in data and data[field] not in (None, ""):
+				doc.set(field, data[field])
+
+		if not doc.get("user"):
+			doc.user = frappe.session.user
+		if not doc.get("user_name") and doc.user:
+			doc.user_name = frappe.db.get_value("User", doc.user, "full_name") or doc.user
+
+		if doc.get("admission") and not doc.get("file_no"):
+			admission_patient = frappe.db.get_value(
+				"Inpatient Admission", doc.admission, "patient"
+			)
+			if admission_patient:
+				doc.file_no = admission_patient
+				if not doc.get("patient_name"):
+					doc.patient_name = frappe.db.get_value("Patient", admission_patient, "patient_name")
+
+		doc.insert(ignore_permissions=True)
+		frappe.db.commit()
+		return {"success": True, "name": doc.name, "trans_no": doc.trans_no}
+	except Exception as e:
+		frappe.log_error(frappe.get_traceback(), "create_main_nursing_note")
+		return {"success": False, "message": str(e)}
+
+
+@frappe.whitelist()
 def get_branches(search=None):
 	"""Fetch Branch records."""
 	filters = {}
