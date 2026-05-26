@@ -3,6 +3,7 @@ import frappe
 from frappe import _
 from frappe.utils import nowdate, nowtime, now_datetime, cint, flt, getdate
 from healthcare.api.utils.api_utility import get_next_transaction_number
+from healthcare.healthcare.care_episode_guard import assert_inpatient_admission_open_for_create
 
 
 def _get_or_create_admission_detail(admission: str):
@@ -303,6 +304,8 @@ def create_medicine_given(
 	"""
 	if not admission:
 		frappe.throw(_("Admission (Inpatient Admission) is required"))
+
+	assert_inpatient_admission_open_for_create(admission)
 
 	if not medication_order and not item_code:
 		frappe.throw(_("Either Patient Medication Order or Item Code is required"))

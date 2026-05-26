@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { DocDetailView } from '../ui/DocDetailView'
-import { X, BookOpen } from 'lucide-react'
+import { BookOpen } from 'lucide-react'
+import { PatientHistoryDetailPanel } from './PatientHistoryDetailPanel'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { useCardFilters } from '../../contexts/CardFilterContext'
 
@@ -230,38 +230,7 @@ export const PatientHistoryList = ({
       )}
 
       {detailName && (
-        <div
-          className="fixed inset-0 z-50 flex items-start justify-end"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setDetailName(null)
-          }}
-        >
-          <div className="absolute inset-0 bg-black/30" />
-          <div className="relative z-10 h-full w-full max-w-2xl bg-white shadow-xl flex flex-col">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50 shrink-0">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                  <BookOpen className="w-4 h-4 text-primary" />
-                </div>
-                <div>
-                  <p className="text-xs text-slate-500 uppercase tracking-wide">Patient History</p>
-                  <p className="text-sm font-semibold text-slate-800">{detailName}</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setDetailName(null)}
-                className="inline-flex items-center justify-center w-8 h-8 rounded-md text-slate-500 hover:text-slate-800 hover:bg-slate-200"
-                aria-label="Close"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-6">
-              <DocDetailView doctype="Patient History" name={detailName} />
-            </div>
-          </div>
-        </div>
+        <PatientHistoryDetailPanel name={detailName} onClose={() => setDetailName(null)} />
       )}
     </div>
   )

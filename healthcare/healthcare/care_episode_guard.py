@@ -31,6 +31,16 @@ SKIP_DOCTYPES = frozenset(
 )
 
 
+def block_clinical_records_on_discharged_ip() -> bool:
+	"""Healthcare Settings: when True, closed IP admissions cannot receive new clinical records."""
+	return bool(
+		frappe.db.get_single_value(
+			"Healthcare Settings",
+			"block_clinical_records_on_discharged_ip",
+		)
+	)
+
+
 def _visit_status(visit_name: str) -> str | None:
 	if not visit_name or not frappe.db.exists("Patient Visit", visit_name):
 		return None
@@ -55,6 +65,8 @@ def assert_patient_visit_open_for_create(visit_name: str) -> None:
 
 
 def assert_inpatient_admission_open_for_create(admission_name: str) -> None:
+	if not block_clinical_records_on_discharged_ip():
+		return
 	status = _admission_status(admission_name)
 	if status in CLOSED_INPATIENT_ADMISSION_STATUSES:
 		frappe.throw(
