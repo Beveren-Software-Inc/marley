@@ -1,8 +1,14 @@
 import { useState, useEffect } from 'react'
 import {
+  CM_BTN_CANCEL,
+  CM_BTN_PRIMARY,
+  CREATE_MODAL_BODY_GRADIENT,
   CREATE_MODAL_OVERLAY,
+  CreateModalFooter,
+  CreateModalHeader,
   createModalShellClass,
 } from '../ui/CreateModalChrome'
+import { ClipboardList } from 'lucide-react'
 import type { PatientMedicalHistory } from '../../services/patients'
 import { savePatientMedicalHistory } from '../../services/patients'
 import { fetchInpatientAdmissionOptions, fetchPatientVisits, type LinkFieldOption } from '../../services/common'
@@ -140,36 +146,28 @@ export const CreatePatientMedicalHistoryModal = ({
   return (
     <div className={CREATE_MODAL_OVERLAY}>
       <div className={createModalShellClass('max-w-3xl w-full max-h-[90vh] overflow-hidden')}>
-        <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
-          <div>
-            <h2 className="text-sm font-semibold text-slate-900">Past Medical History</h2>
-            <p className="text-xs text-slate-500 mt-0.5">
-              {patientName && `${patientName} · `}
-              {isIPMode && (
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-[10px] font-medium ml-1">
+        <CreateModalHeader
+          title="Past Medical History"
+          subtitle={
+            <>
+              {patientName ? `${patientName} · ` : null}
+              {isIPMode ? (
+                <span className="inline-flex items-center gap-1 rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-700">
                   IP Mode
                 </span>
-              )}
-              {isOPMode && (
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-green-100 text-green-700 rounded text-[10px] font-medium ml-1">
+              ) : null}
+              {isOPMode ? (
+                <span className="inline-flex items-center gap-1 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">
                   OP Mode
                 </span>
-              )}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 p-1 transition-colors"
-            aria-label="Close"
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
+              ) : null}
+            </>
+          }
+          icon={<ClipboardList className="h-5 w-5 text-emerald-700" strokeWidth={2} />}
+          onClose={onClose}
+        />
 
-        <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0">
+        <form onSubmit={handleSubmit} className={`${CREATE_MODAL_BODY_GRADIENT} flex-1 flex flex-col min-h-0`}>
           {error && (
             <div className="mx-4 mt-3 mb-1 bg-red-50 border border-red-200 rounded-md p-2 text-xs text-red-700">
               {error}
@@ -255,13 +253,8 @@ export const CreatePatientMedicalHistoryModal = ({
             <PastMedicalHistoryFields value={fields} onChange={setFields} />
           </div>
 
-          <div className="px-4 py-3 border-t border-slate-200 bg-slate-50 flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-3 py-1.5 text-xs rounded-md border border-slate-300 text-slate-700 hover:bg-white transition-colors"
-              disabled={saving}
-            >
+          <CreateModalFooter>
+            <button type="button" onClick={onClose} className={CM_BTN_CANCEL} disabled={saving}>
               Cancel
             </button>
             <button
@@ -272,11 +265,11 @@ export const CreatePatientMedicalHistoryModal = ({
                 (isIPMode && !selectedAdmission) ||
                 (isOPMode && !selectedVisit)
               }
-              className="px-3 py-1.5 text-xs rounded-md bg-primary text-white hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className={CM_BTN_PRIMARY}
             >
               {saving ? 'Saving…' : 'Save'}
             </button>
-          </div>
+          </CreateModalFooter>
         </form>
       </div>
     </div>

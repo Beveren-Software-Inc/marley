@@ -3,10 +3,11 @@ import {
   CM_BTN_CANCEL,
   CM_BTN_PRIMARY,
   CREATE_MODAL_OVERLAY,
+  CreateModalFooter,
+  CreateModalHeader,
   createModalShellClass,
 } from '../ui/CreateModalChrome'
 import { toast } from '../../hooks/useToast'
-import { X } from 'lucide-react'
 import { fetchItems, type LinkFieldOption } from '../../services/common'
 
 interface CreateDoctorServiceModalProps {
@@ -133,15 +134,8 @@ export const CreateDoctorServiceModal = ({ onClose, onSuccess }: CreateDoctorSer
   return (
     <div className={CREATE_MODAL_OVERLAY}>
       <div className={createModalShellClass('max-w-2xl w-full max-h-[90vh] overflow-y-auto')}>
-        <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold tracking-tight text-emerald-950">Add Doctor Service Detail</h2>
-          <button
-            onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 transition-colors"
-          >
-            <X size={20} />
-          </button>
-        </div>
+        <CreateModalHeader title="Add Doctor Service Detail" onClose={onClose} />
+
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4" onClick={(e) => {
           // Close dropdown when clicking outside input
@@ -262,22 +256,14 @@ export const CreateDoctorServiceModal = ({ onClose, onSuccess }: CreateDoctorSer
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
-            <button
-              type="button"
-              onClick={onClose}
-              className={CM_BTN_CANCEL}
-            >
+          <CreateModalFooter>
+            <button type="button" onClick={onClose} className={CM_BTN_CANCEL}>
               Cancel
             </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className={CM_BTN_PRIMARY}
-            >
+            <button type="submit" disabled={loading} className={CM_BTN_PRIMARY}>
               {loading ? 'Adding...' : 'Add Service'}
             </button>
-          </div>
+          </CreateModalFooter>
         </form>
       </div>
     </div>

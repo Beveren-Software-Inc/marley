@@ -7,6 +7,7 @@ import {
 } from '../../services/suicideRisk'
 import { useCardFilters } from '../../contexts/CardFilterContext'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
+import { DetailSlideOver } from '../ui/DetailSlideOver'
 
 interface SuicideRiskAssessmentListProps {
   patient?: string
@@ -330,36 +331,24 @@ export const SuicideRiskAssessmentList = ({
       )}
 
       {selected && (
-        <div className="fixed inset-0 z-50 flex justify-end" aria-modal="true">
-          <div className="absolute inset-0 bg-black/30" onClick={() => setSelected(null)} />
-          <div
-            ref={panelRef}
-            className="relative z-10 flex flex-col bg-white shadow-2xl w-full max-w-md h-full overflow-y-auto"
-          >
-            <div className="sticky top-0 z-10 flex items-center justify-between px-5 py-4 border-b border-slate-200 bg-white">
-              <div className="flex items-center gap-2.5">
-                <Shield className="w-4 h-4 text-primary" />
-                <div>
-                  <div className="text-base font-semibold text-slate-900">Suicide Risk Assessment</div>
-                  <div className="text-xs text-slate-500 mt-0.5">{selected.name}</div>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <a
-                  href={`/app/clinical-suicide-risk-assessment/${encodeURIComponent(selected.name)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs text-primary hover:underline"
-                >
-                  Open in Frappe ↗
-                </a>
-                <button type="button" onClick={() => setSelected(null)} className="text-slate-400 hover:text-slate-700 text-xl leading-none">
-                  ×
-                </button>
-              </div>
-            </div>
-
-            <div className="p-5 flex flex-col gap-5">
+        <DetailSlideOver
+          title="Suicide Risk Assessment"
+          subtitle={selected.name}
+          icon={<Shield className="h-5 w-5 text-emerald-700" strokeWidth={2} />}
+          maxWidthClass="max-w-md"
+          onClose={() => setSelected(null)}
+          headerActions={
+            <a
+              href={`/app/clinical-suicide-risk-assessment/${encodeURIComponent(selected.name)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded-lg px-2 py-1 text-xs font-medium text-emerald-800 hover:bg-emerald-200/50"
+            >
+              Open in Desk ↗
+            </a>
+          }
+        >
+            <div ref={panelRef} className="flex flex-col gap-5 p-1">
               <div className="flex items-center gap-2">
                 {statusBadge(selected.docstatus)}
                 {riskLevelBadge(selected.risk_level)}
@@ -403,8 +392,7 @@ export const SuicideRiskAssessmentList = ({
                 </div>
               )}
             </div>
-          </div>
-        </div>
+        </DetailSlideOver>
       )}
     </div>
   )

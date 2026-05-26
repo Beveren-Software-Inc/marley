@@ -444,9 +444,13 @@ import { useEffect, useState } from 'react'
 import {
   CM_BTN_CANCEL,
   CM_BTN_PRIMARY,
+  CREATE_MODAL_BODY_GRADIENT,
   CREATE_MODAL_OVERLAY,
+  CreateModalFooter,
+  CreateModalHeader,
   createModalShellClass,
 } from '../ui/CreateModalChrome'
+import { Activity } from 'lucide-react'
 import { createVitalSign } from '../../services/vitalSigns'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
 import { fetchInpatientRecords } from '../../services/inpatientRecords'
@@ -717,26 +721,20 @@ export const CreateVitalSignModal = ({
 
   return (
     <div className={CREATE_MODAL_OVERLAY}>
-      <div className={createModalShellClass('max-w-2xl w-full max-h-[90vh] overflow-y-auto')}>
-        <div className="p-4 border-b border-slate-200 flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-semibold tracking-tight text-emerald-950">Create Vital Signs</h2>
-            <p className="text-xs text-slate-500 mt-0.5">
-              {isIPMode && <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-[10px] font-medium mr-2">IP Mode Active</span>}
-              {isOPMode && <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-green-100 text-green-700 rounded text-[10px] font-medium mr-2">OP Mode Active</span>}
+      <div className={createModalShellClass('max-w-2xl w-full max-h-[90vh] overflow-hidden')}>
+        <CreateModalHeader
+          title="Create Vital Signs"
+          icon={<Activity className="h-5 w-5 text-emerald-700" strokeWidth={2} />}
+          subtitle={
+            <>
+              {isIPMode ? <span className="mr-2 inline-flex items-center gap-1 rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-700">IP Mode Active</span> : null}
+              {isOPMode ? <span className="mr-2 inline-flex items-center gap-1 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">OP Mode Active</span> : null}
               {getModeHelpText()}
-            </p>
-          </div>
-          <button
-            onClick={onClose}
-            className="shrink-0 rounded-lg p-2 text-emerald-800/70 transition hover:bg-emerald-200/50 hover:text-emerald-950"
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-        <form onSubmit={handleSubmit} className="p-4 space-y-4">
+            </>
+          }
+          onClose={onClose}
+        />
+        <form onSubmit={handleSubmit} className={`${CREATE_MODAL_BODY_GRADIENT} space-y-4 p-4`}>
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-md p-3 text-sm text-red-700">
               {error}
@@ -1061,14 +1059,8 @@ export const CreateVitalSignModal = ({
             </div>
           </div>
 
-          <div className="flex justify-end gap-2 pt-2 border-t border-slate-200">
-            <button
-              type="button"
-              onClick={onClose}
-              className={CM_BTN_CANCEL}
-            >
-              Cancel
-            </button>
+          <CreateModalFooter>
+            <button type="button" onClick={onClose} className={CM_BTN_CANCEL}>Cancel</button>
             <button
               type="submit"
               disabled={loading || (!isIPMode && !isOPMode) || (isIPMode && !formData.admission_no) || (isOPMode && !formData.patient_visit)}
@@ -1076,7 +1068,7 @@ export const CreateVitalSignModal = ({
             >
               {loading ? 'Saving…' : 'Save'}
             </button>
-          </div>
+          </CreateModalFooter>
         </form>
       </div>
     </div>

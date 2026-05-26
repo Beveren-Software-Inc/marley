@@ -9,6 +9,15 @@ import {
   preparePastMedicalHistoryForSave,
   type PastMedicalHistoryFormFields,
 } from './pastMedicalHistoryUtils'
+import {
+  CM_BTN_CANCEL,
+  CM_BTN_PRIMARY,
+  CREATE_MODAL_BODY_GRADIENT,
+  CREATE_MODAL_OVERLAY,
+  CreateModalFooter,
+  CreateModalHeader,
+  createModalShellClass,
+} from '../ui/CreateModalChrome'
 
 interface EditPatientMedicalHistoryModalProps {
   patient: string
@@ -83,18 +92,15 @@ export const EditPatientMedicalHistoryModal = ({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col">
-        <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-slate-900">Edit Past Medical History</h2>
-          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600">
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
+    <div className={CREATE_MODAL_OVERLAY}>
+      <div className={createModalShellClass('max-w-3xl w-full max-h-[90vh] overflow-hidden')}>
+        <CreateModalHeader
+          title="Edit Past Medical History"
+          subtitle={patient ? `Patient: ${patient}` : undefined}
+          onClose={onClose}
+        />
 
-        <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0">
+        <form onSubmit={handleSubmit} className={`${CREATE_MODAL_BODY_GRADIENT} flex-1 flex flex-col min-h-0`}>
           {error && (
             <div className="mx-4 mt-3 mb-1 bg-red-50 border border-red-200 rounded-md p-2 text-xs text-red-700">
               {error}
@@ -104,19 +110,19 @@ export const EditPatientMedicalHistoryModal = ({
             <PastMedicalHistoryFields value={fields} onChange={setFields} />
 
             {legacyRows.length > 0 && (
-              <div className="mt-6 pt-4 border-t border-slate-200">
-                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
+              <div className="mt-6 pt-4 border-t border-emerald-100">
+                <p className="text-xs font-semibold text-emerald-900 uppercase tracking-wide mb-2">
                   Legacy template data (read-only)
                 </p>
-                <table className="w-full text-xs border border-slate-200 rounded-md overflow-hidden">
-                  <thead className="bg-slate-50 border-b border-slate-200">
+                <table className="w-full text-xs border border-emerald-100 rounded-md overflow-hidden">
+                  <thead className="bg-emerald-50/70 border-b border-emerald-100">
                     <tr>
-                      <th className="px-3 py-2 text-left font-semibold text-slate-600">Attribute</th>
-                      <th className="px-3 py-2 text-left font-semibold text-slate-600">Yes / No</th>
-                      <th className="px-3 py-2 text-left font-semibold text-slate-600">Description</th>
+                      <th className="px-3 py-2 text-left font-semibold text-emerald-800">Attribute</th>
+                      <th className="px-3 py-2 text-left font-semibold text-emerald-800">Yes / No</th>
+                      <th className="px-3 py-2 text-left font-semibold text-emerald-800">Description</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-emerald-50">
                     {legacyRows.map((row, idx) => (
                       <tr key={idx}>
                         <td className="px-3 py-2 text-slate-800">{row.attributes}</td>
@@ -130,11 +136,11 @@ export const EditPatientMedicalHistoryModal = ({
             )}
           </div>
 
-          <div className="px-4 py-3 border-t border-slate-200 bg-slate-50 flex justify-end gap-2">
+          <CreateModalFooter>
             <button
               type="button"
               onClick={onClose}
-              className="px-3 py-1.5 text-xs rounded-md border border-slate-300 text-slate-700 hover:bg-white"
+              className={CM_BTN_CANCEL}
               disabled={saving}
             >
               Cancel
@@ -142,11 +148,11 @@ export const EditPatientMedicalHistoryModal = ({
             <button
               type="submit"
               disabled={saving}
-              className="px-3 py-1.5 text-xs rounded-md bg-primary text-white hover:bg-primary/90 disabled:opacity-50"
+              className={CM_BTN_PRIMARY}
             >
               {saving ? 'Saving…' : 'Save'}
             </button>
-          </div>
+          </CreateModalFooter>
         </form>
       </div>
     </div>

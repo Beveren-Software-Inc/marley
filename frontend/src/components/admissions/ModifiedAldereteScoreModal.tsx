@@ -4,9 +4,10 @@
 // import { apiRequest } from '../../services/apiClient'
 // import { fetchPatientVisits, fetchPatientOptions, fetchInpatientAdmissionOptions, type LinkFieldOption } from '../../services/common'
 // import { toast } from '../../hooks/useToast'
-// import { X, ChevronDown, Plus, Trash2, AlertCircle } from 'lucide-react'
+// import { ChevronDown, Plus, Trash2, AlertCircle , ClipboardList } from 'lucide-react'
 // import { useCareContext } from '../../providers/CareContextProvider'
 
+import { CM_BTN_CANCEL, CM_BTN_PRIMARY, CREATE_MODAL_BODY_GRADIENT, CREATE_MODAL_FOOTER_STICKY, CREATE_MODAL_OVERLAY, CreateModalHeader, createModalShellClass, createModalTabButtonClass } from '../ui/CreateModalChrome'
 // // ─── Link Combobox ────────────────────────────────────────────────────────────
 
 // interface LinkComboboxProps {
@@ -629,7 +630,7 @@ import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { apiRequest } from '../../services/apiClient'
 import { fetchPatientVisits, fetchInpatientAdmissionOptions, type LinkFieldOption } from '../../services/common'
 import { toast } from '../../hooks/useToast'
-import { X, ChevronDown, Plus, Trash2, AlertCircle, FileText, ClipboardList } from 'lucide-react'
+import { ChevronDown, Plus, Trash2, AlertCircle, FileText, ClipboardList } from 'lucide-react'
 import { useCareContext } from '../../providers/CareContextProvider'
 import {
   linkComboboxDropdownClass,
@@ -935,41 +936,21 @@ export const ModifiedAldereteScoreModal = ({ admissionNo, patient, patientName, 
   const colors = scoreColor(totalScore)
 
   return (
-    <div
-      className="fixed inset-0 z-[60] flex items-center justify-center p-4"
-      onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}
-    >
-      <div className="absolute inset-0 bg-black/50" />
-
-      <div
-        className="relative z-10 w-full max-w-4xl max-h-[92vh] bg-white rounded-xl shadow-2xl flex flex-col overflow-hidden"
-        onMouseDown={e => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-start justify-between px-6 py-4 border-b border-slate-200 bg-slate-50 shrink-0">
-          <div>
-            <h2 className="text-lg font-bold text-slate-900">Modified Alderete Score</h2>
-            <p className="text-xs text-slate-500 mt-0.5">
+    <div className={CREATE_MODAL_OVERLAY}>
+      <div className={createModalShellClass('w-full max-w-4xl max-h-[92vh] overflow-hidden')}>
+        <CreateModalHeader
+          title="Modified Alderete Score"
+          icon={<ClipboardList className="h-5 w-5 text-emerald-700" strokeWidth={2} />}
+          subtitle={
+            <>
               {currentPatientName ? `${currentPatientName} · ` : ''}
-              {isIPMode && currentAdmission && (
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-[10px] font-medium">
-                  IP: {currentAdmission}
-                </span>
-              )}
-              {isOPMode && patientVisit && (
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-green-100 text-green-700 rounded text-[10px] font-medium">
-                  OP Visit
-                </span>
-              )}
-              {!currentAdmission && !patientVisit && 'New Record'}
-            </p>
-          </div>
-          <button type="button" onClick={onClose}
-            className="inline-flex items-center justify-center w-8 h-8 rounded-md text-slate-500 hover:text-slate-800 hover:bg-slate-200 transition-colors ml-4 shrink-0"
-            aria-label="Close">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+              {isIPMode && currentAdmission ? <span className="ml-1 inline-flex items-center gap-1 rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-700">IP: {currentAdmission}</span> : null}
+              {isOPMode && patientVisit ? <span className="ml-1 inline-flex items-center gap-1 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">OP Visit</span> : null}
+              {!currentAdmission && !patientVisit ? 'New Record' : null}
+            </>
+          }
+          onClose={onClose}
+        />
 
         {/* Mode indicator box */}
         <div className="mx-6 mt-4 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
@@ -986,28 +967,24 @@ export const ModifiedAldereteScoreModal = ({ admissionNo, patient, patientName, 
           </p>
         </div>
 
-        {/* Tabs */}
-        <div className="flex border-b border-slate-200 bg-white shrink-0 mt-3 overflow-x-auto">
+        {/* Tabs inside header - rendered via children in CreateModalHeader above, but it's a separate block here */}
+        <div className="-mt-px flex overflow-x-auto border-b border-emerald-100/80 bg-gradient-to-b from-emerald-700 to-emerald-800 px-4">
           {TABS.map(tab => (
             <button key={tab.id} type="button" onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-                activeTab === tab.id
-                  ? 'border-primary text-primary'
-                  : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-              }`}>
+              className={`flex items-center gap-1.5 whitespace-nowrap ${createModalTabButtonClass(activeTab === tab.id)}`}>
               {tab.icon && tab.icon}
               {tab.label}
-              {tab.id === 'score' && rows.length > 0 && (
-                <span className={`inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold ${colors.bg} ${colors.text} border ${colors.border}`}>
+              {tab.id === 'score' && rows.length > 0 ? (
+                <span className={`inline-flex items-center justify-center min-w-[18px] rounded-full px-1 py-0.5 text-[10px] font-bold ${colors.bg} ${colors.text} border ${colors.border}`}>
                   {totalScore.toFixed(1).replace(/\.0$/, '')}
                 </span>
-              )}
+              ) : null}
             </button>
           ))}
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} noValidate className="flex-1 overflow-y-auto">
+        <form onSubmit={handleSubmit} noValidate className={`${CREATE_MODAL_BODY_GRADIENT} flex-1 overflow-y-auto`}>
           <div className="px-6 py-5">
 
             {/* ── Tab 1: General ── */}
@@ -1295,34 +1272,29 @@ export const ModifiedAldereteScoreModal = ({ admissionNo, patient, patientName, 
             )}
           </div>
 
-          {/* Footer */}
-          <div className="sticky bottom-0 bg-white border-t border-slate-200 px-6 py-4 flex items-center justify-between gap-3 shrink-0">
+          <div className={`${CREATE_MODAL_FOOTER_STICKY} items-center justify-between`}>
             <div className="flex gap-1">
               {TABS.map((tab, i) => (
                 <button key={tab.id} type="button" onClick={() => setActiveTab(tab.id)}
-                  className={`w-2 h-2 rounded-full transition-colors ${activeTab === tab.id ? 'bg-primary' : 'bg-slate-300 hover:bg-slate-400'}`}
+                  className={`h-2 w-2 rounded-full transition-colors ${activeTab === tab.id ? 'bg-emerald-600' : 'bg-slate-300 hover:bg-slate-400'}`}
                   aria-label={`${i + 1}. ${tab.label}`} />
               ))}
             </div>
             <div className="flex gap-3">
               {currentTabIdx > 0 && (
                 <button type="button" onClick={() => setActiveTab(TABS[currentTabIdx - 1].id)}
-                  className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50">
+                  className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
                   ← Previous
                 </button>
               )}
               {currentTabIdx < TABS.length - 1 && (
-                <button type="button" onClick={() => setActiveTab(TABS[currentTabIdx + 1].id)}
-                  className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90">
+                <button type="button" onClick={() => setActiveTab(TABS[currentTabIdx + 1].id)} className={CM_BTN_PRIMARY}>
                   Next →
                 </button>
               )}
-              <button type="button" onClick={onClose}
-                className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50">
-                Cancel
-              </button>
+              <button type="button" onClick={onClose} className={CM_BTN_CANCEL}>Cancel</button>
               <button type="submit" disabled={submitting || (!isIPMode && !isOPMode) || (isIPMode && !currentAdmission) || (isOPMode && !patientVisit)}
-                className="px-5 py-2 text-sm font-semibold text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-60 disabled:cursor-not-allowed">
+                className={CM_BTN_PRIMARY}>
                 {submitting ? 'Saving...' : 'Save Score'}
               </button>
             </div>

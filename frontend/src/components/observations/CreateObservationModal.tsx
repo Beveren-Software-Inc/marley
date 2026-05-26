@@ -2,7 +2,10 @@ import { useState, useEffect } from 'react'
 import {
   CM_BTN_CANCEL,
   CM_BTN_PRIMARY,
+  CREATE_MODAL_BODY_GRADIENT,
   CREATE_MODAL_OVERLAY,
+  CreateModalFooter,
+  CreateModalHeader,
   createModalShellClass,
 } from '../ui/CreateModalChrome'
 import { createObservation, fetchObservationLevelDetails } from '../../services/observations'
@@ -10,7 +13,6 @@ import { fetchHealthcarePractitioners, getCurrentUserPractitioner, fetchMedicalD
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
 import { toast } from '../../hooks/useToast'
 import { fetchInpatientRecords } from '../../services/inpatientRecords'
-import { X } from 'lucide-react'
 import { useCareContext } from '../../providers/CareContextProvider'
 
 interface CreateObservationModalProps {
@@ -477,24 +479,27 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
   return (
     <div className={CREATE_MODAL_OVERLAY}>
       <div className={createModalShellClass('max-w-2xl w-full max-h-[90vh] overflow-y-auto')}>
-        <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-semibold tracking-tight text-emerald-950">Create Observation</h2>
-            <p className="text-xs text-slate-500 mt-0.5">
-              {isIPMode && <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-[10px] font-medium mr-2">IP Mode Active</span>}
-              {isOPMode && <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-green-100 text-green-700 rounded text-[10px] font-medium mr-2">OP Mode Active</span>}
+        <CreateModalHeader
+          title="Create Observation"
+          subtitle={
+            <>
+              {isIPMode ? (
+                <span className="mr-2 inline-flex items-center gap-1 rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-700">
+                  IP Mode Active
+                </span>
+              ) : null}
+              {isOPMode ? (
+                <span className="mr-2 inline-flex items-center gap-1 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">
+                  OP Mode Active
+                </span>
+              ) : null}
               {getModeHelpText()}
-            </p>
-          </div>
-          <button
-            onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 transition-colors"
-          >
-            <X size={20} />
-          </button>
-        </div>
+            </>
+          }
+          onClose={onClose}
+        />
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className={`${CREATE_MODAL_BODY_GRADIENT} space-y-4 p-6`}>
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-md p-3 text-sm text-red-700">
               {error}
@@ -871,12 +876,8 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
             />
           </div>
 
-          <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
-            <button
-              type="button"
-              onClick={onClose}
-              className={CM_BTN_CANCEL}
-            >
+          <CreateModalFooter>
+            <button type="button" onClick={onClose} className={CM_BTN_CANCEL}>
               Cancel
             </button>
             <button
@@ -886,7 +887,7 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
             >
               {loading ? 'Creating...' : 'Create Observation'}
             </button>
-          </div>
+          </CreateModalFooter>
         </form>
       </div>
     </div>

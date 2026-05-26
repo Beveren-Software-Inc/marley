@@ -33,11 +33,11 @@ export const PatientSummaryCard = ({ patient }: PatientSummaryCardProps) => {
   }, [patient])
 
   return (
-    <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm h-full">
-      <div className="flex items-center justify-between mb-3">
-        <div className="font-semibold text-slate-900">Patient Information</div>
+    <section className="bg-white border border-slate-200 rounded-lg p-3 sm:p-4 shadow-sm h-full min-w-0">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+        <div className="font-semibold text-slate-900 text-sm sm:text-base">Patient Information</div>
         {summary?.file_no && (
-          <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
+          <span className="shrink-0 text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
             File: {summary.file_no}
           </span>
         )}
@@ -50,7 +50,7 @@ export const PatientSummaryCard = ({ patient }: PatientSummaryCardProps) => {
       )}
       {!loading && !error && summary && (
         <>
-          <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-sm">
             <div>
               <div className="text-xs font-medium text-slate-500">Name</div>
               <div className="text-slate-900">{summary.patient_name || summary.name}</div>

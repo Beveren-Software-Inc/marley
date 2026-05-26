@@ -27,6 +27,7 @@ import { PreAnesthesiaAssessmentModal } from '../ect/PreAnesthesiaAssessmentModa
 import { PhysicalExaminationModal } from '../physicalExam/PhysicalExaminationModal'
 import { PatientHistoryModal } from '../patientHistory/PatientHistoryModal'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
+import { DetailSlideOver } from '../ui/DetailSlideOver'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import type { InpatientRecord, InpatientPackage } from '../../services/inpatientRecords'
 import { CreatePatientReferralModal } from '../referrals/CreatePatientReferralModal'
@@ -900,54 +901,24 @@ export const AdmissionList = ({ onAdmissionSelect, onPatientFromAdmission, searc
 
       {/* ── Admission Detail Slide-over ── */}
       {detailAdmission && (
-        <div
-          className="fixed inset-0 z-50 flex items-start justify-end"
-          onClick={() => setDetailAdmission(null)}
+        <DetailSlideOver
+          title="Inpatient Admission"
+          subtitle={detailAdmission}
+          onClose={() => setDetailAdmission(null)}
+          headerActions={
+            <PrintFormatDropdown
+              doctype="Inpatient Admission"
+              docName={detailAdmission}
+              noLetterhead={0}
+              triggerPrint={1}
+              className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-emerald-200/80 bg-white text-emerald-700 shadow-sm hover:bg-emerald-50"
+            />
+          }
         >
-          {/* Backdrop */}
-          <div className="absolute inset-0 bg-black/30" />
-
-          {/* Panel */}
-          <div
-            className="relative z-10 h-full w-full max-w-2xl bg-white shadow-xl flex flex-col"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50 shrink-0">
-              <div>
-                <p className="text-xs text-slate-500 uppercase tracking-wide">Inpatient Admission</p>
-                <p className="text-sm font-semibold text-slate-800">{detailAdmission}</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <PrintFormatDropdown
-                  doctype="Inpatient Admission"
-                  docName={detailAdmission}
-                  noLetterhead={0}
-                  triggerPrint={1}
-                  className="inline-flex items-center justify-center w-8 h-8 rounded border border-slate-300 bg-white text-primary hover:bg-slate-50"
-                />
-                <button
-                  type="button"
-                  onClick={() => setDetailAdmission(null)}
-                  className="inline-flex items-center justify-center w-8 h-8 rounded-md text-slate-500 hover:text-slate-800 hover:bg-slate-200"
-                  aria-label="Close"
-                >
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-
-            {/* Scrollable content */}
-            <div className="flex-1 overflow-y-auto p-6">
-              <InpatientAdmissionDetails
-                admissionName={detailAdmission}
-                onUpdate={() => refetch()}
-              />
-            </div>
+          <div className="p-2">
+            <InpatientAdmissionDetails admissionName={detailAdmission} onUpdate={() => refetch()} />
           </div>
-        </div>
+        </DetailSlideOver>
       )}
 
       {showVisitorModal && visitorAdmission && (

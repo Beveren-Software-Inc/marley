@@ -2,9 +2,13 @@ import { useEffect, useState } from 'react'
 import {
   CM_BTN_CANCEL,
   CM_BTN_PRIMARY,
+  CREATE_MODAL_BODY_GRADIENT,
   CREATE_MODAL_OVERLAY,
+  CreateModalFooter,
+  CreateModalHeader,
   createModalShellClass,
 } from '../ui/CreateModalChrome'
+import { FileText } from 'lucide-react'
 import {
   fetchDoctorMedicationPlan,
   updateDoctorMedicationPlan,
@@ -186,32 +190,19 @@ export const EditDoctorMedicationPlanModal = ({
   return (
     <div className={CREATE_MODAL_OVERLAY}>
       <div className={createModalShellClass('max-w-2xl w-full max-h-[90vh]')}>
-        <div className="p-6 border-b border-slate-200 bg-white z-10 shrink-0">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-semibold tracking-tight text-emerald-950">
-                Edit Doctor's Plan
-              </h2>
-              <p className="text-xs text-slate-500 mt-0.5">{planName}</p>
-            </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="shrink-0 rounded-lg p-2 text-emerald-800/70 transition hover:bg-emerald-200/50 hover:text-emerald-950"
-            >
-              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-        </div>
+        <CreateModalHeader
+          title="Edit Doctor's Plan"
+          icon={<FileText className="h-5 w-5 text-emerald-700" strokeWidth={2} />}
+          subtitle={planName}
+          onClose={onClose}
+        />
 
         {loadingDoc ? (
           <div className="p-12 text-center text-slate-600">Loading…</div>
         ) : (
           <form
             onSubmit={handleSubmit}
-            className="flex flex-col flex-1 min-h-0"
+            className={`${CREATE_MODAL_BODY_GRADIENT} flex flex-col flex-1 min-h-0`}
             onClick={(e) => {
               const target = e.target as HTMLElement
               if (target.tagName !== 'INPUT' && !target.closest('.absolute')) {
@@ -347,14 +338,12 @@ export const EditDoctorMedicationPlanModal = ({
               </div>
             </div>
 
-            <div className="shrink-0 flex justify-end gap-3 px-6 py-4 border-t border-slate-200 bg-white">
-              <button type="button" onClick={onClose} className={CM_BTN_CANCEL}>
-                Cancel
-              </button>
+            <CreateModalFooter>
+              <button type="button" onClick={onClose} className={CM_BTN_CANCEL}>Cancel</button>
               <button type="submit" disabled={submitDisabled} className={CM_BTN_PRIMARY}>
                 {saving ? 'Saving…' : 'Save changes'}
               </button>
-            </div>
+            </CreateModalFooter>
           </form>
         )}
       </div>

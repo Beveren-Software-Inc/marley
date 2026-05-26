@@ -1,6 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
 import {
+  CM_BTN_CANCEL,
+  CM_BTN_PRIMARY,
+  CREATE_MODAL_BODY_GRADIENT,
   CREATE_MODAL_OVERLAY,
+  CreateModalFooter,
+  CreateModalHeader,
   createModalShellClass,
 } from '../ui/CreateModalChrome'
 import { searchPatients, fetchPatients, uploadPatientFile, type PatientListItem } from '../../services/patients'
@@ -819,14 +824,11 @@ export const CreatePrescriptionModal = ({
   return (
     <div className={CREATE_MODAL_OVERLAY}>
       <div className={createModalShellClass('max-w-4xl w-full max-h-[90vh] min-h-[600px]')}>
-        <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between shrink-0 rounded-t-xl">
-          <h2 className="text-lg font-semibold tracking-tight text-emerald-950">
-            {isEditing ? 'Edit Prescription' : 'Create Prescription'}
-          </h2>
-          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1 rounded-md hover:bg-slate-100 transition-colors">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+        <CreateModalHeader
+          title={isEditing ? 'Edit Prescription' : 'Create Prescription'}
+          icon={<Pill className="h-5 w-5 text-emerald-700" strokeWidth={2} />}
+          onClose={onClose}
+        />
 
         <div className="flex border-b border-slate-200 shrink-0 bg-slate-50">
           {(['details', 'medications', 'signature'] as TabId[]).map((tab) => (
@@ -858,7 +860,7 @@ export const CreatePrescriptionModal = ({
             </div>
           )}
 
-          <div className="flex-1 overflow-y-auto p-6">
+          <div className={`${CREATE_MODAL_BODY_GRADIENT} p-6`}>
             {/* ── DETAILS TAB ── */}
             {activeTab === 'details' && (
               <div className="space-y-5">
@@ -1424,22 +1426,14 @@ export const CreatePrescriptionModal = ({
             )}
           </div>
 
-          <div className="flex gap-3 px-6 py-4 border-t border-slate-200 shrink-0">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 px-4 py-2 border border-slate-300 rounded-md text-slate-700 hover:bg-slate-50 text-sm font-medium transition-colors"
-            >
+          <CreateModalFooter>
+            <button type="button" onClick={onClose} className={CM_BTN_CANCEL}>
               Cancel
             </button>
-            <button
-              type="submit"
-              disabled={submitting}
-              className="flex-1 px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90 disabled:opacity-50 text-sm font-medium transition-colors"
-            >
-              {submitting ? 'Saving...' : 'Save Prescription'}
+            <button type="submit" disabled={submitting} className={CM_BTN_PRIMARY}>
+              {submitting ? 'Saving…' : 'Save Prescription'}
             </button>
-          </div>
+          </CreateModalFooter>
         </form>
       </div>
     </div>

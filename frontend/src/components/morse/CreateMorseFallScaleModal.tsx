@@ -2,8 +2,16 @@
 
 import { useState, useEffect } from 'react'
 import {
+  CM_BTN_CANCEL,
+  CM_BTN_PRIMARY,
+  CREATE_MODAL_BODY_GRADIENT,
+  CREATE_MODAL_FOOTER_STICKY,
   CREATE_MODAL_OVERLAY,
+  CreateModalHeader,
+  createModalShellClass,
+  createModalTabButtonClass,
 } from '../ui/CreateModalChrome'
+import { ShieldAlert } from 'lucide-react'
 import { createMorseFallScale, type MorseFallScaleDetailRow } from '../../services/morseFallScale'
 import { fetchCompanies, fetchInpatientAdmissionOptions } from '../../services/common'
 import { toast } from '../../hooks/useToast'
@@ -178,50 +186,30 @@ export function CreateMorseFallScaleModal({
 
   return (
     <div className={CREATE_MODAL_OVERLAY}>
-      <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
-          <div>
-            <h2 className="text-sm font-semibold text-slate-900 dark:text-white">Create Morse Fall Scale</h2>
-            {patientName && (
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{patientName}</p>
-            )}
+      <div className={createModalShellClass('w-full max-w-2xl max-h-[92vh] overflow-hidden')}>
+        <CreateModalHeader
+          title="Create Morse Fall Scale"
+          icon={<ShieldAlert className="h-5 w-5 text-emerald-700" strokeWidth={2} />}
+          subtitle={patientName || undefined}
+          onClose={onClose}
+        >
+          <div className="-mb-px mt-3 flex border-b border-emerald-100/80">
+            {TABS.map((tab) => (
+              <button key={tab.id} type="button" onClick={() => setActiveTab(tab.id)}
+                className={createModalTabButtonClass(activeTab === tab.id)}
+              >
+                {tab.label}
+                {tab.id === 'assessment' && (
+                  <span className="ml-1.5 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">
+                    {totalPoints} pts
+                  </span>
+                )}
+              </button>
+            ))}
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 transition-colors"
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
+        </CreateModalHeader>
 
-        {/* Tabs */}
-        <div className="flex border-b border-slate-200 dark:border-slate-700 px-5 flex-shrink-0 bg-white dark:bg-slate-800">
-          {TABS.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setActiveTab(tab.id)}
-              className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
-                activeTab === tab.id
-                  ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
-                  : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300'
-              }`}
-            >
-              {tab.label}
-              {tab.id === 'assessment' && (
-                <span className="ml-1.5 text-[10px] bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded-full px-1.5 py-0.5 font-semibold">
-                  {totalPoints} pts
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
-
-        <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0">
+        <form onSubmit={handleSubmit} className={`${CREATE_MODAL_BODY_GRADIENT} flex flex-1 flex-col min-h-0`}>
           {error && (
             <div className="mx-5 mt-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md p-2.5 text-xs text-red-700 dark:text-red-400 flex-shrink-0">
               {error}
@@ -441,40 +429,26 @@ export function CreateMorseFallScaleModal({
             )}
           </div>
 
-          {/* Footer — total + actions */}
-          <div className="flex-shrink-0 px-5 py-3 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 flex items-center justify-between gap-3">
+          <div className={`${CREATE_MODAL_FOOTER_STICKY} items-center justify-between`}>
             <div className="flex items-center gap-3">
-              <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-                Total: <span className="text-blue-700 dark:text-blue-400">{totalPoints} pts</span>
+              <span className="text-sm font-semibold text-emerald-900">
+                Total: <span className="text-emerald-700">{totalPoints} pts</span>
               </span>
               <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${risk.color}`}>
                 {risk.label}
               </span>
             </div>
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={onClose}
-                disabled={saving}
-                className="px-3 py-1.5 text-xs rounded-md border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 transition-colors"
-              >
+              <button type="button" onClick={onClose} disabled={saving} className={CM_BTN_CANCEL}>
                 Cancel
               </button>
               {activeTab === 'assessment' && (
-                <button
-                  type="submit"
-                  disabled={saving || !selectedAdmission}
-                  className="px-4 py-1.5 text-xs rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
-                >
+                <button type="submit" disabled={saving || !selectedAdmission} className={CM_BTN_PRIMARY}>
                   {saving ? 'Saving…' : 'Create'}
                 </button>
               )}
               {activeTab === 'criteria' && (
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('assessment')}
-                  className="px-4 py-1.5 text-xs rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-colors font-medium"
-                >
+                <button type="button" onClick={() => setActiveTab('assessment')} className={CM_BTN_PRIMARY}>
                   Back to Assessment
                 </button>
               )}

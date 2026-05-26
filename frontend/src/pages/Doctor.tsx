@@ -68,6 +68,7 @@ import { CreateSleepingPatternModal } from '../components/sleeping/CreateSleepin
 import { SleepingPatternList } from '../components/sleeping/SleepingPatternList'
 import { SuicidalAssessmentList } from '../components/suicidal/SuicidalAssessmentList'
 import { UserMenu } from '../components/user/UserMenu'
+import { MobileNavMenuButton } from '../components/layout/MobileNavMenuButton'
 import { CreateVitalSignModal } from '../components/vitalSigns/CreateVitalSignModal'
 import { VitalSignsList } from '../components/vitalSigns/VitalSignsList'
 import { CreateWarningMessageModal } from '../components/warnings/CreateWarningMessageModal'
@@ -1273,6 +1274,18 @@ export const DoctorPage = () => {
             <MedicalHistoryView patient={selectedPatient} refreshKey={medicalHistoryRefreshKey} />
           </DashboardCard>
         </div>
+        {showCreateMedicalHistoryModal && selectedPatient && (
+          <CreatePatientMedicalHistoryModal
+            patient={selectedPatient}
+            defaultAdmission={activeAdmission || undefined}
+            onClose={() => setShowCreateMedicalHistoryModal(false)}
+            onCreated={() => {
+              setMedicalHistoryRefreshKey((prev) => prev + 1)
+              setShowCreateMedicalHistoryModal(false)
+              toast.success('Patient medical history saved')
+            }}
+          />
+        )}
       </div>
     )
   }
@@ -1382,13 +1395,14 @@ export const DoctorPage = () => {
   if (screen === 'adhd') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white px-3 md:px-4 py-2 md:py-3 border-b border-white/20">
+          <MobileNavMenuButton />
           <div className="flex-1 min-w-0">
             <h1 className="text-sm font-semibold truncate">ADHD Assessments</h1>
           </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
+          <div className="hidden md:flex items-center gap-3 flex-shrink-0">
+            <UserMenu placement="header" />
+            <NotificationBell placement="header" />
           </div>
         </header>
         <ClosedCareEpisodeBanner />
@@ -1422,13 +1436,14 @@ export const DoctorPage = () => {
   if (screen === 'depression') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20">
+        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white px-3 md:px-4 py-2 md:py-3 border-b border-white/20">
+          <MobileNavMenuButton />
           <div className="flex-1 min-w-0">
             <h1 className="text-sm font-semibold truncate">Depression Assessments</h1>
           </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
+          <div className="hidden md:flex items-center gap-3 flex-shrink-0">
+            <UserMenu placement="header" />
+            <NotificationBell placement="header" />
           </div>
         </header>
         <ClosedCareEpisodeBanner />
@@ -1844,7 +1859,7 @@ export const DoctorPage = () => {
         ) : null}
 
         {/* Warnings + medical history */}
-        <div className="grid gap-4 md:grid-cols-2 auto-rows-fr p-4">
+        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 auto-rows-fr px-3 sm:px-4 py-4 min-w-0">
           <DashboardCard
             fixedHeight
             title="Warnings & Allergies"

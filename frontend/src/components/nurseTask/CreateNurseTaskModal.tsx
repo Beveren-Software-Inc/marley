@@ -10,7 +10,7 @@
 //   type LinkFieldOption,
 // } from '../../services/common'
 // import { toast } from '../../hooks/useToast'
-// import { X, ChevronDown } from 'lucide-react'
+// import { ChevronDown } from 'lucide-react'
 
 // const TASK_TYPES = [
 //   'Medication Administration',
@@ -656,10 +656,15 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import {
+  CM_BTN_CANCEL,
   CM_BTN_PRIMARY,
+  CREATE_MODAL_BODY_GRADIENT,
   CREATE_MODAL_OVERLAY,
+  CreateModalFooter,
+  CreateModalHeader,
   createModalShellClass,
 } from '../ui/CreateModalChrome'
+import { ClipboardList } from 'lucide-react'
 import { createNurseTask, type CreateNurseTaskData } from '../../services/nurseTask'
 import {
   fetchHealthcarePractitioners,
@@ -672,7 +677,7 @@ import {
   type LinkFieldOption,
 } from '../../services/common'
 import { toast } from '../../hooks/useToast'
-import { X, ChevronDown } from 'lucide-react'
+import { ChevronDown } from 'lucide-react'
 import { useCareContext } from '../../providers/CareContextProvider'
 
 const TASK_TYPES = [
@@ -1080,21 +1085,18 @@ export const CreateNurseTaskModal = ({
     <div className={CREATE_MODAL_OVERLAY}>
       <div className={createModalShellClass('max-w-lg w-full max-h-[90vh]')}>
 
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 shrink-0">
-          <div>
-            <h2 className="text-base font-semibold text-slate-900">New Nurse Task</h2>
-            <p className="text-xs text-slate-500 mt-0.5">
-              {isIPMode && <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-[10px] font-medium mr-2">IP Mode Active</span>}
-              {isOPMode && <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-green-100 text-green-700 rounded text-[10px] font-medium mr-2">OP Mode Active</span>}
+        <CreateModalHeader
+          title="New Nurse Task"
+          icon={<ClipboardList className="h-5 w-5 text-emerald-700" strokeWidth={2} />}
+          subtitle={
+            <>
+              {isIPMode ? <span className="mr-2 inline-flex items-center gap-1 rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-700">IP Mode Active</span> : null}
+              {isOPMode ? <span className="mr-2 inline-flex items-center gap-1 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">OP Mode Active</span> : null}
               {getModeHelpText()}
-            </p>
-          </div>
-          <button type="button" onClick={onClose}
-            className="p-1 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+            </>
+          }
+          onClose={onClose}
+        />
 
         {/* Mode indicator box */}
         <div className="mx-5 mt-4 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
@@ -1139,7 +1141,7 @@ export const CreateNurseTaskModal = ({
           )}
         </div>
 
-        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+        <form onSubmit={handleSubmit} className={`${CREATE_MODAL_BODY_GRADIENT} flex flex-col flex-1 min-h-0`}>
           {error && (
             <div className="px-5 py-2 text-sm text-red-700 bg-red-50 border-b border-red-200 shrink-0">
               {error}
@@ -1432,17 +1434,13 @@ export const CreateNurseTaskModal = ({
             </div>
           )}
 
-          {/* Footer */}
-          <div className="px-5 py-4 border-t border-slate-200 flex justify-end gap-2 shrink-0">
-            <button type="button" onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 rounded-md hover:bg-slate-200">
-              Cancel
-            </button>
+          <CreateModalFooter>
+            <button type="button" onClick={onClose} className={CM_BTN_CANCEL}>Cancel</button>
             <button type="submit" disabled={submitting || !effectivePatient || (!isIPMode && !isOPMode) || (isIPMode && !encounter) || (isOPMode && !encounter)}
               className={CM_BTN_PRIMARY}>
               {submitting ? 'Creating…' : 'Create Task'}
             </button>
-          </div>
+          </CreateModalFooter>
         </form>
       </div>
     </div>

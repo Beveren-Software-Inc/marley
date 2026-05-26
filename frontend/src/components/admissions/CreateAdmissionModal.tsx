@@ -2,7 +2,10 @@ import { useState, useEffect } from 'react'
 import {
   CM_BTN_CANCEL,
   CM_BTN_PRIMARY,
+  CREATE_MODAL_BODY_GRADIENT,
   CREATE_MODAL_OVERLAY,
+  CreateModalFooter,
+  CreateModalHeader,
   createModalShellClass,
 } from '../ui/CreateModalChrome'
 import { searchPatients, fetchPatients, fetchPatientDoc, type PatientListItem } from '../../services/patients'
@@ -374,22 +377,13 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
 
   return (
     <div className={CREATE_MODAL_OVERLAY}>
-      <div className={createModalShellClass('max-w-3xl w-full max-h-[90vh] overflow-y-auto')}>
-        <div className="p-6 border-b border-slate-200">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold tracking-tight text-emerald-950">Create New Admission</h2>
-            <button
-              onClick={onClose}
-              className="shrink-0 rounded-lg p-2 text-emerald-800/70 transition hover:bg-emerald-200/50 hover:text-emerald-950"
-            >
-              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-        </div>
+      <div className={createModalShellClass('max-w-3xl w-full max-h-[90vh] overflow-hidden')}>
+        <CreateModalHeader title="Create New Admission" onClose={onClose} />
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4" onClick={(e) => {
+        <form
+          onSubmit={handleSubmit}
+          className={`${CREATE_MODAL_BODY_GRADIENT} space-y-4 p-6`}
+          onClick={(e) => {
           const target = e.target as HTMLElement
           if (target.tagName !== 'INPUT' && !target.closest('.absolute')) {
             closeAllDropdowns()
@@ -828,22 +822,14 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
             </div>
           )}
 
-          <div className="flex justify-end gap-3 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className={CM_BTN_CANCEL}
-            >
+          <CreateModalFooter>
+            <button type="button" onClick={onClose} className={CM_BTN_CANCEL}>
               Cancel
             </button>
-            <button
-              type="submit"
-              disabled={submitting}
-              className={CM_BTN_PRIMARY}
-            >
+            <button type="submit" disabled={submitting} className={CM_BTN_PRIMARY}>
               {submitting ? 'Creating...' : 'Create Admission'}
             </button>
-          </div>
+          </CreateModalFooter>
         </form>
       </div>
 

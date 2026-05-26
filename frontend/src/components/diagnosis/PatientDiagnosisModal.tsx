@@ -1,5 +1,14 @@
 import { useState, useEffect, useRef } from 'react'
 import {
+  CM_BTN_CANCEL,
+  CM_BTN_PRIMARY,
+  CREATE_MODAL_BODY_GRADIENT,
+  CREATE_MODAL_OVERLAY,
+  CreateModalFooter,
+  CreateModalHeader,
+  createModalShellClass,
+} from '../ui/CreateModalChrome'
+import {
   getPatientDiagnosis,
   savePatientDiagnosis,
   fetchDiagnosis,
@@ -7,6 +16,7 @@ import {
   fetchInpatientAdmissions,
   type LinkFieldOption,
 } from '../../services/common'
+import { Stethoscope } from 'lucide-react'
 import { CreateDiagnosisModal } from './CreateDiagnosisModal'
 import { toast } from '../../hooks/useToast'
 
@@ -200,62 +210,50 @@ export function PatientDiagnosisModal({
   const typeLabel = parentDoctype === 'Patient Visit' ? 'Patient Visit' : 'Inpatient Admission'
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" onClick={onClose}>
+    <div className={CREATE_MODAL_OVERLAY} onClick={onClose}>
       <div
-        className="bg-white rounded-xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh]"
+        className={createModalShellClass('max-w-2xl w-full max-h-[90vh] overflow-hidden')}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 shrink-0">
-          <div>
-            <p className="text-xs text-slate-500 uppercase tracking-wide font-medium">
-              {standalone ? 'Patient Diagnosis' : typeLabel}
-            </p>
-            <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              Patient Diagnosis
-              {patientName && <span className="text-sm font-normal text-slate-500">— {patientName}</span>}
-            </h2>
-            {!standalone && <p className="text-xs text-slate-400 mt-0.5">{parentName}</p>}
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
+        <CreateModalHeader
+          title="Patient Diagnosis"
+          subtitle={
+            <>
+              {patientName ? <span>{patientName}</span> : null}
+              {!standalone && parentName ? (
+                <span className="text-emerald-800/60"> · {typeLabel}: {parentName}</span>
+              ) : null}
+            </>
+          }
+          icon={<Stethoscope className="h-5 w-5 text-emerald-700" strokeWidth={2} />}
+          onClose={onClose}
+        />
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3" ref={dropdownRef}>
+        <div className={`${CREATE_MODAL_BODY_GRADIENT} flex-1 overflow-y-auto px-6 py-4 space-y-3`} ref={dropdownRef}>
 
           {/* Standalone: OP/IP type + visit/admission selector */}
           {standalone && (
-            <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 flex flex-wrap gap-4 items-end">
+            <div className="rounded-xl border border-emerald-100/80 bg-white p-4 shadow-sm flex flex-wrap gap-4 items-end">
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Type</label>
+                <label className="text-xs font-semibold uppercase tracking-wide text-emerald-800/70">Type</label>
                 <select
                   value={contextType}
                   onChange={(e) => setContextType(e.target.value as 'Patient Visit' | 'Inpatient Admission')}
-                  className="rounded-md border border-slate-300 px-3 py-2 text-sm min-w-[160px]"
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm min-w-[160px] hover:border-emerald-300/80 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25"
                 >
                   <option value="Patient Visit">Patient Visit (OP)</option>
                   <option value="Inpatient Admission">Inpatient Admission (IP)</option>
                 </select>
               </div>
               <div className="flex flex-col gap-1 flex-1 min-w-[200px]">
-                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <label className="text-xs font-semibold uppercase tracking-wide text-emerald-800/70">
                   {contextType === 'Patient Visit' ? 'Patient Visit' : 'Inpatient Admission'}
                 </label>
                 <select
                   value={contextName}
                   onChange={(e) => setContextName(e.target.value)}
-                  className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm hover:border-emerald-300/80 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25"
                 >
                   <option value="">Select…</option>
                   {contextOptions.map((o) => (
@@ -267,7 +265,7 @@ export function PatientDiagnosisModal({
           )}
 
           {standalone && !contextName ? (
-            <div className="text-center text-slate-400 text-sm py-6 border-2 border-dashed border-slate-200 rounded-lg">
+            <div className="text-center text-slate-400 text-sm py-6 border-2 border-dashed border-emerald-100 rounded-lg">
               Select a {contextType === 'Patient Visit' ? 'Patient Visit' : 'Inpatient Admission'} above to view and edit diagnoses.
             </div>
           ) : loading ? (
@@ -285,15 +283,15 @@ export function PatientDiagnosisModal({
               )}
 
               {rows.length === 0 && (
-                <div className="text-center text-slate-400 text-sm py-6 border-2 border-dashed border-slate-200 rounded-lg">
+                <div className="text-center text-slate-400 text-sm py-6 border-2 border-dashed border-emerald-100 rounded-lg">
                   No diagnoses yet. Click <strong>Add Row</strong> or use <strong>+</strong> on the diagnosis field to create one.
                 </div>
               )}
 
               {rows.map((row, idx) => (
-                <div key={row._id} className="border border-slate-200 rounded-lg p-4 bg-slate-50 space-y-3">
+                <div key={row._id} className="rounded-xl border border-emerald-100/80 bg-white p-4 shadow-sm space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Row {idx + 1}</span>
+                    <span className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Row {idx + 1}</span>
                     <button
                       type="button"
                       onClick={() => removeRow(row._id)}
@@ -327,7 +325,7 @@ export function PatientDiagnosisModal({
                           setSearchOpen((p) => ({ ...p, [row._id]: true }))
                         }}
                         placeholder="Search by disease no or diagnosis name…"
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 pr-9 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 pr-9 text-sm shadow-sm placeholder:text-slate-400 hover:border-emerald-300/80 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25"
                       />
                       <button
                         type="button"
@@ -389,24 +387,24 @@ export function PatientDiagnosisModal({
 
                   {/* Details */}
                   <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1">Details</label>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">Details</label>
                     <textarea
                       rows={2}
                       value={row.details}
                       onChange={(e) => updateField(row._id, 'details', e.target.value)}
-                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/30"
+                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm resize-none shadow-sm placeholder:text-slate-400 hover:border-emerald-300/80 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25"
                       placeholder="Additional details or notes…"
                     />
                   </div>
 
                   {/* Date */}
                   <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1">Date</label>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">Date</label>
                     <input
                       type="datetime-local"
                       value={row.posting_date}
                       onChange={(e) => updateField(row._id, 'posting_date', e.target.value)}
-                      className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                      className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm hover:border-emerald-300/80 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25"
                     />
                   </div>
                 </div>
@@ -416,7 +414,7 @@ export function PatientDiagnosisModal({
               <button
                 type="button"
                 onClick={addRow}
-                className="flex items-center gap-2 text-sm text-primary hover:text-primary/80 font-medium transition-colors"
+                className="flex items-center gap-2 text-sm text-emerald-700 hover:text-emerald-900 font-medium transition-colors"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
@@ -427,20 +425,15 @@ export function PatientDiagnosisModal({
           )}
         </div>
 
-        {/* Footer */}
-        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-200 shrink-0 bg-slate-50">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
-          >
+        <CreateModalFooter>
+          <button type="button" onClick={onClose} className={CM_BTN_CANCEL}>
             Cancel
           </button>
           <button
             type="button"
             onClick={handleSave}
             disabled={saving || loading}
-            className="px-5 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center gap-2"
+            className={`${CM_BTN_PRIMARY} flex items-center gap-2`}
           >
             {saving && (
               <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -450,7 +443,7 @@ export function PatientDiagnosisModal({
             )}
             {saving ? 'Saving…' : 'Save'}
           </button>
-        </div>
+        </CreateModalFooter>
       </div>
 
       {showCreateDiagnosis && createDiagnosisForRowId && (

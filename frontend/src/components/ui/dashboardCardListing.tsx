@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Info } from 'lucide-react'
 
@@ -26,14 +26,15 @@ export function CardRowMetaHint({ fields }: { fields: readonly CardMetaField[] }
   const [open, setOpen] = useState(false)
   const [pos, setPos] = useState({ top: 0, left: 0 })
   const triggerRef = useRef<HTMLSpanElement>(null)
+  const popoverRef = useRef<HTMLDivElement>(null)
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const updatePosition = useCallback(() => {
     const el = triggerRef.current
     if (!el) return
     const r = el.getBoundingClientRect()
-    const popW = 280
-    const popH = 120
+    const popW = Math.min(280, window.innerWidth - 16)
+    const popH = Math.min(220, Math.max(120, items.length * 28 + 40))
     let left = r.left
     let top = r.bottom + 6
     if (left + popW > window.innerWidth - 8) {
@@ -43,7 +44,7 @@ export function CardRowMetaHint({ fields }: { fields: readonly CardMetaField[] }
       top = Math.max(8, r.top - popH - 6)
     }
     setPos({ top, left })
-  }, [])
+  }, [items.length])
 
   const show = () => {
     if (hideTimer.current) clearTimeout(hideTimer.current)
@@ -59,6 +60,33 @@ export function CardRowMetaHint({ fields }: { fields: readonly CardMetaField[] }
     if (hideTimer.current) clearTimeout(hideTimer.current)
   }
 
+  const toggleOpen = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (open) {
+      setOpen(false)
+      return
+    }
+    show()
+  }
+
+  useEffect(() => {
+    if (!open) return
+    const onDoc = (e: Event) => {
+      const target = e.target as Node
+      if (triggerRef.current?.contains(target) || popoverRef.current?.contains(target)) return
+      setOpen(false)
+    }
+    const timer = window.setTimeout(() => {
+      document.addEventListener('mousedown', onDoc)
+      document.addEventListener('touchstart', onDoc)
+    }, 0)
+    return () => {
+      window.clearTimeout(timer)
+      document.removeEventListener('mousedown', onDoc)
+      document.removeEventListener('touchstart', onDoc)
+    }
+  }, [open])
+
   if (!items.length) return null
 
   return (
@@ -71,15 +99,16 @@ export function CardRowMetaHint({ fields }: { fields: readonly CardMetaField[] }
         onMouseLeave={scheduleHide}
         onFocus={show}
         onBlur={scheduleHide}
-        onClick={(e) => e.stopPropagation()}
+        onClick={toggleOpen}
       >
         <Info className="w-3.5 h-3.5" strokeWidth={2.25} />
       </span>
       {open &&
         createPortal(
           <div
+            ref={popoverRef}
             role="tooltip"
-            className="pointer-events-auto fixed z-[250] max-w-[280px] rounded-lg border border-emerald-200/90 bg-gradient-to-b from-emerald-50 via-emerald-50/95 to-teal-50/80 px-3 py-2.5 text-xs text-emerald-950 shadow-lg shadow-emerald-900/10 ring-1 ring-emerald-100/90"
+            className="pointer-events-auto fixed z-[250] w-[min(280px,calc(100vw-16px))] max-w-[calc(100vw-16px)] rounded-lg border border-emerald-200/90 bg-gradient-to-b from-emerald-50 via-emerald-50/95 to-teal-50/80 px-3 py-2.5 text-xs text-emerald-950 shadow-lg shadow-emerald-900/10 ring-1 ring-emerald-100/90"
             style={{ top: pos.top, left: pos.left }}
             onMouseEnter={cancelHide}
             onMouseLeave={scheduleHide}

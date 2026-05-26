@@ -133,15 +133,21 @@ export const DashboardCard = ({
 
   return (
     <section
-      className={`rounded-lg p-4 shadow-sm flex flex-col ${
+      className={`rounded-lg p-3 sm:p-4 shadow-sm flex flex-col min-w-0 ${
         requiresAttention
           ? 'bg-red-50/80 border-2 border-red-300/90 ring-1 ring-red-200/60'
           : 'bg-white border border-slate-200'
-      } ${fixedHeight && !noHeightLimit ? 'min-h-[400px] max-h-[400px]' : ''} ${className}`}
+      } ${
+        fixedHeight && !noHeightLimit
+          ? 'min-h-[min(280px,45vh)] max-h-[min(360px,58vh)] sm:min-h-[400px] sm:max-h-[400px]'
+          : ''
+      } ${className}`}
     >
-      <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0 gap-2">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className={requiresAttention ? 'text-red-950' : undefined}>{title}</span>
+      <div className="font-semibold mb-3 sm:mb-4 flex flex-wrap items-center justify-between flex-shrink-0 gap-x-2 gap-y-2">
+        <div className="flex items-center gap-2 min-w-0 flex-1 basis-[min(100%,12rem)]">
+          <span className={`truncate text-sm sm:text-base ${requiresAttention ? 'text-red-950' : undefined}`}>
+            {title}
+          </span>
           {requiresAttention && (
             <span
               className="shrink-0 inline-flex items-center rounded-full bg-red-200/90 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-900"
