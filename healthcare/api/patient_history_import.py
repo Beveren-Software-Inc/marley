@@ -106,7 +106,6 @@ def _text_value(value) -> str:
 
 
 def _description_value(value) -> str:
-	"""Patient History Detail.description is a Text Editor (HTML)."""
 	if not value:
 		return ""
 	text = str(value).strip()

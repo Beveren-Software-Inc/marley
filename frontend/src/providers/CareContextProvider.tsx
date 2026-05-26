@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { toast } from '../hooks/useToast'
 import { careScopeFromCostCenterField, type CostCenterCareScope } from '../config/costCenterCareScope'
-import { fetchActiveCareEpisodeStatus } from '../services/careEpisode'
+import { fetchActiveCareEpisodeStatus, type ActiveCareEpisodeStatus } from '../services/careEpisode'
 import { fetchDefaultCompanyCurrency } from '../services/common'
 import {
   getActiveCareBlockReason,
@@ -141,12 +141,14 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
   const [companyCurrency, setCompanyCurrency] = useState<string | undefined>(undefined)
   const [activeVisitStatus, setActiveVisitStatus] = useState<string | undefined>(undefined)
   const [activeAdmissionStatus, setActiveAdmissionStatus] = useState<string | undefined>(undefined)
+  const [careEpisodeStatus, setCareEpisodeStatus] = useState<ActiveCareEpisodeStatus | null>(null)
 
   useEffect(() => {
     let cancelled = false
     if (!activeVisit && !activeAdmission) {
       setActiveVisitStatus(undefined)
       setActiveAdmissionStatus(undefined)
+      setCareEpisodeStatus(null)
       return
     }
     fetchActiveCareEpisodeStatus(activeVisit, activeAdmission)
@@ -154,30 +156,37 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
         if (cancelled) return
         setActiveVisitStatus(msg.patient_visit_status ?? undefined)
         setActiveAdmissionStatus(msg.inpatient_admission_status ?? undefined)
+        setCareEpisodeStatus(msg)
       })
       .catch(() => {
         if (cancelled) return
         setActiveVisitStatus(undefined)
         setActiveAdmissionStatus(undefined)
+        setCareEpisodeStatus(null)
       })
     return () => {
       cancelled = true
     }
   }, [activeVisit, activeAdmission])
 
-  const isActiveCareEpisodeClosed = isActiveCareEpisodeClosedForCreate(
-    mode,
-    activeVisit,
-    activeAdmission,
-    activeVisitStatus,
-    activeAdmissionStatus,
-  )
+  const blockDischargedIp =
+    careEpisodeStatus?.block_clinical_records_on_discharged_ip ?? true
 
-  const activeCareBlockReason = getActiveCareBlockReason(
-    mode,
-    activeVisitStatus,
-    activeAdmissionStatus,
-  )
+  const isActiveCareEpisodeClosed = careEpisodeStatus
+    ? careEpisodeStatus.blocks_create
+    : isActiveCareEpisodeClosedForCreate(
+        mode,
+        activeVisit,
+        activeAdmission,
+        activeVisitStatus,
+        activeAdmissionStatus,
+        { blockDischargedIp },
+      )
+
+  const activeCareBlockReason = careEpisodeStatus?.block_reason
+    ?? getActiveCareBlockReason(mode, activeVisitStatus, activeAdmissionStatus, {
+      blockDischargedIp,
+    })
 
   const guardClinicalCreate = useCallback(
     (open: () => void, options?: { allowOnClosed?: boolean }) => {

@@ -1,10 +1,35 @@
 // Copyright (c) 2026, earthians Health Informatics Pvt. Ltd. and contributors
 // For license information, please see license.txt
 
+function html_description_to_plain(html) {
+	if (!html) {
+		return "";
+	}
+	return String(html)
+		.replace(/<br\s*\/?>/gi, "\n")
+		.replace(/<\/p>\s*/gi, "\n")
+		.replace(/<p[^>]*>/gi, "")
+		.replace(/<[^>]+>/g, "")
+		.replace(/\r\n/g, "\n")
+		.replace(/\n{3,}/g, "\n\n")
+		.trim();
+}
+
 frappe.ui.form.on("Patient History", {
 	refresh(frm) {
 		if (frm.is_new() && frm.doc.template && !(frm.doc.history_detail || []).length) {
 			load_history_detail_from_template(frm);
+		}
+
+		const grid = frm.fields_dict.history_detail?.grid;
+		if (grid && !grid.__ph_description_formatter) {
+			grid.__ph_description_formatter = true;
+			const formatter = (value) => html_description_to_plain(value);
+			if (grid.formatters) {
+				grid.formatters.description = formatter;
+			} else {
+				grid.formatters = { description: formatter };
+			}
 		}
 	},
 
@@ -61,3 +86,12 @@ function load_history_detail_from_template(frm) {
 		},
 	});
 }
+
+frappe.ui.form.on("Patient History Detail", {
+	form_render(frm) {
+		if (!frm.doc.description || !/<br/i.test(frm.doc.description)) {
+			return;
+		}
+		frm.set_value("description", html_description_to_plain(frm.doc.description));
+	},
+});

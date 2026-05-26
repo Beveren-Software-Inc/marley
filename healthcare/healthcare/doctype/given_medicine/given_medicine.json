@@ -1,0 +1,229 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-05-26 14:21:19.571774",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "admission",
+  "date",
+  "column_break_jovf",
+  "patient",
+  "patient_name",
+  "section_break_dbpg",
+  "time",
+  "medicine_code",
+  "medicine_name",
+  "medication_order",
+  "qty",
+  "unit",
+  "state_date",
+  "medicine_given_timing",
+  "column_break_wakz",
+  "frequency",
+  "is_active",
+  "dose_notes",
+  "user",
+  "is_prn",
+  "trans_num",
+  "medicine_trans_num",
+  "section_break_oday",
+  "given_yn",
+  "override_section",
+  "override_exceeded_frequency",
+  "override_reason",
+  "override_user",
+  "override_timestamp"
+ ],
+ "fields": [
+  {
+   "default": "Today",
+   "fieldname": "date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Date"
+  },
+  {
+   "default": "Now",
+   "fieldname": "time",
+   "fieldtype": "Time",
+   "label": "Time"
+  },
+  {
+   "fieldname": "medicine_code",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Medicine Code",
+   "options": "Item",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "medicine_code.item_name",
+   "fieldname": "medicine_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Medicine Name"
+  },
+  {
+   "fieldname": "medication_order",
+   "fieldtype": "Link",
+   "label": "Patient Medication Order",
+   "options": "Patient Medication Order"
+  },
+  {
+   "fieldname": "qty",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Qty"
+  },
+  {
+   "fetch_from": "medicine_code.stock_uom",
+   "fieldname": "unit",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Unit",
+   "options": "UOM"
+  },
+  {
+   "fieldname": "state_date",
+   "fieldtype": "Date",
+   "label": "State Date"
+  },
+  {
+   "fieldname": "medicine_given_timing",
+   "fieldtype": "Data",
+   "label": "Medicine Given Timing"
+  },
+  {
+   "fieldname": "column_break_wakz",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "frequency",
+   "fieldtype": "Int",
+   "label": "Frequency"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "label": "Discontinue"
+  },
+  {
+   "fieldname": "dose_notes",
+   "fieldtype": "Small Text",
+   "label": "Dose Notes"
+  },
+  {
+   "fieldname": "user",
+   "fieldtype": "Link",
+   "label": "User",
+   "options": "User"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_prn",
+   "fieldtype": "Check",
+   "label": "Is PRN"
+  },
+  {
+   "fieldname": "override_section",
+   "fieldtype": "Section Break",
+   "label": "Override (Max Frequency)"
+  },
+  {
+   "default": "0",
+   "fieldname": "override_exceeded_frequency",
+   "fieldtype": "Check",
+   "label": "Exceeded Prescribed Daily Frequency"
+  },
+  {
+   "fieldname": "override_reason",
+   "fieldtype": "Small Text",
+   "label": "Override Reason"
+  },
+  {
+   "fieldname": "override_user",
+   "fieldtype": "Link",
+   "label": "Override User",
+   "options": "User"
+  },
+  {
+   "fieldname": "override_timestamp",
+   "fieldtype": "Datetime",
+   "label": "Override Timestamp"
+  },
+  {
+   "fieldname": "trans_num",
+   "fieldtype": "Data",
+   "label": "Trans Num"
+  },
+  {
+   "fieldname": "medicine_trans_num",
+   "fieldtype": "Data",
+   "label": "Medicine Trans Num"
+  },
+  {
+   "fieldname": "admission",
+   "fieldtype": "Link",
+   "label": "Admission",
+   "options": "Inpatient Admission"
+  },
+  {
+   "fieldname": "column_break_jovf",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "patient",
+   "fieldtype": "Link",
+   "label": "Patient",
+   "options": "Patient"
+  },
+  {
+   "fieldname": "patient_name",
+   "fieldtype": "Data",
+   "label": "Patient Name"
+  },
+  {
+   "fieldname": "section_break_dbpg",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "section_break_oday",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "given_yn",
+   "fieldtype": "Data",
+   "label": "Given YN"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-05-26 14:36:08.050536",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Given Medicine",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

@@ -3,6 +3,8 @@ export type ActiveCareEpisodeStatus = {
   inpatient_admission_status: string | null
   blocks_create: boolean
   block_reason: string | null
+  /** Mirrors Healthcare Settings; default true until loaded from API. */
+  block_clinical_records_on_discharged_ip: boolean
 }
 
 export async function fetchActiveCareEpisodeStatus(

@@ -525,6 +525,7 @@ import { fetchPatientVisits, fetchPatientOptions, fetchInpatientAdmissionOptions
 import { toast } from '../../hooks/useToast'
 import { X, ChevronDown, Plus, Trash2, Check, AlertCircle, BookOpen } from 'lucide-react'
 import { useCareContext } from '../../providers/CareContextProvider'
+import { htmlToPlainText } from '../../utils/htmlToPlainText'
 
 // ─── Link Combobox ────────────────────────────────────────────────────────────
 
@@ -621,7 +622,7 @@ function mapTemplateHistoryRow(r: Record<string, unknown>): HistoryRow {
   return {
     _key: Math.random().toString(36).slice(2),
     attribute: String(r.attribute ?? ''),
-    description: String(r.description ?? ''),
+    description: htmlToPlainText(String(r.description ?? '')),
     is_mendatory: r.is_mendatory === 1 || r.is_mendatory === true,
   }
 }

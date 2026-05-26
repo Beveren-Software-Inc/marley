@@ -4,6 +4,7 @@ from frappe import _
 from frappe.utils import nowdate, get_datetime, flt
 
 from healthcare.api.medicine_given import _get_or_create_admission_detail
+from healthcare.healthcare.care_episode_guard import assert_inpatient_admission_open_for_create
 from healthcare.api.utils.api_utility import get_next_transaction_number
 
 
@@ -26,6 +27,8 @@ def create_sleeping_pattern(**data):
 
 	if not admission:
 		frappe.throw(_("Admission is required"))
+
+	assert_inpatient_admission_open_for_create(admission)
 
 	admission_detail = _get_or_create_admission_detail(admission)
 	trans_no = get_next_transaction_number("Sleeping Pattern", fieldname="trans_no")

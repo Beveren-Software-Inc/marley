@@ -22,6 +22,7 @@
   "valid_days",
   "inpatient_settings_section",
   "allow_discharge_despite_unbilled_services",
+  "block_clinical_records_on_discharged_ip",
   "do_not_bill_inpatient_encounters",
   "discount_section",
   "discount_limit",
@@ -385,6 +386,13 @@
    "fieldname": "allow_discharge_despite_unbilled_services",
    "fieldtype": "Check",
    "label": "Allow Discharge Despite Unbilled Healthcare Services"
+  },
+  {
+   "default": "1",
+   "description": "When enabled, users cannot add clinical records (prescriptions, lab tests, given medicine, etc.) linked to a discharged or cancelled inpatient admission. Disable to allow post-discharge documentation on the same admission.",
+   "fieldname": "block_clinical_records_on_discharged_ip",
+   "fieldtype": "Check",
+   "label": "Block Clinical Records on Discharged IP Admissions"
   },
   {
    "default": "0",
