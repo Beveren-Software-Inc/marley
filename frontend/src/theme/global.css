@@ -53,3 +53,47 @@
   box-shadow: 0 1px 0 #e2e8f0;
 }
 
+/*
+ * Healthcare modals & detail panels — uniform emerald focus/hover on fields
+ * (Create Prescription / Clinical Suicide Risk Assessment style).
+ */
+[data-healthcare-modal] input:not([type='checkbox']):not([type='radio']):not([type='hidden']):not([type='file']):not([type='button']):not([type='submit']):not([type='reset']),
+[data-healthcare-modal] select,
+[data-healthcare-modal] textarea {
+  border-radius: 0.5rem;
+  border-color: rgb(226 232 240);
+  transition-property: color, background-color, border-color, box-shadow;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+[data-healthcare-modal] input:not([type='checkbox']):not([type='radio']):not([disabled]):hover,
+[data-healthcare-modal] select:not(:disabled):hover,
+[data-healthcare-modal] textarea:not(:disabled):hover {
+  border-color: rgb(110 231 183 / 0.8);
+}
+
+[data-healthcare-modal] input:not([type='checkbox']):not([type='radio']):focus,
+[data-healthcare-modal] select:focus,
+[data-healthcare-modal] textarea:focus {
+  border-color: rgb(52 211 153 / 0.8);
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 2px rgb(16 185 129 / 0.25);
+}
+
+/* Dashboard cards on phones/tablets: tighter cells, allow wrapping in compact tables */
+@media (max-width: 767px) {
+  .dense-listing table th,
+  .dense-listing table td {
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+  }
+
+  .dense-listing table.table-fixed th,
+  .dense-listing table.table-fixed td {
+    white-space: normal;
+    word-break: break-word;
+  }
+}
+

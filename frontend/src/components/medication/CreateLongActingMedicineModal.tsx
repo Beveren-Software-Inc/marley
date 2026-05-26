@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import {
   CREATE_MODAL_OVERLAY,
+  CreateModalHeader,
   createModalShellClass,
 } from '../ui/CreateModalChrome'
 import { apiRequest } from '../../services/apiClient'
@@ -386,16 +387,8 @@ export const CreateLongActingMedicineModal = ({
     <div className={CREATE_MODAL_OVERLAY}>
       <div className={createModalShellClass('max-w-4xl w-full max-h-[90vh]')}>
         {/* Header */}
-        <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between shrink-0 rounded-t-xl">
-          <h2 className="text-lg font-semibold tracking-tight text-emerald-950">Create Long Acting Medicine</h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 p-1 rounded-md hover:bg-slate-100 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+        <CreateModalHeader title="Create Long Acting Medicine" onClose={onClose} />
+
 
         {/* Tabs */}
         <div className="flex border-b border-slate-200 shrink-0 bg-slate-50">

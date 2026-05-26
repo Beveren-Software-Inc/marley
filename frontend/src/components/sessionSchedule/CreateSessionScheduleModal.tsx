@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import {
   CREATE_MODAL_OVERLAY,
+  CreateModalHeader,
   createModalShellClass,
 } from '../ui/CreateModalChrome'
 import {
@@ -332,15 +333,8 @@ export const CreateSessionScheduleModal = ({
     <div className={CREATE_MODAL_OVERLAY}>
       <div className={createModalShellClass('w-full max-w-2xl max-h-[90vh] overflow-y-auto')}>
         {/* Header */}
-        <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold tracking-tight text-emerald-950">Create Session Schedule</h2>
-          <button
-            onClick={onClose}
-            className="p-1 hover:bg-slate-100 rounded-md text-slate-600"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+        <CreateModalHeader title="Create Session Schedule" onClose={onClose} />
+
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">

@@ -7,7 +7,11 @@ const FRAPPE_DESK_URL = '/app'
 import { useTheme } from '../../hooks/useTheme'
 import { useAuth } from '../../providers/AuthProvider'
 
-export const UserMenu = () => {
+type UserMenuProps = {
+  placement?: 'header' | 'sidebar'
+}
+
+export const UserMenu = ({ placement = 'header' }: UserMenuProps) => {
   const [isOpen, setIsOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const { theme, toggleTheme } = useTheme()
@@ -56,23 +60,54 @@ export const UserMenu = () => {
     }
   }
 
+  const isSidebar = placement === 'sidebar'
+
   return (
-    <div className="relative flex flex-col items-center" ref={dropdownRef}>
+    <div
+      className={`relative ${isSidebar ? 'w-full' : 'flex flex-col items-center'}`}
+      ref={dropdownRef}
+    >
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="w-8 h-8 bg-white rounded-full flex items-center justify-center text-primary hover:bg-gray-100 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40 cursor-pointer"
+        className={
+          isSidebar
+            ? 'flex w-full items-center gap-3 rounded-md bg-white/10 px-3 py-2.5 text-left hover:bg-white/20 transition-colors focus:outline-none focus:ring-2 focus:ring-white/40'
+            : 'w-8 h-8 bg-white rounded-full flex items-center justify-center text-primary hover:bg-gray-100 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40 cursor-pointer'
+        }
         aria-label="User menu"
         type="button"
       >
-        <span className="text-primary text-sm font-medium pointer-events-none">{initials}</span>
+        <span
+          className={
+            isSidebar
+              ? 'w-9 h-9 shrink-0 bg-white rounded-full flex items-center justify-center text-primary text-sm font-medium'
+              : 'text-primary text-sm font-medium pointer-events-none'
+          }
+        >
+          {initials}
+        </span>
+        {isSidebar && (
+          <span className="flex-1 min-w-0">
+            <span className="block text-sm font-medium text-white truncate">{displayName}</span>
+            <span className="block text-xs text-white/70 truncate">{user?.role || 'Account'}</span>
+          </span>
+        )}
       </button>
-      <div className="text-xs text-white mt-1 text-center max-w-[60px] truncate" title={displayName}>
-        {displayName}
-      </div>
+      {!isSidebar && (
+        <div className="text-xs text-white mt-1 text-center max-w-[60px] truncate" title={displayName}>
+          {displayName}
+        </div>
+      )}
 
       {/* User dropdown menu */}
       {isOpen && (
-        <div className="absolute right-0 top-full mt-2 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-[100] overflow-hidden">
+        <div
+          className={`absolute w-64 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-[100] overflow-hidden ${
+            isSidebar
+              ? 'bottom-full left-0 mb-2'
+              : 'top-full right-0 mt-2'
+          }`}
+        >
           {/* User info header */}
           <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-700">
             <div className="flex items-center space-x-3">

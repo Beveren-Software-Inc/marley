@@ -3,8 +3,10 @@ import { useEffect, useState } from 'react'
 import {
   CM_BTN_CANCEL,
   CM_BTN_PRIMARY,
-  CREATE_MODAL_FOOTER_STICKY,
+  CREATE_MODAL_BODY_GRADIENT,
   CREATE_MODAL_OVERLAY,
+  CreateModalFooter,
+  CreateModalHeader,
   createModalShellClass,
 } from '../ui/CreateModalChrome'
 import { Shield, AlertTriangle, Heart, Brain, Users, Target, Activity } from 'lucide-react'
@@ -243,21 +245,14 @@ export const CreateSuicideRiskAssessmentModal = ({
     <div className={CREATE_MODAL_OVERLAY}>
       <div className={createModalShellClass('max-w-4xl w-full max-h-[92vh] overflow-hidden')}>
 
-        {/* Header */}
-        <div className="relative shrink-0 border-b border-emerald-100/60 bg-gradient-to-r from-emerald-100 via-teal-50 to-sky-100 px-5 py-4 sm:px-6 flex flex-shrink-0 items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <Shield className="w-5 h-5 text-primary" />
-            <h2 className="text-lg font-semibold tracking-tight text-emerald-950">Clinical Suicide Risk Assessment</h2>
-          </div>
-          <button type="button" onClick={onClose} className="shrink-0 rounded-lg p-2 text-emerald-800/70 transition hover:bg-emerald-200/50 hover:text-emerald-950">
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
+        <CreateModalHeader
+          title="Clinical Suicide Risk Assessment"
+          icon={<Shield className="h-5 w-5 text-emerald-700" strokeWidth={2} />}
+          onClose={onClose}
+        />
 
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
-          <div className="flex-1 overflow-y-auto p-5 space-y-6">
+          <div className={`${CREATE_MODAL_BODY_GRADIENT} p-5 space-y-6`}>
             
             {/* Basic Information */}
             <div className="bg-white border border-slate-200 rounded-lg p-4">
@@ -736,28 +731,14 @@ export const CreateSuicideRiskAssessmentModal = ({
             )}
           </div>
 
-          {/* Footer */}
-          <div className={`${CREATE_MODAL_FOOTER_STICKY} items-center justify-between gap-3`}>
-            <div className="text-xs text-slate-400">
-              Complete all relevant sections
-            </div>
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={onClose}
-                className={CM_BTN_CANCEL}
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={saving}
-                className={CM_BTN_PRIMARY}
-              >
-                {saving ? 'Creating…' : 'Create Assessment'}
-              </button>
-            </div>
-          </div>
+          <CreateModalFooter hint="Complete all relevant sections">
+            <button type="button" onClick={onClose} className={CM_BTN_CANCEL}>
+              Cancel
+            </button>
+            <button type="submit" disabled={saving} className={CM_BTN_PRIMARY}>
+              {saving ? 'Creating…' : 'Create Assessment'}
+            </button>
+          </CreateModalFooter>
         </form>
       </div>
     </div>

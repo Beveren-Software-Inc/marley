@@ -3,6 +3,7 @@ import {
   CM_BTN_CANCEL,
   CM_BTN_PRIMARY,
   CREATE_MODAL_OVERLAY,
+  CreateModalHeader,
   createModalShellClass,
 } from '../ui/CreateModalChrome'
 import { apiRequest } from '../../services/apiClient'
@@ -56,19 +57,8 @@ export const CreateClinicalNoteTypeModal = ({
   return (
     <div className={CREATE_MODAL_OVERLAY}>
       <div className={createModalShellClass('max-w-md w-full')}>
-        <div className="p-6 border-b border-slate-200">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold tracking-tight text-emerald-950">Create Clinical Note Type</h2>
-            <button
-              onClick={onClose}
-              className="shrink-0 rounded-lg p-2 text-emerald-800/70 transition hover:bg-emerald-200/50 hover:text-emerald-950"
-            >
-              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-        </div>
+        <CreateModalHeader title="Create Clinical Note Type" onClose={onClose} />
+
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>

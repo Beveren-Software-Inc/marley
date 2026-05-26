@@ -1433,7 +1433,7 @@ export const AppointmentList = ({
           Showing {appointments.length} of {totalCount} appointment{totalCount !== 1 ? 's' : ''}
           {hasActiveFilters && ' (filtered)'}
           {cardCompactLayout
-            ? ' — hover ⓘ for appointment ID, type, practitioner, and more; use ↗ for full list'
+            ? ' — tap or hover ⓘ for appointment ID, type, practitioner, and more; use ↗ for full list'
             : ''}
         </p>
       </div>
@@ -1460,14 +1460,14 @@ export const AppointmentList = ({
               </colgroup>
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
-                  <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">
                     Date &amp; Time
                   </th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">
                     Status
                   </th>
                   {!patient && (
-                    <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">
+                    <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">
                       Patient
                     </th>
                   )}
@@ -1480,13 +1480,13 @@ export const AppointmentList = ({
                     className={dashboardCardRowHoverClass}
                     onClick={() => setDetailApt(apt)}
                   >
-                    <td className="px-3 py-2.5 text-xs text-slate-700 whitespace-nowrap align-top">
-                      <span className="text-primary font-medium">
+                    <td className="px-3 py-2.5 text-xs text-slate-700 align-top">
+                      <span className="text-primary font-medium break-words">
                         {formatDateTime(apt.appointment_date, apt.appointment_time)}
                       </span>
                       <CardRowMetaHint fields={appointmentCardMetaFields(apt)} />
                     </td>
-                    <td className="px-3 py-2.5 align-top whitespace-nowrap">
+                    <td className="px-3 py-2.5 align-top">
                       {apt.status ? (
                         <StatusPill status={apt.status} color={getStatusColor(apt.status)} />
                       ) : (

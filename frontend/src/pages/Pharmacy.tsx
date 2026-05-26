@@ -9,6 +9,7 @@ import {
   type LowStockRow
 } from '../services/pharmacy'
 import { ChevronRight, Plus } from 'lucide-react'
+import { MobileNavMenuButton } from '../components/layout/MobileNavMenuButton'
 import { CreateMaterialRequestModal } from '../components/pharmacy/CreateMaterialRequestModal'
 
 const PHARM_POS_URL = '/klik_pos/pos'
@@ -76,11 +77,12 @@ export const PharmacyPage = () => {
 
   return (
     <div className="flex flex-col min-h-0">
-      <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white pl-14 md:pl-4 pr-4 py-2 md:py-3 border-b border-white/20 flex-shrink-0">
+      <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white px-3 md:px-4 py-2 md:py-3 border-b border-white/20 flex-shrink-0">
+        <MobileNavMenuButton />
         <div className="flex-1 min-w-0">
           <ItemSearch onSearch={handleItemSearch} />
         </div>
-        <div className="flex items-center gap-3 flex-shrink-0">
+        <div className="hidden md:flex items-center gap-3 flex-shrink-0">
           <a
             href={PHARM_POS_URL}
             target="_blank"
@@ -89,9 +91,17 @@ export const PharmacyPage = () => {
           >
             Pharm POS
           </a>
-          <UserMenu />
-          <NotificationBell />
+          <UserMenu placement="header" />
+          <NotificationBell placement="header" />
         </div>
+        <a
+          href={PHARM_POS_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="md:hidden shrink-0 px-2 py-1 rounded-md bg-white/20 hover:bg-white/30 text-white text-xs font-medium whitespace-nowrap"
+        >
+          POS
+        </a>
       </header>
 
       <div className="flex-1 overflow-y-auto p-4">

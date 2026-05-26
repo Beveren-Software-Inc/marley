@@ -5,7 +5,9 @@ import {
   CREATE_MODAL_FOOTER_STICKY,
   CREATE_MODAL_OVERLAY,
   CREATE_MODAL_OVERLAY_STACK,
+  CreateModalHeader,
   createModalShellClass,
+  createModalTabButtonClass,
 } from '../ui/CreateModalChrome'
 import {
   fetchInsuranceCompanies, createHealthInsurance, createInsuranceCompany,
@@ -311,39 +313,27 @@ export const CreateHealthInsuranceModal = ({ onClose, onSuccess }: Props) => {
     <div className={CREATE_MODAL_OVERLAY}>
       <div className={createModalShellClass('w-full max-w-xl max-h-[90vh]')}>
 
-        {/* Header */}
-        <div className="px-6 pt-4 pb-0 border-b border-slate-200 shrink-0">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-semibold tracking-tight text-emerald-950">New Health Insurance</h2>
-            <button type="button" onClick={onClose} className="shrink-0 rounded-lg p-2 text-emerald-800/70 transition hover:bg-emerald-200/50 hover:text-emerald-950">
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-          {/* Tab bar */}
-          <div className="flex -mb-px">
+        <CreateModalHeader title="New Health Insurance" onClose={onClose}>
+          <div className="-mb-px mt-3 flex border-b border-emerald-100/80">
             {TABS.map(tab => (
               <button
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-                  activeTab === tab.id
-                    ? 'border-primary text-primary'
-                    : 'border-transparent text-slate-500 hover:text-slate-700'
-                }`}
+                className={createModalTabButtonClass(activeTab === tab.id)}
               >
                 {tab.label}
-                {tab.badge !== undefined && (
-                  <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-xs ${
-                    activeTab === tab.id ? 'bg-primary/10 text-primary' : 'bg-slate-100 text-slate-500'
+                {tab.badge !== undefined ? (
+                  <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-xs ${
+                    activeTab === tab.id ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'
                   }`}>
                     {tab.badge}
                   </span>
-                )}
+                ) : null}
               </button>
             ))}
           </div>
-        </div>
+        </CreateModalHeader>
 
         {/* Body */}
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">

@@ -3,7 +3,9 @@ import {
   CM_BTN_CANCEL,
   CM_BTN_PRIMARY,
   CREATE_MODAL_OVERLAY,
+  CreateModalHeader,
   createModalShellClass,
+  createModalTabButtonClass,
 } from '../ui/CreateModalChrome'
 import { searchPatients, fetchPatients, type PatientListItem, uploadPatientFile, type PatientDocumentRow } from '../../services/patients'
 import {
@@ -540,20 +542,8 @@ export const CreatePatientVisitModal = ({
   return (
     <div className={CREATE_MODAL_OVERLAY}>
       <div className={createModalShellClass('max-w-2xl w-full max-h-[90vh]')}>
-        <div className="p-6 border-b border-slate-200 shrink-0">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold tracking-tight text-emerald-950">Create New Patient Visit</h2>
-            <button
-              onClick={onClose}
-              className="shrink-0 rounded-lg p-2 text-emerald-800/70 transition hover:bg-emerald-200/50 hover:text-emerald-950"
-            >
-              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-
-          <div className="flex mt-4 border-b border-slate-200 -mb-6">
+        <CreateModalHeader title="Create New Patient Visit" onClose={onClose}>
+          <div className="-mb-px mt-4 flex border-b border-emerald-100/80">
             {[
               { id: 'details' as const, label: 'Visit Details' },
               { id: 'documents' as const, label: 'Documents', badge: documents.length || undefined },
@@ -562,22 +552,18 @@ export const CreatePatientVisitModal = ({
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveTab(tab.id)}
-                className={`px-3 py-2 text-sm border-b-2 -mb-px transition-colors ${
-                  activeTab === tab.id
-                    ? 'border-primary text-primary font-semibold'
-                    : 'border-transparent text-slate-500 hover:text-slate-800'
-                } flex items-center gap-1`}
+                className={createModalTabButtonClass(activeTab === tab.id)}
               >
                 {tab.label}
                 {tab.badge ? (
-                  <span className="inline-flex items-center justify-center rounded-full bg-slate-100 px-1.5 text-[11px] font-medium text-slate-700">
+                  <span className="inline-flex items-center justify-center rounded-full bg-emerald-100 px-1.5 text-[11px] font-medium text-emerald-700">
                     {tab.badge}
                   </span>
                 ) : null}
               </button>
             ))}
           </div>
-        </div>
+        </CreateModalHeader>
 
         {(openVisitCheckLoading || createBlocked) && (
           <div

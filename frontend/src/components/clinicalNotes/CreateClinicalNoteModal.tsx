@@ -591,9 +591,13 @@ import { useState, useEffect } from 'react'
 import {
   CM_BTN_CANCEL,
   CM_BTN_PRIMARY,
+  CREATE_MODAL_BODY_GRADIENT,
   CREATE_MODAL_OVERLAY,
+  CreateModalFooter,
+  CreateModalHeader,
   createModalShellClass,
 } from '../ui/CreateModalChrome'
+import { NotebookPen } from 'lucide-react'
 import { createClinicalNote } from '../../services/clinicalNotes'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
 import { fetchHealthcarePractitioners, fetchInpatientAdmissionOptions, fetchPatientVisits as fetchPatientVisitOptions, getCurrentUserPractitioner, type LinkFieldOption } from '../../services/common'
@@ -904,30 +908,22 @@ export const CreateClinicalNoteModal = ({
   return (
     <div className={CREATE_MODAL_OVERLAY}>
       <div className={createModalShellClass('max-w-4xl w-full max-h-[94vh] min-h-[min(640px,92vh)]')}>
-        <div className="p-6 border-b border-slate-200 bg-white z-10 shrink-0">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-semibold tracking-tight text-emerald-950">{title}</h2>
-              <p className="text-xs text-slate-500 mt-0.5">
-                {isIPMode && <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-[10px] font-medium mr-2">IP Mode Active</span>}
-                {isOPMode && <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-green-100 text-green-700 rounded text-[10px] font-medium mr-2">OP Mode Active</span>}
-                {getModeHelpText()}
-              </p>
-            </div>
-            <button
-              onClick={onClose}
-              className="shrink-0 rounded-lg p-2 text-emerald-800/70 transition hover:bg-emerald-200/50 hover:text-emerald-950"
-            >
-              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-        </div>
+        <CreateModalHeader
+          title={title}
+          icon={<NotebookPen className="h-5 w-5 text-emerald-700" strokeWidth={2} />}
+          subtitle={
+            <>
+              {isIPMode ? <span className="mr-2 inline-flex items-center gap-1 rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-700">IP Mode Active</span> : null}
+              {isOPMode ? <span className="mr-2 inline-flex items-center gap-1 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">OP Mode Active</span> : null}
+              {getModeHelpText()}
+            </>
+          }
+          onClose={onClose}
+        />
 
         <form
           onSubmit={handleSubmit}
-          className="flex flex-col flex-1 min-h-0"
+          className={`${CREATE_MODAL_BODY_GRADIENT} flex flex-col flex-1 min-h-0`}
           onClick={e => {
             const target = e.target as HTMLElement
             if (target.tagName !== 'INPUT' && !target.closest('.absolute')) {
@@ -1174,15 +1170,8 @@ export const CreateClinicalNoteModal = ({
             </div>
           </div>
 
-          {/* Fixed footer - always visible */}
-          <div className="shrink-0 flex justify-end gap-3 px-6 py-4 border-t border-slate-200 bg-white">
-            <button
-              type="button"
-              onClick={onClose}
-              className={CM_BTN_CANCEL}
-            >
-              Cancel
-            </button>
+          <CreateModalFooter>
+            <button type="button" onClick={onClose} className={CM_BTN_CANCEL}>Cancel</button>
             <button
               type="submit"
               disabled={loading || (!isIPMode && !isOPMode) || (isIPMode && !formData.admission_no) || (isOPMode && !formData.patient_visit)}
@@ -1190,7 +1179,7 @@ export const CreateClinicalNoteModal = ({
             >
               {loading ? 'Saving...' : 'Save Note'}
             </button>
-          </div>
+          </CreateModalFooter>
         </form>
       </div>
 

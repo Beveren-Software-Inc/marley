@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { CreatePatientModal } from './CreatePatientModal'
 import { PatientAlertsBanner } from './PatientAlertsBanner'
@@ -9,6 +9,7 @@ import {
   type PatientListItem,
 } from '../../services/patients'
 import { useCareContext } from '../../providers/CareContextProvider'
+import { useCareModeSelection } from '../../hooks/useCareModeSelection'
 import { fetchPatientVisitsFull } from '../../services/patientVisits'
 import { fetchInpatientRecords } from '../../services/inpatientRecords'
 
@@ -18,6 +19,8 @@ interface PatientSearchProps {
   patients?: string[]
   showAlertsBanner?: boolean
   alertsAutoDismissMs?: number
+  /** Mobile nav menu button — header is menu + patient only; OP/IP lives in sidebar. */
+  leadingSlot?: ReactNode
 }
 
 const STORAGE_KEYS = {
@@ -71,6 +74,7 @@ export const PatientSearch = ({
   onPatientSelect,
   showAlertsBanner = true,
   alertsAutoDismissMs = 10000,
+  leadingSlot,
 }: PatientSearchProps) => {
   const {
     mode,
@@ -80,6 +84,8 @@ export const PatientSearch = ({
     setSelectedPatient: setGlobalPatient,
     costCenterCareScope,
   } = useCareContext()
+  const { selectOp, selectIp } = useCareModeSelection()
+  const isMobileHeader = Boolean(leadingSlot)
   const [patientQuery, setPatientQuery] = useState('')
   const [patientOpen, setPatientOpen] = useState(false)
   const [showCreatePatient, setShowCreatePatient] = useState(false)
@@ -196,40 +202,26 @@ export const PatientSearch = ({
     setStoredValue(STORAGE_KEYS.ACTIVE_MODE, mode ?? '')
   }, [mode])
 
-  const clearIpContext = () => {
-    setActiveAdmission(undefined)
-    setStoredValue(STORAGE_KEYS.ACTIVE_ADMISSION, '')
-    setStoredValue(STORAGE_KEYS.ACTIVE_ADMISSION_LABEL, '')
-  }
-
-  const clearOpContext = () => {
-    setActiveVisit(undefined)
-    setStoredValue(STORAGE_KEYS.ACTIVE_VISIT, '')
-    setStoredValue(STORAGE_KEYS.ACTIVE_VISIT_LABEL, '')
-  }
-
-  const handleOpModeClick = () => {
-    if (mode === 'OP') {
-      setMode(null)
-      clearOpContext()
-      setSecondaryQuery('')
+  const careModeChangeInitialized = useRef(false)
+  useEffect(() => {
+    if (!careModeChangeInitialized.current) {
+      careModeChangeInitialized.current = true
       return
     }
-    setMode('OP')
-    clearIpContext()
     setSecondaryQuery('')
+    setSecondaryOpen(false)
+  }, [mode])
+
+  const handleOpModeClick = () => {
+    selectOp()
+    setSecondaryQuery('')
+    setSecondaryOpen(false)
   }
 
   const handleIpModeClick = () => {
-    if (mode === 'IP') {
-      setMode(null)
-      clearIpContext()
-      setSecondaryQuery('')
-      return
-    }
-    setMode('IP')
-    clearOpContext()
+    selectIp()
     setSecondaryQuery('')
+    setSecondaryOpen(false)
   }
 
   useEffect(() => {
@@ -413,8 +405,139 @@ export const PatientSearch = ({
       : null
 
   if (!isHydrated) {
-    return <div className="w-full max-w-xs md:max-w-xl" />
+    return (
+      <div className="w-full max-w-full md:max-w-xl">
+        {isMobileHeader ? (
+          <div className="grid grid-cols-[2.5rem_1fr] gap-x-2 gap-y-2 w-full">
+            <div className="col-start-1 row-start-1">{leadingSlot}</div>
+            <div className="col-start-2 row-start-1 h-9 rounded-md bg-white/10" />
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <div className="h-9 flex-1 rounded-md bg-white/10" />
+          </div>
+        )}
+      </div>
+    )
   }
+
+  const secondarySearchField =
+    mode === 'OP' || mode === 'IP' ? (
+      <div className="relative min-w-0 w-full" ref={secondaryContainerRef}>
+        <input
+          type="text"
+          value={secondaryQuery}
+          onChange={(e) => {
+            const newValue = e.target.value
+            setSecondaryQuery(newValue)
+            if (newValue === '') {
+              setSecondaryOpen(false)
+              if (mode === 'OP') {
+                setActiveVisit(undefined)
+                setStoredValue(STORAGE_KEYS.ACTIVE_VISIT, '')
+                setStoredValue(STORAGE_KEYS.ACTIVE_VISIT_LABEL, '')
+              } else if (mode === 'IP') {
+                setActiveAdmission(undefined)
+                setStoredValue(STORAGE_KEYS.ACTIVE_ADMISSION, '')
+                setStoredValue(STORAGE_KEYS.ACTIVE_ADMISSION_LABEL, '')
+              }
+            } else {
+              setSecondaryOpen(true)
+            }
+          }}
+          onFocus={() => setSecondaryOpen(true)}
+          placeholder={mode === 'OP' ? 'Search OP visits…' : 'Search IP admissions…'}
+          className="w-full rounded-md border border-white/60 bg-white/10 px-2 py-1.5 text-xs text-white placeholder:text-white/70 focus:outline-none focus:ring-2 focus:ring-white"
+        />
+        {secondaryOpen && (
+          <div className="absolute z-40 mt-1 w-full min-w-[240px] rounded-md border border-slate-200 bg-white shadow-lg max-h-64 overflow-auto text-slate-900">
+            {secondaryLoading ? (
+              <div className="px-3 py-2 text-xs text-slate-500">
+                {mode === 'OP' ? 'Loading visits…' : 'Loading admissions…'}
+              </div>
+            ) : secondaryResults.length > 0 ? (
+              secondaryResults.map((row) => (
+                <button
+                  key={row.value}
+                  type="button"
+                  className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50"
+                  onClick={() => {
+                    setSecondaryQuery(row.label)
+                    if (mode === 'OP') {
+                      setActiveVisit(row.value)
+                      setStoredValue(STORAGE_KEYS.ACTIVE_VISIT, row.value)
+                      setStoredValue(STORAGE_KEYS.ACTIVE_VISIT_LABEL, row.label)
+                    } else if (mode === 'IP') {
+                      setActiveAdmission(row.value)
+                      setStoredValue(STORAGE_KEYS.ACTIVE_ADMISSION, row.value)
+                      setStoredValue(STORAGE_KEYS.ACTIVE_ADMISSION_LABEL, row.label)
+                    }
+                    if (!hasPatient && row.patient) {
+                      onPatientSelect(row.patient)
+                      setGlobalPatient(row.patient)
+                      const displayName = row.patient_name || row.patient
+                      setSelectedPatientName(displayName)
+                      setPatientQuery(displayName)
+                      showPatientAlertsFromUserAction()
+                    }
+                    setSecondaryOpen(false)
+                  }}
+                >
+                  <div className="font-medium">{row.label}</div>
+                  {row.meta && <div className="text-xs text-slate-500 mt-0.5">{row.meta}</div>}
+                </button>
+              ))
+            ) : (
+              <div className="px-3 py-2 text-xs text-slate-500">
+                {secondaryQuery
+                  ? mode === 'OP'
+                    ? 'No visits match your search.'
+                    : 'No admissions match your search.'
+                  : selectedPatient
+                    ? mode === 'OP'
+                      ? 'No visits found for this patient.'
+                      : 'No admissions found for this patient.'
+                    : mode === 'OP'
+                      ? 'Type to search visits…'
+                      : 'Type to search admissions…'}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    ) : null
+
+  const desktopCareModeControls = (
+    <>
+      {costCenterCareScope !== 'ip_only' && (
+        <button
+          type="button"
+          onClick={handleOpModeClick}
+          className={`shrink-0 px-2.5 py-1 rounded-full text-[10px] md:text-xs font-semibold border transition-colors ${
+            mode === 'OP'
+              ? 'bg-green-200 text-primary border-green-200/80 shadow-sm'
+              : 'bg-white/10 text-white/90 border-white/40 hover:bg-white/20'
+          }`}
+        >
+          OP
+        </button>
+      )}
+      {costCenterCareScope !== 'op_only' && (
+        <button
+          type="button"
+          onClick={handleIpModeClick}
+          className={`shrink-0 px-2.5 py-1 rounded-full text-[10px] md:text-xs font-semibold border transition-colors ${
+            mode === 'IP'
+              ? 'bg-green-200 text-primary border-green-200/80 shadow-sm'
+              : 'bg-white/10 text-white/90 border-white/40 hover:bg-white/20'
+          }`}
+        >
+          IP
+        </button>
+      )}
+      {secondarySearchField}
+    </>
+  )
 
   // ✅ Full clear: resets local state, context (patient + visit + admission), and localStorage
   const handleClearPatient = () => {
@@ -431,13 +554,8 @@ export const PatientSearch = ({
     clearPatientData()
   }
 
-  return (
-    <>
-      {alertsPortal}
-      <div className="w-full max-w-xs md:max-w-xl">
-        <div className="relative flex items-center gap-2">
-          {/* Patient Search Container */}
-          <div className="flex-1 relative" ref={patientContainerRef}>
+  const patientField = (
+            <div className="relative min-w-0 w-full" ref={patientContainerRef}>
             <input
               value={patientQuery}
               onChange={(e) => {
@@ -559,124 +677,29 @@ export const PatientSearch = ({
                 )}
               </div>
             )}
-          </div>
+            </div>
+  )
 
-          {/* OP/IP Buttons and Secondary Search — hidden single toggle when Cost Center restricts to one flow */}
-          <div className="flex items-center gap-1">
-            {costCenterCareScope !== 'ip_only' && (
-              <button
-                type="button"
-                onClick={handleOpModeClick}
-                className={`px-2 md:px-3 py-1 rounded-full text-[10px] md:text-xs font-semibold border transition-colors ${
-                  mode === 'OP'
-                    ? 'bg-white text-primary border-white shadow-sm'
-                    : 'bg-white/10 text-white/90 border-white/40 hover:bg-white/20'
-                }`}
-              >
-                OP
-              </button>
-            )}
-            {costCenterCareScope !== 'op_only' && (
-              <button
-                type="button"
-                onClick={handleIpModeClick}
-                className={`px-2 md:px-3 py-1 rounded-full text-[10px] md:text-xs font-semibold border transition-colors ${
-                  mode === 'IP'
-                    ? 'bg-white text-primary border-white shadow-sm'
-                    : 'bg-white/10 text-white/90 border-white/40 hover:bg-white/20'
-                }`}
-              >
-                IP
-              </button>
-            )}
-            {(mode === 'OP' || mode === 'IP') && (
-              <div className="relative ml-1 w-full max-w-xs" ref={secondaryContainerRef}>
-                <input
-                  type="text"
-                  value={secondaryQuery}
-                  onChange={(e) => {
-                    const newValue = e.target.value
-                    setSecondaryQuery(newValue)
-                    if (newValue === '') {
-                      setSecondaryOpen(false)
-                      if (mode === 'OP') {
-                        setActiveVisit(undefined)
-                        setStoredValue(STORAGE_KEYS.ACTIVE_VISIT, '')
-                        setStoredValue(STORAGE_KEYS.ACTIVE_VISIT_LABEL, '')
-                      } else if (mode === 'IP') {
-                        setActiveAdmission(undefined)
-                        setStoredValue(STORAGE_KEYS.ACTIVE_ADMISSION, '')
-                        setStoredValue(STORAGE_KEYS.ACTIVE_ADMISSION_LABEL, '')
-                      }
-                    } else {
-                      setSecondaryOpen(true)
-                    }
-                  }}
-                  onFocus={() => setSecondaryOpen(true)}
-                  placeholder={mode === 'OP' ? 'Search OP visits…' : 'Search IP admissions…'}
-                  className="w-full rounded-md border border-white/60 bg-white/10 px-2 md:px-3 py-1.5 md:py-2 text-xs md:text-sm text-white placeholder:text-white/70 focus:outline-none focus:ring-2 focus:ring-white"
-                />
-                {secondaryOpen && (
-                  <div className="absolute z-40 mt-1 w-full min-w-[280px] rounded-md border border-slate-200 bg-white shadow-lg max-h-64 overflow-auto text-slate-900">
-                    {secondaryLoading ? (
-                      <div className="px-3 py-2 text-xs text-slate-500">
-                        {mode === 'OP' ? 'Loading visits…' : 'Loading admissions…'}
-                      </div>
-                    ) : secondaryResults.length > 0 ? (
-                      secondaryResults.map((row) => (
-                        <button
-                          key={row.value}
-                          type="button"
-                          className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50"
-                          onClick={() => {
-                            setSecondaryQuery(row.label)
-                            if (mode === 'OP') {
-                              setActiveVisit(row.value)
-                              setStoredValue(STORAGE_KEYS.ACTIVE_VISIT, row.value)
-                              setStoredValue(STORAGE_KEYS.ACTIVE_VISIT_LABEL, row.label)
-                            } else if (mode === 'IP') {
-                              setActiveAdmission(row.value)
-                              setStoredValue(STORAGE_KEYS.ACTIVE_ADMISSION, row.value)
-                              setStoredValue(STORAGE_KEYS.ACTIVE_ADMISSION_LABEL, row.label)
-                            }
-                            if (!hasPatient && row.patient) {
-                              onPatientSelect(row.patient)
-                              setGlobalPatient(row.patient)
-                              const displayName = row.patient_name || row.patient
-                              setSelectedPatientName(displayName)
-                              setPatientQuery(displayName)
-                              showPatientAlertsFromUserAction()
-                            }
-                            setSecondaryOpen(false)
-                          }}
-                        >
-                          <div className="font-medium">{row.label}</div>
-                          {row.meta && (
-                            <div className="text-xs text-slate-500 mt-0.5">{row.meta}</div>
-                          )}
-                        </button>
-                      ))
-                    ) : (
-                      <div className="px-3 py-2 text-xs text-slate-500">
-                        {secondaryQuery
-                          ? mode === 'OP'
-                            ? 'No visits match your search.'
-                            : 'No admissions match your search.'
-                          : selectedPatient
-                            ? mode === 'OP'
-                              ? 'No visits found for this patient.'
-                              : 'No admissions found for this patient.'
-                            : mode === 'OP'
-                              ? 'Type to search visits…'
-                              : 'Type to search admissions…'}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
+  return (
+    <>
+      {alertsPortal}
+      <div className="w-full max-w-full md:max-w-xl">
+        {isMobileHeader ? (
+          <div className="grid grid-cols-[2.5rem_1fr] gap-x-2 gap-y-2 w-full">
+            <div className="col-start-1 row-start-1 flex items-center">{leadingSlot}</div>
+            <div className="col-start-2 row-start-1 min-w-0">{patientField}</div>
+            {secondarySearchField ? (
+              <div className="col-start-2 row-start-2 min-w-0">{secondarySearchField}</div>
+            ) : null}
           </div>
-        </div>
+        ) : (
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-2">
+            <div className="min-w-0 flex-1">{patientField}</div>
+            <div className="flex w-full min-w-0 items-center gap-1.5 md:w-auto md:shrink-0">
+              {desktopCareModeControls}
+            </div>
+          </div>
+        )}
       </div>
 
       {showCreatePatient && (

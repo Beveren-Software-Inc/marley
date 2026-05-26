@@ -3,6 +3,8 @@ import {
   CM_BTN_CANCEL,
   CM_BTN_PRIMARY,
   CREATE_MODAL_OVERLAY,
+  CreateModalFooter,
+  CreateModalHeader,
   createModalShellClass,
 } from '../ui/CreateModalChrome'
 import { createPractitioner, fetchMedicalDepartments, fetchMedicalRoles, type LinkFieldOption } from '../../services/common'
@@ -284,19 +286,8 @@ export const CreatePractitionerModal = ({ onClose, onSuccess }: CreatePractition
   return (
     <div className={CREATE_MODAL_OVERLAY}>
       <div className={createModalShellClass('max-w-2xl w-full max-h-[90vh] overflow-y-auto')}>
-        <div className="p-6 border-b border-slate-200">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold tracking-tight text-emerald-950">Create New Healthcare Practitioner</h2>
-            <button
-              onClick={onClose}
-              className="shrink-0 rounded-lg p-2 text-emerald-800/70 transition hover:bg-emerald-200/50 hover:text-emerald-950"
-            >
-              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-        </div>
+        <CreateModalHeader title="Create New Healthcare Practitioner" onClose={onClose} />
+
 
         {/* Tabs */}
         <div className="flex border-b border-slate-200 px-6">
@@ -622,22 +613,14 @@ export const CreatePractitionerModal = ({ onClose, onSuccess }: CreatePractition
             </div>
           )}
 
-          <div className="flex justify-end gap-3 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className={CM_BTN_CANCEL}
-            >
+          <CreateModalFooter>
+            <button type="button" onClick={onClose} className={CM_BTN_CANCEL}>
               Cancel
             </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className={CM_BTN_PRIMARY}
-            >
+            <button type="submit" disabled={loading} className={CM_BTN_PRIMARY}>
               {loading ? 'Creating...' : 'Create Practitioner'}
             </button>
-          </div>
+          </CreateModalFooter>
         </form>
       </div>
     </div>

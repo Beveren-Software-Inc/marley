@@ -1,7 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
 import { fetchNotifications, markNotificationRead, markAllNotificationsRead, type Notification } from '../../services/notifications'
 
-export const NotificationBell = () => {
+type NotificationBellProps = {
+  placement?: 'header' | 'sidebar'
+}
+
+export const NotificationBell = ({ placement = 'header' }: NotificationBellProps) => {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [isOpen, setIsOpen] = useState(false)
@@ -76,35 +80,55 @@ export const NotificationBell = () => {
     }
   }
 
+  const isSidebar = placement === 'sidebar'
+
   return (
-    <div className="relative" ref={dropdownRef}>
+    <div className={`relative ${isSidebar ? 'w-full' : ''}`} ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 text-white hover:bg-white/20 rounded-md transition-colors"
+        className={
+          isSidebar
+            ? 'relative flex w-full items-center gap-3 rounded-md bg-white/10 px-3 py-2.5 text-left text-white hover:bg-white/20 transition-colors'
+            : 'relative p-2 text-white hover:bg-white/20 rounded-md transition-colors'
+        }
         title="Notifications"
+        type="button"
       >
-        <svg 
-          className="w-6 h-6" 
-          fill="none" 
-          viewBox="0 0 24 24" 
+        <svg
+          className={isSidebar ? 'w-5 h-5 shrink-0' : 'w-6 h-6'}
+          fill="none"
+          viewBox="0 0 24 24"
           stroke="currentColor"
         >
-          <path 
-            strokeLinecap="round" 
-            strokeLinejoin="round" 
-            strokeWidth={2} 
-            d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" 
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
           />
         </svg>
+        {isSidebar && <span className="flex-1 text-sm font-medium">Notifications</span>}
         {unreadCount > 0 && (
-          <span className="absolute top-0 right-0 block h-5 w-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center font-semibold">
+          <span
+            className={
+              isSidebar
+                ? 'ml-auto flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-red-500 px-1 text-xs font-semibold text-white'
+                : 'absolute top-0 right-0 block h-5 w-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center font-semibold'
+            }
+          >
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-xl border border-slate-200 z-50 max-h-96 overflow-hidden flex flex-col">
+        <div
+          className={`absolute w-80 max-w-[calc(100vw-2rem)] bg-white rounded-lg shadow-xl border border-slate-200 z-50 max-h-96 overflow-hidden flex flex-col ${
+            isSidebar
+              ? 'bottom-full left-0 mb-2'
+              : 'top-full right-0 mt-2'
+          }`}
+        >
           <div className="p-4 border-b border-slate-200 flex items-center justify-between">
             <h3 className="font-semibold text-slate-900">Notifications</h3>
             {unreadCount > 0 && (

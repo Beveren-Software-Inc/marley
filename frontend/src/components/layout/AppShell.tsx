@@ -1,7 +1,11 @@
 import type { ReactNode } from 'react'
 import { useState, useMemo } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
-import { ChevronDown, ChevronRight, Menu, X, Folder } from 'lucide-react'
+import { ChevronDown, ChevronRight, Folder } from 'lucide-react'
+import { AppShellContext } from '../../contexts/AppShellContext'
+import { UserMenu } from '../user/UserMenu'
+import { NotificationBell } from '../notifications/NotificationBell'
+import { SidebarCareModePicker } from './SidebarCareModePicker'
 import { doctorScreenGroups } from '../../config/doctorScreens'
 import { useAuth } from '../../providers/AuthProvider'
 import { useCareContext } from '../../providers/CareContextProvider'
@@ -304,17 +308,14 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
     location.search,
   ])
 
-  return (
-    <div className="h-screen overflow-hidden flex bg-muted">
-      {/* Mobile hamburger */}
-      <button
-        onClick={toggleSidebar}
-        className="md:hidden fixed top-4 left-4 z-50 p-2 bg-primary text-white rounded-md shadow-lg hover:bg-primary/90 transition-colors"
-        aria-label="Toggle menu"
-      >
-        {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-      </button>
+  const shellContextValue = useMemo(
+    () => ({ sidebarOpen, toggleSidebar, closeSidebar }),
+    [sidebarOpen],
+  )
 
+  return (
+    <AppShellContext.Provider value={shellContextValue}>
+    <div className="h-screen overflow-hidden flex bg-muted">
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div className="md:hidden fixed inset-0 bg-black/50 z-40" onClick={closeSidebar} />
@@ -331,8 +332,10 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
           <div className="font-semibold text-lg">Healthcare</div>
         </div>
 
+        <SidebarCareModePicker />
+
         {/* Nav */}
-        <nav className="flex-1 overflow-y-auto p-4 flex flex-col gap-1 text-sm">
+        <nav className="flex-1 min-h-0 overflow-y-auto p-4 flex flex-col gap-1 text-sm">
           {mainLinks.map((link) => {
             const isExpanded  = expandedTopics.has(link.to)
             const hasGroups   = (link.screenGroups?.length ?? 0) > 0
@@ -378,7 +381,11 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
                         <div key={group.groupTitle} className="flex flex-col gap-0.5">
                           <button
                             onClick={() => toggleGroup(link.to, group.groupTitle)}
-                            className="flex items-center gap-1.5 w-full px-2 py-1.5 rounded-md text-xs font-semibold tracking-wide text-white/80 hover:bg-white/20 transition-colors text-left"
+                            className={`flex items-center gap-1.5 w-full px-2 py-1.5 rounded-md text-xs font-semibold tracking-wide transition-colors text-left ${
+                              groupExpanded
+                                ? 'bg-green-200 text-primary'
+                                : 'text-white/80 hover:bg-white/20'
+                            }`}
                           >
                             <Folder className="w-3.5 h-3.5 flex-shrink-0 opacity-70" />
                             <span className="flex-1 truncate">{group.groupTitle}</span>
@@ -396,7 +403,7 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
                                   onClick={closeSidebar}
                                   className={
                                     activeScreen === s.id
-                                      ? 'px-3 py-1.5 rounded-md text-xs bg-green-300 text-primary font-medium'
+                                      ? 'px-3 py-1.5 rounded-md text-xs bg-green-200 text-primary font-medium'
                                       : 'px-3 py-1.5 rounded-md text-xs bg-white/10 hover:bg-white/20'
                                   }
                                 >
@@ -421,7 +428,7 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
                         onClick={closeSidebar}
                         className={
                           activeScreen === s.id
-                            ? 'px-3 py-1.5 rounded-md bg-green-300 text-primary font-medium'
+                            ? 'px-3 py-1.5 rounded-md bg-green-200 text-primary font-medium'
                             : 'px-3 py-1.5 rounded-md bg-white/10 hover:bg-white/20'
                         }
                       >
@@ -434,6 +441,12 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
             )
           })}
         </nav>
+
+        {/* Mobile: account & notifications — least important, pinned to bottom */}
+        <div className="md:hidden mt-auto shrink-0 border-t border-white/10 px-3 py-3 flex flex-col gap-2">
+          <UserMenu placement="sidebar" />
+          <NotificationBell placement="sidebar" />
+        </div>
       </aside>
 
       {/* ── Main content ── */}
@@ -449,5 +462,6 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
         </footer>
       </main>
     </div>
+    </AppShellContext.Provider>
   )
 }

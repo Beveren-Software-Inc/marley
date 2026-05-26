@@ -1,7 +1,11 @@
 import { useState, useEffect } from 'react'
 import {
   CM_BTN_CANCEL,
+  CM_BTN_PRIMARY,
+  CREATE_MODAL_BODY_GRADIENT,
   CREATE_MODAL_OVERLAY,
+  CreateModalFooter,
+  CreateModalHeader,
   createModalShellClass,
 } from '../ui/CreateModalChrome'
 import {
@@ -453,25 +457,22 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
 
   return (
     <div className={CREATE_MODAL_OVERLAY}>
-      <div className={createModalShellClass('max-w-2xl w-full max-h-[90vh] overflow-y-auto')}>
-        <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold tracking-tight text-emerald-950">Create Appointment</h2>
-          <button
-            onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+      <div className={createModalShellClass('max-w-2xl w-full max-h-[90vh] overflow-hidden')}>
+        <CreateModalHeader title="Create Appointment" onClose={onClose} />
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4" onClick={(e) => {
+        <form
+          onSubmit={handleSubmit}
+          className={`${CREATE_MODAL_BODY_GRADIENT} flex min-h-0 flex-1 flex-col`}
+          onClick={(e) => {
           const target = e.target as HTMLElement
           if (target.tagName !== 'INPUT' && !target.closest('.absolute')) {
             setPatientOpen(false)
             setAppointmentTypeOpen(false)
             setPractitionerOpen(false)
           }
-        }}>
+        }}
+        >
+          <div className="space-y-4 p-6">
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-md p-3 text-sm text-red-800">
               {error}
@@ -868,22 +869,15 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
             />
           </div>
 
-          <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors"
-            >
+          </div>
+          <CreateModalFooter>
+            <button type="button" onClick={onClose} className={CM_BTN_CANCEL}>
               Cancel
             </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
+            <button type="submit" disabled={loading} className={CM_BTN_PRIMARY}>
               {loading ? 'Creating...' : 'Create Appointment'}
             </button>
-          </div>
+          </CreateModalFooter>
         </form>
       </div>
       {showCreatePatient && (

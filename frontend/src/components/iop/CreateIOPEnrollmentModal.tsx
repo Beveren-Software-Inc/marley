@@ -3,6 +3,8 @@ import {
   CM_BTN_CANCEL,
   CM_BTN_PRIMARY,
   CREATE_MODAL_OVERLAY,
+  CreateModalFooter,
+  CreateModalHeader,
   createModalShellClass,
 } from '../ui/CreateModalChrome'
 import { createIOPEnrollment, fetchIOPDays, fetchIOPSessionTypes, type IOPDay, type IOPSessionType, type IOPEnrollmentSessionRow } from '../../services/iop'
@@ -163,12 +165,8 @@ export const CreateIOPEnrollmentModal = ({ onClose, onSuccess, initialPatient }:
   return (
     <div className={CREATE_MODAL_OVERLAY}>
       <div className={createModalShellClass('max-w-md w-full max-h-[90vh] overflow-y-auto')}>
-        <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold tracking-tight text-emerald-950">Enroll in IOP Day</h2>
-          <button type="button" onClick={onClose} className="shrink-0 rounded-lg p-2 text-emerald-800/70 transition hover:bg-emerald-200/50 hover:text-emerald-950">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+        <CreateModalHeader title="Enroll in IOP Day" onClose={onClose} />
+
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {error && (
@@ -346,22 +344,14 @@ export const CreateIOPEnrollmentModal = ({ onClose, onSuccess, initialPatient }:
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
-            <button
-              type="button"
-              onClick={onClose}
-              className={CM_BTN_CANCEL}
-            >
+          <CreateModalFooter>
+            <button type="button" onClick={onClose} className={CM_BTN_CANCEL}>
               Cancel
             </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className={CM_BTN_PRIMARY}
-            >
+            <button type="submit" disabled={loading} className={CM_BTN_PRIMARY}>
               {loading ? 'Creating…' : 'Enroll'}
             </button>
-          </div>
+          </CreateModalFooter>
         </form>
       </div>
     </div>
