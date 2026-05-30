@@ -18,6 +18,7 @@ import {
   CreateModalHeader,
   createModalShellClass,
 } from '../ui/CreateModalChrome'
+import { ClipboardList } from 'lucide-react'
 
 interface EditPatientMedicalHistoryModalProps {
   patient: string
@@ -97,6 +98,7 @@ export const EditPatientMedicalHistoryModal = ({
         <CreateModalHeader
           title="Edit Past Medical History"
           subtitle={patient ? `Patient: ${patient}` : undefined}
+          icon={<ClipboardList className="h-5 w-5 text-emerald-700" strokeWidth={2} />}
           onClose={onClose}
         />
 
