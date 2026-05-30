@@ -1,3 +1,5 @@
+import { useDashboardCompactClinical } from '../../contexts/CardFilterContext'
+
 export const PAGE_SIZE_OPTIONS = [20, 100, 500, 2500] as const
 export type PageSize = (typeof PAGE_SIZE_OPTIONS)[number]
 export const DEFAULT_PAGE_SIZE: PageSize = 20
@@ -19,12 +21,17 @@ export const PaginationControls = ({
   onPageChange,
   onPageSizeChange,
 }: PaginationControlsProps) => {
+  const compactClinical = useDashboardCompactClinical()
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize))
   const from = totalCount === 0 ? 0 : (page - 1) * pageSize + 1
   const to = Math.min(page * pageSize, totalCount)
 
   return (
-    <div className="mt-auto flex-shrink-0 bg-white flex flex-wrap items-center justify-between gap-3 px-1 py-2 text-sm text-slate-600 border-t border-slate-200">
+    <div
+      className={`mt-auto flex-shrink-0 bg-white flex-wrap items-center justify-between gap-3 px-1 py-2 text-sm text-slate-600 border-t border-slate-200 ${
+        compactClinical ? 'hidden md:flex' : 'flex'
+      }`}
+    >
       <div className="flex items-center gap-2">
         <span className="whitespace-nowrap">Rows per page</span>
         <select
