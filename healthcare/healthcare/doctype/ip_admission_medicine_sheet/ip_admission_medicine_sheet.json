@@ -1,0 +1,149 @@
+{
+ "actions": [],
+ "allow_import": 1,
+ "allow_rename": 1,
+ "autoname": "field:trans_num",
+ "creation": "2026-05-31 23:23:05.176846",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "trans_num",
+  "medi_trans_num",
+  "admission_num",
+  "patient_num",
+  "column_break_zigk",
+  "given_yn",
+  "given_date",
+  "remarks",
+  "section_break_zwmi",
+  "cr_id",
+  "cr_date",
+  "column_break_wkgu",
+  "up_id",
+  "up_date",
+  "section_break_olzw",
+  "cost_center",
+  "column_break_hwbk",
+  "admission_num_old"
+ ],
+ "fields": [
+  {
+   "fieldname": "trans_num",
+   "fieldtype": "Int",
+   "label": "Trans Num",
+   "unique": 1
+  },
+  {
+   "fieldname": "medi_trans_num",
+   "fieldtype": "Int",
+   "label": "Medi Trans Num"
+  },
+  {
+   "fieldname": "admission_num",
+   "fieldtype": "Link",
+   "label": "Admission Num",
+   "options": "Inpatient Admission"
+  },
+  {
+   "fieldname": "patient_num",
+   "fieldtype": "Link",
+   "label": "Patient Num",
+   "options": "Patient"
+  },
+  {
+   "fieldname": "given_yn",
+   "fieldtype": "Select",
+   "label": "Given YN",
+   "options": "\nY\nN"
+  },
+  {
+   "fieldname": "given_date",
+   "fieldtype": "Datetime",
+   "label": "Given Date"
+  },
+  {
+   "fieldname": "remarks",
+   "fieldtype": "Small Text",
+   "label": "Remarks"
+  },
+  {
+   "fieldname": "cr_id",
+   "fieldtype": "Int",
+   "label": "Cr Id"
+  },
+  {
+   "fieldname": "cr_date",
+   "fieldtype": "Data",
+   "label": "Cr Date"
+  },
+  {
+   "fieldname": "up_id",
+   "fieldtype": "Int",
+   "label": "Up Id"
+  },
+  {
+   "fieldname": "up_date",
+   "fieldtype": "Data",
+   "label": "Up Date"
+  },
+  {
+   "fieldname": "admission_num_old",
+   "fieldtype": "Int",
+   "label": "Admission Num Old"
+  },
+  {
+   "fieldname": "column_break_zigk",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_zwmi",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_wkgu",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_olzw",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "cost_center",
+   "fieldtype": "Data",
+   "label": "Cost Center"
+  },
+  {
+   "fieldname": "column_break_hwbk",
+   "fieldtype": "Column Break"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-05-31 23:35:50.291482",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "IP Admission Medicine Sheet",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "import": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}
