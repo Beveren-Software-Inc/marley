@@ -1,0 +1,285 @@
+{
+ "actions": [],
+ "allow_import": 1,
+ "allow_rename": 1,
+ "autoname": "field:trans_no",
+ "creation": "2026-05-31 22:55:20.151598",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "trans_no",
+  "medicine",
+  "dose_notes",
+  "route",
+  "strength",
+  "unit",
+  "column_break_sgjj",
+  "frequency",
+  "duration",
+  "duration_type",
+  "qty",
+  "cost_center",
+  "trans_type",
+  "section_break_wyzy",
+  "trans_date",
+  "trans_time",
+  "username",
+  "column_break_fman",
+  "redundancy_type",
+  "dc",
+  "section_break_hqgh",
+  "start_date",
+  "end_date",
+  "column_break_odrj",
+  "status",
+  "effective_status",
+  "section_break_bkcl",
+  "dose_note",
+  "section_break_jgmj",
+  "stop_by",
+  "stop_date",
+  "stop_reason",
+  "column_break_svwd",
+  "notes",
+  "section_break_dygc",
+  "cr_id",
+  "cr_date",
+  "column_break_tnod",
+  "up_id",
+  "up_date"
+ ],
+ "fields": [
+  {
+   "fieldname": "medicine",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Medicine",
+   "options": "Item",
+   "reqd": 1
+  },
+  {
+   "fieldname": "dose_notes",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Dose Notes"
+  },
+  {
+   "fieldname": "route",
+   "fieldtype": "Data",
+   "label": "Route",
+   "options": "\nPO\nIV\nIM\nSC\nTopical\nInhalation"
+  },
+  {
+   "fieldname": "strength",
+   "fieldtype": "Data",
+   "label": "Strength"
+  },
+  {
+   "fieldname": "unit",
+   "fieldtype": "Data",
+   "label": "Unit"
+  },
+  {
+   "fieldname": "frequency",
+   "fieldtype": "Data",
+   "label": "Frequency"
+  },
+  {
+   "fieldname": "duration",
+   "fieldtype": "Int",
+   "label": "Duration"
+  },
+  {
+   "fieldname": "duration_type",
+   "fieldtype": "Select",
+   "label": "Duration Type",
+   "options": "\nHours\nDays\nWeeks\nMonths"
+  },
+  {
+   "fieldname": "qty",
+   "fieldtype": "Float",
+   "label": "Quantity"
+  },
+  {
+   "fieldname": "start_date",
+   "fieldtype": "Date",
+   "label": "Start Date"
+  },
+  {
+   "fieldname": "end_date",
+   "fieldtype": "Date",
+   "label": "End Date"
+  },
+  {
+   "default": "Active",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "\nActive\nStopped\nCompleted"
+  },
+  {
+   "fieldname": "stop_reason",
+   "fieldtype": "Small Text",
+   "label": "Stop Reason"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Clinical Notes"
+  },
+  {
+   "fieldname": "column_break_sgjj",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_hqgh",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_odrj",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_jgmj",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_svwd",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "trans_no",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Trans No",
+   "unique": 1
+  },
+  {
+   "fieldname": "effective_status",
+   "fieldtype": "Data",
+   "label": "Effective Status"
+  },
+  {
+   "fieldname": "cost_center",
+   "fieldtype": "Link",
+   "label": "Cost Center",
+   "options": "Cost Center"
+  },
+  {
+   "fieldname": "trans_type",
+   "fieldtype": "Data",
+   "label": "Trans Type"
+  },
+  {
+   "fieldname": "stop_by",
+   "fieldtype": "Date",
+   "label": "Stop By"
+  },
+  {
+   "fieldname": "stop_date",
+   "fieldtype": "Date",
+   "label": "Stop Date"
+  },
+  {
+   "fieldname": "section_break_wyzy",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "trans_date",
+   "fieldtype": "Date",
+   "label": "Trans date"
+  },
+  {
+   "fieldname": "trans_time",
+   "fieldtype": "Data",
+   "label": "Trans Time"
+  },
+  {
+   "fieldname": "username",
+   "fieldtype": "Data",
+   "label": "UserName"
+  },
+  {
+   "fieldname": "column_break_fman",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "redundancy_type",
+   "fieldtype": "Data",
+   "label": "Redundancy Type"
+  },
+  {
+   "fieldname": "dc",
+   "fieldtype": "Data",
+   "label": "DC"
+  },
+  {
+   "fieldname": "section_break_bkcl",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "dose_note",
+   "fieldtype": "Small Text",
+   "label": "Dose Note"
+  },
+  {
+   "fieldname": "section_break_dygc",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "cr_id",
+   "fieldtype": "Data",
+   "label": "CR ID"
+  },
+  {
+   "fieldname": "cr_date",
+   "fieldtype": "Data",
+   "label": "CR Date"
+  },
+  {
+   "fieldname": "column_break_tnod",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "up_id",
+   "fieldtype": "Data",
+   "label": "UP ID"
+  },
+  {
+   "fieldname": "up_date",
+   "fieldtype": "Data",
+   "label": "UP Date"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-05-31 23:36:36.906273",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "IP Admission Medicine",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "import": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}
