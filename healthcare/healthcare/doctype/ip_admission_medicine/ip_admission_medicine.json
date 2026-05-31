@@ -59,8 +59,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Medicine",
-   "options": "Item",
-   "reqd": 1
+   "options": "Item"
   },
   {
    "fieldname": "dose_notes",
@@ -281,7 +280,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-06-01 00:55:19.097144",
+ "modified": "2026-06-01 01:28:37.748263",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "IP Admission Medicine",
