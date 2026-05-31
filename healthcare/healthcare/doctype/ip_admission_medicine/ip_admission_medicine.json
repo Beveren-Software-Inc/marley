@@ -55,7 +55,7 @@
  "fields": [
   {
    "fieldname": "medicine",
-   "fieldtype": "Link",
+   "fieldtype": "Data",
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Medicine",
@@ -281,7 +281,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-06-01 00:42:24.224108",
+ "modified": "2026-06-01 00:44:51.007879",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "IP Admission Medicine",
