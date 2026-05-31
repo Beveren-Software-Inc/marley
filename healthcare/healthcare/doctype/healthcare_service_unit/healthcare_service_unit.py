@@ -24,9 +24,10 @@ class HealthcareServiceUnit(NestedSet):
 
 	def autoname(self):
 		if self.company:
-			suffix = " - " + frappe.get_cached_value("Company", self.company, "abbr")
-			if not self.healthcare_service_unit_name.endswith(suffix):
-				self.name = self.healthcare_service_unit_name + suffix
+			# suffix = " - " + frappe.get_cached_value("Company", self.company, "abbr")
+			# if not self.healthcare_service_unit_name.endswith(suffix):
+				# self.name = self.healthcare_service_unit_name + suffix
+				self.name = self.healthcare_service_unit_name
 		else:
 			self.name = self.healthcare_service_unit_name
 
