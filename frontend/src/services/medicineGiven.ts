@@ -16,6 +16,9 @@ export interface CreateMedicineGivenData {
   dose_notes?: string
   /** Set to true when recording a PRN (as-needed) administration */
   is_prn?: boolean
+  batch_no?: string
+  lot_no?: string
+  dispensing_lot?: string
 }
 
 export interface CreateMedicineGivenResponse {
@@ -47,6 +50,123 @@ export interface MedicineGivenRow {
   dose_notes?: string
   user?: string
   modified?: string
+  sales_order?: string
+  delivery_note?: string
+  batch_no?: string
+  batch_id?: string
+  lot_no?: string
+  dispensing_lot?: string
+}
+
+export interface MedicineGivenDispensingLotOption {
+  name: string
+  serial_no?: string
+  remaining_qty?: number
+  initial_qty?: number
+  uom?: string
+  stock_uom?: string
+  batch_no?: string
+  label?: string
+}
+
+export interface MedicineGivenBatchOption {
+  batch_id: string
+  batch_name: string
+  qty: number
+  expiry_date?: string
+  manufacturing_date?: string
+}
+
+export interface MedicineGivenStockOptions {
+  warehouse: string
+  has_batch_no: boolean
+  has_serial_no: boolean
+  requires_dispensing_lot: boolean
+  batches: MedicineGivenBatchOption[]
+  dispensing_lots: MedicineGivenDispensingLotOption[]
+}
+
+export interface MedicineGivenLotOption {
+  lot_no: string
+  qty?: number
+}
+
+export async function fetchMedicineGivenStockOptions(
+  admission: string,
+  itemCode: string
+): Promise<MedicineGivenStockOptions> {
+  const params = new URLSearchParams()
+  params.append('admission', admission)
+  params.append('item_code', itemCode)
+  const res = await fetch(
+    `/api/method/healthcare.api.medicine_given.get_medicine_given_stock_options?${params.toString()}`
+  )
+  const data = await res.json()
+  if (data?.exc || !res.ok) {
+    throw new Error(data?.exc || data?.message || 'Failed to load batch options')
+  }
+  const msg = (data?.message || {}) as MedicineGivenStockOptions
+  return {
+    warehouse: msg.warehouse || '',
+    has_batch_no: Boolean(msg.has_batch_no),
+    has_serial_no: Boolean(msg.has_serial_no),
+    requires_dispensing_lot: Boolean(msg.requires_dispensing_lot),
+    batches: Array.isArray(msg.batches) ? msg.batches : [],
+    dispensing_lots: Array.isArray(msg.dispensing_lots) ? msg.dispensing_lots : [],
+  }
+}
+
+export async function fetchMedicineGivenDispensingLots(
+  admission: string,
+  itemCode: string,
+  batchNo?: string
+): Promise<MedicineGivenDispensingLotOption[]> {
+  const params = new URLSearchParams()
+  params.append('admission', admission)
+  params.append('item_code', itemCode)
+  if (batchNo) params.append('batch_no', batchNo)
+  const res = await fetch(
+    `/api/method/healthcare.api.medicine_given.get_medicine_given_dispensing_lots?${params.toString()}`
+  )
+  const data = await res.json()
+  if (data?.exc || !res.ok) {
+    throw new Error(data?.exc || data?.message || 'Failed to load dispensing lots')
+  }
+  return Array.isArray(data?.message) ? (data.message as MedicineGivenDispensingLotOption[]) : []
+}
+
+export async function fetchMedicineGivenLots(
+  batchNo: string,
+  admission: string
+): Promise<MedicineGivenLotOption[]> {
+  const params = new URLSearchParams()
+  params.append('batch_no', batchNo)
+  params.append('admission', admission)
+  const res = await fetch(
+    `/api/method/healthcare.api.medicine_given.get_medicine_given_lots?${params.toString()}`
+  )
+  const data = await res.json()
+  if (data?.exc || !res.ok) {
+    throw new Error(data?.exc || data?.message || 'Failed to load lots')
+  }
+  return Array.isArray(data?.message) ? (data.message as MedicineGivenLotOption[]) : []
+}
+
+export async function fetchMedicineGivenItemLots(
+  admission: string,
+  itemCode: string
+): Promise<string[]> {
+  const params = new URLSearchParams()
+  params.append('admission', admission)
+  params.append('item_code', itemCode)
+  const res = await fetch(
+    `/api/method/healthcare.api.medicine_given.get_medicine_given_item_lots?${params.toString()}`
+  )
+  const data = await res.json()
+  if (data?.exc || !res.ok) {
+    throw new Error(data?.exc || data?.message || 'Failed to load lots')
+  }
+  return Array.isArray(data?.message) ? (data.message as string[]) : []
 }
 
 export interface MissedMedicineRow {
@@ -135,6 +255,26 @@ export async function convertMissedMedicineToGiven(
     body: JSON.stringify({
       name,
       given_late_reason: givenLateReason || '',
+    }),
+  })
+}
+
+export async function createMedicineGivenSalesOrder(
+  admission: string,
+  consumptionDate?: string
+): Promise<{
+  sales_order: string
+  status: string
+  delivery_note?: string
+  delivery_note_status?: string
+  cost_center?: string
+  linked_rows?: number
+}> {
+  return apiRequest('/api/method/healthcare.api.nursing_inventory.create_daily_medicine_sales_order', {
+    method: 'POST',
+    body: JSON.stringify({
+      admission,
+      consumption_date: consumptionDate,
     }),
   })
 }

@@ -2,6 +2,42 @@
  {
   "docstatus": 0,
   "doctype": "Prescription Frequency",
+  "dosage": "Weekly",
+  "dosage_strength": [],
+  "frequency_in_a_day": 1,
+  "modified": "2026-05-31 10:22:51.684381",
+  "name": "Weekly"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Prescription Frequency",
+  "dosage": "Biweekly",
+  "dosage_strength": [],
+  "frequency_in_a_day": 0,
+  "modified": "2026-05-31 10:24:48.118877",
+  "name": "Biweekly"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Prescription Frequency",
+  "dosage": "Monthly",
+  "dosage_strength": [],
+  "frequency_in_a_day": 1,
+  "modified": "2026-05-31 10:23:19.738462",
+  "name": "Monthly"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Prescription Frequency",
+  "dosage": "Every 2 Months",
+  "dosage_strength": [],
+  "frequency_in_a_day": 1,
+  "modified": "2026-05-31 10:24:13.357162",
+  "name": "Every 2 Months"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Prescription Frequency",
   "dosage": "After 25 days",
   "dosage_strength": [],
   "frequency_in_a_day": 1,
@@ -106,114 +142,6 @@
   "frequency_in_a_day": 1,
   "modified": "2026-04-26 16:01:11.668480",
   "name": "1 week"
- },
- {
-  "docstatus": 0,
-  "doctype": "Prescription Frequency",
-  "dosage": "1-1-1-1",
-  "dosage_strength": [
-   {
-    "strength": 1.0,
-    "strength_time": "9:00:00"
-   },
-   {
-    "strength": 1.0,
-    "strength_time": "13:00:00"
-   },
-   {
-    "strength": 1.0,
-    "strength_time": "17:00:00"
-   },
-   {
-    "strength": 1.0,
-    "strength_time": "21:00:00"
-   }
-  ],
-  "frequency_in_a_day": 0,
-  "modified": "2025-12-17 13:02:12.130629",
-  "name": "1-1-1-1"
- },
- {
-  "docstatus": 0,
-  "doctype": "Prescription Frequency",
-  "dosage": "0-0-1",
-  "dosage_strength": [
-   {
-    "strength": 1.0,
-    "strength_time": "21:00:00"
-   }
-  ],
-  "frequency_in_a_day": 0,
-  "modified": "2025-12-17 13:02:12.132793",
-  "name": "0-0-1"
- },
- {
-  "docstatus": 0,
-  "doctype": "Prescription Frequency",
-  "dosage": "1-0-0",
-  "dosage_strength": [
-   {
-    "strength": 1.0,
-    "strength_time": "9:00:00"
-   }
-  ],
-  "frequency_in_a_day": 0,
-  "modified": "2025-12-17 13:02:12.133674",
-  "name": "1-0-0"
- },
- {
-  "docstatus": 0,
-  "doctype": "Prescription Frequency",
-  "dosage": "0-1-0",
-  "dosage_strength": [
-   {
-    "strength": 1.0,
-    "strength_time": "14:00:00"
-   }
-  ],
-  "frequency_in_a_day": 0,
-  "modified": "2025-12-17 13:02:12.134344",
-  "name": "0-1-0"
- },
- {
-  "docstatus": 0,
-  "doctype": "Prescription Frequency",
-  "dosage": "1-1-1",
-  "dosage_strength": [
-   {
-    "strength": 1.0,
-    "strength_time": "9:00:00"
-   },
-   {
-    "strength": 1.0,
-    "strength_time": "14:00:00"
-   },
-   {
-    "strength": 1.0,
-    "strength_time": "21:00:00"
-   }
-  ],
-  "frequency_in_a_day": 0,
-  "modified": "2025-12-17 13:02:12.135097",
-  "name": "1-1-1"
- },
- {
-  "docstatus": 0,
-  "doctype": "Prescription Frequency",
-  "dosage": "1-0-1",
-  "dosage_strength": [
-   {
-    "strength": 1.0,
-    "strength_time": "9:00:00"
-   },
-   {
-    "strength": 1.0,
-    "strength_time": "21:00:00"
-   }
-  ],
-  "frequency_in_a_day": 0,
-  "modified": "2025-12-17 13:02:12.136111",
-  "name": "1-0-1"
  },
  {
   "docstatus": 0,

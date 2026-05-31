@@ -4,7 +4,7 @@
 
 import frappe
 from frappe import _
-from frappe.utils import flt, nowdate, getdate, add_days
+from frappe.utils import flt, nowdate, getdate, add_days, cint
 
 from healthcare.api.utils.api_utility import get_next_transaction_number
 from healthcare.api.sales_order_cost_center import (
@@ -148,8 +148,29 @@ def get_medication_orders(
 	return orders
 
 
+def _normalize_long_acting_medication_row(row):
+	"""Copy long acting frequency into patient_frequency and ensure Prescription Frequency exists."""
+	if not isinstance(row, dict):
+		return row
+	row = dict(row)
+	is_long = (
+		row.get("is_long_acting_medicine")
+		or row.get("is_long_acting")
+		or (row.get("medication_type") or "").strip() == "Long Acting Medicine"
+	)
+	long_freq = (row.get("long_acting_frequency") or "").strip()
+	if not is_long or not long_freq:
+		return row
+	from healthcare.api.common import ensure_prescription_frequency_for_long_acting
+
+	ensure_prescription_frequency_for_long_acting(long_freq)
+	row["patient_frequency"] = long_freq
+	return row
+
+
 def _set_medication_row(doc, row):
 	"""Append one medication order row to doc. row is a dict with keys from Inpatient Medication Order Entry."""
+	row = _normalize_long_acting_medication_row(row)
 	entry = doc.append('medication_orders', {})
 	entry.drug = row.get('drug')
 	entry.dosage = row.get('dosage') or ''
@@ -293,6 +314,10 @@ def _long_acting_frequency_interval_days(frequency):
 	"""Return interval in days for next run (Weekly=7, Biweekly=14, Monthly=30, etc.)."""
 	if not frequency:
 		return 7
+	frequency = frequency.strip()
+	interval = frappe.db.get_value("Long Acting Frequency", frequency, "interval_days")
+	if interval:
+		return cint(interval)
 	m = {
 		"Weekly": 7,
 		"Biweekly": 14,
@@ -300,7 +325,7 @@ def _long_acting_frequency_interval_days(frequency):
 		"Every 2 Months": 60,
 		"Every 3 Months": 90,
 	}
-	return m.get(frequency.strip(), 7)
+	return m.get(frequency, 7)
 
 
 def _create_long_acting_medicine_for_entries(pmo_doc):
@@ -806,24 +831,9 @@ def update_medication_order():
     # Clear and update medication orders
     doc.set('medication_orders', [])
     for med in data.get('medication_orders', []):
-        doc.append('medication_orders', {
-            'drug': med.get('drug'),
-            'dosage': med.get('dosage'),
-            'uom': med.get('uom'),
-            'dosage_form': med.get('dosage_form'),
-            'date': med.get('date'),
-            'end_date': med.get('end_date'),
-            'no_of_days': med.get('no_of_days'),
-            'instructions': med.get('instructions'),
-            'patient_frequency': med.get('patient_frequency'),
-            'route_of_administration': med.get('route_of_administration'),
-            'reference_no': med.get('reference_no'),
-            'is_pink': med.get('is_pink', 0),
-            'is_prn': med.get('is_prn', 0),
-            'is_long_acting': med.get('is_long_acting', 0),
-            'long_acting_frequency': med.get('long_acting_frequency'),
-            'medication_type': med.get('medication_type'),
-        })
+        if not med.get('drug'):
+            continue
+        _set_medication_row(doc, med)
     
     doc.save(ignore_permissions=True)
     frappe.db.commit()
@@ -874,27 +884,26 @@ def update_medication_order():
 def get_item_rate(item_code):
     """
     Get the selling rate for an item.
-    Tries standard_rate first, then selling_price, then valuation_rate.
+    Tries standard_rate first, then selling_price (if field exists), then valuation_rate.
     Returns 0 if no rate found.
     """
     if not item_code:
         return 0
-    
-    # Try standard_rate first
-    rate = frappe.db.get_value('Item', item_code, 'standard_rate')
+
+    rate = frappe.db.get_value("Item", item_code, "standard_rate")
     if rate:
-        return rate
-    
-    # Try selling_price
-    rate = frappe.db.get_value('Item', item_code, 'selling_price')
+        return flt(rate)
+
+    item_meta = frappe.get_meta("Item")
+    if item_meta.has_field("selling_price"):
+        rate = frappe.db.get_value("Item", item_code, "selling_price")
+        if rate:
+            return flt(rate)
+
+    rate = frappe.db.get_value("Item", item_code, "valuation_rate")
     if rate:
-        return rate
-    
-    # Try valuation_rate as last resort
-    rate = frappe.db.get_value('Item', item_code, 'valuation_rate')
-    if rate:
-        return rate
-    
+        return flt(rate)
+
     return 0
 
 
@@ -1091,6 +1100,13 @@ def update_medication_order_entry(patient_medication_order, order_entry_name, up
         if field in allowed_fields:
             entry.set(field, value)
 
+    normalized = _normalize_long_acting_medication_row(entry.as_dict())
+    if normalized.get("patient_frequency"):
+        entry.patient_frequency = normalized["patient_frequency"]
+        entry.frequency_in_a_day = frappe.db.get_value(
+            "Prescription Frequency", entry.patient_frequency, "frequency_in_a_day"
+        ) or 0
+
     doc.save(ignore_permissions=True)
     frappe.db.commit()
 
@@ -1108,6 +1124,8 @@ def add_medication_order_entry(patient_medication_order, entry_data):
     import json
     if isinstance(entry_data, str):
         entry_data = json.loads(entry_data)
+
+    entry_data = _normalize_long_acting_medication_row(entry_data)
 
     doc = frappe.get_doc("Patient Medication Order", patient_medication_order)
 

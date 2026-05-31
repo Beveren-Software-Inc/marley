@@ -33,7 +33,7 @@ def get_patient_active_admission(patient):
 			"patient": patient,
 			"status": ["in", ["Admitted", "Discharge Scheduled"]],
 		},
-		fields=["name", "patient", "patient_name", "status"],
+		fields=["name", "patient", "patient_name", "status", "cost_center", "company"],
 		order_by="scheduled_date desc",
 		limit=1,
 	)
@@ -47,6 +47,8 @@ def get_patient_active_admission(patient):
 		"patient": rec.patient,
 		"patient_name": rec.patient_name,
 		"status": rec.status,
+		"cost_center": rec.get("cost_center"),
+		"company": rec.get("company"),
 	}
 
 

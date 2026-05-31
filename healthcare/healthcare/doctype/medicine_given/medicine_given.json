@@ -21,6 +21,12 @@
   "dose_notes",
   "user",
   "is_prn",
+  "prescription_type",
+  "sales_order",
+  "delivery_note",
+  "batch_no",
+  "lot_no",
+  "dispensing_lot",
   "override_section",
   "override_exceeded_frequency",
   "override_reason",
@@ -68,7 +74,6 @@
    "fieldtype": "Column Break"
   },
   {
-   "fetch_from": "medicine_code.stock_uom",
    "fieldname": "unit",
    "fieldtype": "Link",
    "in_list_view": 1,
@@ -145,13 +150,50 @@
    "fieldname": "is_prn",
    "fieldtype": "Check",
    "label": "Is PRN"
+  },
+  {
+   "fieldname": "prescription_type",
+   "fieldtype": "Select",
+   "label": "Prescription Type",
+   "options": "\nSTAT\nPRN\nRegular - Psy (Active)\nRegular - Med (Active)\nRegular - Psy (Inactive)\nRegular - Med (Inactive)\nLong Acting Medicine\nFuture Plan"
+  },
+  {
+   "fieldname": "sales_order",
+   "fieldtype": "Link",
+   "label": "Sales Order",
+   "options": "Sales Order"
+  },
+  {
+   "fieldname": "delivery_note",
+   "fieldtype": "Link",
+   "label": "Delivery Note",
+   "options": "Delivery Note"
+  },
+  {
+   "fieldname": "batch_no",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Batch",
+   "options": "Batch"
+  },
+  {
+   "fieldname": "lot_no",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Lot No"
+  },
+  {
+   "fieldname": "dispensing_lot",
+   "fieldtype": "Link",
+   "label": "Dispensing Lot",
+   "options": "Dispensing Lot"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-05-07 06:18:54.436757",
+ "modified": "2026-05-31 11:55:02.153477",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Medicine Given",

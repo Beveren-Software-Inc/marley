@@ -8,7 +8,6 @@ import {
   addMedicationOrderEntry,
   getGivenStatusForPrescription,
   type Prescription,
-  LONG_ACTING_FREQUENCY_OPTIONS,
 } from '../../services/prescriptions'
 import {
   flagsFromPrescriptionType,
@@ -29,11 +28,16 @@ import {
 import {
   fetchPrescriptionItems,
   fetchPrescriptionFrequencies,
+  fetchLongActingFrequencies,
   fetchRouteOfAdministrationList,
   fetchDosageForms,
   fetchStandardUoms,
   type LinkFieldOption,
 } from '../../services/common'
+import {
+  CreateFrequencyMiniModal,
+  type CreateFrequencyKind,
+} from './CreateFrequencyMiniModal'
 
 function addDaysToDate(dateStr: string, days: number): string {
   const d = new Date(dateStr)
@@ -59,6 +63,7 @@ const MiniCombobox = ({
   onOpen,
   onClear,
   disabled,
+  onCreateClick,
 }: {
   value: string
   displayValue: string
@@ -70,6 +75,7 @@ const MiniCombobox = ({
   onOpen: () => void
   onClear?: () => void
   disabled?: boolean
+  onCreateClick?: () => void
 }) => {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -95,6 +101,16 @@ const MiniCombobox = ({
           className={linkComboboxInputWithClearClass + (disabled ? ' !bg-slate-100 !text-slate-500' : '')}
         />
         <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
+          {onCreateClick && !disabled && (
+            <button
+              type="button"
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); onCreateClick() }}
+              className="p-0.5 text-primary hover:text-primary/80 rounded"
+              title="Create new"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
+          )}
           {displayValue && onClear && !disabled && (
             <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onClear(); setOpen(false) }}
               className="text-slate-400 hover:text-slate-600 transition-colors p-0.5" title="Clear">
@@ -244,6 +260,10 @@ const EditMedicationEntryModal = ({
   const [freqQuery, setFreqQuery] = useState(order.patient_frequency || '')
   const [freqOptions, setFreqOptions] = useState<LinkFieldOption[]>([])
   const [freqLoading, setFreqLoading] = useState(false)
+  const [longActingFreqQuery, setLongActingFreqQuery] = useState(order.long_acting_frequency || 'Weekly')
+  const [longActingFreqOptions, setLongActingFreqOptions] = useState<LinkFieldOption[]>([])
+  const [longActingFreqLoading, setLongActingFreqLoading] = useState(false)
+  const [createFreqModal, setCreateFreqModal] = useState<CreateFrequencyKind | null>(null)
   const [routeQuery, setRouteQuery] = useState(order.route_of_administration || '')
   const [routeOptions, setRouteOptions] = useState<LinkFieldOption[]>([])
   const [routeLoading, setRouteLoading] = useState(false)
@@ -285,9 +305,14 @@ const EditMedicationEntryModal = ({
   const searchFrequencies = async (q: string) => {
     setFreqLoading(true)
     try {
-      const all = await fetchPrescriptionFrequencies()
-      setFreqOptions(!q.trim() ? all : all.filter(f => f.label?.toLowerCase().includes(q.toLowerCase()) || f.name?.toLowerCase().includes(q.toLowerCase())))
+      setFreqOptions(await fetchPrescriptionFrequencies(q || undefined))
     } catch { setFreqOptions([]) } finally { setFreqLoading(false) }
+  }
+  const searchLongActingFrequencies = async (q: string) => {
+    setLongActingFreqLoading(true)
+    try {
+      setLongActingFreqOptions(await fetchLongActingFrequencies(q || undefined))
+    } catch { setLongActingFreqOptions([]) } finally { setLongActingFreqLoading(false) }
   }
   const searchRoutes = async (q: string) => {
     setRouteLoading(true)
@@ -329,6 +354,17 @@ const EditMedicationEntryModal = ({
       const next = { ...f, [field]: value }
       if (field === 'medication_type') {
         Object.assign(next, flagsFromPrescriptionType(String(value)))
+        if (isLongActingPrescriptionType(String(value))) {
+          const lf = next.long_acting_frequency || 'Weekly'
+          next.long_acting_frequency = lf
+          next.patient_frequency = lf
+          setFreqQuery(lf)
+          setLongActingFreqQuery(lf)
+        }
+      }
+      if (field === 'long_acting_frequency') {
+        next.patient_frequency = String(value)
+        setFreqQuery(String(value))
       }
       return next
     })
@@ -336,6 +372,7 @@ const EditMedicationEntryModal = ({
   const disabled = givenCheck.given
 
   return createPortal(
+    <>
     <div
       className={CREATE_MODAL_OVERLAY}
       role="dialog"
@@ -364,29 +401,13 @@ const EditMedicationEntryModal = ({
           </div>
         </div>
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Drug</label>
-              <input value={form.drug_name} disabled className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500 shadow-sm" />
-              <div className="text-[10px] text-slate-400 mt-0.5">{form.drug}</div>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Prescription Type</label>
-              <select
-                value={form.medication_type}
-                onChange={(e) => updateField('medication_type', e.target.value)}
-                disabled={disabled}
-                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25 disabled:bg-slate-100 disabled:text-slate-500"
-              >
-                <option value="">— Select —</option>
-                {MED_TYPES.filter(t => t.key !== 'All' && t.key !== '__stopped__').map(t => (
-                  <option key={t.key} value={t.key}>{t.label}</option>
-                ))}
-              </select>
-            </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Drug</label>
+            <input value={form.drug_name} disabled className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500 shadow-sm" />
+            <div className="text-[10px] text-slate-400 mt-0.5">{form.drug}</div>
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">Dosage</label>
               <input value={form.dosage} onChange={(e) => updateField('dosage', e.target.value)} disabled={disabled} placeholder="e.g. 1-0-1"
@@ -407,6 +428,23 @@ const EditMedicationEntryModal = ({
                 onClear={() => { updateField('uom', ''); setUomQuery('') }}
               />
             </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Prescription Type</label>
+              <select
+                value={form.medication_type}
+                onChange={(e) => updateField('medication_type', e.target.value)}
+                disabled={disabled}
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25 disabled:bg-slate-100 disabled:text-slate-500"
+              >
+                <option value="">— Select —</option>
+                {MED_TYPES.filter(t => t.key !== 'All' && t.key !== '__stopped__').map(t => (
+                  <option key={t.key} value={t.key}>{t.label}</option>
+                ))}
+              </select>
+            </div>
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">Dosage Form</label>
               <select value={form.dosage_form} onChange={(e) => updateField('dosage_form', e.target.value)} disabled={disabled}
@@ -419,19 +457,49 @@ const EditMedicationEntryModal = ({
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Frequency</label>
-              <MiniCombobox
-                value={form.patient_frequency}
-                displayValue={freqQuery}
-                placeholder="Search frequency..."
-                options={freqOptions}
-                loading={freqLoading}
-                disabled={disabled}
-                onQueryChange={(q) => { setFreqQuery(q); searchFrequencies(q) }}
-                onOpen={() => { if (freqOptions.length === 0) searchFrequencies('') }}
-                onSelect={(opt) => { updateField('patient_frequency', opt.name); setFreqQuery(opt.label || opt.name) }}
-                onClear={() => { updateField('patient_frequency', ''); setFreqQuery('') }}
-              />
+              {isLongActingPrescriptionType(form.medication_type) ? (
+                <>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Long Acting Frequency</label>
+                  <MiniCombobox
+                    value={form.long_acting_frequency ?? ''}
+                    displayValue={longActingFreqQuery}
+                    placeholder="Select long acting frequency..."
+                    options={longActingFreqOptions}
+                    loading={longActingFreqLoading}
+                    disabled={disabled}
+                    onCreateClick={() => setCreateFreqModal('long_acting')}
+                    onQueryChange={(q) => { setLongActingFreqQuery(q); searchLongActingFrequencies(q) }}
+                    onOpen={() => { if (longActingFreqOptions.length === 0) searchLongActingFrequencies('') }}
+                    onSelect={(opt) => {
+                      updateField('long_acting_frequency', opt.name)
+                      updateField('patient_frequency', opt.name)
+                      setLongActingFreqQuery(opt.label || opt.name)
+                      setFreqQuery(opt.label || opt.name)
+                    }}
+                    onClear={() => {
+                      updateField('long_acting_frequency', 'Weekly')
+                      setLongActingFreqQuery('')
+                    }}
+                  />
+                </>
+              ) : (
+                <>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Frequency</label>
+                  <MiniCombobox
+                    value={form.patient_frequency}
+                    displayValue={freqQuery}
+                    placeholder="Search frequency..."
+                    options={freqOptions}
+                    loading={freqLoading}
+                    disabled={disabled}
+                    onCreateClick={() => setCreateFreqModal('regular')}
+                    onQueryChange={(q) => { setFreqQuery(q); searchFrequencies(q) }}
+                    onOpen={() => { if (freqOptions.length === 0) searchFrequencies('') }}
+                    onSelect={(opt) => { updateField('patient_frequency', opt.name); setFreqQuery(opt.label || opt.name) }}
+                    onClear={() => { updateField('patient_frequency', ''); setFreqQuery('') }}
+                  />
+                </>
+              )}
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">Route</label>
@@ -488,25 +556,6 @@ const EditMedicationEntryModal = ({
             </label>
           </div>
 
-          {isLongActingPrescriptionType(form.medication_type) && (
-            <div className="rounded-md bg-amber-50 border border-amber-200 p-3">
-              <label className="block text-xs font-medium text-slate-700 mb-1">
-                Long acting frequency
-              </label>
-              <select
-                value={form.long_acting_frequency ?? 'Weekly'}
-                onChange={(e) => updateField('long_acting_frequency', e.target.value)}
-                disabled={disabled}
-                className="w-full max-w-xs rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm disabled:bg-slate-100"
-              >
-                {LONG_ACTING_FREQUENCY_OPTIONS.map((opt) => (
-                  <option key={opt} value={opt}>
-                    {opt}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
         </div>
         <div className="px-6 py-4 border-t border-slate-200 flex justify-end gap-2 shrink-0 rounded-b-2xl bg-slate-50/50">
           <button type="button" onClick={onClose}
@@ -521,7 +570,27 @@ const EditMedicationEntryModal = ({
           )}
         </div>
       </div>
-    </div>,
+    </div>
+    {createFreqModal && (
+      <CreateFrequencyMiniModal
+        kind={createFreqModal}
+        initialName={createFreqModal === 'long_acting' ? longActingFreqQuery : freqQuery}
+        onClose={() => setCreateFreqModal(null)}
+        onCreated={(opt) => {
+          if (createFreqModal === 'long_acting') {
+            setLongActingFreqOptions((prev) => (prev.some((p) => p.name === opt.name) ? prev : [...prev, opt]))
+            updateField('long_acting_frequency', opt.name)
+            setLongActingFreqQuery(opt.label || opt.name)
+          } else {
+            setFreqOptions((prev) => (prev.some((p) => p.name === opt.name) ? prev : [...prev, opt]))
+            updateField('patient_frequency', opt.name)
+            setFreqQuery(opt.label || opt.name)
+          }
+          setCreateFreqModal(null)
+        }}
+      />
+    )}
+    </>,
     document.body
   )
 }
@@ -562,6 +631,10 @@ const AddMedicationEntryModal = ({
   const [addFreqQuery, setAddFreqQuery] = useState('')
   const [addFreqOptions, setAddFreqOptions] = useState<LinkFieldOption[]>([])
   const [addFreqLoading, setAddFreqLoading] = useState(false)
+  const [addLongActingFreqQuery, setAddLongActingFreqQuery] = useState('Weekly')
+  const [addLongActingFreqOptions, setAddLongActingFreqOptions] = useState<LinkFieldOption[]>([])
+  const [addLongActingFreqLoading, setAddLongActingFreqLoading] = useState(false)
+  const [addCreateFreqModal, setAddCreateFreqModal] = useState<CreateFrequencyKind | null>(null)
   const [addRouteQuery, setAddRouteQuery] = useState('')
   const [addRouteOptions, setAddRouteOptions] = useState<LinkFieldOption[]>([])
   const [addRouteLoading, setAddRouteLoading] = useState(false)
@@ -612,9 +685,14 @@ const AddMedicationEntryModal = ({
   const addSearchFrequencies = async (q: string) => {
     setAddFreqLoading(true)
     try {
-      const all = await fetchPrescriptionFrequencies()
-      setAddFreqOptions(!q.trim() ? all : all.filter(f => f.label?.toLowerCase().includes(q.toLowerCase()) || f.name?.toLowerCase().includes(q.toLowerCase())))
+      setAddFreqOptions(await fetchPrescriptionFrequencies(q || undefined))
     } catch { setAddFreqOptions([]) } finally { setAddFreqLoading(false) }
+  }
+  const addSearchLongActingFrequencies = async (q: string) => {
+    setAddLongActingFreqLoading(true)
+    try {
+      setAddLongActingFreqOptions(await fetchLongActingFrequencies(q || undefined))
+    } catch { setAddLongActingFreqOptions([]) } finally { setAddLongActingFreqLoading(false) }
   }
   const addSearchRoutes = async (q: string) => {
     setAddRouteLoading(true)
@@ -647,12 +725,24 @@ const AddMedicationEntryModal = ({
       const next = { ...f, [field]: value }
       if (field === 'medication_type') {
         Object.assign(next, flagsFromPrescriptionType(String(value)))
+        if (isLongActingPrescriptionType(String(value))) {
+          const lf = next.long_acting_frequency || 'Weekly'
+          next.long_acting_frequency = lf
+          next.patient_frequency = lf
+          setAddFreqQuery(lf)
+          setAddLongActingFreqQuery(lf)
+        }
+      }
+      if (field === 'long_acting_frequency') {
+        next.patient_frequency = String(value)
+        setAddFreqQuery(String(value))
       }
       return next
     })
   }
 
   return createPortal(
+    <>
     <div
       className={CREATE_MODAL_OVERLAY}
       role="dialog"
@@ -706,7 +796,7 @@ const AddMedicationEntryModal = ({
             />
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">Dosage *</label>
               <input value={form.dosage} onChange={(e) => updateField('dosage', e.target.value)} placeholder="e.g. 1-0-1"
@@ -726,6 +816,24 @@ const AddMedicationEntryModal = ({
                 onClear={() => { updateField('uom', ''); setAddUomQuery('') }}
               />
             </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Prescription Type</label>
+              <select
+                value={form.medication_type}
+                onChange={(e) => updateField('medication_type', e.target.value)}
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25"
+              >
+                <option value="">— Select —</option>
+                {MED_TYPES.filter((t) => t.key !== 'All' && t.key !== '__stopped__').map((t) => (
+                  <option key={t.key} value={t.key}>
+                    {t.label}
+                  </option>
+                ))}
+              </select>
+            </div>
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">Dosage Form *</label>
               <select value={form.dosage_form} onChange={(e) => updateField('dosage_form', e.target.value)}
@@ -736,36 +844,49 @@ const AddMedicationEntryModal = ({
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Prescription Type</label>
-            <select
-              value={form.medication_type}
-              onChange={(e) => updateField('medication_type', e.target.value)}
-              className="w-full max-w-md rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25"
-            >
-              <option value="">— Select —</option>
-              {MED_TYPES.filter((t) => t.key !== 'All' && t.key !== '__stopped__').map((t) => (
-                <option key={t.key} value={t.key}>
-                  {t.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Frequency</label>
-              <MiniCombobox
-                value={form.patient_frequency}
-                displayValue={addFreqQuery}
-                placeholder="Search frequency..."
-                options={addFreqOptions}
-                loading={addFreqLoading}
-                onQueryChange={(q) => { setAddFreqQuery(q); addSearchFrequencies(q) }}
-                onOpen={() => { if (addFreqOptions.length === 0) addSearchFrequencies('') }}
-                onSelect={(opt) => { updateField('patient_frequency', opt.name); setAddFreqQuery(opt.label || opt.name) }}
-                onClear={() => { updateField('patient_frequency', ''); setAddFreqQuery('') }}
-              />
+              {isLongActingPrescriptionType(form.medication_type) ? (
+                <>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Long Acting Frequency</label>
+                  <MiniCombobox
+                    value={form.long_acting_frequency ?? ''}
+                    displayValue={addLongActingFreqQuery}
+                    placeholder="Select long acting frequency..."
+                    options={addLongActingFreqOptions}
+                    loading={addLongActingFreqLoading}
+                    onCreateClick={() => setAddCreateFreqModal('long_acting')}
+                    onQueryChange={(q) => { setAddLongActingFreqQuery(q); addSearchLongActingFrequencies(q) }}
+                    onOpen={() => { if (addLongActingFreqOptions.length === 0) addSearchLongActingFrequencies('') }}
+                    onSelect={(opt) => {
+                      updateField('long_acting_frequency', opt.name)
+                      updateField('patient_frequency', opt.name)
+                      setAddLongActingFreqQuery(opt.label || opt.name)
+                      setAddFreqQuery(opt.label || opt.name)
+                    }}
+                    onClear={() => {
+                      updateField('long_acting_frequency', 'Weekly')
+                      setAddLongActingFreqQuery('')
+                    }}
+                  />
+                </>
+              ) : (
+                <>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Frequency</label>
+                  <MiniCombobox
+                    value={form.patient_frequency}
+                    displayValue={addFreqQuery}
+                    placeholder="Search frequency..."
+                    options={addFreqOptions}
+                    loading={addFreqLoading}
+                    onCreateClick={() => setAddCreateFreqModal('regular')}
+                    onQueryChange={(q) => { setAddFreqQuery(q); addSearchFrequencies(q) }}
+                    onOpen={() => { if (addFreqOptions.length === 0) addSearchFrequencies('') }}
+                    onSelect={(opt) => { updateField('patient_frequency', opt.name); setAddFreqQuery(opt.label || opt.name) }}
+                    onClear={() => { updateField('patient_frequency', ''); setAddFreqQuery('') }}
+                  />
+                </>
+              )}
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">Route</label>
@@ -820,24 +941,6 @@ const AddMedicationEntryModal = ({
             </label>
           </div>
 
-          {isLongActingPrescriptionType(form.medication_type) && (
-            <div className="rounded-md bg-amber-50 border border-amber-200 p-3">
-              <label className="block text-xs font-medium text-slate-700 mb-1">
-                Long acting frequency
-              </label>
-              <select
-                value={form.long_acting_frequency || 'Weekly'}
-                onChange={(e) => updateField('long_acting_frequency', e.target.value)}
-                className="w-full max-w-xs rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
-              >
-                {LONG_ACTING_FREQUENCY_OPTIONS.map((opt) => (
-                  <option key={opt} value={opt}>
-                    {opt}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
         </div>
         <div className="px-6 py-4 border-t border-slate-200 flex justify-end gap-2 shrink-0 rounded-b-2xl bg-slate-50/50">
           <button type="button" onClick={onClose}
@@ -850,7 +953,27 @@ const AddMedicationEntryModal = ({
           </button>
         </div>
       </div>
-    </div>,
+    </div>
+    {addCreateFreqModal && (
+      <CreateFrequencyMiniModal
+        kind={addCreateFreqModal}
+        initialName={addCreateFreqModal === 'long_acting' ? addLongActingFreqQuery : addFreqQuery}
+        onClose={() => setAddCreateFreqModal(null)}
+        onCreated={(opt) => {
+          if (addCreateFreqModal === 'long_acting') {
+            setAddLongActingFreqOptions((prev) => (prev.some((p) => p.name === opt.name) ? prev : [...prev, opt]))
+            updateField('long_acting_frequency', opt.name)
+            setAddLongActingFreqQuery(opt.label || opt.name)
+          } else {
+            setAddFreqOptions((prev) => (prev.some((p) => p.name === opt.name) ? prev : [...prev, opt]))
+            updateField('patient_frequency', opt.name)
+            setAddFreqQuery(opt.label || opt.name)
+          }
+          setAddCreateFreqModal(null)
+        }}
+      />
+    )}
+    </>,
     document.body
   )
 }

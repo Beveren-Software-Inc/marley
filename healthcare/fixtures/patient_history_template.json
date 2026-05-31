@@ -4,156 +4,200 @@
   "doctype": "Patient History Template",
   "history_detail": [
    {
+    "attrib_note_2": null,
     "attrib_num": 568,
     "attribute": "Source and Cause of Present Illness",
     "description": null,
+    "field_1": null,
     "is_mendatory": 0,
     "order_no": 1
    },
    {
+    "attrib_note_2": null,
     "attrib_num": 569,
     "attribute": "Complaint",
     "description": null,
+    "field_1": null,
     "is_mendatory": 0,
     "order_no": 2
    },
    {
+    "attrib_note_2": null,
     "attrib_num": 570,
     "attribute": "History of Present Illnesss",
     "description": null,
+    "field_1": null,
     "is_mendatory": 0,
     "order_no": 3
    },
    {
+    "attrib_note_2": null,
     "attrib_num": 571,
     "attribute": "Past Medical and Psychiatry History",
     "description": null,
+    "field_1": null,
     "is_mendatory": 1,
     "order_no": 4
    },
    {
+    "attrib_note_2": null,
     "attrib_num": 572,
     "attribute": "Family History",
     "description": null,
+    "field_1": null,
     "is_mendatory": 0,
     "order_no": 5
    },
    {
+    "attrib_note_2": null,
     "attrib_num": 573,
     "attribute": "Personal and social History",
     "description": null,
+    "field_1": null,
     "is_mendatory": 0,
     "order_no": 6
    },
    {
+    "attrib_note_2": null,
     "attrib_num": 586,
     "attribute": "Scholastic and/or Work Record",
     "description": null,
+    "field_1": null,
     "is_mendatory": 0,
     "order_no": 7
    },
    {
+    "attrib_note_2": null,
     "attrib_num": 584,
     "attribute": "Forensic History",
     "description": null,
+    "field_1": null,
     "is_mendatory": 0,
     "order_no": 8
    },
    {
+    "attrib_note_2": null,
     "attrib_num": 585,
     "attribute": "Psychosexual History",
     "description": null,
+    "field_1": null,
     "is_mendatory": 0,
     "order_no": 9
    },
    {
+    "attrib_note_2": null,
     "attrib_num": 589,
     "attribute": "Any Specific Ethnic, Cultural or Religious Factors",
     "description": null,
+    "field_1": null,
     "is_mendatory": 0,
     "order_no": 10
    },
    {
+    "attrib_note_2": null,
     "attrib_num": 574,
     "attribute": "Appearance, Behaviour and Attitude",
     "description": null,
+    "field_1": null,
     "is_mendatory": 0,
     "order_no": 11
    },
    {
+    "attrib_note_2": null,
     "attrib_num": 575,
     "attribute": "Orientation and Cognition",
     "description": null,
+    "field_1": null,
     "is_mendatory": 0,
     "order_no": 12
    },
    {
+    "attrib_note_2": null,
     "attrib_num": 576,
     "attribute": "Speech",
     "description": null,
+    "field_1": null,
     "is_mendatory": 0,
     "order_no": 13
    },
    {
+    "attrib_note_2": null,
     "attrib_num": 577,
     "attribute": "Thought Process / Content",
     "description": null,
+    "field_1": null,
     "is_mendatory": 0,
     "order_no": 14
    },
    {
+    "attrib_note_2": null,
     "attrib_num": 578,
     "attribute": "Perception",
     "description": null,
+    "field_1": null,
     "is_mendatory": 0,
     "order_no": 15
    },
    {
+    "attrib_note_2": null,
     "attrib_num": 579,
     "attribute": "Mood and Affect",
     "description": null,
+    "field_1": null,
     "is_mendatory": 0,
     "order_no": 16
    },
    {
+    "attrib_note_2": null,
     "attrib_num": 580,
     "attribute": "Impulsivity",
     "description": null,
+    "field_1": null,
     "is_mendatory": 0,
     "order_no": 17
    },
    {
+    "attrib_note_2": null,
     "attrib_num": 581,
     "attribute": "Insight and Judgement",
     "description": null,
+    "field_1": null,
     "is_mendatory": 0,
     "order_no": 18
    },
    {
+    "attrib_note_2": null,
     "attrib_num": 582,
     "attribute": "Provisional Diagnosis",
     "description": null,
+    "field_1": null,
     "is_mendatory": 1,
     "order_no": 19
    },
    {
+    "attrib_note_2": null,
     "attrib_num": 583,
     "attribute": "Formulation",
     "description": null,
+    "field_1": null,
     "is_mendatory": 0,
     "order_no": 20
    },
    {
+    "attrib_note_2": null,
     "attrib_num": 587,
     "attribute": "Plan",
     "description": null,
+    "field_1": null,
     "is_mendatory": 1,
     "order_no": 21
    },
    {
+    "attrib_note_2": null,
     "attrib_num": 588,
     "attribute": "Discharge Plan",
     "description": null,
+    "field_1": null,
     "is_mendatory": 0,
     "order_no": 0
    }
