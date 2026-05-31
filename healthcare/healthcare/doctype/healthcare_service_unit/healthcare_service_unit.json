@@ -17,11 +17,22 @@
   "service_unit_capacity",
   "inpatient_occupancy",
   "occupancy_status",
+  "total_beds_no",
   "column_break_9",
   "company",
   "warehouse",
   "room_category",
   "cost_center",
+  "floor_no",
+  "room_no",
+  "other_desc",
+  "section_break_nlzo",
+  "sta_flg",
+  "cr_id",
+  "cr_date",
+  "column_break_mmrg",
+  "up_id",
+  "up_date",
   "tree_details_section",
   "parent_healthcare_service_unit",
   "lft",
@@ -254,6 +265,59 @@
    "fieldtype": "Link",
    "label": "Cost Center",
    "options": "Cost Center"
+  },
+  {
+   "fieldname": "floor_no",
+   "fieldtype": "Data",
+   "label": "Floor No"
+  },
+  {
+   "fieldname": "room_no",
+   "fieldtype": "Data",
+   "label": "Room No"
+  },
+  {
+   "fieldname": "other_desc",
+   "fieldtype": "Data",
+   "label": "Other Desc"
+  },
+  {
+   "fieldname": "total_beds_no",
+   "fieldtype": "Int",
+   "label": "Total Beds No"
+  },
+  {
+   "fieldname": "section_break_nlzo",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "sta_flg",
+   "fieldtype": "Data",
+   "label": "STA FLG"
+  },
+  {
+   "fieldname": "cr_id",
+   "fieldtype": "Data",
+   "label": "CR ID"
+  },
+  {
+   "fieldname": "cr_date",
+   "fieldtype": "Data",
+   "label": "CR Date"
+  },
+  {
+   "fieldname": "column_break_mmrg",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "up_id",
+   "fieldtype": "Data",
+   "label": "UP ID"
+  },
+  {
+   "fieldname": "up_date",
+   "fieldtype": "Data",
+   "label": "UP Date"
   }
  ],
  "is_tree": 1,
@@ -273,7 +337,7 @@
    "table_fieldname": "practitioner_schedules"
   }
  ],
- "modified": "2026-02-12 13:55:02.615561",
+ "modified": "2026-05-31 15:34:20.531517",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Service Unit",

@@ -34,11 +34,10 @@
   "up_id",
   "column_break_iocz",
   "up_date",
-  "branch_num"
+  "cost_center"
  ],
  "fields": [
   {
-   "description": "Transaction number",
    "fieldname": "trans_num",
    "fieldtype": "Int",
    "in_list_view": 1,
@@ -47,7 +46,6 @@
    "unique": 1
   },
   {
-   "description": "Transaction date and time",
    "fieldname": "trans_date",
    "fieldtype": "Datetime",
    "in_list_view": 1,
@@ -203,14 +201,6 @@
    "read_only": 1
   },
   {
-   "description": "Branch/hospital name",
-   "fieldname": "branch_num",
-   "fieldtype": "Link",
-   "in_list_view": 1,
-   "label": "Cost Center",
-   "options": "Branch"
-  },
-  {
    "fieldname": "column_break_mlli",
    "fieldtype": "Column Break"
   },
@@ -225,12 +215,20 @@
   {
    "fieldname": "column_break_iocz",
    "fieldtype": "Column Break"
+  },
+  {
+   "description": "Branch/hospital name",
+   "fieldname": "cost_center",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Cost Center",
+   "options": "Cost Center"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-05-31 14:54:36.898428",
+ "modified": "2026-05-31 16:34:53.458522",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Fall Risk Assessment",
