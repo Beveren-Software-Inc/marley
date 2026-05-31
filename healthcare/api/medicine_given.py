@@ -149,6 +149,298 @@ def _create_missed_row(
 	)
 
 
+def _prescription_type_from_order_entry(
+	order_entry_name: str | None = None,
+	pmo=None,
+	drug_code: str | None = None,
+) -> str | None:
+	"""Map prescription line medication_type to Medicine Given.prescription_type."""
+	medication_type = None
+	if order_entry_name:
+		medication_type = frappe.db.get_value(
+			"Inpatient Medication Order Entry",
+			order_entry_name,
+			"medication_type",
+		)
+	elif pmo and drug_code:
+		for entry in pmo.medication_orders or []:
+			if entry.drug == drug_code:
+				medication_type = getattr(entry, "medication_type", None)
+				break
+	elif pmo and getattr(pmo, "medication_orders", None):
+		medication_type = getattr(pmo.medication_orders[0], "medication_type", None)
+
+	return (medication_type or "").strip() or None
+
+
+def _prescription_type_for_medication_order(medication_order: str | None, drug_code: str | None) -> str | None:
+	if not medication_order or not drug_code:
+		return None
+	rows = frappe.get_all(
+		"Inpatient Medication Order Entry",
+		filters={"parent": medication_order, "drug": drug_code},
+		fields=["medication_type"],
+		order_by="modified desc, creation desc",
+		limit=1,
+		ignore_permissions=True,
+	)
+	if not rows:
+		return None
+	return (rows[0].get("medication_type") or "").strip() or None
+
+
+def _set_medicine_given_prescription_type(row, prescription_type: str | None) -> None:
+	if hasattr(row, "prescription_type") and prescription_type:
+		row.prescription_type = prescription_type
+
+
+def _warehouse_for_admission(admission: str) -> str | None:
+	cost_center = frappe.db.get_value("Inpatient Admission", admission, "cost_center")
+	if not cost_center:
+		return None
+	from healthcare.api.common import get_warehouse_for_cost_center
+
+	return get_warehouse_for_cost_center(cost_center)
+
+
+def _item_tracking_flags(item_code: str) -> tuple[bool, bool]:
+	if not item_code:
+		return False, False
+	row = frappe.db.get_value("Item", item_code, ["has_batch_no", "has_serial_no"], as_dict=True)
+	if not row:
+		return False, False
+	return bool(cint(row.has_batch_no)), bool(cint(row.has_serial_no))
+
+
+def _item_requires_dispensing_lot(item_code: str) -> bool:
+	if not item_code or not frappe.db.has_column("Item", "custom_has_dispense_lot"):
+		return False
+	return bool(cint(frappe.db.get_value("Item", item_code, "custom_has_dispense_lot") or 0))
+
+
+def _get_dispensing_lots_for_item(item_code: str, warehouse: str | None, batch_no: str | None = None) -> list[dict]:
+	if not item_code or not frappe.db.exists("DocType", "Dispensing Lot"):
+		return []
+
+	filters = {
+		"item": item_code,
+		"status": ["in", ["Active", "Partially Sold"]],
+		"remaining_qty": [">", 0],
+	}
+	if warehouse:
+		filters["warehouse"] = warehouse
+	if batch_no:
+		filters["batch_no"] = batch_no
+
+	rows = frappe.get_all(
+		"Dispensing Lot",
+		filters=filters,
+		fields=[
+			"name",
+			"serial_no",
+			"remaining_qty",
+			"initial_qty",
+			"uom",
+			"stock_uom",
+			"batch_no",
+		],
+		order_by="modified desc",
+		limit=500,
+	)
+	result = []
+	for lot in rows:
+		remaining = flt(lot.remaining_qty)
+		initial = flt(lot.initial_qty)
+		serial = (lot.serial_no or lot.name or "").strip()
+		uom = lot.uom or ""
+		label = f"{remaining:g} {uom} | {serial}" if uom else serial
+		result.append(
+			{
+				"name": lot.name,
+				"serial_no": serial,
+				"remaining_qty": remaining,
+				"initial_qty": initial,
+				"uom": uom,
+				"stock_uom": lot.stock_uom,
+				"batch_no": lot.batch_no,
+				"label": label,
+			}
+		)
+	return result
+
+
+def _validate_medicine_given_batch_lot(
+	item_code: str,
+	admission: str,
+	batch_no: str | None,
+	lot_no: str | None,
+	dispensing_lot: str | None = None,
+) -> None:
+	requires_dispensing_lot = _item_requires_dispensing_lot(item_code)
+	has_batch, has_serial = _item_tracking_flags(item_code)
+	if not requires_dispensing_lot and not has_batch and not has_serial:
+		return
+
+	warehouse = _warehouse_for_admission(admission)
+	batch_no = (batch_no or "").strip() or None
+	lot_no = (lot_no or "").strip() or None
+	dispensing_lot = (dispensing_lot or "").strip() or None
+
+	if requires_dispensing_lot:
+		if has_batch:
+			batches = []
+			if warehouse:
+				from healthcare.api.nursing_inventory import get_item_batches
+
+				batches = get_item_batches(item_code, warehouse) or []
+			if batches and not batch_no:
+				frappe.throw(_("Please select a batch for this medicine."))
+
+		available = _get_dispensing_lots_for_item(item_code, warehouse, batch_no)
+		if available and not dispensing_lot:
+			frappe.throw(_("Please select a dispensing lot for this medicine."))
+
+		if dispensing_lot:
+			if not frappe.db.exists("Dispensing Lot", dispensing_lot):
+				frappe.throw(_("Dispensing Lot {0} does not exist").format(dispensing_lot))
+			lot_item = frappe.db.get_value("Dispensing Lot", dispensing_lot, "item")
+			if lot_item and lot_item != item_code:
+				frappe.throw(_("Dispensing Lot {0} does not belong to item {1}").format(dispensing_lot, item_code))
+			if batch_no:
+				lot_batch = frappe.db.get_value("Dispensing Lot", dispensing_lot, "batch_no")
+				if lot_batch and lot_batch != batch_no:
+					frappe.throw(_("Dispensing Lot {0} does not belong to batch {1}").format(dispensing_lot, batch_no))
+		return
+
+	if has_batch:
+		from healthcare.api.nursing_inventory import get_item_batches
+
+		batches = get_item_batches(item_code, warehouse) if warehouse else []
+		if batches and not batch_no:
+			frappe.throw(_("Please select a batch for this medicine."))
+
+	if batch_no:
+		if not frappe.db.exists("Batch", batch_no):
+			frappe.throw(_("Batch {0} does not exist").format(batch_no))
+		batch_item = frappe.db.get_value("Batch", batch_no, "item")
+		if batch_item and batch_item != item_code:
+			frappe.throw(_("Batch {0} does not belong to item {1}").format(batch_no, item_code))
+
+	if has_serial and warehouse:
+		from healthcare.api.nursing_inventory import get_batch_details_with_serials, get_item_serials
+
+		available_lots = []
+		if batch_no:
+			rows = get_batch_details_with_serials(batch_no, warehouse) or []
+			available_lots = [r.get("serial_no") for r in rows if r.get("serial_no")]
+		else:
+			available_lots = get_item_serials(item_code, warehouse) or []
+
+		if available_lots and not lot_no:
+			frappe.throw(_("Please select a lot number for this medicine."))
+
+
+def _apply_medicine_given_batch_lot(
+	row,
+	batch_no: str | None,
+	lot_no: str | None,
+	dispensing_lot: str | None = None,
+) -> None:
+	batch_no = (batch_no or "").strip() or None
+	lot_no = (lot_no or "").strip() or None
+	dispensing_lot = (dispensing_lot or "").strip() or None
+	if hasattr(row, "batch_no") and batch_no:
+		row.batch_no = batch_no
+	if hasattr(row, "dispensing_lot") and dispensing_lot:
+		row.dispensing_lot = dispensing_lot
+		if not lot_no:
+			lot_no = frappe.db.get_value("Dispensing Lot", dispensing_lot, "serial_no") or dispensing_lot
+	if hasattr(row, "lot_no") and lot_no:
+		row.lot_no = lot_no
+
+
+@frappe.whitelist()
+def get_medicine_given_stock_options(admission: str, item_code: str) -> dict:
+	"""Return warehouse, batch list, and whether lots (serials) apply for given medicine."""
+	if not admission:
+		frappe.throw(_("Admission is required"))
+	if not item_code:
+		frappe.throw(_("Item code is required"))
+
+	item_code = item_code.strip()
+	has_batch, has_serial = _item_tracking_flags(item_code)
+	requires_dispensing_lot = _item_requires_dispensing_lot(item_code)
+	warehouse = _warehouse_for_admission(admission)
+
+	batches = []
+	if has_batch and warehouse:
+		from healthcare.api.nursing_inventory import get_item_batches
+
+		batches = get_item_batches(item_code, warehouse) or []
+
+	dispensing_lots = []
+	if requires_dispensing_lot:
+		dispensing_lots = _get_dispensing_lots_for_item(item_code, warehouse)
+
+	return {
+		"warehouse": warehouse or "",
+		"has_batch_no": has_batch,
+		"has_serial_no": has_serial,
+		"requires_dispensing_lot": requires_dispensing_lot,
+		"batches": batches,
+		"dispensing_lots": dispensing_lots,
+	}
+
+
+@frappe.whitelist()
+def get_medicine_given_dispensing_lots(admission: str, item_code: str, batch_no: str | None = None) -> list[dict]:
+	"""Dispensing lots for an item at the admission warehouse (optionally filtered by batch)."""
+	if not admission or not item_code:
+		return []
+	return _get_dispensing_lots_for_item(
+		item_code.strip(),
+		_warehouse_for_admission(admission),
+		(batch_no or "").strip() or None,
+	)
+
+
+@frappe.whitelist()
+def get_medicine_given_lots(batch_no: str, admission: str) -> list[dict]:
+	"""Return lot numbers (serials) available for a batch at the admission warehouse."""
+	batch_no = (batch_no or "").strip()
+	if not batch_no or not admission:
+		return []
+
+	warehouse = _warehouse_for_admission(admission)
+	if not warehouse:
+		return []
+
+	from healthcare.api.nursing_inventory import get_batch_details_with_serials
+
+	rows = get_batch_details_with_serials(batch_no, warehouse) or []
+	return [{"lot_no": r.get("serial_no"), "qty": r.get("qty")} for r in rows if r.get("serial_no")]
+
+
+@frappe.whitelist()
+def get_medicine_given_item_lots(admission: str, item_code: str) -> list[str]:
+	"""Return lot numbers for serial-tracked items without batch selection."""
+	item_code = (item_code or "").strip()
+	if not item_code or not admission:
+		return []
+
+	has_batch, has_serial = _item_tracking_flags(item_code)
+	if not has_serial or has_batch:
+		return []
+
+	warehouse = _warehouse_for_admission(admission)
+	if not warehouse:
+		return []
+
+	from healthcare.api.nursing_inventory import get_item_serials
+
+	return get_item_serials(item_code, warehouse) or []
+
+
 def _get_latest_active_inpatient_medication_order(admission: str) -> str | None:
 	"""Return latest submitted inpatient PMO for this admission."""
 	rows = frappe.get_all(
@@ -297,6 +589,9 @@ def create_medicine_given(
 	allow_override: int | None = 0,
 	override_reason: str | None = None,
 	is_prn: int | None = 0,
+	batch_no: str | None = None,
+	lot_no: str | None = None,
+	dispensing_lot: str | None = None,
 ) -> dict:
 	"""Create a Medicine Given row on Admission Detail from a Patient Medication Order.
 
@@ -363,6 +658,7 @@ def create_medicine_given(
 		drug_code = None
 		drug_name = None
 		prescription_frequency = None
+		prescription_type = None
 
 		if item_code:
 			drug_code = item_code
@@ -379,14 +675,18 @@ def create_medicine_given(
 			child = frappe.get_doc("Inpatient Medication Order Entry", order_entry)
 			drug_code = child.drug
 			drug_name = child.drug_name
-			prescription_frequency = child.patient_frequency
+			prescription_frequency = child.patient_frequency or getattr(child, "long_acting_frequency", None)
+			prescription_type = _prescription_type_from_order_entry(order_entry_name=order_entry)
 			if hasattr(child, "uom") and not row.unit:
 				row.unit = child.uom
+			if hasattr(row, "is_prn") and not cint(is_prn):
+				row.is_prn = cint(getattr(child, "is_prn", 0))
 		elif pmo and getattr(pmo, "medication_orders", None):
 			first = pmo.medication_orders[0]
 			drug_code = getattr(first, "drug", None)
 			drug_name = getattr(first, "drug_name", None)
 			prescription_frequency = getattr(first, "patient_frequency", None)
+			prescription_type = _prescription_type_from_order_entry(pmo=pmo, drug_code=drug_code)
 
 		if not drug_code:
 			frappe.throw(
@@ -395,9 +695,14 @@ def create_medicine_given(
 				)
 			)
 
+		_validate_medicine_given_batch_lot(drug_code, admission, batch_no, lot_no, dispensing_lot)
+
 		row.medicine_code = drug_code
 		if hasattr(row, "medicine_name"):
 			row.medicine_name = drug_name or frappe.db.get_value("Item", drug_code, "item_name")
+
+		_set_medicine_given_prescription_type(row, prescription_type)
+		_apply_medicine_given_batch_lot(row, batch_no, lot_no, dispensing_lot)
 
 		# Try to populate unit from Item stock_uom if present
 		if hasattr(row, "unit") and not row.unit:
@@ -485,12 +790,23 @@ def get_medicine_given(admission: str, limit: int | None = 50, offset: int | Non
 			"frequency",
 			"dose_notes",
 			"user",
+			"is_prn",
+			"prescription_type",
+			"sales_order",
+			"delivery_note",
+			"batch_no",
+			"lot_no",
+			"dispensing_lot",
 			"modified",
 		],
 		order_by="date desc, time desc, modified desc",
 		limit=limit,
 		start=offset,
 	)
+
+	for row in rows:
+		if row.get("batch_no"):
+			row["batch_id"] = frappe.db.get_value("Batch", row["batch_no"], "batch_id") or row["batch_no"]
 
 	return rows
 
@@ -573,6 +889,10 @@ def convert_missed_medicine_to_given(name: str, given_late_reason: str | None = 
 	given.medicine_given_timing = source.medicine_given_timing
 	if hasattr(given, "is_prn"):
 		given.is_prn = source.is_prn
+	_set_medicine_given_prescription_type(
+		given,
+		_prescription_type_for_medication_order(source.medication_order, source.medicine_code),
+	)
 
 	notes = []
 	if source.dose_notes:
@@ -609,6 +929,14 @@ def delete_medicine_given(name: str) -> dict:
 
 	if parenttype != "Admission Detail":
 		frappe.throw(_("Cannot delete Medicine Given row not linked to Admission Detail"))
+
+	sales_order = frappe.db.get_value("Medicine Given", name, "sales_order")
+	if sales_order:
+		frappe.throw(
+			_("This given medicine is already linked to Sales Order {0} and cannot be removed.").format(
+				frappe.bold(sales_order)
+			)
+		)
 
 	frappe.delete_doc("Medicine Given", name)
 

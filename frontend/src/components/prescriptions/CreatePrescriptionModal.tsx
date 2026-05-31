@@ -20,6 +20,7 @@ import {
   fetchStandardUoms,
   fetchDosageForms,
   fetchPrescriptionFrequencies,
+  fetchLongActingFrequencies,
   fetchRouteOfAdministrationList,
   type LinkFieldOption,
 } from '../../services/common'
@@ -29,7 +30,6 @@ import {
   type CreatePrescriptionData,
   type MedicationOrderRow,
   type Prescription,
-  LONG_ACTING_FREQUENCY_OPTIONS,
 } from '../../services/prescriptions'
 import { createVisitAndPrescriptionOnDischarge } from '../../services/medicineGiven'
 import { bulkCreateNurseTasks, type CreateNurseTaskData } from '../../services/nurseTask'
@@ -48,6 +48,10 @@ import {
   linkComboboxInputWithClearClass,
   linkComboboxOptionClassCompact,
 } from '../ui/linkComboboxStyles'
+import {
+  CreateFrequencyMiniModal,
+  type CreateFrequencyKind,
+} from './CreateFrequencyMiniModal'
 
 interface CreatePrescriptionModalProps {
   onClose: () => void
@@ -123,6 +127,7 @@ interface ComboboxProps {
   required?: boolean
   renderOption?: (opt: LinkFieldOption) => React.ReactNode
   allowCustom?: boolean
+  onCreateClick?: () => void
 }
 
 const Combobox = ({
@@ -137,6 +142,7 @@ const Combobox = ({
   renderOption,
   onClear,
   allowCustom = false,
+  onCreateClick,
 }: ComboboxProps) => {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -180,6 +186,20 @@ const Combobox = ({
           className={linkComboboxInputWithClearClass}
         />
         <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
+          {onCreateClick && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                onCreateClick()
+              }}
+              className="p-0.5 text-primary hover:text-primary/80 rounded"
+              title="Create new"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
+          )}
           {displayValue && onClear && (
             <button
               type="button"
@@ -301,11 +321,19 @@ export const CreatePrescriptionModal = ({
 
   const [dosageForms, setDosageForms] = useState<LinkFieldOption[]>([])
   const [frequencyOptions, setFrequencyOptions] = useState<LinkFieldOption[]>([])
+  const [longActingFrequencyOptions, setLongActingFrequencyOptions] = useState<LinkFieldOption[]>([])
   const [routeOptions, setRouteOptions] = useState<LinkFieldOption[]>([])
   const [uomOptions, setUomOptions] = useState<LinkFieldOption[]>([])
   const [loadingFrequency, setLoadingFrequency] = useState(false)
+  const [loadingLongActingFrequency, setLoadingLongActingFrequency] = useState(false)
   const [loadingRoute, setLoadingRoute] = useState(false)
   const [loadingUom, setLoadingUom] = useState(false)
+  const [longActingFrequencyQueries, setLongActingFrequencyQueries] = useState<Record<number, string>>({})
+  const [createFreqModal, setCreateFreqModal] = useState<{
+    kind: CreateFrequencyKind
+    rowIndex: number
+    initialName?: string
+  } | null>(null)
 
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -321,21 +349,26 @@ export const CreatePrescriptionModal = ({
   const searchFrequencies = async (query: string) => {
     setLoadingFrequency(true)
     try {
-      const allFrequencies = await fetchPrescriptionFrequencies()
-      if (!query.trim()) {
-        setFrequencyOptions(allFrequencies)
-      } else {
-        const filtered = allFrequencies.filter(f => 
-          f.label?.toLowerCase().includes(query.toLowerCase()) || 
-          f.name?.toLowerCase().includes(query.toLowerCase())
-        )
-        setFrequencyOptions(filtered)
-      }
+      const allFrequencies = await fetchPrescriptionFrequencies(query || undefined)
+      setFrequencyOptions(allFrequencies)
     } catch (error) {
       console.error('Failed to search frequencies:', error)
       setFrequencyOptions([])
     } finally {
       setLoadingFrequency(false)
+    }
+  }
+
+  const searchLongActingFrequencies = async (query: string) => {
+    setLoadingLongActingFrequency(true)
+    try {
+      const options = await fetchLongActingFrequencies(query || undefined)
+      setLongActingFrequencyOptions(options)
+    } catch (error) {
+      console.error('Failed to search long acting frequencies:', error)
+      setLongActingFrequencyOptions([])
+    } finally {
+      setLoadingLongActingFrequency(false)
     }
   }
 
@@ -644,6 +677,14 @@ export const CreatePrescriptionModal = ({
       const row = { ...next[index], [field]: value }
       if (field === 'medication_type') {
         Object.assign(row, flagsFromPrescriptionType(String(value)))
+        if (isLongActingPrescriptionType(String(value))) {
+          const lf = row.long_acting_frequency || 'Weekly'
+          row.long_acting_frequency = lf
+          row.patient_frequency = lf
+        }
+      }
+      if (field === 'long_acting_frequency') {
+        row.patient_frequency = String(value)
       }
 
       const isIP = mode === 'IP'
@@ -1198,32 +1239,103 @@ export const CreatePrescriptionModal = ({
 
                           <div className="grid grid-cols-2 gap-3">
                             <div>
-                              <label className="block text-xs font-medium text-slate-600 mb-1">Frequency</label>
-                              <Combobox
-                                value={row.patient_frequency ?? ''}
-                                displayValue={frequencyQueries[index] ?? (row.patient_frequency ? (frequencyOptions.find((f) => f.name === row.patient_frequency)?.label || row.patient_frequency) : '')}
-                                placeholder="Type or select frequency..."
-                                options={frequencyOptions}
-                                loading={loadingFrequency}
-                                allowCustom={true}
-                                onQueryChange={(q) => {
-                                  setFrequencyQueries((prev) => ({ ...prev, [index]: q }))
-                                  searchFrequencies(q)
-                                }}
-                                onOpen={() => {
-                                  if (frequencyOptions.length === 0) {
-                                    searchFrequencies('')
-                                  }
-                                }}
-                                onSelect={(opt) => {
-                                  updateMedicationRow(index, 'patient_frequency', opt.name)
-                                  setFrequencyQueries((prev) => ({ ...prev, [index]: opt.label || opt.name }))
-                                }}
-                                onClear={() => {
-                                  updateMedicationRow(index, 'patient_frequency', '')
-                                  setFrequencyQueries((prev) => ({ ...prev, [index]: '' }))
-                                }}
-                              />
+                              {isLongActingPrescriptionType(row.medication_type) ? (
+                                <>
+                                  <label className="block text-xs font-medium text-slate-600 mb-1">
+                                    Long Acting Frequency
+                                  </label>
+                                  <Combobox
+                                    value={row.long_acting_frequency ?? ''}
+                                    displayValue={
+                                      longActingFrequencyQueries[index] ??
+                                      (row.long_acting_frequency
+                                        ? longActingFrequencyOptions.find((f) => f.name === row.long_acting_frequency)?.label ||
+                                          row.long_acting_frequency
+                                        : '')
+                                    }
+                                    placeholder="Select long acting frequency..."
+                                    options={longActingFrequencyOptions}
+                                    loading={loadingLongActingFrequency}
+                                    onCreateClick={() =>
+                                      setCreateFreqModal({
+                                        kind: 'long_acting',
+                                        rowIndex: index,
+                                        initialName: longActingFrequencyQueries[index] || '',
+                                      })
+                                    }
+                                    onQueryChange={(q) => {
+                                      setLongActingFrequencyQueries((prev) => ({ ...prev, [index]: q }))
+                                      searchLongActingFrequencies(q)
+                                    }}
+                                    onOpen={() => {
+                                      if (longActingFrequencyOptions.length === 0) {
+                                        searchLongActingFrequencies('')
+                                      }
+                                    }}
+                                    onSelect={(opt) => {
+                                      updateMedicationRow(index, 'long_acting_frequency', opt.name)
+                                      updateMedicationRow(index, 'patient_frequency', opt.name)
+                                      setLongActingFrequencyQueries((prev) => ({
+                                        ...prev,
+                                        [index]: opt.label || opt.name,
+                                      }))
+                                      setFrequencyQueries((prev) => ({
+                                        ...prev,
+                                        [index]: opt.label || opt.name,
+                                      }))
+                                    }}
+                                    onClear={() => {
+                                      updateMedicationRow(index, 'long_acting_frequency', 'Weekly')
+                                      setLongActingFrequencyQueries((prev) => ({ ...prev, [index]: '' }))
+                                    }}
+                                  />
+                                  <p className="text-[11px] text-slate-500 mt-1">
+                                    A Long Acting Medicine record will be created for scheduling and reminders.
+                                  </p>
+                                </>
+                              ) : (
+                                <>
+                                  <label className="block text-xs font-medium text-slate-600 mb-1">Frequency</label>
+                                  <Combobox
+                                    value={row.patient_frequency ?? ''}
+                                    displayValue={
+                                      frequencyQueries[index] ??
+                                      (row.patient_frequency
+                                        ? frequencyOptions.find((f) => f.name === row.patient_frequency)?.label ||
+                                          row.patient_frequency
+                                        : '')
+                                    }
+                                    placeholder="Type or select frequency..."
+                                    options={frequencyOptions}
+                                    loading={loadingFrequency}
+                                    allowCustom={true}
+                                    onCreateClick={() =>
+                                      setCreateFreqModal({
+                                        kind: 'regular',
+                                        rowIndex: index,
+                                        initialName: frequencyQueries[index] || '',
+                                      })
+                                    }
+                                    onQueryChange={(q) => {
+                                      setFrequencyQueries((prev) => ({ ...prev, [index]: q }))
+                                      searchFrequencies(q)
+                                    }}
+                                    onOpen={() => {
+                                      if (frequencyOptions.length === 0) {
+                                        searchFrequencies('')
+                                      }
+                                    }}
+                                    onSelect={(opt) => {
+                                      updateMedicationRow(index, 'patient_frequency', opt.name)
+                                      setFrequencyQueries((prev) => ({ ...prev, [index]: opt.label || opt.name }))
+                                    }}
+                                    onClear={() => {
+                                      updateMedicationRow(index, 'patient_frequency', '')
+                                      setFrequencyQueries((prev) => ({ ...prev, [index]: '' }))
+                                    }}
+                                  />
+                                </>
+                              )}
                             </div>
                             <div>
                               <label className="block text-xs font-medium text-slate-600 mb-1">Route of Administration</label>
@@ -1291,26 +1403,6 @@ export const CreatePrescriptionModal = ({
                               </select>
                             </div>
                           </div>
-
-                          {isLongActingPrescriptionType(row.medication_type) && (
-                            <div className="rounded-md bg-amber-50 border border-amber-200 p-3">
-                              <label className="block text-xs font-medium text-slate-700 mb-1">
-                                Time Frequency (when will be next run)
-                              </label>
-                              <select
-                                value={row.long_acting_frequency ?? 'Weekly'}
-                                onChange={(e) => updateMedicationRow(index, 'long_acting_frequency', e.target.value)}
-                                className="w-full max-w-xs rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
-                              >
-                                {LONG_ACTING_FREQUENCY_OPTIONS.map((opt) => (
-                                  <option key={opt} value={opt}>{opt}</option>
-                                ))}
-                              </select>
-                              <p className="text-[11px] text-slate-500 mt-1">
-                                A Long Acting Medicine record will be created for scheduling and reminders.
-                              </p>
-                            </div>
-                          )}
 
                           <div className={`grid ${isIP ? 'grid-cols-2' : 'grid-cols-3'} gap-3`}>
                             <div>
@@ -1436,6 +1528,48 @@ export const CreatePrescriptionModal = ({
           </CreateModalFooter>
         </form>
       </div>
+
+      {createFreqModal && (
+        <CreateFrequencyMiniModal
+          kind={createFreqModal.kind}
+          initialName={createFreqModal.initialName}
+          onClose={() => setCreateFreqModal(null)}
+          onCreated={(opt) => {
+            const { kind, rowIndex } = createFreqModal
+            if (kind === 'long_acting') {
+              setLongActingFrequencyOptions((prev) => {
+                if (prev.some((p) => p.name === opt.name)) return prev
+                return [...prev, opt]
+              })
+              setFrequencyOptions((prev) => {
+                if (prev.some((p) => p.name === opt.name)) return prev
+                return [...prev, opt]
+              })
+              updateMedicationRow(rowIndex, 'long_acting_frequency', opt.name)
+              setLongActingFrequencyQueries((prev) => ({
+                ...prev,
+                [rowIndex]: opt.label || opt.name,
+              }))
+              updateMedicationRow(rowIndex, 'patient_frequency', opt.name)
+              setFrequencyQueries((prev) => ({
+                ...prev,
+                [rowIndex]: opt.label || opt.name,
+              }))
+            } else {
+              setFrequencyOptions((prev) => {
+                if (prev.some((p) => p.name === opt.name)) return prev
+                return [...prev, opt]
+              })
+              updateMedicationRow(rowIndex, 'patient_frequency', opt.name)
+              setFrequencyQueries((prev) => ({
+                ...prev,
+                [rowIndex]: opt.label || opt.name,
+              }))
+            }
+            setCreateFreqModal(null)
+          }}
+        />
+      )}
     </div>
   )
 }

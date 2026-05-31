@@ -676,6 +676,50 @@ export async function fetchPrescriptionFrequencies(search?: string): Promise<Lin
   return Array.isArray(data?.message) ? (data.message as LinkFieldOption[]) : []
 }
 
+export async function fetchLongActingFrequencies(search?: string): Promise<LinkFieldOption[]> {
+  const params = new URLSearchParams()
+  if (search) params.append('search', search)
+  const res = await fetch(`/api/method/healthcare.api.common.get_long_acting_frequencies?${params.toString()}`)
+  const data = await res.json()
+  return Array.isArray(data?.message) ? (data.message as LinkFieldOption[]) : []
+}
+
+export async function createPrescriptionFrequency(
+  dosage: string,
+  frequencyInADay = 1
+): Promise<LinkFieldOption> {
+  const params = new URLSearchParams({
+    dosage,
+    frequency_in_a_day: String(frequencyInADay),
+  })
+  const res = await fetch(`/api/method/healthcare.api.common.create_prescription_frequency?${params.toString()}`, {
+    credentials: 'include',
+  })
+  const data = await res.json()
+  if (!res.ok || data?.exc) {
+    throw new Error(data?.message || 'Failed to create prescription frequency')
+  }
+  return data.message as LinkFieldOption
+}
+
+export async function createLongActingFrequency(
+  frequency: string,
+  intervalDays: number
+): Promise<LinkFieldOption> {
+  const params = new URLSearchParams({
+    frequency,
+    interval_days: String(intervalDays),
+  })
+  const res = await fetch(`/api/method/healthcare.api.common.create_long_acting_frequency?${params.toString()}`, {
+    credentials: 'include',
+  })
+  const data = await res.json()
+  if (!res.ok || data?.exc) {
+    throw new Error(data?.message || 'Failed to create long acting frequency')
+  }
+  return data.message as LinkFieldOption
+}
+
 export async function fetchRouteOfAdministrationList(search?: string): Promise<LinkFieldOption[]> {
   const params = new URLSearchParams()
   if (search) params.append('search', search)

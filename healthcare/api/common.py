@@ -896,6 +896,7 @@ def get_dosage_forms(search=None):
 @frappe.whitelist()
 def get_prescription_frequencies(search=None):
 	"""Get list of Prescription Frequency for medication rows."""
+	_ensure_default_long_acting_frequencies()
 	filters = {}
 	if search:
 		filters["name"] = ["like", f"%{search}%"]
@@ -907,6 +908,107 @@ def get_prescription_frequencies(search=None):
 		limit=50,
 	)
 	return [{"name": p.name, "label": p.name} for p in items]
+
+
+DEFAULT_LONG_ACTING_FREQUENCIES = [
+	("Weekly", 7),
+	("Biweekly", 14),
+	("Monthly", 30),
+	("Every 2 Months", 60),
+	("Every 3 Months", 90),
+]
+
+
+def _ensure_prescription_frequency_exists(dosage, frequency_in_a_day=1):
+	"""Create Prescription Frequency if missing (idempotent)."""
+	from frappe.utils import cint
+
+	dosage = (dosage or "").strip()
+	if not dosage or frappe.db.exists("Prescription Frequency", dosage):
+		return
+	doc = frappe.new_doc("Prescription Frequency")
+	doc.dosage = dosage
+	doc.frequency_in_a_day = cint(frequency_in_a_day)
+	doc.insert(ignore_permissions=True)
+
+
+def ensure_prescription_frequency_for_long_acting(frequency_name):
+	"""Long-acting interval labels also exist as Prescription Frequency (0/day = no daily cap)."""
+	_ensure_prescription_frequency_exists(frequency_name, frequency_in_a_day=0)
+
+
+def _ensure_default_long_acting_frequencies():
+	created = False
+	for frequency, interval_days in DEFAULT_LONG_ACTING_FREQUENCIES:
+		if not frappe.db.exists("Long Acting Frequency", frequency):
+			doc = frappe.new_doc("Long Acting Frequency")
+			doc.frequency = frequency
+			doc.interval_days = interval_days
+			doc.insert(ignore_permissions=True)
+			created = True
+		ensure_prescription_frequency_for_long_acting(frequency)
+	if created:
+		frappe.db.commit()
+
+
+@frappe.whitelist()
+def get_long_acting_frequencies(search=None):
+	"""Get list of Long Acting Frequency options for prescription rows."""
+	_ensure_default_long_acting_frequencies()
+	filters = {}
+	if search:
+		filters["frequency"] = ["like", f"%{search}%"]
+	items = frappe.get_all(
+		"Long Acting Frequency",
+		filters=filters,
+		fields=["frequency", "interval_days"],
+		order_by="frequency asc",
+		limit=50,
+	)
+	return [
+		{"name": item.frequency, "label": item.frequency, "interval_days": item.interval_days}
+		for item in items
+	]
+
+
+@frappe.whitelist()
+def create_prescription_frequency(dosage, frequency_in_a_day=1):
+	"""Create a new Prescription Frequency record."""
+	from frappe.utils import cint
+
+	dosage = (dosage or "").strip()
+	if not dosage:
+		frappe.throw(_("Frequency is required"))
+	if frappe.db.exists("Prescription Frequency", dosage):
+		frappe.throw(_("Prescription Frequency '{0}' already exists").format(dosage))
+	doc = frappe.new_doc("Prescription Frequency")
+	doc.dosage = dosage
+	doc.frequency_in_a_day = cint(frequency_in_a_day) or 1
+	doc.insert(ignore_permissions=True)
+	frappe.db.commit()
+	return {"name": doc.name, "label": doc.name}
+
+
+@frappe.whitelist()
+def create_long_acting_frequency(frequency, interval_days=7):
+	"""Create a new Long Acting Frequency record."""
+	from frappe.utils import cint
+
+	frequency = (frequency or "").strip()
+	if not frequency:
+		frappe.throw(_("Frequency is required"))
+	interval_days = cint(interval_days)
+	if interval_days <= 0:
+		frappe.throw(_("Interval must be at least 1 day"))
+	if frappe.db.exists("Long Acting Frequency", frequency):
+		frappe.throw(_("Long Acting Frequency '{0}' already exists").format(frequency))
+	doc = frappe.new_doc("Long Acting Frequency")
+	doc.frequency = frequency
+	doc.interval_days = interval_days
+	doc.insert(ignore_permissions=True)
+	ensure_prescription_frequency_for_long_acting(frequency)
+	frappe.db.commit()
+	return {"name": doc.frequency, "label": doc.frequency, "interval_days": doc.interval_days}
 
 
 @frappe.whitelist()

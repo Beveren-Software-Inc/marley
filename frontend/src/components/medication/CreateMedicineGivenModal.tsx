@@ -6,9 +6,17 @@ import {
 import type { Prescription, MedicationOrderEntry } from '../../services/prescriptions'
 import { fetchPrescriptions, fetchMedicationOrders, fetchPrescriptionByInpatientOrEncounter } from '../../services/prescriptions'
 import { getPatientActiveAdmission, type InpatientRecord } from '../../services/inpatientRecords'
-import { createMedicineGiven } from '../../services/medicineGiven'
+import {
+  createMedicineGiven,
+  fetchMedicineGivenStockOptions,
+  fetchMedicineGivenLots,
+  fetchMedicineGivenItemLots,
+  fetchMedicineGivenDispensingLots,
+  type MedicineGivenStockOptions,
+  type MedicineGivenDispensingLotOption,
+} from '../../services/medicineGiven'
 import { toast } from '../../hooks/useToast'
-import { fetchItems, fetchStandardUoms, type LinkFieldOption } from '../../services/common'
+import { fetchStandardUoms, type LinkFieldOption } from '../../services/common'
 import {
   linkComboboxDropdownClass,
   linkComboboxInputWithClearClass,
@@ -153,15 +161,10 @@ export const CreateMedicineGivenModal = ({
   const [selectedPrescription, setSelectedPrescription] = useState<string>('')
   const [orders, setOrders] = useState<MedicationOrderEntry[]>([])
   const [selectedOrder, setSelectedOrder] = useState<string>('')
-  const [items, setItems] = useState<LinkFieldOption[]>([])
   const [uoms, setUoms] = useState<LinkFieldOption[]>([])
-  const [itemQuery, setItemQuery] = useState('')
   const [uomQuery, setUomQuery] = useState('')
-  const [loadingItems, setLoadingItems] = useState(false)
   const [loadingUoms, setLoadingUoms] = useState(false)
-  const [selectedItem, setSelectedItem] = useState<string>('')
-  const [mode, setMode] = useState<'prescription' | 'direct'>('prescription')
-  const [qty, setQty] = useState<number>(1)
+  const [qty, setQty] = useState<string>('1')
   const [uom, setUom] = useState<string>('')
   const [date, setDate] = useState<string>('')
   const [time, setTime] = useState<string>('')
@@ -171,6 +174,16 @@ export const CreateMedicineGivenModal = ({
   const [overrideChecked, setOverrideChecked] = useState(false)
   const [overrideReason, setOverrideReason] = useState('')
   const [isPrn, setIsPrn] = useState(false)
+  const [stockOptions, setStockOptions] = useState<MedicineGivenStockOptions | null>(null)
+  const [loadingStock, setLoadingStock] = useState(false)
+  const [batchNo, setBatchNo] = useState('')
+  const [batchLabel, setBatchLabel] = useState('')
+  const [lotNo, setLotNo] = useState('')
+  const [lots, setLots] = useState<string[]>([])
+  const [loadingLots, setLoadingLots] = useState(false)
+  const [dispensingLot, setDispensingLot] = useState('')
+  const [dispensingLots, setDispensingLots] = useState<MedicineGivenDispensingLotOption[]>([])
+  const [loadingDispensingLots, setLoadingDispensingLots] = useState(false)
 
   const prescriptionOrders = isPrn
     ? orders.filter((o) => o.is_prn === 1 || o.medication_type === 'PRN')
@@ -203,89 +216,78 @@ export const CreateMedicineGivenModal = ({
         setUoms(uomOptions)
         setLoadingUoms(false)
 
-        if (mode === 'prescription') {
-          const loadPrescriptionOrders = async (prescriptionName: string) => {
-            const ords = await fetchMedicationOrders(prescriptionName)
-            setOrders(ords)
-            setSelectedOrder(pickInitialOrderEntry(ords, initialOrderEntry))
-          }
+        const loadPrescriptionOrders = async (prescriptionName: string) => {
+          const ords = await fetchMedicationOrders(prescriptionName)
+          setOrders(ords)
+          setSelectedOrder(pickInitialOrderEntry(ords, initialOrderEntry))
+        }
 
-          if (initialPrescription) {
-            const list = await fetchPrescriptions(50, 0, {
-              patient: initialPatient,
-              careContext: 'Inpatient Admission',
-              inpatientRecord: propInpatientRecord || adm.name,
-            })
-            const match = list.find((p) => p.name === initialPrescription)
-            if (match) {
-              setPrescriptions(list)
-              setSelectedPrescription(initialPrescription)
-            } else {
-              setPrescriptions([
-                {
-                  name: initialPrescription,
-                  patient: initialPatient,
-                  inpatient_record: propInpatientRecord || adm.name,
-                },
-              ])
-              setSelectedPrescription(initialPrescription)
-            }
-            await loadPrescriptionOrders(initialPrescription)
+        if (initialPrescription) {
+          const list = await fetchPrescriptions(50, 0, {
+            patient: initialPatient,
+            careContext: 'Inpatient Admission',
+            inpatientRecord: propInpatientRecord || adm.name,
+          })
+          const match = list.find((p) => p.name === initialPrescription)
+          if (match) {
+            setPrescriptions(list)
+            setSelectedPrescription(initialPrescription)
           } else {
-            const hasContext = propInpatientRecord || propPatientEncounter
-            if (hasContext) {
-              try {
-                const currentRx = await fetchPrescriptionByInpatientOrEncounter(
-                  propInpatientRecord,
-                  propPatientEncounter
-                )
-                if (currentRx) {
-                  setPrescriptions([currentRx])
-                  setSelectedPrescription(currentRx.name)
-                  await loadPrescriptionOrders(currentRx.name)
-                } else {
-                  setPrescriptions([])
-                  setSelectedPrescription('')
-                  setOrders([])
-                  setSelectedOrder('')
-                  setError(
-                    'No current prescription found. Use "Direct Medicine" to record a dose, or create a prescription first.'
-                  )
-                }
-              } catch {
+            setPrescriptions([
+              {
+                name: initialPrescription,
+                patient: initialPatient,
+                inpatient_record: propInpatientRecord || adm.name,
+              },
+            ])
+            setSelectedPrescription(initialPrescription)
+          }
+          await loadPrescriptionOrders(initialPrescription)
+        } else {
+          const hasContext = propInpatientRecord || propPatientEncounter
+          if (hasContext) {
+            try {
+              const currentRx = await fetchPrescriptionByInpatientOrEncounter(
+                propInpatientRecord,
+                propPatientEncounter
+              )
+              if (currentRx) {
+                setPrescriptions([currentRx])
+                setSelectedPrescription(currentRx.name)
+                await loadPrescriptionOrders(currentRx.name)
+              } else {
                 setPrescriptions([])
                 setSelectedPrescription('')
                 setOrders([])
                 setSelectedOrder('')
-                setError('Failed to load current prescription.')
+                setError('No current prescription found. Create a prescription first.')
               }
-            } else {
-              const list = await fetchPrescriptions(50, 0, {
-                patient: initialPatient,
-                careContext: 'Inpatient Admission',
-                inpatientRecord: adm.name,
-              })
-              setPrescriptions(list)
-              if (list.length > 0) {
-                const first = list[0].name
-                setSelectedPrescription(first)
-                await loadPrescriptionOrders(first)
-              } else {
-                setSelectedPrescription('')
-                setOrders([])
-                setSelectedOrder('')
-                setError(
-                  `No submitted prescription (Patient Medication Order) for admission ${adm.name}. Use "Direct Medicine" to record a dose, or add a prescription for this admission.`
-                )
-              }
+            } catch {
+              setPrescriptions([])
+              setSelectedPrescription('')
+              setOrders([])
+              setSelectedOrder('')
+              setError('Failed to load current prescription.')
             }
-          }
-        } else {
-          const opts = await fetchItems()
-          setItems(opts)
-          if (opts.length > 0) {
-            setSelectedItem(opts[0].name)
-            setItemQuery(opts[0].label || opts[0].name)
+          } else {
+            const list = await fetchPrescriptions(50, 0, {
+              patient: initialPatient,
+              careContext: 'Inpatient Admission',
+              inpatientRecord: adm.name,
+            })
+            setPrescriptions(list)
+            if (list.length > 0) {
+              const first = list[0].name
+              setSelectedPrescription(first)
+              await loadPrescriptionOrders(first)
+            } else {
+              setSelectedPrescription('')
+              setOrders([])
+              setSelectedOrder('')
+              setError(
+                `No submitted prescription (Patient Medication Order) for admission ${adm.name}. Add a prescription for this admission first.`
+              )
+            }
           }
         }
       } catch (e) {
@@ -299,7 +301,6 @@ export const CreateMedicineGivenModal = ({
     load()
   }, [
     initialPatient,
-    mode,
     propInpatientRecord,
     propPatientEncounter,
     initialPrescription,
@@ -307,25 +308,123 @@ export const CreateMedicineGivenModal = ({
   ])
 
   useEffect(() => {
-    if (mode === 'prescription') {
-      const selected = prescriptionOrders.find((o) => o.name === selectedOrder)
-      setUom((selected?.uom || '').trim())
-      setUomQuery((selected?.uom || '').trim())
+    const selected = prescriptionOrders.find((o) => o.name === selectedOrder)
+    setUom((selected?.uom || '').trim())
+    setUomQuery((selected?.uom || '').trim())
+  }, [selectedOrder, prescriptionOrders])
+
+  useEffect(() => {
+    const resetBatchLot = () => {
+      setStockOptions(null)
+      setBatchNo('')
+      setBatchLabel('')
+      setLotNo('')
+      setLots([])
+      setDispensingLot('')
+      setDispensingLots([])
+    }
+
+    const selected = prescriptionOrders.find((o) => o.name === selectedOrder)
+    const drugCode = (selected?.drug || '').trim()
+    const admissionName = admission?.name
+    if (!admissionName || !drugCode) {
+      resetBatchLot()
       return
     }
-    const selected = items.find((it) => it.name === selectedItem)
-    setUom((selected?.stock_uom || '').trim())
-    setUomQuery((selected?.stock_uom || '').trim())
-  }, [mode, selectedOrder, selectedItem, prescriptionOrders, items])
 
-  const searchItems = async (query: string) => {
-    setLoadingItems(true)
-    try {
-      const opts = await fetchItems(query || undefined)
-      setItems(opts)
-    } finally {
-      setLoadingItems(false)
+    let cancelled = false
+    const load = async () => {
+      setLoadingStock(true)
+      resetBatchLot()
+      try {
+        const opts = await fetchMedicineGivenStockOptions(admissionName, drugCode)
+        if (cancelled) return
+        setStockOptions(opts)
+
+        if (opts.requires_dispensing_lot) {
+          setDispensingLots(opts.dispensing_lots || [])
+        } else if (opts.has_serial_no && !opts.has_batch_no) {
+          setLoadingLots(true)
+          const itemLots = await fetchMedicineGivenItemLots(admissionName, drugCode)
+          if (!cancelled) setLots(itemLots)
+        }
+      } catch {
+        if (!cancelled) setStockOptions(null)
+      } finally {
+        if (!cancelled) {
+          setLoadingStock(false)
+          setLoadingLots(false)
+        }
+      }
     }
+
+    load()
+    return () => {
+      cancelled = true
+    }
+  }, [selectedOrder, prescriptionOrders, admission?.name])
+
+  const handleBatchChange = async (batchName: string) => {
+    setBatchNo(batchName)
+    const batch = stockOptions?.batches.find(
+      (b) => b.batch_name === batchName || b.batch_id === batchName
+    )
+    setBatchLabel(batch?.batch_id || batchName)
+    setLotNo('')
+    setDispensingLot('')
+
+    const selected = prescriptionOrders.find((o) => o.name === selectedOrder)
+    const drugCode = (selected?.drug || '').trim()
+    const admissionName = admission?.name
+    if (!admissionName || !drugCode) {
+      setLots([])
+      setDispensingLots([])
+      return
+    }
+
+    if (stockOptions?.requires_dispensing_lot) {
+      setLoadingDispensingLots(true)
+      try {
+        const dlRows = await fetchMedicineGivenDispensingLots(
+          admissionName,
+          drugCode,
+          batchName || undefined
+        )
+        setDispensingLots(dlRows)
+      } catch {
+        setDispensingLots([])
+      } finally {
+        setLoadingDispensingLots(false)
+      }
+      return
+    }
+
+    if (!batchName) {
+      setLots([])
+      return
+    }
+
+    if (!stockOptions?.has_serial_no) {
+      setLots([])
+      if (batch?.batch_id) setLotNo(batch.batch_id)
+      return
+    }
+
+    setLoadingLots(true)
+    try {
+      const lotRows = await fetchMedicineGivenLots(batchName, admissionName)
+      setLots(lotRows.map((r) => r.lot_no).filter(Boolean))
+    } catch {
+      setLots([])
+    } finally {
+      setLoadingLots(false)
+    }
+  }
+
+  const handleDispensingLotChange = (lotName: string) => {
+    setDispensingLot(lotName)
+    const lot = dispensingLots.find((l) => l.name === lotName)
+    setLotNo(lot?.serial_no || lotName)
   }
 
   const searchUomOptions = async (query: string) => {
@@ -364,21 +463,37 @@ export const CreateMedicineGivenModal = ({
       toast.error('No active admission found')
       return
     }
-    if (mode === 'prescription') {
-      if (!selectedPrescription) {
-        toast.error('Select a prescription')
-        return
-      }
-      if (!selectedOrder) {
-        toast.error('Select a medicine from the prescription')
-        return
-      }
-    } else {
-      if (!selectedItem) {
-        toast.error('Select a medicine item')
-        return
-      }
+    if (!selectedPrescription) {
+      toast.error('Select a prescription')
+      return
     }
+    if (!selectedOrder) {
+      toast.error('Select a medicine from the prescription')
+      return
+    }
+    const parsedQty = parseFloat(qty)
+    if (!qty.trim() || Number.isNaN(parsedQty) || parsedQty <= 0) {
+      toast.error('Enter a valid quantity')
+      return
+    }
+
+    const showBatchPicker = Boolean(stockOptions?.has_batch_no && stockOptions.batches.length > 0)
+    if (showBatchPicker && !batchNo) {
+      toast.error('Please select a batch for this medicine')
+      return
+    }
+    if (stockOptions?.requires_dispensing_lot) {
+      const availableLots =
+        dispensingLots.length > 0 ? dispensingLots : stockOptions.dispensing_lots || []
+      if (availableLots.length > 0 && !dispensingLot) {
+        toast.error('Please select a dispensing lot for this medicine')
+        return
+      }
+    } else if (stockOptions?.has_serial_no && lots.length > 0 && !lotNo) {
+      toast.error('Please select a lot number for this medicine')
+      return
+    }
+
     try {
       setLoading(true)
       setError(null)
@@ -391,23 +506,23 @@ export const CreateMedicineGivenModal = ({
       }
 
       const selectedRx = prescriptions.find(p => p.name === selectedPrescription)
-      const admissionName = (mode === 'prescription' && selectedRx?.inpatient_record)
-        ? selectedRx.inpatient_record
-        : (propInpatientRecord || admission.name)
+      const admissionName = selectedRx?.inpatient_record || propInpatientRecord || admission.name
 
       await createMedicineGiven({
         admission: admissionName,
-        medication_order: mode === 'prescription' ? selectedPrescription : '',
-        order_entry: mode === 'prescription' ? selectedOrder : undefined,
-        item_code: mode === 'direct' ? selectedItem : undefined,
+        medication_order: selectedPrescription,
+        order_entry: selectedOrder,
         unit: uom || undefined,
         allow_override: overrideChecked || undefined,
         override_reason: overrideChecked ? overrideReason.trim() : undefined,
-        qty: qty || 1,
+        qty: parsedQty,
         date,
         time,
         dose_notes: notes || undefined,
         is_prn: isPrn || undefined,
+        batch_no: batchNo || undefined,
+        lot_no: lotNo || undefined,
+        dispensing_lot: dispensingLot || undefined,
       })
 
       toast.success(overrideChecked ? 'Given medicine recorded with override' : 'Given medicine recorded')
@@ -466,8 +581,7 @@ export const CreateMedicineGivenModal = ({
           )}
 
           {/* Override section */}
-          {mode === 'prescription' && (
-            <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-4 space-y-3">
+          <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-4 space-y-3">
               <div className="flex items-center gap-2">
                 <svg className="h-4 w-4 text-amber-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                   <path d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -502,136 +616,237 @@ export const CreateMedicineGivenModal = ({
                 </div>
               )}
             </div>
-          )}
 
-          {/* Mode toggle + PRN filter */}
+          {/* PRN filter */}
           <div className="flex flex-wrap items-center gap-4 text-sm font-medium text-slate-600 border-b border-slate-200 pb-3">
-            <label className="inline-flex items-center gap-2 cursor-pointer">
+            <label className="inline-flex items-center gap-2 ml-auto cursor-pointer">
               <input
-                type="radio"
-                className="h-4 w-4 text-emerald-600 focus:ring-emerald-500"
-                checked={mode === 'prescription'}
-                onChange={() => setMode('prescription')}
+                type="checkbox"
+                className="h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
+                checked={isPrn}
+                onChange={(e) => {
+                  setIsPrn(e.target.checked)
+                  setSelectedOrder('')
+                }}
               />
-              From Prescription
+              <span className="text-amber-700 font-semibold">PRN only</span>
+              <span className="text-slate-400 text-xs">(as-needed)</span>
             </label>
-            <label className="inline-flex items-center gap-2 cursor-pointer">
-              <input
-                type="radio"
-                className="h-4 w-4 text-emerald-600 focus:ring-emerald-500"
-                checked={mode === 'direct'}
-                onChange={() => setMode('direct')}
-              />
-              Direct Medicine
-            </label>
-            {mode === 'prescription' && (
-              <label className="inline-flex items-center gap-2 ml-auto cursor-pointer">
-                <input
-                  type="checkbox"
-                  className="h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
-                  checked={isPrn}
-                  onChange={(e) => {
-                    setIsPrn(e.target.checked)
-                    setSelectedOrder('')
-                  }}
-                />
-                <span className="text-amber-700 font-semibold">PRN only</span>
-                <span className="text-slate-400 text-xs">(as-needed)</span>
-              </label>
-            )}
           </div>
 
-          {mode === 'prescription' && (
-            <>
-              <div className="space-y-2">
-                <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Current Prescription
-                </label>
-                <select
-                  value={selectedPrescription}
-                  onChange={(e) => handleChangePrescription(e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-                  disabled={loading || !prescriptions.length}
-                >
-                  {prescriptions.map((p) => (
-                    <option key={p.name} value={p.name}>
-                      {p.name} – {p.patient_name || p.patient}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="space-y-2">
-                <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  {isPrn ? 'PRN Medicine from Prescription' : 'Medicine from Prescription'}
-                </label>
-                {isPrn && (
-                  <div className="flex items-center gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                      <path d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    Showing only PRN (as-needed) medications from this prescription.
-                  </div>
-                )}
-                <select
-                  value={selectedOrder}
-                  onChange={(e) => setSelectedOrder(e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-                  disabled={loading || !orders.length}
-                >
-                  <option value="">
-                    {isPrn && orders.filter((o) => o.is_prn === 1 || o.medication_type === 'PRN').length === 0
-                      ? 'No PRN medicines on this prescription'
-                      : 'Select medicine...'}
-                  </option>
-                  {prescriptionOrders.map((o) => (
-                    <option key={o.name} value={o.name}>
-                      {o.drug_name || o.drug} – {o.dosage}
-                      {o.is_prn === 1 ? ' (PRN)' : ''}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </>
-          )}
-
-          {mode === 'direct' && (
-            <div className="space-y-2">
-              <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Medicine Item
-              </label>
-              <Combobox
-                value={selectedItem}
-                displayValue={itemQuery}
-                placeholder="Search medicine item..."
-                options={items}
-                loading={loadingItems}
-                onQueryChange={(q) => {
-                  setItemQuery(q)
-                  setSelectedItem('')
-                  searchItems(q)
-                }}
-                onOpen={() => {
-                  if (items.length === 0) {
-                    searchItems('')
-                  }
-                }}
-                onSelect={(opt) => {
-                  setSelectedItem(opt.name)
-                  setItemQuery(opt.label || opt.name)
-                  const nextUom = (opt.stock_uom || '').trim()
-                  setUom(nextUom)
-                  setUomQuery(nextUom)
-                }}
-                onClear={() => {
-                  setSelectedItem('')
-                  setItemQuery('')
-                }}
-              />
+          {isPrn && (
+            <div className="flex items-center gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                <path d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Showing only PRN (as-needed) medications from this prescription.
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Current Prescription
+              </label>
+              <select
+                value={selectedPrescription}
+                onChange={(e) => handleChangePrescription(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                disabled={loading || !prescriptions.length}
+              >
+                {prescriptions.map((p) => (
+                  <option key={p.name} value={p.name}>
+                    {p.name} – {p.patient_name || p.patient}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">
+                {isPrn ? 'PRN Medicine' : 'Medicine'}
+              </label>
+              <select
+                value={selectedOrder}
+                onChange={(e) => setSelectedOrder(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                disabled={loading || !orders.length}
+              >
+                <option value="">
+                  {isPrn && orders.filter((o) => o.is_prn === 1 || o.medication_type === 'PRN').length === 0
+                    ? 'No PRN medicines on this prescription'
+                    : 'Select medicine...'}
+                </option>
+                {prescriptionOrders.map((o) => (
+                  <option key={o.name} value={o.name}>
+                    {o.drug_name || o.drug} – {o.dosage}
+                    {o.is_prn === 1 ? ' (PRN)' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">Quantity</label>
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                value={qty}
+                onChange={(e) => setQty(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">UOM</label>
+              <Combobox
+                value={uom}
+                displayValue={uomQuery}
+                placeholder="Search UOM..."
+                options={uoms}
+                loading={loadingUoms}
+                onQueryChange={(q) => {
+                  setUomQuery(q)
+                  setUom('')
+                  searchUomOptions(q)
+                }}
+                onOpen={() => {
+                  if (uoms.length === 0) {
+                    searchUomOptions('')
+                  }
+                }}
+                onSelect={(opt) => {
+                  setUom(opt.name)
+                  setUomQuery(opt.label || opt.name)
+                }}
+                onClear={() => {
+                  setUom('')
+                  setUomQuery('')
+                }}
+              />
+            </div>
+          </div>
+
+          {(loadingStock ||
+            stockOptions?.has_batch_no ||
+            stockOptions?.requires_dispensing_lot ||
+            (stockOptions?.has_serial_no && lots.length > 0)) && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {(stockOptions?.has_batch_no || stockOptions?.requires_dispensing_lot) && (
+                <div className="space-y-2">
+                  <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Batch {stockOptions?.requires_dispensing_lot || stockOptions.batches.length > 0 ? (
+                      <span className="text-red-500">*</span>
+                    ) : null}
+                  </label>
+                  {loadingStock ? (
+                    <div className="rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-500">Loading batches…</div>
+                  ) : stockOptions.batches.length > 0 ? (
+                    <select
+                      value={batchNo}
+                      onChange={(e) => handleBatchChange(e.target.value)}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                    >
+                      <option value="">Select batch…</option>
+                      {stockOptions.batches.map((b) => (
+                        <option key={b.batch_name || b.batch_id} value={b.batch_name || b.batch_id}>
+                          {b.batch_id || b.batch_name}
+                          {b.qty != null ? ` (Qty: ${b.qty})` : ''}
+                          {b.expiry_date ? ` · Exp: ${b.expiry_date}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  ) : stockOptions.requires_dispensing_lot ? (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                      No batches in stock. Select batch after stock is available.
+                    </div>
+                  ) : (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                      No batches in stock for this medicine at the admission warehouse.
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {stockOptions?.requires_dispensing_lot && (
+                <div className="space-y-2">
+                  <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Dispensing Lot {dispensingLots.length > 0 ? <span className="text-red-500">*</span> : null}
+                  </label>
+                  {loadingDispensingLots ? (
+                    <div className="rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-500">Loading dispensing lots…</div>
+                  ) : dispensingLots.length > 0 ? (
+                    <select
+                      value={dispensingLot}
+                      onChange={(e) => handleDispensingLotChange(e.target.value)}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                    >
+                      <option value="">Select dispensing lot…</option>
+                      {dispensingLots.map((lot) => (
+                        <option key={lot.name} value={lot.name}>
+                          {lot.label || lot.serial_no || lot.name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : batchNo || !stockOptions.has_batch_no ? (
+                    <div className="rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-500">
+                      No dispensing lots available for this selection.
+                    </div>
+                  ) : (
+                    <div className="rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-500">
+                      Select a batch first to load dispensing lots.
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {!stockOptions?.requires_dispensing_lot &&
+                stockOptions?.has_serial_no &&
+                (lots.length > 0 || loadingLots) && (
+                <div className="space-y-2">
+                  <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Lot No {lots.length > 0 ? <span className="text-red-500">*</span> : null}
+                  </label>
+                  {loadingLots ? (
+                    <div className="rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-500">Loading lots…</div>
+                  ) : lots.length > 0 ? (
+                    <select
+                      value={lotNo}
+                      onChange={(e) => setLotNo(e.target.value)}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                    >
+                      <option value="">Select lot…</option>
+                      {lots.map((lot) => (
+                        <option key={lot} value={lot}>
+                          {lot}
+                        </option>
+                      ))}
+                    </select>
+                  ) : batchNo ? (
+                    <div className="rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-500">
+                      No lots found for the selected batch.
+                    </div>
+                  ) : null}
+                </div>
+              )}
+
+              {!stockOptions?.requires_dispensing_lot &&
+                stockOptions?.has_batch_no &&
+                batchLabel &&
+                !stockOptions.has_serial_no &&
+                lotNo && (
+                <div className="space-y-2 sm:col-span-2">
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                    Lot / batch label: <span className="font-medium text-slate-800">{lotNo}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">Date</label>
               <input
@@ -650,47 +865,6 @@ export const CreateMedicineGivenModal = ({
                 className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
               />
             </div>
-          </div>
-
-          <div className="space-y-2">
-            <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">Quantity</label>
-            <input
-              type="number"
-              min={0}
-              step="0.01"
-              value={qty}
-              onChange={(e) => setQty(parseFloat(e.target.value) || 0)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">UOM</label>
-            <Combobox
-              value={uom}
-              displayValue={uomQuery}
-              placeholder="Search UOM..."
-              options={uoms}
-              loading={loadingUoms}
-              onQueryChange={(q) => {
-                setUomQuery(q)
-                setUom('')
-                searchUomOptions(q)
-              }}
-              onOpen={() => {
-                if (uoms.length === 0) {
-                  searchUomOptions('')
-                }
-              }}
-              onSelect={(opt) => {
-                setUom(opt.name)
-                setUomQuery(opt.label || opt.name)
-              }}
-              onClear={() => {
-                setUom('')
-                setUomQuery('')
-              }}
-            />
           </div>
 
           <div className="space-y-2">
@@ -717,7 +891,7 @@ export const CreateMedicineGivenModal = ({
           <button
             type="submit"
             onClick={handleSubmit}
-            disabled={loading || !admission || (mode === 'prescription' && (!selectedPrescription || !selectedOrder)) || (mode === 'direct' && !selectedItem)}
+            disabled={loading || !admission || !selectedPrescription || !selectedOrder}
             className="px-4 py-2 text-sm font-semibold rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md shadow-emerald-600/30 hover:from-emerald-500 hover:to-teal-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? (

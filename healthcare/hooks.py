@@ -91,6 +91,8 @@ fixtures = [
                     "Sales Invoice-custom_internal_employee",
                     "Sales Invoice-custom_created_at",
                     "Cost Center-custom_patient_care_type",
+                    
+                    "Delivery Note-custom_patient",
                    
                     
                 ),

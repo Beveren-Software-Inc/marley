@@ -305,7 +305,9 @@ export async function createPrescription(
     body.doctors_signature = data.doctors_signature
   }
   if (data.medication_orders && data.medication_orders.length > 0) {
-    body.medication_orders = data.medication_orders.map((row) => ({
+    body.medication_orders = data.medication_orders.map((row) => {
+      const longFreq = row.is_long_acting ? (row.long_acting_frequency || row.patient_frequency || 'Weekly') : undefined
+      return {
       drug: row.drug,
       dosage: row.dosage,
       uom: row.uom,
@@ -315,14 +317,14 @@ export async function createPrescription(
       date: row.date,
       end_date: row.end_date,
       time: row.time,
-      patient_frequency: row.patient_frequency,
+      patient_frequency: row.is_long_acting ? longFreq : row.patient_frequency,
       is_pink: row.is_pink,
       is_prn: row.is_prn ?? false,
       route_of_administration: row.route_of_administration,
       is_long_acting_medicine: row.is_long_acting ?? false,
-      long_acting_frequency: row.is_long_acting ? (row.long_acting_frequency || 'Weekly') : undefined,
+      long_acting_frequency: longFreq,
       medication_type: row.medication_type,
-    }))
+    }})
   }
   return apiRequest<{ name: string }>(
     '/api/method/healthcare.api.patient_medication_order.create_patient_medication_order',

@@ -13,11 +13,14 @@
   "allow_booking_for",
   "column_break_jdo1",
   "color",
+  "rate",
   "billing_tab",
   "price_list",
   "items",
   "medical_codes_tab",
-  "codification_table"
+  "codification_table",
+  "service_pricing_section",
+  "service_pricing"
  ],
  "fields": [
   {
@@ -99,6 +102,11 @@
    "fieldtype": "Table",
    "label": "Service Pricing",
    "options": "Service Pricing"
+  },
+  {
+   "fieldname": "rate",
+   "fieldtype": "Currency",
+   "label": "Rate"
   }
  ],
  "grid_page_length": 50,
@@ -109,7 +117,7 @@
    "link_fieldname": "appointment_type"
   }
  ],
- "modified": "2025-09-25 12:21:24.681228",
+ "modified": "2026-05-31 09:50:25.574841",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Appointment Type",

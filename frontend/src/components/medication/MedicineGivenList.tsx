@@ -7,6 +7,7 @@ import {
   deleteMedicineGiven,
   convertMissedMedicineToGiven,
   checkMissedMedicineNow,
+  createMedicineGivenSalesOrder,
   type MedicineGivenRow,
   type MissedMedicineRow,
 } from '../../services/medicineGiven'
@@ -23,7 +24,7 @@ interface MedicineGivenListProps {
 }
 
 export const MedicineGivenList = ({ patient, refreshKey }: MedicineGivenListProps) => {
-  const { userCostCenter, activeAdmission } = useCareContext()
+  const { activeAdmission } = useCareContext()
   const [admission, setAdmission] = useState<InpatientRecord | null>(null)
   const [rows, setRows] = useState<MedicineGivenRow[]>([])
   const [missedRows, setMissedRows] = useState<MissedMedicineRow[]>([])
@@ -95,36 +96,26 @@ export const MedicineGivenList = ({ patient, refreshKey }: MedicineGivenListProp
   }
 
   const handleCreateSalesOrder = async () => {
-    if (!userCostCenter) {
-      toast.error('No cost center found for current user')
+    if (!admission?.name) {
+      toast.error('No active inpatient admission found')
       return
     }
 
-    if (!window.confirm('Create sales order for today\'s medicine consumption? This will reduce stock from your warehouse.')) {
+    if (!window.confirm('Create sales order for today\'s medicine consumption? This will reduce stock from the admission cost center warehouse.')) {
       return
     }
 
     setCreatingSalesOrder(true)
     try {
-      const response = await fetch('/api/method/healthcare.api.nursing_inventory.create_daily_medicine_sales_order', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          cost_center: userCostCenter,
-        }),
-      })
-
-      const result = await response.json()
-
-      if (result.message?.sales_order) {
-        toast.success(`Sales Order ${result.message.sales_order} created successfully`)
-      } else if (result.exc) {
-        throw new Error(result.exc)
-      } else {
-        throw new Error('Failed to create sales order')
-      }
+      const result = await createMedicineGivenSalesOrder(admission.name)
+      const dnMsg = result.delivery_note ? ` · Delivery Note ${result.delivery_note}` : ''
+      const linkedMsg =
+        result.linked_rows != null && result.linked_rows > 0
+          ? ` (${result.linked_rows} row${result.linked_rows === 1 ? '' : 's'} linked)`
+          : ''
+      toast.success(`Sales Order ${result.sales_order} created${dnMsg}${linkedMsg}`)
+      const refreshed = await fetchMedicineGiven(admission.name, 100, 0)
+      setRows(refreshed)
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Failed to create sales order'
       toast.error(msg)
@@ -256,7 +247,13 @@ export const MedicineGivenList = ({ patient, refreshKey }: MedicineGivenListProp
                 Qty
               </th>
               <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">
+                Batch / Lot
+              </th>
+              <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">
                 User
+              </th>
+              <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">
+                Billing
               </th>
               <th className="px-3 py-2 text-right text-xs font-semibold text-slate-600 uppercase">
                 Actions
@@ -276,14 +273,60 @@ export const MedicineGivenList = ({ patient, refreshKey }: MedicineGivenListProp
                   {row.qty ?? '-'} {row.unit || ''}
                 </td>
                 <td className="px-3 py-2 text-xs text-slate-700">
+                  {row.batch_no || row.lot_no || row.dispensing_lot ? (
+                    <div className="flex flex-col gap-0.5">
+                      {row.batch_no ? (
+                        <span className="truncate max-w-[120px]" title={row.batch_id || row.batch_no}>
+                          Batch: {row.batch_id || row.batch_no}
+                        </span>
+                      ) : null}
+                      {row.dispensing_lot ? (
+                        <span className="truncate max-w-[120px]" title={row.dispensing_lot}>
+                          Lot: {row.dispensing_lot}
+                        </span>
+                      ) : row.lot_no ? (
+                        <span className="truncate max-w-[120px]" title={row.lot_no}>
+                          Lot: {row.lot_no}
+                        </span>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <span className="text-slate-400">—</span>
+                  )}
+                </td>
+                <td className="px-3 py-2 text-xs text-slate-700">
                   {row.user || '-'}
+                </td>
+                <td className="px-3 py-2 text-xs text-slate-700">
+                  {row.sales_order ? (
+                    <div className="flex flex-col gap-0.5">
+                      <span className="inline-flex w-fit items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-800">
+                        Billed
+                      </span>
+                      <span className="text-[10px] text-slate-500 truncate max-w-[140px]" title={row.sales_order}>
+                        SO: {row.sales_order}
+                      </span>
+                      {row.delivery_note ? (
+                        <span className="text-[10px] text-slate-500 truncate max-w-[140px]" title={row.delivery_note}>
+                          DN: {row.delivery_note}
+                        </span>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <span className="text-[10px] text-slate-400">Pending</span>
+                  )}
                 </td>
                 <td className="px-3 py-2 text-xs text-right">
                   <button
                     type="button"
                     onClick={() => handleDelete(row)}
-                    className={`${iconToolbarBtn} border-red-200 text-red-700 hover:bg-red-50`}
-                    title="Remove this given medicine row"
+                    disabled={Boolean(row.sales_order)}
+                    className={`${iconToolbarBtn} border-red-200 text-red-700 hover:bg-red-50 disabled:opacity-30 disabled:cursor-not-allowed`}
+                    title={
+                      row.sales_order
+                        ? `Linked to ${row.sales_order} — cannot remove`
+                        : 'Remove this given medicine row'
+                    }
                   >
                     <Trash2 className="h-3.5 w-3.5" aria-hidden />
                     <span className="sr-only">Remove</span>

@@ -9,6 +9,8 @@ import math
 
 import frappe
 from frappe import _
+from frappe.query_builder import Field
+from frappe.query_builder.functions import IfNull
 from frappe.utils import cint, cstr, flt, get_link_to_form, rounded, time_diff_in_hours
 from frappe.utils.formatters import format_value
 
@@ -818,7 +820,10 @@ def get_children(doctype, parent=None, company=None, is_root=False):
 	parent_fieldname = "parent_" + doctype.lower().replace(" ", "_")
 	fields = ["name as value", "is_group as expandable", "lft", "rgt"]
 
-	filters = [["ifnull(`{0}`,'')".format(parent_fieldname), "=", "" if is_root else parent]]
+	if is_root:
+		filters = [[IfNull(Field(parent_fieldname), ""), "=", ""]]
+	else:
+		filters = [[parent_fieldname, "=", parent]]
 
 	if is_root:
 		fields += ["service_unit_type"] if doctype == "Healthcare Service Unit" else []
