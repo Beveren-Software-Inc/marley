@@ -45,9 +45,12 @@
   "section_break_dygc",
   "cr_id",
   "cr_date",
+  "old_admission_no",
+  "context_type",
   "column_break_tnod",
   "up_id",
-  "up_date"
+  "up_date",
+  "ip_admission_rec_id"
  ],
  "fields": [
   {
@@ -258,12 +261,27 @@
    "fieldtype": "Link",
    "label": "Admission",
    "options": "Inpatient Admission"
+  },
+  {
+   "fieldname": "old_admission_no",
+   "fieldtype": "Data",
+   "label": "Old Admission No"
+  },
+  {
+   "fieldname": "ip_admission_rec_id",
+   "fieldtype": "Data",
+   "label": "IP admission Rec ID"
+  },
+  {
+   "fieldname": "context_type",
+   "fieldtype": "Data",
+   "label": "Context Type"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-06-01 00:23:46.679746",
+ "modified": "2026-06-01 00:42:24.224108",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "IP Admission Medicine",
