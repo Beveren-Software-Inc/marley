@@ -8,26 +8,123 @@
  "engine": "InnoDB",
  "field_order": [
   "bed_no",
-  "service_unit"
+  "service_unit",
+  "occupancy_status",
+  "column_break_wlql",
+  "currency",
+  "price_per_day",
+  "section_break_etaw",
+  "sta_flg",
+  "cost_center",
+  "column_break_iuay",
+  "gl_code",
+  "section_break_thnl",
+  "cr_id",
+  "cr_date",
+  "column_break_ohgn",
+  "up_id",
+  "up_date"
  ],
  "fields": [
   {
    "fieldname": "bed_no",
    "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Bed No",
    "unique": 1
   },
   {
    "fieldname": "service_unit",
    "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Service Unit",
    "options": "Healthcare Service Unit"
+  },
+  {
+   "default": "BHD",
+   "fieldname": "currency",
+   "fieldtype": "Link",
+   "label": "Currency",
+   "options": "Currency"
+  },
+  {
+   "fieldname": "price_per_day",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Price Per Day"
+  },
+  {
+   "fieldname": "column_break_wlql",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_etaw",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "sta_flg",
+   "fieldtype": "Data",
+   "label": "STA FLG"
+  },
+  {
+   "fieldname": "cost_center",
+   "fieldtype": "Link",
+   "label": "Cost Center",
+   "options": "Cost Center"
+  },
+  {
+   "fieldname": "column_break_iuay",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "gl_code",
+   "fieldtype": "Data",
+   "label": "GL Code"
+  },
+  {
+   "fieldname": "section_break_thnl",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "cr_id",
+   "fieldtype": "Data",
+   "label": "CR ID"
+  },
+  {
+   "fieldname": "cr_date",
+   "fieldtype": "Data",
+   "label": "CR Date"
+  },
+  {
+   "fieldname": "column_break_ohgn",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "up_id",
+   "fieldtype": "Data",
+   "label": "UP ID"
+  },
+  {
+   "fieldname": "up_date",
+   "fieldtype": "Data",
+   "label": "UP Date"
+  },
+  {
+   "fieldname": "occupancy_status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Occupancy Status",
+   "options": "Vacant\nOccupied"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-04-21 15:37:06.720603",
+ "modified": "2026-05-31 17:16:40.019912",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Bed No",
