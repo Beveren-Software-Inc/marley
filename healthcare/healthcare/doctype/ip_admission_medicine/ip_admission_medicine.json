@@ -13,6 +13,7 @@
   "route",
   "strength",
   "unit",
+  "admission",
   "column_break_sgjj",
   "frequency",
   "duration",
@@ -251,12 +252,18 @@
    "fieldname": "up_date",
    "fieldtype": "Data",
    "label": "UP Date"
+  },
+  {
+   "fieldname": "admission",
+   "fieldtype": "Link",
+   "label": "Admission",
+   "options": "Inpatient Admission"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-05-31 23:36:36.906273",
+ "modified": "2026-06-01 00:23:46.679746",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "IP Admission Medicine",
