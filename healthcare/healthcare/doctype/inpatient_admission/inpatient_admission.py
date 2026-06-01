@@ -150,20 +150,18 @@ class InpatientAdmission(Document):
 				)
 
 	def validate_bed_and_service_units(self):
-		"""If a hospital bed is selected, it must belong to one of the chosen service units when units are set."""
+		"""If a bed is selected, it must belong to one of the chosen service units when units are set."""
 		if not self.bed_no:
 			return
 		bed_meta = frappe.db.get_value(
-			"Hospital Bed", self.bed_no, ["service_unit", "is_group", "occupancy_status"], as_dict=True
+			"Bed No", self.bed_no, ["service_unit", "occupancy_status"], as_dict=True
 		)
 		if not bed_meta:
-			frappe.throw(_("Hospital Bed {0} does not exist").format(self.bed_no))
-		if cint(bed_meta.is_group):
-			frappe.throw(_("Please select a bed (leaf row), not a bed group for {0}").format(self.bed_no))
+			frappe.throw(_("Bed No {0} does not exist").format(self.bed_no))
 		unit_rows = [r.service_unit for r in (self.service_unit or []) if getattr(r, "service_unit", None)]
 		if unit_rows and bed_meta.service_unit and bed_meta.service_unit not in unit_rows:
 			frappe.throw(
-				_("Hospital Bed {0} is linked to service unit {1}, which is not in the selected service units.").format(
+				_("Bed No {0} is linked to room {1}, which is not in the selected rooms.").format(
 					frappe.bold(self.bed_no), frappe.bold(bed_meta.service_unit)
 				)
 			)
@@ -372,27 +370,26 @@ def set_ip_child_records(inpatient_record, inpatient_record_child, encounter_chi
 
 
 def vacate_hospital_bed(bed_name):
-	if bed_name and frappe.db.exists("Hospital Bed", bed_name):
-		frappe.db.set_value("Hospital Bed", bed_name, "occupancy_status", "Vacant")
+	"""Set Bed No occupancy to Vacant (kept name for existing callers)."""
+	if bed_name and frappe.db.exists("Bed No", bed_name):
+		frappe.db.set_value("Bed No", bed_name, "occupancy_status", "Vacant")
 
 
 def occupy_hospital_bed(bed_name):
-	if bed_name and frappe.db.exists("Hospital Bed", bed_name):
-		frappe.db.set_value("Hospital Bed", bed_name, "occupancy_status", "Occupied")
+	"""Set Bed No occupancy to Occupied (kept name for existing callers)."""
+	if bed_name and frappe.db.exists("Bed No", bed_name):
+		frappe.db.set_value("Bed No", bed_name, "occupancy_status", "Occupied")
 
 
 def validate_hospital_bed_for_admission(bed_name):
+	"""Validate Bed No is vacant before admission (kept name for existing callers)."""
 	if not bed_name:
 		return
-	row = frappe.db.get_value(
-		"Hospital Bed", bed_name, ["occupancy_status", "is_group"], as_dict=True
-	)
+	row = frappe.db.get_value("Bed No", bed_name, ["occupancy_status"], as_dict=True)
 	if not row:
-		frappe.throw(_("Hospital Bed {0} does not exist").format(bed_name))
-	if cint(row.is_group):
-		frappe.throw(_("Please select a bed (leaf row), not a bed group."))
+		frappe.throw(_("Bed No {0} does not exist").format(bed_name))
 	if row.occupancy_status == "Occupied":
-		frappe.throw(_("Hospital Bed {0} is already occupied.").format(bed_name))
+		frappe.throw(_("Bed No {0} is already occupied.").format(bed_name))
 
 
 def check_out_inpatient(inpatient_record):
@@ -551,7 +548,7 @@ def _collect_admission_service_units(inpatient_record, legacy_service_unit=None)
 		if su and su not in units:
 			units.append(su)
 	if getattr(inpatient_record, "bed_no", None):
-		bed_su = frappe.db.get_value("Hospital Bed", inpatient_record.bed_no, "service_unit")
+		bed_su = frappe.db.get_value("Bed No", inpatient_record.bed_no, "service_unit")
 		if bed_su and bed_su not in units:
 			units.append(bed_su)
 	if legacy_service_unit and legacy_service_unit not in units:

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { fetchInpatientRecord, fetchServiceUnits, fetchHospitalBeds, admitPatient, calculatePackagePrice, type ServiceUnit, type HospitalBed, type InpatientPackage, createAdmissionQuotation, checkAdmissionQuotation } from '../../services/inpatientRecords'
+import { fetchInpatientRecord, fetchServiceUnits, fetchBedNumbers, admitPatient, calculatePackagePrice, type ServiceUnit, type BedNoRecord, type InpatientPackage, createAdmissionQuotation, checkAdmissionQuotation } from '../../services/inpatientRecords'
 import { uploadPatientFile, type PatientDocumentRow } from '../../services/patients'
 import { fetchDocumentTypes } from '../../services/common'
 import { toast } from '../../hooks/useToast'
@@ -219,7 +219,7 @@ const ServiceUnitSelect = ({
   return (
     <div ref={containerRef} className="relative">
       <label className="block text-sm font-medium text-slate-700 mb-1">
-        Service units <span className="text-slate-400 font-normal">(optional, multi-select)</span>
+        Room <span className="text-slate-400 font-normal">(optional, multi-select)</span>
       </label>
 
       {/* Search input */}
@@ -368,10 +368,10 @@ export const AdmissionFormModal = ({
   const [serviceUnitQuery, setServiceUnitQuery] = useState('')
   const [serviceUnitOpen, setServiceUnitOpen] = useState(false)
   const [selectedServiceUnits, setSelectedServiceUnits] = useState<ServiceUnit[]>([])
-  const [hospitalBeds, setHospitalBeds] = useState<HospitalBed[]>([])
-  const [hospitalBedQuery, setHospitalBedQuery] = useState('')
-  const [hospitalBedOpen, setHospitalBedOpen] = useState(false)
-  const [selectedHospitalBed, setSelectedHospitalBed] = useState<HospitalBed | null>(null)
+  const [bedNumbers, setBedNumbers] = useState<BedNoRecord[]>([])
+  const [bedNoQuery, setBedNoQuery] = useState('')
+  const [bedNoOpen, setBedNoOpen] = useState(false)
+  const [selectedBedNo, setSelectedBedNo] = useState<BedNoRecord | null>(null)
   const bedPickerRef = useRef<HTMLDivElement>(null)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
@@ -478,7 +478,7 @@ export const AdmissionFormModal = ({
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (bedPickerRef.current && !bedPickerRef.current.contains(e.target as Node)) {
-        setHospitalBedOpen(false)
+        setBedNoOpen(false)
       }
     }
     document.addEventListener('mousedown', handler)
@@ -486,39 +486,38 @@ export const AdmissionFormModal = ({
   }, [])
 
   useEffect(() => {
-    if (selectedServiceUnitNames.length === 0 && hospitalBedOpen) {
-      setHospitalBedOpen(false)
+    if (selectedServiceUnitNames.length === 0 && bedNoOpen) {
+      setBedNoOpen(false)
     }
-  }, [selectedServiceUnitNames.length, hospitalBedOpen])
+  }, [selectedServiceUnitNames.length, bedNoOpen])
 
   useEffect(() => {
-    if (!hospitalBedOpen) return
+    if (!bedNoOpen) return
     if (selectedServiceUnitNames.length === 0) {
-      setHospitalBeds([])
+      setBedNumbers([])
       return
     }
     const search = async () => {
       try {
-        const results = await fetchHospitalBeds({
+        const results = await fetchBedNumbers({
           occupancyStatus: 'Vacant',
-          search: hospitalBedQuery || undefined,
-          roomCategory: selectedPackage.package_category || undefined,
-          company: record?.company || undefined,
+          search: bedNoQuery || undefined,
+          costCenter: record?.cost_center || undefined,
           serviceUnitNames: selectedServiceUnitNames,
         })
-        setHospitalBeds(results)
+        setBedNumbers(results)
       } catch (err) {
-        console.error('Failed to search hospital beds:', err)
-        setHospitalBeds([])
+        console.error('Failed to search bed numbers:', err)
+        setBedNumbers([])
       }
     }
-    const timeoutId = setTimeout(() => { search() }, hospitalBedQuery.trim() === '' ? 0 : 300)
+    const timeoutId = setTimeout(() => { search() }, bedNoQuery.trim() === '' ? 0 : 300)
     return () => clearTimeout(timeoutId)
-  }, [hospitalBedQuery, hospitalBedOpen, selectedPackage.package_category, record?.company, selectedServiceUnitNames])
+  }, [bedNoQuery, bedNoOpen, record?.cost_center, selectedServiceUnitNames])
 
-  /** Drop bed if its unit is no longer in the multiselect. */
+  /** Drop bed if its room is no longer in the multiselect. */
   useEffect(() => {
-    setSelectedHospitalBed((prev) => {
+    setSelectedBedNo((prev) => {
       if (!prev) return prev
       if (selectedServiceUnitNames.length === 0) return null
       if (prev.service_unit && !selectedServiceUnitNames.includes(prev.service_unit)) return null
@@ -581,7 +580,7 @@ export const AdmissionFormModal = ({
         const roomCategory = selectedPackage.package_category
         const unitsData = await fetchServiceUnits(serviceUnitType, 'Vacant', undefined, roomCategory)
         setServiceUnits(unitsData)
-        setHospitalBeds([])
+        setBedNumbers([])
       } catch (err) {
         setError(err instanceof Error ? err : new Error('Failed to load data'))
       } finally {
@@ -692,7 +691,7 @@ export const AdmissionFormModal = ({
   const resolveQuotationServiceUnit = () =>
     formData.serviceUnit ||
     selectedServiceUnits[0]?.name ||
-    selectedHospitalBed?.service_unit ||
+    selectedBedNo?.service_unit ||
     ''
 
   const handleCreateSalesOrder = async () => {
@@ -702,7 +701,7 @@ export const AdmissionFormModal = ({
     }
     const quotationSu = resolveQuotationServiceUnit()
     if (!quotationSu) {
-      setError(new Error('Select at least one service unit or a hospital bed (with a unit) to create a quotation'))
+      setError(new Error('Select at least one room or a bed (with a room) to create a quotation'))
       return
     }
     try {
@@ -771,7 +770,7 @@ export const AdmissionFormModal = ({
         selectedPackage.name,
         selectedPackage.package_rate,
         selectedPackage.name === '__custom__' ? 0 : 1,
-        selectedHospitalBed?.name ?? null,
+        selectedBedNo?.name ?? null,
       )
 
       onComplete()
@@ -969,7 +968,7 @@ export const AdmissionFormModal = ({
                   </div>
                 </div>
 
-                <div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <ServiceUnitSelect
                     serviceUnits={serviceUnits}
                     selectedServiceUnits={selectedServiceUnits}
@@ -981,79 +980,79 @@ export const AdmissionFormModal = ({
                     primaryUnit={formData.serviceUnit}
                     onSetPrimary={handleSetPrimaryUnit}
                   />
-                </div>
 
-                <div ref={bedPickerRef} className="relative hidden">
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Hospital bed <span className="text-slate-400 font-normal">(optional · vacant beds in selected units only)</span>
-                  </label>
-                  <div className="relative">
-                    <BedDouble className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                    <input
-                      type="hidden"
-                      value={selectedHospitalBed ? `${selectedHospitalBed.bed_no}` : hospitalBedQuery}
-                      onChange={(e) => {
-                        setSelectedHospitalBed(null)
-                        setHospitalBedQuery(e.target.value)
-                        setHospitalBedOpen(true)
-                      }}
-                      onFocus={() => selectedServiceUnitNames.length > 0 && setHospitalBedOpen(true)}
-                      disabled={selectedServiceUnitNames.length === 0}
-                      placeholder={
-                        selectedServiceUnitNames.length === 0
-                          ? 'Select one or more service units first…'
-                          : 'Search vacant beds in selected units…'
-                      }
-                      className="w-full rounded-md border border-slate-300 pl-8 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed"
-                    />
-                  </div>
-                  <p className="text-[11px] text-slate-500 mt-1 hidden">
-                    Beds listed here are vacant and tied to one of the service units you selected above.
-                  </p>
-                  {hospitalBedOpen && selectedServiceUnitNames.length > 0 && (
-                    <div className="absolute z-20 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-52 overflow-auto">
-                      {hospitalBeds.length === 0 ? (
-                        <div className="px-3 py-3 text-xs text-slate-400 text-center">
-                          {hospitalBedQuery.trim() !== '' ? 'No beds match your search' : 'No vacant beds in these units'}
-                        </div>
-                      ) : (
-                        hospitalBeds.map((bed) => (
+                  <div ref={bedPickerRef} className="relative">
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Bed No <span className="text-slate-400 font-normal">(optional)</span>
+                    </label>
+                    <div className="relative">
+                      <BedDouble className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                      <input
+                        type="text"
+                        value={selectedBedNo ? (selectedBedNo.bed_no || selectedBedNo.name) : bedNoQuery}
+                        onChange={(e) => {
+                          setSelectedBedNo(null)
+                          setBedNoQuery(e.target.value)
+                          setBedNoOpen(true)
+                        }}
+                        onFocus={() => selectedServiceUnitNames.length > 0 && setBedNoOpen(true)}
+                        disabled={selectedServiceUnitNames.length === 0}
+                        placeholder={
+                          selectedServiceUnitNames.length === 0
+                            ? 'Select a room first…'
+                            : 'Search vacant beds in selected rooms…'
+                        }
+                        className="w-full rounded-md border border-slate-300 pl-8 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed"
+                      />
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-1">
+                      Only vacant beds linked to the selected room(s) are listed.
+                    </p>
+                    {bedNoOpen && selectedServiceUnitNames.length > 0 && (
+                      <div className="absolute z-20 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-52 overflow-auto">
+                        {bedNumbers.length === 0 ? (
+                          <div className="px-3 py-3 text-xs text-slate-400 text-center">
+                            {bedNoQuery.trim() !== '' ? 'No beds match your search' : 'No vacant beds in these rooms'}
+                          </div>
+                        ) : (
+                          bedNumbers.map((bed) => (
+                            <button
+                              key={bed.name}
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setSelectedBedNo(bed)
+                                setBedNoQuery('')
+                                setBedNoOpen(false)
+                              }}
+                              className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 flex flex-col gap-0.5"
+                            >
+                              <span className="font-medium">{bed.bed_no || bed.name}</span>
+                              <span className="text-xs text-slate-500">
+                                {bed.service_unit ? `Room: ${bed.service_unit}` : 'No room'}
+                                {bed.occupancy_status ? ` · ${bed.occupancy_status}` : ''}
+                              </span>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    )}
+                    {selectedBedNo && (
+                      <div className="mt-2 flex items-center gap-2">
+                        <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium bg-emerald-50 text-emerald-900 border border-emerald-200">
+                          <BedDouble className="w-3 h-3" />
+                          {selectedBedNo.bed_no || selectedBedNo.name}
                           <button
-                            key={bed.name}
                             type="button"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setSelectedHospitalBed(bed)
-                              setHospitalBedQuery('')
-                              setHospitalBedOpen(false)
-                            }}
-                            className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 flex flex-col gap-0.5"
+                            onClick={() => setSelectedBedNo(null)}
+                            className="ml-0.5 rounded-full p-0.5 hover:bg-emerald-200"
                           >
-                            <span className="font-medium">{bed.bed_no}</span>
-                            <span className="text-xs text-slate-500">
-                              {bed.service_unit ? `Unit: ${bed.service_unit}` : 'No service unit'}
-                              {bed.occupancy_status ? ` · ${bed.occupancy_status}` : ''}
-                            </span>
+                            <X className="w-2.5 h-2.5" />
                           </button>
-                        ))
-                      )}
-                    </div>
-                  )}
-                  {selectedHospitalBed && (
-                    <div className="mt-2 flex items-center gap-2">
-                      <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium bg-emerald-50 text-emerald-900 border border-emerald-200">
-                        <BedDouble className="w-3 h-3" />
-                        {selectedHospitalBed.bed_no}
-                        <button
-                          type="button"
-                          onClick={() => setSelectedHospitalBed(null)}
-                          className="ml-0.5 rounded-full p-0.5 hover:bg-emerald-200"
-                        >
-                          <X className="w-2.5 h-2.5" />
-                        </button>
-                      </span>
-                    </div>
-                  )}
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Check In */}

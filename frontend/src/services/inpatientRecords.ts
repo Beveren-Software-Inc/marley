@@ -133,6 +133,9 @@ export interface HospitalBed {
   company?: string
 }
 
+/** Bed No doctype (linked from Inpatient Admission.bed_no). */
+export type BedNoRecord = Pick<HospitalBed, 'name' | 'bed_no' | 'service_unit' | 'occupancy_status'>
+
 export interface ChecklistItem {
   action_required: string
   department?: string
@@ -300,6 +303,34 @@ export async function fetchServiceUnits(
   }
 }
 
+export async function fetchBedNumbers(
+  options?: {
+    occupancyStatus?: string
+    search?: string
+    costCenter?: string
+    /** Only beds linked to one of these Healthcare Service Unit / room names. */
+    serviceUnitNames?: string[]
+  }
+) {
+  const params = new URLSearchParams()
+  if (options?.occupancyStatus) params.append('occupancy_status', options.occupancyStatus)
+  if (options?.search) params.append('search', options.search)
+  if (options?.costCenter) params.append('cost_center', options.costCenter)
+  if (options?.serviceUnitNames !== undefined) {
+    params.append('service_units', JSON.stringify(options.serviceUnitNames))
+  }
+
+  const url = `/api/method/healthcare.api.inpatient_admission.get_bed_numbers${params.toString() ? `?${params.toString()}` : ''}`
+  const response = await fetch(url)
+  const resData = await response.json()
+
+  if (resData?.message && Array.isArray(resData.message)) {
+    return resData.message as BedNoRecord[]
+  }
+  return []
+}
+
+/** @deprecated Use fetchBedNumbers — kept for older callers. */
 export async function fetchHospitalBeds(
   options?: {
     occupancyStatus?: string
@@ -307,28 +338,15 @@ export async function fetchHospitalBeds(
     roomCategory?: string
     company?: string
     costCenter?: string
-    /** Only beds linked to one of these Healthcare Service Unit names (vacant + in list). */
     serviceUnitNames?: string[]
   }
 ) {
-  const params = new URLSearchParams()
-  if (options?.occupancyStatus) params.append('occupancy_status', options.occupancyStatus)
-  if (options?.search) params.append('search', options.search)
-  if (options?.roomCategory) params.append('room_category', options.roomCategory)
-  if (options?.company) params.append('company', options.company)
-  if (options?.costCenter) params.append('cost_center', options.costCenter)
-  if (options?.serviceUnitNames !== undefined) {
-    params.append('service_units', JSON.stringify(options.serviceUnitNames))
-  }
-
-  const url = `/api/method/healthcare.api.inpatient_admission.get_hospital_beds${params.toString() ? `?${params.toString()}` : ''}`
-  const response = await fetch(url)
-  const resData = await response.json()
-
-  if (resData?.message && Array.isArray(resData.message)) {
-    return resData.message as HospitalBed[]
-  }
-  return []
+  return fetchBedNumbers({
+    occupancyStatus: options?.occupancyStatus,
+    search: options?.search,
+    costCenter: options?.costCenter,
+    serviceUnitNames: options?.serviceUnitNames,
+  })
 }
 
 export interface TransferToCostCenterResult {
@@ -514,6 +532,7 @@ export async function admitPatient(
   ratePerDay?: number,
   standardPackage?: 0 | 1,
   hospitalBed?: string | null,
+  bedNo?: string | null,
 ) {
   const { ensureCSRF } = await import('./apiClient')
   const csrf = await ensureCSRF()
@@ -534,7 +553,8 @@ export async function admitPatient(
         expected_discharge: expectedDischarge || null,
         patient_ip_category: patientIpCategory || null,
         service_units: allServiceUnits && allServiceUnits.length > 0 ? allServiceUnits : null,
-        hospital_bed: hospitalBed || null,
+        hospital_bed: hospitalBed || bedNo || null,
+        bed_no: bedNo || hospitalBed || null,
         patient_documents: patientDocuments && patientDocuments.length > 0
           ? patientDocuments
           : null,

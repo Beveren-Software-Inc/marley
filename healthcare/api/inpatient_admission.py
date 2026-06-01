@@ -604,7 +604,7 @@ def _resolve_quotation_service_unit(admission_name, explicit_service_unit=None):
 		return None
 	bed = frappe.db.get_value("Inpatient Admission", admission_name, "bed_no")
 	if bed:
-		su = frappe.db.get_value("Hospital Bed", bed, "service_unit")
+		su = frappe.db.get_value("Bed No", bed, "service_unit")
 		if su:
 			return su
 	rows = frappe.get_all(
@@ -617,21 +617,17 @@ def _resolve_quotation_service_unit(admission_name, explicit_service_unit=None):
 
 
 @frappe.whitelist()
-def get_hospital_beds(
+def get_bed_numbers(
 	occupancy_status=None,
 	search=None,
-	room_category=None,
-	company=None,
 	cost_center=None,
 	service_units=None,
 ):
-	"""Vacant hospital beds for admission UI (each bed links to a Healthcare Service Unit).
+	"""Vacant Bed No records for admission UI (each links to a Healthcare Service Unit / room).
 
-	If ``service_units`` is provided (list or JSON array string), only beds whose ``service_unit``
-	is in that list are returned — use this after the user selects wards/units in the admit UI.
+	If ``service_units`` is provided (list or JSON array string), only beds in those rooms are returned.
 	Pass an empty list to get no beds.
 	"""
-	# Resolve allowed Healthcare Service Unit names (intersection of optional filters)
 	allowed_su = None
 
 	if service_units is not None:
@@ -658,59 +654,59 @@ def get_hospital_beds(
 		else:
 			allowed_su = su_with_cc
 
-	filters = {"is_group": 0}
-	if occupancy_status:
-		filters["occupancy_status"] = occupancy_status
-	else:
-		filters["occupancy_status"] = "Vacant"
-	if room_category:
-		filters["room_category"] = room_category
-	if company:
-		filters["company"] = company
-
-	if allowed_su is not None:
-		filters["service_unit"] = ["in", allowed_su]
-
-	out_fields = ["name", "bed_no", "service_unit", "occupancy_status", "room_category", "company"]
+	occ = occupancy_status or "Vacant"
+	out_fields = ["name", "bed_no", "service_unit", "occupancy_status"]
 
 	if search:
 		txt = f"%{search}%"
-		occ = filters.get("occupancy_status", "Vacant")
-		conditions = ["is_group = 0", "occupancy_status = %(occ)s", "(bed_no LIKE %(txt)s OR name LIKE %(txt)s)"]
+		conditions = ["occupancy_status = %(occ)s", "(bed_no LIKE %(txt)s OR name LIKE %(txt)s)"]
 		params = {"occ": occ, "txt": txt}
-		if room_category:
-			conditions.append("room_category = %(room_category)s")
-			params["room_category"] = room_category
-		if company:
-			conditions.append("company = %(company)s")
-			params["company"] = company
-		if filters.get("service_unit"):
-			su_list = filters["service_unit"][1]
-			if not su_list:
-				return []
-			placeholders = ", ".join(f"%(su{i})s" for i in range(len(su_list)))
+		if allowed_su is not None:
+			placeholders = ", ".join(f"%(su{i})s" for i in range(len(allowed_su)))
 			conditions.append(f"service_unit in ({placeholders})")
-			for i, n in enumerate(su_list):
+			for i, n in enumerate(allowed_su):
 				params[f"su{i}"] = n
 		where_sql = " AND ".join(conditions)
 		return frappe.db.sql(
 			f"""
-			select name, bed_no, service_unit, occupancy_status, room_category, company
-			from `tabHospital Bed`
-			where {where_sql}
-			order by bed_no asc
-			limit 50
+			SELECT name, bed_no, service_unit, occupancy_status
+			FROM `tabBed No`
+			WHERE {where_sql}
+			ORDER BY bed_no ASC
+			LIMIT 50
 			""",
 			params,
 			as_dict=True,
 		)
 
+	filters = {"occupancy_status": occ}
+	if allowed_su is not None:
+		filters["service_unit"] = ["in", allowed_su]
+
 	return frappe.get_all(
-		"Hospital Bed",
+		"Bed No",
 		filters=filters,
 		fields=out_fields,
 		order_by="bed_no asc",
 		limit=50,
+	)
+
+
+@frappe.whitelist()
+def get_hospital_beds(
+	occupancy_status=None,
+	search=None,
+	room_category=None,
+	company=None,
+	cost_center=None,
+	service_units=None,
+):
+	"""Backward-compatible alias — returns Bed No records for the admission UI."""
+	return get_bed_numbers(
+		occupancy_status=occupancy_status,
+		search=search,
+		cost_center=cost_center,
+		service_units=service_units,
 	)
 
 
@@ -1104,6 +1100,7 @@ def admit_patient(
 	patient_relatives=None,
 	service_units=None,
 	hospital_bed=None,
+	bed_no=None,
 	inpatient_package=None,
 	rate_per_day=None,
 	standard_package=None,
@@ -1136,10 +1133,11 @@ def admit_patient(
 			if su_name:
 				record.append("service_unit", {"service_unit": su_name})
 
-	if hospital_bed:
-		record.bed_no = hospital_bed
+	selected_bed = bed_no or hospital_bed
+	if selected_bed:
+		record.bed_no = selected_bed
 
-	# Perform admit (sets status, occupancy, hospital bed, service units)
+	# Perform admit (sets status, occupancy, bed no, service units)
 	record.admit(service_unit, check_in, expected_discharge)
 
 	# Save patient documents if provided (stored as e-signatures)
