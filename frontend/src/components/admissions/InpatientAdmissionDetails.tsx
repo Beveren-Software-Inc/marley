@@ -290,7 +290,7 @@ const AdmissionDetailsSection = ({ record }: { record: InpatientRecord }) => {
             ? record.service_unit_selections.map((r) => r.service_unit).filter(Boolean).join(', ')
             : undefined}
         />
-        <Field label="Hospital Bed" value={record.bed_no} />
+        <Field label="Bed No" value={record.bed_no} />
         <Field label="Admission By CPR" value={record.admission_by_cpr} />
         <Field label="Reference By" value={record.reference_by} />
       </div>

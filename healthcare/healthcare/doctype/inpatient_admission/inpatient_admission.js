@@ -128,8 +128,8 @@ let admit_patient_dialog = function(frm) {
 			{fieldtype: 'Link', label: 'Service Unit', fieldname: 'service_unit',
 				options: 'Healthcare Service Unit'
 			},
-			{fieldtype: 'Link', label: 'Hospital Bed', fieldname: 'hospital_bed',
-				options: 'Hospital Bed'
+			{fieldtype: 'Link', label: 'Bed No', fieldname: 'hospital_bed',
+				options: 'Bed No'
 			},
 			{fieldtype: 'Datetime', label: 'Admission Datetime', fieldname: 'check_in',
 				reqd: 1, default: frappe.datetime.now_datetime()
