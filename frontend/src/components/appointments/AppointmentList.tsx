@@ -723,6 +723,7 @@ function appointmentCardMetaFields(apt: Appointment): readonly CardMetaField[] {
     ['Type', apt.appointment_type],
     ['Practitioner', apt.practitioner_name || apt.practitioner],
     ['Department', apt.department],
+    ['Cost center', apt.cost_center],
     ['Service unit', apt.service_unit],
     ['Patient', apt.patient_name || apt.patient],
     ['Notes', apt.notes],
@@ -1433,7 +1434,7 @@ export const AppointmentList = ({
           Showing {appointments.length} of {totalCount} appointment{totalCount !== 1 ? 's' : ''}
           {hasActiveFilters && ' (filtered)'}
           {cardCompactLayout
-            ? ' — tap or hover ⓘ for appointment ID, type, practitioner, and more; use ↗ for full list'
+            ? ' — tap or hover ⓘ for appointment ID, type, cost center, practitioner, and more; use ↗ for full list'
             : ''}
         </p>
       </div>
@@ -1525,7 +1526,7 @@ export const AppointmentList = ({
             className={
               cardHorizontalScroll
                 ? 'w-max min-w-full table-auto'
-                : 'w-full min-w-[960px] table-auto'
+                : 'w-full min-w-[1080px] table-auto'
             }
           >
             <thead className="bg-slate-50 border-b border-slate-200">
@@ -1549,6 +1550,9 @@ export const AppointmentList = ({
                 )}
                 <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap min-w-[6rem]">
                   Type
+                </th>
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap min-w-[8rem]">
+                  Cost Center
                 </th>
                 <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap min-w-[7rem]">
                   Status
@@ -1614,6 +1618,12 @@ export const AppointmentList = ({
                       </td>
                     )}
                     <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">{apt.appointment_type || '-'}</td>
+                    <td
+                      className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap max-w-[12rem] truncate"
+                      title={apt.cost_center || undefined}
+                    >
+                      {apt.cost_center || '-'}
+                    </td>
                     <td className="px-3 py-2.5 whitespace-nowrap">
                       {apt.status
                         ? <StatusPill status={apt.status} color={getStatusColor(apt.status)} />

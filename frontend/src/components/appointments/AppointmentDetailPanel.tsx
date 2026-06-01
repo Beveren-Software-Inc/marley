@@ -283,6 +283,7 @@ export function AppointmentDetailPanel({
         <InfoRow label="Type" value={str(doc.appointment_type)} />
         <InfoRow label="Status" value={status} />
         {!!doc.service_unit && <InfoRow label="Service Unit" value={str(doc.service_unit)} />}
+        {!!doc.cost_center && <InfoRow label="Cost Center" value={str(doc.cost_center)} />}
         {!!doc.company && <InfoRow label="Company" value={str(doc.company)} />}
         {!!doc.source && <InfoRow label="Source" value={str(doc.source)} />}
       </Section>

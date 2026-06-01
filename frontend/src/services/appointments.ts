@@ -12,6 +12,7 @@ export interface Appointment {
   practitioner?: string
   practitioner_name?: string
   company?: string
+  cost_center?: string
   service_unit?: string
   notes?: string
   temporary_patient_name?: string
@@ -39,6 +40,7 @@ export interface CreateAppointmentData {
   appointment_date: string
   appointment_time?: string
   practitioner?: string
+  cost_center?: string
   /** Duration in minutes (custom booking or slot override). */
   duration?: number
   temporary_patient_name?: string
@@ -107,6 +109,31 @@ export async function fetchAllAppointments(
     return resData.message as AppointmentPage
   }
   return { data: [], total_count: 0 }
+}
+
+export interface AppointmentCostCenterOptions {
+  cost_centers: { name: string; label: string }[]
+  default_cost_center: string
+  restricted: boolean
+  locked: boolean
+}
+
+export async function fetchAppointmentCostCenterOptions(): Promise<AppointmentCostCenterOptions> {
+  const response = await fetch(
+    '/api/method/healthcare.api.patient_appointment.get_appointment_cost_center_options',
+    { credentials: 'include' }
+  )
+  const resData = await response.json()
+  const msg = resData?.message
+  if (msg && typeof msg === 'object') {
+    return msg as AppointmentCostCenterOptions
+  }
+  return {
+    cost_centers: [],
+    default_cost_center: '',
+    restricted: false,
+    locked: false,
+  }
 }
 
 export async function createAppointment(data: CreateAppointmentData): Promise<Appointment> {

@@ -10,11 +10,17 @@ import {
 } from '../ui/CreateModalChrome'
 import {
   createAppointment,
+  fetchAppointmentCostCenterOptions,
   getAvailabilityData,
   type SlotDetail,
-  type AvailabilitySlotInfo
+  type AvailabilitySlotInfo,
 } from '../../services/appointments'
-import { fetchHealthcarePractitioners, fetchAppointmentTypes, getCurrentUserPractitioner, type LinkFieldOption } from '../../services/common'
+import {
+  fetchHealthcarePractitioners,
+  fetchAppointmentTypes,
+  getCurrentUserPractitioner,
+  type LinkFieldOption,
+} from '../../services/common'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
 import { toast } from '../../hooks/useToast'
 import { X } from 'lucide-react'
@@ -162,6 +168,12 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
   const [customDurationMinutes, setCustomDurationMinutes] = useState('30')
   const [appointmentTypeDuration, setAppointmentTypeDuration] = useState<number | null>(null)
 
+  const [costCenter, setCostCenter] = useState('')
+  const [costCenterOptions, setCostCenterOptions] = useState<LinkFieldOption[]>([])
+  const [costCenterLoading, setCostCenterLoading] = useState(false)
+  /** True when user has exactly one permitted cost center (User Permission). */
+  const [costCenterLocked, setCostCenterLocked] = useState(false)
+
   const parseCustomDurationMinutes = (raw: string, fallback = 30): number => {
     const n = parseInt(raw.trim(), 10)
     return Number.isFinite(n) && n >= 1 ? n : fallback
@@ -241,6 +253,7 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
         appointment_date: formData.appointment_date,
         appointment_time: appointmentTime,
         practitioner: formData.practitioner || undefined,
+        cost_center: costCenter.trim() || undefined,
         duration: durationMinutes,
         temporary_patient_name: isWalkIn ? temporaryPatientName.trim() : undefined,
         temporary_mobile_no: isWalkIn ? temporaryMobileNo.trim() || undefined : undefined,
@@ -298,6 +311,42 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
     }
     loadOptions()
   }, [initialPractitioner])
+
+  useEffect(() => {
+    let cancelled = false
+    const loadCostCenters = async () => {
+      setCostCenterLoading(true)
+      try {
+        const opts = await fetchAppointmentCostCenterOptions()
+        if (cancelled) return
+
+        const centers: LinkFieldOption[] = (opts.cost_centers || []).map((cc) => ({
+          name: cc.name,
+          label: cc.label || cc.name,
+        }))
+        setCostCenterOptions(centers)
+        setCostCenterLocked(Boolean(opts.locked))
+
+        const defaultCc = opts.default_cost_center || ''
+        setCostCenter((prev) => {
+          if (prev && centers.some((c) => c.name === prev)) return prev
+          return defaultCc
+        })
+      } catch (err) {
+        console.error('Failed to load cost centers:', err)
+        if (!cancelled) {
+          setCostCenterOptions([])
+          setCostCenterLocked(false)
+        }
+      } finally {
+        if (!cancelled) setCostCenterLoading(false)
+      }
+    }
+    loadCostCenters()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   // Auto-load slots when practitioner and date are set
   useEffect(() => {
@@ -687,6 +736,38 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
                 </div>
               )}
             </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Cost Center</label>
+            <select
+              value={costCenter}
+              onChange={(e) => setCostCenter(e.target.value)}
+              disabled={costCenterLoading || costCenterLocked}
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary bg-white disabled:bg-slate-50 disabled:text-slate-700"
+            >
+              <option value="">
+                {costCenterLoading ? 'Loading cost centers…' : 'Select cost center'}
+              </option>
+              {costCenterOptions.map((cc) => (
+                <option key={cc.name} value={cc.name}>
+                  {cc.label || cc.name}
+                </option>
+              ))}
+            </select>
+            {costCenterLocked ? (
+              <p className="text-[11px] text-slate-500 mt-1">
+                Assigned from your user permission (only one cost center linked to your account).
+              </p>
+            ) : costCenter && costCenterOptions.length > 1 ? (
+              <p className="text-[11px] text-slate-500 mt-1">
+                Pre-selected from your linked cost center. You can choose another permitted cost center.
+              </p>
+            ) : costCenterOptions.length > 0 && costCenterOptions.length <= 10 ? (
+              <p className="text-[11px] text-slate-500 mt-1">
+                Showing cost centers linked to your user permissions.
+              </p>
+            ) : null}
           </div>
 
           <div>
