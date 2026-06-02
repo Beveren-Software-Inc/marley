@@ -30,7 +30,7 @@
   "default": 1,
   "docstatus": 0,
   "doctype": "Patient Assessment Template",
-  "modified": "2026-03-30 13:09:04.828775",
+  "modified": "2026-06-02 16:26:24.091242",
   "name": "Default Patient Evaluation",
   "parameters": [
    {
@@ -74,6 +74,21 @@
    },
    {
     "assessment_parameter": "See patient is oriented to place, person and time."
+   },
+   {
+    "assessment_parameter": "Patient Came By"
+   },
+   {
+    "assessment_parameter": "History DSCP"
+   },
+   {
+    "assessment_parameter": "Oriented"
+   },
+   {
+    "assessment_parameter": "Abnormality"
+   },
+   {
+    "assessment_parameter": "Others"
    }
   ],
   "scale_max": 0,

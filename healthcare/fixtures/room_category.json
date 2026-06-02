@@ -1,5 +1,54 @@
 [
  {
+  "custom_room_type_no": 5,
+  "docstatus": 0,
+  "doctype": "Room Category",
+  "modified": "2026-05-31 15:24:14.834044",
+  "name": "Tripple Suits",
+  "room_category_name": "Tripple Suits"
+ },
+ {
+  "custom_room_type_no": 1,
+  "docstatus": 0,
+  "doctype": "Room Category",
+  "modified": "2026-05-31 15:24:03.481128",
+  "name": "Private Room",
+  "room_category_name": "Private Room"
+ },
+ {
+  "custom_room_type_no": 2,
+  "docstatus": 0,
+  "doctype": "Room Category",
+  "modified": "2026-05-31 15:23:53.633791",
+  "name": "Delux Suits",
+  "room_category_name": "Delux Suits"
+ },
+ {
+  "custom_room_type_no": 7,
+  "docstatus": 0,
+  "doctype": "Room Category",
+  "modified": "2026-05-31 15:23:45.533200",
+  "name": "Royal Suits",
+  "room_category_name": "Royal Suits"
+ },
+ {
+  "custom_room_type_no": 3,
+  "docstatus": 0,
+  "doctype": "Room Category",
+  "modified": "2026-05-31 15:23:37.301659",
+  "name": "Single Suits",
+  "room_category_name": "Single Suits"
+ },
+ {
+  "custom_room_type_no": 4,
+  "docstatus": 0,
+  "doctype": "Room Category",
+  "modified": "2026-05-31 15:25:19.392373",
+  "name": "Double Suits",
+  "room_category_name": "Double Suits"
+ },
+ {
+  "custom_room_type_no": 0,
   "docstatus": 0,
   "doctype": "Room Category",
   "modified": "2026-01-18 17:48:28.809184",
@@ -7,6 +56,7 @@
   "room_category_name": "VIP"
  },
  {
+  "custom_room_type_no": 0,
   "docstatus": 0,
   "doctype": "Room Category",
   "modified": "2026-01-18 17:48:37.404448",
@@ -14,6 +64,7 @@
   "room_category_name": "SIngle"
  },
  {
+  "custom_room_type_no": 0,
   "docstatus": 0,
   "doctype": "Room Category",
   "modified": "2026-01-18 17:48:41.974649",
@@ -21,6 +72,7 @@
   "room_category_name": "Double"
  },
  {
+  "custom_room_type_no": 0,
   "docstatus": 0,
   "doctype": "Room Category",
   "modified": "2026-01-18 17:48:47.760184",
