@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import frappe
 from frappe import _
-from frappe.utils import cint, now_datetime
+from frappe.utils import cint, now_datetime, nowdate, get_time, getdate
+from healthcare.api.utils.api_utility import get_next_transaction_number
 
 # ── Batch sizes (tune for ~1h runs on large datasets) ─────────────────────────
 PATIENT_BATCH_SIZE = 2000
@@ -13,6 +14,8 @@ VISIT_BATCH_SIZE = 25
 APPOINTMENT_BATCH_SIZE = 2000
 MEDICATION_ORDER_BATCH_SIZE = 25
 DISCHARGE_BATCH_SIZE = 10
+IP_ADMISSION_MEDICINE_BATCH_SIZE = 50
+IP_ADMISSION_MEDICINE_SHEET_BATCH_SIZE = 200
 
 JOB_LOCK_SECONDS = 7200  # 2 hours
 ALL_CUSTOMER_GROUP_NAMES = ("All Customer Groups", "All Customer Group")
@@ -205,6 +208,44 @@ def start_discharge_submit_migration() -> dict:
 	return {
 		"ok": True,
 		"message": _("Submit all draft Discharge documents job started in the background."),
+	}
+
+
+@frappe.whitelist()
+def start_ip_admission_medicine_link_migration() -> dict:
+	"""Create/update Patient Medication Orders from imported IP Admission Medicine rows."""
+	_require_admin()
+	_acquire_lock("ip_admission_medicine_link")
+	_set_progress("ip_admission_medicine_link", 0)
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_ip_admission_medicine_link_batch",
+		offset=0,
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_ip_admission_medicine_link",
+	)
+	return {
+		"ok": True,
+		"message": _("IP Admission Medicine linking job started in the background."),
+	}
+
+
+@frappe.whitelist()
+def start_ip_admission_medicine_sheet_map_migration() -> dict:
+	"""Map IP Admission Medicine Sheet rows into Admission Detail child tables."""
+	_require_admin()
+	_acquire_lock("ip_admission_medicine_sheet_map")
+	_set_progress("ip_admission_medicine_sheet_map", 0)
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_ip_admission_medicine_sheet_map_batch",
+		offset=0,
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_ip_admission_medicine_sheet_map",
+	)
+	return {
+		"ok": True,
+		"message": _("IP Admission Medicine Sheet mapping job started in the background."),
 	}
 
 
@@ -741,4 +782,597 @@ def process_patient_history_import_batch(offset: int = 0) -> None:
 		_release_lock(job)
 		frappe.cache().delete_value(_patient_history_import_admissions_cache_key())
 		frappe.cache().delete_value(_patient_history_import_grouped_cache_key())
+		raise
+
+
+def _resolve_item_00_01_name(code_value) -> str | None:
+	"""Resolve ITEM_00_01 link name from incoming medicine code."""
+	if code_value in (None, ""):
+		return None
+	code_str = str(code_value).strip()
+	if not code_str:
+		return None
+	if frappe.db.exists("ITEM_00_01", code_str):
+		return code_str
+	if code_str.endswith(".0"):
+		trimmed = code_str[:-2]
+		if frappe.db.exists("ITEM_00_01", trimmed):
+			return trimmed
+	return None
+
+
+def _normalize_time_value(raw_time) -> str:
+	"""Normalize imported time values to HH:MM:SS for MariaDB TIME column."""
+	if raw_time in (None, ""):
+		return "00:00:00"
+	try:
+		return str(get_time(str(raw_time).strip()))
+	except Exception:
+		return "00:00:00"
+
+
+def _get_or_create_pmo_for_admission(admission_name: str, line_rows: list[dict]) -> tuple:
+	"""Return PMO doc and created flag for one admission."""
+	draft_name = frappe.db.get_value(
+		"Patient Medication Order",
+		{
+			"inpatient_record": admission_name,
+			"care_context": "Inpatient Admission",
+			"docstatus": 0,
+		},
+		"name",
+		order_by="modified desc",
+	)
+	if draft_name:
+		return frappe.get_doc("Patient Medication Order", draft_name), False
+
+	adm = frappe.db.get_value(
+		"Inpatient Admission",
+		admission_name,
+		[
+			"patient",
+			"patient_name",
+			"company",
+			"primary_practitioner",
+			"secondary_practitioner",
+			"admission_date",
+			"scheduled_date",
+		],
+		as_dict=True,
+	)
+	if not adm:
+		frappe.throw(_("Inpatient Admission {0} not found").format(admission_name))
+
+	doc = frappe.new_doc("Patient Medication Order")
+	doc.trans_no = get_next_transaction_number("Patient Medication Order", fieldname="trans_no")
+	doc.care_context = "Inpatient Admission"
+	doc.inpatient_record = admission_name
+	doc.patient = adm.get("patient")
+	doc.patient_name = adm.get("patient_name")
+	doc.company = adm.get("company")
+	doc.practitioner = adm.get("primary_practitioner") or adm.get("secondary_practitioner")
+	doc.posting_date = nowdate()
+	doc.start_date = (
+		line_rows[0].get("start_date")
+		or adm.get("admission_date")
+		or adm.get("scheduled_date")
+		or nowdate()
+	)
+	doc.written_inpatient_admission = admission_name
+	doc.old_admission_no = line_rows[0].get("old_admission_no")
+	doc.ip_admission_rec_id = line_rows[0].get("ip_admission_rec_id")
+	return doc, True
+
+
+def process_ip_admission_medicine_link_batch(offset: int = 0) -> None:
+	job = "ip_admission_medicine_link"
+	try:
+		admissions = frappe.db.sql(
+			"""
+			SELECT DISTINCT admission
+			FROM `tabIP Admission Medicine`
+			WHERE admission IS NOT NULL AND admission != ''
+			ORDER BY admission
+			LIMIT %s OFFSET %s
+			""",
+			(IP_ADMISSION_MEDICINE_BATCH_SIZE, offset),
+			as_dict=True,
+		)
+
+		created_orders = 0
+		updated_orders = 0
+		linked_rows = 0
+		skipped_rows = 0
+
+		for adm_row in admissions:
+			admission_name = adm_row.get("admission")
+			line_rows = frappe.get_all(
+				"IP Admission Medicine",
+				filters={"admission": admission_name},
+				fields=[
+					"name",
+					"medicine",
+					"dose_notes",
+					"dose_note",
+					"notes",
+					"route",
+					"strength",
+					"unit",
+					"frequency",
+					"duration",
+					"duration_type",
+					"qty",
+					"start_date",
+					"end_date",
+					"trans_date",
+					"trans_time",
+					"status",
+					"effective_status",
+					"stop_reason",
+					"stop_by",
+					"stop_date",
+					"old_admission_no",
+					"ip_admission_rec_id",
+				],
+				order_by="trans_date asc, creation asc",
+			)
+			if not line_rows:
+				continue
+
+			doc, created = _get_or_create_pmo_for_admission(admission_name, line_rows)
+			if created:
+				created_orders += 1
+
+			existing_trans_nums = {
+				(c.trans_num or "").strip()
+				for c in (doc.get("medication_orders") or [])
+				if (c.trans_num or "").strip()
+			}
+			added_any = False
+
+			for row in line_rows:
+				trans_link = (row.get("name") or "").strip()
+				if not trans_link:
+					skipped_rows += 1
+					continue
+				if trans_link in existing_trans_nums:
+					skipped_rows += 1
+					continue
+
+				old_code = _resolve_item_00_01_name(row.get("medicine"))
+				old_name = None
+				if old_code:
+					old_name = frappe.db.get_value("ITEM_00_01", old_code, "item_nam")
+				if not old_name:
+					old_name = (row.get("medicine") or "").strip() or None
+
+				entry = doc.append("medication_orders", {})
+				entry.trans_num = trans_link
+				entry.old_medicine_code = old_code
+				entry.old_medicine_name = old_name
+				entry.dosage = (row.get("strength") or "").strip()
+				entry.uom = (row.get("unit") or "").strip()
+				entry.no_of_days = cint(row.get("duration") or 0)
+				entry.quantity = row.get("qty") or 0
+				entry.instructions = (
+					(row.get("notes") or "").strip()
+					or (row.get("dose_note") or "").strip()
+					or (row.get("dose_notes") or "").strip()
+				)
+				entry.date = row.get("start_date") or row.get("trans_date") or doc.start_date
+				entry.end_date = row.get("end_date")
+				entry.time = _normalize_time_value(row.get("trans_time"))
+				entry.written_frequency = (row.get("frequency") or "").strip()
+				entry.duration = str(row.get("duration") or "")
+				entry.trans_type = (row.get("duration_type") or "").strip()
+				entry.redundancy_type = (row.get("effective_status") or "").strip()
+				entry.dc = (row.get("status") or "").strip()
+
+				stopped_reason = (row.get("stop_reason") or "").strip()
+				effective_status = (row.get("effective_status") or "").strip().lower()
+				status = (row.get("status") or "").strip().lower()
+				is_stopped = bool(
+					stopped_reason
+					or status == "stopped"
+					or effective_status == "stopped"
+				)
+				entry.stopped = 1 if is_stopped else 0
+				entry.reason_stopped = stopped_reason
+				entry.stopped_date = row.get("stop_date")
+				entry.stop_by = (row.get("stop_by") or "").strip() or None
+
+				existing_trans_nums.add(trans_link)
+				linked_rows += 1
+				added_any = True
+
+			if added_any:
+				doc.flags.ignore_mandatory = True
+				doc.save(ignore_permissions=True)
+				if not created:
+					updated_orders += 1
+
+		frappe.db.commit()
+
+		processed = offset + len(admissions)
+		_set_progress(
+			job,
+			processed,
+			created_orders=created_orders,
+			updated_orders=updated_orders,
+			linked_rows=linked_rows,
+			skipped_rows=skipped_rows,
+		)
+
+		if len(admissions) >= IP_ADMISSION_MEDICINE_BATCH_SIZE:
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_ip_admission_medicine_link_batch",
+				offset=processed,
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_ip_admission_medicine_link_{processed}",
+			)
+		else:
+			_set_progress(
+				job,
+				processed,
+				done=True,
+				created_orders=created_orders,
+				updated_orders=updated_orders,
+				linked_rows=linked_rows,
+				skipped_rows=skipped_rows,
+			)
+			_release_lock(job)
+			frappe.log_error(
+				title="IP Admission Medicine link migration complete",
+				message=(
+					f"Processed admissions: {processed}, created PMO: {created_orders}, "
+					f"updated PMO: {updated_orders}, linked rows: {linked_rows}, skipped rows: {skipped_rows}"
+				),
+			)
+	except Exception:
+		frappe.db.rollback()
+		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
+		_release_lock(job)
+		raise
+
+
+def _normalize_doc_name(value) -> str:
+	if value in (None, ""):
+		return ""
+	s = str(value).strip()
+	if s.endswith(".0"):
+		s = s[:-2]
+	return s
+
+
+def _resolve_item_code_for_given_tables(value) -> str | None:
+	"""Return valid Item code for medicine_code if it exists; else None."""
+	code = _normalize_doc_name(value)
+	if not code:
+		return None
+	return code if frappe.db.exists("Item", code) else None
+
+
+def _resolve_ip_admission_medicine_doc(medi_trans_num) -> str | None:
+	"""Resolve IP Admission Medicine document name from sheet medi_trans_num."""
+	name_guess = _normalize_doc_name(medi_trans_num)
+	if not name_guess:
+		return None
+	if frappe.db.exists("IP Admission Medicine", name_guess):
+		return name_guess
+	match = frappe.db.get_value("IP Admission Medicine", {"trans_no": name_guess}, "name")
+	return match or None
+
+
+def _resolve_patient_medication_order_for_ip_med(admission_name: str, ip_med_name: str | None) -> str | None:
+	"""Find PMO for exact admission + imported IP medicine transaction."""
+	if not admission_name or not ip_med_name:
+		return None
+	match = frappe.db.sql(
+		"""
+		SELECT pmo.name
+		FROM `tabPatient Medication Order` pmo
+		INNER JOIN `tabInpatient Medication Order Entry` child
+			ON child.parent = pmo.name
+		WHERE pmo.inpatient_record = %(admission)s
+		  AND child.trans_num = %(trans_num)s
+		  AND pmo.docstatus != 2
+		ORDER BY pmo.modified DESC
+		LIMIT 1
+		""",
+		{"admission": admission_name, "trans_num": ip_med_name},
+		as_dict=True,
+	)
+	return match[0].name if match else None
+
+
+def _get_admission_detail_for_sheet_row(admission_num, patient_num):
+	"""Resolve or create Admission Detail using admission_num / patient_num."""
+	adm = _normalize_doc_name(admission_num)
+	patient = _normalize_doc_name(patient_num)
+
+	if adm:
+		doc_name = frappe.db.get_value("Admission Detail", {"admission": adm}, "name")
+		if doc_name:
+			return frappe.get_doc("Admission Detail", doc_name)
+
+		# Auto-create Admission Detail when admission exists but detail row is missing.
+		if frappe.db.exists("Inpatient Admission", adm):
+			inpatient = frappe.db.get_value(
+				"Inpatient Admission",
+				adm,
+				["patient", "patient_name"],
+				as_dict=True,
+			) or {}
+			file_no = inpatient.get("patient") or patient
+			patient_name = inpatient.get("patient_name") or (
+				frappe.db.get_value("Patient", file_no, "patient_name") if file_no else None
+			)
+			if file_no and patient_name:
+				new_detail = frappe.new_doc("Admission Detail")
+				new_detail.admission = adm
+				new_detail.file_no = file_no
+				new_detail.patient_name = patient_name
+				new_detail.flags.ignore_mandatory = True
+				new_detail.insert(ignore_permissions=True)
+				return new_detail
+
+	if patient:
+		doc_name = frappe.db.get_value(
+			"Admission Detail",
+			{"file_no": patient},
+			"name",
+			order_by="modified desc",
+		)
+		if doc_name:
+			return frappe.get_doc("Admission Detail", doc_name)
+
+	return None
+
+
+def process_ip_admission_medicine_sheet_map_batch(offset: int = 0) -> None:
+	job = "ip_admission_medicine_sheet_map"
+	try:
+		prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+		prev_processed_rows = cint(prev.get("processed_rows", 0))
+		prev_given_rows = cint(prev.get("given_rows", 0))
+		prev_missed_rows = cint(prev.get("missed_rows", 0))
+		prev_created_given = cint(prev.get("created_given", 0))
+		prev_created_missed = cint(prev.get("created_missed", 0))
+		prev_skipped_rows = cint(prev.get("skipped_rows", 0))
+		prev_skip_no_admission_or_patient = cint(prev.get("skip_no_admission_or_patient", 0))
+		prev_skip_no_admission_detail = cint(prev.get("skip_no_admission_detail", 0))
+		prev_skip_already_mapped = cint(prev.get("skip_already_mapped", 0))
+		prev_skip_error = cint(prev.get("skip_error", 0))
+		prev_created_admission_detail = cint(prev.get("created_admission_detail", 0))
+		prev_rows_without_pmo = cint(prev.get("rows_without_pmo", 0))
+		prev_rows_without_ip_med = cint(prev.get("rows_without_ip_med", 0))
+
+		rows = frappe.get_all(
+			"IP Admission Medicine Sheet",
+			fields=[
+				"name",
+				"trans_num",
+				"medi_trans_num",
+				"admission_num",
+				"patient_num",
+				"given_yn",
+				"given_date",
+				"remarks",
+			],
+			order_by="admission_num asc, trans_num asc",
+			limit_start=offset,
+			limit_page_length=IP_ADMISSION_MEDICINE_SHEET_BATCH_SIZE,
+		)
+
+		processed_rows = 0
+		given_rows = 0
+		missed_rows = 0
+		skipped_rows = 0
+		created_given = 0
+		created_missed = 0
+		skip_no_admission_or_patient = 0
+		skip_no_admission_detail = 0
+		skip_already_mapped = 0
+		skip_error = 0
+		created_admission_detail = 0
+		rows_without_pmo = 0
+		rows_without_ip_med = 0
+
+		admission_cache: dict[str, object] = {}
+		for row in rows:
+			processed_rows += 1
+			admission = _normalize_doc_name(row.get("admission_num"))
+			patient_num = _normalize_doc_name(row.get("patient_num"))
+			cache_key = f"{admission}|{patient_num}"
+			if not admission and not patient_num:
+				skipped_rows += 1
+				skip_no_admission_or_patient += 1
+				continue
+
+			ad_detail = admission_cache.get(cache_key)
+			if ad_detail is None:
+				existed_before = bool(admission and frappe.db.exists("Admission Detail", {"admission": admission}))
+				ad_detail = _get_admission_detail_for_sheet_row(admission, patient_num)
+				if not ad_detail:
+					skipped_rows += 1
+					skip_no_admission_detail += 1
+					continue
+				if not existed_before and admission and (ad_detail.get("admission") == admission):
+					created_admission_detail += 1
+				admission_cache[cache_key] = ad_detail
+
+			sheet_name = row.get("name")
+			given_flag = (row.get("given_yn") or "").strip().upper()
+			ip_med_name = _resolve_ip_admission_medicine_doc(row.get("medi_trans_num"))
+			if not ip_med_name:
+				rows_without_ip_med += 1
+			ip_med_row = (
+				frappe.db.get_value(
+					"IP Admission Medicine",
+					ip_med_name,
+					["medicine", "dose_notes", "qty", "unit", "frequency"],
+					as_dict=True,
+				)
+				if ip_med_name
+				else None
+			)
+
+			legacy_code_name = _resolve_item_00_01_name((ip_med_row or {}).get("medicine"))
+			legacy_name = (
+				frappe.db.get_value("ITEM_00_01", legacy_code_name, "item_nam")
+				if legacy_code_name
+				else None
+			)
+
+			item_code = _resolve_item_code_for_given_tables((ip_med_row or {}).get("medicine"))
+			item_name = (
+				frappe.db.get_value("Item", item_code, "item_name")
+				if item_code
+				else (legacy_name or _normalize_doc_name((ip_med_row or {}).get("medicine")) or None)
+			)
+			pmo_name = _resolve_patient_medication_order_for_ip_med(
+				admission or (ad_detail.get("admission") if ad_detail else ""),
+				ip_med_name,
+			)
+			if not pmo_name:
+				rows_without_pmo += 1
+
+			date_val = None
+			time_val = "00:00:00"
+			if row.get("given_date"):
+				date_val = getdate(row.get("given_date"))
+				time_val = _normalize_time_value(row.get("given_date"))
+			else:
+				date_val = nowdate()
+
+			common_payload = {
+				"date": date_val,
+				"time": time_val,
+				"medicine_code": item_code,
+				"medicine_name": item_name,
+				"medication_order": pmo_name,
+				"qty": (ip_med_row or {}).get("qty") or 0,
+				"dose_notes": (ip_med_row or {}).get("dose_notes"),
+				"medicine_given_timing": (ip_med_row or {}).get("frequency"),
+				"user": frappe.session.user,
+				"old_medicine_code": legacy_code_name,
+				"old_medicine_name": legacy_name or item_name,
+				"ip_admission_medicine": ip_med_name,
+				"ip_admission_medicine_sheet": sheet_name,
+				"patient_medication_order": pmo_name,
+			}
+
+			try:
+				existing = any(
+					(r.ip_admission_medicine_sheet or "") == sheet_name
+					for r in (ad_detail.get("table_yrwe") or [])
+				) or any(
+					(r.ip_admission_medicine_sheet or "") == sheet_name
+					for r in (ad_detail.get("missed_medicine") or [])
+				)
+				if existing:
+					skipped_rows += 1
+					skip_already_mapped += 1
+					continue
+
+				if given_flag == "N":
+					ad_detail.append("missed_medicine", common_payload)
+					missed_rows += 1
+					created_missed += 1
+				else:
+					ad_detail.append("table_yrwe", common_payload)
+					given_rows += 1
+					created_given += 1
+			except Exception:
+				skipped_rows += 1
+				skip_error += 1
+				frappe.log_error(
+					title=f"IP Medicine Sheet row map failed: {sheet_name}",
+					message=frappe.get_traceback(),
+				)
+
+		for ad_doc in admission_cache.values():
+			ad_doc.flags.ignore_mandatory = True
+			ad_doc.save(ignore_permissions=True)
+
+		frappe.db.commit()
+		processed = offset + len(rows)
+		total_processed_rows = prev_processed_rows + processed_rows
+		total_given_rows = prev_given_rows + given_rows
+		total_missed_rows = prev_missed_rows + missed_rows
+		total_created_given = prev_created_given + created_given
+		total_created_missed = prev_created_missed + created_missed
+		total_skipped_rows = prev_skipped_rows + skipped_rows
+		total_skip_no_admission_or_patient = prev_skip_no_admission_or_patient + skip_no_admission_or_patient
+		total_skip_no_admission_detail = prev_skip_no_admission_detail + skip_no_admission_detail
+		total_skip_already_mapped = prev_skip_already_mapped + skip_already_mapped
+		total_skip_error = prev_skip_error + skip_error
+		total_created_admission_detail = prev_created_admission_detail + created_admission_detail
+		total_rows_without_pmo = prev_rows_without_pmo + rows_without_pmo
+		total_rows_without_ip_med = prev_rows_without_ip_med + rows_without_ip_med
+		_set_progress(
+			job,
+			processed,
+			processed_rows=total_processed_rows,
+			given_rows=total_given_rows,
+			missed_rows=total_missed_rows,
+			created_given=total_created_given,
+			created_missed=total_created_missed,
+			skipped_rows=total_skipped_rows,
+			skip_no_admission_or_patient=total_skip_no_admission_or_patient,
+			skip_no_admission_detail=total_skip_no_admission_detail,
+			skip_already_mapped=total_skip_already_mapped,
+			skip_error=total_skip_error,
+			created_admission_detail=total_created_admission_detail,
+			rows_without_pmo=total_rows_without_pmo,
+			rows_without_ip_med=total_rows_without_ip_med,
+		)
+
+		if len(rows) >= IP_ADMISSION_MEDICINE_SHEET_BATCH_SIZE:
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_ip_admission_medicine_sheet_map_batch",
+				offset=processed,
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_ip_admission_medicine_sheet_map_{processed}",
+			)
+		else:
+			_set_progress(
+				job,
+				processed,
+				done=True,
+				processed_rows=total_processed_rows,
+				given_rows=total_given_rows,
+				missed_rows=total_missed_rows,
+				created_given=total_created_given,
+				created_missed=total_created_missed,
+				skipped_rows=total_skipped_rows,
+				skip_no_admission_or_patient=total_skip_no_admission_or_patient,
+				skip_no_admission_detail=total_skip_no_admission_detail,
+				skip_already_mapped=total_skip_already_mapped,
+				skip_error=total_skip_error,
+				created_admission_detail=total_created_admission_detail,
+				rows_without_pmo=total_rows_without_pmo,
+				rows_without_ip_med=total_rows_without_ip_med,
+			)
+			_release_lock(job)
+			frappe.log_error(
+				title="IP Admission Medicine Sheet map migration complete",
+				message=(
+					f"Processed rows: {total_processed_rows}, created given: {total_created_given}, "
+					f"created missed: {total_created_missed}, skipped: {total_skipped_rows}, "
+					f"skip(no admission+patient): {total_skip_no_admission_or_patient}, "
+					f"skip(no admission detail): {total_skip_no_admission_detail}, "
+					f"skip(already mapped): {total_skip_already_mapped}, "
+					f"skip(row error): {total_skip_error}, "
+					f"created admission detail: {total_created_admission_detail}, "
+					f"rows without IP med link: {total_rows_without_ip_med}, "
+					f"rows without PMO link: {total_rows_without_pmo}"
+				),
+			)
+	except Exception:
+		frappe.db.rollback()
+		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
+		_release_lock(job)
 		raise

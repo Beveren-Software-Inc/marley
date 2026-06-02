@@ -199,11 +199,18 @@ def _set_medication_row(doc, row):
 		) or 0
 	else:
 		entry.frequency_in_a_day = 0
-	# quantity = no_of_days * dosage * frequency_in_a_day (dosage as number if possible)
-	dosage_val = flt(entry.dosage, 0) or 0
-	entry.quantity = flt(entry.no_of_days, 0) * dosage_val * flt(entry.frequency_in_a_day, 0)
-	if not entry.quantity:
-		entry.quantity = flt(entry.no_of_days, 0)
+	# Preserve user-entered quantity (quantity/qty); auto-calculate only when missing.
+	quantity_input = row.get("quantity")
+	if quantity_input in (None, ""):
+		quantity_input = row.get("qty")
+	if quantity_input not in (None, ""):
+		entry.quantity = flt(quantity_input)
+	else:
+		# quantity = no_of_days * dosage * frequency_in_a_day (dosage as number if possible)
+		dosage_val = flt(entry.dosage, 0) or 0
+		entry.quantity = flt(entry.no_of_days, 0) * dosage_val * flt(entry.frequency_in_a_day, 0)
+		if not entry.quantity:
+			entry.quantity = flt(entry.no_of_days, 0)
 	return entry
 
 

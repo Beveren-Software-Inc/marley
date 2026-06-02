@@ -85,6 +85,24 @@ frappe.ui.form.on('Healthcare Settings', {
 				},
 			});
 		}, __('Data Maintenance'));
+
+		frm.add_custom_button(__('Link IP Admission Medicine to PMO'), () => {
+			frappe.confirm(
+				__(
+					'Run in background: group IP Admission Medicine by admission, create/update one Patient Medication Order per admission, and append medication lines with trans_num + legacy medicine fields (old code/name, stopped reason). Existing linked trans_num rows are skipped. Continue?'
+				),
+				() => run_migration_job(frm, 'start_ip_admission_medicine_link_migration', 'ip_admission_medicine_link')
+			);
+		}, __('Data Maintenance'));
+
+		frm.add_custom_button(__('Map Medicine Given/Missed from Sheet'), () => {
+			frappe.confirm(
+				__(
+					'Run in background: map IP Admission Medicine Sheet rows to Admission Detail child tables (Given Y -> Medicine Given, Given N -> Missed Medicine), linking old medicine fields, IP medicine refs, and patient medication order. Existing mapped sheet rows are skipped. Continue?'
+				),
+				() => run_migration_job(frm, 'start_ip_admission_medicine_sheet_map_migration', 'ip_admission_medicine_sheet_map')
+			);
+		}, __('Data Maintenance'));
 	},
 
 	onload: function(frm) {

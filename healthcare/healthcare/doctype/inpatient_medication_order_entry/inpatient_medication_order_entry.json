@@ -44,7 +44,11 @@
   "section_break_oruo",
   "rate",
   "column_break_ugjx",
-  "amount"
+  "amount",
+  "section_break_vfoy",
+  "trans_num",
+  "old_medicine_code",
+  "old_medicine_name"
  ],
  "fields": [
   {
@@ -86,8 +90,7 @@
    "fieldname": "quantity",
    "fieldtype": "Float",
    "in_list_view": 1,
-   "label": "Quantity",
-   "read_only": 1
+   "label": "Quantity"
   },
   {
    "fieldname": "column_break_4",
@@ -278,12 +281,33 @@
    "fieldname": "stopped",
    "fieldtype": "Check",
    "label": "Stopped"
+  },
+  {
+   "fieldname": "section_break_vfoy",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "old_medicine_code",
+   "fieldtype": "Link",
+   "label": "Old Medicine Code",
+   "options": "ITEM_00_01"
+  },
+  {
+   "fieldname": "old_medicine_name",
+   "fieldtype": "Data",
+   "label": "Old Medicine Name"
+  },
+  {
+   "fieldname": "trans_num",
+   "fieldtype": "Link",
+   "label": "Trans Num",
+   "options": "IP Admission Medicine"
   }
  ],
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-05-12 11:13:28.040417",
+ "modified": "2026-06-02 09:51:56.718791",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Inpatient Medication Order Entry",
