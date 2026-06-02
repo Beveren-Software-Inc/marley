@@ -4,6 +4,8 @@
 function update_quantity_for_row(frm, cdt, cdn) {
 	let row = locals[cdt][cdn];
 	if (!row) return;
+	const hasManualQuantity = row.quantity !== undefined && row.quantity !== null && String(row.quantity).trim() !== '';
+	if (hasManualQuantity) return;
 	let no_of_days = flt(row.no_of_days);
 	let dosage = flt(row.dosage);
 	let frequency_in_a_day = flt(row.frequency_in_a_day);

@@ -27,6 +27,13 @@
   "batch_no",
   "lot_no",
   "dispensing_lot",
+  "section_break_ofaq",
+  "old_medicine_code",
+  "old_medicine_name",
+  "ip_admission_medicine",
+  "column_break_gerg",
+  "ip_admission_medicine_sheet",
+  "patient_medication_order",
   "override_section",
   "override_exceeded_frequency",
   "override_reason",
@@ -39,16 +46,14 @@
    "fieldname": "date",
    "fieldtype": "Date",
    "in_list_view": 1,
-   "label": "Date",
-   "reqd": 1
+   "label": "Date"
   },
   {
    "fieldname": "medicine_code",
    "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Medicine Code",
-   "options": "Item",
-   "reqd": 1
+   "options": "Item"
   },
   {
    "fetch_from": "medicine_code.item_name",
@@ -187,13 +192,50 @@
    "fieldtype": "Link",
    "label": "Dispensing Lot",
    "options": "Dispensing Lot"
+  },
+  {
+   "fieldname": "section_break_ofaq",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "old_medicine_code",
+   "fieldtype": "Link",
+   "label": "Old Medicine Code",
+   "options": "ITEM_00_01"
+  },
+  {
+   "fieldname": "old_medicine_name",
+   "fieldtype": "Data",
+   "label": "Old Medicine Name"
+  },
+  {
+   "fieldname": "column_break_gerg",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "ip_admission_medicine_sheet",
+   "fieldtype": "Link",
+   "label": "IP admission medicine Sheet",
+   "options": "IP Admission Medicine Sheet"
+  },
+  {
+   "fieldname": "patient_medication_order",
+   "fieldtype": "Link",
+   "label": "Patient medication Order",
+   "options": "Patient Medication Order"
+  },
+  {
+   "fieldname": "ip_admission_medicine",
+   "fieldtype": "Link",
+   "label": "IP Admission Medicine",
+   "options": "IP Admission Medicine"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-05-31 11:55:02.153477",
+ "modified": "2026-06-02 10:50:11.377791",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Medicine Given",
