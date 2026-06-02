@@ -16,6 +16,7 @@ MEDICATION_ORDER_BATCH_SIZE = 25
 DISCHARGE_BATCH_SIZE = 10
 IP_ADMISSION_MEDICINE_BATCH_SIZE = 50
 IP_ADMISSION_MEDICINE_SHEET_BATCH_SIZE = 200
+IP_PATIENT_ASSESSMENT_BATCH_SIZE = 200
 
 JOB_LOCK_SECONDS = 7200  # 2 hours
 ALL_CUSTOMER_GROUP_NAMES = ("All Customer Groups", "All Customer Group")
@@ -246,6 +247,25 @@ def start_ip_admission_medicine_sheet_map_migration() -> dict:
 	return {
 		"ok": True,
 		"message": _("IP Admission Medicine Sheet mapping job started in the background."),
+	}
+
+
+@frappe.whitelist()
+def start_ip_patient_assessment_map_migration() -> dict:
+	"""Map imported IP Patient Assessment rows to Patient Assessment."""
+	_require_admin()
+	_acquire_lock("ip_patient_assessment_map")
+	_set_progress("ip_patient_assessment_map", 0)
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_ip_patient_assessment_map_batch",
+		offset=0,
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_ip_patient_assessment_map",
+	)
+	return {
+		"ok": True,
+		"message": _("IP Patient Assessment mapping job started in the background."),
 	}
 
 
@@ -1054,6 +1074,196 @@ def _resolve_item_code_for_given_tables(value) -> str | None:
 	if not code:
 		return None
 	return code if frappe.db.exists("Item", code) else None
+
+
+def _to_yes_no_flag(value) -> int:
+	"""Normalize imported true-ish values to 1, else 0."""
+	if value is None:
+		return 0
+	s = str(value).strip().upper()
+	return 1 if s in {"1", "Y", "YES", "TRUE", "T"} else 0
+
+
+def _safe_row_value(row: dict, key: str):
+	"""Read row field by case-sensitive key with lowercase fallback."""
+	if key in row:
+		return row.get(key)
+	lower = key.lower()
+	if lower in row:
+		return row.get(lower)
+	return None
+
+
+def _load_default_patient_assessment_template():
+	template_name = (
+		frappe.db.get_value("Patient Assessment Template", {"assessment_name": "Default Patient Evaluation"}, "name")
+		or frappe.db.get_value("Patient Assessment Template", {"default": 1}, "name")
+	)
+	if not template_name:
+		frappe.throw(_("Patient Assessment Template “Default Patient Evaluation” was not found."))
+	return frappe.get_doc("Patient Assessment Template", template_name)
+
+
+def process_ip_patient_assessment_map_batch(offset: int = 0) -> None:
+	job = "ip_patient_assessment_map"
+	try:
+		template = _load_default_patient_assessment_template()
+		template_name = template.name
+
+		parameter_rows = frappe.get_all(
+			"Patient Assessment Parameter",
+			fields=["name", "parameter_abbrev"],
+			limit_page_length=10000,
+		)
+		parameter_abbrev_by_name = {
+			(p.get("name") or ""): (p.get("parameter_abbrev") or "").strip()
+			for p in parameter_rows
+		}
+
+		ip_rows = frappe.get_all(
+			"IP Patient Assessment",
+			fields=["*"],
+			order_by="name asc",
+			limit_start=offset,
+			limit_page_length=IP_PATIENT_ASSESSMENT_BATCH_SIZE,
+		)
+
+		created = 0
+		skipped_existing = 0
+		skipped_missing_admission = 0
+		skipped_missing_patient = 0
+		skipped_errors = 0
+
+		for row in ip_rows:
+			try:
+				ip_name = str(row.get("name") or "").strip()
+				if not ip_name:
+					skipped_errors += 1
+					continue
+
+				if frappe.db.exists("Patient Assessment", {"ip_patient_assessment": ip_name, "docstatus": ["!=", 2]}):
+					skipped_existing += 1
+					continue
+
+				admission = _normalize_doc_name(row.get("admission_num"))
+				if not admission or not frappe.db.exists("Inpatient Admission", admission):
+					skipped_missing_admission += 1
+					continue
+
+				inpatient = frappe.db.get_value(
+					"Inpatient Admission",
+					admission,
+					["patient", "patient_name", "company", "primary_practitioner", "secondary_practitioner"],
+					as_dict=True,
+				) or {}
+				patient = (inpatient.get("patient") or "").strip()
+				if not patient:
+					skipped_missing_patient += 1
+					continue
+
+				doc = frappe.new_doc("Patient Assessment")
+				doc.patient = patient
+				doc.patient_name = inpatient.get("patient_name")
+				doc.assessment_template = template_name
+				doc.reference_type = "Inpatient Admission"
+				doc.encounter = admission
+				doc.admission = admission
+				doc.company = inpatient.get("company")
+				doc.healthcare_practitioner = (
+					inpatient.get("primary_practitioner") or inpatient.get("secondary_practitioner")
+				)
+				doc.assessment_datetime = row.get("cr_date") or now_datetime()
+				doc.ip_patient_assessment = ip_name
+				doc.assessment_description = (
+					(_safe_row_value(row, "history_dscp") or "").strip()
+					or (_safe_row_value(row, "others") or "").strip()
+				)
+
+				for detail in template.get("parameters") or []:
+					param_name = (detail.get("assessment_parameter") or "").strip()
+					if not param_name:
+						continue
+					abbrev = (parameter_abbrev_by_name.get(param_name) or "").strip()
+					if not abbrev:
+						continue
+
+					flag_value = _safe_row_value(row, abbrev)
+					yes_flag = _to_yes_no_flag(flag_value)
+
+					desc_key = f"{abbrev.lower()}_desc"
+					comments = (_safe_row_value(row, desc_key) or "").strip()
+					if not comments and abbrev.lower() == "history":
+						comments = (_safe_row_value(row, "history_dscp") or "").strip()
+
+					doc.append(
+						"assessment_sheet",
+						{
+							"parameter": param_name,
+							"yes": yes_flag,
+							"comments": comments if yes_flag else "",
+						},
+					)
+
+				doc.flags.ignore_mandatory = True
+				doc.insert(ignore_permissions=True)
+				created += 1
+			except Exception:
+				skipped_errors += 1
+				frappe.log_error(
+					title=f"IP Patient Assessment map row failed: {row.get('name')}",
+					message=frappe.get_traceback(),
+				)
+
+		frappe.db.commit()
+
+		processed = offset + len(ip_rows)
+		_set_progress(
+			job,
+			processed,
+			template=template_name,
+			created=created,
+			skipped_existing=skipped_existing,
+			skipped_missing_admission=skipped_missing_admission,
+			skipped_missing_patient=skipped_missing_patient,
+			skipped_errors=skipped_errors,
+		)
+
+		if len(ip_rows) >= IP_PATIENT_ASSESSMENT_BATCH_SIZE:
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_ip_patient_assessment_map_batch",
+				offset=processed,
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_ip_patient_assessment_map_{processed}",
+			)
+		else:
+			_set_progress(
+				job,
+				processed,
+				done=True,
+				template=template_name,
+				created=created,
+				skipped_existing=skipped_existing,
+				skipped_missing_admission=skipped_missing_admission,
+				skipped_missing_patient=skipped_missing_patient,
+				skipped_errors=skipped_errors,
+			)
+			_release_lock(job)
+			frappe.log_error(
+				title="IP Patient Assessment map migration complete",
+				message=(
+					f"Processed rows: {processed}, created: {created}, "
+					f"skipped existing: {skipped_existing}, "
+					f"skipped missing admission: {skipped_missing_admission}, "
+					f"skipped missing patient: {skipped_missing_patient}, "
+					f"skipped errors: {skipped_errors}"
+				),
+			)
+	except Exception:
+		frappe.db.rollback()
+		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
+		_release_lock(job)
+		raise
 
 
 def _resolve_ip_admission_medicine_doc(medi_trans_num) -> str | None:

@@ -103,6 +103,15 @@ frappe.ui.form.on('Healthcare Settings', {
 				() => run_migration_job(frm, 'start_ip_admission_medicine_sheet_map_migration', 'ip_admission_medicine_sheet_map')
 			);
 		}, __('Data Maintenance'));
+
+		frm.add_custom_button(__('Map IP Patient Assessment to Patient Assessment'), () => {
+			frappe.confirm(
+				__(
+					'Run in background: create Patient Assessment rows from IP Patient Assessment using template “Default Patient Evaluation”. Parameters are matched by Patient Assessment Parameter.parameter_abbrev against IP fields (e.g. ARRIVAL -> arrival). Value 1/Yes sets child row Yes; *_desc is copied to comments. Existing linked rows are skipped. Continue?'
+				),
+				() => run_migration_job(frm, 'start_ip_patient_assessment_map_migration', 'ip_patient_assessment_map')
+			);
+		}, __('Data Maintenance'));
 	},
 
 	onload: function(frm) {
