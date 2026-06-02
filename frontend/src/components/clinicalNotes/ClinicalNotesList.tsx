@@ -7,6 +7,7 @@ import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { useCardFilters, useDashboardCompactClinical } from '../../contexts/CardFilterContext'
 import { CardRowMetaHint, dashboardCardRowHoverClass } from '../ui/dashboardCardListing'
+import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 
 // Helper function to strip HTML tags and decode HTML entities
 const stripHtml = (html: string): string => {
@@ -571,20 +572,16 @@ export const ClinicalNotesList = ({
               )}
             </div>
           )}
-          {(postingDateFrom || postingDateTo || notePractitionerFilter) && (
-            <button
-              type="button"
+          {(postingDateFrom || postingDateTo || notePractitionerFilter) ? (
+            <ClearFiltersButton
               onClick={() => {
                 setPostingDateFrom('')
                 setPostingDateTo('')
                 setNotePractitionerFilter('')
                 setPractitionerQuery('')
               }}
-              className="text-xs text-slate-600 underline self-end pb-1"
-            >
-              Clear
-            </button>
-          )}
+            />
+          ) : null}
         </div>
       )}
 

@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { getAllPatientDiagnoses, fetchHealthcarePractitioners, type PatientDiagnosisAggRow, type LinkFieldOption } from '../../services/common'
 import { useCardFilters, useDashboardCompactClinical } from '../../contexts/CardFilterContext'
 import { CardRowMetaHint, dashboardCardRowHoverClass } from '../ui/dashboardCardListing'
+import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 
 interface PatientDiagnosisListProps {
   patient?: string
@@ -185,20 +186,16 @@ export function PatientDiagnosisList({ patient, refreshKey }: PatientDiagnosisLi
               </div>
             )}
           </div>
-          {hasActiveFilters && (
-            <button
-              type="button"
+          {hasActiveFilters ? (
+            <ClearFiltersButton
               onClick={() => {
                 setFromDate('')
                 setToDate('')
                 setPractitionerFilter('')
                 setPractitionerQuery('')
               }}
-              className="text-xs text-slate-600 underline self-end pb-1"
-            >
-              Clear filters
-            </button>
-          )}
+            />
+          ) : null}
         </div>
       )}
 

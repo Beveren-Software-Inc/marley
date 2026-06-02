@@ -1,0 +1,343 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "field:item_num",
+ "creation": "2026-06-02 08:50:21.617600",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "item_num",
+  "item_nam",
+  "dept_num",
+  "dept_num_old",
+  "brand_num",
+  "column_break_wisf",
+  "brand_num_old",
+  "item_group_num",
+  "item_group_num_old",
+  "item_category_num",
+  "item_category_num_old",
+  "section_break_emhz",
+  "item_sub_category_num_old",
+  "sal_uom_num",
+  "units_in_box",
+  "unit_purchase_price",
+  "column_break_fpbq",
+  "box_purchase_price",
+  "unit_sale_price",
+  "box_sale_price",
+  "item_sub_category_num",
+  "section_break_mtlx",
+  "pur_uom_num",
+  "gl_income_head",
+  "unit_work_price",
+  "item_strenght",
+  "item_unit_of_strength",
+  "item_regis_num",
+  "column_break_ojky",
+  "sta_flg",
+  "old_num",
+  "cr_id",
+  "cr_date",
+  "up_id",
+  "up_date",
+  "gl_work_head",
+  "section_break_kanu",
+  "item_form",
+  "item_class",
+  "item_vat_yn",
+  "item_big_min_qty",
+  "is_control_medicine",
+  "item_small_min_qty",
+  "column_break_wdpn",
+  "bar_code_num",
+  "branch_num",
+  "barcode_type",
+  "barcode_inter",
+  "is_purchased",
+  "is_pharmacy_item",
+  "preferred_supplier_num"
+ ],
+ "fields": [
+  {
+   "fieldname": "item_num",
+   "fieldtype": "Int",
+   "label": "ITEM_NUM",
+   "unique": 1
+  },
+  {
+   "fieldname": "item_nam",
+   "fieldtype": "Data",
+   "label": "ITEM_NAM"
+  },
+  {
+   "fieldname": "dept_num",
+   "fieldtype": "Int",
+   "label": "DEPT_NUM"
+  },
+  {
+   "fieldname": "dept_num_old",
+   "fieldtype": "Int",
+   "label": "DEPT_NUM_OLD"
+  },
+  {
+   "fieldname": "brand_num",
+   "fieldtype": "Int",
+   "label": "BRAND_NUM"
+  },
+  {
+   "fieldname": "brand_num_old",
+   "fieldtype": "Int",
+   "label": "BRAND_NUM_OLD"
+  },
+  {
+   "fieldname": "item_group_num",
+   "fieldtype": "Int",
+   "label": "ITEM_GROUP_NUM"
+  },
+  {
+   "fieldname": "item_group_num_old",
+   "fieldtype": "Int",
+   "label": "ITEM_GROUP_NUM_OLD"
+  },
+  {
+   "fieldname": "item_category_num",
+   "fieldtype": "Int",
+   "label": "ITEM_CATEGORY_NUM"
+  },
+  {
+   "fieldname": "item_category_num_old",
+   "fieldtype": "Int",
+   "label": "ITEM_CATEGORY_NUM_OLD"
+  },
+  {
+   "fieldname": "item_sub_category_num",
+   "fieldtype": "Int",
+   "label": "ITEM_SUB_CATEGORY_NUM"
+  },
+  {
+   "fieldname": "item_sub_category_num_old",
+   "fieldtype": "Int",
+   "label": "ITEM_SUB_CATEGORY_NUM_OLD"
+  },
+  {
+   "fieldname": "sal_uom_num",
+   "fieldtype": "Int",
+   "label": "SAL_UOM_NUM"
+  },
+  {
+   "fieldname": "units_in_box",
+   "fieldtype": "Float",
+   "label": "UNITS_IN_BOX"
+  },
+  {
+   "fieldname": "unit_purchase_price",
+   "fieldtype": "Currency",
+   "label": "UNIT_PURCHASE_PRICE"
+  },
+  {
+   "fieldname": "unit_sale_price",
+   "fieldtype": "Currency",
+   "label": "UNIT_SALE_PRICE"
+  },
+  {
+   "fieldname": "box_purchase_price",
+   "fieldtype": "Currency",
+   "label": "BOX_PURCHASE_PRICE"
+  },
+  {
+   "fieldname": "box_sale_price",
+   "fieldtype": "Currency",
+   "label": "BOX_SALE_PRICE"
+  },
+  {
+   "fieldname": "sta_flg",
+   "fieldtype": "Data",
+   "label": "STA_FLG"
+  },
+  {
+   "fieldname": "old_num",
+   "fieldtype": "Int",
+   "label": "OLD_NUM"
+  },
+  {
+   "fieldname": "cr_id",
+   "fieldtype": "Int",
+   "label": "CR_ID"
+  },
+  {
+   "fieldname": "cr_date",
+   "fieldtype": "Datetime",
+   "label": "CR_DATE"
+  },
+  {
+   "fieldname": "up_id",
+   "fieldtype": "Int",
+   "label": "UP_ID"
+  },
+  {
+   "fieldname": "up_date",
+   "fieldtype": "Datetime",
+   "label": "UP_DATE"
+  },
+  {
+   "fieldname": "pur_uom_num",
+   "fieldtype": "Int",
+   "label": "PUR_UOM_NUM"
+  },
+  {
+   "fieldname": "gl_income_head",
+   "fieldtype": "Data",
+   "label": "GL_INCOME_HEAD"
+  },
+  {
+   "fieldname": "unit_work_price",
+   "fieldtype": "Currency",
+   "label": "UNIT_WORK_PRICE"
+  },
+  {
+   "fieldname": "gl_work_head",
+   "fieldtype": "Data",
+   "label": "GL_WORK_HEAD"
+  },
+  {
+   "fieldname": "item_regis_num",
+   "fieldtype": "Data",
+   "label": "ITEM_REGIS_NUM"
+  },
+  {
+   "fieldname": "item_strenght",
+   "fieldtype": "Data",
+   "label": "ITEM_STRENGHT"
+  },
+  {
+   "fieldname": "item_unit_of_strength",
+   "fieldtype": "Data",
+   "label": "ITEM_UNIT_OF_STRENGTH"
+  },
+  {
+   "fieldname": "item_form",
+   "fieldtype": "Data",
+   "label": "ITEM_FORM"
+  },
+  {
+   "fieldname": "item_class",
+   "fieldtype": "Data",
+   "label": "ITEM_CLASS"
+  },
+  {
+   "fieldname": "item_vat_yn",
+   "fieldtype": "Data",
+   "label": "ITEM_VAT_YN"
+  },
+  {
+   "fieldname": "item_big_min_qty",
+   "fieldtype": "Float",
+   "label": "ITEM_BIG_MIN_QTY"
+  },
+  {
+   "fieldname": "item_small_min_qty",
+   "fieldtype": "Float",
+   "label": "ITEM_SMALL_MIN_QTY"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_control_medicine",
+   "fieldtype": "Check",
+   "label": "IS_CONTROL_MEDICINE"
+  },
+  {
+   "fieldname": "bar_code_num",
+   "fieldtype": "Data",
+   "label": "BAR_CODE_NUM"
+  },
+  {
+   "fieldname": "branch_num",
+   "fieldtype": "Int",
+   "label": "BRANCH_NUM"
+  },
+  {
+   "fieldname": "barcode_type",
+   "fieldtype": "Data",
+   "label": "BARCODE_TYPE"
+  },
+  {
+   "fieldname": "barcode_inter",
+   "fieldtype": "Data",
+   "label": "BARCODE_INTER"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_purchased",
+   "fieldtype": "Check",
+   "label": "IS_PURCHASED"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_pharmacy_item",
+   "fieldtype": "Check",
+   "label": "IS_PHARMACY_ITEM"
+  },
+  {
+   "fieldname": "preferred_supplier_num",
+   "fieldtype": "Int",
+   "label": "PREFERRED_SUPPLIER_NUM"
+  },
+  {
+   "fieldname": "column_break_wisf",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_emhz",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_fpbq",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_mtlx",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_ojky",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_kanu",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_wdpn",
+   "fieldtype": "Column Break"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-06-02 09:06:09.533673",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "ITEM_00_01",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

@@ -10,6 +10,7 @@ import {
   dashboardCardRowHoverClass,
   formatDashboardDate,
 } from '../ui/dashboardCardListing'
+import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 
 // Helper function to strip HTML tags and clean text
 const stripHtml = (html: string | undefined): string => {
@@ -160,9 +161,9 @@ export const WarningMessagesList = ({
               </select>
             </div>
           )}
-          {noPatientScope === 'organisation' && (
+          {/* {noPatientScope === 'organisation' && (
             <div className="text-xs text-slate-600 self-end pb-1">Organisation notices only</div>
-          )}
+          )} */}
           <div className="flex flex-col gap-1 min-w-[120px]">
             <label className="text-xs font-medium text-slate-500">Posting from</label>
             <input
@@ -217,11 +218,7 @@ export const WarningMessagesList = ({
               </ul>
             )}
           </div>
-          {hasActiveFilters && (
-            <button type="button" onClick={clearFilters} className="text-xs text-slate-600 underline self-end pb-1">
-              Clear filters
-            </button>
-          )}
+          {hasActiveFilters ? <ClearFiltersButton onClick={clearFilters} /> : null}
         </div>
       )}
 

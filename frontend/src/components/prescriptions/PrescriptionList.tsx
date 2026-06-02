@@ -13,6 +13,7 @@ import {
   dashboardCardRowHoverClass,
   formatDashboardDate,
 } from '../ui/dashboardCardListing'
+import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 
 
 const statusColors: Record<string, string> = {
@@ -412,15 +413,7 @@ export const PrescriptionList = ({
             className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
           />
         </div>
-        {hasActiveFilters && (
-          <button
-            type="button"
-            onClick={handleClearFilters}
-            className="px-3 py-1.5 text-sm text-slate-600 border border-slate-300 rounded-md hover:bg-slate-50"
-          >
-            Clear filters
-          </button>
-        )}
+        {hasActiveFilters ? <ClearFiltersButton onClick={handleClearFilters} /> : null}
       </div>
       )}
 

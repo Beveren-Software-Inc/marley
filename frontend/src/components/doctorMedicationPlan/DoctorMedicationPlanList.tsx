@@ -11,6 +11,7 @@ import { useCareContext } from '../../providers/CareContextProvider'
 import { useCardFilters, useDashboardCompactClinical } from '../../contexts/CardFilterContext'
 import { CardRowMetaHint, dashboardCardRowHoverClass, stripHtmlToText } from '../ui/dashboardCardListing'
 import { EditDoctorMedicationPlanModal } from './EditDoctorMedicationPlanModal'
+import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 
 interface DoctorMedicationPlanListProps {
   patient?: string
@@ -195,13 +196,7 @@ export const DoctorMedicationPlanList = ({ patient, onPatientClick }: DoctorMedi
             )}
           </div>
           {hasActiveFilters && (
-            <button
-              type="button"
-              onClick={clearFilters}
-              className="text-xs text-slate-600 underline self-end pb-1"
-            >
-              Clear filters
-            </button>
+            <ClearFiltersButton onClick={clearFilters} />
           )}
         </div>
       )}

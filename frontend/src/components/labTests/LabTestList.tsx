@@ -1706,6 +1706,7 @@ import { Search, X, ChevronDown, ChevronRight } from 'lucide-react'
 import { useCardFilters, useDashboardCompactClinical } from '../../contexts/CardFilterContext'
 import { useBatchLabTestResults } from '../../hooks/useBatchLabTestResults'
 import { LabTestDashboardCardTable } from './LabTestDashboardCardTable'
+import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 
 export type LabTestListBatchSaveRef = {
   savePendingChanges: () => Promise<void>
@@ -1934,13 +1935,9 @@ const FilterBar = ({ filters, onChange, onClear, activeCount, byNurse }: {
           </div>
         )}
       </div>
-      {activeCount > 0 && (
-        <button type="button" onClick={onClear}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-md transition-colors self-end">
-          <X className="w-3.5 h-3.5" />Clear
-          <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-primary text-white text-[10px] font-bold">{activeCount}</span>
-        </button>
-      )}
+      {activeCount > 0 ? (
+        <ClearFiltersButton onClick={onClear} activeCount={activeCount} />
+      ) : null}
     </div>
   )
 }
@@ -2787,7 +2784,9 @@ export const LabTestList = ({
         <div className="flex flex-col items-center justify-center p-12 text-slate-400">
           <Search className="w-10 h-10 mb-3 opacity-30" />
           <p className="text-sm">{activeCount > 0 ? 'No lab tests match the current filters.' : 'No lab tests found.'}</p>
-          {activeCount > 0 && <button onClick={() => setFilters(makeEmptyFilters())} className="mt-3 text-sm text-primary hover:underline">Clear filters</button>}
+          {activeCount > 0 ? (
+            <ClearFiltersButton className="mt-3 self-center" onClick={() => setFilters(makeEmptyFilters())} />
+          ) : null}
         </div>
       ) : compactClinical && effectivePatient ? (
         <LabTestDashboardCardTable

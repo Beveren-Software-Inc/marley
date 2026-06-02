@@ -4,6 +4,7 @@ import {
   fetchHealthInsurances, fetchHealthInsuranceDetail, fetchInsuranceCompanies,
   type HealthInsuranceRow, type HealthInsuranceDetail, type LinkFieldOption,
 } from '../../services/common'
+import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 
 type DetailTab = 'overview' | 'inclusive' | 'exclusive' | 'groups'
 
@@ -172,15 +173,9 @@ export const HealthInsuranceList = ({ refreshKey = 0, showFilters = true }: Prop
             )}
           </div>
 
-          {selectedCompany && (
-            <button
-              type="button"
-              onClick={() => setSelectedCompany(null)}
-              className="flex items-center gap-1 text-xs text-slate-500 hover:text-red-500"
-            >
-              <X className="w-3.5 h-3.5" /> Clear filter
-            </button>
-          )}
+          {selectedCompany ? (
+            <ClearFiltersButton onClick={() => setSelectedCompany(null)} />
+          ) : null}
         </div>
       )}
 

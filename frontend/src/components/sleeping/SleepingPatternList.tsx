@@ -4,6 +4,7 @@ import { fetchInpatientAdmissions, type LinkFieldOption } from '../../services/c
 import { DetailSlideOver } from '../ui/DetailSlideOver'
 import { SleepingPatternDetail } from './SleepingPatternDetail'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
+import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 
 interface SleepingPatternListProps {
   patient?: string
@@ -135,19 +136,15 @@ export const SleepingPatternList = ({ patient, refreshKey, onRowClick, onPatient
             )}
           </div>
 
-          {admissionFilter && (
-            <button
-              type="button"
+          {admissionFilter ? (
+            <ClearFiltersButton
               onClick={() => {
                 setAdmissionFilter('')
                 setAdmissionQuery('')
                 setAdmissionOpen(false)
               }}
-              className="text-xs text-slate-600 hover:text-slate-900 px-2 py-1 rounded-md border border-slate-200 hover:border-slate-400"
-            >
-              Clear
-            </button>
-          )}
+            />
+          ) : null}
 
           {/* Print button — top of Sleeping Pattern document */}
           <div className="ml-auto">

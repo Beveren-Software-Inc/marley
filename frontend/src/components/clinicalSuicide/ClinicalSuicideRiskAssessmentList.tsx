@@ -8,6 +8,7 @@ import {
 import { useCardFilters } from '../../contexts/CardFilterContext'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { DetailSlideOver } from '../ui/DetailSlideOver'
+import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 
 interface SuicideRiskAssessmentListProps {
   patient?: string
@@ -229,18 +230,14 @@ export const SuicideRiskAssessmentList = ({
             </select>
           </div>
           {hasActiveFilters && (
-            <button
-              type="button"
+            <ClearFiltersButton
               onClick={() => {
                 setFromDate('')
                 setToDate('')
                 setRiskLevelFilter('')
                 setStatusFilter('')
               }}
-              className="text-xs text-primary hover:underline pb-1.5"
-            >
-              Clear filters
-            </button>
+            />
           )}
         </div>
       )}

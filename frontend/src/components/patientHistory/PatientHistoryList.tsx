@@ -3,6 +3,7 @@ import { BookOpen } from 'lucide-react'
 import { PatientHistoryDetailPanel } from './PatientHistoryDetailPanel'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { useCardFilters } from '../../contexts/CardFilterContext'
+import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 
 interface HistoryRecord {
   name: string
@@ -145,17 +146,13 @@ export const PatientHistoryList = ({
             </div>
           )}
           {hasActiveFilters && (
-            <button
-              type="button"
+            <ClearFiltersButton
               onClick={() => {
                 setFromDate('')
                 setToDate('')
                 setAdmissionFilter('')
               }}
-              className="text-xs text-primary hover:underline pb-1.5"
-            >
-              Clear filters
-            </button>
+            />
           )}
         </div>
       )}

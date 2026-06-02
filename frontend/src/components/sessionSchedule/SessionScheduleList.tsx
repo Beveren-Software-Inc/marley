@@ -6,6 +6,7 @@ import {
 import { StatusPill } from '../ui/StatusPill'
 import { toast } from '../../hooks/useToast'
 import { useCardFilters } from '../../contexts/CardFilterContext'
+import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 
 interface SessionScheduleListProps {
   refreshKey?: string | number
@@ -158,15 +159,7 @@ export const SessionScheduleList = ({ refreshKey, patient, admissionNumber }: Se
             </select>
           </div>
           {/* Clear */}
-          {hasActiveFilters && (
-            <button
-              type="button"
-              onClick={clearFilters}
-              className="self-end px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-100 border border-slate-300 rounded-md hover:bg-slate-200"
-            >
-              Clear
-            </button>
-          )}
+          {hasActiveFilters ? <ClearFiltersButton onClick={clearFilters} /> : null}
         </div>
 
         {/* Result count */}
