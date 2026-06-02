@@ -214,6 +214,31 @@ def _set_medication_row(doc, row):
 	return entry
 
 
+def _apply_legacy_ip_admission_medicine_fallbacks(doc):
+	"""Fill missing frequency/route on legacy PMO child rows from linked IP Admission Medicine."""
+	if not doc:
+		return
+	cache: dict[str, dict] = {}
+	for row in doc.get("medication_orders") or []:
+		trans_num = (getattr(row, "trans_num", None) or "").strip()
+		if not trans_num:
+			continue
+		if trans_num not in cache:
+			cache[trans_num] = frappe.db.get_value(
+				"IP Admission Medicine",
+				trans_num,
+				["frequency", "route"],
+				as_dict=True,
+			) or {}
+		ip_med = cache.get(trans_num) or {}
+		if not getattr(row, "patient_frequency", None) and ip_med.get("frequency"):
+			row.patient_frequency = (ip_med.get("frequency") or "").strip()
+		if not getattr(row, "written_frequency", None) and ip_med.get("frequency"):
+			row.written_frequency = (ip_med.get("frequency") or "").strip()
+		if not getattr(row, "route_of_administration", None) and ip_med.get("route"):
+			row.route_of_administration = (ip_med.get("route") or "").strip()
+
+
 @frappe.whitelist()
 def create_patient_medication_order(
 	patient,
@@ -488,6 +513,7 @@ def get_medication_order_by_id(name):
 			doc.practitioner,
 			"practitioner_name"
 		) or doc.practitioner
+	_apply_legacy_ip_admission_medicine_fallbacks(doc)
 
 	return doc
 @frappe.whitelist()
@@ -762,6 +788,7 @@ def get_medication_order_by_inpatient_or_encounter(inpatient_record=None, patien
             doc.practitioner,
             "practitioner_name"
         ) or doc.practitioner
+    _apply_legacy_ip_admission_medicine_fallbacks(doc)
 
     return doc
 

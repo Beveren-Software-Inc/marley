@@ -56,6 +56,11 @@ export interface MedicineGivenRow {
   batch_id?: string
   lot_no?: string
   dispensing_lot?: string
+  old_medicine_code?: string
+  old_medicine_name?: string
+  ip_admission_medicine?: string
+  ip_admission_medicine_sheet?: string
+  patient_medication_order?: string
 }
 
 export interface MedicineGivenDispensingLotOption {
@@ -181,6 +186,11 @@ export interface MissedMedicineRow {
   medicine_given_timing?: string
   dose_notes?: string
   user?: string
+  old_medicine_code?: string
+  old_medicine_name?: string
+  ip_admission_medicine?: string
+  ip_admission_medicine_sheet?: string
+  patient_medication_order?: string
   modified?: string
 }
 

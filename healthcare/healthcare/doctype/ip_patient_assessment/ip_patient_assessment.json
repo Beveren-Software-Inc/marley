@@ -1,0 +1,278 @@
+{
+ "actions": [],
+ "allow_import": 1,
+ "allow_rename": 1,
+ "autoname": "field:trans_num",
+ "creation": "2026-06-02 15:11:39.077258",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "trans_num",
+  "admission_num",
+  "arrival",
+  "comfortable",
+  "introduction",
+  "rest",
+  "column_break_zqga",
+  "stat",
+  "diet",
+  "came_by",
+  "observe",
+  "physical",
+  "section_break_tsjv",
+  "psychiatric",
+  "oriented",
+  "abnormality",
+  "drug_history",
+  "column_break_hudp",
+  "family_history",
+  "medical",
+  "risk_of_fall",
+  "section_break_sijb",
+  "branch_num",
+  "cr_id",
+  "cr_date",
+  "column_break_bywn",
+  "up_id",
+  "up_date",
+  "section_break_stms",
+  "admission_num_old",
+  "history_dscp",
+  "oriented_desc",
+  "psychiatric_desc",
+  "family_history_desc",
+  "column_break_kmli",
+  "medical_desc",
+  "risk_of_fall_desc",
+  "physical_desc",
+  "others",
+  "gen_apper_dull_active"
+ ],
+ "fields": [
+  {
+   "fieldname": "trans_num",
+   "fieldtype": "Int",
+   "label": "TRANS_NUM",
+   "unique": 1
+  },
+  {
+   "fieldname": "admission_num",
+   "fieldtype": "Link",
+   "label": "ADMISSION_NUM",
+   "options": "Inpatient Admission"
+  },
+  {
+   "fieldname": "arrival",
+   "fieldtype": "Data",
+   "label": "ARRIVAL"
+  },
+  {
+   "fieldname": "comfortable",
+   "fieldtype": "Data",
+   "label": "COMFORTABLE"
+  },
+  {
+   "fieldname": "introduction",
+   "fieldtype": "Data",
+   "label": "INTRODUCTION"
+  },
+  {
+   "fieldname": "rest",
+   "fieldtype": "Data",
+   "label": "REST"
+  },
+  {
+   "fieldname": "stat",
+   "fieldtype": "Data",
+   "label": "STAT"
+  },
+  {
+   "fieldname": "diet",
+   "fieldtype": "Data",
+   "label": "DIET"
+  },
+  {
+   "fieldname": "came_by",
+   "fieldtype": "Data",
+   "label": "CAME_BY"
+  },
+  {
+   "fieldname": "observe",
+   "fieldtype": "Data",
+   "label": "OBSERVE"
+  },
+  {
+   "fieldname": "physical",
+   "fieldtype": "Data",
+   "label": "PHYSICAL"
+  },
+  {
+   "fieldname": "risk_of_fall",
+   "fieldtype": "Data",
+   "label": "RISK_OF_FALL"
+  },
+  {
+   "fieldname": "medical",
+   "fieldtype": "Data",
+   "label": "MEDICAL"
+  },
+  {
+   "fieldname": "family_history",
+   "fieldtype": "Data",
+   "label": "FAMILY_HISTORY"
+  },
+  {
+   "fieldname": "drug_history",
+   "fieldtype": "Data",
+   "label": "DRUG_HISTORY"
+  },
+  {
+   "fieldname": "history_dscp",
+   "fieldtype": "Small Text",
+   "label": "HISTORY_DSCP"
+  },
+  {
+   "fieldname": "psychiatric",
+   "fieldtype": "Data",
+   "label": "PSYCHIATRIC"
+  },
+  {
+   "fieldname": "oriented",
+   "fieldtype": "Data",
+   "label": "ORIENTED"
+  },
+  {
+   "fieldname": "abnormality",
+   "fieldtype": "Data",
+   "label": "ABNORMALITY"
+  },
+  {
+   "fieldname": "others",
+   "fieldtype": "Small Text",
+   "label": "OTHERS"
+  },
+  {
+   "fieldname": "cr_id",
+   "fieldtype": "Int",
+   "label": "CR_ID"
+  },
+  {
+   "fieldname": "cr_date",
+   "fieldtype": "Datetime",
+   "label": "CR_DATE"
+  },
+  {
+   "fieldname": "up_id",
+   "fieldtype": "Int",
+   "label": "UP_ID"
+  },
+  {
+   "fieldname": "up_date",
+   "fieldtype": "Datetime",
+   "label": "UP_DATE"
+  },
+  {
+   "fieldname": "branch_num",
+   "fieldtype": "Link",
+   "label": "BRANCH_NUM",
+   "options": "Cost Center"
+  },
+  {
+   "fieldname": "gen_apper_dull_active",
+   "fieldtype": "Data",
+   "label": "GEN_APPER_DULL_ACTIVE"
+  },
+  {
+   "fieldname": "physical_desc",
+   "fieldtype": "Small Text",
+   "label": "PHYSICAL_DESC"
+  },
+  {
+   "fieldname": "risk_of_fall_desc",
+   "fieldtype": "Small Text",
+   "label": "RISK_OF_FALL_DESC"
+  },
+  {
+   "fieldname": "medical_desc",
+   "fieldtype": "Small Text",
+   "label": "MEDICAL_DESC"
+  },
+  {
+   "fieldname": "family_history_desc",
+   "fieldtype": "Small Text",
+   "label": "FAMILY_HISTORY_DESC"
+  },
+  {
+   "fieldname": "psychiatric_desc",
+   "fieldtype": "Small Text",
+   "label": "PSYCHIATRIC_DESC"
+  },
+  {
+   "fieldname": "oriented_desc",
+   "fieldtype": "Small Text",
+   "label": "ORIENTED_DESC"
+  },
+  {
+   "fieldname": "admission_num_old",
+   "fieldtype": "Int",
+   "label": "ADMISSION_NUM_OLD"
+  },
+  {
+   "fieldname": "column_break_zqga",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_stms",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_kmli",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_sijb",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_bywn",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_tsjv",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_hudp",
+   "fieldtype": "Column Break"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-06-02 15:29:12.468340",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "IP Patient Assessment",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "import": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

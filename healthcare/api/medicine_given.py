@@ -797,6 +797,11 @@ def get_medicine_given(admission: str, limit: int | None = 50, offset: int | Non
 			"batch_no",
 			"lot_no",
 			"dispensing_lot",
+			"old_medicine_code",
+			"old_medicine_name",
+			"ip_admission_medicine",
+			"ip_admission_medicine_sheet",
+			"patient_medication_order",
 			"modified",
 		],
 		order_by="date desc, time desc, modified desc",
@@ -807,6 +812,42 @@ def get_medicine_given(admission: str, limit: int | None = 50, offset: int | Non
 	for row in rows:
 		if row.get("batch_no"):
 			row["batch_id"] = frappe.db.get_value("Batch", row["batch_no"], "batch_id") or row["batch_no"]
+		# Legacy fallback for imported data where current medicine fields are empty.
+		if not row.get("medicine_code") and row.get("old_medicine_code"):
+			row["medicine_code"] = row.get("old_medicine_code")
+		if not row.get("medicine_name") and row.get("old_medicine_name"):
+			row["medicine_name"] = row.get("old_medicine_name")
+		if row.get("ip_admission_medicine"):
+			ip_med = frappe.db.get_value(
+				"IP Admission Medicine",
+				row["ip_admission_medicine"],
+				["notes", "dose_note", "dose_notes", "trans_date", "trans_time", "start_date"],
+				as_dict=True,
+			) or {}
+			if not row.get("dose_notes"):
+				row["dose_notes"] = (
+					(ip_med.get("dose_notes") or "").strip()
+					or (ip_med.get("dose_note") or "").strip()
+					or (ip_med.get("notes") or "").strip()
+				)
+			if not row.get("date"):
+				row["date"] = ip_med.get("trans_date") or ip_med.get("start_date")
+			if not row.get("time"):
+				row["time"] = ip_med.get("trans_time")
+		if row.get("ip_admission_medicine_sheet"):
+			sheet = frappe.db.get_value(
+				"IP Admission Medicine Sheet",
+				row["ip_admission_medicine_sheet"],
+				["given_date", "remarks"],
+				as_dict=True,
+			) or {}
+			if not row.get("dose_notes") and sheet.get("remarks"):
+				row["dose_notes"] = sheet.get("remarks")
+			if not row.get("date") and sheet.get("given_date"):
+				row["date"] = str(sheet["given_date"]).split(" ")[0]
+			if not row.get("time") and sheet.get("given_date"):
+				gd = str(sheet["given_date"])
+				row["time"] = gd.split(" ")[1] if " " in gd else None
 
 	return rows
 
@@ -839,12 +880,57 @@ def get_missed_medicine(admission: str, limit: int | None = 50, offset: int | No
 			"medicine_given_timing",
 			"dose_notes",
 			"user",
+			"old_medicine_code",
+			"old_medicine_name",
+			"ip_admission_medicine",
+			"ip_admission_medicine_sheet",
+			"patient_medication_order",
 			"modified",
 		],
 		order_by="date desc, medicine_given_timing desc, modified desc",
 		limit=limit,
 		start=offset,
 	)
+
+	for row in rows:
+		# Legacy fallback for imported data where current medicine fields are empty.
+		if not row.get("medicine_code") and row.get("old_medicine_code"):
+			row["medicine_code"] = row.get("old_medicine_code")
+		if not row.get("medicine_name") and row.get("old_medicine_name"):
+			row["medicine_name"] = row.get("old_medicine_name")
+		if row.get("ip_admission_medicine"):
+			ip_med = frappe.db.get_value(
+				"IP Admission Medicine",
+				row["ip_admission_medicine"],
+				["notes", "dose_note", "dose_notes", "trans_date", "trans_time", "start_date", "frequency"],
+				as_dict=True,
+			) or {}
+			if not row.get("dose_notes"):
+				row["dose_notes"] = (
+					(ip_med.get("dose_notes") or "").strip()
+					or (ip_med.get("dose_note") or "").strip()
+					or (ip_med.get("notes") or "").strip()
+				)
+			if not row.get("date"):
+				row["date"] = ip_med.get("trans_date") or ip_med.get("start_date")
+			if not row.get("time"):
+				row["time"] = ip_med.get("trans_time")
+			if not row.get("medicine_given_timing"):
+				row["medicine_given_timing"] = ip_med.get("frequency")
+		if row.get("ip_admission_medicine_sheet"):
+			sheet = frappe.db.get_value(
+				"IP Admission Medicine Sheet",
+				row["ip_admission_medicine_sheet"],
+				["given_date", "remarks"],
+				as_dict=True,
+			) or {}
+			if not row.get("dose_notes") and sheet.get("remarks"):
+				row["dose_notes"] = sheet.get("remarks")
+			if not row.get("date") and sheet.get("given_date"):
+				row["date"] = str(sheet["given_date"]).split(" ")[0]
+			if not row.get("time") and sheet.get("given_date"):
+				gd = str(sheet["given_date"])
+				row["time"] = gd.split(" ")[1] if " " in gd else None
 	return rows
 
 

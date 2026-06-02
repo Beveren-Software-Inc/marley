@@ -7,7 +7,7 @@ import { AdmissionFormModal } from './AdmissionFormModal'
 import { ScheduleDischargeModal } from './ScheduleDischargeModal'
 import { navigateToDischarge } from '../../utils/dischargeNavigation'
 import { getInpatientDiagnoses, type DiagnosisRow } from '../../services/diagnosis'
-import { fetchMedicineGiven, type MedicineGivenRow } from '../../services/medicineGiven'
+import { fetchMedicineGiven, fetchMissedMedicine, type MedicineGivenRow, type MissedMedicineRow } from '../../services/medicineGiven'
 // FIX 2: LabTestRow → LabTest (matches the actual export name in labTests service)
 import { fetchLabTestsByInpatientRecord, type LabTest } from '../../services/labTests'
 // The TS signature of fetchInpatientPrescriptions says InpatientPrescriptionRow[], but the actual
@@ -147,6 +147,7 @@ const useDateFormatter = () => {
 const useTabData = (admissionName: string, activeTab: TabType) => {
   const [diagnoses, setDiagnoses] = useState<DiagnosisRow[]>([])
   const [medicineGiven, setMedicineGiven] = useState<MedicineGivenRow[]>([])
+  const [missedMedicine, setMissedMedicine] = useState<MissedMedicineRow[]>([])
   const [labTests, setLabTests] = useState<LabTest[]>([])
   // State uses InpatientPrescription[] (grouped, with medications[]) — the shape the API actually
   // returns at runtime, even though the TS return type of fetchInpatientPrescriptions says otherwise.
@@ -174,8 +175,12 @@ const useTabData = (admissionName: string, activeTab: TabType) => {
   const loadMedicineGiven = useCallback(async () => {
     try {
       setLoadingMedicine(true)
-      const data = await fetchMedicineGiven(admissionName)
-      setMedicineGiven(data)
+      const [givenRows, missedRows] = await Promise.all([
+        fetchMedicineGiven(admissionName),
+        fetchMissedMedicine(admissionName),
+      ])
+      setMedicineGiven(givenRows)
+      setMissedMedicine(missedRows)
     } catch (err) {
       console.error('Failed to load medicine given:', err)
     } finally {
@@ -239,6 +244,7 @@ const useTabData = (admissionName: string, activeTab: TabType) => {
   return {
     diagnoses,
     medicineGiven,
+    missedMedicine,
     labTests,
     prescriptions,
     loadingDiagnoses,
@@ -730,22 +736,36 @@ const LabTestsTab = ({ labTests, loading }: { labTests: LabTest[]; loading: bool
   )
 }
 
-const MedicineGivenTab = ({ medicineGiven, loading }: { medicineGiven: MedicineGivenRow[]; loading: boolean }) => {
+const MedicineGivenTab = ({
+  medicineGiven,
+  missedMedicine,
+  loading,
+}: {
+  medicineGiven: MedicineGivenRow[]
+  missedMedicine: MissedMedicineRow[]
+  loading: boolean
+}) => {
+  const hasLegacyFallback = (row: MedicineGivenRow) => !row.medicine_code && Boolean(row.old_medicine_code)
   return (
     <div>
       <h3 className="text-md font-semibold text-slate-800 mb-4">Medicine Given</h3>
       {loading ? (
         <LoadingSpinner message="Loading medicine records..." />
-      ) : medicineGiven.length === 0 ? (
-        <EmptyState icon={Pill} message="No medicines administered yet" />
+      ) : medicineGiven.length === 0 && missedMedicine.length === 0 ? (
+        <EmptyState icon={Pill} message="No medicine given/missed records yet" />
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-4">
+          {medicineGiven.length > 0 && (
+            <>
+              <h4 className="text-sm font-semibold text-slate-700">Given Medicine</h4>
           {medicineGiven.map((med, index) => (
             <div key={med.name || index} className="bg-slate-50 rounded-lg p-4 border border-slate-200">
               <div className="flex justify-between items-start mb-2">
-                <span className="text-sm font-semibold text-primary">{med.medicine_name || med.medicine_code}</span>
+                <span className="text-sm font-semibold text-primary">
+                  {med.medicine_name || med.old_medicine_name || med.medicine_code || med.old_medicine_code}
+                </span>
                 <span className="text-xs text-slate-400">
-                  <SafeDate date={med.date} format="datetime" />
+                  <SafeDate date={`${med.date || ''} ${med.time || ''}`.trim() || med.date} format="datetime" />
                 </span>
               </div>
               <div className="grid grid-cols-2 gap-2 text-sm">
@@ -754,8 +774,54 @@ const MedicineGivenTab = ({ medicineGiven, loading }: { medicineGiven: MedicineG
               </div>
               {med.dose_notes && <p className="text-xs text-slate-500 mt-2">Notes: {med.dose_notes}</p>}
               <div className="text-xs text-slate-400 mt-2">Given by: {med.user}</div>
+              {(med.old_medicine_code || med.old_medicine_name || med.ip_admission_medicine || med.ip_admission_medicine_sheet || med.patient_medication_order) && (
+                <div className="text-xs text-slate-500 mt-2 space-y-0.5">
+                  {med.old_medicine_code && <div>Legacy code: {med.old_medicine_code}</div>}
+                  {med.old_medicine_name && <div>Legacy name: {med.old_medicine_name}</div>}
+                  {med.ip_admission_medicine && <div>IP Admission Medicine: {med.ip_admission_medicine}</div>}
+                  {med.ip_admission_medicine_sheet && <div>Medicine Sheet: {med.ip_admission_medicine_sheet}</div>}
+                  {med.patient_medication_order && <div>Patient Medication Order: {med.patient_medication_order}</div>}
+                </div>
+              )}
+              {hasLegacyFallback(med) && (
+                <div className="mt-2 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+                  Legacy fallback row (no current Item code).
+                </div>
+              )}
             </div>
           ))}
+            </>
+          )}
+
+          {missedMedicine.length > 0 && (
+            <>
+              <h4 className="text-sm font-semibold text-slate-700">Missed Medicine</h4>
+              {missedMedicine.map((med, index) => (
+                <div key={med.name || index} className="bg-rose-50 rounded-lg p-4 border border-rose-200">
+                  <div className="flex justify-between items-start mb-2">
+                    <span className="text-sm font-semibold text-rose-700">
+                      {med.medicine_name || med.old_medicine_name || med.medicine_code || med.old_medicine_code}
+                    </span>
+                    <span className="text-xs text-slate-400">
+                      <SafeDate date={`${med.date || ''} ${med.time || ''}`.trim() || med.date} format="datetime" />
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div><span className="font-medium">Qty:</span> {med.qty} {med.unit}</div>
+                    <div><span className="font-medium">Timing:</span> {med.medicine_given_timing || '-'}</div>
+                  </div>
+                  {med.dose_notes && <p className="text-xs text-slate-500 mt-2">Notes: {med.dose_notes}</p>}
+                  <div className="text-xs text-slate-500 mt-2 space-y-0.5">
+                    {med.old_medicine_code && <div>Legacy code: {med.old_medicine_code}</div>}
+                    {med.old_medicine_name && <div>Legacy name: {med.old_medicine_name}</div>}
+                    {med.ip_admission_medicine && <div>IP Admission Medicine: {med.ip_admission_medicine}</div>}
+                    {med.ip_admission_medicine_sheet && <div>Medicine Sheet: {med.ip_admission_medicine_sheet}</div>}
+                    {med.patient_medication_order && <div>Patient Medication Order: {med.patient_medication_order}</div>}
+                  </div>
+                </div>
+              ))}
+            </>
+          )}
         </div>
       )}
     </div>
@@ -913,6 +979,7 @@ export const InpatientAdmissionDetails = ({ admissionName, onUpdate }: Inpatient
   const {
     diagnoses,
     medicineGiven,
+    missedMedicine,
     labTests,
     prescriptions,
     loadingDiagnoses,
@@ -977,7 +1044,7 @@ export const InpatientAdmissionDetails = ({ admissionName, onUpdate }: Inpatient
     { id: 'details' as TabType, label: 'Admission Details', icon: Info, count: 0 },
     { id: 'diagnosis' as TabType, label: 'Diagnoses', icon: Stethoscope, count: diagnoses.length },
     { id: 'lab_tests' as TabType, label: 'Lab Tests', icon: FlaskConical, count: labTests.length },
-    { id: 'medicine_given' as TabType, label: 'Medicine Given', icon: Pill, count: medicineGiven.length },
+    { id: 'medicine_given' as TabType, label: 'Medicine Given', icon: Pill, count: medicineGiven.length + missedMedicine.length },
     { id: 'prescriptions' as TabType, label: 'Prescriptions', icon: FileText, count: prescriptions.length },
   ]
 
@@ -1075,7 +1142,9 @@ export const InpatientAdmissionDetails = ({ admissionName, onUpdate }: Inpatient
             />
           )}
           {activeTab === 'lab_tests' && <LabTestsTab labTests={labTests} loading={loadingLabTests} />}
-          {activeTab === 'medicine_given' && <MedicineGivenTab medicineGiven={medicineGiven} loading={loadingMedicine} />}
+          {activeTab === 'medicine_given' && (
+            <MedicineGivenTab medicineGiven={medicineGiven} missedMedicine={missedMedicine} loading={loadingMedicine} />
+          )}
           {activeTab === 'prescriptions' && <PrescriptionsTab prescriptions={prescriptions} loading={loadingPrescriptions} />}
         </div>
       </div>

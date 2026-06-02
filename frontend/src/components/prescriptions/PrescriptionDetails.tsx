@@ -134,6 +134,15 @@ const MedicationRow = ({ order }: { order: any }) => {
   const rowStyle: React.CSSProperties = isHex(color)
     ? hexRowStyle(color)
     : order.is_pink ? {} : {}
+  const isLegacyRow = !order.drug && (order.old_medicine_code || order.old_medicine_name || order.trans_num)
+  const displayDrugName = order.drug_name?.trim() || order.old_medicine_name || '-'
+  const displayDrugCode = order.drug || order.old_medicine_code || '-'
+  const displayDosage = isLegacyRow
+    ? (order.dose_notes || order.instructions || order.dosage || order.strength || '-')
+    : (order.dosage || order.dose_notes || order.strength || '-')
+  const displayRoute = order.route_of_administration || '-'
+  const displayStartDate = order.date || '-'
+  const displayEndDate = order.end_date || '-'
 
   return (
     <tr
@@ -142,15 +151,22 @@ const MedicationRow = ({ order }: { order: any }) => {
     >
       <td className="px-3 py-2.5">
         <div className="flex items-center flex-wrap gap-1.5">
-          <span className="font-medium text-slate-800">{order.drug_name?.trim()}</span>
+          <span className="font-medium text-slate-800">{displayDrugName}</span>
+          {isLegacyRow && <SmallBadge cls="bg-amber-100 text-amber-800 border border-amber-200">Legacy</SmallBadge>}
           {order.is_pink && <SmallBadge cls="bg-pink-100 text-pink-700">🩷 Pink</SmallBadge>}
           {order.is_prn  && <SmallBadge cls="bg-amber-100 text-amber-700">PRN</SmallBadge>}
           {order.is_long_acting_medicine && <SmallBadge cls="bg-teal-100 text-teal-700">⏳ Long Acting</SmallBadge>}
         </div>
-        <div className="text-xs text-slate-400 mt-0.5">{order.drug}</div>
+        <div className="text-xs text-slate-400 mt-0.5">{displayDrugCode}</div>
+        {isLegacyRow && (
+          <div className="mt-1 text-[11px] text-slate-500 space-x-2">
+            {order.trans_num ? <span>IP Med: {order.trans_num}</span> : null}
+            {order.redundancy_type ? <span>Redundancy: {order.redundancy_type}</span> : null}
+          </div>
+        )}
       </td>
       <td className="px-3 py-2.5">
-        <span className="font-medium text-slate-800">{order.dosage}</span>
+        <span className="font-medium text-slate-800">{displayDosage}</span>
         <span className="text-slate-500 text-xs ml-1">{order.uom}</span>
       </td>
       <td className="px-3 py-2.5 text-slate-600 text-sm">{order.dosage_form}</td>
@@ -160,10 +176,10 @@ const MedicationRow = ({ order }: { order: any }) => {
           <div className="text-xs text-slate-400 mt-0.5">{order.frequency_in_a_day}×/day</div>
         )}
       </td>
-      <td className="px-3 py-2.5 text-slate-600 text-xs">{order.route_of_administration}</td>
+      <td className="px-3 py-2.5 text-slate-600 text-xs">{displayRoute}</td>
       <td className="px-3 py-2.5 text-xs text-slate-500">
-        <div>{order.date}</div>
-        <div className="text-slate-400">→ {order.end_date}</div>
+        <div>{displayStartDate}</div>
+        <div className="text-slate-400">→ {displayEndDate}</div>
       </td>
       <td className="px-3 py-2.5">
         {order.is_completed
