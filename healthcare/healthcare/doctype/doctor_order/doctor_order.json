@@ -14,6 +14,7 @@
   "column_break_vuaj",
   "patient",
   "patient_name",
+  "cost_center",
   "section_break_quim",
   "doctor",
   "doctor_name",
@@ -25,11 +26,11 @@
   "nurse",
   "nurse_date",
   "nurse_entry_date",
+  "request",
   "column_break_vrgp",
   "nurses_remarks",
   "status",
   "section_break_ovqh",
-  "request",
   "cr_id",
   "cr_date",
   "column_break_uemo",
@@ -142,7 +143,7 @@
    "fieldname": "status",
    "fieldtype": "Select",
    "label": "Status",
-   "options": "\nFinished\nPending"
+   "options": "\nFinished\nPending\nCanceled"
   },
   {
    "fieldname": "section_break_ovqh",
@@ -176,12 +177,18 @@
    "fieldname": "up_date",
    "fieldtype": "Data",
    "label": "UP Date"
+  },
+  {
+   "fieldname": "cost_center",
+   "fieldtype": "Link",
+   "label": "Cost Center",
+   "options": "Cost Center"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-06-02 17:51:33.778808",
+ "modified": "2026-06-02 18:20:15.179533",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Doctor Order",
