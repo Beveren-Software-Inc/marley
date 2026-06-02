@@ -241,6 +241,7 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
 
   // Derive the active screen id from the current URL query param
   const activeScreen = urlSearch.get('screen')
+  const isNurseRoute = location.pathname.startsWith('/nurse')
 
   const roles = user?.roles?.length
     ? user.roles
@@ -456,7 +457,9 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
           className="fixed top-14 left-0 right-0 z-30 md:left-[240px]"
           aria-hidden
         />
-        <div className="flex-1 min-w-0 overflow-y-auto dense-listing">{children}</div>
+        <div className={`flex-1 min-w-0 overflow-y-auto dense-listing ${isNurseRoute ? 'overscroll-y-contain bg-slate-50' : ''}`}>
+          {children}
+        </div>
         <footer className="h-9 flex items-center justify-end px-4 text-[11px] text-white bg-gradient-to-r from-primary/70 via-primary to-primary/60">
           © 2025 Powered by <span className="font-semibold ml-1">Beveren Software Inc.</span>
         </footer>

@@ -13,11 +13,13 @@
   "assessment_template",
   "reference_type",
   "encounter",
+  "admission",
   "column_break_4",
   "company",
   "healthcare_practitioner",
   "assessment_datetime",
   "assessment_description",
+  "ip_patient_assessment",
   "section_break_7",
   "assessment_sheet",
   "section_break_9",
@@ -37,8 +39,7 @@
    "fieldtype": "Link",
    "in_list_view": 1,
    "label": "File No",
-   "options": "Patient",
-   "reqd": 1
+   "options": "Patient"
   },
   {
    "fieldname": "assessment_template",
@@ -67,8 +68,7 @@
   {
    "fieldname": "assessment_datetime",
    "fieldtype": "Datetime",
-   "label": "Assessment Datetime",
-   "reqd": 1
+   "label": "Assessment Datetime"
   },
   {
    "fieldname": "section_break_7",
@@ -167,11 +167,23 @@
    "fieldtype": "Dynamic Link",
    "label": "Encounter",
    "options": "reference_type"
+  },
+  {
+   "fieldname": "admission",
+   "fieldtype": "Link",
+   "label": "Admission",
+   "options": "Inpatient Admission"
+  },
+  {
+   "fieldname": "ip_patient_assessment",
+   "fieldtype": "Link",
+   "label": "IP Patient assessment",
+   "options": "IP Patient Assessment"
   }
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2026-03-23 17:49:14.347458",
+ "modified": "2026-06-02 16:15:48.341645",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Assessment",
