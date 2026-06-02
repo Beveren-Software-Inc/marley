@@ -950,7 +950,10 @@ def process_ip_admission_medicine_link_batch(offset: int = 0) -> None:
 				entry.trans_num = trans_link
 				entry.old_medicine_code = old_code
 				entry.old_medicine_name = old_name
-				entry.dosage = (row.get("strength") or "").strip()
+				entry.dosage = (
+					(row.get("dose_notes") or "").strip()
+					or (row.get("strength") or "").strip()
+				)
 				entry.uom = (row.get("unit") or "").strip()
 				entry.no_of_days = cint(row.get("duration") or 0)
 				entry.quantity = row.get("qty") or 0
@@ -1253,7 +1256,7 @@ def process_ip_admission_medicine_sheet_map_batch(offset: int = 0) -> None:
 				"medicine_name": item_name,
 				"medication_order": pmo_name,
 				"qty": (ip_med_row or {}).get("qty") or 0,
-				"dose_notes": (ip_med_row or {}).get("dose_notes"),
+				"dose_notes": (row.get("remarks") or "").strip() or (ip_med_row or {}).get("dose_notes"),
 				"medicine_given_timing": (ip_med_row or {}).get("frequency"),
 				"user": frappe.session.user,
 				"old_medicine_code": legacy_code_name,

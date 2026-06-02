@@ -1040,9 +1040,9 @@ export const NursePage = () => {
   // IP Services page: two cards – Service Request (left), IP Service (right)
   if (screen === 'n-ip-services') {
     return (
-      <div className="flex flex-col h-full min-h-0 overflow-hidden">
+      <div className="flex min-h-full flex-col">
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
-        <div className="p-4 flex-1 min-h-0 overflow-hidden flex flex-col">
+        <div className="p-4 flex-1 min-h-0 flex flex-col">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 min-h-0 flex-1">
             {/* Left card: Service Request – request a service (e.g. Transport) */}
             <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[420px] overflow-hidden min-w-0">
@@ -1530,7 +1530,7 @@ export const NursePage = () => {
   }
 
   return (
-    <div className="flex flex-col">
+    <div className="flex min-h-full flex-col">
       <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
 
       {/* OP / IP mode: list at top — hides once a patient is selected */}
