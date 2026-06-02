@@ -1,0 +1,210 @@
+{
+ "actions": [],
+ "allow_import": 1,
+ "allow_rename": 1,
+ "autoname": "field:trans_no",
+ "creation": "2026-06-02 17:49:19.442375",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "trans_no",
+  "trans_date",
+  "inpatient_admission",
+  "column_break_vuaj",
+  "patient",
+  "patient_name",
+  "section_break_quim",
+  "doctor",
+  "doctor_name",
+  "doctor_entry_date",
+  "column_break_cbum",
+  "doctor_order",
+  "section_break_bmum",
+  "column_break_mubk",
+  "nurse",
+  "nurse_date",
+  "nurse_entry_date",
+  "column_break_vrgp",
+  "nurses_remarks",
+  "status",
+  "section_break_ovqh",
+  "request",
+  "cr_id",
+  "cr_date",
+  "column_break_uemo",
+  "up_id",
+  "up_date"
+ ],
+ "fields": [
+  {
+   "fieldname": "trans_no",
+   "fieldtype": "Data",
+   "label": "Trans No",
+   "unique": 1
+  },
+  {
+   "fieldname": "trans_date",
+   "fieldtype": "Datetime",
+   "label": "Trans Date"
+  },
+  {
+   "fieldname": "inpatient_admission",
+   "fieldtype": "Link",
+   "label": "Inpatient Admission",
+   "options": "Inpatient Admission"
+  },
+  {
+   "fieldname": "column_break_vuaj",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "patient",
+   "fieldtype": "Link",
+   "label": "Patient",
+   "options": "Patient"
+  },
+  {
+   "fetch_from": "patient.patient_name",
+   "fieldname": "patient_name",
+   "fieldtype": "Data",
+   "label": "Patient Name"
+  },
+  {
+   "fieldname": "section_break_quim",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "doctor",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Doctor",
+   "options": "Healthcare Practitioner"
+  },
+  {
+   "fetch_from": "doctor.practitioner_name",
+   "fieldname": "doctor_name",
+   "fieldtype": "Data",
+   "label": "Doctor Name"
+  },
+  {
+   "fieldname": "doctor_entry_date",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Doctor Entry Date"
+  },
+  {
+   "fieldname": "column_break_cbum",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "doctor_order",
+   "fieldtype": "Small Text",
+   "label": "Order Description"
+  },
+  {
+   "fieldname": "section_break_bmum",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_mubk",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "nurse",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Nurse",
+   "options": "Healthcare Practitioner"
+  },
+  {
+   "fieldname": "nurse_date",
+   "fieldtype": "Data",
+   "label": "Nurse Date"
+  },
+  {
+   "fieldname": "nurse_entry_date",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Nurse Entry Date"
+  },
+  {
+   "fieldname": "column_break_vrgp",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "nurses_remarks",
+   "fieldtype": "Small Text",
+   "label": "Nurses Remarks"
+  },
+  {
+   "default": "Pending",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "\nFinished\nPending"
+  },
+  {
+   "fieldname": "section_break_ovqh",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "request",
+   "fieldtype": "Data",
+   "label": "Request"
+  },
+  {
+   "fieldname": "cr_id",
+   "fieldtype": "Data",
+   "label": "CR ID"
+  },
+  {
+   "fieldname": "cr_date",
+   "fieldtype": "Data",
+   "label": "CR Date"
+  },
+  {
+   "fieldname": "column_break_uemo",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "up_id",
+   "fieldtype": "Data",
+   "label": "UP ID"
+  },
+  {
+   "fieldname": "up_date",
+   "fieldtype": "Data",
+   "label": "UP Date"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-06-02 17:51:33.778808",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Doctor Order",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "import": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
