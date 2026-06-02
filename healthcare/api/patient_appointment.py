@@ -87,7 +87,7 @@ def get_all_appointments(limit=50, offset=0, status=None, patient=None,
 		'name', 'patient', 'patient_name',
 		'appointment_date', 'appointment_time',
 		'status', 'appointment_type', 'department',
-		'practitioner', 'practitioner_name', 'company',
+		'practitioner', 'practitioner_name', 'company', 'cost_center',
 		'temporary_patient_name', 'temporary_mobile_no',
 		'invoiced', 'ref_sales_invoice',
 	]
@@ -148,7 +148,7 @@ def get_practitioner_appointments(limit=50, offset=0, status=None,
         'name', 'patient', 'patient_name',
         'appointment_date', 'appointment_time',
         'status', 'appointment_type', 'department',
-        'practitioner', 'practitioner_name',
+        'practitioner', 'practitioner_name', 'cost_center',
     ]
 
     count_args = {'doctype': 'Patient Appointment', 'filters': filters}
@@ -162,6 +162,45 @@ def get_practitioner_appointments(limit=50, offset=0, status=None,
     appointments = frappe.get_all(**fetch_args)
 
     return {"data": appointments, "total_count": total_count}
+
+@frappe.whitelist()
+def get_appointment_cost_center_options():
+	"""Cost centers for the create-appointment form (respects User Permission on Cost Center)."""
+	from healthcare.api.common import get_permitted_cost_centers
+
+	permitted = get_permitted_cost_centers()
+	restricted = permitted is not None
+	print("Huku ndio cost center options", str(permitted))
+	if permitted is None:
+		rows = frappe.get_all(
+			"Cost Center",
+			filters={"is_group": 0},
+			fields=["name", "cost_center_name"],
+			order_by="name asc",
+			limit_page_length=200,
+		)
+		default_cc = rows[0].name if len(rows) == 1 else ""
+	elif not permitted:
+		rows = []
+		default_cc = ""
+	else:
+		rows = frappe.get_all(
+			"Cost Center",
+			filters={"name": ["in", permitted]},
+			fields=["name", "cost_center_name"],
+			order_by="name asc",
+		)
+		default_cc = permitted[0]
+
+	return {
+		"cost_centers": [
+			{"name": r.name, "label": (r.cost_center_name or r.name)} for r in rows
+		],
+		"default_cost_center": default_cc or "",
+		"restricted": restricted,
+		"locked": restricted and len(rows) == 1,
+	}
+
 
 @frappe.whitelist()
 def create_appointment(data):
@@ -189,6 +228,7 @@ def create_appointment(data):
 		'temporary_patient_name': data.get('temporary_patient_name'),
 		'temporary_mobile_no': data.get('temporary_mobile_no'),
 		'notes': data.get('notes'),
+		'cost_center': data.get('cost_center') or None,
 		'trans_no': number,
 	}
 	if explicit_duration:

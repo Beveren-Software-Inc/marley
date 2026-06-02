@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { fetchPrescription, type Prescription } from '../../services/prescriptions'
+import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 
 // ─── Medication type definitions ──────────────────────────────────────────────
 const MED_TYPES = [
@@ -370,7 +371,11 @@ export const PrescriptionDetails = ({ prescriptionName, onUpdate }: Prescription
               <span>Showing:</span>
               <span className="font-medium text-slate-700">{activeTypeDef?.icon} {activeTypeDef?.label}</span>
               <span className="text-slate-400">({filteredOrders.length} {filteredOrders.length === 1 ? 'order' : 'orders'})</span>
-              <button onClick={() => setActiveType('All')} className="text-blue-500 hover:underline ml-1">Clear filter</button>
+              <ClearFiltersButton
+                className="ml-1 w-6 h-6 border-0 bg-transparent hover:bg-slate-100"
+                title="Clear filter"
+                onClick={() => setActiveType('All')}
+              />
             </div>
           )}
 

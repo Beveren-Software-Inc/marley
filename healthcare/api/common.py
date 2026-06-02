@@ -1573,11 +1573,13 @@ def get_permitted_cost_centers():
 	``[]``      The user has a permission row but it holds no values; show nothing.
 	"""
 	user = frappe.session.user
+	
 	if user == "Administrator":
 		return None
 	if _user_is_exempt(user):
+		
 		return None
-
+	
 	perms = frappe.get_all(
 		"User Permission",
 		filters={"user": user, "allow": "Cost Center"},

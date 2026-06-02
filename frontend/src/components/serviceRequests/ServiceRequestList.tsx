@@ -22,6 +22,7 @@ import { BookConsultationSessionModal } from './BookConsultationSessionModal'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
 import { Search, X } from 'lucide-react'
+import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import { useFormatMoney } from '../../hooks/useFormatMoney'
 import { useCardFilters, useDashboardCompactClinical } from '../../contexts/CardFilterContext'
 import {
@@ -496,10 +497,8 @@ export const ServiceRequestList = ({
           )}
         </div>
 
-        {/* Clear filters */}
-        {(search || statusFilter || (templateDtFilter && !template_dt) || practitionerFilter || patientSearchInput) && (
-          <button
-            type="button"
+        {(search || statusFilter || (templateDtFilter && !template_dt) || practitionerFilter || patientSearchInput) ? (
+          <ClearFiltersButton
             onClick={() => {
               setSearch('')
               setStatusFilter('')
@@ -509,11 +508,8 @@ export const ServiceRequestList = ({
               setPatientSearchInput('')
               setDebouncedPatientSearch('')
             }}
-            className="text-xs text-slate-500 hover:text-slate-700 underline whitespace-nowrap"
-          >
-            Clear filters
-          </button>
-        )}
+          />
+        ) : null}
       </div>
       )}
 

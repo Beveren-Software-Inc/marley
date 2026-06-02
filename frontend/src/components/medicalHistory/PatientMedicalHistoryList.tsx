@@ -12,6 +12,7 @@ import { useCardFilters, useDashboardCompactClinical } from '../../contexts/Card
 import { ILLNESS_FIELDS, illnessIsChecked, yesNoBadgeClass, pmhClinicalBlurb } from './pastMedicalHistoryUtils'
 import { CardRowMetaHint } from '../ui/dashboardCardListing'
 import { CM_BTN_PRIMARY, DetailSlideOver } from '../ui/CreateModalChrome'
+import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 
 interface Props {
   patient: string
@@ -303,18 +304,14 @@ export function PatientMedicalHistoryList({ patient, patientName, refreshKey }: 
               className="rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white"
             />
           </div>
-          {hasActiveFilters && (
-            <button
-              type="button"
+          {hasActiveFilters ? (
+            <ClearFiltersButton
               onClick={() => {
                 setFromDate('')
                 setToDate('')
               }}
-              className="text-xs text-slate-600 underline self-end pb-1"
-            >
-              Clear filters
-            </button>
-          )}
+            />
+          ) : null}
         </div>
       )}
 
@@ -341,16 +338,13 @@ export function PatientMedicalHistoryList({ patient, patientName, refreshKey }: 
         {!loading && items.length > 0 && filteredItems.length === 0 && (
           <div className="flex flex-col items-center justify-center py-10 gap-2">
             <p className="text-sm text-slate-500">No records match the current filters.</p>
-            <button
-              type="button"
+            <ClearFiltersButton
+              className="self-center"
               onClick={() => {
                 setFromDate('')
                 setToDate('')
               }}
-              className="text-xs text-primary underline"
-            >
-              Clear filters
-            </button>
+            />
           </div>
         )}
         {!loading && filteredItems.length > 0 && compactClinical && (

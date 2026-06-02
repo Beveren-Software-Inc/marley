@@ -666,7 +666,12 @@ import { MarkPatientCheckedOutModal } from './MarkPatientCheckedOutModal'
 import { AppointmentCreateSalesOrderModal } from './AppointmentCreateSalesOrderModal'
 import { AppointmentPaymentModal } from './AppointmentPaymentModal'
 import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
-import { getCurrentUserPractitioner } from '../../services/common'
+import { ClearFiltersButton } from '../ui/ClearFiltersButton'
+import {
+  fetchHealthcarePractitioners,
+  getCurrentUserPractitioner,
+  type LinkFieldOption,
+} from '../../services/common'
 
 const statusColors: Record<string, string> = {
   'Scheduled': 'info',
@@ -682,6 +687,10 @@ const statusColors: Record<string, string> = {
 }
 
 const ALL_STATUSES = ['Scheduled', 'Open', 'Confirmed', 'Checked In', 'Patient Arrived', 'Checked Out', 'Postponed', 'Closed', 'Cancelled', 'No Show']
+
+const FILTER_LABEL_CLASS = 'text-xs font-medium text-slate-500 uppercase tracking-wide'
+const FILTER_CONTROL_CLASS =
+  'w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary'
 
 interface AppointmentListProps {
   refreshKey?: string | number
@@ -723,6 +732,7 @@ function appointmentCardMetaFields(apt: Appointment): readonly CardMetaField[] {
     ['Type', apt.appointment_type],
     ['Practitioner', apt.practitioner_name || apt.practitioner],
     ['Department', apt.department],
+    ['Cost center', apt.cost_center],
     ['Service unit', apt.service_unit],
     ['Patient', apt.patient_name || apt.patient],
     ['Notes', apt.notes],
@@ -856,7 +866,6 @@ export const AppointmentList = ({
   const [cancelLoading, setCancelLoading] = useState(false)
   const [practitionerAvailability, setPractitionerAvailability] = useState<Record<string, AvailabilityResponse>>({})
   const [availabilityLoading, setAvailabilityLoading] = useState<Record<string, boolean>>({})
-  const [uniquePractitioners, setUniquePractitioners] = useState<string[]>([])
   const menuRef = useRef<HTMLDivElement>(null)
 
   // Filters (server-side)
@@ -888,8 +897,13 @@ export const AppointmentList = ({
   const [myPractitionerId, setMyPractitionerId] = useState<string | null>(null)
   const [linkedPractitionerName, setLinkedPractitionerName] = useState<string>('')
   const [schedulePractitionerResolved, setSchedulePractitionerResolved] = useState(false)
+  const [practitionerDropdownOptions, setPractitionerDropdownOptions] = useState<LinkFieldOption[]>([])
+  const [practitionerOpen, setPractitionerOpen] = useState(false)
+  const [practitionerQuery, setPractitionerQuery] = useState('')
+  const defaultPractitionerFilterApplied = useRef(false)
 
-  const showPractitionerColumn = Boolean(showAll)
+  const useAllAppointmentsApi = Boolean(showAll || doctorScheduleMode)
+  const showPractitionerColumn = useAllAppointmentsApi
 
   useEffect(() => {
     if (!doctorScheduleMode) {
@@ -926,6 +940,37 @@ export const AppointmentList = ({
     }
   }, [doctorScheduleMode, myPractitionerId])
 
+  useEffect(() => {
+    if (!doctorScheduleMode || patient || !schedulePractitionerResolved) return
+    if (defaultPractitionerFilterApplied.current) return
+    defaultPractitionerFilterApplied.current = true
+    if (!myPractitionerId) return
+    setFilterPractitioner(myPractitionerId)
+    fetchHealthcarePractitioners()
+      .then((options) => {
+        const match = options.find((p) => p.name === myPractitionerId)
+        setPractitionerQuery(match?.label || linkedPractitionerName || myPractitionerId)
+      })
+      .catch(() => {
+        setPractitionerQuery(myPractitionerId)
+      })
+  }, [doctorScheduleMode, patient, schedulePractitionerResolved, myPractitionerId])
+
+  useEffect(() => {
+    if (filterPractitioner !== myPractitionerId || !linkedPractitionerName) return
+    setPractitionerQuery(linkedPractitionerName)
+  }, [filterPractitioner, myPractitionerId, linkedPractitionerName])
+
+  useEffect(() => {
+    if (!useAllAppointmentsApi || !practitionerOpen) return
+    const timeoutId = setTimeout(() => {
+      fetchHealthcarePractitioners(practitionerQuery || undefined)
+        .then(setPractitionerDropdownOptions)
+        .catch(() => setPractitionerDropdownOptions([]))
+    }, practitionerQuery.trim() === '' ? 0 : 300)
+    return () => clearTimeout(timeoutId)
+  }, [practitionerQuery, practitionerOpen, useAllAppointmentsApi])
+
   // Debounce search input
   useEffect(() => {
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
@@ -937,7 +982,6 @@ export const AppointmentList = ({
   }, [searchInput])
 
   const handleFilterStatusChange = useCallback((v: string) => { setFilterStatus(v); setPage(1) }, [])
-  const handleFilterPractitionerChange = useCallback((v: string) => { setFilterPractitioner(v); setPage(1) }, [])
   const handleFilterDateFromChange = useCallback((v: string) => { setFilterDateFrom(v); setPage(1) }, [])
   const handleFilterDateToChange = useCallback((v: string) => { setFilterDateTo(v); setPage(1) }, [])
 
@@ -955,7 +999,7 @@ export const AppointmentList = ({
 
         let response: AppointmentPage
 
-        if (showAll) {
+        if (useAllAppointmentsApi) {
           response = await fetchAllAppointments(
             pageSize,
             offset,
@@ -980,16 +1024,6 @@ export const AppointmentList = ({
         setAppointments(response.data)
         setTotalCount(response.total_count)
 
-        // Extract unique practitioners for filter dropdown
-        const practitioners = [...new Set(response.data
-          .map(apt => apt.practitioner)
-          .filter(p => p)
-        )] as string[]
-        setUniquePractitioners(prev => {
-          const merged = new Set([...prev, ...practitioners])
-          return [...merged]
-        })
-
         if (!cardCompactLayout) {
           for (const apt of response.data) {
             if (apt.practitioner && apt.appointment_date && !practitionerAvailability[apt.name]) {
@@ -1012,7 +1046,7 @@ export const AppointmentList = ({
     }
     loadAppointments()
   }, [
-    refreshKey, showAll, cardCompactLayout, patient,
+    refreshKey, useAllAppointmentsApi, cardCompactLayout, patient,
     refreshTrigger, page, pageSize, filterStatus, filterPractitioner, filterDateFrom, filterDateTo, searchQuery,
   ])
 
@@ -1021,6 +1055,9 @@ export const AppointmentList = ({
       const el = e.target as HTMLElement
       if (el.closest('[data-portal-actions-menu]')) return
       if (el.closest('button[aria-label="Actions"]')) return
+      if (!el.closest('[data-filter-dropdown]')) {
+        setPractitionerOpen(false)
+      }
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setOpenActionRow(null)
       }
@@ -1237,6 +1274,8 @@ export const AppointmentList = ({
   const clearFilters = () => {
     setFilterStatus('')
     setFilterPractitioner('')
+    setPractitionerQuery('')
+    setPractitionerOpen(false)
     setSearchInput('')
     setSearchQuery('')
     setPage(1)
@@ -1244,7 +1283,14 @@ export const AppointmentList = ({
     setFilterDateTo('')
   }
 
-  const hasActiveFilters = filterStatus || filterPractitioner || filterDateFrom || filterDateTo || searchQuery
+  const hasActiveFilters =
+    Boolean(filterStatus || filterPractitioner || filterDateFrom || filterDateTo || searchQuery)
+
+  const practitionerFilterDisplayValue = filterPractitioner
+    ? practitionerDropdownOptions.find((p) => p.name === filterPractitioner)?.label ||
+      (filterPractitioner === myPractitionerId ? linkedPractitionerName : '') ||
+      filterPractitioner
+    : practitionerQuery
 
   if (loading) {
     return <div className="flex items-center justify-center p-8 text-slate-600">Loading appointments...</div>
@@ -1264,11 +1310,6 @@ export const AppointmentList = ({
   return (
     <>
       <div className="flex flex-col flex-1 min-h-0 h-full">
-      {doctorScheduleMode && !patient && schedulePractitionerResolved && linkedPractitionerName && (
-        <p className="text-xs text-slate-600 mb-2">
-          Practitioner: <span className="font-medium text-slate-800">{linkedPractitionerName}</span>
-        </p>
-      )}
       {doctorScheduleMode && !patient && schedulePractitionerResolved && !myPractitionerId && (
         <p className="text-xs text-amber-700 mb-2">
           No Healthcare Practitioner is linked to your user. Appointments may be empty unless you have a reception/admin role.
@@ -1295,69 +1336,27 @@ export const AppointmentList = ({
       {showFilters && (
       <div className="mb-3 space-y-2">
         {/* Top row: filters */}
-        <div className="flex flex-wrap items-end gap-2">
-          {/* Search */}
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-500">Search</label>
+        <div className="flex flex-wrap items-end gap-3">
+          {/* Search — full listing only */}
+          {!cardCompactLayout && (
+          <div className="flex flex-col gap-1 min-w-[180px]">
+            <label className={FILTER_LABEL_CLASS}>Search</label>
             <input
               type="text"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               placeholder="Patient, practitioner, ID…"
-              className="rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary min-w-[180px]"
+              className={FILTER_CONTROL_CLASS}
             />
           </div>
-          {/* Date From */}
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-500">From</label>
-            <input
-              type="date"
-              value={filterDateFrom}
-              onChange={(e) => handleFilterDateFromChange(e.target.value)}
-              className="rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-            />
-          </div>
-          {/* Date To */}
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-500">To</label>
-            <input
-              type="date"
-              value={filterDateTo}
-              onChange={(e) => handleFilterDateToChange(e.target.value)}
-              className="rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-            />
-          </div>
-          
-          {/* Practitioner filter when listing all appointments */}
-          {!cardCompactLayout && showAll && uniquePractitioners.length > 0 && (
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-slate-500">Practitioner</label>
-              <select
-                value={filterPractitioner}
-                onChange={(e) => handleFilterPractitionerChange(e.target.value)}
-                className="rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary min-w-[150px]"
-              >
-                <option value="">All Practitioners</option>
-                {uniquePractitioners.map((pract) => {
-                  const apt = appointments.find(a => a.practitioner === pract)
-                  const displayName = apt?.practitioner_name || pract
-                  return (
-                    <option key={pract} value={pract}>
-                      {displayName}
-                    </option>
-                  )
-                })}
-              </select>
-            </div>
           )}
-          
-          {/* Status */}
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-500">Status</label>
+
+          <div className="flex flex-col gap-1 min-w-[120px]">
+            <label className={FILTER_LABEL_CLASS}>Status</label>
             <select
               value={filterStatus}
               onChange={(e) => handleFilterStatusChange(e.target.value)}
-              className="rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              className={FILTER_CONTROL_CLASS}
             >
               <option value="">All statuses</option>
               {ALL_STATUSES.map((s) => (
@@ -1365,17 +1364,83 @@ export const AppointmentList = ({
               ))}
             </select>
           </div>
-          
-          {/* Clear */}
-          {hasActiveFilters && (
-            <button
-              type="button"
-              onClick={clearFilters}
-              className="self-end px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-100 border border-slate-300 rounded-md hover:bg-slate-200"
-            >
-              Clear Filters
-            </button>
+
+          {useAllAppointmentsApi && (
+            <div data-filter-dropdown className="flex flex-col gap-1 min-w-[180px]">
+              <label className={FILTER_LABEL_CLASS}>Practitioner</label>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={practitionerFilterDisplayValue}
+                  onChange={(e) => {
+                    setPractitionerQuery(e.target.value)
+                    setFilterPractitioner('')
+                    setPractitionerOpen(true)
+                    setPage(1)
+                  }}
+                  onFocus={() => setPractitionerOpen(true)}
+                  placeholder="Search practitioner..."
+                  className={`${FILTER_CONTROL_CLASS}${filterPractitioner ? ' pr-8' : ''}`}
+                />
+                {filterPractitioner && (
+                  <button
+                    type="button"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    aria-label="Clear practitioner filter"
+                    onClick={() => {
+                      setFilterPractitioner('')
+                      setPractitionerQuery('')
+                      setPractitionerOpen(false)
+                      setPage(1)
+                    }}
+                  >
+                    ×
+                  </button>
+                )}
+                {practitionerOpen && practitionerDropdownOptions.length > 0 && (
+                  <div className="absolute z-30 left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-md shadow-lg max-h-48 overflow-auto">
+                    {practitionerDropdownOptions.map((p) => (
+                      <button
+                        key={p.name}
+                        type="button"
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50"
+                        onClick={() => {
+                          setFilterPractitioner(p.name)
+                          setPractitionerQuery(p.label || p.name)
+                          setPractitionerOpen(false)
+                          setPage(1)
+                        }}
+                      >
+                        {p.label || p.name}
+                        {p.name === myPractitionerId ? ' (you)' : ''}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
           )}
+
+          <div className="flex flex-col gap-1 min-w-[120px]">
+            <label className={FILTER_LABEL_CLASS}>From</label>
+            <input
+              type="date"
+              value={filterDateFrom}
+              onChange={(e) => handleFilterDateFromChange(e.target.value)}
+              className={FILTER_CONTROL_CLASS}
+            />
+          </div>
+          <div className="flex flex-col gap-1 min-w-[120px]">
+            <label className={FILTER_LABEL_CLASS}>To</label>
+            <input
+              type="date"
+              value={filterDateTo}
+              onChange={(e) => handleFilterDateToChange(e.target.value)}
+              className={FILTER_CONTROL_CLASS}
+            />
+          </div>
+          
+          <ClearFiltersButton onClick={clearFilters} disabled={!hasActiveFilters} />
 
           {/* Spacer + Bulk Reminder (full listing only) */}
           {!cardCompactLayout && (
@@ -1433,7 +1498,7 @@ export const AppointmentList = ({
           Showing {appointments.length} of {totalCount} appointment{totalCount !== 1 ? 's' : ''}
           {hasActiveFilters && ' (filtered)'}
           {cardCompactLayout
-            ? ' — tap or hover ⓘ for appointment ID, type, practitioner, and more; use ↗ for full list'
+            ? ' — tap or hover ⓘ for appointment ID, type, cost center, practitioner, and more; use ↗ for full list'
             : ''}
         </p>
       </div>
@@ -1525,7 +1590,7 @@ export const AppointmentList = ({
             className={
               cardHorizontalScroll
                 ? 'w-max min-w-full table-auto'
-                : 'w-full min-w-[960px] table-auto'
+                : 'w-full min-w-[1080px] table-auto'
             }
           >
             <thead className="bg-slate-50 border-b border-slate-200">
@@ -1549,6 +1614,9 @@ export const AppointmentList = ({
                 )}
                 <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap min-w-[6rem]">
                   Type
+                </th>
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap min-w-[8rem]">
+                  Cost Center
                 </th>
                 <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap min-w-[7rem]">
                   Status
@@ -1614,6 +1682,12 @@ export const AppointmentList = ({
                       </td>
                     )}
                     <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">{apt.appointment_type || '-'}</td>
+                    <td
+                      className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap max-w-[12rem] truncate"
+                      title={apt.cost_center || undefined}
+                    >
+                      {apt.cost_center || '-'}
+                    </td>
                     <td className="px-3 py-2.5 whitespace-nowrap">
                       {apt.status
                         ? <StatusPill status={apt.status} color={getStatusColor(apt.status)} />

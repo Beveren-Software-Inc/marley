@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react'
 import { fetchLabTests, type LabTest } from '../../services/labTests'
-import { Search, X, ChevronDown } from 'lucide-react'
+import { Search, ChevronDown } from 'lucide-react'
 import { StatusPill } from '../ui/StatusPill'
+import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 
 interface LabTestHistoryProps {
   patientId?: string
@@ -97,16 +98,9 @@ const FilterBar = ({ filters, onChange, onClear, activeCount }: {
         />
       </div>
 
-      {activeCount > 0 && (
-        <button 
-          type="button" 
-          onClick={onClear}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-md transition-colors self-end"
-        >
-          <X className="w-3.5 h-3.5" />Clear
-          <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-primary text-white text-[10px] font-bold">{activeCount}</span>
-        </button>
-      )}
+      {activeCount > 0 ? (
+        <ClearFiltersButton onClick={onClear} activeCount={activeCount} />
+      ) : null}
     </div>
   )
 }
@@ -293,14 +287,9 @@ export const LabTestHistory = ({
               ? 'No lab tests match the current filters.' 
               : 'No lab test history found for this patient.'}
           </p>
-          {activeCount > 0 && (
-            <button 
-              onClick={handleClearFilters} 
-              className="mt-3 text-sm text-primary hover:underline"
-            >
-              Clear filters
-            </button>
-          )}
+          {activeCount > 0 ? (
+            <ClearFiltersButton className="mt-3 self-center" onClick={handleClearFilters} />
+          ) : null}
         </div>
       ) : (
         <div className="overflow-x-auto">

@@ -7,6 +7,7 @@ import { fetchInpatientRecords } from '../../services/inpatientRecords'
 import { fetchHealthcarePractitioners, type LinkFieldOption } from '../../services/common'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
+import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import { StatusPill } from '../ui/StatusPill'
 import { PackageSelectionModal } from './PackageSelectionModal'
 import { AdmissionFormModal } from './AdmissionFormModal'
@@ -543,13 +544,7 @@ export const AdmissionList = ({ onAdmissionSelect, onPatientFromAdmission, searc
 
           {hasActiveFilters && (
             <div className="flex items-end">
-              <button
-                type="button"
-                onClick={handleClearFilters}
-                className="px-3 py-2 text-sm text-slate-500 border border-slate-300 rounded-md hover:bg-slate-50 hover:text-slate-700 transition-colors"
-              >
-                Clear filters
-              </button>
+              <ClearFiltersButton onClick={handleClearFilters} />
             </div>
           )}
         </div>
