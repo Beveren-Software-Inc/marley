@@ -2,13 +2,14 @@
  "actions": [],
  "allow_copy": 1,
  "allow_import": 1,
- "autoname": "naming_series:",
+ "autoname": "field:trans_no",
  "creation": "2017-02-02 11:00:24.853005",
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
   "naming_series",
+  "trans_no",
   "title",
   "patient",
   "patient_name",
@@ -19,7 +20,7 @@
   "company",
   "signs_date",
   "signs_time",
-  "branch",
+  "cost_center",
   "sb_vs",
   "temperature",
   "location_temperature",
@@ -41,15 +42,20 @@
   "nutrition_note",
   "others_section",
   "spo2",
-  "admission_no",
+  "record_time",
   "column_break_wpjq",
   "remarks",
+  "section_break_yqdz",
+  "cr_id",
+  "cr_date",
+  "column_break_pjkg",
+  "up_id",
+  "up_date",
   "sb_references",
   "amended_from"
  ],
  "fields": [
   {
-   "fetch_from": "patient.inpatient_record",
    "fieldname": "inpatient_record",
    "fieldtype": "Link",
    "label": "Inpatient Admission",
@@ -63,8 +69,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Patient File No",
-   "options": "Patient",
-   "reqd": 1
+   "options": "Patient"
   },
   {
    "fetch_from": "patient.patient_name",
@@ -99,15 +104,13 @@
    "default": "Today",
    "fieldname": "signs_date",
    "fieldtype": "Date",
-   "label": "Date",
-   "reqd": 1
+   "label": "Date"
   },
   {
    "default": "Now",
    "fieldname": "signs_time",
    "fieldtype": "Time",
-   "label": "Time",
-   "reqd": 1
+   "label": "Time"
   },
   {
    "fieldname": "sb_vs",
@@ -246,8 +249,7 @@
    "fieldname": "naming_series",
    "fieldtype": "Select",
    "label": "Series",
-   "options": "HLC-VTS-.YYYY.-",
-   "reqd": 1
+   "options": "HLC-VTS-.YYYY.-"
   },
   {
    "allow_on_submit": 1,
@@ -272,14 +274,8 @@
   },
   {
    "fieldname": "spo2",
-   "fieldtype": "Int",
+   "fieldtype": "Data",
    "label": "SPO2"
-  },
-  {
-   "fieldname": "admission_no",
-   "fieldtype": "Link",
-   "label": "Admission No",
-   "options": "Inpatient Admission"
   },
   {
    "fieldname": "column_break_wpjq",
@@ -291,19 +287,58 @@
    "label": "Remarks"
   },
   {
-   "fieldname": "branch",
+   "fieldname": "trans_no",
+   "fieldtype": "Data",
+   "label": "Trans No",
+   "unique": 1
+  },
+  {
+   "fieldname": "cost_center",
    "fieldtype": "Link",
-   "label": "Branch",
+   "label": "Cost Center",
    "options": "Branch"
+  },
+  {
+   "fieldname": "record_time",
+   "fieldtype": "Data",
+   "label": "Record Time"
+  },
+  {
+   "fieldname": "section_break_yqdz",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "cr_id",
+   "fieldtype": "Data",
+   "label": "CR ID"
+  },
+  {
+   "fieldname": "cr_date",
+   "fieldtype": "Data",
+   "label": "CR Date"
+  },
+  {
+   "fieldname": "column_break_pjkg",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "up_id",
+   "fieldtype": "Data",
+   "label": "UP ID"
+  },
+  {
+   "fieldname": "up_date",
+   "fieldtype": "Data",
+   "label": "UP Date"
   }
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2025-12-29 12:19:10.631365",
+ "modified": "2026-06-03 14:09:11.674811",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Vital Signs",
- "naming_rule": "By \"Naming Series\" field",
+ "naming_rule": "By fieldname",
  "owner": "Administrator",
  "permissions": [
   {
@@ -312,6 +347,7 @@
    "delete": 1,
    "email": 1,
    "export": 1,
+   "import": 1,
    "print": 1,
    "read": 1,
    "report": 1,
