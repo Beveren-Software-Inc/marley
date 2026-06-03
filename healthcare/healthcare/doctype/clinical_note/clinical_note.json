@@ -26,6 +26,7 @@
   "reference_doctype",
   "reference_document",
   "inpatient_admission",
+  "patient_name",
   "note_section",
   "note",
   "section_break_hpma",
@@ -40,7 +41,7 @@
   "column_break_brfx",
   "up_id",
   "up_date",
-  "data_axun",
+  "old_admission_no",
   "reference_section",
   "reference_doc",
   "column_break_kgll",
@@ -240,10 +241,6 @@
    "label": "Diagnosis Flag"
   },
   {
-   "fieldname": "data_axun",
-   "fieldtype": "Data"
-  },
-  {
    "fieldname": "inpatient_admission",
    "fieldtype": "Link",
    "label": "Inpatient Admission",
@@ -258,11 +255,22 @@
    "fieldtype": "Data",
    "label": "Trans No",
    "unique": 1
+  },
+  {
+   "fieldname": "old_admission_no",
+   "fieldtype": "Data",
+   "label": "Old Admission No"
+  },
+  {
+   "fetch_from": "patient.patient_name",
+   "fieldname": "patient_name",
+   "fieldtype": "Data",
+   "label": "Patient Name"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-06-03 10:28:28.806807",
+ "modified": "2026-06-03 10:58:46.703401",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Clinical Note",

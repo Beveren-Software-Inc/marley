@@ -21,8 +21,28 @@ def is_doctor_progress_note(doc):
 	return (doc.get("clinical_note_type") or "") == DOCTOR_PROGRESS_NOTE_TYPE
 
 
+def fill_patient_from_inpatient_admission(doc):
+	"""When patient is empty but inpatient_admission is set, copy patient and patient_name from admission."""
+	admission = doc.get("inpatient_admission")
+	if admission and not doc.get("patient"):
+		row = frappe.db.get_value(
+			"Inpatient Admission",
+			admission,
+			["patient", "patient_name"],
+			as_dict=True,
+		)
+		if row and row.patient:
+			doc.patient = row.patient
+			if row.patient_name:
+				doc.patient_name = row.patient_name
+	if doc.get("patient") and not doc.get("patient_name"):
+		doc.patient_name = frappe.db.get_value("Patient", doc.patient, "patient_name")
+
+
 class ClinicalNote(Document):
 	def validate(self):
+		fill_patient_from_inpatient_admission(self)
+
 		if self.is_new():
 			return
 
