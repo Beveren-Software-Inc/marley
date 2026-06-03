@@ -68,8 +68,12 @@ def create_vital_sign(data):
 	data.pop("trans_no", None)
 	data.pop("name", None)
 
-	if not data.get('patient'):
-		frappe.throw(_("Patient is required"))
+	inpatient_record = data.get('inpatient_record') or data.get('admission_no')
+	encounter = data.get('encounter') or data.get('patient_visit')
+	patient = data.get('patient')
+
+	if not patient and not inpatient_record and not encounter:
+		frappe.throw(_("Patient, Inpatient Admission, or Patient Visit is required"))
 
 	# Default date and time if not provided
 	signs_date = data.get('signs_date') or frappe.utils.today()
@@ -79,11 +83,9 @@ def create_vital_sign(data):
 	if isinstance(signs_time, str) and len(signs_time) == 5:
 		signs_time = f"{signs_time}:00"
 
-	inpatient_record = data.get('inpatient_record') or data.get('admission_no')
-
 	doc = frappe.get_doc({
 		'doctype': 'Vital Signs',
-		'patient': data.get('patient'),
+		'patient': patient,
 		'signs_date': signs_date,
 		'signs_time': signs_time,
 		'temperature': data.get('temperature'),
@@ -99,7 +101,7 @@ def create_vital_sign(data):
 		'remarks': data.get('remarks'),
 		'inpatient_record': inpatient_record,
 		'appointment': data.get('appointment'),
-		'encounter': data.get('encounter'),
+		'encounter': encounter,
 		'company': data.get('company'),
 		'branch': data.get('branch'),
 	})
