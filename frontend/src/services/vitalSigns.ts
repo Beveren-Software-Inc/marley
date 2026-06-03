@@ -20,12 +20,13 @@ export interface VitalSign {
   remarks?: string
   inpatient_record?: string
   admission_no?: string
+  patient_visit?: string
   appointment?: string
   encounter?: string
 }
 
 export interface CreateVitalSignData {
-  patient: string
+  patient?: string
   signs_date?: string
   signs_time?: string
   temperature?: string
@@ -41,6 +42,7 @@ export interface CreateVitalSignData {
   remarks?: string
   inpatient_record?: string
   admission_no?: string
+  patient_visit?: string
   appointment?: string
   encounter?: string
   company?: string

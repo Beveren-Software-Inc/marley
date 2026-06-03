@@ -517,8 +517,13 @@ export const CreateVitalSignModal = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!formData.patient) {
-      setError('Patient is required')
+    const hasCareContext =
+      Boolean(formData.patient) ||
+      Boolean(formData.admission_no) ||
+      Boolean(formData.patient_visit)
+
+    if (!hasCareContext) {
+      setError('Patient, inpatient admission, or patient visit is required')
       return
     }
 
@@ -540,7 +545,7 @@ export const CreateVitalSignModal = ({
       const timePart = timePartRaw ? `${timePartRaw}:00`.slice(0, 8) : undefined
 
       const payload: any = {
-        patient: formData.patient,
+        patient: formData.patient || undefined,
         signs_date: datePart,
         signs_time: timePart,
         temperature: formData.temperature || undefined,
