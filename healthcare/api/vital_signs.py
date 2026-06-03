@@ -19,6 +19,7 @@ def get_vital_signs(limit=50, offset=0, patient=None):
 		filters=filters,
 		fields=[
 			'name',
+			'trans_no',
 			'patient',
 			'patient_name',
 			'signs_date',
@@ -63,6 +64,10 @@ def create_vital_sign(data):
 		import json
 		data = json.loads(data)
 
+	# trans_no is server-assigned only (autoname: field:trans_no)
+	data.pop("trans_no", None)
+	data.pop("name", None)
+
 	if not data.get('patient'):
 		frappe.throw(_("Patient is required"))
 
@@ -74,10 +79,7 @@ def create_vital_sign(data):
 	if isinstance(signs_time, str) and len(signs_time) == 5:
 		signs_time = f"{signs_time}:00"
 
-	# Get naming series
-	naming_series = frappe.db.get_value('Vital Signs', {'naming_series': 'HLC-VTS-.YYYY.-'}, 'naming_series')
-	if not naming_series:
-		naming_series = 'HLC-VTS-.YYYY.-'
+	inpatient_record = data.get('inpatient_record') or data.get('admission_no')
 
 	doc = frappe.get_doc({
 		'doctype': 'Vital Signs',
@@ -95,19 +97,18 @@ def create_vital_sign(data):
 		'vital_signs_note': data.get('vital_signs_note'),
 		'nutrition_note': data.get('nutrition_note'),
 		'remarks': data.get('remarks'),
-		'inpatient_record': data.get('inpatient_record'),
-		'admission_no': data.get('admission_no'),
+		'inpatient_record': inpatient_record,
 		'appointment': data.get('appointment'),
 		'encounter': data.get('encounter'),
 		'company': data.get('company'),
 		'branch': data.get('branch'),
-		'naming_series': naming_series
 	})
 
 	doc.insert(ignore_permissions=True)
 
 	return {
 		'name': doc.name,
+		'trans_no': doc.trans_no,
 		'patient': doc.patient,
 		'patient_name': frappe.db.get_value('Patient', doc.patient, 'patient_name') or doc.patient,
 		'signs_date': doc.signs_date,

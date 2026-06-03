@@ -1,5 +1,6 @@
 export interface VitalSign {
   name: string
+  trans_no?: string
   patient: string
   patient_name?: string
   signs_date?: string
