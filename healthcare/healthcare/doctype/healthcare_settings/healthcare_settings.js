@@ -112,6 +112,20 @@ frappe.ui.form.on('Healthcare Settings', {
 				() => run_migration_job(frm, 'start_ip_patient_assessment_map_migration', 'ip_patient_assessment_map')
 			);
 		}, __('Data Maintenance'));
+
+		frm.add_custom_button(__('Map Clinical Note Types from Diagnosis Flag'), () => {
+			frappe.confirm(
+				__(
+					'Run in background: set Clinical Note Type from diagnosis_flag — 1/DOC → Doctor Progress Note, 2/PSY → Psychologist Note, 3/NUT → Nutritionist Note, 4/OCC → General Note. IP rows with empty flag, inpatient admission, and Nurse medical role → Nursing Note only. Rows already matching are skipped. Continue?'
+				),
+				() =>
+					run_migration_job(
+						frm,
+						'start_clinical_note_type_from_flag_migration',
+						'clinical_note_type_from_flag'
+					)
+			);
+		}, __('Data Maintenance'));
 	},
 
 	onload: function(frm) {

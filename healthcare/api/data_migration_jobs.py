@@ -17,8 +17,21 @@ DISCHARGE_BATCH_SIZE = 10
 IP_ADMISSION_MEDICINE_BATCH_SIZE = 50
 IP_ADMISSION_MEDICINE_SHEET_BATCH_SIZE = 200
 IP_PATIENT_ASSESSMENT_BATCH_SIZE = 200
+CLINICAL_NOTE_TYPE_BATCH_SIZE = 500
 
 JOB_LOCK_SECONDS = 7200  # 2 hours
+
+# Legacy DIAGNOSES_FLAG → Clinical Note Type (Clinical Note.diagnosis_flag is Data)
+_DIAGNOSIS_FLAG_TO_NOTE_TYPE = {
+	"1": "Doctor Progress Note",
+	"DOC": "Doctor Progress Note",
+	"2": "Psychologist Note",
+	"PSY": "Psychologist Note",
+	"3": "Nutritionist Note",
+	"NUT": "Nutritionist Note",
+	"4": "General Note",
+	"OCC": "General Note",
+}
 ALL_CUSTOMER_GROUP_NAMES = ("All Customer Groups", "All Customer Group")
 
 
@@ -266,6 +279,25 @@ def start_ip_patient_assessment_map_migration() -> dict:
 	return {
 		"ok": True,
 		"message": _("IP Patient Assessment mapping job started in the background."),
+	}
+
+
+@frappe.whitelist()
+def start_clinical_note_type_from_flag_migration() -> dict:
+	"""Set Clinical Note Type from legacy diagnosis_flag (and IP nurse notes when applicable)."""
+	_require_admin()
+	_acquire_lock("clinical_note_type_from_flag")
+	_set_progress("clinical_note_type_from_flag", 0)
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_clinical_note_type_from_flag_batch",
+		offset=0,
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_clinical_note_type_from_flag",
+	)
+	return {
+		"ok": True,
+		"message": _("Clinical Note type mapping job started in the background."),
 	}
 
 
@@ -1257,6 +1289,146 @@ def process_ip_patient_assessment_map_batch(offset: int = 0) -> None:
 					f"skipped missing admission: {skipped_missing_admission}, "
 					f"skipped missing patient: {skipped_missing_patient}, "
 					f"skipped errors: {skipped_errors}"
+				),
+			)
+	except Exception:
+		frappe.db.rollback()
+		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
+		_release_lock(job)
+		raise
+
+
+def _normalize_clinical_note_diagnosis_flag(raw) -> str | None:
+	if raw is None:
+		return None
+	value = str(raw).strip().upper()
+	return value or None
+
+
+def _nurse_medical_roles() -> set[str]:
+	roles = set(
+		frappe.get_all(
+			"Medical Role",
+			filters={"parent_medical_role": "Nurse"},
+			pluck="name",
+		)
+		or []
+	)
+	roles.add("Nurse")
+	return roles
+
+
+def _target_clinical_note_type_from_row(
+	diagnosis_flag,
+	medical_role,
+	inpatient_admission,
+	*,
+	nurse_roles: set[str],
+) -> str | None:
+	"""Resolve target Clinical Note Type name from legacy flags and IP nursing context."""
+	flag = _normalize_clinical_note_diagnosis_flag(diagnosis_flag)
+	if flag and flag in _DIAGNOSIS_FLAG_TO_NOTE_TYPE:
+		return _DIAGNOSIS_FLAG_TO_NOTE_TYPE[flag]
+
+	# IP nursing imports: only when flag is empty, admission present, and role is nursing.
+	if not flag and (inpatient_admission or "").strip():
+		role = (medical_role or "").strip()
+		if role in nurse_roles:
+			return "Nursing Note"
+
+	return None
+
+
+def process_clinical_note_type_from_flag_batch(offset: int = 0) -> None:
+	from healthcare.api.clinical_note import _get_or_create_clinical_note_type
+
+	job = "clinical_note_type_from_flag"
+	try:
+		nurse_roles = _nurse_medical_roles()
+		rows = frappe.get_all(
+			"Clinical Note",
+			fields=["name", "diagnosis_flag", "clinical_note_type", "medical_role", "inpatient_admission"],
+			filters={"docstatus": ["!=", 2]},
+			order_by="name asc",
+			limit_start=offset,
+			limit_page_length=CLINICAL_NOTE_TYPE_BATCH_SIZE,
+		)
+
+		updated = 0
+		skipped_unchanged = 0
+		skipped_no_mapping = 0
+		skipped_errors = 0
+
+		for row in rows:
+			try:
+				target = _target_clinical_note_type_from_row(
+					row.get("diagnosis_flag"),
+					row.get("medical_role"),
+					row.get("inpatient_admission"),
+					nurse_roles=nurse_roles,
+				)
+				if not target:
+					skipped_no_mapping += 1
+					continue
+
+				current = (row.get("clinical_note_type") or "").strip()
+				if current == target:
+					skipped_unchanged += 1
+					continue
+
+				_get_or_create_clinical_note_type(target)
+				frappe.db.set_value(
+					"Clinical Note",
+					row.name,
+					"clinical_note_type",
+					target,
+					update_modified=False,
+				)
+				updated += 1
+			except Exception:
+				skipped_errors += 1
+				frappe.log_error(
+					title=f"Clinical Note type map failed: {row.get('name')}",
+					message=frappe.get_traceback(),
+				)
+
+		frappe.db.commit()
+
+		processed = offset + len(rows)
+		_set_progress(
+			job,
+			processed,
+			updated=updated,
+			skipped_unchanged=skipped_unchanged,
+			skipped_no_mapping=skipped_no_mapping,
+			skipped_errors=skipped_errors,
+		)
+
+		if len(rows) >= CLINICAL_NOTE_TYPE_BATCH_SIZE:
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_clinical_note_type_from_flag_batch",
+				offset=processed,
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_clinical_note_type_from_flag_{processed}",
+			)
+		else:
+			_set_progress(
+				job,
+				processed,
+				done=True,
+				updated=updated,
+				skipped_unchanged=skipped_unchanged,
+				skipped_no_mapping=skipped_no_mapping,
+				skipped_errors=skipped_errors,
+			)
+			_release_lock(job)
+			frappe.log_error(
+				title="Clinical Note type from diagnosis_flag migration complete",
+				message=(
+					f"Processed: {processed}, updated: {updated}, "
+					f"unchanged: {skipped_unchanged}, no mapping: {skipped_no_mapping}, "
+					f"errors: {skipped_errors}"
 				),
 			)
 	except Exception:

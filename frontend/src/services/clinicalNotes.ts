@@ -16,6 +16,7 @@ export interface ClinicalNote {
   note?: string
   reference_doctype?: string
   reference_document?: string
+  inpatient_admission?: string
   branch?: string
 }
 
@@ -50,6 +51,7 @@ export async function fetchClinicalNotes(
   note_type?: string,
   reference_doctype?: string,
   reference_document?: string,
+  inpatient_admission?: string,
   mine_only?: boolean,
   practitioner?: string,
   postingDateFrom?: string,
@@ -64,6 +66,7 @@ export async function fetchClinicalNotes(
   if (note_type) params.append('note_type', note_type)
   if (reference_doctype) params.append('ref_doctype', reference_doctype)
   if (reference_document) params.append('ref_document', reference_document)
+  if (inpatient_admission) params.append('inpatient_admission', inpatient_admission)
   if (mine_only) params.append('mine_only', '1')
   if (practitioner) params.append('practitioner', practitioner)
   if (postingDateFrom) params.append('posting_date_from', postingDateFrom)

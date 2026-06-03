@@ -29,6 +29,7 @@ export function detailPanelShellClass(parts = 'max-w-2xl') {
   const p = parts.trim()
   return [
     'data-healthcare-modal',
+    'healthcare-detail-panel-in',
     'relative z-10 flex h-full w-full flex-col overflow-hidden',
     'rounded-none border border-emerald-200/60 bg-white',
     'shadow-2xl shadow-emerald-600/10 ring-1 ring-emerald-100/80',

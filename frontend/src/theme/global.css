@@ -82,6 +82,28 @@
   box-shadow: 0 0 0 2px rgb(16 185 129 / 0.25);
 }
 
+/* Right-hand detail panels (Physical Examination, service requests, etc.) */
+@keyframes healthcare-detail-panel-in {
+  from {
+    transform: translateX(100%);
+    opacity: 0.85;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.healthcare-detail-panel-in {
+  animation: healthcare-detail-panel-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .healthcare-detail-panel-in {
+    animation: none;
+  }
+}
+
 /* Dashboard cards on phones/tablets: tighter cells, allow wrapping in compact tables */
 @media (max-width: 767px) {
   .dense-listing table th,

@@ -1,16 +1,25 @@
 {
  "actions": [],
  "allow_rename": 1,
- "autoname": "PE-.{MM}-.{YY}-.#####",
+ "autoname": "field:trans_no",
  "creation": "2026-03-18 11:34:08.542697",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
+  "trans_no",
   "patient_visit",
   "inpatient_admission",
   "column_break_lskw",
   "patient",
   "patient_name",
+  "section_break_msum",
+  "weight",
+  "height",
+  "blood_pressure",
+  "column_break_psdy",
+  "temp_pressure",
+  "resp_rate",
+  "pulse",
   "section_break_mbec",
   "skin_",
   "cvsresp",
@@ -74,16 +83,60 @@
    "fieldname": "others",
    "fieldtype": "Small Text",
    "label": "Others"
+  },
+  {
+   "fieldname": "trans_no",
+   "fieldtype": "Data",
+   "label": "Trans No",
+   "unique": 1
+  },
+  {
+   "fieldname": "section_break_msum",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "weight",
+   "fieldtype": "Data",
+   "label": "Weight"
+  },
+  {
+   "fieldname": "height",
+   "fieldtype": "Data",
+   "label": "Height"
+  },
+  {
+   "fieldname": "column_break_psdy",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "blood_pressure",
+   "fieldtype": "Data",
+   "label": "Blood Pressure"
+  },
+  {
+   "fieldname": "temp_pressure",
+   "fieldtype": "Data",
+   "label": "Temp Pressure"
+  },
+  {
+   "fieldname": "resp_rate",
+   "fieldtype": "Data",
+   "label": "Resp Rate"
+  },
+  {
+   "fieldname": "pulse",
+   "fieldtype": "Data",
+   "label": "Pulse"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-04-14 16:57:55.043540",
+ "modified": "2026-06-03 12:27:22.837347",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Physical Examination",
- "naming_rule": "Expression",
+ "naming_rule": "By fieldname",
  "owner": "Administrator",
  "permissions": [
   {
