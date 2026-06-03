@@ -12,6 +12,7 @@
   "column_break_lskw",
   "patient",
   "patient_name",
+  "cost_center",
   "section_break_msum",
   "weight",
   "height",
@@ -25,7 +26,13 @@
   "cvsresp",
   "cnc",
   "git",
-  "others"
+  "others",
+  "section_break_zhtc",
+  "cr_id",
+  "cr_date",
+  "column_break_drwm",
+  "up_id",
+  "up_date"
  ],
  "fields": [
   {
@@ -127,12 +134,46 @@
    "fieldname": "pulse",
    "fieldtype": "Data",
    "label": "Pulse"
+  },
+  {
+   "fieldname": "cost_center",
+   "fieldtype": "Link",
+   "label": "Cost Center",
+   "options": "Cost Center"
+  },
+  {
+   "fieldname": "section_break_zhtc",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "cr_id",
+   "fieldtype": "Data",
+   "label": "CR ID"
+  },
+  {
+   "fieldname": "cr_date",
+   "fieldtype": "Data",
+   "label": "CR Date"
+  },
+  {
+   "fieldname": "column_break_drwm",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "up_id",
+   "fieldtype": "Data",
+   "label": "UP ID"
+  },
+  {
+   "fieldname": "up_date",
+   "fieldtype": "Data",
+   "label": "UP Date"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-06-03 12:27:22.837347",
+ "modified": "2026-06-03 13:12:42.595146",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Physical Examination",
