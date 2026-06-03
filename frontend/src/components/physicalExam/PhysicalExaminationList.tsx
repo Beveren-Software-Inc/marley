@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
-import { DocDetailView } from '../ui/DocDetailView'
-import { X, Stethoscope } from 'lucide-react'
+import { Stethoscope } from 'lucide-react'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
-
+import { PhysicalExaminationDetailPanel } from './PhysicalExaminationDetailPanel'
 
 interface ExamRecord {
   name: string
+  trans_no?: string
   patient: string
   patient_name?: string
   inpatient_admission?: string
@@ -23,16 +23,18 @@ export const PhysicalExaminationList = ({ patient, refreshKey, onPatientClick }:
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
   const [detailName, setDetailName] = useState<string | null>(null)
+  const [detailSubtitle, setDetailSubtitle] = useState<string | undefined>()
 
   useEffect(() => {
     const load = async () => {
-      setLoading(true); setError(null)
+      setLoading(true)
+      setError(null)
       try {
         const filters: [string, string, string][] = []
         if (patient) filters.push(['patient', '=', patient])
         const params = new URLSearchParams({
           doctype: 'Physical Examination',
-          fields: JSON.stringify(['name', 'patient', 'patient_name', 'inpatient_admission', 'creation']),
+          fields: JSON.stringify(['name', 'trans_no', 'patient', 'patient_name', 'inpatient_admission', 'creation']),
           filters: JSON.stringify(filters),
           order_by: 'creation desc',
           limit: '50',
@@ -49,24 +51,30 @@ export const PhysicalExaminationList = ({ patient, refreshKey, onPatientClick }:
     load()
   }, [patient, refreshKey])
 
+  const openDetail = (row: ExamRecord) => {
+    setDetailName(row.name)
+    const parts = [row.patient_name || row.patient, row.inpatient_admission].filter(Boolean)
+    setDetailSubtitle(parts.length ? parts.join(' · ') : row.name)
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center p-6 text-sm text-slate-500">
-        <span className="w-4 h-4 border-2 border-slate-300 border-t-primary rounded-full animate-spin mr-2" />
+        <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-primary" />
         Loading Physical Examinations...
       </div>
     )
   }
 
   if (error) {
-    return <div className="p-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-md">{error.message}</div>
+    return <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error.message}</div>
   }
 
   if (!items.length) {
     return (
       <div className="flex flex-col items-center justify-center py-10 text-center">
-        <Stethoscope className="w-8 h-8 text-slate-300 mb-2" />
-        <p className="text-sm text-slate-500 mb-1">No physical examinations recorded yet</p>
+        <Stethoscope className="mb-2 h-8 w-8 text-slate-300" />
+        <p className="mb-1 text-sm text-slate-500">No physical examinations recorded yet</p>
         <p className="text-xs text-slate-400">Use the + button above to record a new examination</p>
       </div>
     )
@@ -74,83 +82,69 @@ export const PhysicalExaminationList = ({ patient, refreshKey, onPatientClick }:
 
   return (
     <>
-      <div className="border border-slate-200 rounded-md overflow-hidden">
+      <div className="overflow-hidden rounded-md border border-slate-200">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 border-b border-slate-200">
+          <thead className="border-b border-slate-200 bg-slate-50">
             <tr>
-              <th className="px-3 py-2 text-left text-[11px] font-semibold text-slate-600 uppercase">Record #</th>
+              <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase text-slate-600">Record #</th>
               {!patient && (
-                <th className="px-3 py-2 text-left text-[11px] font-semibold text-slate-600 uppercase">Patient</th>
+                <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase text-slate-600">Patient</th>
               )}
-              <th className="px-3 py-2 text-left text-[11px] font-semibold text-slate-600 uppercase">Admission</th>
-              <th className="px-3 py-2 text-left text-[11px] font-semibold text-slate-600 uppercase">Date</th>
-              <th className="px-3 py-2 text-left text-[11px] font-semibold text-slate-600 uppercase">Actions</th>
+              <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase text-slate-600">Admission</th>
+              <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase text-slate-600">Date</th>
+              <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase text-slate-600">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {items.map(row => (
-              <tr key={row.name} className="hover:bg-slate-50 transition-colors">
+              <tr key={row.name} className="transition-colors hover:bg-slate-50">
                 <td className="px-3 py-2">
-                  <button type="button" onClick={() => setDetailName(row.name)}
-                    className="text-primary hover:underline font-medium text-xs">
-                    {row.name}
+                  <button
+                    type="button"
+                    onClick={() => openDetail(row)}
+                    className="text-xs font-medium text-primary hover:underline"
+                  >
+                    {row.trans_no || row.name}
                   </button>
                 </td>
                 {!patient && (
                   <td
-                    className="px-3 py-2 cursor-pointer"
+                    className="cursor-pointer px-3 py-2"
                     onClick={() => row.patient && onPatientClick?.(row.patient)}
                   >
-                    <span className="font-medium text-primary hover:underline">{row.patient_name || row.patient || '—'}</span>
+                    <span className="font-medium text-primary hover:underline">
+                      {row.patient_name || row.patient || '—'}
+                    </span>
                   </td>
                 )}
-                <td className="px-3 py-2 text-slate-500 text-xs">{row.inpatient_admission || '—'}</td>
-                <td className="px-3 py-2 text-slate-500 text-xs">
+                <td className="px-3 py-2 text-xs text-slate-500">{row.inpatient_admission || '—'}</td>
+                <td className="px-3 py-2 text-xs text-slate-500">
                   {row.creation ? new Date(row.creation).toLocaleDateString() : '—'}
                 </td>
-
-                 <td className="px-3 py-2 text-slate-500 text-xs">
-                                   <div className="flex items-center">
-                                          <PrintFormatDropdown
-                                            doctype="Pre Anesthesia Assessment"
-                                            docName={row.name}
-                                            noLetterhead={0}
-                                            triggerPrint={1}
-                                          />
-                                                                      </div>
-                                </td>
+                <td className="px-3 py-2 text-xs text-slate-500">
+                  <PrintFormatDropdown
+                    doctype="Physical Examination"
+                    docName={row.name}
+                    noLetterhead={0}
+                    triggerPrint={1}
+                  />
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
 
-      {/* Right-side slide-over */}
-      {detailName && (
-        <div className="fixed inset-0 z-50 flex items-start justify-end"
-          onClick={e => { if (e.target === e.currentTarget) setDetailName(null) }}>
-          <div className="absolute inset-0 bg-black/30" />
-          <div className="relative z-10 h-full w-full max-w-2xl bg-white shadow-xl flex flex-col">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50 shrink-0">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                  <Stethoscope className="w-4 h-4 text-primary" />
-                </div>
-                <div>
-                  <p className="text-xs text-slate-500 uppercase tracking-wide">Physical Examination</p>
-                  <p className="text-sm font-semibold text-slate-800">{detailName}</p>
-                </div>
-              </div>
-              <button type="button" onClick={() => setDetailName(null)}
-                className="inline-flex items-center justify-center w-8 h-8 rounded-md text-slate-500 hover:text-slate-800 hover:bg-slate-200"
-                aria-label="Close"><X className="w-5 h-5" /></button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-6">
-              <DocDetailView doctype="Physical Examination" name={detailName} />
-            </div>
-          </div>
-        </div>
-      )}
+      {detailName ? (
+        <PhysicalExaminationDetailPanel
+          name={detailName}
+          subtitle={detailSubtitle}
+          onClose={() => {
+            setDetailName(null)
+            setDetailSubtitle(undefined)
+          }}
+        />
+      ) : null}
     </>
   )
 }

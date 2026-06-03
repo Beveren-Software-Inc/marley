@@ -487,7 +487,6 @@ export const DoctorPage = () => {
           >
             <ClinicalNotesList 
               patient={selectedPatient} 
-              medicalRole="Doctor"
               clinicalNoteType="Doctors Note"
               key={clinicalNotesRefreshKey}
               onPatientClick={handlePatientSelect}
@@ -523,7 +522,6 @@ export const DoctorPage = () => {
           >
             <ClinicalNotesList 
               patient={selectedPatient} 
-              medicalRole="Doctor"
               clinicalNoteType="Doctor Progress Note"
               key={clinicalNotesRefreshKey}
               onPatientClick={handlePatientSelect}
@@ -649,7 +647,6 @@ export const DoctorPage = () => {
           >
             <ClinicalNotesList 
               patient={selectedPatient} 
-              medicalRole="Psychologist"
               clinicalNoteType="Psychologist Note"
               key={clinicalNotesRefreshKey}
               onPatientClick={handlePatientSelect}
@@ -685,7 +682,6 @@ export const DoctorPage = () => {
           >
             <ClinicalNotesList
               patient={selectedPatient}
-              medicalRole="Psychologist"
               clinicalNoteType="Psychologist Order"
               onPatientClick={handlePatientSelect}
             />
@@ -720,7 +716,7 @@ export const DoctorPage = () => {
           >
             <ClinicalNotesList 
               patient={selectedPatient} 
-              medicalRole="Physiotherapist"
+              clinicalNoteType="Therapist Note"
               key={clinicalNotesRefreshKey}
               onPatientClick={handlePatientSelect}
             />
@@ -1236,7 +1232,6 @@ export const DoctorPage = () => {
           >
             <ClinicalNotesList 
               patient={selectedPatient} 
-              medicalRole="Nutritionist"
               clinicalNoteType="Nutritionist Note"
               key={clinicalNotesRefreshKey}
               onPatientClick={handlePatientSelect}
@@ -2033,7 +2028,6 @@ export const DoctorPage = () => {
               >
                 <ClinicalNotesList
                   patient={selectedPatient}
-                  medicalRole="Doctor"
                   clinicalNoteType="Doctor Progress Note"
                   key={doctorProgressNoteRefreshKey}
                   onPatientClick={handlePatientSelect}
@@ -2068,7 +2062,6 @@ export const DoctorPage = () => {
               >
                 <ClinicalNotesList
                   patient={selectedPatient}
-                  medicalRole="Doctor"
                   clinicalNoteType="Doctor Progress Note"
                   key={doctorProgressNoteRefreshKey}
                   onPatientClick={handlePatientSelect}

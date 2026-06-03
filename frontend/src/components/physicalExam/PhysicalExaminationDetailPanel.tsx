@@ -1,0 +1,194 @@
+import { useEffect, useMemo, useState } from 'react'
+import { Activity, ClipboardList, Stethoscope } from 'lucide-react'
+import { fetchDoc } from '../../services/common'
+import { DetailSlideOver } from '../ui/DetailSlideOver'
+import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
+import { MODAL_SECTION_CLASS, MODAL_SECTION_TITLE_CLASS } from '../ui/CreateModalChrome'
+import {
+  PE_BASIC_FIELDS,
+  PE_FINDING_SECTIONS,
+  PE_VISIT_FIELDS,
+} from './physicalExamDetailConfig'
+
+type PhysicalExamDoc = Record<string, unknown>
+
+interface PhysicalExaminationDetailPanelProps {
+  name: string
+  /** Fallback before doc loads (e.g. from list row) */
+  subtitle?: string
+  onClose: () => void
+}
+
+function displayValue(value: unknown): string {
+  if (value == null || value === '') return '—'
+  return String(value)
+}
+
+function DataTile({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0 rounded-lg border border-emerald-100/80 bg-white/90 px-3 py-2.5 shadow-sm ring-1 ring-emerald-50/80">
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-800/60">{label}</p>
+      <p className="mt-1 text-sm font-medium leading-snug text-emerald-950 break-words">{value}</p>
+    </div>
+  )
+}
+
+function FindingBlock({
+  label,
+  value,
+  accent,
+  titleClass,
+}: {
+  label: string
+  value: string
+  accent: string
+  titleClass: string
+}) {
+  return (
+    <div className={`rounded-lg border border-emerald-100/60 border-l-4 px-4 py-3 ${accent}`}>
+      <p className={`text-xs font-bold uppercase tracking-wide ${titleClass}`}>{label}</p>
+      <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-slate-800">{value}</p>
+    </div>
+  )
+}
+
+export function PhysicalExaminationDetailPanel({
+  name,
+  subtitle: subtitleProp,
+  onClose,
+}: PhysicalExaminationDetailPanelProps) {
+  const [doc, setDoc] = useState<PhysicalExamDoc | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    setError(null)
+    fetchDoc('Physical Examination', name)
+      .then((data) => {
+        if (!cancelled) setDoc(data)
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Failed to load examination')
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [name])
+
+  const headerSubtitle = useMemo(() => {
+    if (!doc) return subtitleProp ?? name
+    const parts = [
+      (doc.patient_name as string) || (doc.patient as string),
+      (doc.trans_no as string) || (doc.name as string),
+      doc.inpatient_admission as string,
+    ].filter(Boolean)
+    return parts.length ? parts.join(' · ') : subtitleProp ?? name
+  }, [doc, subtitleProp, name])
+
+  const findingSections = useMemo(() => {
+    if (!doc) return []
+    return PE_FINDING_SECTIONS.map((section) => ({
+      ...section,
+      text: displayValue(doc[section.key]),
+    })).filter((s) => s.text !== '—')
+  }, [doc])
+
+  return (
+    <DetailSlideOver
+      title="Physical Examination"
+      subtitle={headerSubtitle}
+      icon={<Stethoscope className="h-5 w-5 text-emerald-700" strokeWidth={2} />}
+      onClose={onClose}
+      maxWidthClass="max-w-2xl"
+      headerActions={
+        <PrintFormatDropdown
+          doctype="Physical Examination"
+          docName={name}
+          noLetterhead={0}
+          triggerPrint={1}
+          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-emerald-200/80 bg-white/80 text-emerald-700 shadow-sm transition hover:bg-emerald-50"
+        />
+      }
+    >
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-emerald-200 border-t-emerald-600" />
+          <span className="text-sm text-slate-500">Loading examination…</span>
+        </div>
+      ) : null}
+
+      {error ? (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</div>
+      ) : null}
+
+      {doc && !loading && !error ? (
+        <div className="flex flex-col gap-5 pb-2">
+          <section className={MODAL_SECTION_CLASS}>
+            <h3 className={MODAL_SECTION_TITLE_CLASS}>
+              <ClipboardList className="h-4 w-4 text-emerald-600" strokeWidth={2} />
+              Visit & patient
+            </h3>
+            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+              {PE_VISIT_FIELDS.map((field) => (
+                <DataTile
+                  key={field.key}
+                  label={field.label}
+                  value={displayValue(doc[field.key])}
+                />
+              ))}
+            </div>
+          </section>
+
+          <section className={MODAL_SECTION_CLASS}>
+            <h3 className={MODAL_SECTION_TITLE_CLASS}>
+              <Activity className="h-4 w-4 text-emerald-600" strokeWidth={2} />
+              Basic examination
+            </h3>
+            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+              {PE_BASIC_FIELDS.map((field) => (
+                <DataTile
+                  key={field.key}
+                  label={field.label}
+                  value={displayValue(doc[field.key])}
+                />
+              ))}
+            </div>
+          </section>
+
+          {findingSections.length > 0 ? (
+            <section className="space-y-3">
+              <h3 className={MODAL_SECTION_TITLE_CLASS}>
+                <Stethoscope className="h-4 w-4 text-emerald-600" strokeWidth={2} />
+                Examination findings
+              </h3>
+              <div className="space-y-3">
+                {findingSections.map((section) => (
+                  <FindingBlock
+                    key={section.key}
+                    label={section.label}
+                    value={section.text}
+                    accent={section.accent}
+                    titleClass={section.titleClass}
+                  />
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          {doc.creation ? (
+            <p className="text-center text-xs text-slate-400">
+              Recorded {new Date(String(doc.creation)).toLocaleString()}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+    </DetailSlideOver>
+  )
+}

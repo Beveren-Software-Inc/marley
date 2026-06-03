@@ -625,7 +625,6 @@ export const NursePage = () => {
             </div>
             <ClinicalNotesList 
               patient={selectedPatient} 
-              medicalRole="Doctor"
               clinicalNoteType="Doctors Note"
               key={clinicalNotesRefreshKey}
               onPatientClick={handlePatientSelect}
@@ -707,7 +706,7 @@ export const NursePage = () => {
             <div className="font-semibold mb-4">Psychologist Notes</div>
             <ClinicalNotesList
               patient={selectedPatient}
-              medicalRole="Psychologist"
+              clinicalNoteType="Psychologist Note"
               onPatientClick={handlePatientSelect}
             />
           </section>
@@ -735,7 +734,6 @@ export const NursePage = () => {
             </div>
             <ClinicalNotesList 
               patient={selectedPatient}
-              medicalRole="Nutritionist"
               clinicalNoteType="Nutritionist Note"
               key={clinicalNotesRefreshKey}
               onPatientClick={handlePatientSelect}
@@ -777,8 +775,7 @@ export const NursePage = () => {
             </div>
             <ClinicalNotesList
               patient={selectedPatient}
-              medicalRole="Psychologist"
-              noteType="Order"
+              clinicalNoteType="Psychologist Order"
               onPatientClick={handlePatientSelect}
             />
           </section>
@@ -900,7 +897,7 @@ export const NursePage = () => {
             </div>
             <ClinicalNotesList 
               patient={selectedPatient}
-              medicalRole="Physiotherapist"
+              clinicalNoteType="Therapist Note"
               key={clinicalNotesRefreshKey}
               onPatientClick={handlePatientSelect}
             />
@@ -1680,7 +1677,6 @@ export const NursePage = () => {
             >
               <ClinicalNotesList
                 patient={selectedPatient}
-                medicalRole="Doctor"
                 clinicalNoteType="Doctors Note"
                 key={clinicalNotesRefreshKey}
                 onPatientClick={handlePatientSelect}

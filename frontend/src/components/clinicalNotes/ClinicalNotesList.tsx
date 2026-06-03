@@ -19,16 +19,15 @@ const stripHtml = (html: string): string => {
 
 interface ClinicalNotesListProps {
   patient?: string
-  medicalRole?: string
+  /** Filter and scope the list by Clinical Note Type (preferred over medical role). */
   clinicalNoteType?: string
   noteType?: string
   hideTypes?: boolean
   onPatientClick?: (patient: string) => void
 }
 
-export const ClinicalNotesList = ({ 
-  patient, 
-  medicalRole, 
+export const ClinicalNotesList = ({
+  patient,
   clinicalNoteType,
   noteType,
   hideTypes = false,
@@ -131,14 +130,14 @@ export const ClinicalNotesList = ({
         
         let referenceDoctype: string | undefined
         let referenceDocument: string | undefined
-        
-        // Add care context filters based on current mode and selected visit/admission
+        let inpatientAdmission: string | undefined
+
+        // Care context: IP uses inpatient_admission link; OP uses visit reference fields.
         if (mode === 'OP' && activeVisit) {
           referenceDoctype = 'Patient Visit'
           referenceDocument = activeVisit
         } else if (mode === 'IP' && activeAdmission) {
-          referenceDoctype = 'Inpatient Admission'
-          referenceDocument = activeAdmission
+          inpatientAdmission = activeAdmission
         }
 
         const practitionerForApi = notePractitionerFilter || undefined
@@ -147,11 +146,12 @@ export const ClinicalNotesList = ({
           50,
           0,
           patient,
-          medicalRole,
+          undefined,
           clinicalNoteType,
           noteType,
           referenceDoctype,
           referenceDocument,
+          inpatientAdmission,
           !practitionerForApi && mineOnlyRequest ? true : undefined,
           practitionerForApi,
           postingDateFrom || undefined,
@@ -170,7 +170,6 @@ export const ClinicalNotesList = ({
     loadClinicalNotes()
   }, [
     patient,
-    medicalRole,
     clinicalNoteType,
     noteType,
     mode,
@@ -207,6 +206,16 @@ export const ClinicalNotesList = ({
     }
   }, [useDoctorProgressMineOnly, clinicalNoteType])
 
+  const noteReferenceLabel = (note: ClinicalNote) => {
+    if (note.inpatient_admission) {
+      return `Inpatient Admission: ${note.inpatient_admission}`
+    }
+    if (note.reference_doctype && note.reference_document) {
+      return `${note.reference_doctype}: ${note.reference_document}`
+    }
+    return ''
+  }
+
   const getContextLabel = () => {
     if (mode === 'OP' && activeVisit) {
       return `Showing notes for OP Visit: ${activeVisit}`
@@ -224,6 +233,10 @@ export const ClinicalNotesList = ({
   const tableColumnOrderDoctorFirst = clinicalNoteType === 'Doctor Progress Note'
   /** Dashboard cards: date and note only; full listing keeps all columns. */
   const cardCompactLayout = compactClinical
+  /** When the screen is already titled by note type, hide redundant type columns. */
+  const hideTypeColumns = hideTypes || Boolean(clinicalNoteType?.trim())
+  const clinicalNoteTypeLabel = (note: ClinicalNote) =>
+    note.clinical_note_type_name || note.clinical_note_type || '-'
 
   if (error && !loading) {
     return (
@@ -268,9 +281,8 @@ export const ClinicalNotesList = ({
             const metaFields = [
               ['Note ID', note.name],
               ['Practitioner', note.practitioner_name || note.practitioner],
-              ['Medical role', note.medical_role],
-              ['Note type', note.clinical_note_type],
-              ['Reference', note.reference_document ? `${note.reference_doctype}: ${note.reference_document}` : ''],
+              ['Clinical note type', clinicalNoteTypeLabel(note)],
+              ['Reference', noteReferenceLabel(note)],
             ] as const
             return (
               <tr
@@ -316,14 +328,10 @@ export const ClinicalNotesList = ({
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
                   Practitioner
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-                  Medical Role
-                </th>
-                {!hideTypes && (
-                  <>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Note Type</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Clinical Note Type</th>
-                  </>
+                {!hideTypeColumns && (
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+                    Clinical Note Type
+                  </th>
                 )}
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Visit / reference</th>
                 <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600 uppercase">Actions</th>
@@ -339,18 +347,10 @@ export const ClinicalNotesList = ({
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
                   Practitioner
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-                  Medical Role
-                </th>
-                {!hideTypes && (
-                  <>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-                      Note Type
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-                      Clinical Note Type
-                    </th>
-                  </>
+                {!hideTypeColumns && (
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+                    Clinical Note Type
+                  </th>
                 )}
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Reference</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Note</th>
@@ -390,23 +390,12 @@ export const ClinicalNotesList = ({
                   <td className="px-4 py-3 text-sm text-slate-700">
                     {note.practitioner_name || note.practitioner || '-'}
                   </td>
-                  <td className="px-4 py-3 text-sm text-slate-700">
-                    {note.medical_role_name || note.medical_role || '-'}
-                  </td>
-                  {!hideTypes && (
-                    <>
-                      <td className="px-4 py-3 text-sm text-slate-700">{note.note_type || '-'}</td>
-                      <td className="px-4 py-3 text-sm text-slate-700">
-                        {note.clinical_note_type_name || note.clinical_note_type || '-'}
-                      </td>
-                    </>
+                  {!hideTypeColumns && (
+                    <td className="px-4 py-3 text-sm text-slate-700">{clinicalNoteTypeLabel(note)}</td>
                   )}
                   <td className="px-4 py-3 text-sm text-slate-700">
-                    {note.reference_doctype && note.reference_document ? (
-                      <div className="text-xs">
-                        <div className="font-semibold text-slate-800">{note.reference_doctype}</div>
-                        <div className="text-slate-500 truncate max-w-[150px]">{note.reference_document}</div>
-                      </div>
+                    {noteReferenceLabel(note) ? (
+                      <span className="text-xs text-slate-600">{noteReferenceLabel(note)}</span>
                     ) : (
                       '-'
                     )}
@@ -446,23 +435,12 @@ export const ClinicalNotesList = ({
                   <td className="px-4 py-3 text-sm text-slate-700">
                     {note.practitioner_name || note.practitioner || '-'}
                   </td>
-                  <td className="px-4 py-3 text-sm text-slate-700">
-                    {note.medical_role_name || note.medical_role || '-'}
-                  </td>
-                  {!hideTypes && (
-                    <>
-                      <td className="px-4 py-3 text-sm text-slate-700">{note.note_type || '-'}</td>
-                      <td className="px-4 py-3 text-sm text-slate-700">
-                        {note.clinical_note_type_name || note.clinical_note_type || '-'}
-                      </td>
-                    </>
+                  {!hideTypeColumns && (
+                    <td className="px-4 py-3 text-sm text-slate-700">{clinicalNoteTypeLabel(note)}</td>
                   )}
                   <td className="px-4 py-3 text-sm text-slate-700">
-                    {note.reference_doctype && note.reference_document ? (
-                      <div className="text-xs">
-                        <div className="font-semibold text-slate-800">{note.reference_doctype}</div>
-                        <div className="text-slate-500 truncate max-w-[150px]">{note.reference_document}</div>
-                      </div>
+                    {noteReferenceLabel(note) ? (
+                      <span className="text-xs text-slate-600">{noteReferenceLabel(note)}</span>
                     ) : (
                       '-'
                     )}

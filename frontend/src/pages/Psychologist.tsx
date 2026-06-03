@@ -73,7 +73,6 @@ export const PsychologistPage = () => {
             </div>
             <ClinicalNotesList
               patient={selectedPatient}
-              medicalRole="Psychologist"
               clinicalNoteType="Psychologist Note"
               key={clinicalNotesRefreshKey}
               onPatientClick={handlePatientSelect}
@@ -110,7 +109,6 @@ export const PsychologistPage = () => {
             </div>
             <ClinicalNotesList
               patient={selectedPatient}
-              medicalRole="Psychologist"
               clinicalNoteType="Psychologist Order"
               key={clinicalNotesRefreshKey}
               onPatientClick={handlePatientSelect}
@@ -276,7 +274,6 @@ export const PsychologistPage = () => {
             <div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto" style={{ scrollbarWidth: 'thin' }}>
               <ClinicalNotesList
                 patient={selectedPatient}
-                medicalRole="Psychologist"
                 clinicalNoteType="Psychologist Note"
                 key={clinicalNotesRefreshKey}
                 onPatientClick={handlePatientSelect}
@@ -297,7 +294,6 @@ export const PsychologistPage = () => {
             <div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto" style={{ scrollbarWidth: 'thin' }}>
               <ClinicalNotesList
                 patient={selectedPatient}
-                medicalRole="Psychologist"
                 clinicalNoteType="Psychologist Order"
                 key={`order-${clinicalNotesRefreshKey}`}
                 onPatientClick={handlePatientSelect}

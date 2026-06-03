@@ -6,6 +6,8 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import now_datetime
 
+from healthcare.api.utils.api_utility import get_next_transaction_number
+
 DOCTOR_PROGRESS_NOTE_TYPE = "Doctor Progress Note"
 NOTE_LOCK_ROLES = frozenset({"Administrator", "System Manager", "Healthcare Administrator"})
 
@@ -39,7 +41,18 @@ def fill_patient_from_inpatient_admission(doc):
 		doc.patient_name = frappe.db.get_value("Patient", doc.patient, "patient_name")
 
 
+def assign_clinical_note_trans_no(doc) -> None:
+	"""Assign trans_no for new Clinical Notes (autoname: field:trans_no). Server-only."""
+	if (doc.get("trans_no") or "").strip():
+		return
+	doc.trans_no = get_next_transaction_number("Clinical Note", fieldname="trans_no")
+
+
 class ClinicalNote(Document):
+	def before_insert(self):
+		assign_clinical_note_trans_no(self)
+		fill_patient_from_inpatient_admission(self)
+
 	def validate(self):
 		fill_patient_from_inpatient_admission(self)
 

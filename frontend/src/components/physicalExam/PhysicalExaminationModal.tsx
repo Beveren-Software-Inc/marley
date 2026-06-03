@@ -4,7 +4,22 @@
 // import { toast } from '../../hooks/useToast'
 // import { ChevronDown, Check, Stethoscope , ClipboardList } from 'lucide-react'
 
-import { CM_BTN_CANCEL, CM_BTN_PRIMARY, CREATE_MODAL_BODY_GRADIENT, CREATE_MODAL_FOOTER_STICKY, CREATE_MODAL_OVERLAY, CreateModalHeader, createModalShellClass, createModalTabButtonClass } from '../ui/CreateModalChrome'
+import {
+  CM_BTN_CANCEL,
+  CM_BTN_PRIMARY,
+  CREATE_MODAL_BODY_GRADIENT,
+  CREATE_MODAL_OVERLAY,
+  CREATE_MODAL_TAB_BAR,
+  CreateModalFooter,
+  CreateModalHeader,
+  MODAL_FIELD_CLASS,
+  MODAL_LABEL_CLASS,
+  MODAL_SECTION_CLASS,
+  MODAL_SECTION_TITLE_CLASS,
+  MODAL_TEXTAREA_CLASS,
+  createModalShellClass,
+  createModalTabButtonClass,
+} from '../ui/CreateModalChrome'
 // // ─── Link Combobox ────────────────────────────────────────────────────────────
 
 // interface LinkComboboxProps {
@@ -390,7 +405,7 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import { apiRequest } from '../../services/apiClient'
 import { fetchPatientVisits, fetchPatientOptions, fetchInpatientAdmissionOptions, type LinkFieldOption } from '../../services/common'
 import { toast } from '../../hooks/useToast'
-import { ChevronDown, Check, Stethoscope , ClipboardList } from 'lucide-react'
+import { ChevronDown, Check, Stethoscope, ClipboardList, Activity } from 'lucide-react'
 import { useCareContext } from '../../providers/CareContextProvider'
 
 // ─── Link Combobox ────────────────────────────────────────────────────────────
@@ -478,15 +493,27 @@ interface PhysicalExaminationModalProps {
   onSuccess?: () => void
 }
 
-type TabId = 'general' | 'findings'
+type TabId = 'general' | 'findings' | 'basic'
 
 const TABS: { id: TabId; label: string }[] = [
-  { id: 'general',  label: 'General' },
+  { id: 'general', label: 'General' },
   { id: 'findings', label: 'Examination Findings' },
+  { id: 'basic', label: 'Basic Examination' },
 ]
 
-const ic = 'w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white'
-const lc = 'block text-xs font-semibold text-slate-600 mb-1'
+const BASIC_VITAL_FIELDS = [
+  { fieldname: 'weight' as const, label: 'Weight', placeholder: 'e.g. 72 kg' },
+  { fieldname: 'height' as const, label: 'Height', placeholder: 'e.g. 1.70 m' },
+  { fieldname: 'blood_pressure' as const, label: 'Blood Pressure', placeholder: 'e.g. 120/80 mmHg' },
+  { fieldname: 'temp_pressure' as const, label: 'Temp Pressure', placeholder: 'e.g. 37.0 °C' },
+  { fieldname: 'resp_rate' as const, label: 'Respiratory Rate', placeholder: 'e.g. 16 /min' },
+  { fieldname: 'pulse' as const, label: 'Pulse', placeholder: 'e.g. 72 bpm' },
+] as const
+
+const BASIC_VITAL_FIELD_COUNT = BASIC_VITAL_FIELDS.length
+
+const ic = MODAL_FIELD_CLASS
+const lc = MODAL_LABEL_CLASS
 
 // Clinical system fields definition
 const SYSTEMS = [
@@ -565,6 +592,32 @@ export const PhysicalExaminationModal = ({
   // Lock fields based on context
   const isPatientLocked = Boolean(patient) || Boolean(contextPatient)
 
+  // Basic examination (vitals)
+  const [weight, setWeight] = useState('')
+  const [height, setHeight] = useState('')
+  const [bloodPressure, setBloodPressure] = useState('')
+  const [tempPressure, setTempPressure] = useState('')
+  const [respRate, setRespRate] = useState('')
+  const [pulse, setPulse] = useState('')
+
+  const basicValues: Record<(typeof BASIC_VITAL_FIELDS)[number]['fieldname'], string> = {
+    weight,
+    height,
+    blood_pressure: bloodPressure,
+    temp_pressure: tempPressure,
+    resp_rate: respRate,
+    pulse,
+  }
+  const basicSetters: Record<(typeof BASIC_VITAL_FIELDS)[number]['fieldname'], (v: string) => void> = {
+    weight: setWeight,
+    height: setHeight,
+    blood_pressure: setBloodPressure,
+    temp_pressure: setTempPressure,
+    resp_rate: setRespRate,
+    pulse: setPulse,
+  }
+  const basicFilledCount = Object.values(basicValues).filter(v => v.trim().length > 0).length
+
   // Findings
   const [skin, setSkin] = useState('')
   const [cvsresp, setCvsresp] = useState('')
@@ -577,7 +630,7 @@ export const PhysicalExaminationModal = ({
     skin_: setSkin, cvsresp: setCvsresp, cnc: setCnc, git: setGit, others: setOthers,
   }
 
-  const filledCount = [skin, cvsresp, cnc, git, others].filter(v => v.trim().length > 0).length
+  const findingsFilledCount = [skin, cvsresp, cnc, git, others].filter(v => v.trim().length > 0).length
 
   // Fetch functions
   const fetchVisits = useCallback(
@@ -602,6 +655,12 @@ export const PhysicalExaminationModal = ({
         patient_visit: patientVisit || undefined,
         patient: patientField || undefined,
         patient_name: patientNameField || undefined,
+        weight: weight.trim() || undefined,
+        height: height.trim() || undefined,
+        blood_pressure: bloodPressure.trim() || undefined,
+        temp_pressure: tempPressure.trim() || undefined,
+        resp_rate: respRate.trim() || undefined,
+        pulse: pulse.trim() || undefined,
         skin_: skin || undefined,
         cvsresp: cvsresp || undefined,
         cnc: cnc || undefined,
@@ -624,30 +683,48 @@ export const PhysicalExaminationModal = ({
 
   const currentTabIdx = TABS.findIndex(t => t.id === activeTab)
 
+  const contextSubtitle = [
+    patientNameField || patientName,
+    isIPMode && inpatientAdmission ? `IP admission ${inpatientAdmission}` : null,
+    isOPMode && (patientVisitLabel || patientVisit) ? `OP visit ${patientVisitLabel || patientVisit}` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ')
+
   return (
-    <div className={CREATE_MODAL_OVERLAY}>
-      <div className={createModalShellClass('w-full max-w-2xl max-h-[92vh] overflow-hidden')}>
+    <div
+      className={CREATE_MODAL_OVERLAY}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
+    >
+      <div
+        className={createModalShellClass('max-w-2xl w-full max-h-[92vh]')}
+        onClick={(e) => e.stopPropagation()}
+      >
         <CreateModalHeader
           title="Physical Examination"
-          icon={<ClipboardList className="h-5 w-5 text-emerald-700" strokeWidth={2} />}
-          subtitle={
-            <>
-              {patientName ? `${patientName} · ` : ''}
-              {isIPMode && inpatientAdmission ? <span className="ml-1 inline-flex items-center gap-1 rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-700">🏥 IP: {inpatientAdmission}</span> : null}
-              {isOPMode && patientVisit ? <span className="ml-1 inline-flex items-center gap-1 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">👤 OP Visit</span> : null}
-              {!inpatientAdmission && !patientVisit ? 'New Record' : null}
-            </>
-          }
+          icon={<Stethoscope className="h-5 w-5 text-emerald-700" strokeWidth={2} />}
+          subtitle={contextSubtitle || 'Document examination findings by body system'}
           onClose={onClose}
         >
-          <div className="-mb-px mt-3 flex border-b border-emerald-100/80">
+          <div className={`${CREATE_MODAL_TAB_BAR} -mb-px mt-3`}>
             {TABS.map(tab => (
-              <button key={tab.id} type="button" onClick={() => setActiveTab(tab.id)}
-                className={createModalTabButtonClass(activeTab === tab.id)}>
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={createModalTabButtonClass(activeTab === tab.id)}
+              >
                 {tab.label}
-                {tab.id === 'findings' && filledCount > 0 ? (
-                  <span className="ml-1 inline-flex items-center justify-center rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700">
-                    {filledCount}/5
+                {tab.id === 'findings' && findingsFilledCount > 0 ? (
+                  <span className="ml-1.5 inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-800">
+                    {findingsFilledCount}/5
+                  </span>
+                ) : null}
+                {tab.id === 'basic' && basicFilledCount > 0 ? (
+                  <span className="ml-1.5 inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-800">
+                    {basicFilledCount}/{BASIC_VITAL_FIELD_COUNT}
                   </span>
                 ) : null}
               </button>
@@ -655,20 +732,29 @@ export const PhysicalExaminationModal = ({
           </div>
         </CreateModalHeader>
 
-        {/* Body */}
-        <form onSubmit={handleSubmit} noValidate className={`${CREATE_MODAL_BODY_GRADIENT} flex-1 overflow-y-auto`}>
-          <div className="px-6 py-5">
+        <form onSubmit={handleSubmit} noValidate className={`${CREATE_MODAL_BODY_GRADIENT} flex min-h-0 flex-1 flex-col`}>
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <div className="space-y-5 px-5 py-5 sm:px-6 sm:py-6">
 
             {/* ── Tab 1: General ── */}
             {activeTab === 'general' && (
               <div className="space-y-5">
-                <div>
-                  <p className="text-sm font-semibold text-slate-800 border-b border-slate-200 pb-1.5 mb-4">
-                    Patient & Visit Information
-                    {isIPMode && <span className="ml-2 text-xs font-normal text-blue-600">(IP Mode Active)</span>}
-                    {isOPMode && <span className="ml-2 text-xs font-normal text-green-600">(OP Mode Active)</span>}
-                  </p>
-                  <div className="grid grid-cols-2 gap-4">
+                <section className={MODAL_SECTION_CLASS}>
+                  <h3 className={MODAL_SECTION_TITLE_CLASS}>
+                    <ClipboardList className="h-4 w-4 text-emerald-600" strokeWidth={2} />
+                    Patient & visit
+                    {isIPMode ? (
+                      <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-blue-800">
+                        IP
+                      </span>
+                    ) : null}
+                    {isOPMode ? (
+                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-800">
+                        OP
+                      </span>
+                    ) : null}
+                  </h3>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     {/* Inpatient Admission - disabled in OP mode, auto-filled in IP mode */}
                     {isIPMode ? (
                       <div>
@@ -740,85 +826,136 @@ export const PhysicalExaminationModal = ({
                         className={`${ic} bg-slate-100 cursor-not-allowed`} />
                     </div>
                   </div>
-                </div>
-
-                <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
-                  <p className="text-xs font-semibold text-primary mb-1">
-                    {isIPMode ? '📋 Documenting for Inpatient Admission' : isOPMode ? '📋 Documenting for Outpatient Visit' : 'Ready to document?'}
-                  </p>
-                  <p className="text-xs text-slate-600">
-                    {isIPMode 
-                      ? `You are documenting physical examination for inpatient admission: ${inpatientAdmission}. Switch to the Examination Findings tab to document findings.`
-                      : isOPMode
-                      ? `You are documenting physical examination for outpatient visit: ${patientVisitLabel || patientVisit}. Switch to the Examination Findings tab to document findings.`
-                      : 'Switch to the <strong>Examination Findings</strong> tab to document findings for each body system.'
-                    }
-                  </p>
-                </div>
+                </section>
               </div>
             )}
 
             {/* ── Tab 2: Examination Findings ── */}
             {activeTab === 'findings' && (
               <div className="space-y-4">
-                <p className="text-xs text-slate-500 flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-md px-3 py-2">
-                  <Stethoscope className="w-3.5 h-3.5 shrink-0 text-slate-400" />
-                  Document your findings for each body system below. All fields are optional but should be completed as thoroughly as possible.
-                </p>
+                <div className="flex items-start gap-2.5 rounded-xl border border-emerald-100/90 bg-white/80 px-4 py-3 shadow-sm ring-1 ring-emerald-50">
+                  <Stethoscope className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" strokeWidth={2} />
+                  <p className="text-sm leading-relaxed text-slate-600">
+                    Document findings for each body system. All fields are optional; complete as thoroughly as
+                    clinically appropriate.
+                  </p>
+                </div>
 
                 {SYSTEMS.map(sys => (
-                  <div key={sys.fieldname} className={`rounded-lg border p-4 ${sys.color}`}>
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-base leading-none">{sys.icon}</span>
-                      <label className={`text-xs font-bold uppercase tracking-wide ${sys.headerColor}`}>
+                  <section
+                    key={sys.fieldname}
+                    className={`${MODAL_SECTION_CLASS} border-l-4 ${sys.color}`}
+                  >
+                    <div className="mb-3 flex items-center gap-2">
+                      <span className="text-lg leading-none" aria-hidden>
+                        {sys.icon}
+                      </span>
+                      <label className={`flex-1 text-xs font-bold uppercase tracking-wide ${sys.headerColor}`}>
                         {sys.label}
                       </label>
-                      {findingsValues[sys.fieldname]?.trim().length > 0 && (
-                        <span className="ml-auto w-4 h-4 rounded-full bg-green-500 flex items-center justify-center shrink-0">
-                          <Check className="w-2.5 h-2.5 text-white" />
+                      {findingsValues[sys.fieldname]?.trim().length > 0 ? (
+                        <span
+                          className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white shadow-sm"
+                          aria-label="Completed"
+                        >
+                          <Check className="h-3 w-3" strokeWidth={3} />
                         </span>
-                      )}
+                      ) : null}
                     </div>
                     <textarea
                       value={findingsValues[sys.fieldname]}
                       onChange={e => findingsSetters[sys.fieldname](e.target.value)}
-                      rows={3}
+                      rows={4}
                       placeholder={sys.placeholder}
-                      className="w-full rounded-md border border-white/80 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary resize-none shadow-sm"
+                      className={MODAL_TEXTAREA_CLASS}
                     />
-                  </div>
+                  </section>
                 ))}
               </div>
             )}
+
+            {/* ── Tab 3: Basic Examination ── */}
+            {activeTab === 'basic' && (
+              <div className="space-y-5">
+                <div className="flex items-start gap-2.5 rounded-xl border border-emerald-100/90 bg-white/80 px-4 py-3 shadow-sm ring-1 ring-emerald-50">
+                  <Activity className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" strokeWidth={2} />
+                  <p className="text-sm leading-relaxed text-slate-600">
+                    Record baseline measurements — weight, height, blood pressure, temp pressure, pulse, and
+                    respiratory rate.
+                  </p>
+                </div>
+
+                <section className={MODAL_SECTION_CLASS}>
+                  <h3 className={MODAL_SECTION_TITLE_CLASS}>
+                    <Activity className="h-4 w-4 text-emerald-600" strokeWidth={2} />
+                    Basic examination
+                  </h3>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    {BASIC_VITAL_FIELDS.map(field => (
+                      <div key={field.fieldname}>
+                        <label className={lc} htmlFor={`pe-${field.fieldname}`}>
+                          {field.label}
+                        </label>
+                        <input
+                          id={`pe-${field.fieldname}`}
+                          type="text"
+                          value={basicValues[field.fieldname]}
+                          onChange={e => basicSetters[field.fieldname](e.target.value)}
+                          placeholder={field.placeholder}
+                          className={ic}
+                          autoComplete="off"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              </div>
+            )}
+            </div>
           </div>
 
-          <div className={`${CREATE_MODAL_FOOTER_STICKY} items-center justify-between`}>
-            <div className="flex gap-1">
-              {TABS.map((tab, i) => (
-                <button key={tab.id} type="button" onClick={() => setActiveTab(tab.id)}
-                  className={`h-2 w-2 rounded-full transition-colors ${activeTab === tab.id ? 'bg-emerald-600' : 'bg-slate-300 hover:bg-slate-400'}`}
-                  aria-label={`${i + 1}. ${tab.label}`} />
-              ))}
-            </div>
-            <div className="flex gap-3">
-              {currentTabIdx > 0 && (
-                <button type="button" onClick={() => setActiveTab(TABS[currentTabIdx - 1].id)}
-                  className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
-                  ← Previous
-                </button>
-              )}
-              {currentTabIdx < TABS.length - 1 && (
-                <button type="button" onClick={() => setActiveTab(TABS[currentTabIdx + 1].id)}
-                  className={CM_BTN_PRIMARY}>
-                  Next →
-                </button>
-              )}
-              <button type="button" onClick={onClose} className={CM_BTN_CANCEL}>Cancel</button>
-              <button type="submit" disabled={submitting} className={CM_BTN_PRIMARY}>
-                {submitting ? 'Saving...' : 'Save Examination'}
+          <CreateModalFooter
+            hint={
+              <div className="flex items-center gap-2">
+                {TABS.map((tab, i) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`h-2 w-2 rounded-full transition-colors ${
+                      activeTab === tab.id ? 'bg-emerald-600' : 'bg-slate-300 hover:bg-emerald-300'
+                    }`}
+                    aria-label={`${i + 1}. ${tab.label}`}
+                  />
+                ))}
+              </div>
+            }
+          >
+            {currentTabIdx > 0 ? (
+              <button
+                type="button"
+                onClick={() => setActiveTab(TABS[currentTabIdx - 1].id)}
+                className={CM_BTN_CANCEL}
+              >
+                ← Previous
               </button>
-            </div>
-          </div>
+            ) : null}
+            {currentTabIdx < TABS.length - 1 ? (
+              <button
+                type="button"
+                onClick={() => setActiveTab(TABS[currentTabIdx + 1].id)}
+                className={CM_BTN_PRIMARY}
+              >
+                Next →
+              </button>
+            ) : null}
+            <button type="button" onClick={onClose} className={CM_BTN_CANCEL}>
+              Cancel
+            </button>
+            <button type="submit" disabled={submitting} className={CM_BTN_PRIMARY}>
+              {submitting ? 'Saving…' : 'Save examination'}
+            </button>
+          </CreateModalFooter>
         </form>
       </div>
     </div>

@@ -6,6 +6,12 @@ import frappe
 from frappe import _
 from frappe.utils import cint, nowdate
 
+from healthcare.api.utils.api_utility import get_next_transaction_number
+from healthcare.healthcare.doctype.clinical_note.clinical_note import (
+	assign_clinical_note_trans_no,
+	fill_patient_from_inpatient_admission,
+)
+
 
 def _get_or_create_clinical_note_type(name: str | None) -> str | None:
 	if not name:
@@ -84,31 +90,75 @@ def _resolve_clinical_note_medical_role(data: dict) -> str:
 # 		limit_start=offset,
 # 		order_by='posting_date desc'
 # 	)
+def _clinical_note_list_filters(kwargs: dict) -> tuple[list, list | None]:
+	"""Build frappe AND filters and optional OR filters for Clinical Note listing."""
+	patient = kwargs.get('patient')
+	medical_role = kwargs.get('medical_role')
+	clinical_note_type = kwargs.get('clinical_note_type')
+	reference_doctype = kwargs.get('ref_doctype')
+	reference_document = kwargs.get('ref_document')
+	inpatient_admission = (
+		kwargs.get('inpatient_admission')
+		or kwargs.get('admission_no')
+		or kwargs.get('admission')
+	)
+	if inpatient_admission:
+		inpatient_admission = str(inpatient_admission).strip() or None
+
+	practitioner = kwargs.get('practitioner')
+	posting_date_from = kwargs.get('posting_date_from') or kwargs.get('from_date')
+	posting_date_to = kwargs.get('posting_date_to') or kwargs.get('to_date')
+
+	filter_list: list = []
+
+	if patient:
+		filter_list.append(['patient', '=', patient])
+
+	if practitioner:
+		filter_list.append(['practitioner', '=', practitioner])
+
+	if clinical_note_type:
+		filter_list.append(['clinical_note_type', '=', clinical_note_type])
+	elif medical_role:
+		roles_to_filter = resolve_medical_role_filter(medical_role)
+		if len(roles_to_filter) == 1:
+			filter_list.append(['medical_role', '=', roles_to_filter[0]])
+		else:
+			filter_list.append(['medical_role', 'in', roles_to_filter])
+
+	# IP: scope by inpatient_admission link (admission no is stored here, not reference_document).
+	or_filters = None
+	if inpatient_admission:
+		filter_list.append(['inpatient_admission', '=', inpatient_admission])
+	elif reference_doctype:
+		filter_list.append(['reference_doctype', '=', reference_doctype])
+		if reference_document:
+			filter_list.append(['reference_document', '=', reference_document])
+	elif reference_document:
+		filter_list.append(['reference_document', '=', reference_document])
+
+	if posting_date_from and posting_date_to:
+		filter_list.append(['posting_date', 'between', [posting_date_from, posting_date_to]])
+	elif posting_date_from:
+		filter_list.append(['posting_date', '>=', posting_date_from])
+	elif posting_date_to:
+		filter_list.append(['posting_date', '<=', posting_date_to])
+
+	return filter_list, or_filters  # or_filters reserved; admission uses inpatient_admission only
+
+
 @frappe.whitelist()
 def get_clinical_notes(**kwargs):
 	"""Get list of Clinical Notes with optional filters"""
 	
-	# Extract parameters from kwargs
 	# Note: ref_doctype/ref_document used instead of reference_doctype/reference_document
 	# because Frappe's request handler strips those reserved parameter names before
 	# they reach the whitelisted function.
 	limit = kwargs.get('limit', 50)
 	offset = kwargs.get('offset', 0)
 	patient = kwargs.get('patient')
-	medical_role = kwargs.get('medical_role')
-	clinical_note_type = kwargs.get('clinical_note_type')
-	note_type = kwargs.get('note_type')
-	reference_doctype = kwargs.get('ref_doctype')
-	reference_document = kwargs.get('ref_document')
 	practitioner = kwargs.get('practitioner')
 	mine_only = cint(kwargs.get('mine_only'))
-	posting_date_from = kwargs.get('posting_date_from') or kwargs.get('from_date')
-	posting_date_to = kwargs.get('posting_date_to') or kwargs.get('to_date')
-
-	filters = {}
-
-	if patient:
-		filters['patient'] = patient
 
 	# Without a patient context, optional "only my notes" (linked Healthcare Practitioner).
 	if mine_only and not patient:
@@ -117,40 +167,15 @@ def get_clinical_notes(**kwargs):
 		)
 		if not practitioner:
 			return []
+		kwargs = dict(kwargs)
+		kwargs['practitioner'] = practitioner
 
-	if practitioner:
-		filters['practitioner'] = practitioner
-	
-	if medical_role:
-		roles_to_filter = resolve_medical_role_filter(medical_role)
-		if len(roles_to_filter) == 1:
-			filters['medical_role'] = roles_to_filter[0]
-		else:
-			filters['medical_role'] = ['in', roles_to_filter]
-
-	
-	if clinical_note_type:
-		filters['clinical_note_type'] = clinical_note_type
-	
-	# if note_type:
-	#     filters['note_type'] = note_type
-	
-	if reference_doctype:
-		filters['reference_doctype'] = reference_doctype
-	
-	if reference_document:
-		filters['reference_document'] = reference_document
-
-	if posting_date_from and posting_date_to:
-		filters['posting_date'] = ['between', [posting_date_from, posting_date_to]]
-	elif posting_date_from:
-		filters['posting_date'] = ['>=', posting_date_from]
-	elif posting_date_to:
-		filters['posting_date'] = ['<=', posting_date_to]
+	filter_list, or_filters = _clinical_note_list_filters(kwargs)
 
 	clinical_notes = frappe.get_all(
 		'Clinical Note',
-		filters=filters,
+		filters=filter_list,
+		or_filters=or_filters,
 		fields=[
 			'name',
 			'patient',
@@ -162,13 +187,13 @@ def get_clinical_notes(**kwargs):
 			'note',
 			'reference_doctype',
 			'reference_document',
-			'branch'
+			'inpatient_admission',
+			'branch',
 		],
 		limit=int(limit),
 		limit_start=int(offset),
-		order_by='posting_date desc'
+		order_by='posting_date desc',
 	)
-	
 	# Get patient names and practitioner names
 	for note in clinical_notes:
 		if note.patient:
@@ -276,11 +301,21 @@ def get_encounters_pending_doctor_progress_note(clinical_note_type='Doctor Progr
 
 
 @frappe.whitelist()
+def get_next_clinical_note_trans_no():
+	"""Preview next trans_no for Clinical Note (portal / desk)."""
+	return get_next_transaction_number("Clinical Note", fieldname="trans_no")
+
+
+@frappe.whitelist()
 def create_clinical_note(data):
 	"""Create a new Clinical Note (used for Diagnosis Detail etc.)"""
 	if isinstance(data, str):
 		import json
 		data = json.loads(data)
+
+	# trans_no is server-assigned only (autoname: field:trans_no)
+	data.pop("trans_no", None)
+	data.pop("name", None)
 
 	patient = data.get('patient')
 	note = data.get('note')
@@ -312,10 +347,11 @@ def create_clinical_note(data):
 		reference_document = patient_visit
 	# If neither is provided, we can still create the note without a reference
 	
+	inpatient_admission = data.get('inpatient_admission') or admission_no
+
 	doc = frappe.get_doc({
 		'doctype': 'Clinical Note',
 		'patient': patient,
-		
 		'clinical_note_type': clinical_note_type,
 		'medical_role': _resolve_clinical_note_medical_role(data),
 		'practitioner': data.get('practitioner'),
@@ -323,12 +359,16 @@ def create_clinical_note(data):
 		'note': note,
 		'reference_doctype': reference_doctype,
 		'reference_document': reference_document,
+		'inpatient_admission': inpatient_admission,
 	})
 
+	fill_patient_from_inpatient_admission(doc)
+	assign_clinical_note_trans_no(doc)
 	doc.insert(ignore_permissions=True)
 
 	return {
 		'name': doc.name,
+		'trans_no': doc.trans_no,
 		'patient': doc.patient,
 		'clinical_note_type': doc.clinical_note_type,
 		'medical_role': doc.medical_role,
