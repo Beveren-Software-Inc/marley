@@ -1,3 +1,5 @@
+import { frappeErrorMessage as parseFrappeError } from '../utils/frappeErrorMessage'
+
 export interface PatientListItem {
   name: string
   patient_name: string
@@ -641,34 +643,7 @@ export interface UpdatePatientData {
 
 /** Extract user-facing message from Frappe error response (REST / method). */
 export function messageFromFrappeResponse(out: Record<string, unknown>): string {
-  try {
-    if (out._server_messages && typeof out._server_messages === 'string') {
-      const arr = JSON.parse(out._server_messages) as string[]
-      if (Array.isArray(arr) && arr.length > 0 && typeof arr[0] === 'string') {
-        const msg = arr[0].trim()
-        if (msg) return msg
-      }
-    }
-  } catch {
-    // ignore parse error
-  }
-  const msg = out.message
-  if (typeof msg === 'string' && msg.trim()) return msg.trim()
-  if (msg && typeof msg === 'object' && typeof (msg as { message?: string }).message === 'string') {
-    const m = (msg as { message: string }).message.trim()
-    if (m) return m
-  }
-  const exc = out.exc
-  if (typeof exc === 'string' && exc.trim()) {
-    const trimmed = exc.trim()
-    const match = trimmed.match(/(?:ValidationError|PermissionError|ValueError):\s*(.+?)(?:\n|$)/s)
-    if (match && match[1]) return match[1].trim()
-    const lastLine = trimmed.split('\n').filter(Boolean).pop()
-    if (lastLine && lastLine.length < 300) return lastLine
-    if (lastLine) return lastLine.slice(0, 200) + '…'
-  }
-  if (out.exc_type && typeof out.exc_type === 'string') return out.exc_type
-  return ''
+  return parseFrappeError(out, '')
 }
 
 /** On success, may return the server message (e.g. "Customer X updated"). */

@@ -154,8 +154,8 @@ export type CreateLabTestResult =
 
 export async function createLabTestFromServiceRequest(serviceRequestName: string): Promise<CreateLabTestResult> {
   const { ensureCSRF } = await import('./apiClient')
+  const { frappeErrorMessage } = await import('../utils/frappeErrorMessage')
   const csrf = await ensureCSRF()
-  console.log("HUku ndio tuko")
   const response = await fetch(
     `/api/method/healthcare.api.service_request.create_lab_test_from_service_request?service_request=${encodeURIComponent(serviceRequestName)}`,
     {
@@ -172,13 +172,10 @@ export async function createLabTestFromServiceRequest(serviceRequestName: string
 
   if (resData?.message) {
     return resData.message
-  } else {
-    // Extract error message from Frappe response
-    const errorMessage = resData?.exc_type 
-      ? `${resData.exc_type}: ${resData.exc || resData.message || 'Failed to create lab test from service request'}`
-      : resData?.exc || resData?.message || 'Failed to create lab test from service request'
-    throw new Error(errorMessage)
   }
+  throw new Error(
+    frappeErrorMessage(resData ?? {}, 'Failed to create lab test from service request.')
+  )
 }
 
 /** One line in a multi-test lab service request basket */
@@ -237,6 +234,7 @@ export async function getMultiLabRequestPricing(
 
 export async function createServiceRequest(data: CreateServiceRequestData): Promise<ServiceRequest> {
   const { ensureCSRF } = await import('./apiClient')
+  const { frappeErrorMessage } = await import('../utils/frappeErrorMessage')
   const csrf = await ensureCSRF()
   const response = await fetch(
     '/api/method/healthcare.api.service_request.create_service_request',
@@ -255,9 +253,8 @@ export async function createServiceRequest(data: CreateServiceRequestData): Prom
 
   if (resData?.message) {
     return resData.message as ServiceRequest
-  } else {
-    throw new Error(resData?.exc_type ? resData.exc : 'Failed to create service request')
   }
+  throw new Error(frappeErrorMessage(resData ?? {}, 'Failed to create service request. Please check required fields.'))
 }
 
 /** Confirm payment (patient accepted cost). Required before Book Lab for Lab Test Template. */

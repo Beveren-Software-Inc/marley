@@ -121,12 +121,12 @@ export const WarningMessagesList = ({
 
   return (
     <div className="min-w-full flex flex-col flex-1 min-h-0 h-full">
-      <div className="flex items-center justify-between px-2 py-2 border-b border-slate-200 flex-shrink-0 gap-2">
-        <span className="text-xs font-medium text-slate-500">
-          {warnings.length} warning{warnings.length !== 1 ? 's' : ''}
-        </span>
-        <div className="flex items-center gap-2">
-          {!inDashboardCard && (
+      {!inDashboardCard && (
+        <div className="flex items-center justify-between px-2 py-2 border-b border-slate-200 flex-shrink-0 gap-2">
+          <span className="text-xs font-medium text-slate-500">
+            {warnings.length} warning{warnings.length !== 1 ? 's' : ''}
+          </span>
+          <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => setShowFiltersInternal((p) => !p)}
@@ -141,9 +141,9 @@ export const WarningMessagesList = ({
                 />
               </svg>
             </button>
-          )}
+          </div>
         </div>
-      </div>
+      )}
 
       {showFilters && (
         <div className="flex flex-wrap items-end gap-3 px-3 py-2 border-b border-slate-100 bg-slate-50/80">

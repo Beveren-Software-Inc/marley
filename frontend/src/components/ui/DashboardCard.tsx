@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { ArrowUpRight } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import { useCareContext } from '../../providers/CareContextProvider'
@@ -79,6 +79,8 @@ export function CardHeaderActions({
 
 export const DashboardCard = ({
   title,
+  titleAddon,
+  headerExtra,
   onAdd,
   onOpenListing,
   listingScreen,
@@ -96,6 +98,10 @@ export const DashboardCard = ({
   allowCreateOnClosedEpisode = false,
 }: {
   title: string
+  /** Optional hint beside the title (e.g. Read-only). */
+  titleAddon?: ReactNode
+  /** Extra controls in the header row (before filter / + / listing). */
+  headerExtra?: ReactNode
   onAdd?: () => void
   /** Navigate to full listing (sidebar screen). Use `listingScreen` or pass a custom handler. */
   onOpenListing?: () => void
@@ -148,6 +154,7 @@ export const DashboardCard = ({
           <span className={`truncate text-sm sm:text-base ${requiresAttention ? 'text-red-950' : undefined}`}>
             {title}
           </span>
+          {titleAddon}
           {requiresAttention && (
             <span
               className="shrink-0 inline-flex items-center rounded-full bg-red-200/90 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-900"
@@ -158,6 +165,7 @@ export const DashboardCard = ({
           )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          {headerExtra}
           {filterable && (
             <button
               type="button"

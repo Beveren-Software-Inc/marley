@@ -9,9 +9,9 @@ export const CREATE_MODAL_OVERLAY =
 export const CREATE_MODAL_OVERLAY_STACK =
   'fixed inset-0 z-[60] flex items-center justify-center bg-primary/15 p-4 backdrop-blur-[2px]'
 
-/** Backdrop — detail slide-over from the right */
+/** Backdrop — detail slide-over from the right (padding on all sides so panel is not flush-left). */
 export const DETAIL_PANEL_OVERLAY =
-  'fixed inset-0 z-50 flex items-stretch justify-end bg-primary/10 p-0 sm:p-2 sm:pl-0 backdrop-blur-[2px]'
+  'fixed inset-0 z-50 flex items-stretch justify-end bg-primary/10 p-2 sm:p-3 backdrop-blur-[2px]'
 
 /**
  * Inner card shell — emerald ring, soft shadow (Clinical Suicide Risk / Service Request style).
@@ -76,6 +76,10 @@ export const MODAL_SECTION_TITLE_CLASS =
 export const MODAL_ERROR_BOX_CLASS =
   'rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700'
 
+/** Validation / API errors pinned under the modal title (always visible while scrolling). */
+export const CREATE_MODAL_HEADER_ALERT_CLASS =
+  'mt-3 rounded-lg border border-red-300/90 bg-red-50 px-3 py-2.5 text-sm font-medium leading-snug text-red-900 shadow-sm ring-1 ring-red-200/80'
+
 export type CreateModalHeaderProps = {
   title: ReactNode
   subtitle?: ReactNode
@@ -83,6 +87,8 @@ export type CreateModalHeaderProps = {
   onClose: () => void
   /** Extra actions to the left of the close button (e.g. print) */
   trailing?: ReactNode
+  /** Validation or save error — shown in the fixed header, above scrollable body */
+  alert?: ReactNode
   /** Tabs or other content below the title row (still inside gradient header) */
   children?: ReactNode
 }
@@ -107,10 +113,11 @@ export function CreateModalHeader({
   icon,
   onClose,
   trailing,
+  alert,
   children,
 }: CreateModalHeaderProps) {
   return (
-    <div className="relative shrink-0 border-b border-emerald-100/60 bg-gradient-to-r from-emerald-100 via-teal-50 to-sky-100">
+    <div className="relative z-10 shrink-0 border-b border-emerald-100/60 bg-gradient-to-r from-emerald-100 via-teal-50 to-sky-100">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(16,185,129,0.18),transparent_55%)]" />
       <div className="relative px-5 py-4 sm:px-6">
         <div className="flex items-start justify-between gap-3">
@@ -137,6 +144,11 @@ export function CreateModalHeader({
             </button>
           </div>
         </div>
+        {alert != null ? (
+          <div className={CREATE_MODAL_HEADER_ALERT_CLASS} role="alert" aria-live="polite">
+            {alert}
+          </div>
+        ) : null}
         {children}
       </div>
     </div>
@@ -200,7 +212,9 @@ export function DetailSlideOver({
           onClose={onClose}
           trailing={headerActions}
         />
-        <div className={`${CREATE_MODAL_BODY_GRADIENT} min-h-0 flex-1`}>{children}</div>
+        <div className={`${CREATE_MODAL_BODY_GRADIENT} min-h-0 flex-1 px-5 py-4 sm:px-6 sm:py-5`}>
+          {children}
+        </div>
         {footer != null ? (
           <div className={`${CREATE_MODAL_FOOTER_STICKY} justify-end`}>{footer}</div>
         ) : null}

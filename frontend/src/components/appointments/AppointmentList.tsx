@@ -1493,14 +1493,13 @@ export const AppointmentList = ({
           )}
         </div>
 
-        {/* Result count */}
+        {/* Result count — full listing only */}
+        {!cardCompactLayout && (
         <p className="text-xs text-slate-500">
           Showing {appointments.length} of {totalCount} appointment{totalCount !== 1 ? 's' : ''}
           {hasActiveFilters && ' (filtered)'}
-          {cardCompactLayout
-            ? ' — tap or hover ⓘ for appointment ID, type, cost center, practitioner, and more; use ↗ for full list'
-            : ''}
         </p>
+        )}
       </div>
       )}
 

@@ -122,7 +122,7 @@ export function PatientHistoryDetailPanel({ name, onClose }: PatientHistoryDetai
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-stretch justify-end bg-primary/10 p-0 sm:p-2 sm:pl-0 backdrop-blur-[2px]"
+      className="fixed inset-0 z-50 flex items-stretch justify-end bg-primary/10 p-2 sm:p-3 backdrop-blur-[2px]"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose()
       }}

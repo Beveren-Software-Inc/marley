@@ -45,6 +45,7 @@ const nurseScreenGroups: ScreenGroup[] = [
       { id: 'n-nut',         title: 'Nutritionist Notes' },
       { id: 'n-ther',        title: 'Therapist Notes' },
       { id: 'n-nurse-notes', title: 'Nursing Notes' },
+      { id: 'n-doctor-order', title: 'Doctors Order' },
       { id: 'n-tpr',         title: 'TPR / Vital Signs' },
       // { id: 'n-ect',         title: 'ECT Form' },
       // { id: 'n-obs',         title: 'Observation Level' },

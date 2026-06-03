@@ -24,7 +24,7 @@
   "section_break_bmum",
   "column_break_mubk",
   "nurse",
-  "nurse_date",
+  "nurse_name",
   "nurse_entry_date",
   "request",
   "column_break_vrgp",
@@ -119,11 +119,6 @@
    "options": "Healthcare Practitioner"
   },
   {
-   "fieldname": "nurse_date",
-   "fieldtype": "Data",
-   "label": "Nurse Date"
-  },
-  {
    "fieldname": "nurse_entry_date",
    "fieldtype": "Datetime",
    "in_list_view": 1,
@@ -183,12 +178,18 @@
    "fieldtype": "Link",
    "label": "Cost Center",
    "options": "Cost Center"
+  },
+  {
+   "fetch_from": "nurse.practitioner_name",
+   "fieldname": "nurse_name",
+   "fieldtype": "Data",
+   "label": "Nurse Name"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-06-02 18:20:15.179533",
+ "modified": "2026-06-02 18:54:38.499856",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Doctor Order",
