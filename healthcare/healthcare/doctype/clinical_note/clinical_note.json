@@ -1,7 +1,7 @@
 {
  "actions": [],
  "allow_rename": 1,
- "autoname": "format:{patient}-{reference_name}-{#####}",
+ "autoname": "field:trans_no",
  "creation": "2023-05-12 12:31:47.611942",
  "default_view": "List",
  "doctype": "DocType",
@@ -256,16 +256,17 @@
   {
    "fieldname": "trans_no",
    "fieldtype": "Data",
-   "label": "Trans No"
+   "label": "Trans No",
+   "unique": 1
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-06-03 10:27:11.989751",
+ "modified": "2026-06-03 10:28:28.806807",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Clinical Note",
- "naming_rule": "Expression (old style)",
+ "naming_rule": "By fieldname",
  "owner": "Administrator",
  "permissions": [
   {
