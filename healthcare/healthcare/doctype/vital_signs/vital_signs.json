@@ -48,6 +48,7 @@
   "section_break_yqdz",
   "cr_id",
   "cr_date",
+  "old_admission_no",
   "column_break_pjkg",
   "up_id",
   "up_date",
@@ -296,7 +297,7 @@
    "fieldname": "cost_center",
    "fieldtype": "Link",
    "label": "Cost Center",
-   "options": "Branch"
+   "options": "Cost Center"
   },
   {
    "fieldname": "record_time",
@@ -330,11 +331,16 @@
    "fieldname": "up_date",
    "fieldtype": "Data",
    "label": "UP Date"
+  },
+  {
+   "fieldname": "old_admission_no",
+   "fieldtype": "Data",
+   "label": "Old Admission No"
   }
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2026-06-03 14:09:11.674811",
+ "modified": "2026-06-03 14:31:00.513185",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Vital Signs",
