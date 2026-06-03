@@ -8,6 +8,7 @@ import frappe
 from frappe import _
 from frappe.utils import nowdate
 
+from healthcare.api.portal_errors import portal_mandatory_message, portal_validation_message
 from healthcare.api.sales_order_cost_center import (
 	apply_cost_center_to_sales_order,
 	cost_center_from_service_request,
@@ -607,6 +608,12 @@ def create_service_request(data):
 	# Require either Patient Visit (OP) or Inpatient Admission for clinical context
 	if not data.get('patient_visit') and not data.get('inpatient_record'):
 		frappe.throw(_("Please select either a Patient Visit or an Inpatient Admission for the service request"))
+
+	if not data.get("cost_center"):
+		frappe.throw(_("Please select a cost center for this service request."))
+
+	if not data.get("practitioner"):
+		frappe.throw(_("Please select a practitioner for this service request."))
 	
 	# Get naming series
 	naming_series = frappe.db.get_value('Service Request', {'naming_series': 'HSR-'}, 'naming_series')
@@ -671,7 +678,12 @@ def create_service_request(data):
 		'selected_group_templates': frappe.as_json(selected_group_templates),
 	})
 	
-	service_request.insert(ignore_permissions=True)
+	try:
+		service_request.insert(ignore_permissions=True)
+	except frappe.MandatoryError as e:
+		frappe.throw(portal_mandatory_message(e), exc=e, title=_("Missing required fields"))
+	except frappe.ValidationError as e:
+		frappe.throw(portal_validation_message(e), exc=e, title=_("Could not save"))
 	
 	# Get template name for response based on template_dt
 	template_name = None

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { BookOpen } from 'lucide-react'
 import { PatientHistoryDetailPanel } from './PatientHistoryDetailPanel'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
-import { useCardFilters } from '../../contexts/CardFilterContext'
+import { useCardFilters, useInDashboardCard } from '../../contexts/CardFilterContext'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 
 interface HistoryRecord {
@@ -41,6 +41,7 @@ export const PatientHistoryList = ({
   const [detailName, setDetailName] = useState<string | null>(null)
 
   const cardFilters = useCardFilters()
+  const inDashboardCard = useInDashboardCard()
   const showFilters = cardFilters === true
 
   const [fromDate, setFromDate] = useState('')
@@ -157,7 +158,7 @@ export const PatientHistoryList = ({
         </div>
       )}
 
-      {patient && (
+      {patient && !inDashboardCard && (
         <p className="text-[11px] text-slate-500 flex-shrink-0">
           {filteredItems.length} record{filteredItems.length !== 1 ? 's' : ''}
           {hasActiveFilters && items.length !== filteredItems.length ? ` (of ${items.length})` : ''}

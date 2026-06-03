@@ -21,6 +21,7 @@ import { PatientSummaryCard } from '../components/patients/PatientSummaryCard'
 import { CreateClinicalNoteModal } from '../components/clinicalNotes/CreateClinicalNoteModal'
 import { MainNursingNoteList } from '../components/nursing/MainNursingNoteList'
 import { CreateMainNursingNoteModal } from '../components/nursing/CreateMainNursingNoteModal'
+import { DoctorOrderList } from '../components/doctorOrder/DoctorOrderList'
 import { getPatientActiveAdmission } from '../services/inpatientRecords'
 import { hasAnyDischargeDraft } from '../services/dischargeDraft'
 import { navigateToDischarge } from '../utils/dischargeNavigation'
@@ -75,7 +76,7 @@ import { CreateSessionScheduleModal } from '../components/sessionSchedule/Create
 import { PatientList } from '../components/patients/PatientList'
 import { RxPage } from '../components/prescriptions/SinglePrescription'
 import { NursingInventoryDashboard } from '../components/nursingInventory/NursingInventoryDashboard'
-import { CardHeaderActions, DashboardCard } from '../components/ui/DashboardCard'
+import { DashboardCard } from '../components/ui/DashboardCard'
 import { PortalTopBar } from '../components/layout/PortalTopBar'
 
 /** Icon-only toolbar buttons for Given Medicines (native `title` = hover tooltip) */
@@ -635,20 +636,22 @@ export const NursePage = () => {
     )
   }
 
-  // Show Doctors Order (Clinical Note with note_type = Order)
-  if (screen === 'dos') {
+  // Show Doctors Order (Doctor Order doctype — nurse documents remarks / finished)
+  if (screen === 'dos' || screen === 'n-doctor-order') {
+    const orderAdmission = mode === 'IP' ? activeAdmission : undefined
     return (
       <div className="flex flex-col">
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4">Doctors Order</div>
-            <ClinicalNotesList 
-              patient={selectedPatient} 
-              noteType="Order"
+          <DashboardCard title="Doctors Order">
+            <DoctorOrderList
+              patient={selectedPatient}
+              admission={orderAdmission}
+              nurseMode
+              key={clinicalNotesRefreshKey}
               onPatientClick={handlePatientSelect}
             />
-          </section>
+          </DashboardCard>
         </div>
       </div>
     )
@@ -1571,60 +1574,60 @@ export const NursePage = () => {
         <>
           {/* Row 1: Given Medicines + Long Acting Med Reminder — hidden when OP mode or OP-only cost center */}
           <div
-            className={`grid gap-4 p-4 ${(costCenterCareScope === 'op_only' || mode === 'OP') ? 'md:grid-cols-1' : 'md:grid-cols-2'}`}
+            className={`grid gap-4 p-4 auto-rows-fr ${(costCenterCareScope === 'op_only' || mode === 'OP') ? 'md:grid-cols-1' : 'md:grid-cols-2'}`}
           >
             {costCenterCareScope !== 'op_only' && mode !== 'OP' && (
-              <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-                <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0 gap-2">
-                  <span>Given Medicines</span>
-                  <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50/90 p-1">
-                      <button
-                        type="button"
-                        onClick={handleReconcileGiven}
-                        disabled={reconcileLoading}
-                        className={`${gmIconBtn} text-emerald-800 border-emerald-200/80 hover:bg-emerald-50`}
-                        title="Reconcile for discharge — create stock entry for remaining medicines to return"
-                      >
-                        {reconcileLoading ? (
-                          <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                        ) : (
-                          <PackageSearch className="h-4 w-4" aria-hidden />
-                        )}
-                        <span className="sr-only">Reconcile for discharge</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setShowGivenMedicineModal(true)}
-                        className={gmIconBtnPrimary}
-                        title="Record given medicine"
-                      >
-                        <Plus className="h-4 w-4" strokeWidth={2.5} aria-hidden />
-                        <span className="sr-only">Add given medicine</span>
-                      </button>
-                    </div>
-                    <CardHeaderActions listingScreen="n-given" openListingTitle="Open full Given Medicines list" />
+              <DashboardCard
+                fixedHeight
+                title="Given Medicines"
+                listingScreen="n-given"
+                openListingTitle="Open full Given Medicines list"
+                filterable={false}
+                headerExtra={
+                  <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50/90 p-1">
+                    <button
+                      type="button"
+                      onClick={handleReconcileGiven}
+                      disabled={reconcileLoading}
+                      className={`${gmIconBtn} text-emerald-800 border-emerald-200/80 hover:bg-emerald-50`}
+                      title="Reconcile for discharge — create stock entry for remaining medicines to return"
+                    >
+                      {reconcileLoading ? (
+                        <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                      ) : (
+                        <PackageSearch className="h-4 w-4" aria-hidden />
+                      )}
+                      <span className="sr-only">Reconcile for discharge</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowGivenMedicineModal(true)}
+                      className={gmIconBtnPrimary}
+                      title="Record given medicine"
+                    >
+                      <Plus className="h-4 w-4" strokeWidth={2.5} aria-hidden />
+                      <span className="sr-only">Add given medicine</span>
+                    </button>
                   </div>
-                </div>
-                <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                  <MedicineGivenList patient={selectedPatient} refreshKey={givenRefreshKey} />
-                </div>
-              </section>
+                }
+              >
+                <MedicineGivenList patient={selectedPatient} refreshKey={givenRefreshKey} />
+              </DashboardCard>
             )}
 
-            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-              <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0 gap-2">
-                <span>Long Acting Med Reminder</span>
-                <CardHeaderActions listingScreen="n-reminder" openListingTitle="Open full Long Acting Med Reminder list" />
-              </div>
-              <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                <LongActingMedReminderList patient={selectedPatient} daysAhead={7} />
-              </div>
-            </section>
+            <DashboardCard
+              fixedHeight
+              title="Long Acting Med Reminder"
+              listingScreen="n-reminder"
+              openListingTitle="Open full Long Acting Med Reminder list"
+              filterable={false}
+            >
+              <LongActingMedReminderList patient={selectedPatient} daysAhead={7} />
+            </DashboardCard>
           </div>
 
           {/* Row 2: Lab Test Reports + Service Requests */}
-          <div className="grid gap-4 md:grid-cols-2 px-4 pb-4">
+          <div className="grid gap-4 md:grid-cols-2 auto-rows-fr px-4 pb-4">
             {/* Lab Test Reports */}
             <DashboardCard title="Lab Test" fixedHeight listingScreen="n-lab">
               <LabTestList patient={selectedPatient} byNurse={true} key={labTestRefreshKey} onPatientClick={handlePatientSelect} />
@@ -1649,80 +1652,71 @@ export const NursePage = () => {
 
           {/* Row 3: Prescription + Doctors Notes — OP-only sites omit inpatient-style prescription grid */}
           <div
-            className={`grid gap-4 px-4 pb-4 ${costCenterCareScope === 'op_only' ? 'md:grid-cols-1' : 'md:grid-cols-2'}`}
+            className={`grid gap-4 auto-rows-fr px-4 pb-4 ${costCenterCareScope === 'op_only' ? 'md:grid-cols-1' : 'md:grid-cols-2'}`}
           >
             {costCenterCareScope !== 'op_only' && (
-              <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-                <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0 gap-2">
-                  <span>Prescription</span>
-                  <CardHeaderActions listingScreen="rx" openListingTitle="Open full Prescription list" />
-                </div>
-                <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                  <PrescriptionList patient={selectedPatient} refreshKey={prescriptionRefreshKey} onPatientClick={handlePatientSelect} />
-                </div>
-              </section>
-            )}
-
-            {/* Doctors Notes — read-only for nurses */}
-            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-              <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0 gap-2">
-                <span className="min-w-0">
-                  Doctors Notes
-                  <span className="ml-2 text-xs font-normal text-slate-400 italic">Read-only</span>
-                </span>
-                <CardHeaderActions listingScreen="n-doc-notes" openListingTitle="Open full Doctors Notes list" />
-              </div>
-              <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                <ClinicalNotesList
+              <DashboardCard
+                fixedHeight
+                title="Prescription"
+                listingScreen="rx"
+                openListingTitle="Open full Prescription list"
+              >
+                <PrescriptionList
                   patient={selectedPatient}
-                  medicalRole="Doctor"
-                  clinicalNoteType="Doctors Note"
-                  key={clinicalNotesRefreshKey}
+                  refreshKey={prescriptionRefreshKey}
                   onPatientClick={handlePatientSelect}
                 />
-              </div>
-            </section>
+              </DashboardCard>
+            )}
+
+            <DashboardCard
+              fixedHeight
+              title="Doctors Notes"
+              titleAddon={
+                <span className="text-xs font-normal text-slate-400 italic shrink-0">Read-only</span>
+              }
+              listingScreen="n-doc-notes"
+              openListingTitle="Open full Doctors Notes list"
+            >
+              <ClinicalNotesList
+                patient={selectedPatient}
+                medicalRole="Doctor"
+                clinicalNoteType="Doctors Note"
+                key={clinicalNotesRefreshKey}
+                onPatientClick={handlePatientSelect}
+              />
+            </DashboardCard>
           </div>
 
           {/* Row 4: Patient Summary + Warnings & Allergies */}
-          <div className="grid gap-4 md:grid-cols-2 px-4 pb-4">
-            {/* Patient info */}
-            <div className="overflow-auto max-h-[400px]">
+          <div className="grid gap-4 md:grid-cols-2 auto-rows-fr px-4 pb-4">
+            <DashboardCard fixedHeight title="Patient Information" filterable={false}>
               <PatientSummaryCard patient={selectedPatient} />
-            </div>
+            </DashboardCard>
 
-            {/* Warnings & Allergies */}
-            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-              <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0 gap-2">
-                <span>Warnings & Allergies</span>
-                <CardHeaderActions
-                  onAdd={() => guardClinicalCreate(() => setShowWarningModal(true))}
-                  addButtonTitle="Add Warning Message"
-                  listingScreen="n-first"
-                  openListingTitle="Open full Warnings & Allergies list"
-                />
-              </div>
-              <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                <WarningMessagesList patient={selectedPatient} key={warningRefreshKey} onPatientClick={handlePatientSelect} />
-              </div>
-            </section>
+            <DashboardCard
+              fixedHeight
+              title="Warnings & Allergies"
+              onAdd={() => guardClinicalCreate(() => setShowWarningModal(true))}
+              addButtonTitle="Add Warning Message"
+              listingScreen="n-first"
+              openListingTitle="Open full Warnings & Allergies list"
+            >
+              <WarningMessagesList patient={selectedPatient} key={warningRefreshKey} onPatientClick={handlePatientSelect} />
+            </DashboardCard>
           </div>
 
-          {/* Card: Discharges — IP mode only */}
+          {/* Discharges — IP mode only */}
           {costCenterCareScope !== 'op_only' && mode === 'IP' && (
             <div className="px-4 pb-4">
-              <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-                <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0 gap-2">
-                  <span>Discharges</span>
-                  <CardHeaderActions listingScreen="n-discharge" openListingTitle="Open full Discharge list" />
-                </div>
-                <div
-                  className="overflow-x-auto overflow-y-auto flex-1 min-h-0"
-                  style={{ scrollbarWidth: 'thin' }}
-                >
-                  <DischargeList patient={selectedPatient} key={dischargeRefreshKey} onPatientClick={handlePatientSelect} />
-                </div>
-              </section>
+              <DashboardCard
+                fixedHeight
+                title="Discharges"
+                listingScreen="n-discharge"
+                openListingTitle="Open full Discharge list"
+              >
+                <DischargeList patient={selectedPatient} key={dischargeRefreshKey} onPatientClick={handlePatientSelect} />
+              </DashboardCard>
             </div>
           )}
 
@@ -1734,44 +1728,35 @@ export const NursePage = () => {
           </div> */}
         </>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 p-4">
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-            <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0 gap-2">
-              <span>IP Warning Messages / Medications / Allergy</span>
-              <CardHeaderActions
-                onAdd={() => guardClinicalCreate(() => setShowWarningModal(true))}
-                addButtonTitle="Add Warning Message"
-                listingScreen="n-first"
-              />
-            </div>
-            <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-              <WarningMessagesList patient={undefined} key={warningRefreshKey} onPatientClick={handlePatientSelect} />
-            </div>
-          </section>
+        <div className="grid gap-4 md:grid-cols-2 auto-rows-fr p-4">
+          <DashboardCard
+            fixedHeight
+            title="IP Warning Messages / Medications / Allergy"
+            onAdd={() => guardClinicalCreate(() => setShowWarningModal(true))}
+            addButtonTitle="Add Warning Message"
+            listingScreen="n-first"
+          >
+            <WarningMessagesList patient={undefined} key={warningRefreshKey} onPatientClick={handlePatientSelect} />
+          </DashboardCard>
 
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-            <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0 gap-2">
-              <span>Lab Reports List & Status</span>
-              <CardHeaderActions
-                onAdd={() => guardClinicalCreate(() => setShowLabTestModal(true))}
-                addButtonTitle="Add Lab Test Report"
-                listingScreen="n-labs"
-              />
-            </div>
-            <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-              <LabTestList defaultStatus="Pending Review" byNurse={true} key={labTestRefreshKey} onPatientClick={handlePatientSelect} />
-            </div>
-          </section>
+          <DashboardCard
+            fixedHeight
+            title="Lab Reports List & Status"
+            onAdd={() => guardClinicalCreate(() => setShowLabTestModal(true))}
+            addButtonTitle="Add Lab Test Report"
+            listingScreen="n-labs"
+          >
+            <LabTestList defaultStatus="Pending Review" byNurse={true} key={labTestRefreshKey} onPatientClick={handlePatientSelect} />
+          </DashboardCard>
 
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-            <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0 gap-2">
-              <span>Prescription</span>
-              <CardHeaderActions listingScreen="rx" openListingTitle="Open full Prescription list" />
-            </div>
-            <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-              <PrescriptionList refreshKey={prescriptionRefreshKey} onPatientClick={handlePatientSelect} />
-            </div>
-          </section>
+          <DashboardCard
+            fixedHeight
+            title="Prescription"
+            listingScreen="rx"
+            openListingTitle="Open full Prescription list"
+          >
+            <PrescriptionList refreshKey={prescriptionRefreshKey} onPatientClick={handlePatientSelect} />
+          </DashboardCard>
         </div>
       )}
 

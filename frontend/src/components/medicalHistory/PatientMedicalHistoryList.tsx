@@ -253,36 +253,34 @@ export function PatientMedicalHistoryList({ patient, patientName, refreshKey }: 
 
   return (
     <div className="flex flex-col h-full flex-1 min-h-0">
-      {/* toolbar */}
+      {/* toolbar — full listing only */}
+      {!inDashboardCard && (
       <div className="flex items-center justify-between px-3 py-2 border-b border-slate-200 flex-shrink-0 gap-2">
         <span className="text-xs font-medium text-slate-500">
           {filteredItems.length} record{filteredItems.length !== 1 ? 's' : ''}
           {hasActiveFilters && items.length !== filteredItems.length ? ` (of ${items.length})` : ''}
         </span>
         <div className="flex items-center gap-2">
-          {!inDashboardCard && (
-            <>
-              <button
-                type="button"
-                onClick={() => setShowFiltersInternal((p) => !p)}
-                className={`p-1.5 rounded-md border transition-colors ${showFilters ? 'bg-primary/10 border-primary text-primary' : 'border-slate-300 text-slate-500 hover:bg-slate-50'}`}
-                title={showFilters ? 'Hide filters' : 'Show filters'}
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
-                </svg>
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowCreate(true)}
-                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
-              >
-                +
-              </button>
-            </>
-          )}
+          <button
+            type="button"
+            onClick={() => setShowFiltersInternal((p) => !p)}
+            className={`p-1.5 rounded-md border transition-colors ${showFilters ? 'bg-primary/10 border-primary text-primary' : 'border-slate-300 text-slate-500 hover:bg-slate-50'}`}
+            title={showFilters ? 'Hide filters' : 'Show filters'}
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowCreate(true)}
+            className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
+          >
+            +
+          </button>
         </div>
       </div>
+      )}
 
       {showFilters && (
         <div className="flex flex-wrap items-end gap-3 px-3 py-2 border-b border-slate-100 bg-slate-50/80">

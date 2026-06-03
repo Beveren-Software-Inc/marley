@@ -242,7 +242,7 @@ export const SuicideRiskAssessmentList = ({
         </div>
       )}
 
-      {patient && (
+      {patient && !isInsideCard && (
         <p className="text-[11px] text-slate-500 flex-shrink-0">
           {filteredRecords.length} record{filteredRecords.length !== 1 ? 's' : ''}
           {hasActiveFilters && records.length !== filteredRecords.length ? ` (of ${records.length})` : ''}

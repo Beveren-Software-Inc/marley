@@ -15,9 +15,8 @@ import {
 } from '../../services/common'
 import { toast } from '../../hooks/useToast'
 import { StatusPill } from '../ui/StatusPill'
-import { DetailSlideOver } from '../ui/DetailSlideOver'
-import { DocDetailView } from '../ui/DocDetailView'
 import { EditServiceRequestModal } from './EditServiceRequestModal'
+import { ServiceRequestDetailPanel } from './ServiceRequestDetailPanel'
 import { BookConsultationSessionModal } from './BookConsultationSessionModal'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
@@ -784,13 +783,14 @@ export const ServiceRequestList = ({
       </div>
 
       {detailName && (
-        <DetailSlideOver
-          title="Service Request"
-          subtitle={detailName}
+        <ServiceRequestDetailPanel
+          name={detailName}
           onClose={() => setDetailName(null)}
-        >
-          <DocDetailView doctype="Service Request" name={detailName} onUpdate={doRefetch} />
-        </DetailSlideOver>
+          onEdit={() => {
+            setDetailName(null)
+            setEditServiceRequestName(detailName)
+          }}
+        />
       )}
 
       {editServiceRequestName && (

@@ -11,6 +11,8 @@ import { ClinicalNotesList } from '../components/clinicalNotes/ClinicalNotesList
 import { CreateClinicalNoteModal } from '../components/clinicalNotes/CreateClinicalNoteModal'
 import { MainNursingNoteList } from '../components/nursing/MainNursingNoteList'
 import { CreateMainNursingNoteModal } from '../components/nursing/CreateMainNursingNoteModal'
+import { DoctorOrderList } from '../components/doctorOrder/DoctorOrderList'
+import { CreateDoctorOrderModal } from '../components/doctorOrder/CreateDoctorOrderModal'
 import { CreateDoctorMedicationPlanModal } from '../components/doctorMedicationPlan/CreateDoctorMedicationPlanModal'
 import { DoctorMedicationPlanList } from '../components/doctorMedicationPlan/DoctorMedicationPlanList'
 import { SuicideRiskAssessmentList } from '../components/clinicalSuicide/ClinicalSuicideRiskAssessmentList'
@@ -544,8 +546,9 @@ export const DoctorPage = () => {
     )
   }
 
-  // Show Doctors Order
+  // Show Doctors Order (Doctor Order doctype)
   if (screen === 'dos') {
+    const orderAdmission = mode === 'IP' ? activeAdmission : undefined
     return (
       <div className="flex flex-col">
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
@@ -555,24 +558,22 @@ export const DoctorPage = () => {
             onAdd={() => guardClinicalCreate(() => setShowDoctorOrderModal(true))}
             addButtonTitle="Add Doctors Order"
           >
-            <ClinicalNotesList 
+            <DoctorOrderList 
               patient={selectedPatient}
-              medicalRole="Doctor"
-              clinicalNoteType="Doctors Order"
+              admission={orderAdmission}
               key={clinicalNotesRefreshKey}
               onPatientClick={handlePatientSelect}
             />
           </DashboardCard>
         </div>
         {showDoctorOrderModal && (
-          <CreateClinicalNoteModal
+          <CreateDoctorOrderModal
             onClose={() => setShowDoctorOrderModal(false)}
             onSuccess={() => {
               setClinicalNotesRefreshKey(prev => prev + 1)
               setShowDoctorOrderModal(false)
             }}
-            initialPatient={selectedPatient}
-            defaultClinicalNoteType="Doctors Order"
+            patient={selectedPatient}
             title="Add Doctors Order"
           />
         )}

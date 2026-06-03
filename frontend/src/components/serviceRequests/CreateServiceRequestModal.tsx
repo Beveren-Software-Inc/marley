@@ -410,6 +410,14 @@ export const CreateServiceRequestModal = ({
       setError('Select an inpatient admission for this inpatient request.')
       return
     }
+    if (!form.practitioner?.trim()) {
+      setError('Please select a practitioner for this service request.')
+      return
+    }
+    if (!form.cost_center?.trim()) {
+      setError('Please select a cost center for this service request.')
+      return
+    }
     if (!useLabBasket && isGroupTemplate && selectedGroupTemplates.length === 0) {
       setError('Select at least one child template for grouped lab tests.')
       return
@@ -460,16 +468,11 @@ export const CreateServiceRequestModal = ({
           title="Create Service Request"
           onClose={onClose}
           icon={<ClipboardList className="h-5 w-5 text-emerald-700" strokeWidth={2} />}
+          alert={error}
         />
 
-        <form onSubmit={handleSubmit} className={CREATE_MODAL_BODY_GRADIENT}>
+        <form onSubmit={handleSubmit} className={`${CREATE_MODAL_BODY_GRADIENT} min-h-0 flex-1`}>
           <div className="space-y-4 p-4 sm:space-y-5 sm:p-6">
-            {error && (
-              <div className="rounded-xl border border-red-200/80 bg-red-50 px-4 py-3 text-sm text-red-800 shadow-sm">
-                {error}
-              </div>
-            )}
-
             {/* Patient & practitioner */}
             <div className={sectionCard}>
               <div className={sectionTitle}>

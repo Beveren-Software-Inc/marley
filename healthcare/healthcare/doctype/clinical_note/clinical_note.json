@@ -1,7 +1,7 @@
 {
  "actions": [],
  "allow_rename": 1,
- "autoname": "format:{patient}-{reference_name}-{#####}",
+ "autoname": "field:trans_no",
  "creation": "2023-05-12 12:31:47.611942",
  "default_view": "List",
  "doctype": "DocType",
@@ -17,14 +17,15 @@
   "locked_on",
   "terms_and_conditions",
   "username",
+  "trans_no",
   "column_break_jw2e",
   "posting_date",
   "practitioner",
   "user",
   "medical_role",
-  "branch",
   "reference_doctype",
   "reference_document",
+  "inpatient_admission",
   "note_section",
   "note",
   "section_break_hpma",
@@ -42,6 +43,7 @@
   "data_axun",
   "reference_section",
   "reference_doc",
+  "column_break_kgll",
   "reference_name"
  ],
  "fields": [
@@ -164,12 +166,6 @@
    "options": "Medical Role"
   },
   {
-   "fieldname": "branch",
-   "fieldtype": "Link",
-   "label": "Branch",
-   "options": "Branch"
-  },
-  {
    "fieldname": "reference_doctype",
    "fieldtype": "Link",
    "label": "Reference Doctype",
@@ -202,7 +198,7 @@
   {
    "fieldname": "diagnosis_to",
    "fieldtype": "Data",
-   "label": "Diagnosis To"
+   "label": "Diagnosis Time To"
   },
   {
    "fieldname": "section_break_nwvq",
@@ -246,15 +242,31 @@
   {
    "fieldname": "data_axun",
    "fieldtype": "Data"
+  },
+  {
+   "fieldname": "inpatient_admission",
+   "fieldtype": "Link",
+   "label": "Inpatient Admission",
+   "options": "Inpatient Admission"
+  },
+  {
+   "fieldname": "column_break_kgll",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "trans_no",
+   "fieldtype": "Data",
+   "label": "Trans No",
+   "unique": 1
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-05-24 15:29:49.171512",
+ "modified": "2026-06-03 10:28:28.806807",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Clinical Note",
- "naming_rule": "Expression (old style)",
+ "naming_rule": "By fieldname",
  "owner": "Administrator",
  "permissions": [
   {
