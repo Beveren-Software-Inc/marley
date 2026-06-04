@@ -407,13 +407,13 @@
    "fieldname": "nurse_discharge_template",
    "fieldtype": "Link",
    "label": "Nurse Discharge Template",
-   "options": "Discharge Nursing Template"
+   "options": "Nursing Checklist Template"
   },
   {
    "fieldname": "nursing_checklist",
    "fieldtype": "Table",
    "label": "Nursing checklist",
-   "options": "Discharge Nursing Detail"
+   "options": "Discharge Checklist Details"
   },
   {
    "fieldname": "prescription",
@@ -624,7 +624,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-06-04 11:12:08.189555",
+ "modified": "2026-06-04 18:33:44.078709",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Discharge",

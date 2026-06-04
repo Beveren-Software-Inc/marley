@@ -142,5 +142,17 @@
   "role": null,
   "service_pricing": [],
   "task_doctype": null
+ },
+ {
+  "activity": "Check Patient Skin",
+  "activity_duration": 0.0,
+  "description": null,
+  "docstatus": 0,
+  "doctype": "Healthcare Activity",
+  "modified": "2026-06-04 18:19:48.783869",
+  "name": "Check Patient Skin",
+  "role": null,
+  "service_pricing": [],
+  "task_doctype": null
  }
 ]

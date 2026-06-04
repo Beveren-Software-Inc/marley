@@ -62,9 +62,48 @@ def serialize_entry(row) -> dict:
 		"visit_num": _get("visit_num") or "",
 		"inpatient_admission": _get("inpatient_admission") or "",
 		"patient": _get("patient") or "",
+		"patient_name": _get("patient_name") or "",
 		"group_code": _get("group_code") or "",
 		"cost_center": _get("cost_center") or "",
 	}
+
+
+ENTRY_LIST_FIELDS = [
+	"name",
+	"diagnosis",
+	"details",
+	"posting_date",
+	"diagnoses_time",
+	"practitioner",
+	"practitioner_name",
+	"diagnoses_flag",
+	"trans_num",
+	"visit_num",
+	"inpatient_admission",
+	"patient",
+	"patient_name",
+	"group_code",
+	"cost_center",
+]
+
+
+def _attach_parent_context(item: dict, row) -> dict:
+	visit_num = row.visit_num if hasattr(row, "visit_num") else row.get("visit_num")
+	admission = (
+		row.inpatient_admission
+		if hasattr(row, "inpatient_admission")
+		else row.get("inpatient_admission")
+	)
+	if visit_num:
+		item["parent"] = visit_num
+		item["parent_type"] = "Patient Visit"
+	elif admission:
+		item["parent"] = admission
+		item["parent_type"] = "Inpatient Admission"
+	else:
+		item["parent"] = ""
+		item["parent_type"] = ""
+	return item
 
 
 def cint(value) -> int:
@@ -78,25 +117,37 @@ def list_for_context(parent_doctype: str, parent_name: str) -> list[dict]:
 	rows = frappe.get_all(
 		"Medical Diagnosis Entry",
 		filters=filters,
-		fields=[
-			"name",
-			"diagnosis",
-			"details",
-			"posting_date",
-			"diagnoses_time",
-			"practitioner",
-			"practitioner_name",
-			"diagnoses_flag",
-			"trans_num",
-			"visit_num",
-			"inpatient_admission",
-			"patient",
-			"group_code",
-			"cost_center",
-		],
+		fields=ENTRY_LIST_FIELDS,
 		order_by="posting_date desc, creation desc",
 	)
 	return [serialize_entry(row) for row in rows]
+
+
+def list_all_entries(limit=200, offset=0, patient=None) -> list[dict]:
+	"""Return Medical Diagnosis Entry rows (newest first), optionally filtered by patient."""
+	filters = {}
+	if patient:
+		filters["patient"] = patient
+
+	limit = max(1, min(cint(limit) or 200, 500))
+	offset = max(0, cint(offset))
+
+	entries = frappe.get_all(
+		"Medical Diagnosis Entry",
+		filters=filters or None,
+		fields=ENTRY_LIST_FIELDS,
+		order_by="posting_date desc, creation desc",
+		limit_page_length=limit,
+		start=offset,
+	)
+
+	results = []
+	for row in entries:
+		item = serialize_entry(row)
+		_attach_parent_context(item, row)
+		results.append(item)
+
+	return results
 
 
 def _parent_context_defaults(parent_doctype: str, parent_name: str) -> dict:
@@ -139,22 +190,7 @@ def list_for_patient(patient: str) -> list[dict]:
 	entries = frappe.get_all(
 		"Medical Diagnosis Entry",
 		filters={"patient": patient},
-		fields=[
-			"name",
-			"diagnosis",
-			"details",
-			"posting_date",
-			"diagnoses_time",
-			"practitioner",
-			"practitioner_name",
-			"diagnoses_flag",
-			"trans_num",
-			"visit_num",
-			"inpatient_admission",
-			"patient",
-			"group_code",
-			"cost_center",
-		],
+		fields=ENTRY_LIST_FIELDS,
 		order_by="posting_date desc, creation desc",
 	)
 
@@ -178,17 +214,12 @@ def list_for_patient(patient: str) -> list[dict]:
 	results = []
 	for row in entries:
 		item = serialize_entry(row)
+		_attach_parent_context(item, row)
 		if row.visit_num:
-			item["parent"] = row.visit_num
-			item["parent_type"] = "Patient Visit"
 			item["parent_date"] = str(visit_dates.get(row.visit_num) or "")
 		elif row.inpatient_admission:
-			item["parent"] = row.inpatient_admission
-			item["parent_type"] = "Inpatient Admission"
 			item["parent_date"] = str(admission_dates.get(row.inpatient_admission) or "")
 		else:
-			item["parent"] = ""
-			item["parent_type"] = "Patient Visit"
 			item["parent_date"] = ""
 		results.append(item)
 
@@ -331,6 +362,11 @@ def get_context_defaults(parent_doctype: str, parent_name: str) -> dict:
 @frappe.whitelist()
 def get_entries_for_patient(patient: str) -> list[dict]:
 	return list_for_patient(patient)
+
+
+@frappe.whitelist()
+def get_all_entries(limit=200, offset=0, patient=None) -> list[dict]:
+	return list_all_entries(limit=limit, offset=offset, patient=patient)
 
 
 @frappe.whitelist()

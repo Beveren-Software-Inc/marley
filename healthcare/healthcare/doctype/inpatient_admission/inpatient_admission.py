@@ -873,6 +873,17 @@ def create_discharge_from_inpatient_admission(source_name, target_doc=None):
 			source.name
 		)
 
+		nursing_tpl = (
+			getattr(source, "discharge_nursing_checklist_template", None)
+			or "Default Nursing Discharge Checklist"
+		)
+		if not getattr(target, "nurse_discharge_template", None):
+			target.nurse_discharge_template = nursing_tpl
+		if not target.get("nursing_checklist"):
+			from healthcare.api.nursing_checklist_import import apply_nursing_template_to_discharge
+
+			apply_nursing_template_to_discharge(target, nursing_tpl)
+
 	doc = get_mapped_doc(
 		"Inpatient Admission",
 		source_name,

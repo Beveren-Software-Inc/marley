@@ -1323,15 +1323,11 @@ export const DoctorPage = () => {
     )
   }
 
-  // Show Diagnoses (Patient Diagnosis on active OP visit / IP admission)
+  // Show Diagnoses (all Medical Diagnosis Entry records)
   if (screen === 'dx') {
     return (
       <div className="flex flex-col">
-        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
-        <DiagnosisSymptomsScreen
-          selectedPatient={selectedPatient || ''}
-          onPatientSelect={handlePatientSelect}
-        />
+        <DiagnosisSymptomsScreen />
       </div>
     )
   }

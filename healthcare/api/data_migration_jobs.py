@@ -1847,6 +1847,89 @@ def process_discharge_checklist_import_batch(offset: int = 0) -> None:
 		raise
 
 
+# ── Nursing discharge checklist Excel import (Oracle IP_ADMISSION_04_NUR) ─────
+
+
+@frappe.whitelist()
+def start_nursing_checklist_import_migration(file_url: str) -> dict:
+	_require_admin()
+	from healthcare.api.nursing_checklist_import import parse_and_cache_excel
+
+	if not (file_url or "").strip():
+		frappe.throw(_("Please upload an Excel file first."))
+
+	job = "nursing_checklist_import"
+	_acquire_lock(job)
+	summary = parse_and_cache_excel(file_url)
+	_set_progress(
+		job,
+		0,
+		total_admissions=summary.get("admissions"),
+		resolvable_admissions=summary.get("resolvable_admissions"),
+		excel_rows=summary.get("excel_rows"),
+		unresolved_rows=summary.get("unresolved_rows"),
+		template=summary.get("template"),
+	)
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_nursing_checklist_import_batch",
+		offset=0,
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_nursing_checklist_import",
+	)
+	return {
+		"ok": True,
+		"message": _(
+			"Nursing checklist import started ({0} admissions in file, {1} can be matched to Discharge)."
+		).format(
+			summary.get("admissions") or 0,
+			summary.get("resolvable_admissions") or 0,
+		),
+	}
+
+
+def process_nursing_checklist_import_batch(offset: int = 0) -> None:
+	from healthcare.api.nursing_checklist_import import run_nursing_checklist_import_batch
+
+	job = "nursing_checklist_import"
+	try:
+		result = run_nursing_checklist_import_batch(offset=offset)
+		prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+		processed = result.get("processed", offset)
+		_set_progress(
+			job,
+			processed,
+			ok=cint(prev.get("ok", 0)) + cint(result.get("ok", 0)),
+			skip_no_admission=cint(prev.get("skip_no_admission", 0))
+			+ cint(result.get("skip_no_admission", 0)),
+			skip_no_discharge=cint(prev.get("skip_no_discharge", 0))
+			+ cint(result.get("skip_no_discharge", 0)),
+			errors=cint(prev.get("errors", 0)) + cint(result.get("errors", 0)),
+			total_admissions=prev.get("total_admissions"),
+		)
+
+		if not result.get("done"):
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_nursing_checklist_import_batch",
+				offset=processed,
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_nursing_checklist_import_{processed}",
+			)
+		else:
+			_set_progress(job, processed, done=True)
+			_release_lock(job)
+			frappe.log_error(
+				title="Nursing checklist import complete",
+				message=frappe.as_json(frappe.cache().get_value(_job_progress_key(job)) or {}),
+			)
+	except Exception:
+		frappe.db.rollback()
+		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
+		_release_lock(job)
+		raise
+
+
 # ── Normalize comma legacy IDs (1,415 → 1415) ─────────────────────────────────
 
 

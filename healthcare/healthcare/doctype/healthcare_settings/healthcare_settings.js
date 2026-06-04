@@ -163,6 +163,56 @@ frappe.ui.form.on('Healthcare Settings', {
 			});
 		}, __('Data Maintenance'));
 
+		frm.add_custom_button(__('Import Nursing Checklist from Excel'), () => {
+			const uploader = new frappe.ui.FileUploader({
+				dialog_title: __('Import Nursing Checklist'),
+				allow_multiple: false,
+				restrictions: {
+					allowed_file_types: ['.xlsx', '.xls'],
+				},
+				on_success(file) {
+					frappe.call({
+						method: 'healthcare.api.nursing_checklist_import.preview_nursing_checklist_import',
+						args: { file_url: file.file_url },
+						freeze: true,
+						freeze_message: __('Reading Excel…'),
+						callback(preview) {
+							const counts = preview.message || {};
+							frappe.confirm(
+								__(
+									'Import nursing checklist rows into existing Discharge records?\n\nExcel rows: {0}\nAdmissions in file: {1}\nCan match admission + Discharge: {2}\nRows without admission number: {3}\n\nEach admission gets Default Nursing Discharge Checklist tasks, then Oracle values are applied by SR Num / Action Required (action, description, cost center, CR/UP fields). Continue?',
+									[
+										counts.excel_rows || 0,
+										counts.admissions || 0,
+										counts.resolvable_admissions || 0,
+										counts.unresolved_rows || 0,
+									]
+								),
+								() => {
+									frappe.call({
+										method:
+											'healthcare.api.data_migration_jobs.start_nursing_checklist_import_migration',
+										args: { file_url: file.file_url },
+										freeze: true,
+										freeze_message: __('Starting background job…'),
+										callback(r) {
+											if (r.message?.ok) {
+												frappe.show_alert({
+													message: r.message.message || __('Job started'),
+													indicator: 'green',
+												});
+												poll_migration_status('nursing_checklist_import');
+											}
+										},
+									});
+								}
+							);
+						},
+					});
+				},
+			});
+		}, __('Data Maintenance'));
+
 		frm.add_custom_button(__('Fix Comma Case No (1,415 → 1415)'), () => {
 			frappe.call({
 				method: 'healthcare.api.legacy_id_normalize.preview_comma_admission_ids',
