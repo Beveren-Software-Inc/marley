@@ -70,6 +70,38 @@ frappe.ui.form.on("Discharge", {
         });
     },
 
+	nurse_discharge_template: function(frm) {
+		if (!frm.doc.nurse_discharge_template) {
+			return;
+		}
+
+		frm.clear_table('nursing_checklist');
+
+		frappe.call({
+			method: 'healthcare.api.common.get_nursing_discharge_checklist_from_template',
+			args: {
+				template_name: frm.doc.nurse_discharge_template,
+			},
+			callback: function(r) {
+				if (!r.message) {
+					return;
+				}
+
+				(r.message || []).forEach(function(row, idx) {
+					let child = frm.add_child('nursing_checklist');
+					child.action_required = row.action_required;
+					child.department = row.department || '';
+					child.department_name = row.department_label || 'Nursing';
+					child.sr_num = String(idx + 1);
+					child.click = 0;
+					child.description = row.description || '';
+				});
+
+				frm.refresh_field('nursing_checklist');
+			},
+		});
+	},
+
 	before_save: function(frm) {
 		
 		// only set if still empty

@@ -845,6 +845,7 @@ export type PatientDiagnosisAggRow = import('./medicalDiagnosisEntry').MedicalDi
 export {
   getMedicalDiagnosisForContext as getPatientDiagnosis,
   getMedicalDiagnosisForPatient as getAllPatientDiagnoses,
+  getAllMedicalDiagnosisEntries,
   saveMedicalDiagnosisForContext as savePatientDiagnosis,
   appendMedicalDiagnosisForContext as appendPatientDiagnosis,
 } from './medicalDiagnosisEntry'

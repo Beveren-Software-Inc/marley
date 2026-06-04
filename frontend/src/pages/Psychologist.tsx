@@ -132,13 +132,7 @@ export const PsychologistPage = () => {
   if (screen === 'p-dx') {
     return (
       <div className="flex flex-col">
-        {header}
-        <div className="p-4">
-          <DiagnosisSymptomsScreen
-            selectedPatient={selectedPatient || ''}
-            onPatientSelect={handlePatientSelect}
-          />
-        </div>
+        <DiagnosisSymptomsScreen />
       </div>
     )
   }

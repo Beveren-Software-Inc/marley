@@ -33,9 +33,28 @@ export interface MedicalDiagnosisContextDefaults {
 }
 
 export interface MedicalDiagnosisEntryAggRow extends MedicalDiagnosisEntryRow {
+  patient_name?: string
   parent: string
-  parent_type: 'Patient Visit' | 'Inpatient Admission'
+  parent_type: 'Patient Visit' | 'Inpatient Admission' | ''
   parent_date?: string
+}
+
+export async function getAllMedicalDiagnosisEntries(options?: {
+  limit?: number
+  offset?: number
+  patient?: string
+}): Promise<MedicalDiagnosisEntryAggRow[]> {
+  const params = new URLSearchParams()
+  if (options?.limit != null) params.set('limit', String(options.limit))
+  if (options?.offset != null) params.set('offset', String(options.offset))
+  if (options?.patient) params.set('patient', options.patient)
+  const qs = params.toString()
+  const res = await fetch(
+    `/api/method/healthcare.api.medical_diagnosis_entry.get_all_entries${qs ? `?${qs}` : ''}`
+  )
+  const data = await res.json()
+  if (data?.exc_type) throw new Error(data?.message || 'Failed to load diagnoses')
+  return (Array.isArray(data?.message) ? data.message : []) as MedicalDiagnosisEntryAggRow[]
 }
 
 export async function getMedicalDiagnosisContextDefaults(

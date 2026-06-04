@@ -848,11 +848,19 @@ def _apply_discharge_payload(discharge_doc, discharge_data: dict) -> None:
 						"idx": idx,
 						"action_required": (row.get("action_required") or "").strip() or None,
 						"department": (row.get("department") or "").strip() or None,
+						"department_name": (row.get("department_name") or row.get("department_label") or "Nursing").strip()
+						or "Nursing",
 						"user": (row.get("user") or "").strip() or None,
 						"name1": (row.get("name1") or "").strip() or None,
 						"date_time": (row.get("date_time") or "").strip() or None,
 						"click": cint(row.get("click") or 0),
 						"description": (row.get("description") or "").strip() or None,
+						"sr_num": (row.get("sr_num") or "").strip() or str(idx),
+						"cr_id": (row.get("cr_id") or "").strip() or None,
+						"cr_date": (row.get("cr_date") or "").strip() or None,
+						"up_id": (row.get("up_id") or "").strip() or None,
+						"up_date": (row.get("up_date") or "").strip() or None,
+						"auto_create": (row.get("auto_create") or "").strip() or None,
 					},
 				)
 
