@@ -6,7 +6,7 @@ import { PackageSelectionModal } from './PackageSelectionModal'
 import { AdmissionFormModal } from './AdmissionFormModal'
 import { ScheduleDischargeModal } from './ScheduleDischargeModal'
 import { navigateToDischarge } from '../../utils/dischargeNavigation'
-import { getInpatientDiagnoses, type DiagnosisRow } from '../../services/diagnosis'
+import { getMedicalDiagnosisForContext, type MedicalDiagnosisEntryRow } from '../../services/medicalDiagnosisEntry'
 import { fetchMedicineGiven, fetchMissedMedicine, type MedicineGivenRow, type MissedMedicineRow } from '../../services/medicineGiven'
 // FIX 2: LabTestRow → LabTest (matches the actual export name in labTests service)
 import { fetchLabTestsByInpatientRecord, type LabTest } from '../../services/labTests'
@@ -145,7 +145,7 @@ const useDateFormatter = () => {
 
 // Custom hook for tab data management
 const useTabData = (admissionName: string, activeTab: TabType) => {
-  const [diagnoses, setDiagnoses] = useState<DiagnosisRow[]>([])
+  const [diagnoses, setDiagnoses] = useState<MedicalDiagnosisEntryRow[]>([])
   const [medicineGiven, setMedicineGiven] = useState<MedicineGivenRow[]>([])
   const [missedMedicine, setMissedMedicine] = useState<MissedMedicineRow[]>([])
   const [labTests, setLabTests] = useState<LabTest[]>([])
@@ -163,7 +163,7 @@ const useTabData = (admissionName: string, activeTab: TabType) => {
   const loadDiagnoses = useCallback(async () => {
     try {
       setLoadingDiagnoses(true)
-      const data = await getInpatientDiagnoses(admissionName)
+      const data = await getMedicalDiagnosisForContext('Inpatient Admission', admissionName)
       setDiagnoses(data)
     } catch (err) {
       console.error('Failed to load diagnoses:', err)
@@ -580,7 +580,7 @@ const DiagnosesTab = ({
   canEdit,
   onManage,
 }: {
-  diagnoses: DiagnosisRow[]
+  diagnoses: MedicalDiagnosisEntryRow[]
   loading: boolean
   // FIX 6: Accept boolean so callers can safely pass `!!canEdit`
   canEdit: boolean

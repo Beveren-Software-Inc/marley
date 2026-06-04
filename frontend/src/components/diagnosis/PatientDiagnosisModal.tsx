@@ -11,11 +11,20 @@ import {
 import {
   getPatientDiagnosis,
   savePatientDiagnosis,
+  appendPatientDiagnosis,
   fetchDiagnosis,
   fetchPatientVisits,
   fetchInpatientAdmissions,
+  fetchHealthcarePractitioners,
+  fetchCostCenters,
+  getCurrentUserPractitioner,
   type LinkFieldOption,
 } from '../../services/common'
+import {
+  getMedicalDiagnosisContextDefaults,
+  type MedicalDiagnosisContextDefaults,
+} from '../../services/medicalDiagnosisEntry'
+import { useCareContext } from '../../providers/CareContextProvider'
 import { Stethoscope } from 'lucide-react'
 import { CreateDiagnosisModal } from './CreateDiagnosisModal'
 import { toast } from '../../hooks/useToast'
@@ -26,20 +35,30 @@ interface PatientDiagnosisModalProps {
   parentName?: string
   patient?: string
   patientName?: string
+  /**
+   * append — blank row(s) only; save adds without touching existing diagnoses (use for +).
+   * manage — load all rows for the visit/admission; save replaces the full set.
+   */
+  mode?: 'append' | 'manage'
   onClose: () => void
   onSuccess?: () => void
 }
 
 interface RowDraft {
   _id: string
+  /** Medical Diagnosis Entry document name (when editing existing) */
+  name?: string
   diagnosis: string
   diagnosisLabel: string
   diagnosisGroupName: string
   details: string
   posting_date: string
+  practitioner: string
+  practitionerLabel: string
+  cost_center: string
 }
 
-function newDraft(): RowDraft {
+function newDraft(defaults?: MedicalDiagnosisContextDefaults): RowDraft {
   return {
     _id: Math.random().toString(36).slice(2),
     diagnosis: '',
@@ -47,6 +66,26 @@ function newDraft(): RowDraft {
     diagnosisGroupName: '',
     details: '',
     posting_date: new Date().toISOString().slice(0, 16),
+    practitioner: defaults?.practitioner || '',
+    practitionerLabel: defaults?.practitioner_name || defaults?.practitioner || '',
+    cost_center: defaults?.cost_center || '',
+  }
+}
+
+function applyDefaultsToDraft(
+  row: RowDraft,
+  defaults: MedicalDiagnosisContextDefaults
+): RowDraft {
+  if (row.name) return row
+  return {
+    ...row,
+    practitioner: row.practitioner || defaults.practitioner || '',
+    practitionerLabel:
+      row.practitionerLabel ||
+      defaults.practitioner_name ||
+      defaults.practitioner ||
+      '',
+    cost_center: row.cost_center || defaults.cost_center || '',
   }
 }
 
@@ -55,11 +94,13 @@ export function PatientDiagnosisModal({
   parentName: initialParentName,
   patient,
   patientName,
+  mode: modeProp,
   onClose,
   onSuccess,
 }: PatientDiagnosisModalProps) {
   // Standalone (no pre-selected parent) selector state
   const standalone = !initialParentDoctype || !initialParentName
+  const mode = modeProp ?? (standalone ? 'manage' : 'append')
   const [contextType, setContextType] = useState<'Patient Visit' | 'Inpatient Admission'>(
     initialParentDoctype ?? 'Patient Visit'
   )
@@ -83,6 +124,12 @@ export function PatientDiagnosisModal({
   const [showCreateDiagnosis, setShowCreateDiagnosis] = useState(false)
   const [createDiagnosisForRowId, setCreateDiagnosisForRowId] = useState<string | null>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const { userCostCenter, costCenterCompany } = useCareContext()
+  const [contextDefaults, setContextDefaults] = useState<MedicalDiagnosisContextDefaults>({})
+  const [practitionerQuery, setPractitionerQuery] = useState<Record<string, string>>({})
+  const [practitionerOpen, setPractitionerOpen] = useState<Record<string, boolean>>({})
+  const [practitionerOptions, setPractitionerOptions] = useState<LinkFieldOption[]>([])
+  const [costCenterOptions, setCostCenterOptions] = useState<LinkFieldOption[]>([])
 
   // Load visit/admission options when in standalone mode
   useEffect(() => {
@@ -96,9 +143,78 @@ export function PatientDiagnosisModal({
     if (standalone) setContextName('')
   }, [contextType]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Load rows whenever parentName changes (and is set)
+  // Load context defaults (practitioner, cost center) for new rows
   useEffect(() => {
-    if (!parentName) { setRows([]); setLoading(false); return }
+    if (!parentName) {
+      setContextDefaults({})
+      return
+    }
+    let cancelled = false
+    Promise.all([
+      getMedicalDiagnosisContextDefaults(parentDoctype, parentName),
+      getCurrentUserPractitioner(),
+    ])
+      .then(([fromParent, userPractitioner]) => {
+        if (cancelled) return
+        const merged: MedicalDiagnosisContextDefaults = {
+          cost_center: fromParent.cost_center || userCostCenter || '',
+          practitioner: fromParent.practitioner || userPractitioner || '',
+          practitioner_name: fromParent.practitioner_name || '',
+        }
+        if (merged.practitioner && !merged.practitioner_name) {
+          merged.practitioner_name = merged.practitioner
+        }
+        setContextDefaults(merged)
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setContextDefaults({
+            cost_center: userCostCenter || '',
+          })
+        }
+      })
+    return () => { cancelled = true }
+  }, [parentDoctype, parentName, userCostCenter])
+
+  useEffect(() => {
+    fetchCostCenters(costCenterCompany, undefined)
+      .then(setCostCenterOptions)
+      .catch(() => setCostCenterOptions([]))
+  }, [costCenterCompany])
+
+  useEffect(() => {
+    const timers: Record<string, ReturnType<typeof setTimeout>> = {}
+    for (const [id, open] of Object.entries(practitionerOpen)) {
+      if (!open) continue
+      const q = practitionerQuery[id] || ''
+      timers[id] = setTimeout(() => {
+        fetchHealthcarePractitioners(q || undefined)
+          .then(setPractitionerOptions)
+          .catch(() => setPractitionerOptions([]))
+      }, q.trim() ? 300 : 0)
+    }
+    return () => { Object.values(timers).forEach(clearTimeout) }
+  }, [practitionerQuery, practitionerOpen])
+
+  // Apply practitioner/cost-center defaults to new rows without reloading from server
+  useEffect(() => {
+    if (!Object.keys(contextDefaults).length) return
+    setRows((prev) => prev.map((r) => applyDefaultsToDraft(r, contextDefaults)))
+  }, [contextDefaults])
+
+  // Load rows whenever parentName changes (manage) or start blank (append)
+  useEffect(() => {
+    if (!parentName) {
+      setRows([])
+      setLoading(false)
+      return
+    }
+    if (mode === 'append') {
+      setLoading(false)
+      setError(null)
+      setRows([newDraft(contextDefaults)])
+      return
+    }
     let cancelled = false
     setLoading(true)
     setError(null)
@@ -107,20 +223,28 @@ export function PatientDiagnosisModal({
         if (cancelled) return
         const mapped = data.map((r) => ({
           _id: Math.random().toString(36).slice(2),
+          name: r.name,
           diagnosis: r.diagnosis || '',
-          diagnosisLabel: r.diagnosis_label || r.diagnosis || '',
+          diagnosisLabel: r.diagnosis_label || r.diagnosis_name || r.diagnosis || '',
           diagnosisGroupName: r.diagnosis_group_name || '',
           details: r.details || '',
           posting_date: r.posting_date ? r.posting_date.slice(0, 16) : new Date().toISOString().slice(0, 16),
+          practitioner: r.practitioner || '',
+          practitionerLabel: r.practitioner_name || r.practitioner || '',
+          cost_center: r.cost_center || '',
         }))
-        setRows(mapped.length > 0 ? mapped : [newDraft()])
+        setRows(mapped.length > 0 ? mapped : [newDraft(contextDefaults)])
       })
       .catch((e) => {
         if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load')
       })
-      .finally(() => { if (!cancelled) setLoading(false) })
-    return () => { cancelled = true }
-  }, [parentDoctype, parentName])
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [parentDoctype, parentName, mode])
 
   // Debounced search for each row's diagnosis field
   useEffect(() => {
@@ -148,7 +272,7 @@ export function PatientDiagnosisModal({
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
-  const addRow = () => setRows((prev) => [...prev, newDraft()])
+  const addRow = () => setRows((prev) => [...prev, newDraft(contextDefaults)])
 
   const removeRow = (id: string) => setRows((prev) => prev.filter((r) => r._id !== id))
 
@@ -179,22 +303,50 @@ export function PatientDiagnosisModal({
     setSearchOpen((p) => ({ ...p, [rowId]: false }))
   }
 
+  const selectPractitioner = (id: string, opt: LinkFieldOption) => {
+    setRows((prev) =>
+      prev.map((r) =>
+        r._id === id
+          ? {
+              ...r,
+              practitioner: opt.name,
+              practitionerLabel: opt.label || opt.name,
+            }
+          : r
+      )
+    )
+    setPractitionerOpen((prev) => ({ ...prev, [id]: false }))
+    setPractitionerQuery((prev) => ({ ...prev, [id]: '' }))
+  }
+
   const handleSave = async () => {
     if (!parentName) { toast.error('Please select a Patient Visit or Inpatient Admission'); return }
     const validRows = rows.filter((r) => r.diagnosis.trim())
+    const missingPractitioner = validRows.find((r) => !r.practitioner.trim())
+    if (missingPractitioner) {
+      toast.error('Practitioner is required for each diagnosis row')
+      return
+    }
     setSaving(true)
     setError(null)
     try {
-      await savePatientDiagnosis(
-        parentDoctype,
-        parentName,
-        validRows.map((r) => ({
-          diagnosis: r.diagnosis,
-          details: r.details,
-          posting_date: r.posting_date || new Date().toISOString().slice(0, 16),
-        }))
-      )
-      toast.success('Diagnosis saved')
+      const postingDefault = new Date().toISOString().slice(0, 16)
+      const payload = validRows.map((r) => ({
+        name: mode === 'manage' ? r.name : undefined,
+        diagnosis: r.diagnosis,
+        details: r.details,
+        posting_date: r.posting_date || postingDefault,
+        diagnoses_time: r.posting_date || postingDefault,
+        practitioner: r.practitioner,
+        practitioner_name: r.practitionerLabel || r.practitioner,
+        cost_center: r.cost_center || contextDefaults.cost_center || userCostCenter || '',
+      }))
+      if (mode === 'append') {
+        await appendPatientDiagnosis(parentDoctype, parentName, payload)
+      } else {
+        await savePatientDiagnosis(parentDoctype, parentName, payload)
+      }
+      toast.success(mode === 'append' ? 'Diagnosis added' : 'Medical diagnosis saved')
       onSuccess?.()
       onClose()
     } catch (e) {
@@ -216,7 +368,7 @@ export function PatientDiagnosisModal({
         onClick={(e) => e.stopPropagation()}
       >
         <CreateModalHeader
-          title="Patient Diagnosis"
+          title={mode === 'append' ? 'Add diagnosis' : 'Medical Diagnosis Entry'}
           subtitle={
             <>
               {patientName ? <span>{patientName}</span> : null}
@@ -385,6 +537,70 @@ export function PatientDiagnosisModal({
                     )}
                   </div>
 
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {/* Practitioner */}
+                    <div className="relative">
+                      <label className="block text-xs font-medium text-slate-600 mb-1">
+                        Practitioner <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={
+                          practitionerOpen[row._id]
+                            ? (practitionerQuery[row._id] ?? '')
+                            : row.practitionerLabel
+                        }
+                        onFocus={() => {
+                          setPractitionerOpen((p) => ({ ...p, [row._id]: true }))
+                          setPractitionerQuery((p) => ({ ...p, [row._id]: '' }))
+                          fetchHealthcarePractitioners(undefined).then(setPractitionerOptions).catch(() => {})
+                        }}
+                        onChange={(e) => {
+                          setPractitionerQuery((p) => ({ ...p, [row._id]: e.target.value }))
+                          setPractitionerOpen((p) => ({ ...p, [row._id]: true }))
+                          updateField(row._id, 'practitioner', '')
+                        }}
+                        placeholder="Search practitioner…"
+                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm placeholder:text-slate-400 hover:border-emerald-300/80 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25"
+                      />
+                      {practitionerOpen[row._id] && practitionerOptions.length > 0 && (
+                        <div className="absolute z-30 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg max-h-40 overflow-y-auto">
+                          {practitionerOptions.map((opt) => (
+                            <button
+                              key={opt.name}
+                              type="button"
+                              onMouseDown={() => selectPractitioner(row._id, opt)}
+                              className="block w-full text-left px-3 py-2 text-sm hover:bg-primary/5"
+                            >
+                              {opt.label || opt.name}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Cost Center */}
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">Cost Center</label>
+                      <select
+                        value={row.cost_center}
+                        onChange={(e) => updateField(row._id, 'cost_center', e.target.value)}
+                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm hover:border-emerald-300/80 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25"
+                      >
+                        <option value="">Select…</option>
+                        {row.cost_center &&
+                        !costCenterOptions.some((o) => o.name === row.cost_center) ? (
+                          <option value={row.cost_center}>{row.cost_center}</option>
+                        ) : null}
+                        {costCenterOptions.map((o) => (
+                          <option key={o.name} value={o.name}>
+                            {o.label || o.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
                   {/* Details */}
                   <div>
                     <label className="block text-xs font-medium text-slate-700 mb-1">Details</label>
@@ -399,7 +615,7 @@ export function PatientDiagnosisModal({
 
                   {/* Date */}
                   <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-1">Date</label>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">Posting date</label>
                     <input
                       type="datetime-local"
                       value={row.posting_date}

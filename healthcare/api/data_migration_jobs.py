@@ -1993,3 +1993,82 @@ def process_comma_discharge_id_batch() -> None:
 		)
 		_release_lock(job)
 		raise
+
+
+# ── Sync Visit Diagnosis → Patient Visit / Inpatient Admission child tables ───
+
+
+@frappe.whitelist()
+def start_visit_diagnosis_sync_migration() -> dict:
+	_require_admin()
+	from healthcare.api.visit_diagnosis_sync import CACHE_NAMES, CACHE_TTL, _visit_diagnosis_names
+
+	job = "visit_diagnosis_sync"
+	_acquire_lock(job)
+	names = _visit_diagnosis_names()
+	frappe.cache().set_value(CACHE_NAMES, names, expires_in_sec=CACHE_TTL)
+	_set_progress(job, 0, total=len(names), remaining=len(names))
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_visit_diagnosis_sync_batch",
+		offset=0,
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_visit_diagnosis_sync",
+	)
+	return {
+		"ok": True,
+		"message": _("Visit Diagnosis sync started ({0} staging rows).").format(len(names)),
+	}
+
+
+def process_visit_diagnosis_sync_batch(offset: int = 0) -> None:
+	from healthcare.api.visit_diagnosis_sync import (
+		CACHE_NAMES,
+		CACHE_TTL,
+		_visit_diagnosis_names,
+		run_visit_diagnosis_sync_batch,
+	)
+
+	job = "visit_diagnosis_sync"
+	counter_fields = [
+		"appended_visit",
+		"appended_admission",
+		"duplicate",
+		"skip",
+		"errors",
+	]
+	try:
+		names = frappe.cache().get_value(CACHE_NAMES)
+		if not names:
+			names = _visit_diagnosis_names()
+			frappe.cache().set_value(CACHE_NAMES, names, expires_in_sec=CACHE_TTL)
+
+		result = run_visit_diagnosis_sync_batch(names, offset=offset)
+		_accumulate_comma_job_progress(job, result, counter_fields)
+		if not result.get("done"):
+			processed = cint(
+				(frappe.cache().get_value(_job_progress_key(job)) or {}).get("processed", 0)
+			)
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_visit_diagnosis_sync_batch",
+				offset=processed,
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_visit_diagnosis_sync_{processed}",
+			)
+		else:
+			frappe.cache().delete_value(CACHE_NAMES)
+			_finish_comma_job(job, "Visit Diagnosis sync complete", counter_fields)
+	except Exception:
+		frappe.db.rollback()
+		prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+		_set_progress(
+			job,
+			cint(prev.get("processed", 0)),
+			done=True,
+			error=frappe.get_traceback(),
+			total=prev.get("total"),
+		)
+		_release_lock(job)
+		frappe.cache().delete_value(CACHE_NAMES)
+		raise
