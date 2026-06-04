@@ -2,7 +2,14 @@
 import { useState, useEffect } from 'react'
 import { X, Plus, Trash2, Stethoscope, Calendar, FileText, Clock, Save } from 'lucide-react'
 import { toast } from '../../hooks/useToast'
-import { fetchHealthcarePractitioners, fetchDiagnosis, type LinkFieldOption } from '../../services/common'
+import {
+  fetchHealthcarePractitioners,
+  fetchDiagnosis,
+  fetchCostCenters,
+  type LinkFieldOption,
+} from '../../services/common'
+import { getMedicalDiagnosisContextDefaults } from '../../services/medicalDiagnosisEntry'
+import { useCareContext } from '../../providers/CareContextProvider'
 import { getInpatientDiagnoses, updateInpatientDiagnoses, type DiagnosisData } from '../../services/diagnosis'
 
 interface InpatientDiagnosisModalProps {
@@ -39,11 +46,26 @@ export const InpatientDiagnosisModal = ({
   const [diagnosisOptions, setDiagnosisOptions] = useState<LinkFieldOption[]>([])
   const [diagnosisOpen, setDiagnosisOpen] = useState<{ [key: string]: boolean }>({})
   const [diagnosisQuery, setDiagnosisQuery] = useState<{ [key: string]: string }>({})
+  const [costCenterOptions, setCostCenterOptions] = useState<LinkFieldOption[]>([])
+  const { userCostCenter, costCenterCompany } = useCareContext()
+  const [defaultCostCenter, setDefaultCostCenter] = useState('')
+
+  useEffect(() => {
+    fetchCostCenters(costCenterCompany, undefined)
+      .then(setCostCenterOptions)
+      .catch(() => setCostCenterOptions([]))
+  }, [costCenterCompany])
+
+  useEffect(() => {
+    getMedicalDiagnosisContextDefaults('Inpatient Admission', parentName)
+      .then((d) => setDefaultCostCenter(d.cost_center || userCostCenter || ''))
+      .catch(() => setDefaultCostCenter(userCostCenter || ''))
+  }, [parentName, userCostCenter])
 
   // Load existing diagnoses
   useEffect(() => {
     loadExistingDiagnoses()
-  }, [parentName])
+  }, [parentName, defaultCostCenter])
 
   const loadExistingDiagnoses = async () => {
     try {
@@ -53,15 +75,16 @@ export const InpatientDiagnosisModal = ({
         setDiagnoses(diagnosesList.map(d => ({
           name: d.name,
           diagnosis: d.diagnosis,
-          diagnosis_label: d.diagnosis_label,
+          diagnosis_label: d.diagnosis_label || d.diagnosis_name || d.diagnosis,
           diagnosis_group_name: d.diagnosis_group_name,
-          details: d.details,
-          posting_date: d.posting_date,
-          diagnoses_time: d.diagnoses_time,
-          practitioner: d.practitioner,
-          practitioner_name: d.practitioner_name,
-          diagnoses_flag: d.diagnoses_flag,
-          trans_num: d.trans_num
+          details: d.details || '',
+          posting_date: d.posting_date || formatDateTime(new Date()),
+          diagnoses_time: d.diagnoses_time || d.posting_date || formatDateTime(new Date()),
+          practitioner: d.practitioner || '',
+          practitioner_name: d.practitioner_name || '',
+          diagnoses_flag: Boolean(d.diagnoses_flag),
+          trans_num: d.trans_num || '',
+          cost_center: d.cost_center || defaultCostCenter,
         })))
       } else {
         // Add one empty row if no existing diagnoses
@@ -73,7 +96,8 @@ export const InpatientDiagnosisModal = ({
           practitioner: '',
           practitioner_name: '',
           diagnoses_flag: false,
-          trans_num: ''
+          trans_num: '',
+          cost_center: defaultCostCenter,
         }])
       }
     } catch (error) {
@@ -375,6 +399,7 @@ export const InpatientDiagnosisModal = ({
                                   className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50"
                                   onClick={() => {
                                     updateDiagnosis(index, 'practitioner', pract.name)
+                                    updateDiagnosis(index, 'practitioner_name', pract.label || pract.name)
                                     setPractitionerQuery(prev => ({ ...prev, [index]: pract.label }))
                                     setPractitionerOpen(prev => ({ ...prev, [index]: false }))
                                   }}
@@ -391,6 +416,27 @@ export const InpatientDiagnosisModal = ({
                           </div>
                         )}
                       </div>
+                    </div>
+
+                    {/* Cost Center */}
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Cost Center</label>
+                      <select
+                        value={diagnosis.cost_center || ''}
+                        onChange={(e) => updateDiagnosis(index, 'cost_center', e.target.value)}
+                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      >
+                        <option value="">Select…</option>
+                        {diagnosis.cost_center &&
+                        !costCenterOptions.some((o) => o.name === diagnosis.cost_center) ? (
+                          <option value={diagnosis.cost_center}>{diagnosis.cost_center}</option>
+                        ) : null}
+                        {costCenterOptions.map((o) => (
+                          <option key={o.name} value={o.name}>
+                            {o.label || o.name}
+                          </option>
+                        ))}
+                      </select>
                     </div>
 
                     {/* Posting Date */}

@@ -836,64 +836,18 @@ export async function updateEncounterDiagnosisSymptoms(
   if (data?.exc_type) throw new Error(data?.message || 'Failed to save')
 }
 
-export interface PatientDiagnosisRow {
-  name?: string
-  diagnosis: string
-  /** Master disease number (id) */
-  disease_no?: string
-  /** Master diagnosis name (text field) */
-  diagnosis_name?: string
-  /** Convenience: [disease_no] name — prefer disease_no + diagnosis_name in listings */
-  diagnosis_label?: string
-  diagnosis_group_name?: string
-  details?: string
-  posting_date?: string
-}
+/** @deprecated Use MedicalDiagnosisEntryRow from medicalDiagnosisEntry.ts */
+export type PatientDiagnosisRow = import('./medicalDiagnosisEntry').MedicalDiagnosisEntryRow
 
-export interface PatientDiagnosisAggRow extends PatientDiagnosisRow {
-  parent: string
-  parent_type: 'Patient Visit' | 'Inpatient Admission'
-  parent_date?: string
-  practitioner?: string
-  practitioner_name?: string
-}
+/** @deprecated Use MedicalDiagnosisEntryAggRow from medicalDiagnosisEntry.ts */
+export type PatientDiagnosisAggRow = import('./medicalDiagnosisEntry').MedicalDiagnosisEntryAggRow
 
-export async function getAllPatientDiagnoses(patient: string): Promise<PatientDiagnosisAggRow[]> {
-  const params = new URLSearchParams({ patient })
-  const res = await fetch(`/api/method/healthcare.api.common.get_all_patient_diagnoses?${params}`)
-  const data = await res.json()
-  if (data?.exc_type) throw new Error(data?.message || 'Failed to load diagnoses')
-  return (Array.isArray(data?.message) ? data.message : []) as PatientDiagnosisAggRow[]
-}
-
-export async function getPatientDiagnosis(
-  parentDoctype: string,
-  parentName: string
-): Promise<PatientDiagnosisRow[]> {
-  const params = new URLSearchParams({ parent_doctype: parentDoctype, parent_name: parentName })
-  const res = await fetch(`/api/method/healthcare.api.common.get_patient_diagnosis?${params}`)
-  const data = await res.json()
-  if (data?.exc_type) throw new Error(data?.message || 'Failed to load diagnosis')
-  return (Array.isArray(data?.message) ? data.message : []) as PatientDiagnosisRow[]
-}
-
-export async function savePatientDiagnosis(
-  parentDoctype: string,
-  parentName: string,
-  rows: PatientDiagnosisRow[]
-): Promise<void> {
-  const csrf = await ensureCSRF()
-  const res = await fetch('/api/method/healthcare.api.common.save_patient_diagnosis', {
-    method: 'POST',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json',
-      ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
-     },
-    body: JSON.stringify({ parent_doctype: parentDoctype, parent_name: parentName, rows }),
-  })
-  const data = await res.json()
-  if (data?.exc_type) throw new Error(data?.message || 'Failed to save diagnosis')
-}
+export {
+  getMedicalDiagnosisForContext as getPatientDiagnosis,
+  getMedicalDiagnosisForPatient as getAllPatientDiagnoses,
+  saveMedicalDiagnosisForContext as savePatientDiagnosis,
+  appendMedicalDiagnosisForContext as appendPatientDiagnosis,
+} from './medicalDiagnosisEntry'
 
 /** Fetch ERPNext Departments (Link to `Department`). */
 export async function fetchDepartments(search?: string): Promise<LinkFieldOption[]> {

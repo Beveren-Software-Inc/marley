@@ -109,6 +109,7 @@ export interface DiagnosisData {
   practitioner_name?: string
   diagnoses_flag?: boolean
   trans_num?: string
+  cost_center?: string
 }
 
 export interface UpdateDiagnosesResponse {
@@ -125,20 +126,8 @@ export interface AddDiagnosesResponse {
   diagnoses_added: number
 }
 
-export interface DiagnosisRow {
-  name: string
-  diagnosis: string
-  diagnosis_label: string
-  disease_no?: string
-  diagnosis_name?: string
-  diagnosis_group_name?: string
-  details: string
-  posting_date: string
-  diagnoses_time: string
-  practitioner: string
-  practitioner_name: string
-  diagnoses_flag: boolean
-  trans_num: string
+export type DiagnosisRow = import('./medicalDiagnosisEntry').MedicalDiagnosisEntryRow & {
+  diagnosis_label?: string
 }
 
 /**
@@ -182,23 +171,9 @@ export async function addInpatientDiagnoses(
 /**
  * Get all diagnoses for an inpatient admission
  */
-export async function getInpatientDiagnoses(
-  admission: string
-): Promise<DiagnosisRow[]> {
-  const response = await fetch(
-    `/api/method/healthcare.api.diagnosis.get_inpatient_diagnoses?admission=${encodeURIComponent(admission)}`
-  )
-  const result = await response.json()
-  
-  if (result.message && Array.isArray(result.message)) {
-    return result.message as DiagnosisRow[]
-  }
-  
-  if (result.exc || !response.ok) {
-    throw new Error(result.exc || result.message || 'Failed to load diagnoses')
-  }
-  
-  return []
+export async function getInpatientDiagnoses(admission: string): Promise<DiagnosisRow[]> {
+  const { getMedicalDiagnosisForContext } = await import('./medicalDiagnosisEntry')
+  return getMedicalDiagnosisForContext('Inpatient Admission', admission)
 }
 
 /**

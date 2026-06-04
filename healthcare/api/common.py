@@ -3118,112 +3118,26 @@ def get_patient_referrals(patient=None, referral_status=None, date_from=None, da
 
 @frappe.whitelist()
 def get_all_patient_diagnoses(patient):
-	"""Return all Patient Diagnosis rows across all Patient Visits and Inpatient Admissions for a patient."""
-	if not patient:
-		return []
+	"""Return Medical Diagnosis Entry rows for a patient (OP visits and IP admissions)."""
+	from healthcare.api.medical_diagnosis_entry import list_for_patient
 
-	results = []
-
-	visits = frappe.get_all("Patient Visit", filters={"patient": patient}, fields=["name", "encounter_date"], order_by="encounter_date desc")
-	for visit in visits:
-		rows = frappe.get_all(
-			"Patient Diagnosis",
-			filters={"parent": visit.name, "parenttype": "Patient Visit"},
-			fields=["name", "diagnosis", "details", "posting_date", "practitioner", "practitioner_name"],
-			order_by="posting_date desc",
-		)
-		for row in rows:
-			meta = _enrich_diagnosis_display(row.diagnosis)
-			results.append({
-				"name": row.name,
-				"diagnosis": row.diagnosis,
-				**meta,
-				"details": row.details or "",
-				"posting_date": str(row.posting_date) if row.posting_date else "",
-				"practitioner": row.get("practitioner") or "",
-				"practitioner_name": row.get("practitioner_name") or "",
-				"parent": visit.name,
-				"parent_type": "Patient Visit",
-				"parent_date": str(visit.encounter_date) if visit.encounter_date else "",
-			})
-
-	admissions = frappe.get_all("Inpatient Admission", filters={"patient": patient}, fields=["name", "admitted_datetime"], order_by="admitted_datetime desc")
-	for admission in admissions:
-		rows = frappe.get_all(
-			"Patient Diagnosis",
-			filters={"parent": admission.name, "parenttype": "Inpatient Admission"},
-			fields=["name", "diagnosis", "details", "posting_date", "practitioner", "practitioner_name"],
-			order_by="posting_date desc",
-		)
-		for row in rows:
-			meta = _enrich_diagnosis_display(row.diagnosis)
-			results.append({
-				"name": row.name,
-				"diagnosis": row.diagnosis,
-				**meta,
-				"details": row.details or "",
-				"posting_date": str(row.posting_date) if row.posting_date else "",
-				"practitioner": row.get("practitioner") or "",
-				"practitioner_name": row.get("practitioner_name") or "",
-				"parent": admission.name,
-				"parent_type": "Inpatient Admission",
-				"parent_date": str(admission.admitted_datetime) if admission.admitted_datetime else "",
-			})
-
-	results.sort(key=lambda x: x.get("posting_date") or "", reverse=True)
-	return results
+	return list_for_patient(patient)
 
 
 @frappe.whitelist()
 def get_patient_diagnosis(parent_doctype, parent_name):
-	"""Return Patient Diagnosis child table rows for a Patient Visit or Inpatient Admission."""
-	if parent_doctype not in ("Patient Visit", "Inpatient Admission"):
-		frappe.throw(_("Parent must be Patient Visit or Inpatient Admission"))
-	if not parent_name:
-		return []
+	"""Return Medical Diagnosis Entry rows for a Patient Visit or Inpatient Admission."""
+	from healthcare.api.medical_diagnosis_entry import list_for_context
 
-	doc = frappe.get_doc(parent_doctype, parent_name)
-	rows = []
-	for row in (doc.get("patient_diagnosis") or []):
-		dlink = row.diagnosis or ""
-		meta = _enrich_diagnosis_display(dlink)
-		rows.append({
-			"name": row.name,
-			"diagnosis": dlink,
-			**meta,
-			"details": row.details or "",
-			"posting_date": str(row.posting_date) if row.posting_date else "",
-		})
-	return rows
+	return list_for_context(parent_doctype, parent_name)
 
 
 @frappe.whitelist()
 def save_patient_diagnosis(parent_doctype, parent_name, rows):
-	"""Save Patient Diagnosis child table rows for a Patient Visit or Inpatient Admission."""
-	import json
-	if parent_doctype not in ("Patient Visit", "Inpatient Admission"):
-		frappe.throw(_("Parent must be Patient Visit or Inpatient Admission"))
-	if not parent_name:
-		frappe.throw(_("Parent name is required"))
+	"""Save Medical Diagnosis Entry rows for a Patient Visit or Inpatient Admission."""
+	from healthcare.api.medical_diagnosis_entry import save_for_context
 
-	if isinstance(rows, str):
-		rows = json.loads(rows)
-
-	doc = frappe.get_doc(parent_doctype, parent_name)
-	doc.set("patient_diagnosis", [])
-	for row in rows:
-		diagnosis_val = row.get("diagnosis") or ""
-		if not diagnosis_val:
-			continue
-		doc.append("patient_diagnosis", {
-			"diagnosis": diagnosis_val,
-			"details": row.get("details") or "",
-			"posting_date": row.get("posting_date") or frappe.utils.now_datetime(),
-		})
-
-	doc.save(ignore_permissions=True)
-	frappe.db.commit()
-	return {"ok": True}
+	return save_for_context(parent_doctype, parent_name, rows)
 
 
 def _portal_checklist_item_from_row(row, idx, department_label=None):

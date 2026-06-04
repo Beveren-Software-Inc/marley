@@ -27,6 +27,7 @@
   "admission",
   "column_break_ibuw",
   "username",
+  "patient_visit",
   "section_break_ppsm",
   "cr_id",
   "cr_date",
@@ -185,11 +186,16 @@
    "fieldname": "old_admission_no",
    "fieldtype": "Data",
    "label": "Old Admission No"
+  },
+  {
+   "fieldname": "patient_visit",
+   "fieldtype": "Data",
+   "label": "Patient Visit"
   }
  ],
  "istable": 1,
  "links": [],
- "modified": "2026-05-10 17:38:08.529705",
+ "modified": "2026-06-04 12:55:54.920385",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Diagnosis",

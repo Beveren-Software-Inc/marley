@@ -8,10 +8,14 @@
  "engine": "InnoDB",
  "field_order": [
   "patient",
-  "diagnosis",
-  "column_break_iqwe",
-  "diagnosis_name",
+  "patient_name",
+  "inpatient_admission",
+  "visit_num",
   "cost_center",
+  "column_break_iqwe",
+  "diagnosis",
+  "diagnosis_name",
+  "group_code",
   "section_break_xntv",
   "details",
   "diagnoses_flag",
@@ -26,12 +30,9 @@
   "column_break_cgwt",
   "practitioner_name",
   "section_break_ioky",
-  "visit_num",
-  "inpatient_admission",
   "sr_no",
-  "column_break_qljg",
   "source",
-  "group_code",
+  "column_break_qljg",
   "section_break_bjmi",
   "cr_id",
   "cd_date",
@@ -124,8 +125,11 @@
   },
   {
    "fieldname": "visit_num",
-   "fieldtype": "Data",
-   "label": "Visit Num"
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Patient Visit",
+   "options": "Patient Visit"
   },
   {
    "fieldname": "column_break_qljg",
@@ -133,8 +137,11 @@
   },
   {
    "fieldname": "inpatient_admission",
-   "fieldtype": "Data",
-   "label": "Inpatient Admission"
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Inpatient Admission",
+   "options": "Inpatient Admission"
   },
   {
    "fieldname": "section_break_bjmi",
@@ -195,15 +202,22 @@
   },
   {
    "fieldname": "group_code",
+   "fieldtype": "Link",
+   "label": "Group Code",
+   "options": "Diagnosis Group"
+  },
+  {
+   "fetch_from": "patient.patient_name",
+   "fieldname": "patient_name",
    "fieldtype": "Data",
-   "label": "Group Code"
+   "label": "Patient Name"
   }
  ],
  "links": [],
- "modified": "2026-05-10 16:46:32.239353",
+ "modified": "2026-06-04 13:14:53.271144",
  "modified_by": "Administrator",
  "module": "Healthcare",
- "name": "Visit Diagnosis",
+ "name": "Medical Diagnosis Entry",
  "naming_rule": "Expression",
  "owner": "Administrator",
  "permissions": [

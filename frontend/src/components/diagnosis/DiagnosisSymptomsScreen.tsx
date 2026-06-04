@@ -109,9 +109,9 @@ export function DiagnosisSymptomsScreen({
                 </span>
               </div>
               <p className="mt-2 text-xs text-slate-500">
-                Diagnoses are read from the <strong>Patient Diagnosis</strong> table on this {contextDocLabel.toLowerCase()}.
-                Use the <strong>OP / IP</strong> toggle and pick a visit or admission at the top of the app (same context as
-                prescriptions and charts).
+                Diagnoses are stored as <strong>Medical Diagnosis Entry</strong> records linked to this{' '}
+                {contextDocLabel.toLowerCase()}. Use the <strong>OP / IP</strong> toggle and pick a visit or admission at the
+                top of the app (same context as prescriptions and charts).
               </p>
             </div>
 
@@ -131,7 +131,7 @@ export function DiagnosisSymptomsScreen({
                 <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-100 bg-slate-50/80">
                   <div>
                     <h2 className="text-sm font-semibold text-slate-900">Diagnoses</h2>
-                    <p className="text-xs text-slate-500 mt-0.5">Patient Diagnosis · {parentDoctype}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">Medical Diagnosis Entry · {parentDoctype}</p>
                   </div>
                   <button
                     type="button"
@@ -143,7 +143,7 @@ export function DiagnosisSymptomsScreen({
                       setShowAddModal(true)
                     }}
                     className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-white text-lg font-bold leading-none hover:bg-primary/90 transition-colors"
-                    title="Add or edit diagnoses"
+                    title="Add diagnosis"
                   >
                     <Plus className="h-4 w-4" strokeWidth={2.5} />
                   </button>
@@ -184,6 +184,12 @@ export function DiagnosisSymptomsScreen({
                               Details
                             </th>
                             <th className="text-left px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-600 whitespace-nowrap">
+                              Practitioner
+                            </th>
+                            <th className="text-left px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-600 whitespace-nowrap">
+                              Cost center
+                            </th>
+                            <th className="text-left px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-600 whitespace-nowrap">
                               Posting date
                             </th>
                           </tr>
@@ -206,6 +212,12 @@ export function DiagnosisSymptomsScreen({
                               >
                                 <span className="line-clamp-3">{stripHtml(row.details || '')}</span>
                               </td>
+                              <td className="px-3 py-2.5 text-slate-600 whitespace-nowrap align-top">
+                                {row.practitioner_name || row.practitioner || '—'}
+                              </td>
+                              <td className="px-3 py-2.5 text-slate-600 whitespace-nowrap align-top">
+                                {row.cost_center || '—'}
+                              </td>
                               <td className="px-3 py-2.5 text-slate-500 whitespace-nowrap align-top">
                                 {formatDate(row.posting_date)}
                               </td>
@@ -224,6 +236,7 @@ export function DiagnosisSymptomsScreen({
 
       {showAddModal && patient && parentName && (
         <PatientDiagnosisModal
+          mode="append"
           parentDoctype={parentDoctype}
           parentName={parentName}
           patient={patient}
@@ -231,7 +244,6 @@ export function DiagnosisSymptomsScreen({
           onSuccess={() => {
             setShowAddModal(false)
             setRefreshKey((k) => k + 1)
-            toast.success('Diagnoses saved')
           }}
         />
       )}
