@@ -113,6 +113,98 @@ frappe.ui.form.on('Healthcare Settings', {
 			);
 		}, __('Data Maintenance'));
 
+		frm.add_custom_button(__('Import Discharge Checklist from Excel'), () => {
+			const uploader = new frappe.ui.FileUploader({
+				dialog_title: __('Import Discharge Checklist'),
+				allow_multiple: false,
+				restrictions: {
+					allowed_file_types: ['.xlsx', '.xls'],
+				},
+				on_success(file) {
+					frappe.call({
+						method: 'healthcare.api.discharge_checklist_import.preview_discharge_checklist_import',
+						args: { file_url: file.file_url },
+						freeze: true,
+						freeze_message: __('Reading Excel…'),
+						callback(preview) {
+							const counts = preview.message || {};
+							frappe.confirm(
+								__(
+									'Import discharge checklist rows into existing Discharge records?\n\nExcel rows: {0}\nAdmissions in file: {1}\nCan match admission + Discharge: {2}\nRows without admission number: {3}\n\nEach admission gets Default Discharge Template (9 actions) filled from Oracle (SR_NUM, action, department, flags, CR/UP fields). Continue?',
+									[
+										counts.excel_rows || 0,
+										counts.admissions || 0,
+										counts.resolvable_admissions || 0,
+										counts.unresolved_rows || 0,
+									]
+								),
+								() => {
+									frappe.call({
+										method:
+											'healthcare.api.data_migration_jobs.start_discharge_checklist_import_migration',
+										args: { file_url: file.file_url },
+										freeze: true,
+										freeze_message: __('Starting background job…'),
+										callback(r) {
+											if (r.message?.ok) {
+												frappe.show_alert({
+													message: r.message.message || __('Job started'),
+													indicator: 'green',
+												});
+												poll_migration_status('discharge_checklist_import');
+											}
+										},
+									});
+								}
+							);
+						},
+					});
+				},
+			});
+		}, __('Data Maintenance'));
+
+		frm.add_custom_button(__('Fix Comma Case No (1,415 → 1415)'), () => {
+			frappe.call({
+				method: 'healthcare.api.legacy_id_normalize.preview_comma_admission_ids',
+				callback(preview) {
+					const counts = preview.message || {};
+					frappe.confirm(
+						__(
+							'Normalize Inpatient Admission Case No values with commas (e.g. 1,415 → 1415)?\n\nRecords to process: {0}\n\nCase No is the canonical ID (document name should match). Duplicate plain Case Nos are removed first, then Case No and linked Discharge rows are fixed. Continue?',
+							[counts.count || 0]
+						),
+						() =>
+							run_migration_job(
+								frm,
+								'start_comma_admission_id_migration',
+								'comma_admission_ids'
+							)
+					);
+				},
+			});
+		}, __('Data Maintenance'));
+
+		frm.add_custom_button(__('Fix Comma Discharge Admission (1,415 → 1415)'), () => {
+			frappe.call({
+				method: 'healthcare.api.legacy_id_normalize.preview_comma_discharge_ids',
+				callback(preview) {
+					const counts = preview.message || {};
+					frappe.confirm(
+						__(
+							'Normalize Discharge Admission links (Inpatient Case No) with commas (e.g. 1,415 → 1415)?\n\nRecords to process: {0}\n\nAdmission is the canonical ID (document name should match). Duplicate plain discharges are removed first (submitted ones cancelled), then Admission and name are aligned to the fixed Inpatient Admission Case No. Run after the Case No admission fix. Continue?',
+							[counts.count || 0]
+						),
+						() =>
+							run_migration_job(
+								frm,
+								'start_comma_discharge_id_migration',
+								'comma_discharge_ids'
+							)
+					);
+				},
+			});
+		}, __('Data Maintenance'));
+
 		frm.add_custom_button(__('Map Clinical Note Types from Diagnosis Flag'), () => {
 			frappe.confirm(
 				__(

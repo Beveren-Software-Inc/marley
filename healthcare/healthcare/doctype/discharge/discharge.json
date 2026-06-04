@@ -144,15 +144,19 @@
    "fieldtype": "Section Break"
   },
   {
+   "allow_bulk_edit": 1,
+   "allow_on_submit": 1,
    "fieldname": "discharge_checklist",
    "fieldtype": "Table",
    "label": "Discharge Checklist",
    "options": "Discharge Checklist Details"
   },
   {
+   "allow_on_submit": 1,
    "default": "Default Discharge Template",
    "fieldname": "discharge_template",
    "fieldtype": "Link",
+   "ignore_user_permissions": 1,
    "label": "Discharge Template",
    "options": "Discharge Template"
   },
@@ -620,7 +624,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-05-25 11:52:01.628762",
+ "modified": "2026-06-04 11:12:08.189555",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Discharge",
