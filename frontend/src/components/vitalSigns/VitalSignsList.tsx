@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react'
 import { fetchVitalSigns, type VitalSign } from '../../services/vitalSigns'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
-import { DetailSlideOver } from '../ui/DetailSlideOver'
-import { DocDetailView } from '../ui/DocDetailView'
+import { VitalSignsDetailPanel } from './VitalSignsDetailPanel'
 
 interface VitalSignsListProps {
   patient?: string
@@ -15,6 +14,7 @@ export const VitalSignsList = ({ patient, refreshKey, onPatientClick }: VitalSig
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
   const [detailName, setDetailName] = useState<string | null>(null)
+  const [detailSubtitle, setDetailSubtitle] = useState<string | undefined>()
 
   useEffect(() => {
     const loadVitalSigns = async () => {
@@ -32,6 +32,15 @@ export const VitalSignsList = ({ patient, refreshKey, onPatientClick }: VitalSig
 
     loadVitalSigns()
   }, [patient, refreshKey])
+
+  const openDetail = (vs: VitalSign) => {
+    setDetailName(vs.name)
+    const when = vs.signs_date
+      ? `${new Date(vs.signs_date).toLocaleDateString()}${vs.signs_time ? ` ${vs.signs_time}` : ''}`
+      : undefined
+    const parts = [vs.patient_name || vs.patient, vs.trans_no || vs.name, when].filter(Boolean)
+    setDetailSubtitle(parts.length ? parts.join(' · ') : undefined)
+  }
 
   if (loading) {
     return (
@@ -61,110 +70,98 @@ export const VitalSignsList = ({ patient, refreshKey, onPatientClick }: VitalSig
   }
 
   return (
-    <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
-      <table className="w-full">
-        <thead className="bg-slate-50 border-b border-slate-200">
-          <tr>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-              Date & Time
-            </th>
-            {!patient && (
+    <>
+      <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
+        <table className="w-full">
+          <thead className="bg-slate-50 border-b border-slate-200">
+            <tr>
               <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-                Patient
+                Date & Time
               </th>
-            )}
-            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-              Temperature
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-              Pulse
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-              BP
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-              Respiratory Rate
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-              SPO2
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-              Weight
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-              BMI
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase w-[100px]">
-              Actions
-            </th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-slate-200">
-          {vitalSigns.map((vs) => (
-            <tr key={vs.name} className="hover:bg-slate-50">
-              <td
-                className="px-4 py-3 text-sm text-primary cursor-pointer hover:underline"
-                onClick={() => setDetailName(vs.name)}
-              >
-                {vs.signs_date ? new Date(vs.signs_date).toLocaleDateString() : '-'}
-                {vs.signs_time && ` ${vs.signs_time}`}
-              </td>
               {!patient && (
-                <td
-                  className="px-4 py-3 text-sm text-slate-700 cursor-pointer"
-                  onClick={() => vs.patient && onPatientClick?.(vs.patient)}
-                >
-                  <span className="font-medium text-primary hover:underline">{vs.patient_name || vs.patient || '-'}</span>
-                </td>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+                  Patient
+                </th>
               )}
-              <td className="px-4 py-3 text-sm text-slate-700">
-                {vs.temperature || '-'}
-              </td>
-              <td className="px-4 py-3 text-sm text-slate-700">
-                {vs.pulse || '-'}
-              </td>
-              <td className="px-4 py-3 text-sm text-slate-700">
-                {vs.bp || (vs.bp_systolic && vs.bp_diastolic ? `${vs.bp_systolic}/${vs.bp_diastolic}` : '-')}
-              </td>
-              <td className="px-4 py-3 text-sm text-slate-700">
-                {vs.respiratory_rate || '-'}
-              </td>
-              <td className="px-4 py-3 text-sm text-slate-700">
-                {vs.spo2 || '-'}
-              </td>
-              <td className="px-4 py-3 text-sm text-slate-700">
-                {vs.weight || '-'}
-              </td>
-              <td className="px-4 py-3 text-sm text-slate-700">
-                {vs.bmi || '-'}
-              </td>
-              <td className="px-4 py-2 align-middle">
-                <PrintFormatDropdown
-                  doctype="Vital Signs"
-                  docName={vs.name}
-                  noLetterhead={0}
-                  triggerPrint={1}
-                />
-              </td>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+                Temperature
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+                Pulse
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+                BP
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+                Respiratory Rate
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+                SPO2
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+                Weight
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+                BMI
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase w-[100px]">
+                Actions
+              </th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="divide-y divide-slate-200">
+            {vitalSigns.map((vs) => (
+              <tr key={vs.name} className="hover:bg-slate-50">
+                <td
+                  className="px-4 py-3 text-sm text-primary cursor-pointer hover:underline"
+                  onClick={() => openDetail(vs)}
+                >
+                  {vs.signs_date ? new Date(vs.signs_date).toLocaleDateString() : '-'}
+                  {vs.signs_time && ` ${vs.signs_time}`}
+                </td>
+                {!patient && (
+                  <td
+                    className="px-4 py-3 text-sm text-slate-700 cursor-pointer"
+                    onClick={() => vs.patient && onPatientClick?.(vs.patient)}
+                  >
+                    <span className="font-medium text-primary hover:underline">
+                      {vs.patient_name || vs.patient || '-'}
+                    </span>
+                  </td>
+                )}
+                <td className="px-4 py-3 text-sm text-slate-700">{vs.temperature || '-'}</td>
+                <td className="px-4 py-3 text-sm text-slate-700">{vs.pulse || '-'}</td>
+                <td className="px-4 py-3 text-sm text-slate-700">
+                  {vs.bp || (vs.bp_systolic && vs.bp_diastolic ? `${vs.bp_systolic}/${vs.bp_diastolic}` : '-')}
+                </td>
+                <td className="px-4 py-3 text-sm text-slate-700">{vs.respiratory_rate || '-'}</td>
+                <td className="px-4 py-3 text-sm text-slate-700">{vs.spo2 || '-'}</td>
+                <td className="px-4 py-3 text-sm text-slate-700">{vs.weight || '-'}</td>
+                <td className="px-4 py-3 text-sm text-slate-700">{vs.bmi || '-'}</td>
+                <td className="px-4 py-2 align-middle" onClick={(e) => e.stopPropagation()}>
+                  <PrintFormatDropdown
+                    doctype="Vital Signs"
+                    docName={vs.name}
+                    noLetterhead={0}
+                    triggerPrint={1}
+                  />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
-      {detailName && (
-        <DetailSlideOver
-          title="Vital Signs"
-          subtitle={detailName}
-          onClose={() => setDetailName(null)}
-        >
-          <DocDetailView doctype="Vital Signs" name={detailName} />
-        </DetailSlideOver>
-      )}
-    </div>
+      {detailName ? (
+        <VitalSignsDetailPanel
+          name={detailName}
+          subtitle={detailSubtitle}
+          onClose={() => {
+            setDetailName(null)
+            setDetailSubtitle(undefined)
+          }}
+        />
+      ) : null}
+    </>
   )
 }
-
-
-
-
-

@@ -18,6 +18,7 @@ IP_ADMISSION_MEDICINE_BATCH_SIZE = 50
 IP_ADMISSION_MEDICINE_SHEET_BATCH_SIZE = 200
 IP_PATIENT_ASSESSMENT_BATCH_SIZE = 200
 CLINICAL_NOTE_TYPE_BATCH_SIZE = 500
+DISCHARGE_CHECKLIST_IMPORT_BATCH_SIZE = 25
 
 JOB_LOCK_SECONDS = 7200  # 2 hours
 
@@ -1759,5 +1760,236 @@ def process_ip_admission_medicine_sheet_map_batch(offset: int = 0) -> None:
 	except Exception:
 		frappe.db.rollback()
 		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
+		_release_lock(job)
+		raise
+
+
+# ── Discharge checklist Excel import (Oracle IP_ADMISSION_04) ─────────────────
+
+
+@frappe.whitelist()
+def start_discharge_checklist_import_migration(file_url: str) -> dict:
+	_require_admin()
+	from healthcare.api.discharge_checklist_import import parse_and_cache_excel
+
+	if not (file_url or "").strip():
+		frappe.throw(_("Please upload an Excel file first."))
+
+	job = "discharge_checklist_import"
+	_acquire_lock(job)
+	summary = parse_and_cache_excel(file_url)
+	_set_progress(
+		job,
+		0,
+		total_admissions=summary.get("admissions"),
+		resolvable_admissions=summary.get("resolvable_admissions"),
+		excel_rows=summary.get("excel_rows"),
+		unresolved_rows=summary.get("unresolved_rows"),
+		template=summary.get("template"),
+	)
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_discharge_checklist_import_batch",
+		offset=0,
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_discharge_checklist_import",
+	)
+	return {
+		"ok": True,
+		"message": _(
+			"Discharge checklist import started ({0} admissions in file, {1} can be matched to Discharge)."
+		).format(
+			summary.get("admissions") or 0,
+			summary.get("resolvable_admissions") or 0,
+		),
+	}
+
+
+def process_discharge_checklist_import_batch(offset: int = 0) -> None:
+	from healthcare.api.discharge_checklist_import import run_discharge_checklist_import_batch
+
+	job = "discharge_checklist_import"
+	try:
+		result = run_discharge_checklist_import_batch(offset=offset)
+		prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+		processed = result.get("processed", offset)
+		_set_progress(
+			job,
+			processed,
+			ok=cint(prev.get("ok", 0)) + cint(result.get("ok", 0)),
+			skip_no_admission=cint(prev.get("skip_no_admission", 0))
+			+ cint(result.get("skip_no_admission", 0)),
+			skip_no_discharge=cint(prev.get("skip_no_discharge", 0))
+			+ cint(result.get("skip_no_discharge", 0)),
+			errors=cint(prev.get("errors", 0)) + cint(result.get("errors", 0)),
+			total_admissions=prev.get("total_admissions"),
+		)
+
+		if not result.get("done"):
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_discharge_checklist_import_batch",
+				offset=processed,
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_discharge_checklist_import_{processed}",
+			)
+		else:
+			_set_progress(job, processed, done=True)
+			_release_lock(job)
+			frappe.log_error(
+				title="Discharge checklist import complete",
+				message=frappe.as_json(frappe.cache().get_value(_job_progress_key(job)) or {}),
+			)
+	except Exception:
+		frappe.db.rollback()
+		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
+		_release_lock(job)
+		raise
+
+
+# ── Normalize comma legacy IDs (1,415 → 1415) ─────────────────────────────────
+
+
+def _accumulate_comma_job_progress(job: str, result: dict, counter_fields: list[str]) -> dict:
+	"""Merge batch counters into job progress; keep total/remaining accurate."""
+	prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+	batch_count = cint(result.get("batch_count", 0))
+	processed = cint(prev.get("processed", 0)) + batch_count
+	remaining = cint(result.get("remaining", 0))
+	total = cint(prev.get("total")) or (processed + remaining)
+	if remaining:
+		total = max(total, processed + remaining)
+
+	extra = {
+		"total": total,
+		"remaining": remaining,
+	}
+	for field in counter_fields:
+		extra[field] = cint(prev.get(field, 0)) + cint(result.get(field, 0))
+
+	_set_progress(job, processed, **extra)
+	return {"processed": processed, **extra}
+
+
+def _finish_comma_job(job: str, title: str, counter_fields: list[str]) -> None:
+	prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+	processed = cint(prev.get("processed", 0))
+	extra = {
+		"remaining": 0,
+		"total": cint(prev.get("total")) or processed,
+	}
+	for field in counter_fields:
+		extra[field] = prev.get(field, 0)
+	_set_progress(job, processed, done=True, **extra)
+	_release_lock(job)
+	frappe.log_error(title=title, message=frappe.as_json({"processed": processed, "done": True, **extra}))
+
+
+@frappe.whitelist()
+def start_comma_admission_id_migration() -> dict:
+	_require_admin()
+	from healthcare.api.legacy_id_normalize import _comma_inpatient_admission_names
+
+	job = "comma_admission_ids"
+	_acquire_lock(job)
+	names = _comma_inpatient_admission_names()
+	_set_progress(job, 0, total=len(names), remaining=len(names))
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_comma_admission_id_batch",
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_comma_admission_ids",
+	)
+	return {
+		"ok": True,
+		"message": _("Comma admission ID cleanup started ({0} records).").format(len(names)),
+	}
+
+
+def process_comma_admission_id_batch() -> None:
+	from healthcare.api.legacy_id_normalize import run_comma_admission_batch_next
+
+	job = "comma_admission_ids"
+	counter_fields = ["ok", "case_no_fixed", "skip", "errors"]
+	try:
+		result = run_comma_admission_batch_next()
+		_accumulate_comma_job_progress(job, result, counter_fields)
+		if not result.get("done"):
+			processed = cint(
+				(frappe.cache().get_value(_job_progress_key(job)) or {}).get("processed", 0)
+			)
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_comma_admission_id_batch",
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_comma_admission_ids_{processed}",
+			)
+		else:
+			_finish_comma_job(job, "Comma admission ID cleanup complete", counter_fields)
+	except Exception:
+		frappe.db.rollback()
+		prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+		_set_progress(
+			job,
+			cint(prev.get("processed", 0)),
+			done=True,
+			error=frappe.get_traceback(),
+			total=prev.get("total"),
+		)
+		_release_lock(job)
+		raise
+
+
+@frappe.whitelist()
+def start_comma_discharge_id_migration() -> dict:
+	_require_admin()
+	from healthcare.api.legacy_id_normalize import _comma_discharge_names
+
+	job = "comma_discharge_ids"
+	_acquire_lock(job)
+	names = _comma_discharge_names()
+	_set_progress(job, 0, total=len(names), remaining=len(names))
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_comma_discharge_id_batch",
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_comma_discharge_ids",
+	)
+	return {
+		"ok": True,
+		"message": _("Comma discharge ID cleanup started ({0} records).").format(len(names)),
+	}
+
+
+def process_comma_discharge_id_batch() -> None:
+	from healthcare.api.legacy_id_normalize import run_comma_discharge_batch_next
+
+	job = "comma_discharge_ids"
+	counter_fields = ["ok", "admission_fixed", "skip", "errors"]
+	try:
+		result = run_comma_discharge_batch_next()
+		_accumulate_comma_job_progress(job, result, counter_fields)
+		if not result.get("done"):
+			processed = cint(
+				(frappe.cache().get_value(_job_progress_key(job)) or {}).get("processed", 0)
+			)
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_comma_discharge_id_batch",
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_comma_discharge_ids_{processed}",
+			)
+		else:
+			_finish_comma_job(job, "Comma discharge ID cleanup complete", counter_fields)
+	except Exception:
+		frappe.db.rollback()
+		prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+		_set_progress(
+			job,
+			cint(prev.get("processed", 0)),
+			done=True,
+			error=frappe.get_traceback(),
+			total=prev.get("total"),
+		)
 		_release_lock(job)
 		raise
