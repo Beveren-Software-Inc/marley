@@ -173,6 +173,7 @@ export const DoctorPage = () => {
   const [showSleepingPatternModal, setShowSleepingPatternModal] = useState(false)
   const [sleepingPatternRefreshKey, setSleepingPatternRefreshKey] = useState(0)
   const [morseFallRefreshKey] = useState(0)
+  const [envChecklistCreateOpen, setEnvChecklistCreateOpen] = useState(false)
   const [showCreateNurseTaskModal, setShowCreateNurseTaskModal] = useState(false)
   const [longActingRefreshKey] = useState(0)
   const [showPhysicalExamModal, setShowPhysicalExamModal] = useState(false)
@@ -973,8 +974,15 @@ export const DoctorPage = () => {
       <div className="flex flex-col">
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
-          <DashboardCard title="Environmental Checklist">
-            <EnvironmentalChecklistList patient={selectedPatient} />
+          <DashboardCard title="Environmental Checklist" onAdd={() => setEnvChecklistCreateOpen(true)}>
+            <EnvironmentalChecklistList
+              patient={selectedPatient}
+              defaultAdmission={activeAdmission || undefined}
+              defaultVisit={activeVisit || undefined}
+              onPatientClick={handlePatientSelect}
+              createModalOpen={envChecklistCreateOpen}
+              onCreateModalOpenChange={setEnvChecklistCreateOpen}
+            />
           </DashboardCard>
         </div>
       </div>

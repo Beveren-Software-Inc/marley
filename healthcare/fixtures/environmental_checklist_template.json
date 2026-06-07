@@ -29,6 +29,7 @@
     "item_name": "Security personnel conduct searches of all items brought to the patient's room by the family or any outside orders"
    }
   ],
+  "default": 1,
   "docstatus": 0,
   "doctype": "Environmental Checklist Template",
   "modified": "2025-12-28 15:34:14.262820",

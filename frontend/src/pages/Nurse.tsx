@@ -863,15 +863,18 @@ export const NursePage = () => {
     )
   }
 
-  // Environmental Checklist (requires patient + Inpatient Admission selection)
+  // Environmental Checklist
   if (screen === 'n-env') {
     return (
       <div className="flex flex-col">
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-3">Environmental Checklist</div>
-            <EnvironmentalChecklistList patient={selectedPatient} />
+            <EnvironmentalChecklistList
+              patient={selectedPatient}
+              defaultAdmission={activeAdmission || undefined}
+              defaultVisit={activeVisit || undefined}
+            />
           </section>
         </div>
       </div>

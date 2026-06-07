@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Check, X } from 'lucide-react'
 import { fetchDoc } from '../../services/common'
 
 const SKIP_KEYS = new Set([
@@ -85,6 +86,45 @@ function DocumentsTableFieldView({ value }: { value: Record<string, unknown>[] }
         )
       })}
     </div>
+  )
+}
+
+function isChecklistTable(value: Record<string, unknown>[]): boolean {
+  if (value.length === 0) return false
+  const first = value[0]
+  return 'checked' in first && ('item_name' in first || 'checklist' in first)
+}
+
+function isCheckedValue(value: unknown): boolean {
+  return value === 1 || value === true || value === '1'
+}
+
+/** Checklist child rows — green tick when checked, X when not. */
+function ChecklistTableFieldView({ value }: { value: Record<string, unknown>[] }) {
+  if (value.length === 0) return <span className="text-slate-500">No checklist items</span>
+
+  return (
+    <ul className="space-y-2">
+      {value.map((row, i) => {
+        const checked = isCheckedValue(row.checked)
+        const label = String(row.item_name ?? row.checklist ?? '—')
+        return (
+          <li
+            key={i}
+            className={`flex items-start gap-2.5 rounded-md border px-3 py-2 ${
+              checked ? 'border-green-200 bg-green-50/60' : 'border-slate-200 bg-slate-50/50'
+            }`}
+          >
+            {checked ? (
+              <Check className="w-4 h-4 text-green-600 shrink-0 mt-0.5" strokeWidth={2.5} aria-label="Completed" />
+            ) : (
+              <X className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" strokeWidth={2.5} aria-label="Not completed" />
+            )}
+            <span className={`text-sm leading-snug ${checked ? 'text-slate-800' : 'text-slate-600'}`}>{label}</span>
+          </li>
+        )
+      })}
+    </ul>
   )
 }
 
@@ -200,6 +240,8 @@ export function DocDetailView({ doctype, name }: DocDetailViewProps) {
               {isTableValue(value) ? (
                 isDocumentTable(value) ? (
                   <DocumentsTableFieldView value={value} />
+                ) : isChecklistTable(value) ? (
+                  <ChecklistTableFieldView value={value} />
                 ) : (
                   <TableFieldView value={value} />
                 )
