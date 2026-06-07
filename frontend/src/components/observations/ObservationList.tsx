@@ -169,7 +169,7 @@ export const ObservationList = ({ patient, onPatientClick }: ObservationListProp
                 className="px-4 py-3 text-sm font-medium text-primary cursor-pointer hover:underline"
                 onClick={() => setDetailName(obs.name)}
               >
-                {obs.name}
+                {obs.trans_no || obs.name}
               </td>
               {!patient && (
                 <td

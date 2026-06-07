@@ -3,7 +3,7 @@
  "allow_events_in_timeline": 1,
  "allow_import": 1,
  "allow_rename": 1,
- "autoname": "naming_series:",
+ "autoname": "field:trans_no",
  "creation": "2023-06-09 11:01:49.970959",
  "default_view": "List",
  "doctype": "DocType",
@@ -11,6 +11,7 @@
  "engine": "InnoDB",
  "field_order": [
   "naming_series",
+  "trans_no",
   "observation_template",
   "observation_category",
   "start_date",
@@ -85,8 +86,10 @@
   "section_break_cjeo",
   "cr_id",
   "cr_date",
+  "cost_center",
   "column_break_oigq",
-  "branch_no",
+  "up_id",
+  "up_date",
   "section_break_gatu",
   "order_created",
   "invoice_created",
@@ -136,8 +139,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Patient",
-   "options": "Patient",
-   "reqd": 1
+   "options": "Patient"
   },
   {
    "collapsible": 1,
@@ -588,8 +590,7 @@
    "fieldname": "admission_no",
    "fieldtype": "Link",
    "label": "Admission No",
-   "options": "Inpatient Admission",
-   "reqd": 1
+   "options": "Inpatient Admission"
   },
   {
    "fieldname": "start_date",
@@ -655,17 +656,12 @@
   },
   {
    "fieldname": "cr_date",
-   "fieldtype": "Datetime",
+   "fieldtype": "Data",
    "label": "CR Date"
   },
   {
    "fieldname": "column_break_oigq",
    "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "branch_no",
-   "fieldtype": "Date",
-   "label": "Branch No"
   },
   {
    "fieldname": "section_break_gatu",
@@ -687,16 +683,38 @@
    "fieldname": "designated_security_personel",
    "fieldtype": "Data",
    "label": "Designated Security Personel"
+  },
+  {
+   "fieldname": "trans_no",
+   "fieldtype": "Data",
+   "label": "Trans No",
+   "unique": 1
+  },
+  {
+   "fieldname": "cost_center",
+   "fieldtype": "Link",
+   "label": "Cost Center",
+   "options": "Cost Center"
+  },
+  {
+   "fieldname": "up_id",
+   "fieldtype": "Data",
+   "label": "UP ID"
+  },
+  {
+   "fieldname": "up_date",
+   "fieldtype": "Data",
+   "label": "UP Date"
   }
  ],
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-05-20 12:26:15.249358",
+ "modified": "2026-06-07 14:08:50.772380",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Observation",
- "naming_rule": "By \"Naming Series\" field",
+ "naming_rule": "By fieldname",
  "owner": "Administrator",
  "permissions": [
   {

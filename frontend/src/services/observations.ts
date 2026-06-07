@@ -1,5 +1,6 @@
 export interface Observation {
   name: string
+  trans_no?: string
   patient: string
   patient_name?: string
   observation_category?: string

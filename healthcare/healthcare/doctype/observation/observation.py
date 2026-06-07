@@ -8,15 +8,94 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 from frappe.model.workflow import get_workflow_name, get_workflow_state_field
-from frappe.utils import flt, get_link_to_form, getdate, now_datetime, nowdate
+from frappe.utils import cstr, flt, get_link_to_form, getdate, now_datetime, nowdate
 
 from erpnext.setup.doctype.terms_and_conditions.terms_and_conditions import (
 	get_terms_and_conditions,
 )
 
+from healthcare.api.utils.api_utility import get_next_transaction_number
+
+
+def _get_used_observation_identifiers() -> set[str]:
+	"""Collect trans_no and document name — autoname uses trans_no as name."""
+	used: set[str] = set()
+	for row in frappe.db.get_all(
+		"Observation",
+		fields=["name", "trans_no"],
+		limit_page_length=0,
+	):
+		for value in (row.get("trans_no"), row.get("name")):
+			text = cstr(value).strip()
+			if text:
+				used.add(text)
+	return used
+
+
+def _next_free_trans_no(candidate: str, used: set[str]) -> str:
+	"""Bump candidate until it does not collide with an existing name/trans_no."""
+	if candidate not in used:
+		return candidate
+
+	if candidate.isdigit():
+		num = int(candidate)
+		while cstr(num) in used:
+			num += 1
+		return cstr(num)
+
+	match = re.match(r"^([A-Za-z]+)[-_]?(\d+)$", candidate)
+	if match:
+		prefix = match.group(1)
+		num = int(match.group(2))
+		padding = len(match.group(2))
+		while True:
+			next_candidate = f"{prefix}-{str(num).zfill(padding)}"
+			if next_candidate not in used:
+				return next_candidate
+			num += 1
+
+	return candidate
+
+
+def assign_observation_trans_no(doc) -> None:
+	"""Assign trans_no for new Observations (autoname: field:trans_no)."""
+	if cstr(doc.get("trans_no")).strip():
+		return
+
+	used = _get_used_observation_identifiers()
+	candidate = get_next_transaction_number("Observation", fieldname="trans_no")
+	doc.trans_no = _next_free_trans_no(candidate, used)
+
+
+def fill_patient_from_admission(doc) -> None:
+	"""When patient is empty but admission_no is set, copy patient from Inpatient Admission."""
+	admission = (doc.get("admission_no") or "").strip()
+	if not admission or doc.get("patient"):
+		return
+	if not frappe.db.exists("Inpatient Admission", admission):
+		return
+
+	row = frappe.db.get_value(
+		"Inpatient Admission",
+		admission,
+		["patient", "patient_name"],
+		as_dict=True,
+	)
+	if row and row.patient:
+		doc.patient = row.patient
+		if row.patient_name:
+			doc.patient_name = row.patient_name
+
+	if doc.get("patient") and not doc.get("patient_name"):
+		doc.patient_name = frappe.db.get_value("Patient", doc.patient, "patient_name")
+
 
 class Observation(Document):
-    pass
+	def before_insert(self):
+		assign_observation_trans_no(self)
+
+	def before_save(self):
+		fill_patient_from_admission(self)
 	# def validate(self):
 	# 	self.set_age()
 	# 	self.set_result_time()
