@@ -15,6 +15,8 @@ export interface LinkFieldOption {
   item_code?: string
   /** Appointment Type: default slot length in minutes */
   default_duration?: number
+  /** Appointment Type: 1 when marked Default in master */
+  default?: number | boolean
   item_group?: string
   stock_uom?: string
   /** From Item.custom_route_of_administration when present — prefills prescription route */
@@ -423,6 +425,10 @@ export async function fetchClinicalNoteTypes(search?: string): Promise<LinkField
   } else {
     return []
   }
+}
+
+export function pickDefaultAppointmentType(types: LinkFieldOption[]): LinkFieldOption | undefined {
+  return types.find((t) => t.default === 1 || t.default === true)
 }
 
 export async function fetchAppointmentTypes(search?: string): Promise<LinkFieldOption[]> {

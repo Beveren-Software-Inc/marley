@@ -5,7 +5,12 @@ import {
   type SlotDetail,
   type AvailabilitySlotInfo
 } from '../../services/appointments'
-import { fetchHealthcarePractitioners, fetchAppointmentTypes, type LinkFieldOption } from '../../services/common'
+import {
+  fetchHealthcarePractitioners,
+  fetchAppointmentTypes,
+  pickDefaultAppointmentType,
+  type LinkFieldOption,
+} from '../../services/common'
 import { bookSession } from '../../services/serviceRequests'
 import { toast } from '../../hooks/useToast'
 import { X, Calendar, Clock, User } from 'lucide-react'
@@ -102,6 +107,11 @@ export const BookConsultationSessionModal = ({ serviceRequest: sr, onClose, onSu
     ]).then(([practs, types]) => {
       setPractitionerOptions(practs)
       setAppointmentTypeOptions(types)
+      const defaultType = pickDefaultAppointmentType(types)
+      if (defaultType) {
+        setAppointmentType(defaultType.name)
+        setAppointmentTypeQuery(defaultType.label)
+      }
       if (sr.practitioner) {
         const p = practs.find(p => p.name === sr.practitioner)
         setPractitionerQuery(p?.label || sr.practitioner)

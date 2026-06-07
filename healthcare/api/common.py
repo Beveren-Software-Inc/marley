@@ -442,9 +442,9 @@ def get_appointment_types(search=None):
 	appointment_types = frappe.get_all(
 		'Appointment Type',
 		filters=filters,
-		fields=['name', 'appointment_type', 'default_duration'],
+		fields=['name', 'appointment_type', 'default_duration', 'default'],
 		limit=50,
-		order_by='appointment_type'
+		order_by='default desc, appointment_type'
 	)
 	
 	return [
@@ -452,6 +452,7 @@ def get_appointment_types(search=None):
 			'name': a.name,
 			'label': a.appointment_type or a.name,
 			'default_duration': a.default_duration,
+			'default': a.default,
 		}
 		for a in appointment_types
 	]

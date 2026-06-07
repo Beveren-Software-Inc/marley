@@ -19,6 +19,7 @@ import {
   fetchHealthcarePractitioners,
   fetchAppointmentTypes,
   getCurrentUserPractitioner,
+  pickDefaultAppointmentType,
   type LinkFieldOption,
 } from '../../services/common'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
@@ -290,7 +291,18 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
         ])
         setPractitionerOptions(practs)
         setAppointmentTypeOptions(appointmentTypes)
-        
+
+        const defaultAptType = pickDefaultAppointmentType(appointmentTypes)
+        if (defaultAptType) {
+          setAppointmentTypeQuery(defaultAptType.label)
+          setFormData((prev) =>
+            prev.appointment_type
+              ? prev
+              : { ...prev, appointment_type: defaultAptType.name }
+          )
+          applyAppointmentTypeDuration(defaultAptType.default_duration)
+        }
+
         // Set initial practitioner if provided, otherwise auto-fill current user
         if (initialPractitioner) {
           const pract = practs.find(p => p.name === initialPractitioner)

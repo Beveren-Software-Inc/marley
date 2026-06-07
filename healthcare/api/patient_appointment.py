@@ -37,6 +37,7 @@ def get_practitioner_appointments(limit=50, offset=0, status=None):
 			'patient_name',
 			'appointment_date',
 			'appointment_time',
+			'old_time',
 			'status',
 			'appointment_type',
 			'department',
@@ -85,7 +86,7 @@ def get_all_appointments(limit=50, offset=0, status=None, patient=None,
 
 	fields = [
 		'name', 'patient', 'patient_name',
-		'appointment_date', 'appointment_time',
+		'appointment_date', 'appointment_time', 'old_time',
 		'status', 'appointment_type', 'department',
 		'practitioner', 'practitioner_name', 'company', 'cost_center',
 		'temporary_patient_name', 'temporary_mobile_no',
@@ -146,7 +147,7 @@ def get_practitioner_appointments(limit=50, offset=0, status=None,
 
     fields = [
         'name', 'patient', 'patient_name',
-        'appointment_date', 'appointment_time',
+        'appointment_date', 'appointment_time', 'old_time',
         'status', 'appointment_type', 'department',
         'practitioner', 'practitioner_name', 'cost_center',
     ]

@@ -11,6 +11,7 @@
   "appointment_type",
   "default_duration",
   "allow_booking_for",
+  "default",
   "column_break_jdo1",
   "color",
   "rate",
@@ -107,6 +108,12 @@
    "fieldname": "rate",
    "fieldtype": "Currency",
    "label": "Rate"
+  },
+  {
+   "default": "0",
+   "fieldname": "default",
+   "fieldtype": "Check",
+   "label": "Default"
   }
  ],
  "grid_page_length": 50,
@@ -117,7 +124,7 @@
    "link_fieldname": "appointment_type"
   }
  ],
- "modified": "2026-05-31 09:50:25.574841",
+ "modified": "2026-06-07 15:20:42.351173",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Appointment Type",

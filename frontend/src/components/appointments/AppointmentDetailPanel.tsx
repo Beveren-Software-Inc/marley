@@ -1,6 +1,10 @@
 import { useState, useEffect } from 'react'
 import { fetchDoc } from '../../services/common'
-import { appointmentNeedsRegistration, isWalkInAppointment } from '../../services/appointments'
+import {
+  appointmentNeedsRegistration,
+  formatAppointmentTimeLabel,
+  isWalkInAppointment,
+} from '../../services/appointments'
 import { StatusPill } from '../ui/StatusPill'
 
 type AppointmentDoc = Record<string, unknown>
@@ -24,17 +28,6 @@ function formatDate(val?: string | null): string {
   } catch {
     return val
   }
-}
-
-function formatTime(val?: string | null): string {
-  if (!val) return '—'
-  const parts = String(val).split(':')
-  if (parts.length < 2) return val
-  const h = parseInt(parts[0], 10)
-  const m = parts[1].padStart(2, '0')
-  const ampm = h >= 12 ? 'PM' : 'AM'
-  const h12 = h % 12 || 12
-  return `${h12}:${m} ${ampm}`
 }
 
 function str(val: unknown): string {
@@ -279,7 +272,13 @@ export function AppointmentDetailPanel({
         }
       >
         <InfoRow label="Date" value={formatDate(doc.appointment_date as string)} />
-        <InfoRow label="Time" value={formatTime(doc.appointment_time as string)} />
+        <InfoRow
+          label="Time"
+          value={formatAppointmentTimeLabel(
+            doc.appointment_time as string,
+            doc.old_time as string
+          )}
+        />
         <InfoRow label="Type" value={str(doc.appointment_type)} />
         <InfoRow label="Status" value={status} />
         {!!doc.service_unit && <InfoRow label="Service Unit" value={str(doc.service_unit)} />}

@@ -6,6 +6,8 @@ export interface Appointment {
   patient_age?: string
   appointment_date?: string
   appointment_time?: string
+  /** Oracle migration: original time string when appointment_time is empty */
+  old_time?: string
   status?: string
   appointment_type?: string
   department?: string
@@ -24,6 +26,55 @@ export interface Appointment {
   invoiced?: number
   ref_sales_invoice?: string
   sales_order?: string
+}
+
+function hasAppointmentTime(time?: string | null): boolean {
+  if (!time || !String(time).trim()) return false
+  return !/^0{1,2}:0{1,2}(?::0{1,2})?$/.test(String(time).trim())
+}
+
+/** Prefer appointment_time; fall back to old_time for migrated Oracle rows. */
+export function getAppointmentDisplayTime(apt: {
+  appointment_time?: string | null
+  old_time?: string | null
+}): string | undefined {
+  if (hasAppointmentTime(apt.appointment_time)) {
+    return String(apt.appointment_time).trim()
+  }
+  const oldTime = String(apt.old_time ?? '').trim()
+  return oldTime || undefined
+}
+
+export function formatAppointmentDateTime(
+  date?: string | null,
+  apt?: { appointment_time?: string | null; old_time?: string | null }
+): string {
+  if (!date) return '-'
+  const dateStr = new Date(date).toLocaleDateString()
+  const time = apt ? getAppointmentDisplayTime(apt) : undefined
+  return time ? `${dateStr} ${time}` : dateStr
+}
+
+export function formatAppointmentTimeLabel(
+  appointmentTime?: string | null,
+  oldTime?: string | null
+): string {
+  const resolved = getAppointmentDisplayTime({
+    appointment_time: appointmentTime,
+    old_time: oldTime,
+  })
+  if (!resolved) return '—'
+  if (/^\d{1,2}:\d{2}/.test(resolved)) {
+    const parts = resolved.split(':')
+    const h = parseInt(parts[0], 10)
+    const m = (parts[1] ?? '00').padStart(2, '0')
+    if (Number.isFinite(h)) {
+      const ampm = h >= 12 ? 'PM' : 'AM'
+      const h12 = h % 12 || 12
+      return `${h12}:${m} ${ampm}`
+    }
+  }
+  return resolved
 }
 
 export interface AppointmentSalesOrderResult {

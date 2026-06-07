@@ -648,6 +648,7 @@ import {
   linkWalkInAppointmentToPatient,
   sendAppointmentReminder as sendAppointmentReminderAPI,
   sendAppointmentRemindersBulk,
+  formatAppointmentDateTime,
   type Appointment,
   type AppointmentPage,
   type ReminderChannel,
@@ -1077,12 +1078,6 @@ export const AppointmentList = ({
     if (s.includes('checked out') || s.includes('closed')) return 'default'
     if (s.includes('cancelled') || s.includes('no show')) return 'danger'
     return statusColors[status] || 'default'
-  }
-
-  const formatDateTime = (date?: string, time?: string): string => {
-    if (!date) return '-'
-    const dateStr = new Date(date).toLocaleDateString()
-    return time ? `${dateStr} ${time}` : dateStr
   }
 
   const canCancel = (status?: string) => status && ACTIVE_STATUSES.includes(status)
@@ -1546,7 +1541,7 @@ export const AppointmentList = ({
                   >
                     <td className="px-3 py-2.5 text-xs text-slate-700 align-top">
                       <span className="text-primary font-medium break-words">
-                        {formatDateTime(apt.appointment_date, apt.appointment_time)}
+                        {formatAppointmentDateTime(apt.appointment_date, apt)}
                       </span>
                       <CardRowMetaHint fields={appointmentCardMetaFields(apt)} />
                     </td>
@@ -1658,7 +1653,7 @@ export const AppointmentList = ({
                       {apt.name}
                     </td>
                     <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">
-                      {formatDateTime(apt.appointment_date, apt.appointment_time)}
+                      {formatAppointmentDateTime(apt.appointment_date, apt)}
                     </td>
                     {!patient && (
                       <td
