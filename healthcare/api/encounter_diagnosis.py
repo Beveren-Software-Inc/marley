@@ -16,11 +16,23 @@ def get_encounter_diagnosis_symptoms(parent_doctype, parent_name):
 
 	doc = frappe.get_doc(parent_doctype, parent_name)
 
-	# Patient Visit has 'diagnosis' and 'symptoms'; Inpatient Admission has 'diagnosis' and 'chief_complaint'
+	# Patient Visit may use standalone Medical Diagnosis Entry; legacy child table is optional.
 	diagnosis = []
-	if doc.get("diagnosis"):
-		for row in doc.diagnosis:
-			diagnosis.append({"name": row.diagnosis, "label": row.diagnosis or row.name})
+	if doc.doctype == "Patient Visit" and doc.get("name"):
+		for row in frappe.get_all(
+			"Medical Diagnosis Entry",
+			filters={"visit_num": doc.name, "docstatus": ["<", 2]},
+			fields=["name", "diagnosis"],
+			order_by="posting_date desc, creation desc",
+		):
+			link = row.get("diagnosis") or row.get("name")
+			if link:
+				diagnosis.append({"name": link, "label": link})
+	elif doc.meta.has_field("diagnosis") and doc.get("diagnosis"):
+		for row in doc.get("diagnosis"):
+			link = getattr(row, "diagnosis", None) or row.get("diagnosis") or row.get("name")
+			if link:
+				diagnosis.append({"name": link, "label": link})
 
 	symptoms = []
 	symptom_field = "symptoms" if parent_doctype == "Patient Visit" else "chief_complaint"
@@ -42,16 +54,17 @@ def update_encounter_diagnosis_symptoms(parent_doctype, parent_name, diagnosis=N
 
 	doc = frappe.get_doc(parent_doctype, parent_name)
 
-	# Clear and set diagnosis (both doctypes use field "diagnosis", child table Patient Encounter Diagnosis)
-	doc.diagnosis = []
-	if diagnosis:
-		if isinstance(diagnosis, str):
-			import json
-			diagnosis = json.loads(diagnosis)
-		for d in diagnosis:
-			name = d if isinstance(d, str) else d.get("name") or d.get("diagnosis")
-			if name:
-				doc.append("diagnosis", {"diagnosis": name})
+	# Legacy child table on parent; Patient Visit may use Medical Diagnosis Entry instead.
+	if doc.meta.has_field("diagnosis"):
+		doc.set("diagnosis", [])
+		if diagnosis:
+			if isinstance(diagnosis, str):
+				import json
+				diagnosis = json.loads(diagnosis)
+			for d in diagnosis:
+				name = d if isinstance(d, str) else d.get("name") or d.get("diagnosis")
+				if name:
+					doc.append("diagnosis", {"diagnosis": name})
 
 	# Clear and set symptoms (Patient Visit: "symptoms", Inpatient Admission: "chief_complaint")
 	symptom_field = "symptoms" if parent_doctype == "Patient Visit" else "chief_complaint"

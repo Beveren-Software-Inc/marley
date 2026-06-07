@@ -43,31 +43,59 @@ def _resolve_party(ref_doc) -> str:
     return party
 
 
+def _mop_account_for_company(mode_of_payment: str, company: str) -> str | None:
+    mop_doc = frappe.get_doc("Mode of Payment", mode_of_payment)
+    return next((a.default_account for a in mop_doc.accounts if a.company == company), None)
+
+
 def _resolve_accounts(company: str, mode_of_payment: str) -> tuple[str, str]:
     """
     Return (paid_from, paid_to) accounts.
     paid_from = company default receivable account
-    paid_to   = mode of payment account for the given company
+    paid_to   = cash/bank account based on Mode of Payment type
     """
-    paid_from = frappe.get_cached_value("Company", company, "default_receivable_account")
+    company_doc = frappe.get_cached_doc("Company", company)
+    paid_from = company_doc.default_receivable_account
     if not paid_from:
         frappe.throw(_("Default Receivable Account is not set for company '{0}'").format(company))
 
     mop_doc = frappe.get_doc("Mode of Payment", mode_of_payment)
-    paid_to = next(
-        (a.default_account for a in mop_doc.accounts if a.company == company),
-        None
-    )
+    mop_type = (mop_doc.type or "").strip()
+    mop_account = _mop_account_for_company(mode_of_payment, company)
+
+    mop_account_type = frappe.get_cached_value("Account", mop_account, "account_type") if mop_account else None
+
+    if mop_type == "Cash":
+        # Cash payments should not land on a Bank GL (ERPNext then requires cheque ref fields).
+        if mop_account and mop_account_type != "Bank":
+            paid_to = mop_account
+        else:
+            paid_to = company_doc.default_cash_account or mop_account
+    elif mop_type == "Bank":
+        paid_to = mop_account or company_doc.default_bank_account
+    else:
+        paid_to = mop_account or company_doc.default_cash_account or company_doc.default_bank_account
+
     if not paid_to:
         frappe.throw(
-            _(f"No account configured for Mode of Payment '{mode_of_payment}' in company '{company}'")
+            _("No Cash or Bank account configured for Mode of Payment '{0}' in company '{1}'").format(
+                mode_of_payment, company
+            )
         )
 
     for account, label in [(paid_from, "Receivable Account"), (paid_to, "Payment Account")]:
         if not frappe.db.exists("Account", account):
-            frappe.throw(_(f"{label} '{account}' does not exist"))
+            frappe.throw(_("{0} '{1}' does not exist").format(label, account))
 
     return paid_from, paid_to
+
+
+def _default_transaction_reference(reference_name: str, data: dict) -> tuple[str, str]:
+    reference_no = (data.get("reference_no") or "").strip()
+    reference_date = data.get("reference_date") or frappe.utils.today()
+    if not reference_no:
+        reference_no = f"PAY-{reference_name}"
+    return reference_no, reference_date
 
 
 def _build_remarks(
@@ -170,6 +198,10 @@ def create_payment_entry(data: dict) -> dict:
         data.get("appointment"),
     )
     pe.custom_insurance_claim = data.get("custom_insurance_claim")  # Optional link to Insurance Claim
+
+    reference_no, reference_date = _default_transaction_reference(reference_name, data)
+    pe.reference_no = reference_no
+    pe.reference_date = reference_date
 
     _append_reference_row(pe, reference_doctype, reference_name, ref_doc, paid_amount)
 

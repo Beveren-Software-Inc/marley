@@ -276,11 +276,13 @@ def schedule_inpatient(args):
 		if encounter.symptoms:  # Symptoms
 			set_ip_child_records(inpatient_record, "chief_complaint", encounter.symptoms)
 
-		if encounter.diagnosis:  # Diagnosis
-			set_ip_child_records(inpatient_record, "diagnosis", encounter.diagnosis)
+		diagnosis_rows = encounter.get("diagnosis") if encounter.meta.has_field("diagnosis") else []
+		if diagnosis_rows:  # Diagnosis
+			set_ip_child_records(inpatient_record, "diagnosis", diagnosis_rows)
 
-		if encounter.drug_prescription:  # Medication
-			set_ip_child_records(inpatient_record, "drug_prescription", encounter.drug_prescription)
+		drug_rows = encounter.get("drug_prescription") if encounter.meta.has_field("drug_prescription") else []
+		if drug_rows:  # Medication
+			set_ip_child_records(inpatient_record, "drug_prescription", drug_rows)
 
 		if encounter.lab_test_prescription:  # Lab Tests
 			set_ip_child_records(inpatient_record, "lab_test_prescription", encounter.lab_test_prescription)

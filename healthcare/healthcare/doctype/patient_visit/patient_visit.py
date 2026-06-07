@@ -15,6 +15,34 @@ from frappe.utils import add_days, getdate
 from healthcare.healthcare.utils import get_medical_codes
 
 
+def _drug_prescription_rows(doc):
+	"""Return drug_prescription rows when the child table exists on this Patient Visit."""
+	if not doc.meta.has_field("drug_prescription"):
+		return []
+	return doc.get("drug_prescription") or []
+
+
+def _diagnosis_link_names(doc):
+	"""Diagnosis links from legacy child table or standalone Medical Diagnosis Entry rows."""
+	if doc.meta.has_field("diagnosis"):
+		names = []
+		for row in doc.get("diagnosis") or []:
+			link = getattr(row, "diagnosis", None) or row.get("diagnosis")
+			if link:
+				names.append(link)
+		if names:
+			return names
+
+	if doc.doctype == "Patient Visit" and doc.get("name"):
+		return frappe.get_all(
+			"Medical Diagnosis Entry",
+			filters={"visit_num": doc.name, "docstatus": ["<", 2]},
+			pluck="diagnosis",
+		) or []
+
+	return []
+
+
 class PatientVisit(Document):
 	def validate(self):
 		if self.patient and self.is_new():
@@ -164,7 +192,7 @@ class PatientVisit(Document):
 		if self.appointment:
 			frappe.db.set_value("Patient Appointment", self.appointment, "status", "Open")
 
-		if self.inpatient_record and self.drug_prescription:
+		if self.inpatient_record and _drug_prescription_rows(self):
 			delete_ip_medication_order(self)
 
 	def set_title(self):
@@ -229,8 +257,9 @@ class PatientVisit(Document):
 		for plan_item in plan_doc.items:
 			self.set_treatment_plan_item(plan_item)
 
-		for drug in plan_doc.drugs:
-			self.append("drug_prescription", (frappe.copy_doc(drug)).as_dict())
+		if self.meta.has_field("drug_prescription"):
+			for drug in plan_doc.drugs:
+				self.append("drug_prescription", (frappe.copy_doc(drug)).as_dict())
 
 	def set_treatment_plan_item(self, plan_item):
 		if plan_item.type == "Clinical Procedure Template":
@@ -249,10 +278,11 @@ class PatientVisit(Document):
 			self.append("lab_test_prescription", {"observation_template": plan_item.template})
 
 	def validate_medications(self):
-		if not self.drug_prescription:
+		drug_prescription = _drug_prescription_rows(self)
+		if not drug_prescription:
 			return
 
-		for item in self.drug_prescription:
+		for item in drug_prescription:
 			if not item.drug_code:
 				frappe.throw(_("Row #{0} (Drug Prescription): Drug Code is mandatory").format(item.idx))
 			else:
@@ -324,9 +354,10 @@ class PatientVisit(Document):
 					therapy.service_request = order.name
 
 	def make_medication_request(self):
-		if self.drug_prescription:
+		drug_prescription = _drug_prescription_rows(self)
+		if drug_prescription:
 			# make_medication_request
-			for drug in self.drug_prescription:
+			for drug in drug_prescription:
 				if (drug.medication or drug.drug_code) and not drug.medication_request:
 					medication = ""
 					if drug.medication:
@@ -440,7 +471,7 @@ class PatientVisit(Document):
 def make_ip_medication_order(source_name, target_doc=None):
 	def set_missing_values(source, target):
 		target.start_date = source.encounter_date
-		for entry in source.drug_prescription:
+		for entry in _drug_prescription_rows(source):
 			if entry.drug_code:
 				dosage = frappe.get_doc("Prescription Frequency", entry.dosage)
 				dates = get_prescription_dates(entry.period, target.start_date)
@@ -514,21 +545,23 @@ def delete_ip_medication_order(encounter):
 
 
 def set_codification_table_from_diagnosis(doc):
-	if doc.diagnosis and not doc.codification_table:
-		for diag in doc.diagnosis:
-			medical_code_details = get_medical_codes("Diagnosis", diag.diagnosis)
-			if medical_code_details and len(medical_code_details) > 0:
-				for m_code in medical_code_details:
-					doc.append(
-						"codification_table",
-						{
-							"code_value": m_code.get("code_value"),
-							"code_system": m_code.get("code_system"),
-							"code": m_code.get("code"),
-							"definition": m_code.get("definition"),
-							"system": m_code.get("system"),
-						},
-					)
+	if not doc.meta.has_field("codification_table") or doc.get("codification_table"):
+		return
+
+	for diagnosis_link in _diagnosis_link_names(doc):
+		medical_code_details = get_medical_codes("Diagnosis", diagnosis_link)
+		if medical_code_details:
+			for m_code in medical_code_details:
+				doc.append(
+					"codification_table",
+					{
+						"code_value": m_code.get("code_value"),
+						"code_system": m_code.get("code_system"),
+						"code": m_code.get("code"),
+						"definition": m_code.get("definition"),
+						"system": m_code.get("system"),
+					},
+				)
 
 
 @frappe.whitelist()
