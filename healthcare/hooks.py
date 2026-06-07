@@ -185,6 +185,9 @@ fixtures = [
 	},
     {
 		"doctype": "Lab Test Result Rule"
+	},
+    {
+		"doctype":"Practitioner Schedule"
 	}
 ]
 

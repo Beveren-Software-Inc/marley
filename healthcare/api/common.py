@@ -869,6 +869,7 @@ def create_healthcare_practitioner(data):
 				'service_unit': s.get('service_unit') or None,
 			})
 
+	practitioner.ensure_default_practitioner_schedule()
 	practitioner.insert(ignore_permissions=True)
 
 	return {

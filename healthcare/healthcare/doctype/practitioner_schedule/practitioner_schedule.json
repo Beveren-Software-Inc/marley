@@ -3,13 +3,13 @@
  "allow_import": 1,
  "allow_rename": 1,
  "autoname": "field:schedule_name",
- "beta": 0,
  "creation": "2017-05-03 17:28:03.926787",
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
   "disabled",
+  "default",
   "column_break_2",
   "allow_video_conferencing",
   "schedule_details_section",
@@ -53,10 +53,16 @@
    "fieldname": "allow_video_conferencing",
    "fieldtype": "Check",
    "label": "Allow Video Conferencing"
+  },
+  {
+   "default": "0",
+   "fieldname": "default",
+   "fieldtype": "Check",
+   "label": "Default"
   }
  ],
  "links": [],
- "modified": "2022-06-15 07:46:41.154742",
+ "modified": "2026-06-07 11:53:30.938480",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Practitioner Schedule",
@@ -77,6 +83,7 @@
   }
  ],
  "restrict_to_domain": "Healthcare",
+ "row_format": "Dynamic",
  "show_name_in_global_search": 1,
  "sort_field": "modified",
  "sort_order": "DESC",

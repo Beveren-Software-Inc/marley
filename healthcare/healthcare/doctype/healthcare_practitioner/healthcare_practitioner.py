@@ -17,6 +17,9 @@ from erpnext.accounts.party import validate_party_accounts
 
 
 class HealthcarePractitioner(Document):
+	def before_validate(self):
+		self.ensure_default_practitioner_schedule()
+
 	def onload(self):
 		load_address_and_contact(self)
 
@@ -66,6 +69,18 @@ class HealthcarePractitioner(Document):
 				)
 
 		self.validate_practitioner_schedules()
+
+	def ensure_default_practitioner_schedule(self):
+		"""If no Practitioner Schedule is linked, use the Practitioner Schedule marked Default."""
+		if any((row.schedule or "").strip() for row in self.practitioner_schedules or []):
+			return
+
+		default_schedule = get_default_practitioner_schedule_name()
+		if not default_schedule:
+			return
+
+		self.set("practitioner_schedules", [])
+		self.append("practitioner_schedules", {"schedule": default_schedule})
 
 	def on_update(self):
 		if self.user_id:
@@ -118,6 +133,28 @@ class HealthcarePractitioner(Document):
 
 	def on_trash(self):
 		delete_contact_and_address("Healthcare Practitioner", self.name)
+
+
+def get_default_practitioner_schedule_name() -> str | None:
+	"""Return Practitioner Schedule marked Default (prefer enabled schedules)."""
+	for filters in ({"default": 1, "disabled": 0}, {"default": 1}):
+		names = frappe.get_all(
+			"Practitioner Schedule",
+			filters=filters,
+			pluck="name",
+			order_by="modified desc",
+			limit_page_length=1,
+		)
+		if names:
+			return names[0]
+
+	# Legacy fallback when Default checkbox was not set on imported schedules.
+	for fallback_name in ("Default Weekday",):
+		if frappe.db.exists("Practitioner Schedule", fallback_name):
+			if not frappe.db.get_value("Practitioner Schedule", fallback_name, "disabled"):
+				return fallback_name
+
+	return None
 
 
 def validate_service_item(item, msg):
