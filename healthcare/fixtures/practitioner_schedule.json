@@ -1,0 +1,1764 @@
+[
+ {
+  "allow_video_conferencing": 0,
+  "disabled": 0,
+  "docstatus": 0,
+  "doctype": "Practitioner Schedule",
+  "modified": "2026-05-16 03:57:43.362982",
+  "name": "Test",
+  "schedule_name": "Test",
+  "time_slots": [
+   {
+    "day": "Saturday",
+    "duration": 0.0,
+    "from_time": "9:00:00",
+    "maximum_appointments": 0,
+    "to_time": "9:15:00"
+   },
+   {
+    "day": "Saturday",
+    "duration": 0.0,
+    "from_time": "9:15:00",
+    "maximum_appointments": 0,
+    "to_time": "9:30:00"
+   },
+   {
+    "day": "Saturday",
+    "duration": 0.0,
+    "from_time": "9:30:00",
+    "maximum_appointments": 0,
+    "to_time": "9:45:00"
+   },
+   {
+    "day": "Saturday",
+    "duration": 0.0,
+    "from_time": "9:45:00",
+    "maximum_appointments": 0,
+    "to_time": "10:00:00"
+   },
+   {
+    "day": "Saturday",
+    "duration": 0.0,
+    "from_time": "10:00:00",
+    "maximum_appointments": 0,
+    "to_time": "10:15:00"
+   },
+   {
+    "day": "Saturday",
+    "duration": 0.0,
+    "from_time": "10:15:00",
+    "maximum_appointments": 0,
+    "to_time": "10:30:00"
+   },
+   {
+    "day": "Saturday",
+    "duration": 0.0,
+    "from_time": "10:30:00",
+    "maximum_appointments": 0,
+    "to_time": "10:45:00"
+   },
+   {
+    "day": "Saturday",
+    "duration": 0.0,
+    "from_time": "10:45:00",
+    "maximum_appointments": 0,
+    "to_time": "11:00:00"
+   },
+   {
+    "day": "Saturday",
+    "duration": 0.0,
+    "from_time": "11:00:00",
+    "maximum_appointments": 0,
+    "to_time": "11:15:00"
+   },
+   {
+    "day": "Saturday",
+    "duration": 0.0,
+    "from_time": "11:15:00",
+    "maximum_appointments": 0,
+    "to_time": "11:30:00"
+   },
+   {
+    "day": "Saturday",
+    "duration": 0.0,
+    "from_time": "11:30:00",
+    "maximum_appointments": 0,
+    "to_time": "11:45:00"
+   },
+   {
+    "day": "Saturday",
+    "duration": 0.0,
+    "from_time": "11:45:00",
+    "maximum_appointments": 0,
+    "to_time": "12:00:00"
+   }
+  ]
+ },
+ {
+  "allow_video_conferencing": 0,
+  "disabled": 0,
+  "docstatus": 0,
+  "doctype": "Practitioner Schedule",
+  "modified": "2026-06-07 11:50:14.301872",
+  "name": "Default Weekday",
+  "schedule_name": "Default Weekday",
+  "time_slots": [
+   {
+    "day": "Sunday",
+    "duration": 0.0,
+    "from_time": "8:00:00",
+    "maximum_appointments": 0,
+    "to_time": "8:30:00"
+   },
+   {
+    "day": "Sunday",
+    "duration": 0.0,
+    "from_time": "8:30:00",
+    "maximum_appointments": 0,
+    "to_time": "9:00:00"
+   },
+   {
+    "day": "Sunday",
+    "duration": 0.0,
+    "from_time": "9:00:00",
+    "maximum_appointments": 0,
+    "to_time": "9:30:00"
+   },
+   {
+    "day": "Sunday",
+    "duration": 0.0,
+    "from_time": "9:30:00",
+    "maximum_appointments": 0,
+    "to_time": "10:00:00"
+   },
+   {
+    "day": "Sunday",
+    "duration": 0.0,
+    "from_time": "10:00:00",
+    "maximum_appointments": 0,
+    "to_time": "10:30:00"
+   },
+   {
+    "day": "Sunday",
+    "duration": 0.0,
+    "from_time": "10:30:00",
+    "maximum_appointments": 0,
+    "to_time": "11:00:00"
+   },
+   {
+    "day": "Sunday",
+    "duration": 0.0,
+    "from_time": "11:00:00",
+    "maximum_appointments": 0,
+    "to_time": "11:30:00"
+   },
+   {
+    "day": "Sunday",
+    "duration": 0.0,
+    "from_time": "11:30:00",
+    "maximum_appointments": 0,
+    "to_time": "12:00:00"
+   },
+   {
+    "day": "Sunday",
+    "duration": 0.0,
+    "from_time": "12:00:00",
+    "maximum_appointments": 0,
+    "to_time": "12:30:00"
+   },
+   {
+    "day": "Sunday",
+    "duration": 0.0,
+    "from_time": "12:30:00",
+    "maximum_appointments": 0,
+    "to_time": "13:00:00"
+   },
+   {
+    "day": "Sunday",
+    "duration": 0.0,
+    "from_time": "13:00:00",
+    "maximum_appointments": 0,
+    "to_time": "13:30:00"
+   },
+   {
+    "day": "Sunday",
+    "duration": 0.0,
+    "from_time": "13:30:00",
+    "maximum_appointments": 0,
+    "to_time": "14:00:00"
+   },
+   {
+    "day": "Sunday",
+    "duration": 0.0,
+    "from_time": "14:00:00",
+    "maximum_appointments": 0,
+    "to_time": "14:30:00"
+   },
+   {
+    "day": "Sunday",
+    "duration": 0.0,
+    "from_time": "14:30:00",
+    "maximum_appointments": 0,
+    "to_time": "15:00:00"
+   },
+   {
+    "day": "Sunday",
+    "duration": 0.0,
+    "from_time": "15:00:00",
+    "maximum_appointments": 0,
+    "to_time": "15:30:00"
+   },
+   {
+    "day": "Sunday",
+    "duration": 0.0,
+    "from_time": "15:30:00",
+    "maximum_appointments": 0,
+    "to_time": "16:00:00"
+   },
+   {
+    "day": "Sunday",
+    "duration": 0.0,
+    "from_time": "16:00:00",
+    "maximum_appointments": 0,
+    "to_time": "16:30:00"
+   },
+   {
+    "day": "Sunday",
+    "duration": 0.0,
+    "from_time": "16:30:00",
+    "maximum_appointments": 0,
+    "to_time": "17:00:00"
+   },
+   {
+    "day": "Sunday",
+    "duration": 0.0,
+    "from_time": "17:00:00",
+    "maximum_appointments": 0,
+    "to_time": "17:30:00"
+   },
+   {
+    "day": "Sunday",
+    "duration": 0.0,
+    "from_time": "17:30:00",
+    "maximum_appointments": 0,
+    "to_time": "18:00:00"
+   },
+   {
+    "day": "Sunday",
+    "duration": 0.0,
+    "from_time": "18:00:00",
+    "maximum_appointments": 0,
+    "to_time": "18:30:00"
+   },
+   {
+    "day": "Sunday",
+    "duration": 0.0,
+    "from_time": "18:30:00",
+    "maximum_appointments": 0,
+    "to_time": "19:00:00"
+   },
+   {
+    "day": "Sunday",
+    "duration": 0.0,
+    "from_time": "19:00:00",
+    "maximum_appointments": 0,
+    "to_time": "19:30:00"
+   },
+   {
+    "day": "Sunday",
+    "duration": 0.0,
+    "from_time": "19:30:00",
+    "maximum_appointments": 0,
+    "to_time": "20:00:00"
+   },
+   {
+    "day": "Sunday",
+    "duration": 0.0,
+    "from_time": "20:00:00",
+    "maximum_appointments": 0,
+    "to_time": "20:30:00"
+   },
+   {
+    "day": "Sunday",
+    "duration": 0.0,
+    "from_time": "20:30:00",
+    "maximum_appointments": 0,
+    "to_time": "21:00:00"
+   },
+   {
+    "day": "Sunday",
+    "duration": 0.0,
+    "from_time": "21:00:00",
+    "maximum_appointments": 0,
+    "to_time": "21:30:00"
+   },
+   {
+    "day": "Sunday",
+    "duration": 0.0,
+    "from_time": "21:30:00",
+    "maximum_appointments": 0,
+    "to_time": "22:00:00"
+   },
+   {
+    "day": "Sunday",
+    "duration": 0.0,
+    "from_time": "22:00:00",
+    "maximum_appointments": 0,
+    "to_time": "22:30:00"
+   },
+   {
+    "day": "Sunday",
+    "duration": 0.0,
+    "from_time": "22:30:00",
+    "maximum_appointments": 0,
+    "to_time": "23:00:00"
+   },
+   {
+    "day": "Sunday",
+    "duration": 0.0,
+    "from_time": "23:00:00",
+    "maximum_appointments": 0,
+    "to_time": "23:30:00"
+   },
+   {
+    "day": "Monday",
+    "duration": 0.0,
+    "from_time": "8:00:00",
+    "maximum_appointments": 0,
+    "to_time": "8:30:00"
+   },
+   {
+    "day": "Monday",
+    "duration": 0.0,
+    "from_time": "8:30:00",
+    "maximum_appointments": 0,
+    "to_time": "9:00:00"
+   },
+   {
+    "day": "Monday",
+    "duration": 0.0,
+    "from_time": "9:00:00",
+    "maximum_appointments": 0,
+    "to_time": "9:30:00"
+   },
+   {
+    "day": "Monday",
+    "duration": 0.0,
+    "from_time": "9:30:00",
+    "maximum_appointments": 0,
+    "to_time": "10:00:00"
+   },
+   {
+    "day": "Monday",
+    "duration": 0.0,
+    "from_time": "10:00:00",
+    "maximum_appointments": 0,
+    "to_time": "10:30:00"
+   },
+   {
+    "day": "Monday",
+    "duration": 0.0,
+    "from_time": "10:30:00",
+    "maximum_appointments": 0,
+    "to_time": "11:00:00"
+   },
+   {
+    "day": "Monday",
+    "duration": 0.0,
+    "from_time": "11:00:00",
+    "maximum_appointments": 0,
+    "to_time": "11:30:00"
+   },
+   {
+    "day": "Monday",
+    "duration": 0.0,
+    "from_time": "11:30:00",
+    "maximum_appointments": 0,
+    "to_time": "12:00:00"
+   },
+   {
+    "day": "Monday",
+    "duration": 0.0,
+    "from_time": "12:00:00",
+    "maximum_appointments": 0,
+    "to_time": "12:30:00"
+   },
+   {
+    "day": "Monday",
+    "duration": 0.0,
+    "from_time": "12:30:00",
+    "maximum_appointments": 0,
+    "to_time": "13:00:00"
+   },
+   {
+    "day": "Monday",
+    "duration": 0.0,
+    "from_time": "13:00:00",
+    "maximum_appointments": 0,
+    "to_time": "13:30:00"
+   },
+   {
+    "day": "Monday",
+    "duration": 0.0,
+    "from_time": "13:30:00",
+    "maximum_appointments": 0,
+    "to_time": "14:00:00"
+   },
+   {
+    "day": "Monday",
+    "duration": 0.0,
+    "from_time": "14:00:00",
+    "maximum_appointments": 0,
+    "to_time": "14:30:00"
+   },
+   {
+    "day": "Monday",
+    "duration": 0.0,
+    "from_time": "14:30:00",
+    "maximum_appointments": 0,
+    "to_time": "15:00:00"
+   },
+   {
+    "day": "Monday",
+    "duration": 0.0,
+    "from_time": "15:00:00",
+    "maximum_appointments": 0,
+    "to_time": "15:30:00"
+   },
+   {
+    "day": "Monday",
+    "duration": 0.0,
+    "from_time": "15:30:00",
+    "maximum_appointments": 0,
+    "to_time": "16:00:00"
+   },
+   {
+    "day": "Monday",
+    "duration": 0.0,
+    "from_time": "16:00:00",
+    "maximum_appointments": 0,
+    "to_time": "16:30:00"
+   },
+   {
+    "day": "Monday",
+    "duration": 0.0,
+    "from_time": "16:30:00",
+    "maximum_appointments": 0,
+    "to_time": "17:00:00"
+   },
+   {
+    "day": "Monday",
+    "duration": 0.0,
+    "from_time": "17:00:00",
+    "maximum_appointments": 0,
+    "to_time": "17:30:00"
+   },
+   {
+    "day": "Monday",
+    "duration": 0.0,
+    "from_time": "17:30:00",
+    "maximum_appointments": 0,
+    "to_time": "18:00:00"
+   },
+   {
+    "day": "Monday",
+    "duration": 0.0,
+    "from_time": "18:00:00",
+    "maximum_appointments": 0,
+    "to_time": "18:30:00"
+   },
+   {
+    "day": "Monday",
+    "duration": 0.0,
+    "from_time": "18:30:00",
+    "maximum_appointments": 0,
+    "to_time": "19:00:00"
+   },
+   {
+    "day": "Monday",
+    "duration": 0.0,
+    "from_time": "19:00:00",
+    "maximum_appointments": 0,
+    "to_time": "19:30:00"
+   },
+   {
+    "day": "Monday",
+    "duration": 0.0,
+    "from_time": "19:30:00",
+    "maximum_appointments": 0,
+    "to_time": "20:00:00"
+   },
+   {
+    "day": "Monday",
+    "duration": 0.0,
+    "from_time": "20:00:00",
+    "maximum_appointments": 0,
+    "to_time": "20:30:00"
+   },
+   {
+    "day": "Monday",
+    "duration": 0.0,
+    "from_time": "20:30:00",
+    "maximum_appointments": 0,
+    "to_time": "21:00:00"
+   },
+   {
+    "day": "Monday",
+    "duration": 0.0,
+    "from_time": "21:00:00",
+    "maximum_appointments": 0,
+    "to_time": "21:30:00"
+   },
+   {
+    "day": "Monday",
+    "duration": 0.0,
+    "from_time": "21:30:00",
+    "maximum_appointments": 0,
+    "to_time": "22:00:00"
+   },
+   {
+    "day": "Monday",
+    "duration": 0.0,
+    "from_time": "22:00:00",
+    "maximum_appointments": 0,
+    "to_time": "22:30:00"
+   },
+   {
+    "day": "Monday",
+    "duration": 0.0,
+    "from_time": "22:30:00",
+    "maximum_appointments": 0,
+    "to_time": "23:00:00"
+   },
+   {
+    "day": "Monday",
+    "duration": 0.0,
+    "from_time": "23:00:00",
+    "maximum_appointments": 0,
+    "to_time": "23:30:00"
+   },
+   {
+    "day": "Tuesday",
+    "duration": 0.0,
+    "from_time": "8:00:00",
+    "maximum_appointments": 0,
+    "to_time": "8:30:00"
+   },
+   {
+    "day": "Tuesday",
+    "duration": 0.0,
+    "from_time": "8:30:00",
+    "maximum_appointments": 0,
+    "to_time": "9:00:00"
+   },
+   {
+    "day": "Tuesday",
+    "duration": 0.0,
+    "from_time": "9:00:00",
+    "maximum_appointments": 0,
+    "to_time": "9:30:00"
+   },
+   {
+    "day": "Tuesday",
+    "duration": 0.0,
+    "from_time": "9:30:00",
+    "maximum_appointments": 0,
+    "to_time": "10:00:00"
+   },
+   {
+    "day": "Tuesday",
+    "duration": 0.0,
+    "from_time": "10:00:00",
+    "maximum_appointments": 0,
+    "to_time": "10:30:00"
+   },
+   {
+    "day": "Tuesday",
+    "duration": 0.0,
+    "from_time": "10:30:00",
+    "maximum_appointments": 0,
+    "to_time": "11:00:00"
+   },
+   {
+    "day": "Tuesday",
+    "duration": 0.0,
+    "from_time": "11:00:00",
+    "maximum_appointments": 0,
+    "to_time": "11:30:00"
+   },
+   {
+    "day": "Tuesday",
+    "duration": 0.0,
+    "from_time": "11:30:00",
+    "maximum_appointments": 0,
+    "to_time": "12:00:00"
+   },
+   {
+    "day": "Tuesday",
+    "duration": 0.0,
+    "from_time": "12:00:00",
+    "maximum_appointments": 0,
+    "to_time": "12:30:00"
+   },
+   {
+    "day": "Tuesday",
+    "duration": 0.0,
+    "from_time": "12:30:00",
+    "maximum_appointments": 0,
+    "to_time": "13:00:00"
+   },
+   {
+    "day": "Tuesday",
+    "duration": 0.0,
+    "from_time": "13:00:00",
+    "maximum_appointments": 0,
+    "to_time": "13:30:00"
+   },
+   {
+    "day": "Tuesday",
+    "duration": 0.0,
+    "from_time": "13:30:00",
+    "maximum_appointments": 0,
+    "to_time": "14:00:00"
+   },
+   {
+    "day": "Tuesday",
+    "duration": 0.0,
+    "from_time": "14:00:00",
+    "maximum_appointments": 0,
+    "to_time": "14:30:00"
+   },
+   {
+    "day": "Tuesday",
+    "duration": 0.0,
+    "from_time": "14:30:00",
+    "maximum_appointments": 0,
+    "to_time": "15:00:00"
+   },
+   {
+    "day": "Tuesday",
+    "duration": 0.0,
+    "from_time": "15:00:00",
+    "maximum_appointments": 0,
+    "to_time": "15:30:00"
+   },
+   {
+    "day": "Tuesday",
+    "duration": 0.0,
+    "from_time": "15:30:00",
+    "maximum_appointments": 0,
+    "to_time": "16:00:00"
+   },
+   {
+    "day": "Tuesday",
+    "duration": 0.0,
+    "from_time": "16:00:00",
+    "maximum_appointments": 0,
+    "to_time": "16:30:00"
+   },
+   {
+    "day": "Tuesday",
+    "duration": 0.0,
+    "from_time": "16:30:00",
+    "maximum_appointments": 0,
+    "to_time": "17:00:00"
+   },
+   {
+    "day": "Tuesday",
+    "duration": 0.0,
+    "from_time": "17:00:00",
+    "maximum_appointments": 0,
+    "to_time": "17:30:00"
+   },
+   {
+    "day": "Tuesday",
+    "duration": 0.0,
+    "from_time": "17:30:00",
+    "maximum_appointments": 0,
+    "to_time": "18:00:00"
+   },
+   {
+    "day": "Tuesday",
+    "duration": 0.0,
+    "from_time": "18:00:00",
+    "maximum_appointments": 0,
+    "to_time": "18:30:00"
+   },
+   {
+    "day": "Tuesday",
+    "duration": 0.0,
+    "from_time": "18:30:00",
+    "maximum_appointments": 0,
+    "to_time": "19:00:00"
+   },
+   {
+    "day": "Tuesday",
+    "duration": 0.0,
+    "from_time": "19:00:00",
+    "maximum_appointments": 0,
+    "to_time": "19:30:00"
+   },
+   {
+    "day": "Tuesday",
+    "duration": 0.0,
+    "from_time": "19:30:00",
+    "maximum_appointments": 0,
+    "to_time": "20:00:00"
+   },
+   {
+    "day": "Tuesday",
+    "duration": 0.0,
+    "from_time": "20:00:00",
+    "maximum_appointments": 0,
+    "to_time": "20:30:00"
+   },
+   {
+    "day": "Tuesday",
+    "duration": 0.0,
+    "from_time": "20:30:00",
+    "maximum_appointments": 0,
+    "to_time": "21:00:00"
+   },
+   {
+    "day": "Tuesday",
+    "duration": 0.0,
+    "from_time": "21:00:00",
+    "maximum_appointments": 0,
+    "to_time": "21:30:00"
+   },
+   {
+    "day": "Tuesday",
+    "duration": 0.0,
+    "from_time": "21:30:00",
+    "maximum_appointments": 0,
+    "to_time": "22:00:00"
+   },
+   {
+    "day": "Tuesday",
+    "duration": 0.0,
+    "from_time": "22:00:00",
+    "maximum_appointments": 0,
+    "to_time": "22:30:00"
+   },
+   {
+    "day": "Tuesday",
+    "duration": 0.0,
+    "from_time": "22:30:00",
+    "maximum_appointments": 0,
+    "to_time": "23:00:00"
+   },
+   {
+    "day": "Tuesday",
+    "duration": 0.0,
+    "from_time": "23:00:00",
+    "maximum_appointments": 0,
+    "to_time": "23:30:00"
+   },
+   {
+    "day": "Wednesday",
+    "duration": 0.0,
+    "from_time": "8:00:00",
+    "maximum_appointments": 0,
+    "to_time": "8:30:00"
+   },
+   {
+    "day": "Wednesday",
+    "duration": 0.0,
+    "from_time": "8:30:00",
+    "maximum_appointments": 0,
+    "to_time": "9:00:00"
+   },
+   {
+    "day": "Wednesday",
+    "duration": 0.0,
+    "from_time": "9:00:00",
+    "maximum_appointments": 0,
+    "to_time": "9:30:00"
+   },
+   {
+    "day": "Wednesday",
+    "duration": 0.0,
+    "from_time": "9:30:00",
+    "maximum_appointments": 0,
+    "to_time": "10:00:00"
+   },
+   {
+    "day": "Wednesday",
+    "duration": 0.0,
+    "from_time": "10:00:00",
+    "maximum_appointments": 0,
+    "to_time": "10:30:00"
+   },
+   {
+    "day": "Wednesday",
+    "duration": 0.0,
+    "from_time": "10:30:00",
+    "maximum_appointments": 0,
+    "to_time": "11:00:00"
+   },
+   {
+    "day": "Wednesday",
+    "duration": 0.0,
+    "from_time": "11:00:00",
+    "maximum_appointments": 0,
+    "to_time": "11:30:00"
+   },
+   {
+    "day": "Wednesday",
+    "duration": 0.0,
+    "from_time": "11:30:00",
+    "maximum_appointments": 0,
+    "to_time": "12:00:00"
+   },
+   {
+    "day": "Wednesday",
+    "duration": 0.0,
+    "from_time": "12:00:00",
+    "maximum_appointments": 0,
+    "to_time": "12:30:00"
+   },
+   {
+    "day": "Wednesday",
+    "duration": 0.0,
+    "from_time": "12:30:00",
+    "maximum_appointments": 0,
+    "to_time": "13:00:00"
+   },
+   {
+    "day": "Wednesday",
+    "duration": 0.0,
+    "from_time": "13:00:00",
+    "maximum_appointments": 0,
+    "to_time": "13:30:00"
+   },
+   {
+    "day": "Wednesday",
+    "duration": 0.0,
+    "from_time": "13:30:00",
+    "maximum_appointments": 0,
+    "to_time": "14:00:00"
+   },
+   {
+    "day": "Wednesday",
+    "duration": 0.0,
+    "from_time": "14:00:00",
+    "maximum_appointments": 0,
+    "to_time": "14:30:00"
+   },
+   {
+    "day": "Wednesday",
+    "duration": 0.0,
+    "from_time": "14:30:00",
+    "maximum_appointments": 0,
+    "to_time": "15:00:00"
+   },
+   {
+    "day": "Wednesday",
+    "duration": 0.0,
+    "from_time": "15:00:00",
+    "maximum_appointments": 0,
+    "to_time": "15:30:00"
+   },
+   {
+    "day": "Wednesday",
+    "duration": 0.0,
+    "from_time": "15:30:00",
+    "maximum_appointments": 0,
+    "to_time": "16:00:00"
+   },
+   {
+    "day": "Wednesday",
+    "duration": 0.0,
+    "from_time": "16:00:00",
+    "maximum_appointments": 0,
+    "to_time": "16:30:00"
+   },
+   {
+    "day": "Wednesday",
+    "duration": 0.0,
+    "from_time": "16:30:00",
+    "maximum_appointments": 0,
+    "to_time": "17:00:00"
+   },
+   {
+    "day": "Wednesday",
+    "duration": 0.0,
+    "from_time": "17:00:00",
+    "maximum_appointments": 0,
+    "to_time": "17:30:00"
+   },
+   {
+    "day": "Wednesday",
+    "duration": 0.0,
+    "from_time": "17:30:00",
+    "maximum_appointments": 0,
+    "to_time": "18:00:00"
+   },
+   {
+    "day": "Wednesday",
+    "duration": 0.0,
+    "from_time": "18:00:00",
+    "maximum_appointments": 0,
+    "to_time": "18:30:00"
+   },
+   {
+    "day": "Wednesday",
+    "duration": 0.0,
+    "from_time": "18:30:00",
+    "maximum_appointments": 0,
+    "to_time": "19:00:00"
+   },
+   {
+    "day": "Wednesday",
+    "duration": 0.0,
+    "from_time": "19:00:00",
+    "maximum_appointments": 0,
+    "to_time": "19:30:00"
+   },
+   {
+    "day": "Wednesday",
+    "duration": 0.0,
+    "from_time": "19:30:00",
+    "maximum_appointments": 0,
+    "to_time": "20:00:00"
+   },
+   {
+    "day": "Wednesday",
+    "duration": 0.0,
+    "from_time": "20:00:00",
+    "maximum_appointments": 0,
+    "to_time": "20:30:00"
+   },
+   {
+    "day": "Wednesday",
+    "duration": 0.0,
+    "from_time": "20:30:00",
+    "maximum_appointments": 0,
+    "to_time": "21:00:00"
+   },
+   {
+    "day": "Wednesday",
+    "duration": 0.0,
+    "from_time": "21:00:00",
+    "maximum_appointments": 0,
+    "to_time": "21:30:00"
+   },
+   {
+    "day": "Wednesday",
+    "duration": 0.0,
+    "from_time": "21:30:00",
+    "maximum_appointments": 0,
+    "to_time": "22:00:00"
+   },
+   {
+    "day": "Wednesday",
+    "duration": 0.0,
+    "from_time": "22:00:00",
+    "maximum_appointments": 0,
+    "to_time": "22:30:00"
+   },
+   {
+    "day": "Wednesday",
+    "duration": 0.0,
+    "from_time": "22:30:00",
+    "maximum_appointments": 0,
+    "to_time": "23:00:00"
+   },
+   {
+    "day": "Wednesday",
+    "duration": 0.0,
+    "from_time": "23:00:00",
+    "maximum_appointments": 0,
+    "to_time": "23:30:00"
+   },
+   {
+    "day": "Thursday",
+    "duration": 0.0,
+    "from_time": "8:00:00",
+    "maximum_appointments": 0,
+    "to_time": "8:30:00"
+   },
+   {
+    "day": "Thursday",
+    "duration": 0.0,
+    "from_time": "8:30:00",
+    "maximum_appointments": 0,
+    "to_time": "9:00:00"
+   },
+   {
+    "day": "Thursday",
+    "duration": 0.0,
+    "from_time": "9:00:00",
+    "maximum_appointments": 0,
+    "to_time": "9:30:00"
+   },
+   {
+    "day": "Thursday",
+    "duration": 0.0,
+    "from_time": "9:30:00",
+    "maximum_appointments": 0,
+    "to_time": "10:00:00"
+   },
+   {
+    "day": "Thursday",
+    "duration": 0.0,
+    "from_time": "10:00:00",
+    "maximum_appointments": 0,
+    "to_time": "10:30:00"
+   },
+   {
+    "day": "Thursday",
+    "duration": 0.0,
+    "from_time": "10:30:00",
+    "maximum_appointments": 0,
+    "to_time": "11:00:00"
+   },
+   {
+    "day": "Thursday",
+    "duration": 0.0,
+    "from_time": "11:00:00",
+    "maximum_appointments": 0,
+    "to_time": "11:30:00"
+   },
+   {
+    "day": "Thursday",
+    "duration": 0.0,
+    "from_time": "11:30:00",
+    "maximum_appointments": 0,
+    "to_time": "12:00:00"
+   },
+   {
+    "day": "Thursday",
+    "duration": 0.0,
+    "from_time": "12:00:00",
+    "maximum_appointments": 0,
+    "to_time": "12:30:00"
+   },
+   {
+    "day": "Thursday",
+    "duration": 0.0,
+    "from_time": "12:30:00",
+    "maximum_appointments": 0,
+    "to_time": "13:00:00"
+   },
+   {
+    "day": "Thursday",
+    "duration": 0.0,
+    "from_time": "13:00:00",
+    "maximum_appointments": 0,
+    "to_time": "13:30:00"
+   },
+   {
+    "day": "Thursday",
+    "duration": 0.0,
+    "from_time": "13:30:00",
+    "maximum_appointments": 0,
+    "to_time": "14:00:00"
+   },
+   {
+    "day": "Thursday",
+    "duration": 0.0,
+    "from_time": "14:00:00",
+    "maximum_appointments": 0,
+    "to_time": "14:30:00"
+   },
+   {
+    "day": "Thursday",
+    "duration": 0.0,
+    "from_time": "14:30:00",
+    "maximum_appointments": 0,
+    "to_time": "15:00:00"
+   },
+   {
+    "day": "Thursday",
+    "duration": 0.0,
+    "from_time": "15:00:00",
+    "maximum_appointments": 0,
+    "to_time": "15:30:00"
+   },
+   {
+    "day": "Thursday",
+    "duration": 0.0,
+    "from_time": "15:30:00",
+    "maximum_appointments": 0,
+    "to_time": "16:00:00"
+   },
+   {
+    "day": "Thursday",
+    "duration": 0.0,
+    "from_time": "16:00:00",
+    "maximum_appointments": 0,
+    "to_time": "16:30:00"
+   },
+   {
+    "day": "Thursday",
+    "duration": 0.0,
+    "from_time": "16:30:00",
+    "maximum_appointments": 0,
+    "to_time": "17:00:00"
+   },
+   {
+    "day": "Thursday",
+    "duration": 0.0,
+    "from_time": "17:00:00",
+    "maximum_appointments": 0,
+    "to_time": "17:30:00"
+   },
+   {
+    "day": "Thursday",
+    "duration": 0.0,
+    "from_time": "17:30:00",
+    "maximum_appointments": 0,
+    "to_time": "18:00:00"
+   },
+   {
+    "day": "Thursday",
+    "duration": 0.0,
+    "from_time": "18:00:00",
+    "maximum_appointments": 0,
+    "to_time": "18:30:00"
+   },
+   {
+    "day": "Thursday",
+    "duration": 0.0,
+    "from_time": "18:30:00",
+    "maximum_appointments": 0,
+    "to_time": "19:00:00"
+   },
+   {
+    "day": "Thursday",
+    "duration": 0.0,
+    "from_time": "19:00:00",
+    "maximum_appointments": 0,
+    "to_time": "19:30:00"
+   },
+   {
+    "day": "Thursday",
+    "duration": 0.0,
+    "from_time": "19:30:00",
+    "maximum_appointments": 0,
+    "to_time": "20:00:00"
+   },
+   {
+    "day": "Thursday",
+    "duration": 0.0,
+    "from_time": "20:00:00",
+    "maximum_appointments": 0,
+    "to_time": "20:30:00"
+   },
+   {
+    "day": "Thursday",
+    "duration": 0.0,
+    "from_time": "20:30:00",
+    "maximum_appointments": 0,
+    "to_time": "21:00:00"
+   },
+   {
+    "day": "Thursday",
+    "duration": 0.0,
+    "from_time": "21:00:00",
+    "maximum_appointments": 0,
+    "to_time": "21:30:00"
+   },
+   {
+    "day": "Thursday",
+    "duration": 0.0,
+    "from_time": "21:30:00",
+    "maximum_appointments": 0,
+    "to_time": "22:00:00"
+   },
+   {
+    "day": "Thursday",
+    "duration": 0.0,
+    "from_time": "22:00:00",
+    "maximum_appointments": 0,
+    "to_time": "22:30:00"
+   },
+   {
+    "day": "Thursday",
+    "duration": 0.0,
+    "from_time": "22:30:00",
+    "maximum_appointments": 0,
+    "to_time": "23:00:00"
+   },
+   {
+    "day": "Thursday",
+    "duration": 0.0,
+    "from_time": "23:00:00",
+    "maximum_appointments": 0,
+    "to_time": "23:30:00"
+   }
+  ]
+ },
+ {
+  "allow_video_conferencing": 0,
+  "disabled": 0,
+  "docstatus": 0,
+  "doctype": "Practitioner Schedule",
+  "modified": "2026-06-07 11:47:27.986168",
+  "name": "Weekday",
+  "schedule_name": "Weekday",
+  "time_slots": [
+   {
+    "day": "Monday",
+    "duration": 0.0,
+    "from_time": "9:00:00",
+    "maximum_appointments": 0,
+    "to_time": "9:30:00"
+   },
+   {
+    "day": "Monday",
+    "duration": 0.0,
+    "from_time": "9:30:00",
+    "maximum_appointments": 0,
+    "to_time": "10:00:00"
+   },
+   {
+    "day": "Monday",
+    "duration": 0.0,
+    "from_time": "10:00:00",
+    "maximum_appointments": 0,
+    "to_time": "10:30:00"
+   },
+   {
+    "day": "Monday",
+    "duration": 0.0,
+    "from_time": "10:30:00",
+    "maximum_appointments": 0,
+    "to_time": "11:00:00"
+   },
+   {
+    "day": "Monday",
+    "duration": 0.0,
+    "from_time": "11:00:00",
+    "maximum_appointments": 0,
+    "to_time": "11:30:00"
+   },
+   {
+    "day": "Monday",
+    "duration": 0.0,
+    "from_time": "11:30:00",
+    "maximum_appointments": 0,
+    "to_time": "12:00:00"
+   },
+   {
+    "day": "Monday",
+    "duration": 0.0,
+    "from_time": "12:00:00",
+    "maximum_appointments": 0,
+    "to_time": "12:30:00"
+   },
+   {
+    "day": "Monday",
+    "duration": 0.0,
+    "from_time": "12:30:00",
+    "maximum_appointments": 0,
+    "to_time": "13:00:00"
+   },
+   {
+    "day": "Monday",
+    "duration": 0.0,
+    "from_time": "13:00:00",
+    "maximum_appointments": 0,
+    "to_time": "13:30:00"
+   },
+   {
+    "day": "Monday",
+    "duration": 0.0,
+    "from_time": "13:30:00",
+    "maximum_appointments": 0,
+    "to_time": "14:00:00"
+   },
+   {
+    "day": "Monday",
+    "duration": 0.0,
+    "from_time": "14:00:00",
+    "maximum_appointments": 0,
+    "to_time": "14:30:00"
+   },
+   {
+    "day": "Monday",
+    "duration": 0.0,
+    "from_time": "14:30:00",
+    "maximum_appointments": 0,
+    "to_time": "15:00:00"
+   },
+   {
+    "day": "Monday",
+    "duration": 0.0,
+    "from_time": "15:00:00",
+    "maximum_appointments": 0,
+    "to_time": "15:30:00"
+   },
+   {
+    "day": "Monday",
+    "duration": 0.0,
+    "from_time": "15:30:00",
+    "maximum_appointments": 0,
+    "to_time": "16:00:00"
+   },
+   {
+    "day": "Tuesday",
+    "duration": 0.0,
+    "from_time": "9:00:00",
+    "maximum_appointments": 0,
+    "to_time": "9:30:00"
+   },
+   {
+    "day": "Tuesday",
+    "duration": 0.0,
+    "from_time": "9:30:00",
+    "maximum_appointments": 0,
+    "to_time": "10:00:00"
+   },
+   {
+    "day": "Tuesday",
+    "duration": 0.0,
+    "from_time": "10:00:00",
+    "maximum_appointments": 0,
+    "to_time": "10:30:00"
+   },
+   {
+    "day": "Tuesday",
+    "duration": 0.0,
+    "from_time": "10:30:00",
+    "maximum_appointments": 0,
+    "to_time": "11:00:00"
+   },
+   {
+    "day": "Tuesday",
+    "duration": 0.0,
+    "from_time": "11:00:00",
+    "maximum_appointments": 0,
+    "to_time": "11:30:00"
+   },
+   {
+    "day": "Tuesday",
+    "duration": 0.0,
+    "from_time": "11:30:00",
+    "maximum_appointments": 0,
+    "to_time": "12:00:00"
+   },
+   {
+    "day": "Tuesday",
+    "duration": 0.0,
+    "from_time": "12:00:00",
+    "maximum_appointments": 0,
+    "to_time": "12:30:00"
+   },
+   {
+    "day": "Tuesday",
+    "duration": 0.0,
+    "from_time": "12:30:00",
+    "maximum_appointments": 0,
+    "to_time": "13:00:00"
+   },
+   {
+    "day": "Tuesday",
+    "duration": 0.0,
+    "from_time": "13:00:00",
+    "maximum_appointments": 0,
+    "to_time": "13:30:00"
+   },
+   {
+    "day": "Tuesday",
+    "duration": 0.0,
+    "from_time": "13:30:00",
+    "maximum_appointments": 0,
+    "to_time": "14:00:00"
+   },
+   {
+    "day": "Tuesday",
+    "duration": 0.0,
+    "from_time": "14:00:00",
+    "maximum_appointments": 0,
+    "to_time": "14:30:00"
+   },
+   {
+    "day": "Tuesday",
+    "duration": 0.0,
+    "from_time": "14:30:00",
+    "maximum_appointments": 0,
+    "to_time": "15:00:00"
+   },
+   {
+    "day": "Tuesday",
+    "duration": 0.0,
+    "from_time": "15:00:00",
+    "maximum_appointments": 0,
+    "to_time": "15:30:00"
+   },
+   {
+    "day": "Tuesday",
+    "duration": 0.0,
+    "from_time": "15:30:00",
+    "maximum_appointments": 0,
+    "to_time": "16:00:00"
+   },
+   {
+    "day": "Wednesday",
+    "duration": 0.0,
+    "from_time": "9:00:00",
+    "maximum_appointments": 0,
+    "to_time": "9:30:00"
+   },
+   {
+    "day": "Wednesday",
+    "duration": 0.0,
+    "from_time": "9:30:00",
+    "maximum_appointments": 0,
+    "to_time": "10:00:00"
+   },
+   {
+    "day": "Wednesday",
+    "duration": 0.0,
+    "from_time": "10:00:00",
+    "maximum_appointments": 0,
+    "to_time": "10:30:00"
+   },
+   {
+    "day": "Wednesday",
+    "duration": 0.0,
+    "from_time": "10:30:00",
+    "maximum_appointments": 0,
+    "to_time": "11:00:00"
+   },
+   {
+    "day": "Wednesday",
+    "duration": 0.0,
+    "from_time": "11:00:00",
+    "maximum_appointments": 0,
+    "to_time": "11:30:00"
+   },
+   {
+    "day": "Wednesday",
+    "duration": 0.0,
+    "from_time": "11:30:00",
+    "maximum_appointments": 0,
+    "to_time": "12:00:00"
+   },
+   {
+    "day": "Wednesday",
+    "duration": 0.0,
+    "from_time": "12:00:00",
+    "maximum_appointments": 0,
+    "to_time": "12:30:00"
+   },
+   {
+    "day": "Wednesday",
+    "duration": 0.0,
+    "from_time": "12:30:00",
+    "maximum_appointments": 0,
+    "to_time": "13:00:00"
+   },
+   {
+    "day": "Wednesday",
+    "duration": 0.0,
+    "from_time": "13:00:00",
+    "maximum_appointments": 0,
+    "to_time": "13:30:00"
+   },
+   {
+    "day": "Wednesday",
+    "duration": 0.0,
+    "from_time": "13:30:00",
+    "maximum_appointments": 0,
+    "to_time": "14:00:00"
+   },
+   {
+    "day": "Wednesday",
+    "duration": 0.0,
+    "from_time": "14:00:00",
+    "maximum_appointments": 0,
+    "to_time": "14:30:00"
+   },
+   {
+    "day": "Wednesday",
+    "duration": 0.0,
+    "from_time": "14:30:00",
+    "maximum_appointments": 0,
+    "to_time": "15:00:00"
+   },
+   {
+    "day": "Wednesday",
+    "duration": 0.0,
+    "from_time": "15:00:00",
+    "maximum_appointments": 0,
+    "to_time": "15:30:00"
+   },
+   {
+    "day": "Wednesday",
+    "duration": 0.0,
+    "from_time": "15:30:00",
+    "maximum_appointments": 0,
+    "to_time": "16:00:00"
+   },
+   {
+    "day": "Thursday",
+    "duration": 0.0,
+    "from_time": "9:00:00",
+    "maximum_appointments": 0,
+    "to_time": "9:30:00"
+   },
+   {
+    "day": "Thursday",
+    "duration": 0.0,
+    "from_time": "9:30:00",
+    "maximum_appointments": 0,
+    "to_time": "10:00:00"
+   },
+   {
+    "day": "Thursday",
+    "duration": 0.0,
+    "from_time": "10:00:00",
+    "maximum_appointments": 0,
+    "to_time": "10:30:00"
+   },
+   {
+    "day": "Thursday",
+    "duration": 0.0,
+    "from_time": "10:30:00",
+    "maximum_appointments": 0,
+    "to_time": "11:00:00"
+   },
+   {
+    "day": "Thursday",
+    "duration": 0.0,
+    "from_time": "11:00:00",
+    "maximum_appointments": 0,
+    "to_time": "11:30:00"
+   },
+   {
+    "day": "Thursday",
+    "duration": 0.0,
+    "from_time": "11:30:00",
+    "maximum_appointments": 0,
+    "to_time": "12:00:00"
+   },
+   {
+    "day": "Thursday",
+    "duration": 0.0,
+    "from_time": "12:00:00",
+    "maximum_appointments": 0,
+    "to_time": "12:30:00"
+   },
+   {
+    "day": "Thursday",
+    "duration": 0.0,
+    "from_time": "12:30:00",
+    "maximum_appointments": 0,
+    "to_time": "13:00:00"
+   },
+   {
+    "day": "Thursday",
+    "duration": 0.0,
+    "from_time": "13:00:00",
+    "maximum_appointments": 0,
+    "to_time": "13:30:00"
+   },
+   {
+    "day": "Thursday",
+    "duration": 0.0,
+    "from_time": "13:30:00",
+    "maximum_appointments": 0,
+    "to_time": "14:00:00"
+   },
+   {
+    "day": "Thursday",
+    "duration": 0.0,
+    "from_time": "14:00:00",
+    "maximum_appointments": 0,
+    "to_time": "14:30:00"
+   },
+   {
+    "day": "Thursday",
+    "duration": 0.0,
+    "from_time": "14:30:00",
+    "maximum_appointments": 0,
+    "to_time": "15:00:00"
+   },
+   {
+    "day": "Thursday",
+    "duration": 0.0,
+    "from_time": "15:00:00",
+    "maximum_appointments": 0,
+    "to_time": "15:30:00"
+   },
+   {
+    "day": "Thursday",
+    "duration": 0.0,
+    "from_time": "15:30:00",
+    "maximum_appointments": 0,
+    "to_time": "16:00:00"
+   },
+   {
+    "day": "Friday",
+    "duration": 0.0,
+    "from_time": "9:00:00",
+    "maximum_appointments": 0,
+    "to_time": "9:30:00"
+   },
+   {
+    "day": "Friday",
+    "duration": 0.0,
+    "from_time": "9:30:00",
+    "maximum_appointments": 0,
+    "to_time": "10:00:00"
+   },
+   {
+    "day": "Friday",
+    "duration": 0.0,
+    "from_time": "10:00:00",
+    "maximum_appointments": 0,
+    "to_time": "10:30:00"
+   },
+   {
+    "day": "Friday",
+    "duration": 0.0,
+    "from_time": "10:30:00",
+    "maximum_appointments": 0,
+    "to_time": "11:00:00"
+   },
+   {
+    "day": "Friday",
+    "duration": 0.0,
+    "from_time": "11:00:00",
+    "maximum_appointments": 0,
+    "to_time": "11:30:00"
+   },
+   {
+    "day": "Friday",
+    "duration": 0.0,
+    "from_time": "11:30:00",
+    "maximum_appointments": 0,
+    "to_time": "12:00:00"
+   },
+   {
+    "day": "Friday",
+    "duration": 0.0,
+    "from_time": "12:00:00",
+    "maximum_appointments": 0,
+    "to_time": "12:30:00"
+   },
+   {
+    "day": "Friday",
+    "duration": 0.0,
+    "from_time": "12:30:00",
+    "maximum_appointments": 0,
+    "to_time": "13:00:00"
+   },
+   {
+    "day": "Friday",
+    "duration": 0.0,
+    "from_time": "13:00:00",
+    "maximum_appointments": 0,
+    "to_time": "13:30:00"
+   },
+   {
+    "day": "Friday",
+    "duration": 0.0,
+    "from_time": "13:30:00",
+    "maximum_appointments": 0,
+    "to_time": "14:00:00"
+   },
+   {
+    "day": "Friday",
+    "duration": 0.0,
+    "from_time": "14:00:00",
+    "maximum_appointments": 0,
+    "to_time": "14:30:00"
+   },
+   {
+    "day": "Friday",
+    "duration": 0.0,
+    "from_time": "14:30:00",
+    "maximum_appointments": 0,
+    "to_time": "15:00:00"
+   },
+   {
+    "day": "Friday",
+    "duration": 0.0,
+    "from_time": "15:00:00",
+    "maximum_appointments": 0,
+    "to_time": "15:30:00"
+   },
+   {
+    "day": "Friday",
+    "duration": 0.0,
+    "from_time": "15:30:00",
+    "maximum_appointments": 0,
+    "to_time": "16:00:00"
+   },
+   {
+    "day": "Monday",
+    "duration": 0.0,
+    "from_time": "8:00:00",
+    "maximum_appointments": 0,
+    "to_time": "8:30:00"
+   },
+   {
+    "day": "Monday",
+    "duration": 0.0,
+    "from_time": "8:30:00",
+    "maximum_appointments": 0,
+    "to_time": "9:00:00"
+   },
+   {
+    "day": "Tuesday",
+    "duration": 0.0,
+    "from_time": "8:00:00",
+    "maximum_appointments": 0,
+    "to_time": "8:30:00"
+   },
+   {
+    "day": "Tuesday",
+    "duration": 0.0,
+    "from_time": "8:30:00",
+    "maximum_appointments": 0,
+    "to_time": "9:00:00"
+   },
+   {
+    "day": "Wednesday",
+    "duration": 0.0,
+    "from_time": "8:00:00",
+    "maximum_appointments": 0,
+    "to_time": "8:30:00"
+   },
+   {
+    "day": "Wednesday",
+    "duration": 0.0,
+    "from_time": "8:30:00",
+    "maximum_appointments": 0,
+    "to_time": "9:00:00"
+   },
+   {
+    "day": "Thursday",
+    "duration": 0.0,
+    "from_time": "8:00:00",
+    "maximum_appointments": 0,
+    "to_time": "8:30:00"
+   },
+   {
+    "day": "Thursday",
+    "duration": 0.0,
+    "from_time": "8:30:00",
+    "maximum_appointments": 0,
+    "to_time": "9:00:00"
+   },
+   {
+    "day": "Sunday",
+    "duration": 0.0,
+    "from_time": "8:00:00",
+    "maximum_appointments": 0,
+    "to_time": "8:30:00"
+   },
+   {
+    "day": "Sunday",
+    "duration": 0.0,
+    "from_time": "8:30:00",
+    "maximum_appointments": 0,
+    "to_time": "9:00:00"
+   }
+  ]
+ }
+]
