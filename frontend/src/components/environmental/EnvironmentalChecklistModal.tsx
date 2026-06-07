@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   fetchCostCenters,
   fetchHealthcarePractitioners,
   fetchInpatientAdmissionOptions,
   fetchPatientVisits,
   getCurrentUserPractitioner,
+  type LinkFieldOption,
 } from '../../services/common'
 import {
   applyEnvironmentalChecklistTemplate,
@@ -27,7 +28,117 @@ import {
   CreateModalHeader,
   createModalShellClass,
 } from '../ui/CreateModalChrome'
-import { ClipboardCheck } from 'lucide-react'
+import {
+  linkComboboxDropdownClass,
+  linkComboboxInputWithClearClass,
+  linkComboboxOptionClassCompact,
+} from '../ui/linkComboboxStyles'
+import { ChevronDown, ClipboardCheck } from 'lucide-react'
+
+interface LinkComboboxProps {
+  label: string
+  value: string
+  onSelect: (opt: LinkFieldOption) => void
+  onClear: () => void
+  fetchOptions: (search: string) => Promise<LinkFieldOption[]>
+  placeholder?: string
+}
+
+const linkComboboxInputClass =
+  `${linkComboboxInputWithClearClass} hover:border-emerald-300/80`
+
+const LinkCombobox = ({ label, value, onSelect, onClear, fetchOptions, placeholder }: LinkComboboxProps) => {
+  const [query, setQuery] = useState(value)
+  const [options, setOptions] = useState<LinkFieldOption[]>([])
+  const [open, setOpen] = useState(false)
+  const [loadingOptions, setLoadingOptions] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    setQuery(value)
+  }, [value])
+
+  useEffect(() => {
+    if (!open) return
+    const t = setTimeout(async () => {
+      setLoadingOptions(true)
+      try {
+        setOptions(await fetchOptions(query))
+      } catch {
+        setOptions([])
+      } finally {
+        setLoadingOptions(false)
+      }
+    }, query.trim() === '' ? 0 : 300)
+    return () => clearTimeout(t)
+  }, [query, open, fetchOptions])
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  return (
+    <div ref={containerRef} className="relative">
+      <label className="block text-xs font-medium text-slate-600 mb-1">{label}</label>
+      <div className="relative">
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value)
+            onClear()
+            setOpen(true)
+          }}
+          onFocus={() => setOpen(true)}
+          placeholder={placeholder ?? 'Search...'}
+          className={linkComboboxInputClass}
+          autoComplete="off"
+        />
+        <span className="absolute inset-y-0 right-2 flex items-center pointer-events-none text-slate-400">
+          {loadingOptions ? (
+            <span className="w-3.5 h-3.5 border-2 border-slate-300 border-t-primary rounded-full animate-spin" />
+          ) : (
+            <ChevronDown className="w-3.5 h-3.5" />
+          )}
+        </span>
+      </div>
+      {open && (
+        <div className={linkComboboxDropdownClass}>
+          {options.length === 0 ? (
+            <div className="px-3 py-2 text-xs text-slate-400">
+              {loadingOptions ? 'Searching…' : 'No results found'}
+            </div>
+          ) : (
+            options.map((opt) => (
+              <button
+                key={opt.name}
+                type="button"
+                className={linkComboboxOptionClassCompact}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  onSelect(opt)
+                  setQuery(opt.label || opt.name)
+                  setOpen(false)
+                }}
+              >
+                <span className="font-medium text-slate-800">{opt.label || opt.name}</span>
+                {opt.label && opt.label !== opt.name ? (
+                  <span className="ml-1.5 text-xs text-slate-400">{opt.name}</span>
+                ) : null}
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
 
 interface EnvironmentalChecklistModalProps {
   patient: string
@@ -56,9 +167,9 @@ export function EnvironmentalChecklistModal({
   const [inpatientAdmission, setInpatientAdmission] = useState(defaultAdmission || '')
   const [patientVisit, setPatientVisit] = useState(defaultVisit || '')
   const [costCenter, setCostCenter] = useState(userCostCenter || '')
-  const [costCenterOptions, setCostCenterOptions] = useState<{ name: string; label: string }[]>([])
+  const [costCenterLabel, setCostCenterLabel] = useState(userCostCenter || '')
   const [practitioner, setPractitioner] = useState('')
-  const [practitionerOptions, setPractitionerOptions] = useState<{ name: string; label: string }[]>([])
+  const [practitionerLabel, setPractitionerLabel] = useState('')
   const [templates, setTemplates] = useState<EnvironmentalChecklistTemplate[]>([])
   const [selectedTemplate, setSelectedTemplate] = useState('')
   const [details, setDetails] = useState<EnvironmentalChecklistDetail[]>([])
@@ -69,23 +180,29 @@ export function EnvironmentalChecklistModal({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    fetchCostCenters(costCenterCompany)
-      .then(setCostCenterOptions)
-      .catch(() => setCostCenterOptions([]))
-  }, [costCenterCompany])
+  const fetchPractitionerOptions = useCallback(
+    (search: string) => fetchHealthcarePractitioners(search || undefined),
+    []
+  )
 
-  useEffect(() => {
-    fetchHealthcarePractitioners()
-      .then(setPractitionerOptions)
-      .catch(() => setPractitionerOptions([]))
-  }, [])
+  const fetchCostCenterOptions = useCallback(
+    (search: string) => fetchCostCenters(costCenterCompany, search || undefined),
+    [costCenterCompany]
+  )
 
   useEffect(() => {
     if (isEdit) return
     getCurrentUserPractitioner()
-      .then((id) => {
-        if (id) setPractitioner(id)
+      .then(async (id) => {
+        if (!id) return
+        setPractitioner(id)
+        try {
+          const opts = await fetchHealthcarePractitioners(undefined)
+          const match = opts.find((o) => o.name === id)
+          setPractitionerLabel(match?.label || id)
+        } catch {
+          setPractitionerLabel(id)
+        }
       })
       .catch(() => {})
   }, [isEdit])
@@ -93,6 +210,7 @@ export function EnvironmentalChecklistModal({
   useEffect(() => {
     if (!isEdit && userCostCenter && !costCenter) {
       setCostCenter(userCostCenter)
+      setCostCenterLabel(userCostCenter)
     }
   }, [isEdit, userCostCenter, costCenter])
 
@@ -155,7 +273,9 @@ export function EnvironmentalChecklistModal({
         setInpatientAdmission(data.inpatient_admission || '')
         setPatientVisit(data.patient_visit || '')
         setCostCenter(data.cost_center || userCostCenter || '')
+        setCostCenterLabel(data.cost_center || userCostCenter || '')
         setPractitioner(data.practitioner || '')
+        setPractitionerLabel(data.practitioner_name || data.practitioner || '')
         setSelectedTemplate(data.environmental_checklist_template || '')
         setDetails(data.details || [])
       } catch (err) {
@@ -336,33 +456,35 @@ export function EnvironmentalChecklistModal({
                 </div>
               )}
 
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Practitioner</label>
-                <select
-                  value={practitioner}
-                  onChange={(e) => setPractitioner(e.target.value)}
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm bg-white"
-                >
-                  <option value="">— Select practitioner —</option>
-                  {practitionerOptions.map((option) => (
-                    <option key={option.name} value={option.name}>{option.label}</option>
-                  ))}
-                </select>
-              </div>
+              <LinkCombobox
+                label="Practitioner"
+                value={practitionerLabel}
+                placeholder="Search practitioner..."
+                fetchOptions={fetchPractitionerOptions}
+                onSelect={(opt) => {
+                  setPractitioner(opt.name)
+                  setPractitionerLabel(opt.label || opt.name)
+                }}
+                onClear={() => {
+                  setPractitioner('')
+                  setPractitionerLabel('')
+                }}
+              />
 
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Cost Center</label>
-                <select
-                  value={costCenter}
-                  onChange={(e) => setCostCenter(e.target.value)}
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm bg-white"
-                >
-                  <option value="">— Select cost center —</option>
-                  {costCenterOptions.map((option) => (
-                    <option key={option.name} value={option.name}>{option.label}</option>
-                  ))}
-                </select>
-              </div>
+              <LinkCombobox
+                label="Cost Center"
+                value={costCenterLabel}
+                placeholder="Search cost center..."
+                fetchOptions={fetchCostCenterOptions}
+                onSelect={(opt) => {
+                  setCostCenter(opt.name)
+                  setCostCenterLabel(opt.label || opt.name)
+                }}
+                onClear={() => {
+                  setCostCenter('')
+                  setCostCenterLabel('')
+                }}
+              />
 
               <div className={hideInpatientAdmission || hidePatientVisit ? '' : 'md:col-span-2'}>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Template</label>
