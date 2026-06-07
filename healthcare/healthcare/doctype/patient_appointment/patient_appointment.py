@@ -79,6 +79,9 @@ class PatientAppointment(Document):
 			)
 
 	def set_status(self):
+		if not self.appointment_date:
+			return
+
 		today = getdate()
 		appointment_date = getdate(self.appointment_date)
 
@@ -116,7 +119,13 @@ class PatientAppointment(Document):
 				return
 			self.department = None
 
+	def _has_appointment_time(self) -> bool:
+		return bool(cstr(self.appointment_time or "").strip())
+
 	def validate_overlaps(self):
+		if not self.appointment_date or not self._has_appointment_time():
+			return
+
 		if self.appointment_based_on_check_in:
 			if frappe.db.exists(
 				{
@@ -264,10 +273,11 @@ class PatientAppointment(Document):
 				frappe.throw(msg, title=_("Invalid Healthcare Service Unit"))
 
 	def set_appointment_datetime(self):
-		self.appointment_datetime = "%s %s" % (
-			self.appointment_date,
-			self.appointment_time or "00:00:00",
-		)
+		if not self.appointment_date:
+			self.appointment_datetime = None
+			return
+
+		self.appointment_datetime = f"{self.appointment_date} {self.appointment_time or '00:00:00'}"
 
 	def set_payment_details(self):
 		if frappe.db.get_single_value("Healthcare Settings", "show_payment_popup"):
@@ -296,7 +306,7 @@ class PatientAppointment(Document):
 					frappe.db.set_value("Patient Appointment", self.name, "notes", comments)
 
 	def insert_calendar_event(self):
-		if not self.practitioner:
+		if not self.practitioner or not self.appointment_date or not self._has_appointment_time():
 			return
 
 		starts_on = datetime.datetime.combine(
@@ -373,7 +383,7 @@ class PatientAppointment(Document):
 		return therapy_types
 
 	def update_event(self):
-		if self.event:
+		if self.event and self.appointment_date and self._has_appointment_time():
 			event_doc = frappe.get_doc("Event", self.event)
 			starts_on = datetime.datetime.combine(
 				getdate(self.appointment_date), get_time(self.appointment_time)
