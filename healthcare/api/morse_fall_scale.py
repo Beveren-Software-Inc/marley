@@ -21,19 +21,34 @@ def create_morse_fall_scale(data):
 		if not data.get(field):
 			frappe.throw(_("{0} is required").format(field.replace("_", " ").title()))
 
+	admission_no = data.get("admission_no")
+	practitioner = data.get("practitioner")
+	cost_center = (
+		frappe.db.get_value("Inpatient Admission", admission_no, "cost_center")
+		if admission_no
+		else None
+	)
+	practitioner_name = None
+	if practitioner:
+		practitioner_name = frappe.db.get_value(
+			"Healthcare Practitioner", practitioner, "practitioner_name"
+		)
+
 	trans_no = get_next_transaction_number("Morse Fall Scale", fieldname="trans_no")
 
 	doc = frappe.get_doc(
 		{
 			"doctype": "Morse Fall Scale",
 			"trans_no": trans_no,
-			"admission_no": data.get("admission_no"),
+			"admission_no": admission_no,
 			"patient_no": data.get("patient_no"),
 			"orderer_number": data.get("orderer_number"),
 			"company": data.get("company"),
 			"date": data.get("date") or nowdate(),
 			"written_admission": data.get("written_admission"),
-			"cost_center": data.get("cost_center"),
+			"cost_center": cost_center,
+			"practitioner": practitioner,
+			"practitioner_name": practitioner_name,
 		}
 	)
 
@@ -51,6 +66,9 @@ def create_morse_fall_scale(data):
 		"patient_no": doc.patient_no,
 		"orderer_number": doc.orderer_number,
 		"company": doc.company,
+		"cost_center": doc.cost_center,
+		"practitioner": doc.practitioner,
+		"practitioner_name": doc.practitioner_name,
 		"total_points": doc.total_points,
 		"modified": doc.modified,
 		"morse_fall_scale_detail": doc.morse_fall_scale_detail,

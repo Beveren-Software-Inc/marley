@@ -7,28 +7,64 @@ export interface MorseFallScaleDetailRow {
 
 export interface MorseFallScale {
   name: string
+  trans_no?: string
   admission_no: string
   patient_no: string
   orderer_number?: string
   company?: string
+  practitioner?: string
+  practitioner_name?: string
+  cost_center?: string
+  date?: string
   total_points?: number
   modified?: string
   morse_fall_scale_detail?: MorseFallScaleDetailRow[]
 }
 
+export interface MorseFallScaleListFilters {
+  dateFrom?: string
+  dateTo?: string
+  practitioner?: string
+}
+
+const LIST_FIELDS = [
+  'name',
+  'trans_no',
+  'admission_no',
+  'patient_no',
+  'company',
+  'practitioner',
+  'practitioner_name',
+  'cost_center',
+  'total_points',
+  'date',
+  'modified',
+]
+
 export async function fetchMorseFallScales(
   limit: number = 50,
   offset: number = 0,
-  patient?: string
+  patient?: string,
+  filters: MorseFallScaleListFilters = {}
 ): Promise<MorseFallScale[]> {
   const params = new URLSearchParams()
-  params.append('fields', JSON.stringify(['name', 'admission_no', 'patient_no', 'company', 'total_points', 'modified']))
+  params.append('fields', JSON.stringify(LIST_FIELDS))
 
-  const filters: any[] = [['Morse Fall Scale', 'docstatus', '<', 2]]
+  const frappeFilters: [string, string, string, string?][] = [['Morse Fall Scale', 'docstatus', '<', '2']]
   if (patient) {
-    filters.push(['Morse Fall Scale', 'patient_no', '=', patient])
+    frappeFilters.push(['Morse Fall Scale', 'patient_no', '=', patient])
   }
-  params.append('filters', JSON.stringify(filters))
+  if (filters.practitioner) {
+    frappeFilters.push(['Morse Fall Scale', 'practitioner', '=', filters.practitioner])
+  }
+  if (filters.dateFrom) {
+    frappeFilters.push(['Morse Fall Scale', 'date', '>=', filters.dateFrom])
+  }
+  if (filters.dateTo) {
+    frappeFilters.push(['Morse Fall Scale', 'date', '<=', filters.dateTo])
+  }
+
+  params.append('filters', JSON.stringify(frappeFilters))
   params.append('limit_page_length', limit.toString())
   params.append('limit_start', offset.toString())
   params.append('order_by', 'modified desc')
@@ -39,22 +75,11 @@ export async function fetchMorseFallScales(
 export async function createMorseFallScale(
   data: Omit<MorseFallScale, 'name' | 'total_points' | 'modified'>
 ): Promise<MorseFallScale> {
-  const res = await fetch('/api/method/healthcare.api.morse_fall_scale.create_morse_fall_scale', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ data }),
-  })
-  const resData = await res.json().catch(() => ({} as Record<string, unknown>))
-  if (!res.ok || !(resData as Record<string, unknown>)?.message) {
-    const msg =
-      (resData as Record<string, unknown>)?.message ||
-      (resData as Record<string, unknown>)?.exc ||
-      (resData as Record<string, unknown>)?.exception ||
-      'Failed to create Morse Fall Scale'
-    throw new Error(typeof msg === 'string' ? msg : String(msg))
-  }
-  return (resData as { message: MorseFallScale }).message
+  return apiRequest<MorseFallScale>(
+    '/api/method/healthcare.api.morse_fall_scale.create_morse_fall_scale',
+    {
+      method: 'POST',
+      body: JSON.stringify({ data }),
+    }
+  )
 }
-

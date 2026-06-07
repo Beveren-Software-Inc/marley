@@ -1,112 +1,473 @@
-import { useEffect, useState } from 'react'
-import { fetchMorseFallScales, type MorseFallScale } from '../../services/morseFallScale'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { ShieldAlert } from 'lucide-react'
+import {
+  fetchHealthcarePractitioners,
+  type LinkFieldOption,
+} from '../../services/common'
+import {
+  fetchMorseFallScales,
+  type MorseFallScale,
+  type MorseFallScaleListFilters,
+} from '../../services/morseFallScale'
+import { useCardFilters } from '../../contexts/CardFilterContext'
+import { useCareContext } from '../../providers/CareContextProvider'
+import { CreateMorseFallScaleModal } from './CreateMorseFallScaleModal'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
+import { ClearFiltersButton } from '../ui/ClearFiltersButton'
+import { PortalActionsMenu } from '../ui/PortalActionsMenu'
+import { DetailSlideOver } from '../ui/DetailSlideOver'
+import { DocDetailView } from '../ui/DocDetailView'
 
 interface MorseFallScaleListProps {
   patient?: string
+  patientName?: string
   refreshKey?: number
   onPatientClick?: (patient: string) => void
+  defaultAdmission?: string
+  createModalOpen?: boolean
+  onCreateModalOpenChange?: (open: boolean) => void
 }
 
-export const MorseFallScaleList = ({ patient, refreshKey, onPatientClick }: MorseFallScaleListProps) => {
+const FilterToggleButton = ({
+  active,
+  onClick,
+}: {
+  active: boolean
+  onClick: () => void
+}) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className={`p-1.5 rounded-md border transition-colors ${
+      active ? 'bg-primary/10 border-primary text-primary' : 'border-slate-300 text-slate-500 hover:bg-slate-50'
+    }`}
+    title={active ? 'Hide filters' : 'Show filters'}
+  >
+    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z"
+      />
+    </svg>
+  </button>
+)
+
+function getRiskLevel(total: number): { label: string; className: string } {
+  if (total < 25) return { label: 'No Risk', className: 'text-emerald-700 bg-emerald-50 border-emerald-200' }
+  if (total < 51) return { label: 'Low Risk', className: 'text-yellow-700 bg-yellow-50 border-yellow-200' }
+  return { label: 'High Risk', className: 'text-red-700 bg-red-50 border-red-200' }
+}
+
+function formatDate(value?: string): string {
+  if (!value) return '—'
+  try {
+    const d = new Date(value)
+    if (!isNaN(d.getTime())) return d.toLocaleDateString()
+  } catch {
+    /* ignore */
+  }
+  return value
+}
+
+export const MorseFallScaleList = ({
+  patient,
+  patientName,
+  refreshKey,
+  onPatientClick,
+  defaultAdmission,
+  createModalOpen,
+  onCreateModalOpenChange,
+}: MorseFallScaleListProps) => {
+  const cardFilters = useCardFilters()
+  const inDashboardCard = cardFilters !== undefined
+  const [showFiltersInternal, setShowFiltersInternal] = useState(false)
+  const showFilters = inDashboardCard ? cardFilters : showFiltersInternal
+
+  const { guardClinicalCreate } = useCareContext()
   const [rows, setRows] = useState<MorseFallScale[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<Error | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [internalCreateOpen, setInternalCreateOpen] = useState(false)
+  const [detailName, setDetailName] = useState<string | null>(null)
+  const [openActionRow, setOpenActionRow] = useState<string | null>(null)
+  const actionMenuRef = useRef<HTMLDivElement>(null)
+
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+  const [practitionerFilter, setPractitionerFilter] = useState('')
+  const [practitionerOptions, setPractitionerOptions] = useState<LinkFieldOption[]>([])
+  const [practitionerOpen, setPractitionerOpen] = useState(false)
+  const [practitionerQuery, setPractitionerQuery] = useState('')
+
+  const showCreateModal = createModalOpen ?? internalCreateOpen
+  const setShowCreateModal = onCreateModalOpenChange ?? setInternalCreateOpen
+
+  const listFilters: MorseFallScaleListFilters = {
+    dateFrom: dateFrom || undefined,
+    dateTo: dateTo || undefined,
+    practitioner: practitionerFilter || undefined,
+  }
+
+  const hasActiveFilters = Boolean(dateFrom || dateTo || practitionerFilter)
+
+  const loadRows = useCallback(async () => {
+    if (!patient) {
+      setRows([])
+      setLoading(false)
+      return
+    }
+    try {
+      setLoading(true)
+      setError(null)
+      const data = await fetchMorseFallScales(50, 0, patient, listFilters)
+      setRows(data)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load Morse Fall Scale records')
+      setRows([])
+    } finally {
+      setLoading(false)
+    }
+  }, [patient, dateFrom, dateTo, practitionerFilter])
 
   useEffect(() => {
-    const load = async () => {
+    loadRows()
+  }, [loadRows, refreshKey])
+
+  useEffect(() => {
+    if (!practitionerOpen) return
+    const t = setTimeout(async () => {
       try {
-        setLoading(true)
-        setError(null)
-        const data = await fetchMorseFallScales(50, 0, patient)
-        setRows(data)
-      } catch (err) {
-        setError(err instanceof Error ? err : new Error('Failed to load Morse Fall Scale'))
-      } finally {
-        setLoading(false)
+        const opts = await fetchHealthcarePractitioners(practitionerQuery || undefined)
+        setPractitionerOptions(opts)
+      } catch {
+        setPractitionerOptions([])
       }
+    }, practitionerQuery.trim() === '' ? 0 : 300)
+    return () => clearTimeout(t)
+  }, [practitionerQuery, practitionerOpen])
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      const el = e.target as HTMLElement
+      if (el.closest('[data-portal-actions-menu]')) return
+      if (el.closest('button[aria-label="Actions"]')) return
+      if (el.closest('[data-morse-practitioner-filter]')) return
+      if (actionMenuRef.current && !actionMenuRef.current.contains(e.target as Node)) {
+        setOpenActionRow(null)
+      }
+      setPractitionerOpen(false)
     }
-    load()
-  }, [patient, refreshKey])
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center p-8">
-        <div className="text-slate-600">Loading Morse Fall Scale...</div>
-      </div>
-    )
+  const clearFilters = () => {
+    setDateFrom('')
+    setDateTo('')
+    setPractitionerFilter('')
+    setPractitionerQuery('')
+    setPractitionerOpen(false)
   }
 
-  if (error) {
-    return (
-      <div className="flex flex-col items-center justify-center p-8">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 max-w-2xl w-full">
-          <h3 className="text-red-800 font-semibold mb-2">Error Loading Morse Fall Scale</h3>
-          <p className="text-red-700 text-sm mb-2">{error.message}</p>
-        </div>
-      </div>
-    )
+  const handleCreateSuccess = () => {
+    setShowCreateModal(false)
+    loadRows()
   }
 
-  if (rows.length === 0) {
+  const handleView = (name: string) => {
+    setOpenActionRow(null)
+    setDetailName(name)
+  }
+
+  const detailRow = detailName ? rows.find((r) => r.name === detailName) : undefined
+  const detailRisk = detailRow?.total_points != null ? getRiskLevel(detailRow.total_points) : null
+
+  if (!patient) {
     return (
-      <div className="flex items-center justify-center p-8">
-        <div className="text-slate-500">No Morse Fall Scale records found</div>
+      <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-md px-4 py-3 text-sm">
+        Select a patient to view Morse Fall Scale records.
       </div>
     )
   }
 
   return (
-    <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
-      <table className="w-full">
-        <thead className="bg-slate-50 border-b border-slate-200">
-          <tr>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Admission</th>
-            {!patient && (
-              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Patient</th>
-            )}
-            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Company</th>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Total Points</th>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase w-[100px]">Actions</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-slate-200">
-          {rows.map((row) => (
-            <tr
-              key={row.name}
-              className="hover:bg-slate-50 cursor-pointer"
-              onClick={(e) => {
-                if ((e.target as HTMLElement).closest('[data-no-row-click]')) return
-                window.open(`/app/morse-fall-scale/${encodeURIComponent(row.name)}`, '_blank')
-              }}
+    <>
+      {!inDashboardCard && (
+        <div className="font-semibold mb-3 flex items-center justify-between gap-2">
+          <span>Morse Fall Scale</span>
+          <div className="flex items-center gap-2 shrink-0">
+            <FilterToggleButton
+              active={Boolean(showFilters)}
+              onClick={() => setShowFiltersInternal((prev) => !prev)}
+            />
+            <button
+              type="button"
+              onClick={() => guardClinicalCreate(() => setShowCreateModal(true))}
+              className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
+              title="Create Morse Fall Scale"
             >
-              <td className="px-4 py-3 text-sm text-slate-800">{row.admission_no}</td>
-              {!patient && (
-                <td
-                  className="px-4 py-3 text-sm text-slate-700 cursor-pointer"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    if (row.patient_no) onPatientClick?.(row.patient_no)
+              +
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showFilters && (
+        <div className="flex flex-wrap items-end gap-3 mb-3 px-1 py-2 border-b border-slate-100 bg-slate-50/80 rounded-md">
+          <div className="flex flex-col gap-1 min-w-[130px]">
+            <label className="text-xs font-medium text-slate-500">Date from</label>
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white"
+            />
+          </div>
+          <div className="flex flex-col gap-1 min-w-[130px]">
+            <label className="text-xs font-medium text-slate-500">Date to</label>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white"
+            />
+          </div>
+          <div data-morse-practitioner-filter className="flex flex-col gap-1 min-w-[200px]">
+            <label className="text-xs font-medium text-slate-500">Practitioner</label>
+            <div className="relative">
+              <input
+                type="text"
+                value={
+                  practitionerFilter
+                    ? practitionerOptions.find((p) => p.name === practitionerFilter)?.label || practitionerQuery || practitionerFilter
+                    : practitionerQuery
+                }
+                onChange={(e) => {
+                  setPractitionerQuery(e.target.value)
+                  setPractitionerFilter('')
+                  setPractitionerOpen(true)
+                }}
+                onFocus={() => setPractitionerOpen(true)}
+                placeholder="Search practitioner…"
+                className={`w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary ${
+                  practitionerFilter ? 'pr-8' : ''
+                }`}
+              />
+              {practitionerFilter && (
+                <button
+                  type="button"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  aria-label="Clear practitioner filter"
+                  onClick={() => {
+                    setPractitionerFilter('')
+                    setPractitionerQuery('')
+                    setPractitionerOpen(false)
                   }}
                 >
-                  <span className="font-medium text-primary hover:underline">{row.patient_no}</span>
-                </td>
+                  ×
+                </button>
               )}
-              <td className="px-4 py-3 text-sm text-slate-700">{row.company || '-'}</td>
-              <td className="px-4 py-3 text-sm text-slate-700">{row.total_points ?? '-'}</td>
-              <td className="px-4 py-2 align-middle" data-no-row-click>
-                <PrintFormatDropdown
-                  doctype="Morse Fall Scale"
-                  docName={row.name}
-                  noLetterhead={0}
-                  triggerPrint={1}
-                />
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+              {practitionerOpen && practitionerOptions.length > 0 && (
+                <div className="absolute z-30 left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-md shadow-lg max-h-48 overflow-auto">
+                  {practitionerOptions.map((p) => (
+                    <button
+                      key={p.name}
+                      type="button"
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => {
+                        setPractitionerFilter(p.name)
+                        setPractitionerQuery(p.label || p.name)
+                        setPractitionerOpen(false)
+                      }}
+                    >
+                      {p.label || p.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+          <ClearFiltersButton onClick={clearFilters} disabled={!hasActiveFilters} />
+        </div>
+      )}
+
+      {loading ? (
+        <div className="text-slate-600 text-sm py-4">Loading Morse Fall Scale records…</div>
+      ) : error ? (
+        <div className="bg-red-50 border border-red-200 rounded-md px-3 py-2 text-sm text-red-700">{error}</div>
+      ) : rows.length === 0 ? (
+        <div className="bg-blue-50 border border-blue-200 rounded-md px-4 py-3 text-sm text-blue-700">
+          No Morse Fall Scale records found{hasActiveFilters ? ' for the selected filters' : ''}.
+        </div>
+      ) : (
+        <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
+          <table className="w-full">
+            <thead className="bg-slate-50 border-b border-slate-200">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Record</th>
+                {!patient && (
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Patient</th>
+                )}
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Admission</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Practitioner</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Cost Center</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Company</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Total</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Risk</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Date</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase w-[100px]">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200">
+              {rows.map((row) => {
+                const risk = row.total_points != null ? getRiskLevel(row.total_points) : null
+                return (
+                  <tr key={row.name} className="hover:bg-slate-50">
+                    <td
+                      className="px-4 py-3 text-sm font-medium text-primary hover:underline cursor-pointer"
+                      onClick={() => handleView(row.name)}
+                    >
+                      {row.trans_no || row.name}
+                    </td>
+                    {!patient && (
+                      <td
+                        className="px-4 py-3 text-sm cursor-pointer"
+                        onClick={() => row.patient_no && onPatientClick?.(row.patient_no)}
+                      >
+                        <span className="font-medium text-primary hover:underline">{row.patient_no || '—'}</span>
+                      </td>
+                    )}
+                    <td
+                      className="px-4 py-3 text-sm text-slate-700 cursor-pointer"
+                      onClick={() => handleView(row.name)}
+                    >
+                      {row.admission_no || '—'}
+                    </td>
+                    <td
+                      className="px-4 py-3 text-sm text-slate-700 cursor-pointer"
+                      onClick={() => handleView(row.name)}
+                    >
+                      {row.practitioner_name || row.practitioner || '—'}
+                    </td>
+                    <td
+                      className="px-4 py-3 text-sm text-slate-700 cursor-pointer"
+                      onClick={() => handleView(row.name)}
+                    >
+                      {row.cost_center || '—'}
+                    </td>
+                    <td
+                      className="px-4 py-3 text-sm text-slate-700 cursor-pointer"
+                      onClick={() => handleView(row.name)}
+                    >
+                      {row.company || '—'}
+                    </td>
+                    <td
+                      className="px-4 py-3 text-sm font-semibold text-slate-800 cursor-pointer"
+                      onClick={() => handleView(row.name)}
+                    >
+                      {row.total_points ?? '—'}
+                    </td>
+                    <td
+                      className="px-4 py-3 text-sm cursor-pointer"
+                      onClick={() => handleView(row.name)}
+                    >
+                      {risk ? (
+                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${risk.className}`}>
+                          {risk.label}
+                        </span>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
+                    <td
+                      className="px-4 py-3 text-sm text-slate-500 cursor-pointer"
+                      onClick={() => handleView(row.name)}
+                    >
+                      {formatDate(row.date)}
+                    </td>
+                    <td className="px-4 py-2 align-middle" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center justify-end gap-1.5">
+                        <div className="relative inline-block" ref={openActionRow === row.name ? actionMenuRef : undefined}>
+                          <button
+                            type="button"
+                            onClick={() => setOpenActionRow((prev) => (prev === row.name ? null : row.name))}
+                            className="inline-flex items-center justify-center w-8 h-8 rounded-md border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
+                            aria-label="Actions"
+                          >
+                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                              <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+                            </svg>
+                          </button>
+                          <PortalActionsMenu
+                            open={openActionRow === row.name}
+                            onClose={() => setOpenActionRow(null)}
+                            triggerRef={actionMenuRef}
+                            minWidth={160}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => handleView(row.name)}
+                              className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                            >
+                              View
+                            </button>
+                          </PortalActionsMenu>
+                        </div>
+                        <PrintFormatDropdown
+                          doctype="Morse Fall Scale"
+                          docName={row.name}
+                          noLetterhead={0}
+                          triggerPrint={1}
+                          className="inline-flex items-center justify-center w-8 h-8 rounded-md border border-slate-300 bg-white text-primary hover:bg-slate-50"
+                        />
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {detailName && (
+        <DetailSlideOver
+          title="Morse Fall Scale"
+          subtitle={detailName}
+          icon={<ShieldAlert className="h-5 w-5 text-emerald-700" strokeWidth={2} />}
+          onClose={() => setDetailName(null)}
+          headerActions={
+            <div className="flex items-center gap-2">
+              {detailRisk ? (
+                <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${detailRisk.className}`}>
+                  {detailRow?.total_points ?? 0} pts · {detailRisk.label}
+                </span>
+              ) : null}
+              <PrintFormatDropdown
+                doctype="Morse Fall Scale"
+                docName={detailName}
+                noLetterhead={0}
+                triggerPrint={1}
+                className="inline-flex items-center justify-center w-8 h-8 rounded border border-slate-300 bg-white text-primary hover:bg-slate-50"
+              />
+            </div>
+          }
+        >
+          <DocDetailView doctype="Morse Fall Scale" name={detailName} onUpdate={loadRows} />
+        </DetailSlideOver>
+      )}
+
+      {showCreateModal && (
+        <CreateMorseFallScaleModal
+          patient={patient}
+          patientName={patientName}
+          defaultAdmission={defaultAdmission}
+          onClose={() => setShowCreateModal(false)}
+          onCreated={handleCreateSuccess}
+        />
+      )}
+    </>
   )
 }
-
