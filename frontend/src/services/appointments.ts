@@ -125,6 +125,14 @@ export async function fetchPractitionerAppointments(
   )
   const resData = await response.json()
 
+  if (resData?.exc) {
+    const msg =
+      typeof resData.message === 'string'
+        ? resData.message
+        : resData.exc_type || 'Failed to load appointments'
+    throw new Error(msg)
+  }
+
   if (resData?.message && typeof resData.message === 'object' && Array.isArray(resData.message.data)) {
     return resData.message as AppointmentPage
   }
@@ -155,6 +163,14 @@ export async function fetchAllAppointments(
     `/api/method/healthcare.api.patient_appointment.get_all_appointments?${params.toString()}`
   )
   const resData = await response.json()
+
+  if (resData?.exc) {
+    const msg =
+      typeof resData.message === 'string'
+        ? resData.message
+        : resData.exc_type || 'Failed to load appointments'
+    throw new Error(msg)
+  }
 
   if (resData?.message && typeof resData.message === 'object' && Array.isArray(resData.message.data)) {
     return resData.message as AppointmentPage

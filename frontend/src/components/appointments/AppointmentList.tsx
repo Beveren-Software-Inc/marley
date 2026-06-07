@@ -630,7 +630,10 @@
 // }
 
 
-import { useCardFilters, useDashboardCompactClinical } from '../../contexts/CardFilterContext'
+import {
+  useCardFilters,
+  useDashboardCompactClinical,
+} from '../../contexts/CardFilterContext'
 import {
   CardRowMetaHint,
   dashboardCardRowHoverClass,
@@ -955,7 +958,7 @@ export const AppointmentList = ({
       .catch(() => {
         setPractitionerQuery(myPractitionerId)
       })
-  }, [doctorScheduleMode, patient, schedulePractitionerResolved, myPractitionerId])
+  }, [doctorScheduleMode, patient, schedulePractitionerResolved, myPractitionerId, linkedPractitionerName])
 
   useEffect(() => {
     if (filterPractitioner !== myPractitionerId || !linkedPractitionerName) return
@@ -1305,6 +1308,20 @@ export const AppointmentList = ({
   return (
     <>
       <div className="flex flex-col flex-1 min-h-0 h-full">
+      {doctorScheduleMode && !patient && filterPractitioner && (
+        <div className="flex flex-wrap items-center gap-2 mb-2 px-3 py-2 rounded-md bg-blue-50 border border-blue-200 text-blue-900 text-xs">
+          <span>
+            Showing appointments for <span className="font-semibold">{practitionerFilterDisplayValue || filterPractitioner}</span> only.
+          </span>
+          <button
+            type="button"
+            onClick={clearFilters}
+            className="underline font-medium hover:text-blue-700"
+          >
+            Show all practitioners
+          </button>
+        </div>
+      )}
       {doctorScheduleMode && !patient && schedulePractitionerResolved && !myPractitionerId && (
         <p className="text-xs text-amber-700 mb-2">
           No Healthcare Practitioner is linked to your user. Appointments may be empty unless you have a reception/admin role.

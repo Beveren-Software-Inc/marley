@@ -1,4 +1,4 @@
-import { useInDashboardCard } from '../../contexts/CardFilterContext'
+import { useDashboardFullListing, useInDashboardCard } from '../../contexts/CardFilterContext'
 
 export const PAGE_SIZE_OPTIONS = [20, 100, 500, 2500] as const
 export type PageSize = (typeof PAGE_SIZE_OPTIONS)[number]
@@ -22,11 +22,12 @@ export const PaginationControls = ({
   onPageSizeChange,
 }: PaginationControlsProps) => {
   const inDashboardCard = useInDashboardCard()
+  const isFullListing = useDashboardFullListing()
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize))
   const from = totalCount === 0 ? 0 : (page - 1) * pageSize + 1
   const to = Math.min(page * pageSize, totalCount)
 
-  if (inDashboardCard) {
+  if (inDashboardCard && !isFullListing) {
     return null
   }
 
