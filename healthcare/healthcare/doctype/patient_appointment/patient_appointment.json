@@ -183,19 +183,14 @@
    "set_only_once": 1
   },
   {
-   "fetch_from": "practitioner.department",
-   "fetch_if_empty": 1,
    "fieldname": "department",
    "fieldtype": "Data",
    "ignore_user_permissions": 1,
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Department",
-   "mandatory_depends_on": "eval:doc.appointment_for==\"Department\"",
    "options": "Medical Department",
-   "read_only_depends_on": "eval:doc.appointment_for!=\"Department\"",
-   "search_index": 1,
-   "set_only_once": 1
+   "search_index": 1
   },
   {
    "fieldname": "column_break_17",
@@ -591,7 +586,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2026-05-21 15:23:26.360610",
+ "modified": "2026-06-07 15:27:58.293839",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Appointment",
