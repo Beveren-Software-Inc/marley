@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Check, X } from 'lucide-react'
 import { fetchDoc } from '../../services/common'
+import { RichTextContent } from './RichTextContent'
 
 const SKIP_KEYS = new Set([
   'owner', 'creation', 'modified', 'modified_by', 'docstatus', 'idx',
@@ -201,6 +202,7 @@ export function DocDetailView({ doctype, name }: DocDetailViewProps) {
   // Priority keys shown at the top regardless of alphabetical order
   const TOP_KEYS = ['name', 'patient', 'patient_name', 'status', 'remarks']
   const isTextBlock = (key: string) =>
+    key === 'description' ||
     key.toLowerCase().includes('note') ||
     key.toLowerCase().includes('comment') ||
     key.toLowerCase().includes('warning') ||
@@ -254,7 +256,9 @@ export function DocDetailView({ doctype, name }: DocDetailViewProps) {
                   </div>
                 )
               ) : isTextBlock(key) ? (
-                <pre className="whitespace-pre-wrap font-sans text-slate-800 bg-slate-50 p-3 rounded-md text-sm">{formatValue(value)}</pre>
+                <div className="bg-slate-50 border border-slate-200 rounded-md px-3 py-2">
+                  <RichTextContent value={String(value)} />
+                </div>
               ) : (
                 formatValue(value)
               )}

@@ -10,6 +10,7 @@ from healthcare.api.sales_order_cost_center import (
 	apply_cost_center_to_sales_order,
 	cost_center_from_visit_or_admission,
 )
+from healthcare.healthcare.doctype.observation.observation import fill_patient_from_admission
 
 
 def _observation_visit_admission_refs(obs_doc):
@@ -41,6 +42,7 @@ def get_observations(limit=50, offset=0, patient=None):
 		filters=filters,
 		fields=[
 			'name',
+			'trans_no',
 			'patient',
 			'patient_name',
 			'observation_category',
@@ -124,9 +126,8 @@ def create_observation(data):
 		import json
 		data = json.loads(data)
 	
-	# Validate required fields
-	if not data.get('patient'):
-		frappe.throw(_("Patient is required"))
+	if not data.get('patient') and not data.get('admission_no'):
+		frappe.throw(_("Patient or Inpatient Admission is required"))
 	
 	# Note: observation_template is now optional as per user request
 	
@@ -183,11 +184,16 @@ def create_observation(data):
 		observation.reference_doctype = "Patient Visit"
 		observation.reference_docname = pv
 
+	fill_patient_from_admission(observation)
+	if not observation.patient:
+		frappe.throw(_("Patient is required"))
+
 	observation.insert(ignore_permissions=True)
 	
 	# Return the created observation
 	return {
 		'name': observation.name,
+		'trans_no': observation.trans_no,
 		'patient': observation.patient,
 		'patient_name': frappe.db.get_value('Patient', observation.patient, 'patient_name') or observation.patient,
 		'observation_level': observation.observation_level,
