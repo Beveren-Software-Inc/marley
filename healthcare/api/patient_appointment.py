@@ -10,48 +10,6 @@ from healthcare.api.utils.api_utility import get_next_prefixed, get_next_transac
 from healthcare.healthcare.utils import get_appointment_billing_item_and_rate
 
 @frappe.whitelist()
-def get_practitioner_appointments(limit=50, offset=0, status=None):
-	"""Get appointments for the current user's healthcare practitioner"""
-	user = frappe.session.user
-	
- 	
-	# Get the healthcare practitioner linked to the current user
-	practitioner = frappe.db.get_value('Healthcare Practitioner', {'user_id': user}, 'name')
-	
-	if not practitioner:
-		return []
-	
-	# Build filters
-	filters = {'practitioner': practitioner}
-	print("Hapa tunafika", filters)
-	if status:
-		filters['status'] = status
-	print("Uko huku")
-	# Get appointments
-	appointments = frappe.get_all(
-		'Patient Appointment',
-		filters=filters,
-		fields=[
-			'name',
-			'patient',
-			'patient_name',
-			'appointment_date',
-			'appointment_time',
-			'old_time',
-			'status',
-			'appointment_type',
-			'department',
-			'practitioner',
-			'practitioner_name'
-		],
-		limit=limit,
-		limit_start=offset,
-		order_by='appointment_date desc, appointment_time desc'
-	)
-	
-	return appointments
-
-@frappe.whitelist()
 def get_all_appointments(limit=50, offset=0, status=None, patient=None,
                          search=None, practitioner=None,
                          date_from=None, date_to=None):

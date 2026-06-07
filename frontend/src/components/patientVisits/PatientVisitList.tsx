@@ -594,12 +594,9 @@ export const PatientVisitList = ({
           </select>
         </div>
 
-        {/* Clear */}
-        {hasActiveFilters && (
-          <div className="flex items-end">
-            <ClearFiltersButton onClick={handleClearFilters} />
-          </div>
-        )}
+        <div className="flex items-end">
+          <ClearFiltersButton onClick={handleClearFilters} disabled={!hasActiveFilters} />
+        </div>
       </div>
       )}
 

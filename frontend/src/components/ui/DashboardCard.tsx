@@ -5,6 +5,7 @@ import { useCareContext } from '../../providers/CareContextProvider'
 import {
   CardFilterContext,
   DashboardCompactClinicalContext,
+  DashboardFullListingContext,
 } from '../../contexts/CardFilterContext'
 
 /** Shared class for compact list/table typography (see global.css `.dense-listing`). */
@@ -205,9 +206,11 @@ export const DashboardCard = ({
         }
         style={{ scrollbarWidth: 'thin' }}
       >
-        <DashboardCompactClinicalContext.Provider value={compactClinical}>
-          <CardFilterContext.Provider value={showFilters}>{children}</CardFilterContext.Provider>
-        </DashboardCompactClinicalContext.Provider>
+        <DashboardFullListingContext.Provider value={Boolean(noHeightLimit)}>
+          <DashboardCompactClinicalContext.Provider value={compactClinical}>
+            <CardFilterContext.Provider value={showFilters}>{children}</CardFilterContext.Provider>
+          </DashboardCompactClinicalContext.Provider>
+        </DashboardFullListingContext.Provider>
       </div>
     </section>
   )

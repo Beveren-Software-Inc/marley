@@ -90,8 +90,25 @@ def create_insurance_claim_from_invoice(sales_invoice: str) -> str:
     return claim.name
 
 
+def _mode_of_payment_needs_bank_reference(mode_of_payment: str) -> bool:
+	"""Bank-type modes (and Cheque) require Payment Entry reference no/date."""
+	if not mode_of_payment:
+		return False
+	mop_type = frappe.get_cached_value("Mode of Payment", mode_of_payment, "type")
+	if mop_type == "Bank":
+		return True
+	name_lower = mode_of_payment.lower()
+	return "cheque" in name_lower or "check" in name_lower
+
+
 @frappe.whitelist()
-def update_insurance_claim_payment(name: str, paid_amount: float, mode_of_payment: str) -> dict:
+def update_insurance_claim_payment(
+	name: str,
+	paid_amount: float,
+	mode_of_payment: str,
+	reference_no: str | None = None,
+	reference_date: str | None = None,
+) -> dict:
     """
     Update Insurance Claim payment information and create a Payment Entry.
 
@@ -119,22 +136,30 @@ def update_insurance_claim_payment(name: str, paid_amount: float, mode_of_paymen
     current_paid = flt(claim.total_approved or 0)
     delta = new_total_paid - current_paid
 
+    if _mode_of_payment_needs_bank_reference(mode_of_payment):
+        if not (reference_no or "").strip() or not reference_date:
+            frappe.throw(_("Reference No and Reference Date are required for bank/cheque payments"))
+
     pe_name = None
     if delta > 0:
         # Create Payment Entry for the delta
         from healthcare.api.payment_entry import create_payment_entry
 
-        pe_info = create_payment_entry(
-            {
-                "reference_doctype": "Sales Invoice",
-                "reference_name": inv_name,
-                "paid_amount": delta,
-                "mode_of_payment": mode_of_payment,
-                "patient": claim.patient,
-                "custom_insurance_claim": claim.name,
-                "remarks": _("Insurance Claim {0} payment update").format(claim.name),
-            }
-        )
+        pe_payload = {
+            "reference_doctype": "Sales Invoice",
+            "reference_name": inv_name,
+            "paid_amount": delta,
+            "mode_of_payment": mode_of_payment,
+            "patient": claim.patient,
+            "custom_insurance_claim": claim.name,
+            "remarks": _("Insurance Claim {0} payment update").format(claim.name),
+        }
+        if reference_no:
+            pe_payload["reference_no"] = reference_no.strip()
+        if reference_date:
+            pe_payload["reference_date"] = reference_date
+
+        pe_info = create_payment_entry(pe_payload)
         pe_name = pe_info.get("name")
 
     # Update totals and status on claim
