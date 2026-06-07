@@ -303,6 +303,37 @@ def start_clinical_note_type_from_flag_migration() -> dict:
 
 
 @frappe.whitelist()
+def start_morse_fall_scale_detail_migration() -> dict:
+	"""Backfill Morse Fall Scale detail lines from MORSE_FALL_SCALE_01 staging."""
+	_require_admin()
+	from healthcare.api.morse_fall_scale_detail_import import preview_morse_fall_scale_detail_import
+
+	job = "morse_fall_scale_detail"
+	_acquire_lock(job)
+	preview = preview_morse_fall_scale_detail_import()
+	_set_progress(
+		job,
+		0,
+		staging_rows=preview.get("staging_rows"),
+		resolvable=preview.get("resolvable"),
+		unresolved=preview.get("unresolved"),
+	)
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_morse_fall_scale_detail_import_batch",
+		offset=0,
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_morse_fall_scale_detail",
+	)
+	return {
+		"ok": True,
+		"message": _(
+			"Morse Fall Scale detail backfill started ({0} staging rows, {1} resolvable)."
+		).format(preview.get("staging_rows", 0), preview.get("resolvable", 0)),
+	}
+
+
+@frappe.whitelist()
 def get_migration_job_status(job: str) -> dict:
 	_require_admin()
 	progress = frappe.cache().get_value(_job_progress_key(job)) or {}
@@ -1925,6 +1956,44 @@ def process_nursing_checklist_import_batch(offset: int = 0) -> None:
 			)
 	except Exception:
 		frappe.db.rollback()
+		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
+		_release_lock(job)
+		raise
+
+
+def process_morse_fall_scale_detail_import_batch(offset: int = 0) -> None:
+	from healthcare.api.morse_fall_scale_detail_import import run_morse_fall_scale_detail_import_batch
+
+	job = "morse_fall_scale_detail"
+	counter_fields = [
+		"updated",
+		"skipped_empty_details",
+		"unresolved_missing_patient_or_admission",
+		"unresolved_morse_not_found",
+	]
+	try:
+		result = run_morse_fall_scale_detail_import_batch(offset=offset)
+		prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+		processed = result.get("processed", offset)
+		extra = {field: cint(prev.get(field, 0)) + cint(result.get(field, 0)) for field in counter_fields}
+		_set_progress(job, processed, **extra)
+
+		if not result.get("done"):
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_morse_fall_scale_detail_import_batch",
+				offset=processed,
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_morse_fall_scale_detail_{processed}",
+			)
+		else:
+			_set_progress(job, processed, done=True, **extra)
+			_release_lock(job)
+			frappe.log_error(
+				title="Morse Fall Scale detail backfill complete",
+				message=frappe.as_json({"processed": processed, "done": True, **extra}),
+			)
+	except Exception:
 		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
 		_release_lock(job)
 		raise

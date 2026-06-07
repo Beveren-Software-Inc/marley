@@ -172,7 +172,7 @@ export const DoctorPage = () => {
   const [vitalSignsRefreshKey, setVitalSignsRefreshKey] = useState(0)
   const [showSleepingPatternModal, setShowSleepingPatternModal] = useState(false)
   const [sleepingPatternRefreshKey, setSleepingPatternRefreshKey] = useState(0)
-  const [morseFallRefreshKey] = useState(0)
+  const [morseFallCreateOpen, setMorseFallCreateOpen] = useState(false)
   const [envChecklistCreateOpen, setEnvChecklistCreateOpen] = useState(false)
   const [showCreateNurseTaskModal, setShowCreateNurseTaskModal] = useState(false)
   const [longActingRefreshKey] = useState(0)
@@ -960,8 +960,14 @@ export const DoctorPage = () => {
       <div className="flex flex-col">
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
-          <DashboardCard title="Morse Fall Scale">
-            <MorseFallScaleList patient={selectedPatient} refreshKey={morseFallRefreshKey} onPatientClick={handlePatientSelect} />
+          <DashboardCard title="Morse Fall Scale" onAdd={() => setMorseFallCreateOpen(true)}>
+            <MorseFallScaleList
+              patient={selectedPatient}
+              onPatientClick={handlePatientSelect}
+              defaultAdmission={activeAdmission || undefined}
+              createModalOpen={morseFallCreateOpen}
+              onCreateModalOpenChange={setMorseFallCreateOpen}
+            />
           </DashboardCard>
         </div>
       </div>

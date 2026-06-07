@@ -51,7 +51,6 @@ import { Loader2, PackageSearch, Plus } from 'lucide-react'
 import { AppointmentList } from '../components/appointments/AppointmentList'
 import { EnvironmentalChecklistList } from '../components/environmental/EnvironmentalChecklistList'
 import { MorseFallScaleList } from '../components/morse/MorseFallScaleList'
-import { CreateMorseFallScaleModal } from '../components/morse/CreateMorseFallScaleModal'
 import { SleepingPatternList } from '../components/sleeping/SleepingPatternList'
 import { CreateSleepingPatternModal } from '../components/sleeping/CreateSleepingPatternModal'
 import { PatientHistoryList } from '../components/patientHistory/PatientHistoryList'
@@ -141,8 +140,6 @@ export const NursePage = () => {
   const [mentalStateRefreshKey, setMentalStateRefreshKey] = useState(0)
   const [showSickLeaveModal, setShowSickLeaveModal] = useState(false)
   const [sickLeaveRefreshKey, setSickLeaveRefreshKey] = useState(0)
-  const [showMorseFallModal, setShowMorseFallModal] = useState(false)
-  const [morseFallRefreshKey, setMorseFallRefreshKey] = useState(0)
   const [showSessionScheduleModal, setShowSessionScheduleModal] = useState(false)
   const [sessionScheduleRefreshKey, setSessionScheduleRefreshKey] = useState(0)
     const [patientRefreshKey, setPatientRefreshKey] = useState(0)
@@ -1199,27 +1196,13 @@ export const NursePage = () => {
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4 flex items-center justify-between">
-              <span>Morse Fall Scale</span>
-              <button
-                onClick={() => setShowMorseFallModal(true)}
-                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
-                title="Create Morse Fall Scale"
-              >
-                +
-              </button>
-            </div>
-            <MorseFallScaleList patient={selectedPatient} refreshKey={morseFallRefreshKey} onPatientClick={handlePatientSelect} />
+            <MorseFallScaleList
+              patient={selectedPatient}
+              onPatientClick={handlePatientSelect}
+              defaultAdmission={activeAdmission || undefined}
+            />
           </section>
         </div>
-        {showMorseFallModal && (
-          <CreateMorseFallScaleModal
-            patient={selectedPatient}
-            defaultAdmission={activeAdmission}
-            onClose={() => setShowMorseFallModal(false)}
-            onCreated={() => { setShowMorseFallModal(false); setMorseFallRefreshKey((k) => k + 1) }}
-          />
-        )}
       </div>
     )
   }

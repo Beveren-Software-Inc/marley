@@ -1,6 +1,4 @@
-
-
-import { useState, useEffect } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   CM_BTN_CANCEL,
   CM_BTN_PRIMARY,
@@ -11,11 +9,137 @@ import {
   createModalShellClass,
   createModalTabButtonClass,
 } from '../ui/CreateModalChrome'
-import { ShieldAlert } from 'lucide-react'
+import {
+  linkComboboxDropdownClass,
+  linkComboboxInputWithClearClass,
+  linkComboboxOptionClassCompact,
+} from '../ui/linkComboboxStyles'
+import { ChevronDown, Plus, ShieldAlert, Trash2 } from 'lucide-react'
 import { createMorseFallScale, type MorseFallScaleDetailRow } from '../../services/morseFallScale'
-import { fetchCompanies, fetchInpatientAdmissionOptions } from '../../services/common'
+import {
+  fetchCompanies,
+  fetchHealthcarePractitioners,
+  fetchInpatientAdmissionOptions,
+  getCurrentUserPractitioner,
+  type LinkFieldOption,
+} from '../../services/common'
 import { toast } from '../../hooks/useToast'
-import { Trash2, Plus } from 'lucide-react'
+
+interface LinkComboboxProps {
+  label: string
+  value: string
+  required?: boolean
+  onSelect: (opt: LinkFieldOption) => void
+  onClear: () => void
+  fetchOptions: (search: string) => Promise<LinkFieldOption[]>
+  placeholder?: string
+}
+
+const linkComboboxInputClass = `${linkComboboxInputWithClearClass} hover:border-emerald-300/80`
+
+function LinkCombobox({
+  label,
+  value,
+  required,
+  onSelect,
+  onClear,
+  fetchOptions,
+  placeholder,
+}: LinkComboboxProps) {
+  const [query, setQuery] = useState(value)
+  const [options, setOptions] = useState<LinkFieldOption[]>([])
+  const [open, setOpen] = useState(false)
+  const [loadingOptions, setLoadingOptions] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    setQuery(value)
+  }, [value])
+
+  useEffect(() => {
+    if (!open) return
+    const t = setTimeout(async () => {
+      setLoadingOptions(true)
+      try {
+        setOptions(await fetchOptions(query))
+      } catch {
+        setOptions([])
+      } finally {
+        setLoadingOptions(false)
+      }
+    }, query.trim() === '' ? 0 : 300)
+    return () => clearTimeout(t)
+  }, [query, open, fetchOptions])
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  return (
+    <div ref={containerRef} className="relative">
+      <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+        {label}
+        {required ? <span className="text-red-500"> *</span> : null}
+      </label>
+      <div className="relative">
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value)
+            onClear()
+            setOpen(true)
+          }}
+          onFocus={() => setOpen(true)}
+          placeholder={placeholder ?? 'Search...'}
+          className={linkComboboxInputClass}
+          autoComplete="off"
+        />
+        <span className="absolute inset-y-0 right-2 flex items-center pointer-events-none text-slate-400">
+          {loadingOptions ? (
+            <span className="w-3.5 h-3.5 border-2 border-slate-300 border-t-primary rounded-full animate-spin" />
+          ) : (
+            <ChevronDown className="w-3.5 h-3.5" />
+          )}
+        </span>
+      </div>
+      {open && (
+        <div className={linkComboboxDropdownClass}>
+          {options.length === 0 ? (
+            <div className="px-3 py-2 text-xs text-slate-400">
+              {loadingOptions ? 'Searching…' : 'No results found'}
+            </div>
+          ) : (
+            options.map((opt) => (
+              <button
+                key={opt.name}
+                type="button"
+                className={linkComboboxOptionClassCompact}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  onSelect(opt)
+                  setQuery(opt.label || opt.name)
+                  setOpen(false)
+                }}
+              >
+                <span className="font-medium text-slate-800">{opt.label || opt.name}</span>
+                {opt.label && opt.label !== opt.name ? (
+                  <span className="ml-1.5 text-xs text-slate-400">{opt.name}</span>
+                ) : null}
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
 
 interface CreateMorseFallScaleModalProps {
   patient?: string
@@ -97,10 +221,17 @@ export function CreateMorseFallScaleModal({
   const [admissionOptions, setAdmissionOptions] = useState<{ name: string; label: string }[]>([])
   const [companyOptions, setCompanyOptions] = useState<{ name: string; label: string }[]>([])
   const [selectedAdmission, setSelectedAdmission] = useState<string>(defaultAdmission ?? '')
+  const [practitioner, setPractitioner] = useState('')
+  const [practitionerLabel, setPractitionerLabel] = useState('')
   const [ordererNumber, setOrdererNumber] = useState('')
   const [company, setCompany] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const fetchPractitionerOptions = useCallback(
+    (search: string) => fetchHealthcarePractitioners(search || undefined),
+    []
+  )
 
   // Each category selection: index → chosen points (or null if not chosen)
   const [selections, setSelections] = useState<(number | null)[]>(() =>
@@ -116,9 +247,30 @@ export function CreateMorseFallScaleModal({
         .catch(() => setAdmissionOptions([]))
     }
     fetchCompanies()
-      .then(setCompanyOptions)
+      .then((opts) => {
+        setCompanyOptions(opts)
+        if (opts.length) {
+          setCompany((prev) => prev || opts[0].name)
+        }
+      })
       .catch(() => setCompanyOptions([]))
   }, [patient])
+
+  useEffect(() => {
+    getCurrentUserPractitioner()
+      .then(async (id) => {
+        if (!id) return
+        setPractitioner(id)
+        try {
+          const opts = await fetchHealthcarePractitioners(undefined)
+          const match = opts.find((o) => o.name === id)
+          setPractitionerLabel(match?.label || id)
+        } catch {
+          setPractitionerLabel(id)
+        }
+      })
+      .catch(() => {})
+  }, [])
 
   const totalFromStandard = selections.reduce<number>((sum, pts) => sum + (pts ?? 0), 0)
   const totalFromExtra = extraRows.reduce<number>((sum, r) => sum + (r.points || 0), 0)
@@ -149,6 +301,10 @@ export function CreateMorseFallScaleModal({
       setError('Please select an inpatient admission.')
       return
     }
+    if (!practitioner) {
+      setError('Please select a practitioner.')
+      return
+    }
 
     // Build detail rows: standard categories (only selected ones) + extra rows
     const detailRows: MorseFallScaleDetailRow[] = []
@@ -168,6 +324,7 @@ export function CreateMorseFallScaleModal({
       await createMorseFallScale({
         admission_no: selectedAdmission,
         patient_no: patient ?? '',
+        practitioner,
         orderer_number: ordererNumber || undefined,
         company: company || undefined,
         morse_fall_scale_detail: detailRows,
@@ -236,6 +393,24 @@ export function CreateMorseFallScaleModal({
                         <option key={a.name} value={a.name}>{a.label}</option>
                       ))}
                     </select>
+                  </div>
+
+                  <div>
+                    <LinkCombobox
+                      label="Practitioner"
+                      required
+                      value={practitionerLabel}
+                      fetchOptions={fetchPractitionerOptions}
+                      placeholder="Search practitioner…"
+                      onSelect={(opt) => {
+                        setPractitioner(opt.name)
+                        setPractitionerLabel(opt.label || opt.name)
+                      }}
+                      onClear={() => {
+                        setPractitioner('')
+                        setPractitionerLabel('')
+                      }}
+                    />
                   </div>
 
                   <div>
@@ -443,7 +618,11 @@ export function CreateMorseFallScaleModal({
                 Cancel
               </button>
               {activeTab === 'assessment' && (
-                <button type="submit" disabled={saving || !selectedAdmission} className={CM_BTN_PRIMARY}>
+                <button
+                  type="submit"
+                  disabled={saving || !selectedAdmission || !practitioner}
+                  className={CM_BTN_PRIMARY}
+                >
                   {saving ? 'Saving…' : 'Create'}
                 </button>
               )}

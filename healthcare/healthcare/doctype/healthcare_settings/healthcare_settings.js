@@ -268,6 +268,33 @@ frappe.ui.form.on('Healthcare Settings', {
 					)
 			);
 		}, __('Data Maintenance'));
+
+		frm.add_custom_button(__('Backfill Morse Fall Scale Details'), () => {
+			frappe.call({
+				method: 'healthcare.api.morse_fall_scale_detail_import.preview_morse_fall_scale_detail_import',
+				callback(preview) {
+					const counts = preview.message || {};
+					frappe.confirm(
+						__(
+							'Run in background: for each MORSE_FALL_SCALE_01 staging row with a matching patient and admission, replace Morse Fall Scale detail lines (text message + points from TEXT_MESSAGE_1–7 / GET_POINTS_1–7) and update total points. Staging rows: {0}, resolvable: {1}, unresolved: {2} (missing patient/admission: {3}, Morse not found: {4}). Continue?',
+							[
+								counts.staging_rows || 0,
+								counts.resolvable || 0,
+								counts.unresolved || 0,
+								counts.missing_patient_or_admission || 0,
+								counts.morse_not_found || 0,
+							]
+						),
+						() =>
+							run_migration_job(
+								frm,
+								'start_morse_fall_scale_detail_migration',
+								'morse_fall_scale_detail'
+							)
+					);
+				},
+			});
+		}, __('Data Maintenance'));
 	},
 
 	onload: function(frm) {

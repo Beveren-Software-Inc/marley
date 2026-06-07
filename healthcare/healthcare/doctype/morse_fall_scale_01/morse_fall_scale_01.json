@@ -1,0 +1,173 @@
+{
+ "actions": [],
+ "allow_import": 1,
+ "allow_rename": 1,
+ "autoname": "field:trans_num",
+ "creation": "2026-06-07 10:54:19.169458",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "trans_num",
+  "trans_date",
+  "admission_num",
+  "patient_num",
+  "order_num",
+  "text_message_1",
+  "get_points_1",
+  "text_message_2",
+  "get_points_2",
+  "text_message_3",
+  "get_points_3",
+  "text_message_4",
+  "get_points_4",
+  "text_message_5",
+  "get_points_5",
+  "text_message_6",
+  "get_points_6",
+  "text_message_7",
+  "get_points_7",
+  "total_points",
+  "branch"
+ ],
+ "fields": [
+  {
+   "fieldname": "trans_date",
+   "fieldtype": "Date",
+   "label": "TRANS_DATE"
+  },
+  {
+   "fieldname": "admission_num",
+   "fieldtype": "Link",
+   "label": "ADMISSION_NUM",
+   "options": "Inpatient Admission"
+  },
+  {
+   "fieldname": "patient_num",
+   "fieldtype": "Link",
+   "label": "PATIENT_NUM",
+   "options": "Patient"
+  },
+  {
+   "fieldname": "order_num",
+   "fieldtype": "Data",
+   "label": "ORDER_NUM"
+  },
+  {
+   "fieldname": "text_message_1",
+   "fieldtype": "Small Text",
+   "label": "TEXT_MESSAGE_1"
+  },
+  {
+   "fieldname": "get_points_1",
+   "fieldtype": "Int",
+   "label": "GET_POINTS_1"
+  },
+  {
+   "fieldname": "text_message_2",
+   "fieldtype": "Small Text",
+   "label": "TEXT_MESSAGE_2"
+  },
+  {
+   "fieldname": "get_points_2",
+   "fieldtype": "Int",
+   "label": "GET_POINTS_2"
+  },
+  {
+   "fieldname": "text_message_3",
+   "fieldtype": "Small Text",
+   "label": "TEXT_MESSAGE_3"
+  },
+  {
+   "fieldname": "get_points_3",
+   "fieldtype": "Int",
+   "label": "GET_POINTS_3"
+  },
+  {
+   "fieldname": "text_message_4",
+   "fieldtype": "Small Text",
+   "label": "TEXT_MESSAGE_4"
+  },
+  {
+   "fieldname": "get_points_4",
+   "fieldtype": "Int",
+   "label": "GET_POINTS_4"
+  },
+  {
+   "fieldname": "text_message_5",
+   "fieldtype": "Small Text",
+   "label": "TEXT_MESSAGE_5"
+  },
+  {
+   "fieldname": "get_points_5",
+   "fieldtype": "Int",
+   "label": "GET_POINTS_5"
+  },
+  {
+   "fieldname": "text_message_6",
+   "fieldtype": "Small Text",
+   "label": "TEXT_MESSAGE_6"
+  },
+  {
+   "fieldname": "get_points_6",
+   "fieldtype": "Int",
+   "label": "GET_POINTS_6"
+  },
+  {
+   "fieldname": "text_message_7",
+   "fieldtype": "Small Text",
+   "label": "TEXT_MESSAGE_7"
+  },
+  {
+   "fieldname": "get_points_7",
+   "fieldtype": "Int",
+   "label": "GET_POINTS_7"
+  },
+  {
+   "fieldname": "total_points",
+   "fieldtype": "Int",
+   "label": "TOTAL_POINTS",
+   "read_only": 1
+  },
+  {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "label": "BRANCH_NUM",
+   "options": "Cost Center"
+  },
+  {
+   "fieldname": "trans_num",
+   "fieldtype": "Data",
+   "label": "TRANS_NUM",
+   "unique": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-06-07 10:59:32.216000",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "MORSE_FALL_SCALE_01",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "import": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

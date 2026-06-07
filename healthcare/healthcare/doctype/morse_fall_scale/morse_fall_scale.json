@@ -10,6 +10,8 @@
   "admission_no",
   "patient_no",
   "date",
+  "practitioner",
+  "practitioner_name",
   "column_break_patient",
   "orderer_number",
   "company",
@@ -132,11 +134,22 @@
    "fieldtype": "Link",
    "label": "Cost Center",
    "options": "Cost Center"
+  },
+  {
+   "fieldname": "practitioner",
+   "fieldtype": "Link",
+   "label": "Practitioner",
+   "options": "Healthcare Practitioner"
+  },
+  {
+   "fieldname": "practitioner_name",
+   "fieldtype": "Data",
+   "label": "Practitioner Name"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-04-29 13:38:15.115980",
+ "modified": "2026-06-07 11:10:30.340677",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Morse Fall Scale",
