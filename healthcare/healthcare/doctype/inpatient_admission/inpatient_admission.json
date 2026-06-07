@@ -125,8 +125,6 @@
   "rehabilitation_section",
   "therapy_plan",
   "therapies",
-  "medication_section",
-  "drug_prescription",
   "procedures_section",
   "procedure_prescription",
   "sb_inpatient_occupancy",
@@ -134,8 +132,6 @@
   "btn_transfer",
   "investigations_section",
   "lab_test_prescription",
-  "section_break_mzja",
-  "patient_diagnosis",
   "medical_history_tab",
   "allergy_medical_and_surgical_history",
   "allergies",
@@ -150,34 +146,9 @@
   "patient_relatives",
   "section_break_visitors",
   "patient_visitors",
-  "physical_examination_tab",
-  "basic_conditions_section",
-  "weight",
-  "height",
-  "bp",
-  "trans_no",
-  "blood_pressure",
-  "column_break_vitals",
-  "pulse",
-  "temp",
-  "resp_rate",
-  "general_condition_section",
-  "general_condition",
-  "cns",
-  "others",
-  "column_break_exam",
-  "cvs_resp",
-  "git",
   "signature_tab",
   "signature",
-  "e_signatures",
-  "history_form_tab",
-  "history_form_details_template",
-  "history_attributes",
-  "environmental_checklist_tab",
-  "environmental_checklist_template",
-  "environmental_checklist_section",
-  "environmental_checklist_detail"
+  "e_signatures"
  ],
  "fields": [
   {
@@ -569,95 +540,6 @@
    "options": "Patient Visitors"
   },
   {
-   "fieldname": "physical_examination_tab",
-   "fieldtype": "Tab Break",
-   "label": "Physical Examination"
-  },
-  {
-   "fieldname": "basic_conditions_section",
-   "fieldtype": "Section Break",
-   "label": "Basic Conditions"
-  },
-  {
-   "fieldname": "weight",
-   "fieldtype": "Float",
-   "label": "Weight"
-  },
-  {
-   "fieldname": "height",
-   "fieldtype": "Float",
-   "label": "Height"
-  },
-  {
-   "fieldname": "bp",
-   "fieldtype": "Float",
-   "label": "BP"
-  },
-  {
-   "fieldname": "trans_no",
-   "fieldtype": "Int",
-   "label": "Trans No"
-  },
-  {
-   "fieldname": "blood_pressure",
-   "fieldtype": "Data",
-   "label": "Blood Pressure"
-  },
-  {
-   "fieldname": "column_break_vitals",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "pulse",
-   "fieldtype": "Float",
-   "label": "Pulse"
-  },
-  {
-   "fieldname": "temp",
-   "fieldtype": "Float",
-   "label": "Temp"
-  },
-  {
-   "fieldname": "resp_rate",
-   "fieldtype": "Float",
-   "label": "Resp Rate"
-  },
-  {
-   "description": "Skin, Hair, Nail, Gait, Surface, Abnormalities",
-   "fieldname": "general_condition_section",
-   "fieldtype": "Section Break",
-   "label": "General Condition"
-  },
-  {
-   "fieldname": "general_condition",
-   "fieldtype": "Small Text",
-   "label": "General Condition"
-  },
-  {
-   "fieldname": "cns",
-   "fieldtype": "Small Text",
-   "label": "CNS"
-  },
-  {
-   "fieldname": "others",
-   "fieldtype": "Small Text",
-   "label": "Others"
-  },
-  {
-   "fieldname": "column_break_exam",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "cvs_resp",
-   "fieldtype": "Small Text",
-   "label": "CVS / RESP"
-  },
-  {
-   "fieldname": "git",
-   "fieldtype": "Small Text",
-   "label": "GIT"
-  },
-  {
    "fieldname": "signature_tab",
    "fieldtype": "Tab Break",
    "label": "Signature"
@@ -684,20 +566,6 @@
    "label": "Patient Visit",
    "options": "Patient Visit",
    "read_only": 1
-  },
-  {
-   "collapsible": 1,
-   "depends_on": "eval:!doc.__islocal;",
-   "fieldname": "medication_section",
-   "fieldtype": "Section Break",
-   "label": "Medications",
-   "permlevel": 1
-  },
-  {
-   "fieldname": "drug_prescription",
-   "fieldtype": "Table",
-   "options": "Drug Prescription",
-   "permlevel": 1
   },
   {
    "collapsible": 1,
@@ -869,45 +737,6 @@
    "label": "Medical details"
   },
   {
-   "fieldname": "history_form_tab",
-   "fieldtype": "Tab Break",
-   "label": "History Form"
-  },
-  {
-   "fieldname": "history_form_details_template",
-   "fieldtype": "Link",
-   "label": "History Form Details Template",
-   "options": "History Form Details Template"
-  },
-  {
-   "fieldname": "history_attributes",
-   "fieldtype": "Table",
-   "label": "History Attributes",
-   "options": "History Form Details"
-  },
-  {
-   "fieldname": "environmental_checklist_tab",
-   "fieldtype": "Tab Break",
-   "label": "Environmental Checklist"
-  },
-  {
-   "fieldname": "environmental_checklist_template",
-   "fieldtype": "Link",
-   "label": "Environmental Checklist Template",
-   "options": "Environmental Checklist Template"
-  },
-  {
-   "fieldname": "environmental_checklist_section",
-   "fieldtype": "Section Break",
-   "label": "Environmental Checklist Details"
-  },
-  {
-   "fieldname": "environmental_checklist_detail",
-   "fieldtype": "Table",
-   "label": "Environmental Checklist Details",
-   "options": "Environmental Checklist Detail"
-  },
-  {
    "fieldname": "e_signatures",
    "fieldtype": "Table",
    "label": "e-Signatures",
@@ -941,16 +770,6 @@
    "fieldtype": "Link",
    "label": "Inpatient Package",
    "options": "Inpatient Package"
-  },
-  {
-   "fieldname": "section_break_mzja",
-   "fieldtype": "Section Break"
-  },
-  {
-   "fieldname": "patient_diagnosis",
-   "fieldtype": "Table",
-   "label": "Patient Diagnosis",
-   "options": "Patient Diagnosis"
   },
   {
    "fieldname": "section_break_uxsd",
@@ -1161,7 +980,7 @@
    "link_fieldname": "admission"
   }
  ],
- "modified": "2026-06-04 12:55:08.031307",
+ "modified": "2026-06-07 10:34:29.994039",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Inpatient Admission",

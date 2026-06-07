@@ -47,15 +47,10 @@
   "symptoms",
   "symptoms_in_print",
   "get_applicable_treatment_plans",
-  "diagnosis",
   "physical_examination",
-  "patient_diagnosis",
   "diagnosis_in_print",
-  "diagnosis_description",
   "codification",
   "codification_table",
-  "sb_drug_prescription",
-  "drug_prescription",
   "sb_test_prescription",
   "lab_test_prescription",
   "sb_procedures",
@@ -356,15 +351,6 @@
    "fieldtype": "Column Break"
   },
   {
-   "allow_on_submit": 1,
-   "fieldname": "diagnosis",
-   "fieldtype": "Table MultiSelect",
-   "ignore_xss_filter": 1,
-   "label": "Diagnosis",
-   "no_copy": 1,
-   "options": "Patient Encounter Diagnosis"
-  },
-  {
    "default": "1",
    "depends_on": "eval: doc.diagnosis != ''",
    "fieldname": "diagnosis_in_print",
@@ -385,17 +371,6 @@
    "fieldtype": "Table",
    "label": "Medical Codes",
    "options": "Codification Table"
-  },
-  {
-   "fieldname": "sb_drug_prescription",
-   "fieldtype": "Section Break",
-   "label": "Medications"
-  },
-  {
-   "fieldname": "drug_prescription",
-   "fieldtype": "Table",
-   "label": "Drug Prescription",
-   "options": "Drug Prescription"
   },
   {
    "fieldname": "sb_test_prescription",
@@ -576,12 +551,6 @@
    "options": "Patient Upload Document"
   },
   {
-   "fieldname": "patient_diagnosis",
-   "fieldtype": "Table",
-   "label": "Patient Diagnosis",
-   "options": "Patient Diagnosis"
-  },
-  {
    "fieldname": "section_break_imzr",
    "fieldtype": "Section Break",
    "label": "Additional Fields"
@@ -678,11 +647,6 @@
    "unique": 1
   },
   {
-   "fieldname": "diagnosis_description",
-   "fieldtype": "Small Text",
-   "label": "Diagnosis Description"
-  },
-  {
    "fieldname": "old_visit_type_",
    "fieldtype": "Data",
    "label": "Old VISIT_TYPE_"
@@ -758,7 +722,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2026-05-14 14:43:30.534427",
+ "modified": "2026-06-07 09:44:18.613150",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Visit",

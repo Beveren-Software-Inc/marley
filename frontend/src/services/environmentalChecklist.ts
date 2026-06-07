@@ -1,73 +1,4 @@
-// export interface EnvironmentalChecklistDetail {
-//   name: string
-//   item_name: string
-//   checked: boolean
-// }
-
-// export interface EnvironmentalChecklistResponse {
-//   admission: string
-//   patient: string
-//   patient_name?: string
-//   environmental_checklist_template?: string
-//   details: EnvironmentalChecklistDetail[]
-// }
-
-// import { apiRequest } from './apiClient'
-
-// export async function fetchEnvironmentalChecklist(admissionName: string): Promise<EnvironmentalChecklistResponse> {
-//   const params = new URLSearchParams()
-//   params.append('admission_name', admissionName)
-//   const res = await fetch(`/api/method/healthcare.healthcare.api.environmental_checklist.get_environmental_checklist?${params.toString()}`)
-//   const data = await res.json()
-//   if (data?.exc_type) {
-//     throw new Error(data?.message || 'Failed to load environmental checklist')
-//   }
-//   return (data?.message || {
-//     admission: admissionName,
-//     patient: '',
-//     patient_name: '',
-//     environmental_checklist_template: undefined,
-//     details: [],
-//   }) as EnvironmentalChecklistResponse
-// }
-
-// export async function applyEnvironmentalChecklistTemplate(
-//   admissionName: string,
-//   templateName?: string
-// ): Promise<EnvironmentalChecklistResponse> {
-//   const body: Record<string, unknown> = { admission_name: admissionName }
-//   if (templateName) body.template_name = templateName
-
-//   const res = await fetch('/api/method/healthcare.healthcare.api.environmental_checklist.apply_environmental_checklist_template', {
-//     method: 'POST',
-//     headers: { 'Content-Type': 'application/json' },
-//     body: JSON.stringify(body),
-//   })
-//   const data = await res.json()
-//   if (data?.exc_type) {
-//     throw new Error(data?.message || 'Failed to apply environmental checklist template')
-//   }
-//   return data?.message as EnvironmentalChecklistResponse
-// }
-
-// export async function updateEnvironmentalChecklist(
-//   admissionName: string,
-//   details: EnvironmentalChecklistDetail[]
-// ): Promise<EnvironmentalChecklistResponse> {
-//   return apiRequest<EnvironmentalChecklistResponse>(
-//     '/api/method/healthcare.healthcare.api.environmental_checklist.update_environmental_checklist',
-//     {
-//       method: 'POST',
-//       body: JSON.stringify({
-//         admission_name: admissionName,
-//         details,
-//       }),
-//     }
-//   )
-// }
-
-
-// services/environmentalChecklist.ts
+import { apiRequest } from './apiClient'
 
 export interface EnvironmentalChecklistDetail {
   name: string
@@ -75,23 +6,74 @@ export interface EnvironmentalChecklistDetail {
   checked: boolean
 }
 
-export interface EnvironmentalChecklistResponse {
-  admission: string
+export interface EnvironmentalChecklistRecord {
+  name: string
   patient: string
   patient_name?: string
+  cost_center?: string
+  practitioner?: string
+  practitioner_name?: string
+  inpatient_admission?: string
+  patient_visit?: string
   environmental_checklist_template?: string
-  details: EnvironmentalChecklistDetail[]
+  creation?: string
+  modified?: string
+  completed_count?: number
+  total_count?: number
+  details?: EnvironmentalChecklistDetail[]
 }
 
 export interface EnvironmentalChecklistTemplate {
   name: string
-  details: { item_name: string }[]
-  checklist_items: EnvironmentalChecklistDetail[]
+  default?: boolean
+  checklist_items: { item_name: string }[]
 }
 
-// Fetch all available templates
+export interface EnvironmentalChecklistListFilters {
+  dateFrom?: string
+  dateTo?: string
+  inpatientAdmission?: string
+}
+
+export async function fetchEnvironmentalChecklists(
+  patient?: string,
+  limit = 50,
+  filters: EnvironmentalChecklistListFilters = {}
+): Promise<EnvironmentalChecklistRecord[]> {
+  const params = new URLSearchParams()
+  if (patient) params.append('patient', patient)
+  params.append('limit', String(limit))
+  if (filters.dateFrom) params.append('date_from', filters.dateFrom)
+  if (filters.dateTo) params.append('date_to', filters.dateTo)
+  if (filters.inpatientAdmission) params.append('inpatient_admission', filters.inpatientAdmission)
+
+  const res = await fetch(
+    `/api/method/healthcare.healthcare.api.environmental_checklist.list_environmental_checklists?${params.toString()}`
+  )
+  const data = await res.json()
+  if (data?.exc_type) {
+    throw new Error(data?.message || 'Failed to load environmental checklists')
+  }
+  return data?.message || []
+}
+
+export async function fetchEnvironmentalChecklist(checklistName: string): Promise<EnvironmentalChecklistRecord> {
+  const params = new URLSearchParams()
+  params.append('checklist_name', checklistName)
+  const res = await fetch(
+    `/api/method/healthcare.healthcare.api.environmental_checklist.get_environmental_checklist?${params.toString()}`
+  )
+  const data = await res.json()
+  if (data?.exc_type) {
+    throw new Error(data?.message || 'Failed to load environmental checklist')
+  }
+  return data?.message as EnvironmentalChecklistRecord
+}
+
 export async function fetchEnvironmentalChecklistTemplates(): Promise<EnvironmentalChecklistTemplate[]> {
-  const res = await fetch('/api/method/healthcare.healthcare.api.environmental_checklist.get_environmental_checklist_templates')
+  const res = await fetch(
+    '/api/method/healthcare.healthcare.api.environmental_checklist.get_environmental_checklist_templates'
+  )
   const data = await res.json()
   if (data?.exc_type) {
     throw new Error(data?.message || 'Failed to load templates')
@@ -99,60 +81,70 @@ export async function fetchEnvironmentalChecklistTemplates(): Promise<Environmen
   return data?.message || []
 }
 
-// Fetch checklist for an admission
-export async function fetchEnvironmentalChecklist(admissionName: string): Promise<EnvironmentalChecklistResponse> {
-  const params = new URLSearchParams()
-  params.append('admission_name', admissionName)
-  const res = await fetch(`/api/method/healthcare.healthcare.api.environmental_checklist.get_environmental_checklist?${params.toString()}`)
+export async function fetchDefaultEnvironmentalChecklistTemplate(): Promise<EnvironmentalChecklistTemplate | null> {
+  const res = await fetch(
+    '/api/method/healthcare.healthcare.api.environmental_checklist.get_default_environmental_checklist_template'
+  )
   const data = await res.json()
   if (data?.exc_type) {
-    throw new Error(data?.message || 'Failed to load environmental checklist')
+    throw new Error(data?.message || 'Failed to load default template')
   }
-  return (data?.message || {
-    admission: admissionName,
-    patient: '',
-    patient_name: '',
-    environmental_checklist_template: undefined,
-    details: [],
-  }) as EnvironmentalChecklistResponse
+  return data?.message || null
 }
 
-// Apply template to admission
+export async function createEnvironmentalChecklist(payload: {
+  patient: string
+  inpatient_admission?: string
+  patient_visit?: string
+  template_name?: string
+  cost_center?: string
+  practitioner?: string
+}): Promise<EnvironmentalChecklistRecord> {
+  return apiRequest<EnvironmentalChecklistRecord>(
+    '/api/method/healthcare.healthcare.api.environmental_checklist.create_environmental_checklist',
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }
+  )
+}
+
 export async function applyEnvironmentalChecklistTemplate(
-  admissionName: string,
+  checklistName: string,
   templateName: string
-): Promise<EnvironmentalChecklistResponse> {
-  const res = await fetch('/api/method/healthcare.healthcare.api.environmental_checklist.apply_environmental_checklist_template', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      admission_name: admissionName,
-      template_name: templateName,
-    }),
-  })
-  const data = await res.json()
-  if (data?.exc_type) {
-    throw new Error(data?.message || 'Failed to apply environmental checklist template')
-  }
-  return data?.message as EnvironmentalChecklistResponse
+): Promise<EnvironmentalChecklistRecord> {
+  return apiRequest<EnvironmentalChecklistRecord>(
+    '/api/method/healthcare.healthcare.api.environmental_checklist.apply_environmental_checklist_template',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        checklist_name: checklistName,
+        template_name: templateName,
+      }),
+    }
+  )
 }
 
-// Update checklist
+export interface EnvironmentalChecklistUpdateOptions {
+  costCenter?: string
+  practitioner?: string
+}
+
 export async function updateEnvironmentalChecklist(
-  admissionName: string,
-  details: EnvironmentalChecklistDetail[]
-): Promise<EnvironmentalChecklistResponse> {
-  const res = await fetch('/api/method/healthcare.healthcare.api.environmental_checklist.update_environmental_checklist', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      admission_name: admissionName,
-      details: details.map(d => ({ name: d.name, checked: d.checked })),
-    }),
-  })
-  const data = await res.json()
-  if (data?.exc_type) {
-    throw new Error(data?.message || 'Failed to update environmental checklist')
-  }
-  return data?.message as EnvironmentalChecklistResponse
+  checklistName: string,
+  details: EnvironmentalChecklistDetail[],
+  options: EnvironmentalChecklistUpdateOptions = {}
+): Promise<EnvironmentalChecklistRecord> {
+  return apiRequest<EnvironmentalChecklistRecord>(
+    '/api/method/healthcare.healthcare.api.environmental_checklist.update_environmental_checklist',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        checklist_name: checklistName,
+        details: details.map((d) => ({ name: d.name, checked: d.checked })),
+        cost_center: options.costCenter,
+        practitioner: options.practitioner,
+      }),
+    }
+  )
 }
