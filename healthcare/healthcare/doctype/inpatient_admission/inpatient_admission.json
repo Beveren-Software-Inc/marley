@@ -125,8 +125,6 @@
   "rehabilitation_section",
   "therapy_plan",
   "therapies",
-  "medication_section",
-  "drug_prescription",
   "procedures_section",
   "procedure_prescription",
   "sb_inpatient_occupancy",
@@ -134,8 +132,6 @@
   "btn_transfer",
   "investigations_section",
   "lab_test_prescription",
-  "section_break_mzja",
-  "patient_diagnosis",
   "medical_history_tab",
   "allergy_medical_and_surgical_history",
   "allergies",
@@ -171,9 +167,6 @@
   "signature_tab",
   "signature",
   "e_signatures",
-  "history_form_tab",
-  "history_form_details_template",
-  "history_attributes",
   "environmental_checklist_tab",
   "environmental_checklist_template",
   "environmental_checklist_section",
@@ -688,20 +681,6 @@
   {
    "collapsible": 1,
    "depends_on": "eval:!doc.__islocal;",
-   "fieldname": "medication_section",
-   "fieldtype": "Section Break",
-   "label": "Medications",
-   "permlevel": 1
-  },
-  {
-   "fieldname": "drug_prescription",
-   "fieldtype": "Table",
-   "options": "Drug Prescription",
-   "permlevel": 1
-  },
-  {
-   "collapsible": 1,
-   "depends_on": "eval:!doc.__islocal;",
    "fieldname": "investigations_section",
    "fieldtype": "Section Break",
    "label": "Investigations",
@@ -869,23 +848,6 @@
    "label": "Medical details"
   },
   {
-   "fieldname": "history_form_tab",
-   "fieldtype": "Tab Break",
-   "label": "History Form"
-  },
-  {
-   "fieldname": "history_form_details_template",
-   "fieldtype": "Link",
-   "label": "History Form Details Template",
-   "options": "History Form Details Template"
-  },
-  {
-   "fieldname": "history_attributes",
-   "fieldtype": "Table",
-   "label": "History Attributes",
-   "options": "History Form Details"
-  },
-  {
    "fieldname": "environmental_checklist_tab",
    "fieldtype": "Tab Break",
    "label": "Environmental Checklist"
@@ -941,16 +903,6 @@
    "fieldtype": "Link",
    "label": "Inpatient Package",
    "options": "Inpatient Package"
-  },
-  {
-   "fieldname": "section_break_mzja",
-   "fieldtype": "Section Break"
-  },
-  {
-   "fieldname": "patient_diagnosis",
-   "fieldtype": "Table",
-   "label": "Patient Diagnosis",
-   "options": "Patient Diagnosis"
   },
   {
    "fieldname": "section_break_uxsd",
@@ -1161,7 +1113,7 @@
    "link_fieldname": "admission"
   }
  ],
- "modified": "2026-06-04 12:55:08.031307",
+ "modified": "2026-06-07 09:47:30.208622",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Inpatient Admission",
