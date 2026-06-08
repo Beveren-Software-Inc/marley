@@ -109,7 +109,7 @@ export async function fetchLabTests(
   from_date?: string,
   to_date?: string,
   template?: string,
-  patient_type?: string,
+  practitioner?: string,
   by_nurse?: boolean
 ): Promise<PaginatedLabTests> {
   const params = new URLSearchParams()
@@ -122,7 +122,7 @@ export async function fetchLabTests(
   if (from_date) params.append('from_date', from_date)
   if (to_date) params.append('to_date', to_date)
   if (template) params.append('template', template)
-  if (patient_type) params.append('patient_type', patient_type)
+  if (practitioner) params.append('practitioner', practitioner)
   if (by_nurse !== undefined) params.append('by_nurse', by_nurse ? '1' : '0')
 
   const response = await fetch(

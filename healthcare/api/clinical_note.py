@@ -12,6 +12,52 @@ from healthcare.healthcare.doctype.clinical_note.clinical_note import (
 	fill_patient_from_inpatient_admission,
 )
 
+# Portal users create/list notes via whitelisted APIs; REST /api/resource still enforces DocPerm.
+CLINICAL_NOTE_PORTAL_READ_ROLES = frozenset(
+	{
+		"Administrator",
+		"System Manager",
+		"Healthcare Administrator",
+		"Doctor",
+		"Nurse",
+		"Physician",
+		"Psychologist",
+		"Anesthesiologist",
+		"Therapist",
+		"Nutritionist",
+	}
+)
+
+
+def _user_can_read_clinical_note_portal() -> bool:
+	if frappe.session.user in ("Guest", ""):
+		return False
+	return bool(CLINICAL_NOTE_PORTAL_READ_ROLES & set(frappe.get_roles(frappe.session.user)))
+
+
+def _enrich_clinical_note_row(note: dict) -> dict:
+	if note.get("patient"):
+		patient_name = frappe.db.get_value("Patient", note["patient"], "patient_name")
+		if patient_name:
+			note["patient_name"] = patient_name
+	if note.get("practitioner"):
+		practitioner_name = frappe.db.get_value(
+			"Healthcare Practitioner", note["practitioner"], "practitioner_name"
+		)
+		if practitioner_name:
+			note["practitioner_name"] = practitioner_name
+	if note.get("medical_role"):
+		medical_role_name = frappe.db.get_value("Medical Role", note["medical_role"], "medical_role")
+		if medical_role_name:
+			note["medical_role_name"] = medical_role_name
+	if note.get("clinical_note_type"):
+		clinical_note_type_name = frappe.db.get_value(
+			"Clinical Note Type", note["clinical_note_type"], "clinical_note_type"
+		)
+		if clinical_note_type_name:
+			note["clinical_note_type_name"] = clinical_note_type_name
+	return note
+
 
 def _get_or_create_clinical_note_type(name: str | None) -> str | None:
 	if not name:
@@ -150,7 +196,11 @@ def _clinical_note_list_filters(kwargs: dict) -> tuple[list, list | None]:
 @frappe.whitelist()
 def get_clinical_notes(**kwargs):
 	"""Get list of Clinical Notes with optional filters"""
-	
+	portal_reader = _user_can_read_clinical_note_portal()
+	has_read = frappe.has_permission("Clinical Note", "read")
+	if not has_read and not portal_reader:
+		frappe.throw(_("Not permitted to access Clinical Notes"), frappe.PermissionError)
+
 	# Note: ref_doctype/ref_document used instead of reference_doctype/reference_document
 	# because Frappe's request handler strips those reserved parameter names before
 	# they reach the whitelisted function.
@@ -193,30 +243,34 @@ def get_clinical_notes(**kwargs):
 		limit=int(limit),
 		limit_start=int(offset),
 		order_by='posting_date desc',
+		ignore_permissions=portal_reader and not has_read,
 	)
-	# Get patient names and practitioner names
 	for note in clinical_notes:
-		if note.patient:
-			patient_name = frappe.db.get_value('Patient', note.patient, 'patient_name')
-			if patient_name:
-				note['patient_name'] = patient_name
-		
-		if note.practitioner:
-			practitioner_name = frappe.db.get_value('Healthcare Practitioner', note.practitioner, 'practitioner_name')
-			if practitioner_name:
-				note['practitioner_name'] = practitioner_name
-		
-		if note.medical_role:
-			medical_role_name = frappe.db.get_value('Medical Role', note.medical_role, 'medical_role')
-			if medical_role_name:
-				note['medical_role_name'] = medical_role_name
-		
-		if note.clinical_note_type:
-			clinical_note_type_name = frappe.db.get_value('Clinical Note Type', note.clinical_note_type, 'clinical_note_type')
-			if clinical_note_type_name:
-				note['clinical_note_type_name'] = clinical_note_type_name
-	
+		_enrich_clinical_note_row(note)
+
 	return clinical_notes
+
+
+@frappe.whitelist()
+def get_clinical_note(name: str | None = None):
+	"""Return one Clinical Note for the healthcare portal (avoids REST DocPerm gaps)."""
+	name = (name or "").strip()
+	if not name:
+		frappe.throw(_("Clinical Note is required"))
+
+	if not frappe.db.exists("Clinical Note", name):
+		frappe.throw(_("Clinical Note {0} not found").format(name))
+
+	doc = frappe.get_doc("Clinical Note", name)
+
+	if not frappe.has_permission("Clinical Note", "read", doc=doc):
+		if not _user_can_read_clinical_note_portal():
+			frappe.throw(
+				_("Not permitted to read Clinical Note"),
+				frappe.PermissionError,
+			)
+
+	return _enrich_clinical_note_row(doc.as_dict())
 
 
 @frappe.whitelist()

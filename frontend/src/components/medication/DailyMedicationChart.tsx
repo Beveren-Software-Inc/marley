@@ -116,7 +116,8 @@ export const DailyMedicationChart = ({ patient, admission: admissionProp }: Dail
         <div>
           <h2 className="text-sm font-semibold text-slate-900">Daily Medication Chart</h2>
           <p className="text-xs text-slate-500">
-            View prescribed inpatient medications for the selected day, grouped by session.
+            Daily-frequency medicines only, grouped by morning / noon / evening / night. Long-interval
+            doses (e.g. Q3W) are recorded manually and do not appear here.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -172,7 +173,7 @@ export const DailyMedicationChart = ({ patient, admission: admissionProp }: Dail
 
       {!loading && !error && selectedAdmissionName && (!data || data.rows.length === 0) && (
         <div className="text-sm text-slate-600 border border-dashed border-slate-300 rounded-md px-3 py-4 text-center">
-          No inpatient prescriptions found for this admission on the selected date.
+          No daily-frequency medicines found for this admission on the selected date.
         </div>
       )}
 

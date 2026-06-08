@@ -216,8 +216,14 @@ export const CreateMedicineGivenModal = ({
         setUoms(uomOptions)
         setLoadingUoms(false)
 
-        const loadPrescriptionOrders = async (prescriptionName: string) => {
-          const ords = await fetchMedicationOrders(prescriptionName)
+        const loadPrescriptionOrders = async (
+          prescriptionName: string,
+          embeddedOrders?: MedicationOrderEntry[]
+        ) => {
+          const ords =
+            embeddedOrders?.length
+              ? embeddedOrders
+              : await fetchMedicationOrders(prescriptionName)
           setOrders(ords)
           setSelectedOrder(pickInitialOrderEntry(ords, initialOrderEntry))
         }
@@ -254,7 +260,7 @@ export const CreateMedicineGivenModal = ({
               if (currentRx) {
                 setPrescriptions([currentRx])
                 setSelectedPrescription(currentRx.name)
-                await loadPrescriptionOrders(currentRx.name)
+                await loadPrescriptionOrders(currentRx.name, currentRx.medication_orders)
               } else {
                 setPrescriptions([])
                 setSelectedPrescription('')

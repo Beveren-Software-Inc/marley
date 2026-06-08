@@ -1691,6 +1691,7 @@ import {
   fetchHealthcarePractitioners,
   fetchLabTechnicianPractitioners,
   fetchLabTestTemplates,
+  getCurrentUserPractitioner,
   type LinkFieldOption,
 } from '../../services/common'
 import { uploadPatientFile, type PatientDocumentRow } from '../../services/patients'
@@ -1764,11 +1765,11 @@ const fetchCostCenterLetterHead = async (costCenter?: string): Promise<{ content
 
 interface Filters {
   status: string; fromDate: string; toDate: string
-  isOutsourced: string; opIp: string; template: string; templateLabel: string
+  isOutsourced: string; practitioner: string; practitionerLabel: string; template: string; templateLabel: string
 }
 
 const makeEmptyFilters = (): Filters => ({
-  status: '', fromDate: '', toDate: '', isOutsourced: '', opIp: '', template: '', templateLabel: '',
+  status: '', fromDate: '', toDate: '', isOutsourced: '', practitioner: '', practitionerLabel: '', template: '', templateLabel: '',
 })
 
 // ─── Helper: Calculate Result Flag ─────────────────────────────────────────
@@ -1853,6 +1854,9 @@ const FilterBar = ({ filters, onChange, onClear, activeCount, byNurse }: {
   const [templateQuery, setTemplateQuery] = useState('')
   const [templateOptions, setTemplateOptions] = useState<LinkFieldOption[]>([])
   const [templateOpen, setTemplateOpen] = useState(false)
+  const [practitionerQuery, setPractitionerQuery] = useState('')
+  const [practitionerOptions, setPractitionerOptions] = useState<LinkFieldOption[]>([])
+  const [practitionerOpen, setPractitionerOpen] = useState(false)
 
   useEffect(() => {
     if (!templateOpen) return
@@ -1863,6 +1867,16 @@ const FilterBar = ({ filters, onChange, onClear, activeCount, byNurse }: {
     }, templateQuery.trim() === '' ? 0 : 300)
     return () => clearTimeout(t)
   }, [templateOpen, templateQuery, byNurse])
+
+  useEffect(() => {
+    if (!practitionerOpen) return
+    const t = setTimeout(async () => {
+      try {
+        setPractitionerOptions(await fetchHealthcarePractitioners(practitionerQuery || undefined))
+      } catch { setPractitionerOptions([]) }
+    }, practitionerQuery.trim() === '' ? 0 : 300)
+    return () => clearTimeout(t)
+  }, [practitionerOpen, practitionerQuery])
 
   return (
     <div className="flex flex-wrap items-end gap-3 px-4 py-3 bg-white border-b border-slate-200">
@@ -1887,15 +1901,55 @@ const FilterBar = ({ filters, onChange, onClear, activeCount, byNurse }: {
         <input type="date" value={filters.toDate} onChange={(e) => set('toDate', e.target.value)}
           className="w-full px-3 py-1.5 text-sm rounded-md border border-slate-300 focus:outline-none focus:ring-2 focus:ring-primary" />
       </div>
-      <div className="flex flex-col gap-1 min-w-[140px]">
-        <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">OP / IP</label>
+      <div className="flex flex-col gap-1 min-w-[200px] relative">
+        <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Practitioner</label>
         <div className="relative">
-          <select value={filters.opIp} onChange={(e) => set('opIp', e.target.value)}
-            className="w-full appearance-none pl-3 pr-8 py-1.5 text-sm rounded-md border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-primary">
-            <option value="">All</option><option value="OP">OP</option><option value="IP">IP</option>
-          </select>
+          <input
+            type="text"
+            value={filters.practitioner ? filters.practitionerLabel : practitionerQuery}
+            onChange={(e) => {
+              setPractitionerQuery(e.target.value)
+              onChange({ ...filters, practitioner: '', practitionerLabel: '' })
+              setPractitionerOpen(true)
+            }}
+            onFocus={() => setPractitionerOpen(true)}
+            placeholder="Search practitioner..."
+            className="w-full pl-3 pr-8 py-1.5 text-sm rounded-md border border-slate-300 focus:outline-none focus:ring-2 focus:ring-primary"
+          />
+          {filters.practitioner && (
+            <button
+              type="button"
+              onClick={() => {
+                setPractitionerQuery('')
+                onChange({ ...filters, practitioner: '', practitionerLabel: '' })
+              }}
+              className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              aria-label="Clear practitioner filter"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
           <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
         </div>
+        {practitionerOpen && practitionerOptions.length > 0 && (
+          <div className="absolute z-20 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto top-full">
+            {practitionerOptions.map((opt) => (
+              <button
+                key={opt.name}
+                type="button"
+                onClick={() => {
+                  onChange({ ...filters, practitioner: opt.name, practitionerLabel: opt.label || opt.name })
+                  setPractitionerQuery('')
+                  setPractitionerOpen(false)
+                }}
+                className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 focus:bg-slate-100 focus:outline-none"
+              >
+                <div className="font-medium text-slate-800">{opt.label || opt.name}</div>
+                {opt.label && opt.label !== opt.name && <div className="text-xs text-slate-500">{opt.name}</div>}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
       <div className="flex flex-col gap-1 min-w-[160px]">
         <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Is Outsourced</label>
@@ -1963,6 +2017,7 @@ export const LabTestList = ({
   onPendingCountChange,
   onBatchSavingChange,
   batchSaveRef,
+  doctorLabDefaults = false,
 }: {
   patient?: string
   isOutsourced?: boolean
@@ -1974,8 +2029,10 @@ export const LabTestList = ({
   onPendingCountChange?: (count: number) => void
   onBatchSavingChange?: (saving: boolean) => void
   batchSaveRef?: MutableRefObject<LabTestListBatchSaveRef | null>
+  /** Default practitioner filter to the logged-in user's linked practitioner (doctor dashboard). */
+  doctorLabDefaults?: boolean
 }) => {
-  const { mode, selectedPatient: contextPatient, userRole } = useCareContext()
+  const { selectedPatient: contextPatient, userRole } = useCareContext()
   const effectivePatient = patient ?? (contextPatient || undefined)
   const canEditResults = canEditLabTestResults(userRole)
   const canEditResultRow = useCallback(
@@ -1992,29 +2049,84 @@ export const LabTestList = ({
   const showFilters = cardFilters !== undefined ? cardFilters : showFiltersInternal
   const inDashboardCard = cardFilters !== undefined
   const compactClinical = useDashboardCompactClinical()
+  const [defaultPractitionerId, setDefaultPractitionerId] = useState<string | null>(null)
+  const [defaultsReady, setDefaultsReady] = useState(!doctorLabDefaults)
   const [filters, setFilters] = useState<Filters>(() => ({
     ...makeEmptyFilters(),
     status: defaultStatus ?? '',
-    opIp: mode === 'IP' ? 'IP' : mode === 'OP' ? 'OP' : '',
   }))
 
   useEffect(() => {
-    setFilters(prev => ({ ...prev, opIp: mode === 'IP' ? 'IP' : mode === 'OP' ? 'OP' : '' }))
-  }, [mode])
+    if (!doctorLabDefaults) {
+      setDefaultsReady(true)
+      return
+    }
+    let cancelled = false
+    ;(async () => {
+      try {
+        const practId = await getCurrentUserPractitioner()
+        if (cancelled) return
+        setDefaultPractitionerId(practId)
+        if (practId) {
+          let label = practId
+          try {
+            const options = await fetchHealthcarePractitioners()
+            const match = options.find((p) => p.name === practId)
+            label = match?.label || practId
+          } catch { /* keep practId as label */ }
+          setFilters((prev) => ({
+            ...prev,
+            practitioner: practId,
+            practitionerLabel: label,
+          }))
+        }
+      } finally {
+        if (!cancelled) setDefaultsReady(true)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [doctorLabDefaults])
 
   // Reset page when filters change
   useEffect(() => {
     setPage(1)
   }, [filters])
 
-  const activeCount = [filters.status, filters.fromDate, filters.toDate, filters.isOutsourced, filters.opIp, filters.template].filter(Boolean).length
+  const activeCount = [
+    filters.status && filters.status !== (defaultStatus ?? '') ? filters.status : '',
+    filters.fromDate,
+    filters.toDate,
+    filters.isOutsourced,
+    doctorLabDefaults && filters.practitioner === (defaultPractitionerId || '') ? '' : filters.practitioner,
+    filters.template,
+  ].filter(Boolean).length
+
+  const handleClearFilters = async () => {
+    const cleared: Filters = {
+      ...makeEmptyFilters(),
+      status: defaultStatus ?? '',
+    }
+    if (doctorLabDefaults && defaultPractitionerId) {
+      cleared.practitioner = defaultPractitionerId
+      try {
+        const options = await fetchHealthcarePractitioners()
+        const match = options.find((p) => p.name === defaultPractitionerId)
+        cleared.practitionerLabel = match?.label || defaultPractitionerId
+      } catch {
+        cleared.practitionerLabel = defaultPractitionerId
+      }
+    }
+    setFilters(cleared)
+  }
 
   const { labTests, totalCount, loading, error, refetch } = useLabTests(
     effectivePatient, filters.status || undefined, filters.status === 'Pending Review',
     isOutsourced !== undefined ? isOutsourced : (filters.isOutsourced ? filters.isOutsourced === 'yes' : undefined),
     filters.fromDate || undefined, filters.toDate || undefined,
-    filters.template || undefined, filters.opIp || undefined, byNurse,
-    pageSize, (page - 1) * pageSize
+    filters.template || undefined, filters.practitioner || undefined, byNurse,
+    pageSize, (page - 1) * pageSize, defaultsReady
   )
 
   const batch = useBatchLabTestResults(
@@ -2762,7 +2874,7 @@ export const LabTestList = ({
         <FilterBar
           filters={filters}
           onChange={setFilters}
-          onClear={() => setFilters(makeEmptyFilters())}
+          onClear={handleClearFilters}
           activeCount={activeCount}
           byNurse={byNurse}
         />
@@ -2770,7 +2882,7 @@ export const LabTestList = ({
 
       <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
         <div className="flex-1 min-h-0 overflow-auto">
-      {loading ? (
+      {!defaultsReady || loading ? (
         <div className="flex items-center justify-center p-8"><div className="text-slate-600">Loading lab tests...</div></div>
       ) : error ? (
         <div className="flex flex-col items-center justify-center p-8">
@@ -2785,7 +2897,7 @@ export const LabTestList = ({
           <Search className="w-10 h-10 mb-3 opacity-30" />
           <p className="text-sm">{activeCount > 0 ? 'No lab tests match the current filters.' : 'No lab tests found.'}</p>
           {activeCount > 0 ? (
-            <ClearFiltersButton className="mt-3 self-center" onClick={() => setFilters(makeEmptyFilters())} />
+            <ClearFiltersButton className="mt-3 self-center" onClick={handleClearFilters} />
           ) : null}
         </div>
       ) : compactClinical && effectivePatient ? (

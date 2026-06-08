@@ -12,6 +12,44 @@ from healthcare.api.sales_order_cost_center import (
 	cost_center_from_patient_medication_order,
 )
 
+# Portal users read/write via whitelisted APIs; DocPerm on the doctype may not include Doctor.
+PATIENT_MEDICATION_ORDER_PORTAL_ROLES = frozenset(
+	{
+		"Administrator",
+		"System Manager",
+		"Healthcare Administrator",
+		"Doctor",
+		"Nurse",
+		"Physician",
+		"Psychologist",
+		"Anesthesiologist",
+		"Therapist",
+		"Nutritionist",
+	}
+)
+
+
+def _user_can_access_patient_medication_order_portal() -> bool:
+	if frappe.session.user in ("Guest", ""):
+		return False
+	return bool(PATIENT_MEDICATION_ORDER_PORTAL_ROLES & set(frappe.get_roles(frappe.session.user)))
+
+
+def _ensure_pmo_read_permission(doc) -> None:
+	if frappe.has_permission("Patient Medication Order", "read", doc=doc):
+		return
+	if _user_can_access_patient_medication_order_portal():
+		return
+	frappe.throw(_("Not permitted to read Patient Medication Order"), frappe.PermissionError)
+
+
+def _ensure_pmo_write_permission(doc_or_name) -> None:
+	if frappe.has_permission("Patient Medication Order", "write", doc=doc_or_name):
+		return
+	if _user_can_access_patient_medication_order_portal():
+		return
+	frappe.throw(_("Not permitted"), frappe.PermissionError)
+
 
 @frappe.whitelist()
 def get_medication_orders(
@@ -495,16 +533,16 @@ def _create_long_acting_medicine_for_entries(pmo_doc):
 
 @frappe.whitelist()
 def get_medication_order_by_id(name):
-	"""Fetch a single Patient Medication Order with its medication rows"""
+	"""Fetch a single Patient Medication Order with its medication rows."""
 
 	if not name:
-		frappe.throw("Medication Order ID is required")
+		frappe.throw(_("Medication Order ID is required"))
 
-	# Check permissions
-	if not frappe.has_permission("Patient Medication Order", "read", name):
-		frappe.throw("Not permitted", frappe.PermissionError)
+	if not frappe.db.exists("Patient Medication Order", name):
+		frappe.throw(_("Patient Medication Order {0} not found").format(name))
 
 	doc = frappe.get_doc("Patient Medication Order", name)
+	_ensure_pmo_read_permission(doc)
 
 	# Optional: enrich practitioner name (same as your list function)
 	if doc.practitioner:
@@ -780,6 +818,7 @@ def get_medication_order_by_inpatient_or_encounter(inpatient_record=None, patien
         return None
 
     doc = frappe.get_doc("Patient Medication Order", medication_orders[0].name)
+    _ensure_pmo_read_permission(doc)
 
     # Enrich with practitioner name
     if doc.practitioner:
@@ -808,8 +847,7 @@ def save_medication_order_entry_stop_reason(
 	if not patient_medication_order or not order_entry_name:
 		frappe.throw(_("Patient Medication Order and medication line are required"))
 
-	if not frappe.has_permission("Patient Medication Order", "write", patient_medication_order):
-		frappe.throw(_("Not permitted"), frappe.PermissionError)
+	_ensure_pmo_write_permission(patient_medication_order)
 
 	parent = frappe.db.get_value("Inpatient Medication Order Entry", order_entry_name, "parent")
 	if not parent or parent != patient_medication_order:

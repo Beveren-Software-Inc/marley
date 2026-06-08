@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react'
 import { fetchClinicalNotes, fetchPendingDoctorProgressEncounters, type ClinicalNote, type PendingDoctorProgressEncounter } from '../../services/clinicalNotes'
 import { fetchHealthcarePractitioners, getCurrentUserPractitioner, type LinkFieldOption } from '../../services/common'
-import { DetailSlideOver } from '../ui/DetailSlideOver'
-import { DocDetailView } from '../ui/DocDetailView'
+import { ClinicalNoteDetailPanel } from './ClinicalNoteDetailPanel'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { useCardFilters, useDashboardCompactClinical } from '../../contexts/CardFilterContext'
@@ -684,15 +683,15 @@ export const ClinicalNotesList = ({
         </div>
       </div>
 
-      {detailName && (
-        <DetailSlideOver
-          title="Clinical Note"
-          subtitle={detailName}
+      {detailName ? (
+        <ClinicalNoteDetailPanel
+          name={detailName}
+          title={clinicalNoteType || 'Clinical Note'}
+          preview={clinicalNotes.find((n) => n.name === detailName)}
           onClose={() => setDetailName(null)}
-        >
-          <DocDetailView doctype="Clinical Note" name={detailName} />
-        </DetailSlideOver>
-      )}
+          onPatientClick={onPatientClick}
+        />
+      ) : null}
     </div>
   )
 }

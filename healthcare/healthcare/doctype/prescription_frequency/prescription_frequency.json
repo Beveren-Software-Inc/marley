@@ -11,6 +11,7 @@
   "dosage",
   "frequency_in_a_day",
   "column_break_bxra",
+  "daily",
   "section_break_iqky",
   "dosage_strength"
  ],
@@ -42,10 +43,16 @@
   {
    "fieldname": "column_break_bxra",
    "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "daily",
+   "fieldtype": "Check",
+   "label": "Daily"
   }
  ],
  "links": [],
- "modified": "2026-03-23 17:14:27.812526",
+ "modified": "2026-06-08 10:54:43.974377",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Prescription Frequency",

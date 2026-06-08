@@ -338,12 +338,18 @@ export async function createPrescription(
 export async function fetchMedicationOrders(
   prescriptionName: string
 ): Promise<MedicationOrderEntry[]> {
+  if (!prescriptionName) return []
+
   const response = await fetch(
-    `/api/resource/Patient%20Medication%20Order/${encodeURIComponent(prescriptionName)}`
+    `/api/method/healthcare.api.patient_medication_order.get_medication_order_by_id?name=${encodeURIComponent(prescriptionName)}`
   )
   const resData = await response.json()
 
-  const rows = resData?.data?.medication_orders
+  if (resData?.exc_type) {
+    throw new Error(resData?.message || 'Failed to fetch medication orders')
+  }
+
+  const rows = resData?.message?.medication_orders
   if (Array.isArray(rows)) {
     return rows as MedicationOrderEntry[]
   }

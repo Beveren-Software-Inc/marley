@@ -702,6 +702,33 @@ export const PatientHistoryModal = ({
   
   // Lock fields based on context
   const isPatientLocked = Boolean(patient) || Boolean(contextPatient)
+  const hasAdmissionContext = Boolean(activeAdmissionFromContext || admissionNo || inpatientAdmission)
+  const hasVisitContext = Boolean(activeVisitFromContext || patientVisit)
+  /** IP: no visit field. OP: no admission field. Patient name is in the navbar when locked. */
+  const hidePatientVisit = isIPMode
+  const hideInpatientAdmission = isOPMode
+  const hidePatientName = isPatientLocked
+
+  useEffect(() => {
+    if (!isPatientLocked || patientNameField || patientName) return
+    const patientId = patient || contextPatient
+    if (!patientId) return
+    let cancelled = false
+    fetchPatientOptions(patientId)
+      .then((opts) => {
+        if (cancelled) return
+        const match = opts.find((o) => o.name === patientId)
+        if (match?.label) setPatientNameField(match.label)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [isPatientLocked, patient, contextPatient, patientName, patientNameField])
+
+  useEffect(() => {
+    if (hidePatientVisit) setPatientVisit('')
+  }, [hidePatientVisit])
 
   const DEFAULT_TEMPLATE = 'Default History Form'
 
@@ -892,65 +919,19 @@ export const PatientHistoryModal = ({
             {activeTab === 'general' && (
               <div className="space-y-5">
                 <div>
-                  <p className="text-sm font-semibold text-slate-800 border-b border-slate-200 pb-1.5 mb-4">
-                    Patient & Visit Information
-                    {isIPMode && <span className="ml-2 text-xs font-normal text-blue-600">(IP Mode Active)</span>}
-                    {isOPMode && <span className="ml-2 text-xs font-normal text-green-600">(OP Mode Active)</span>}
+                  <p className="mb-4 border-b border-slate-200 pb-1.5 text-sm font-semibold text-slate-800">
+                    Patient & visit
                   </p>
-                  <div className="grid grid-cols-2 gap-4 mb-5">
-                    {/* Inpatient Admission - disabled in OP mode, auto-filled in IP mode */}
-                    {isIPMode ? (
-                      <div>
-                        <label className={lc}>Inpatient Admission *</label>
-                        <input 
-                          type="text" 
-                          value={inpatientAdmission} 
-                          readOnly 
-                          className={`${ic} bg-slate-100 cursor-not-allowed`} 
-                        />
-                        <p className="text-xs text-slate-400 mt-1">Auto-selected from IP context</p>
-                      </div>
-                    ) : (
-                      <LinkCombobox
-                        label="Inpatient Admission"
-                        value={inpatientAdmission}
-                        onSelect={opt => setInpatientAdmission(opt.name)}
-                        onClear={() => setInpatientAdmission('')}
-                        fetchOptions={fetchAdmissionOpts}
-                        placeholder="Search admissions..."
-                        disabled={isOPMode}
-                      />
-                    )}
-                    
-                    {/* Patient Visit - disabled in IP mode, auto-filled in OP mode */}
-                    {isOPMode ? (
-                      <div>
-                        <label className={lc}>Patient Visit *</label>
-                        <input 
-                          type="text" 
-                          value={patientVisitLabel || patientVisit} 
-                          readOnly 
-                          className={`${ic} bg-slate-100 cursor-not-allowed`} 
-                        />
-                        <p className="text-xs text-slate-400 mt-1">Auto-selected from OP context</p>
-                      </div>
-                    ) : (
-                      <LinkCombobox
-                        label="Patient Visit"
-                        value={patientVisitLabel}
-                        onSelect={opt => { setPatientVisit(opt.name); setPatientVisitLabel(opt.label) }}
-                        onClear={() => { setPatientVisit(''); setPatientVisitLabel('') }}
-                        fetchOptions={fetchVisits}
-                        placeholder="Search patient visits..."
-                        disabled={isIPMode}
-                      />
-                    )}
-                    
-                    {/* Patient field */}
+                  <div className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
                     {isPatientLocked ? (
                       <div>
                         <label className={lc}>Patient *</label>
-                        <input type="text" value={patientField} readOnly className={`${ic} bg-slate-100 cursor-not-allowed`} />
+                        <input
+                          type="text"
+                          value={patientNameField || patientField}
+                          readOnly
+                          className={`${ic} bg-slate-100 cursor-not-allowed`}
+                        />
                       </div>
                     ) : (
                       <LinkCombobox
@@ -962,33 +943,69 @@ export const PatientHistoryModal = ({
                         placeholder="Search patients..."
                       />
                     )}
-                    
-                    <div>
-                      <label className={lc}>Patient Name</label>
-                      <input type="text" value={patientNameField} readOnly className={`${ic} bg-slate-100 cursor-not-allowed`} />
-                    </div>
+
+                    {!hideInpatientAdmission && (
+                      isIPMode && hasAdmissionContext ? (
+                        <div>
+                          <label className={lc}>Inpatient Admission *</label>
+                          <input
+                            type="text"
+                            value={inpatientAdmission}
+                            readOnly
+                            className={`${ic} bg-slate-100 cursor-not-allowed`}
+                          />
+                        </div>
+                      ) : (
+                        <LinkCombobox
+                          label="Inpatient Admission"
+                          value={inpatientAdmission}
+                          onSelect={opt => setInpatientAdmission(opt.name)}
+                          onClear={() => setInpatientAdmission('')}
+                          fetchOptions={fetchAdmissionOpts}
+                          placeholder="Search admissions..."
+                        />
+                      )
+                    )}
+
+                    {!hidePatientVisit && (
+                      isOPMode && hasVisitContext ? (
+                        <div>
+                          <label className={lc}>Patient Visit *</label>
+                          <input
+                            type="text"
+                            value={patientVisitLabel || patientVisit}
+                            readOnly
+                            className={`${ic} bg-slate-100 cursor-not-allowed`}
+                          />
+                        </div>
+                      ) : (
+                        <LinkCombobox
+                          label="Patient Visit"
+                          value={patientVisitLabel}
+                          onSelect={opt => { setPatientVisit(opt.name); setPatientVisitLabel(opt.label) }}
+                          onClear={() => { setPatientVisit(''); setPatientVisitLabel('') }}
+                          fetchOptions={fetchVisits}
+                          placeholder="Search patient visits..."
+                        />
+                      )
+                    )}
+
+                    {!hidePatientName && (
+                      <div>
+                        <label className={lc}>Patient Name</label>
+                        <input
+                          type="text"
+                          value={patientNameField}
+                          readOnly
+                          className={`${ic} bg-slate-100 cursor-not-allowed`}
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
-                  <p className="text-xs font-semibold text-primary mb-1">
-                    {isIPMode ? '📋 Documenting History for Inpatient Admission' : isOPMode ? '📋 Documenting History for Outpatient Visit' : 'Ready to document?'}
-                  </p>
-                  <p className="text-xs text-slate-600">
-                    {isIPMode 
-                      ? `You are documenting patient history for inpatient admission: ${inpatientAdmission}. Select a template below to get started.`
-                      : isOPMode
-                      ? `You are documenting patient history for outpatient visit: ${patientVisitLabel || patientVisit}. Select a template below to get started.`
-                      : 'Select a patient and either an IP admission or OP visit above, then choose a template to populate history items.'
-                    }
-                  </p>
-                </div>
-
                 <div>
-                  <p className="text-sm font-semibold text-slate-800 border-b border-slate-200 pb-1.5 mb-4">Load From Template</p>
-                  <p className="text-xs text-slate-500 mb-3 bg-slate-50 border border-slate-200 rounded-md px-3 py-2">
-                    Select a template to auto-populate history attributes. In <strong>History Details</strong>, only items marked mandatory on the template require a description; other items are optional.
-                  </p>
+                  <p className="text-sm font-semibold text-slate-800 border-b border-slate-200 pb-1.5 mb-4">Template</p>
                   <LinkCombobox
                     label="History Template"
                     value={templateLabel}

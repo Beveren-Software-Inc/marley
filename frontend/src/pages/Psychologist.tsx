@@ -131,8 +131,11 @@ export const PsychologistPage = () => {
   // ── Diagnoses ─────────────────────────────────────────────────────────────────
   if (screen === 'p-dx') {
     return (
-      <div className="flex flex-col">
-        <DiagnosisSymptomsScreen />
+      <div className="flex flex-col h-[calc(100dvh-2.25rem)] max-h-[calc(100dvh-2.25rem)] overflow-hidden">
+        {header}
+        <div className="flex-1 min-h-0 overflow-hidden">
+          <DiagnosisSymptomsScreen />
+        </div>
       </div>
     )
   }

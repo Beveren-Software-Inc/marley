@@ -36,6 +36,33 @@ def _safe_time_text(value) -> str:
 	return str(value).strip()
 
 
+def _normalize_row_time(value=None) -> str:
+	"""Return HH:MM:SS without date or microsecond noise for Medicine Given.time."""
+	if value is None:
+		return now_datetime().strftime("%H:%M:%S")
+
+	raw = _safe_time_text(value)
+	if not raw:
+		return now_datetime().strftime("%H:%M:%S")
+
+	if " " in raw:
+		raw = raw.split(" ")[-1]
+	if "." in raw:
+		raw = raw.split(".")[0]
+
+	parts = raw.split(":")
+	if len(parts) >= 2:
+		try:
+			hour = int(parts[0])
+			minute = int(parts[1])
+			second = int(parts[2]) if len(parts) > 2 else 0
+			return f"{hour:02d}:{minute:02d}:{second:02d}"
+		except ValueError:
+			pass
+
+	return raw[:8]
+
+
 def _time_to_minutes(value) -> int:
 	t = _safe_time_text(value)
 	if not t:
@@ -60,6 +87,33 @@ def _date_in_range(target_date, start_date=None, end_date=None) -> bool:
 	if end_date and d > getdate(end_date):
 		return False
 	return True
+
+
+def is_daily_prescription_frequency(freq_name: str | None) -> bool:
+	"""True when Prescription Frequency is marked Daily (morning/noon/evening automation)."""
+	freq_name = (freq_name or "").strip()
+	if not freq_name or not frappe.db.exists("Prescription Frequency", freq_name):
+		return False
+	if not frappe.db.has_column("Prescription Frequency", "daily"):
+		return False
+	return cint(frappe.db.get_value("Prescription Frequency", freq_name, "daily")) == 1
+
+
+def _daily_frequency_schedule_times(freq_name: str | None) -> list[str]:
+	"""Scheduled administration times for a daily prescription frequency."""
+	if not is_daily_prescription_frequency(freq_name):
+		return []
+
+	times: list[str] = []
+	try:
+		doc = frappe.get_doc("Prescription Frequency", freq_name)
+		for child in getattr(doc, "dosage_strength", []) or []:
+			strength_time = _safe_time_text(getattr(child, "strength_time", None))
+			if strength_time and strength_time not in times:
+				times.append(strength_time)
+	except frappe.DoesNotExistError:
+		pass
+	return times
 
 
 def _has_given_for_scheduled_slot(admission_detail_name: str, date_value, medicine_code: str, medication_order: str, scheduled_time: str) -> bool:
@@ -501,42 +555,51 @@ def _create_missed_medicine_for_admission(admission_name: str, grace_minutes: in
 	created_rows = 0
 	for e in entries:
 		drug = e.get("drug")
-		scheduled_time = _safe_time_text(e.get("time"))
-		if not drug or not scheduled_time:
+		if not drug:
 			continue
 		if cint(e.get("is_prn")):
+			continue
+		if not is_daily_prescription_frequency(e.get("patient_frequency")):
+			# Q3W, monthly, etc. — nurses record these manually; no auto missed rows.
 			continue
 		if not _date_in_range(today, e.get("date"), e.get("end_date")):
 			continue
 
-		scheduled_minutes = _time_to_minutes(scheduled_time)
-		if scheduled_minutes < 0:
-			continue
-		if now_minutes < (scheduled_minutes + cint(grace_minutes)):
-			continue
+		scheduled_times = _daily_frequency_schedule_times(e.get("patient_frequency"))
+		if not scheduled_times:
+			entry_time = _safe_time_text(e.get("time"))
+			if entry_time:
+				scheduled_times = [entry_time]
 
-		if _has_given_for_scheduled_slot(
-			admission_detail.name, today, drug, e.get("parent"), scheduled_time
-		):
-			continue
-		if _has_missed_row_for_slot(
-			admission_detail.name, today, drug, e.get("parent"), scheduled_time
-		):
-			continue
+		for scheduled_time in scheduled_times:
+			scheduled_minutes = _time_to_minutes(scheduled_time)
+			if scheduled_minutes < 0:
+				continue
+			if now_minutes < (scheduled_minutes + cint(grace_minutes)):
+				continue
 
-		_create_missed_row(
-			admission_detail,
-			date_value=today,
-			scheduled_time=scheduled_time,
-			medicine_code=drug,
-			medicine_name=e.get("drug_name"),
-			medication_order=e.get("parent"),
-			qty=flt(e.get("quantity") or 1),
-			unit=e.get("uom"),
-			frequency=None,
-			is_prn=e.get("is_prn"),
-		)
-		created_rows += 1
+			if _has_given_for_scheduled_slot(
+				admission_detail.name, today, drug, e.get("parent"), scheduled_time
+			):
+				continue
+			if _has_missed_row_for_slot(
+				admission_detail.name, today, drug, e.get("parent"), scheduled_time
+			):
+				continue
+
+			_create_missed_row(
+				admission_detail,
+				date_value=today,
+				scheduled_time=scheduled_time,
+				medicine_code=drug,
+				medicine_name=e.get("drug_name"),
+				medication_order=e.get("parent"),
+				qty=flt(e.get("quantity") or 1),
+				unit=e.get("uom"),
+				frequency=None,
+				is_prn=e.get("is_prn"),
+			)
+			created_rows += 1
 
 	if created_rows > 0:
 		admission_detail.save(ignore_permissions=True)
@@ -633,7 +696,7 @@ def create_medicine_given(
 
 	# Resolve date / time defaults
 	date = date or nowdate()
-	time = time or nowtime()
+	time = _normalize_row_time(time)
 
 	admission_detail = _get_or_create_admission_detail(admission)
 
@@ -709,8 +772,8 @@ def create_medicine_given(
 			stock_uom = frappe.db.get_value("Item", drug_code, "stock_uom")
 			row.unit = stock_uom
 
-		# Frequency-based maximum per day check using Prescription Frequency
-		if prescription_frequency:
+		# Frequency-based maximum per day check — only for daily prescription frequencies.
+		if prescription_frequency and is_daily_prescription_frequency(prescription_frequency):
 			freq_per_day = frappe.db.get_value(
 				"Prescription Frequency",
 				prescription_frequency,
@@ -785,6 +848,8 @@ def get_medicine_given(admission: str, limit: int | None = 50, offset: int | Non
 			"time",
 			"medicine_code",
 			"medicine_name",
+			"medication_order",
+			"medicine_given_timing",
 			"qty",
 			"unit",
 			"frequency",
@@ -797,6 +862,10 @@ def get_medicine_given(admission: str, limit: int | None = 50, offset: int | Non
 			"batch_no",
 			"lot_no",
 			"dispensing_lot",
+			"override_exceeded_frequency",
+			"override_reason",
+			"override_user",
+			"override_timestamp",
 			"old_medicine_code",
 			"old_medicine_name",
 			"ip_admission_medicine",
@@ -810,6 +879,8 @@ def get_medicine_given(admission: str, limit: int | None = 50, offset: int | Non
 	)
 
 	for row in rows:
+		if row.get("time"):
+			row["time"] = _normalize_row_time(row.get("time"))
 		if row.get("batch_no"):
 			row["batch_id"] = frappe.db.get_value("Batch", row["batch_no"], "batch_id") or row["batch_no"]
 		# Legacy fallback for imported data where current medicine fields are empty.
@@ -962,7 +1033,7 @@ def convert_missed_medicine_to_given(name: str, given_late_reason: str | None = 
 
 	given = admission_detail.append("table_yrwe", {})
 	given.date = source.date or getdate(nowdate())
-	given.time = nowtime()
+	given.time = _normalize_row_time()
 	given.medicine_code = source.medicine_code
 	if hasattr(given, "medicine_name"):
 		given.medicine_name = source.medicine_name

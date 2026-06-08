@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { scheduleDischarge } from '../../services/inpatientRecords'
-import { fetchHealthcarePractitioners, type LinkFieldOption } from '../../services/common'
+import { fetchHealthcarePractitioners, getCurrentUserPractitioner, type LinkFieldOption } from '../../services/common'
 import { toast } from '../../hooks/useToast'
 import { CreatePractitionerModal } from '../practitioners/CreatePractitionerModal'
 
@@ -33,17 +33,52 @@ export const ScheduleDischargeModal = ({ admission, onClose, onSuccess }: Schedu
     discharge_note: ''
   })
 
-  // Load initial practitioners
+  // Load practitioners and auto-select current user's linked practitioner
   useEffect(() => {
+    let cancelled = false
+
+    const applyPractitioner = async (practitionerId: string) => {
+      try {
+        const options = await fetchHealthcarePractitioners(practitionerId)
+        if (cancelled) return
+        const match = options.find((p) => p.name === practitionerId)
+        if (match) {
+          setSelectedPractitioner(match)
+          setPractQuery(match.label)
+          setFormData((prev) => ({ ...prev, discharge_practitioner: match.name }))
+          setPractitioners((prev) =>
+            prev.some((p) => p.name === match.name) ? prev : [...prev, match],
+          )
+        } else {
+          setFormData((prev) => ({ ...prev, discharge_practitioner: practitionerId }))
+          setPractQuery(practitionerId)
+        }
+      } catch {
+        if (!cancelled) {
+          setFormData((prev) => ({ ...prev, discharge_practitioner: practitionerId }))
+          setPractQuery(practitionerId)
+        }
+      }
+    }
+
     const loadPractitioners = async () => {
       try {
         const practs = await fetchHealthcarePractitioners()
+        if (cancelled) return
         setPractitioners(practs)
+
+        const currentPract = await getCurrentUserPractitioner()
+        if (currentPract && !cancelled) {
+          await applyPractitioner(currentPract)
+        }
       } catch (err) {
         console.error('Failed to load practitioners:', err)
       }
     }
     loadPractitioners()
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   // Search practitioners

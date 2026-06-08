@@ -18,6 +18,12 @@ export interface ClinicalNote {
   reference_document?: string
   inpatient_admission?: string
   branch?: string
+  trans_no?: string
+  note_locked?: number | boolean
+  locked_by?: string
+  locked_on?: string
+  creation?: string
+  modified?: string
 }
 
 export interface CreateClinicalNoteData {
@@ -89,6 +95,32 @@ export async function fetchClinicalNotes(
     console.error('Error fetching clinical notes:', error)
     throw error
   }
+}
+
+export async function fetchClinicalNote(name: string): Promise<Record<string, unknown>> {
+  if (!name) {
+    throw new Error('Clinical note name is required')
+  }
+
+  const response = await fetch(
+    `/api/method/healthcare.api.clinical_note.get_clinical_note?name=${encodeURIComponent(name)}`,
+  )
+  const resData = await response.json()
+
+  if (!response.ok || resData.exc) {
+    const message =
+      resData?._error_message ||
+      resData?.message?.message ||
+      resData?.message ||
+      'Failed to fetch clinical note'
+    throw new Error(typeof message === 'string' ? message : 'Failed to fetch clinical note')
+  }
+
+  if (resData?.message && typeof resData.message === 'object') {
+    return resData.message as Record<string, unknown>
+  }
+
+  throw new Error('Invalid response format')
 }
 
 export async function fetchPendingDoctorProgressEncounters(

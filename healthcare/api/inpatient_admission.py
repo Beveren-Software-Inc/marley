@@ -744,6 +744,65 @@ def add_patient_visitor(admission: str, visitors_name: str, relationship_with_pa
 	}
 
 
+DISCHARGE_PORTAL_ROLES = frozenset(
+	{
+		"Administrator",
+		"System Manager",
+		"Healthcare Administrator",
+		"Website Manager",
+		"Reception",
+		"Receptionist",
+		"Doctor",
+		"Nurse",
+		"Physician",
+		"Psychologist",
+		"Anesthesiologist",
+		"Therapist",
+		"Nutritionist",
+	}
+)
+
+
+def _user_can_access_discharge_portal() -> bool:
+	if frappe.session.user in ("Guest", ""):
+		return False
+	return bool(DISCHARGE_PORTAL_ROLES & set(frappe.get_roles(frappe.session.user)))
+
+
+def _ensure_discharge_admission_access(admission_name: str) -> None:
+	"""Portal discharge APIs: allow clinical/reception roles without Inpatient Admission DocPerm."""
+	admission_name = (admission_name or "").strip()
+	if not admission_name:
+		frappe.throw(_("Admission is required"))
+
+	if not frappe.db.exists("Inpatient Admission", admission_name):
+		frappe.throw(_("Inpatient Admission {0} not found").format(admission_name))
+
+	if frappe.has_permission("Inpatient Admission", "read", admission_name):
+		return
+
+	if not _user_can_access_discharge_portal():
+		frappe.throw(
+			_("You need the 'read' permission on Inpatient Admission {0} to perform this action.").format(
+				admission_name
+			),
+			frappe.PermissionError,
+		)
+
+	from healthcare.api.common import get_permitted_cost_centers
+
+	permitted_cc = get_permitted_cost_centers()
+	if permitted_cc is None:
+		return
+
+	if not permitted_cc:
+		frappe.throw(_("Not permitted to access this admission"), frappe.PermissionError)
+
+	admission_cc = frappe.db.get_value("Inpatient Admission", admission_name, "cost_center")
+	if admission_cc and admission_cc not in permitted_cc:
+		frappe.throw(_("Not permitted to access this admission"), frappe.PermissionError)
+
+
 DISCHARGE_CHILD_TABLE_KEYS = frozenset(
 	{
 		"patient_documents",
@@ -1018,16 +1077,19 @@ def _get_or_create_draft_discharge(admission_name: str):
 		create_discharge_from_inpatient_admission,
 	)
 
+	_ensure_discharge_admission_access(admission_name)
+
 	if _get_submitted_discharge_name(admission_name):
 		frappe.throw(_("This admission has already been discharged."))
 
 	draft_name = _get_draft_discharge_name(admission_name)
-	print("Huko ni home ama")
 	if draft_name:
-		print("Uko home")
-		return frappe.get_doc("Discharge", draft_name)
+		return frappe.get_doc("Discharge", draft_name, ignore_permissions=True)
 
-	return create_discharge_from_inpatient_admission(admission_name)
+	return create_discharge_from_inpatient_admission(
+		admission_name,
+		ignore_permissions=True,
+	)
 
 
 @frappe.whitelist()
@@ -1035,6 +1097,8 @@ def get_discharge_draft_for_admission(admission_name):
 	"""Return draft Discharge (docstatus 0) for portal resume, or null."""
 	if not admission_name:
 		frappe.throw(_("Admission is required"))
+
+	_ensure_discharge_admission_access(admission_name)
 
 	draft_name = _get_draft_discharge_name(admission_name)
 	if not draft_name:
@@ -1077,8 +1141,10 @@ def create_and_submit_discharge(admission_name, discharge_data):
 
 		discharge_doc = _get_or_create_draft_discharge(admission_name)
 		_apply_discharge_payload(discharge_doc, discharge_data)
+		discharge_doc.flags.ignore_links = True
 		discharge_doc.save(ignore_permissions=True)
 		if cint(discharge_doc.docstatus) == 0:
+			discharge_doc.flags.ignore_permissions = True
 			discharge_doc.submit()
 
 		return {

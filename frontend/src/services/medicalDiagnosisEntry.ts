@@ -160,3 +160,15 @@ export async function deleteMedicalDiagnosisEntry(name: string): Promise<void> {
     body: JSON.stringify({ name }),
   })
 }
+
+export async function fetchMedicalDiagnosisEntry(
+  name: string
+): Promise<MedicalDiagnosisEntryAggRow> {
+  const params = new URLSearchParams({ name })
+  const res = await fetch(
+    `/api/method/healthcare.api.medical_diagnosis_entry.get_medical_diagnosis_entry?${params}`
+  )
+  const data = await res.json()
+  if (data?.exc_type) throw new Error(data?.message || 'Failed to load diagnosis entry')
+  return (data?.message || {}) as MedicalDiagnosisEntryAggRow
+}

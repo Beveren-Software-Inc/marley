@@ -628,7 +628,7 @@ export const DoctorPage = () => {
             addButtonTitle="Add Lab Test"
             noHeightLimit
           >
-            <LabTestList patient={selectedPatient} defaultStatus="Pending Review" key={labTestRefreshKey} onPatientClick={handlePatientSelect} />
+            <LabTestList patient={selectedPatient} defaultStatus="Pending Review" doctorLabDefaults key={labTestRefreshKey} onPatientClick={handlePatientSelect} />
           </DashboardCard>
         </div>
       </div>
@@ -1340,8 +1340,11 @@ export const DoctorPage = () => {
   // Show Diagnoses (all Medical Diagnosis Entry records)
   if (screen === 'dx') {
     return (
-      <div className="flex flex-col">
-        <DiagnosisSymptomsScreen />
+      <div className="flex flex-col h-[calc(100dvh-2.25rem)] max-h-[calc(100dvh-2.25rem)] overflow-hidden">
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
+        <div className="flex-1 min-h-0 overflow-hidden">
+          <DiagnosisSymptomsScreen />
+        </div>
       </div>
     )
   }
@@ -2000,6 +2003,7 @@ export const DoctorPage = () => {
                 <LabTestList
                   patient={selectedPatient}
                   defaultStatus="Pending Review"
+                  doctorLabDefaults
                   key={labTestRefreshKey}
                   onPatientClick={handlePatientSelect}
                 />
@@ -2111,6 +2115,7 @@ export const DoctorPage = () => {
                 <LabTestList
                   patient={selectedPatient}
                   defaultStatus="Pending Review"
+                  doctorLabDefaults
                   key={labTestRefreshKey}
                   onPatientClick={handlePatientSelect}
                 />
@@ -2212,7 +2217,7 @@ export const DoctorPage = () => {
             addButtonTitle="Add Lab Test Report"
             listingScreen="lab"
           >
-            <LabTestList defaultStatus="Pending Review" key={labTestRefreshKey} onPatientClick={handlePatientSelect} />
+            <LabTestList defaultStatus="Pending Review" doctorLabDefaults key={labTestRefreshKey} onPatientClick={handlePatientSelect} />
           </DashboardCard>
         </div>
 

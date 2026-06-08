@@ -552,6 +552,9 @@ export interface PatientDoc {
   is_black_list?: number
   remarks?: string
   patient_primary_address?: string
+  address?: string
+  city?: string
+  country?: string
   insurance_policy?: string
   ref_no?: string
   insurance_register?: string
@@ -594,6 +597,45 @@ export async function fetchAddressDoc(name: string): Promise<AddressDoc | null> 
   const data = await res.json()
   if (data?.data) return data.data as AddressDoc
   return null
+}
+
+export type PatientAddressForEdit = Omit<AddressDoc, 'name'> & {
+  name?: string | null
+}
+
+export async function fetchPatientAddress(patientName: string): Promise<PatientAddressForEdit> {
+  const res = await fetch(
+    `/api/method/healthcare.api.patient.get_patient_address?patient=${encodeURIComponent(patientName)}`,
+    { credentials: 'include' },
+  )
+  const data = await res.json()
+  if (data?.exc) {
+    throw new Error(typeof data.message === 'string' ? data.message : 'Failed to load patient address')
+  }
+  return (data?.message ?? {}) as PatientAddressForEdit
+}
+
+export async function savePatientAddress(
+  patientName: string,
+  address: Partial<AddressDoc>,
+): Promise<{ name?: string | null }> {
+  const csrf = (window as any).csrf_token
+  const res = await fetch('/api/method/healthcare.api.patient.save_patient_address', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
+    },
+    body: JSON.stringify({ patient: patientName, data: address }),
+    credentials: 'include',
+  })
+  const out = await res.json().catch(() => ({}))
+  if (!res.ok || out?.exc) {
+    const msg = messageFromFrappeResponse(out as Record<string, unknown>)
+    throw new Error(msg || `Failed to save patient address (${res.status})`)
+  }
+  return (out?.message ?? {}) as { name?: string | null }
 }
 
 interface PatientRelation{

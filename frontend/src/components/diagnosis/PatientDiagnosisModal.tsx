@@ -28,6 +28,11 @@ import { useCareContext } from '../../providers/CareContextProvider'
 import { Stethoscope } from 'lucide-react'
 import { CreateDiagnosisModal } from './CreateDiagnosisModal'
 import { toast } from '../../hooks/useToast'
+import {
+  fromDatetimeLocalValue,
+  parseToDatetimeLocalValue,
+  toDatetimeLocalValue,
+} from '../../utils/datetimeLocal'
 
 interface PatientDiagnosisModalProps {
   /** Pre-selected parent — if omitted the modal shows an OP/IP + visit/admission selector */
@@ -65,7 +70,7 @@ function newDraft(defaults?: MedicalDiagnosisContextDefaults): RowDraft {
     diagnosisLabel: '',
     diagnosisGroupName: '',
     details: '',
-    posting_date: new Date().toISOString().slice(0, 16),
+    posting_date: toDatetimeLocalValue(),
     practitioner: defaults?.practitioner || '',
     practitionerLabel: defaults?.practitioner_name || defaults?.practitioner || '',
     cost_center: defaults?.cost_center || '',
@@ -98,19 +103,39 @@ export function PatientDiagnosisModal({
   onClose,
   onSuccess,
 }: PatientDiagnosisModalProps) {
+  const {
+    mode: careMode,
+    activeVisit,
+    activeAdmission,
+    selectedPatient: contextPatient,
+    userCostCenter,
+    costCenterCompany,
+  } = useCareContext()
+
+  const resolvedPatient = patient ?? contextPatient
+  const resolvedParentDoctype =
+    initialParentDoctype ??
+    (careMode === 'IP'
+      ? 'Inpatient Admission'
+      : careMode === 'OP'
+        ? 'Patient Visit'
+        : undefined)
+  const resolvedParentName =
+    initialParentName ?? (careMode === 'IP' ? activeAdmission : careMode === 'OP' ? activeVisit : undefined)
+
   // Standalone (no pre-selected parent) selector state
-  const standalone = !initialParentDoctype || !initialParentName
+  const standalone = !resolvedParentDoctype || !resolvedParentName
   const mode = modeProp ?? (standalone ? 'manage' : 'append')
   const [contextType, setContextType] = useState<'Patient Visit' | 'Inpatient Admission'>(
-    initialParentDoctype ?? 'Patient Visit'
+    resolvedParentDoctype ?? 'Patient Visit',
   )
-  const [contextName, setContextName] = useState(initialParentName ?? '')
+  const [contextName, setContextName] = useState(resolvedParentName ?? '')
   const [visitOptions, setVisitOptions] = useState<LinkFieldOption[]>([])
   const [admissionOptions, setAdmissionOptions] = useState<LinkFieldOption[]>([])
 
-  // Resolved parent (from props or from selector)
-  const parentDoctype = standalone ? contextType : initialParentDoctype!
-  const parentName = standalone ? contextName : initialParentName!
+  // Resolved parent (from props, care context, or standalone selector)
+  const parentDoctype = standalone ? contextType : resolvedParentDoctype!
+  const parentName = standalone ? contextName : resolvedParentName!
 
   const [rows, setRows] = useState<RowDraft[]>([])
   const [loading, setLoading] = useState(!standalone)
@@ -124,19 +149,30 @@ export function PatientDiagnosisModal({
   const [showCreateDiagnosis, setShowCreateDiagnosis] = useState(false)
   const [createDiagnosisForRowId, setCreateDiagnosisForRowId] = useState<string | null>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
-  const { userCostCenter, costCenterCompany } = useCareContext()
   const [contextDefaults, setContextDefaults] = useState<MedicalDiagnosisContextDefaults>({})
   const [practitionerQuery, setPractitionerQuery] = useState<Record<string, string>>({})
   const [practitionerOpen, setPractitionerOpen] = useState<Record<string, boolean>>({})
   const [practitionerOptions, setPractitionerOptions] = useState<LinkFieldOption[]>([])
   const [costCenterOptions, setCostCenterOptions] = useState<LinkFieldOption[]>([])
 
+  // Pre-fill standalone selector from navbar care context when visit/admission not passed as props
+  useEffect(() => {
+    if (!standalone) return
+    if (careMode === 'IP' && activeAdmission) {
+      setContextType('Inpatient Admission')
+      setContextName(activeAdmission)
+    } else if (careMode === 'OP' && activeVisit) {
+      setContextType('Patient Visit')
+      setContextName(activeVisit)
+    }
+  }, [standalone, careMode, activeAdmission, activeVisit])
+
   // Load visit/admission options when in standalone mode
   useEffect(() => {
-    if (!standalone || !patient) return
-    fetchPatientVisits(patient).then(setVisitOptions).catch(() => setVisitOptions([]))
-    fetchInpatientAdmissions(patient).then(setAdmissionOptions).catch(() => setAdmissionOptions([]))
-  }, [standalone, patient])
+    if (!standalone || !resolvedPatient) return
+    fetchPatientVisits(resolvedPatient).then(setVisitOptions).catch(() => setVisitOptions([]))
+    fetchInpatientAdmissions(resolvedPatient).then(setAdmissionOptions).catch(() => setAdmissionOptions([]))
+  }, [standalone, resolvedPatient])
 
   // Reset context name when switching OP/IP
   useEffect(() => {
@@ -228,7 +264,7 @@ export function PatientDiagnosisModal({
           diagnosisLabel: r.diagnosis_label || r.diagnosis_name || r.diagnosis || '',
           diagnosisGroupName: r.diagnosis_group_name || '',
           details: r.details || '',
-          posting_date: r.posting_date ? r.posting_date.slice(0, 16) : new Date().toISOString().slice(0, 16),
+          posting_date: parseToDatetimeLocalValue(r.posting_date),
           practitioner: r.practitioner || '',
           practitionerLabel: r.practitioner_name || r.practitioner || '',
           cost_center: r.cost_center || '',
@@ -330,17 +366,20 @@ export function PatientDiagnosisModal({
     setSaving(true)
     setError(null)
     try {
-      const postingDefault = new Date().toISOString().slice(0, 16)
-      const payload = validRows.map((r) => ({
+      const postingDefault = fromDatetimeLocalValue()
+      const payload = validRows.map((r) => {
+        const posting = fromDatetimeLocalValue(r.posting_date || postingDefault)
+        return {
         name: mode === 'manage' ? r.name : undefined,
         diagnosis: r.diagnosis,
         details: r.details,
-        posting_date: r.posting_date || postingDefault,
-        diagnoses_time: r.posting_date || postingDefault,
+        posting_date: posting,
+        diagnoses_time: posting,
         practitioner: r.practitioner,
         practitioner_name: r.practitionerLabel || r.practitioner,
         cost_center: r.cost_center || contextDefaults.cost_center || userCostCenter || '',
-      }))
+      }
+      })
       if (mode === 'append') {
         await appendPatientDiagnosis(parentDoctype, parentName, payload)
       } else {

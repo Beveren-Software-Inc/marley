@@ -2,6 +2,8 @@ import frappe
 from frappe import _
 from frappe.utils import cint, getdate, nowdate, add_days
 
+from healthcare.api.medicine_given import is_daily_prescription_frequency
+
 
 SESSION_WINDOWS = [
 	("morning", "Morning", 5, 11),   # 05:00–10:59
@@ -32,8 +34,10 @@ def get_daily_medication_chart(admission: str, date: str | None = None) -> dict:
 	Uses:
 	- Patient Medication Order (care_context = Inpatient Admission, inpatient_record = admission, docstatus = 1)
 	- Child table Inpatient Medication Order Entry (medication_orders)
-	- Prescription Frequency (dosage_strength times) to derive sessions
+	- Prescription Frequency marked Daily (dosage_strength times) to derive sessions
 	- Medicine Given rows from Admission Detail to mark administrations
+
+	Non-daily frequencies (Q3W, monthly, etc.) are excluded — those are recorded manually.
 	"""
 	if not admission:
 		frappe.throw(_("Inpatient Admission is required"))
@@ -73,12 +77,13 @@ def get_daily_medication_chart(admission: str, date: str | None = None) -> dict:
 	if not order_rows:
 		return {"sessions": _get_sessions(), "rows": []}
 
-	# Map frequencies to times (via fixtures or child table dosage_strength on Prescription Frequency)
+	# Map daily frequencies to session hours (dosage_strength on Prescription Frequency).
 	frequency_times: dict[str, list[int]] = {}
 	for freq_name in {
 		row.get("patient_frequency") for row in order_rows if row.get("patient_frequency")
 	}:
-		# Try to get dosage_strength child table if defined
+		if not is_daily_prescription_frequency(freq_name):
+			continue
 		times: list[int] = []
 		try:
 			doc = frappe.get_doc("Prescription Frequency", freq_name)
@@ -128,6 +133,8 @@ def get_daily_medication_chart(admission: str, date: str | None = None) -> dict:
 		if not drug:
 			continue
 		freq_name = entry.get("patient_frequency")
+		if not is_daily_prescription_frequency(freq_name):
+			continue
 		times = frequency_times.get(freq_name, []) if freq_name else []
 
 		slot_list = []

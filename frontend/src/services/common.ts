@@ -302,6 +302,11 @@ export async function fetchDocumentTypes(): Promise<{ name: string; document_nam
 
 /** Fetch a single document by doctype and name (Frappe resource API). */
 export async function fetchDoc(doctype: string, name: string): Promise<Record<string, unknown>> {
+  if (doctype === 'Clinical Note') {
+    const { fetchClinicalNote } = await import('./clinicalNotes')
+    return fetchClinicalNote(name)
+  }
+
   const res = await fetch(
     `/api/resource/${encodeURIComponent(doctype)}/${encodeURIComponent(name)}`
   )

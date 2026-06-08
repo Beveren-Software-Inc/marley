@@ -722,7 +722,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2026-06-07 09:44:18.613150",
+ "modified": "2026-06-08 13:33:32.758985",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Visit",
@@ -768,6 +768,18 @@
    "read": 1,
    "report": 1,
    "role": "Reception",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Nurse",
    "share": 1,
    "write": 1
   }

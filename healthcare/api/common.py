@@ -935,8 +935,10 @@ def _ensure_prescription_frequency_exists(dosage, frequency_in_a_day=1):
 
 
 def ensure_prescription_frequency_for_long_acting(frequency_name):
-	"""Long-acting interval labels also exist as Prescription Frequency (0/day = no daily cap)."""
+	"""Long-acting interval labels also exist as Prescription Frequency (not daily automation)."""
 	_ensure_prescription_frequency_exists(frequency_name, frequency_in_a_day=0)
+	if frappe.db.has_column("Prescription Frequency", "daily"):
+		frappe.db.set_value("Prescription Frequency", frequency_name, "daily", 0)
 
 
 def _ensure_default_long_acting_frequencies():
@@ -1036,7 +1038,6 @@ def get_long_acting_medicine_list(patient=None, limit=50, offset=0):
 		return []
 	limit = int(limit) if limit else 50
 	offset = int(offset) if offset else 0
-	print("Unafika hapa")
 	docs = frappe.get_all(
 		"Long Acting Medicine",
 		filters={"patient": patient, "docstatus": ["!=", 2]},
@@ -1046,6 +1047,57 @@ def get_long_acting_medicine_list(patient=None, limit=50, offset=0):
 		limit_start=offset,
 	)
 	return list(docs)
+
+
+LONG_ACTING_MEDICINE_PORTAL_ROLES = frozenset(
+	{
+		"Administrator",
+		"System Manager",
+		"Healthcare Administrator",
+		"Doctor",
+		"Nurse",
+		"Physician",
+		"Psychologist",
+		"Anesthesiologist",
+		"Therapist",
+		"Nutritionist",
+		"Receptionist",
+	}
+)
+
+
+def _user_can_access_long_acting_medicine_portal() -> bool:
+	if frappe.session.user in ("Guest", ""):
+		return False
+	return bool(LONG_ACTING_MEDICINE_PORTAL_ROLES & set(frappe.get_roles(frappe.session.user)))
+
+
+@frappe.whitelist()
+def get_long_acting_medicine(name: str | None = None):
+	"""Return one Long Acting Medicine for the healthcare portal (avoids REST DocPerm gaps)."""
+	name = (name or "").strip()
+	if not name:
+		frappe.throw(_("Long Acting Medicine is required"))
+
+	if not frappe.db.exists("Long Acting Medicine", name):
+		frappe.throw(_("Long Acting Medicine {0} not found").format(name))
+
+	doc = frappe.get_doc("Long Acting Medicine", name)
+
+	if not frappe.has_permission("Long Acting Medicine", "read", doc=doc):
+		if not _user_can_access_long_acting_medicine_portal():
+			frappe.throw(
+				_("Not permitted to read Long Acting Medicine"),
+				frappe.PermissionError,
+			)
+
+	data = doc.as_dict()
+	if doc.practitioner:
+		data["practitioner_name"] = (
+			frappe.db.get_value("Healthcare Practitioner", doc.practitioner, "practitioner_name")
+			or doc.practitioner
+		)
+	return data
 
 
 @frappe.whitelist()

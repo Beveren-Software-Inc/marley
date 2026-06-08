@@ -91,6 +91,18 @@ export async function fetchObservations(
   }
 }
 
+export async function fetchObservation(name: string): Promise<Observation> {
+  const params = new URLSearchParams({ name })
+  const response = await fetch(
+    `/api/method/healthcare.api.observation.get_observation?${params.toString()}`
+  )
+  const resData = await response.json()
+  if (resData?.exc_type) {
+    throw new Error(resData?.message || 'Failed to load observation')
+  }
+  return (resData?.message || {}) as Observation
+}
+
 export async function createObservationSalesOrder(
   observationName: string
 ): Promise<{ sales_order: string; status: string; existing?: boolean }> {

@@ -1,5 +1,6 @@
 [
  {
+  "daily": 0,
   "docstatus": 0,
   "doctype": "Prescription Frequency",
   "dosage": "1-1-1-1",
@@ -26,6 +27,7 @@
   "name": "1-1-1-1"
  },
  {
+  "daily": 0,
   "docstatus": 0,
   "doctype": "Prescription Frequency",
   "dosage": "0-0-1",
@@ -40,74 +42,7 @@
   "name": "0-0-1"
  },
  {
-  "docstatus": 0,
-  "doctype": "Prescription Frequency",
-  "dosage": "1-0-0",
-  "dosage_strength": [
-   {
-    "strength": 1.0,
-    "strength_time": "9:00:00"
-   }
-  ],
-  "frequency_in_a_day": 0,
-  "modified": "2025-12-17 13:02:12.133674",
-  "name": "1-0-0"
- },
- {
-  "docstatus": 0,
-  "doctype": "Prescription Frequency",
-  "dosage": "0-1-0",
-  "dosage_strength": [
-   {
-    "strength": 1.0,
-    "strength_time": "14:00:00"
-   }
-  ],
-  "frequency_in_a_day": 0,
-  "modified": "2025-12-17 13:02:12.134344",
-  "name": "0-1-0"
- },
- {
-  "docstatus": 0,
-  "doctype": "Prescription Frequency",
-  "dosage": "1-1-1",
-  "dosage_strength": [
-   {
-    "strength": 1.0,
-    "strength_time": "9:00:00"
-   },
-   {
-    "strength": 1.0,
-    "strength_time": "14:00:00"
-   },
-   {
-    "strength": 1.0,
-    "strength_time": "21:00:00"
-   }
-  ],
-  "frequency_in_a_day": 0,
-  "modified": "2025-12-17 13:02:12.135097",
-  "name": "1-1-1"
- },
- {
-  "docstatus": 0,
-  "doctype": "Prescription Frequency",
-  "dosage": "1-0-1",
-  "dosage_strength": [
-   {
-    "strength": 1.0,
-    "strength_time": "9:00:00"
-   },
-   {
-    "strength": 1.0,
-    "strength_time": "21:00:00"
-   }
-  ],
-  "frequency_in_a_day": 0,
-  "modified": "2025-12-17 13:02:12.136111",
-  "name": "1-0-1"
- },
- {
+  "daily": 0,
   "docstatus": 0,
   "doctype": "Prescription Frequency",
   "dosage": "Weekly",
@@ -117,15 +52,17 @@
   "name": "Weekly"
  },
  {
+  "daily": 0,
   "docstatus": 0,
   "doctype": "Prescription Frequency",
   "dosage": "Biweekly",
   "dosage_strength": [],
-  "frequency_in_a_day": 0,
-  "modified": "2026-05-31 10:24:48.118877",
+  "frequency_in_a_day": 1,
+  "modified": "2026-06-08 10:59:02.336677",
   "name": "Biweekly"
  },
  {
+  "daily": 0,
   "docstatus": 0,
   "doctype": "Prescription Frequency",
   "dosage": "Monthly",
@@ -135,6 +72,7 @@
   "name": "Monthly"
  },
  {
+  "daily": 0,
   "docstatus": 0,
   "doctype": "Prescription Frequency",
   "dosage": "Every 2 Months",
@@ -144,6 +82,7 @@
   "name": "Every 2 Months"
  },
  {
+  "daily": 0,
   "docstatus": 0,
   "doctype": "Prescription Frequency",
   "dosage": "After 25 days",
@@ -153,6 +92,7 @@
   "name": "After 25 days"
  },
  {
+  "daily": 0,
   "docstatus": 0,
   "doctype": "Prescription Frequency",
   "dosage": "q 2 weeks",
@@ -162,6 +102,7 @@
   "name": "q 2 weeks"
  },
  {
+  "daily": 0,
   "docstatus": 0,
   "doctype": "Prescription Frequency",
   "dosage": "every 2 weeks",
@@ -171,6 +112,7 @@
   "name": "every 2 weeks"
  },
  {
+  "daily": 0,
   "docstatus": 0,
   "doctype": "Prescription Frequency",
   "dosage": "q2weeks",
@@ -180,6 +122,7 @@
   "name": "q2weeks"
  },
  {
+  "daily": 0,
   "docstatus": 0,
   "doctype": "Prescription Frequency",
   "dosage": "q 4 weeks",
@@ -189,6 +132,7 @@
   "name": "q 4 weeks"
  },
  {
+  "daily": 0,
   "docstatus": 0,
   "doctype": "Prescription Frequency",
   "dosage": "q4 weeks",
@@ -198,6 +142,7 @@
   "name": "q4 weeks"
  },
  {
+  "daily": 0,
   "docstatus": 0,
   "doctype": "Prescription Frequency",
   "dosage": "q 2 wks",
@@ -207,6 +152,7 @@
   "name": "q 2 wks"
  },
  {
+  "daily": 0,
   "docstatus": 0,
   "doctype": "Prescription Frequency",
   "dosage": "as per dr ak",
@@ -216,6 +162,7 @@
   "name": "as per dr ak"
  },
  {
+  "daily": 0,
   "docstatus": 0,
   "doctype": "Prescription Frequency",
   "dosage": "month",
@@ -225,6 +172,7 @@
   "name": "month"
  },
  {
+  "daily": 0,
   "docstatus": 0,
   "doctype": "Prescription Frequency",
   "dosage": "q 4 w",
@@ -234,6 +182,7 @@
   "name": "q 4 w"
  },
  {
+  "daily": 0,
   "docstatus": 0,
   "doctype": "Prescription Frequency",
   "dosage": "q weeks",
@@ -243,6 +192,7 @@
   "name": "q weeks"
  },
  {
+  "daily": 0,
   "docstatus": 0,
   "doctype": "Prescription Frequency",
   "dosage": "1 week",
@@ -252,6 +202,7 @@
   "name": "1 week"
  },
  {
+  "daily": 0,
   "docstatus": 0,
   "doctype": "Prescription Frequency",
   "dosage": "Every 8 hours",
@@ -261,15 +212,17 @@
   "name": "Every 8 hours"
  },
  {
+  "daily": 1,
   "docstatus": 0,
   "doctype": "Prescription Frequency",
   "dosage": "QAM",
   "dosage_strength": [],
   "frequency_in_a_day": 1,
-  "modified": "2026-03-15 11:31:17.106109",
+  "modified": "2026-06-08 10:58:20.877279",
   "name": "QAM"
  },
  {
+  "daily": 1,
   "docstatus": 0,
   "doctype": "Prescription Frequency",
   "dosage": "Once Bedtime",
@@ -279,11 +232,12 @@
     "strength_time": "21:00:00"
    }
   ],
-  "frequency_in_a_day": 0,
-  "modified": "2025-12-17 13:02:12.136941",
+  "frequency_in_a_day": 1,
+  "modified": "2026-06-08 10:58:28.750077",
   "name": "Once Bedtime"
  },
  {
+  "daily": 0,
   "docstatus": 0,
   "doctype": "Prescription Frequency",
   "dosage": "5 times a day",
@@ -314,6 +268,7 @@
   "name": "5 times a day"
  },
  {
+  "daily": 1,
   "docstatus": 0,
   "doctype": "Prescription Frequency",
   "dosage": "QID",
@@ -336,10 +291,11 @@
    }
   ],
   "frequency_in_a_day": 4,
-  "modified": "2026-03-23 12:20:57.621366",
+  "modified": "2026-06-08 10:58:20.923793",
   "name": "QID"
  },
  {
+  "daily": 1,
   "docstatus": 0,
   "doctype": "Prescription Frequency",
   "dosage": "TID",
@@ -358,10 +314,11 @@
    }
   ],
   "frequency_in_a_day": 3,
-  "modified": "2026-03-23 12:18:18.592241",
+  "modified": "2026-06-08 10:58:20.891487",
   "name": "TID"
  },
  {
+  "daily": 1,
   "docstatus": 0,
   "doctype": "Prescription Frequency",
   "dosage": "BID",
@@ -376,10 +333,11 @@
    }
   ],
   "frequency_in_a_day": 2,
-  "modified": "2026-03-23 12:19:54.805263",
+  "modified": "2026-06-08 10:58:20.913490",
   "name": "BID"
  },
  {
+  "daily": 0,
   "docstatus": 0,
   "doctype": "Prescription Frequency",
   "dosage": "Once Daily",
@@ -394,6 +352,7 @@
   "name": "Once Daily"
  },
  {
+  "daily": 1,
   "docstatus": 0,
   "doctype": "Prescription Frequency",
   "dosage": "HS",
@@ -404,10 +363,11 @@
    }
   ],
   "frequency_in_a_day": 1,
-  "modified": "2026-03-23 12:20:18.754713",
+  "modified": "2026-06-08 10:58:20.918288",
   "name": "HS"
  },
  {
+  "daily": 1,
   "docstatus": 0,
   "doctype": "Prescription Frequency",
   "dosage": "OD",
@@ -418,10 +378,11 @@
    }
   ],
   "frequency_in_a_day": 1,
-  "modified": "2026-03-23 12:18:48.971363",
+  "modified": "2026-06-08 10:58:20.898571",
   "name": "OD"
  },
  {
+  "daily": 0,
   "docstatus": 0,
   "doctype": "Prescription Frequency",
   "dosage": "Q1W",
@@ -431,6 +392,7 @@
   "name": "Q1W"
  },
  {
+  "daily": 0,
   "docstatus": 0,
   "doctype": "Prescription Frequency",
   "dosage": "Q2W",
@@ -440,6 +402,7 @@
   "name": "Q2W"
  },
  {
+  "daily": 0,
   "docstatus": 0,
   "doctype": "Prescription Frequency",
   "dosage": "Q3W",
@@ -449,6 +412,7 @@
   "name": "Q3W"
  },
  {
+  "daily": 0,
   "docstatus": 0,
   "doctype": "Prescription Frequency",
   "dosage": "Q4W",
@@ -458,6 +422,7 @@
   "name": "Q4W"
  },
  {
+  "daily": 1,
   "docstatus": 0,
   "doctype": "Prescription Frequency",
   "dosage": "BD",
@@ -472,7 +437,7 @@
    }
   ],
   "frequency_in_a_day": 2,
-  "modified": "2026-03-23 12:19:29.210400",
+  "modified": "2026-06-08 10:58:20.907686",
   "name": "BD"
  }
 ]

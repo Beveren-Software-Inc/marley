@@ -1,6 +1,17 @@
 // Copyright (c) 2016, ESS LLP and contributors
 // For license information, please see license.txt
 
+function patient_visit_has_field(frm, fieldname) {
+	return Boolean(frm.fields_dict[fieldname]);
+}
+
+function patient_visit_set_grid_editable_fields(frm, fieldname, editable_fields) {
+	const field = frm.get_field(fieldname);
+	if (field?.grid) {
+		field.grid.editable_fields = editable_fields;
+	}
+}
+
 frappe.ui.form.on('Patient Visit', {
 	onload: function(frm) {
 		if (!frm.doc.__islocal && frm.doc.docstatus === 1 &&
@@ -27,26 +38,35 @@ frappe.ui.form.on('Patient Visit', {
 	},
 
 	setup: function(frm) {
-		frm.get_field('therapies').grid.editable_fields = [
+		patient_visit_set_grid_editable_fields(frm, 'therapies', [
 			{fieldname: 'therapy_type', columns: 8},
 			{fieldname: 'no_of_sessions', columns: 2}
-		];
-		frm.get_field('drug_prescription').grid.editable_fields = [
-			{fieldname: 'drug_code', columns: 2},
-			{fieldname: 'drug_name', columns: 2},
-			{fieldname: 'dosage', columns: 2},
-			{fieldname: 'period', columns: 2},
-			{fieldname: 'dosage_form', columns: 2}
-		];
-		if (frappe.meta.get_docfield('Drug Prescription', 'medication').in_list_view === 1) {
-			frm.get_field('drug_prescription').grid.editable_fields.splice(0, 0, {fieldname: 'medication', columns: 3});
-			frm.get_field('drug_prescription').grid.editable_fields.splice(2, 1); // remove item description
+		]);
+
+		if (patient_visit_has_field(frm, 'drug_prescription')) {
+			patient_visit_set_grid_editable_fields(frm, 'drug_prescription', [
+				{fieldname: 'drug_code', columns: 2},
+				{fieldname: 'drug_name', columns: 2},
+				{fieldname: 'dosage', columns: 2},
+				{fieldname: 'period', columns: 2},
+				{fieldname: 'dosage_form', columns: 2}
+			]);
+			const medication_field = frappe.meta.get_docfield('Drug Prescription', 'medication');
+			const drug_grid = frm.get_field('drug_prescription')?.grid;
+			if (medication_field?.in_list_view === 1 && drug_grid?.editable_fields) {
+				drug_grid.editable_fields.splice(0, 0, {fieldname: 'medication', columns: 3});
+				drug_grid.editable_fields.splice(2, 1); // remove item description
+			}
 		}
 	},
 
 	refresh: function(frm) {
-		refresh_field('drug_prescription');
-		refresh_field('lab_test_prescription');
+		if (patient_visit_has_field(frm, 'drug_prescription')) {
+			refresh_field('drug_prescription');
+		}
+		if (patient_visit_has_field(frm, 'lab_test_prescription')) {
+			refresh_field('lab_test_prescription');
+		}
 
 		if (!frm.doc.__islocal) {
 			if (frm.doc.docstatus === 1) {
@@ -133,13 +153,38 @@ frappe.ui.form.on('Patient Visit', {
 			};
 		});
 
-		frm.set_query('drug_code', 'drug_prescription', function() {
-			return {
-				filters: {
-					is_stock_item: 1
-				}
-			};
-		});
+		if (patient_visit_has_field(frm, 'drug_prescription')) {
+			frm.set_query('drug_code', 'drug_prescription', function() {
+				return {
+					filters: {
+						is_stock_item: 1
+					}
+				};
+			});
+
+			frm.set_query("medication", "drug_prescription", function() {
+				return {
+					filters: {
+						disabled: false
+					}
+				};
+			});
+
+			const medication_field = frappe.meta.get_docfield('Drug Prescription', 'medication');
+			if (medication_field?.in_list_view === 1) {
+				frm.set_query('drug_code', 'drug_prescription', function(doc, cdt, cdn) {
+					let row = frappe.get_doc(cdt, cdn);
+					let filters = { is_stock_item: 1 };
+					if (row.medication) {
+						filters.medication = row.medication;
+					}
+					return {
+						query: 'healthcare.healthcare.doctype.patient_visit.patient_visit.get_medications_query',
+						filters: filters
+					};
+				});
+			}
+		}
 
 		frm.set_query('lab_test_code', 'lab_test_prescription', function() {
 			return {
@@ -169,14 +214,6 @@ frappe.ui.form.on('Patient Visit', {
 			}
 		});
 
-		frm.set_query("medication", "drug_prescription", function() {
-			return {
-				filters: {
-					disabled: false
-				}
-			};
-		})
-
 		frm.set_df_property('patient', 'read_only', frm.doc.appointment ? 1 : 0);
 
 		if (frm.doc.google_meet_link && frappe.datetime.now_date() <= frm.doc.encounter_date) {
@@ -186,20 +223,9 @@ frappe.ui.form.on('Patient Visit', {
 				])
 			);
 		}
-		if (frappe.meta.get_docfield('Drug Prescription', 'medication').in_list_view === 1) {
-			frm.set_query('drug_code', 'drug_prescription', function(doc, cdt, cdn) {
-				let row = frappe.get_doc(cdt, cdn);
-				let filters = { is_stock_item: 1 };
-				if (row.medication) {
-					filters.medication = row.medication;
-				}
-				return {
-					query: 'healthcare.healthcare.doctype.patient_visit.patient_visit.get_medications_query',
-					filters: filters
-				};
-			});
-		}
-		var table_list =  ["drug_prescription", "lab_test_prescription", "procedure_prescription", "therapies"]
+
+		var table_list = ["drug_prescription", "lab_test_prescription", "procedure_prescription", "therapies"]
+			.filter((field) => patient_visit_has_field(frm, field));
 		apply_code_sm_filter_to_child(frm, "priority", table_list, "Priority")
 		apply_code_sm_filter_to_child(frm, "intent", table_list, "Intent")
 	},

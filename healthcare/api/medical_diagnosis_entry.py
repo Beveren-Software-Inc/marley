@@ -12,6 +12,28 @@ from healthcare.api.common import _enrich_diagnosis_display
 
 ALLOWED_PARENT_DOCTYPES = ("Patient Visit", "Inpatient Admission")
 
+# Portal users list/read via whitelisted APIs; REST /api/resource may enforce DocPerm gaps.
+MEDICAL_DIAGNOSIS_PORTAL_READ_ROLES = frozenset(
+	{
+		"Administrator",
+		"System Manager",
+		"Healthcare Administrator",
+		"Doctor",
+		"Nurse",
+		"Physician",
+		"Psychologist",
+		"Anesthesiologist",
+		"Therapist",
+		"Nutritionist",
+	}
+)
+
+
+def _user_can_read_medical_diagnosis_portal() -> bool:
+	if frappe.session.user in ("Guest", ""):
+		return False
+	return bool(MEDICAL_DIAGNOSIS_PORTAL_READ_ROLES & set(frappe.get_roles(frappe.session.user)))
+
 
 def _parse_rows(rows) -> list[dict]:
 	if isinstance(rows, str):
@@ -367,6 +389,30 @@ def get_entries_for_patient(patient: str) -> list[dict]:
 @frappe.whitelist()
 def get_all_entries(limit=200, offset=0, patient=None) -> list[dict]:
 	return list_all_entries(limit=limit, offset=offset, patient=patient)
+
+
+@frappe.whitelist()
+def get_medical_diagnosis_entry(name: str | None = None) -> dict:
+	"""Return one Medical Diagnosis Entry for the healthcare portal."""
+	name = (name or "").strip()
+	if not name:
+		frappe.throw(_("Medical Diagnosis Entry is required"))
+
+	if not frappe.db.exists("Medical Diagnosis Entry", name):
+		frappe.throw(_("Medical Diagnosis Entry {0} not found").format(name))
+
+	doc = frappe.get_doc("Medical Diagnosis Entry", name)
+
+	if not frappe.has_permission("Medical Diagnosis Entry", "read", doc=doc):
+		if not _user_can_read_medical_diagnosis_portal():
+			frappe.throw(
+				_("Not permitted to read Medical Diagnosis Entry"),
+				frappe.PermissionError,
+			)
+
+	item = serialize_entry(doc)
+	_attach_parent_context(item, doc)
+	return item
 
 
 @frappe.whitelist()

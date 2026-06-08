@@ -3,8 +3,7 @@ import { fetchReceptionLongActingMedicineList } from '../../services/receptionLo
 import type { LongActingMedicineRow, ReminderChannel } from '../../services/longActingMedicine'
 import { sendLongActingMedicineReminder, updateLongActingMedicineRemarks } from '../../services/longActingMedicine'
 import { LONG_ACTING_FREQUENCY_OPTIONS } from '../../services/prescriptions'
-import { DetailSlideOver } from '../ui/DetailSlideOver'
-import { DocDetailView } from '../ui/DocDetailView'
+import { LongActingMedicineDetailPanel } from './LongActingMedicineDetailPanel'
 import { toast } from '../../hooks/useToast'
 import { Mail, MoreHorizontal } from 'lucide-react'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
@@ -24,6 +23,7 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
   const [frequency, setFrequency] = useState<string>('')
   const [sortBy, setSortBy] = useState<'next_run_date' | 'start_date'>('next_run_date')
   const [detailName, setDetailName] = useState<string | null>(null)
+  const [detailPreview, setDetailPreview] = useState<LongActingMedicineRow | undefined>(undefined)
   const [bulkSending, setBulkSending] = useState(false)
   const [bulkChannelMenuOpen, setBulkChannelMenuOpen] = useState(false)
   const bulkMenuRef = useRef<HTMLDivElement>(null)
@@ -128,8 +128,9 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
     return 'hover:bg-slate-50'
   }
 
-  const handleRowClick = (name: string) => {
-    setDetailName(name)
+  const handleRowClick = (row: LongActingMedicineRow) => {
+    setDetailPreview(row)
+    setDetailName(row.name)
   }
 
   const handleApplyFilters = async () => {
@@ -182,6 +183,7 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
 
   const handleCloseDetail = () => {
     setDetailName(null)
+    setDetailPreview(undefined)
   }
 
   return (
@@ -309,7 +311,7 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
                 <tr
                   key={row.name}
                   className={`cursor-pointer transition-colors ${getRowColorClass(row.next_run_date)}`}
-                  onClick={() => handleRowClick(row.name)}
+                  onClick={() => handleRowClick(row)}
                 >
                   <td className="px-3 py-2 text-primary font-medium">{row.name}</td>
                   {!patient && (
@@ -403,16 +405,14 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
         </div>
       )}
 
-      {/* Detail Slide Over Modal */}
-      {detailName && (
-        <DetailSlideOver
-          title="Long Acting Medicine"
-          subtitle={detailName}
+      {detailName ? (
+        <LongActingMedicineDetailPanel
+          name={detailName}
+          preview={detailPreview}
           onClose={handleCloseDetail}
-        >
-          <DocDetailView doctype="Long Acting Medicine" name={detailName} />
-        </DetailSlideOver>
-      )}
+          onPatientClick={onPatientClick}
+        />
+      ) : null}
 
       {/* Add Remarks Modal */}
       {remarksModal && (

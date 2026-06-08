@@ -282,13 +282,34 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
 
   // Load initial options and auto-fill current user's practitioner
   useEffect(() => {
+    let cancelled = false
+
+    const applyPractitioner = async (practitionerId: string, allowOverwrite = false) => {
+      setFormData((prev) =>
+        allowOverwrite || !prev.practitioner ? { ...prev, practitioner: practitionerId } : prev,
+      )
+      try {
+        const options = await fetchHealthcarePractitioners(practitionerId)
+        if (cancelled) return
+        const match = options.find((p) => p.name === practitionerId)
+        setPractitionerQuery(match?.label || practitionerId)
+        if (match) {
+          setPractitionerOptions((prev) =>
+            prev.some((p) => p.name === match.name) ? prev : [...prev, match],
+          )
+        }
+      } catch {
+        if (!cancelled) setPractitionerQuery(practitionerId)
+      }
+    }
+
     const loadOptions = async () => {
       try {
-        const [practs, appointmentTypes, currentPract] = await Promise.all([
+        const [practs, appointmentTypes] = await Promise.all([
           fetchHealthcarePractitioners(),
           fetchAppointmentTypes(),
-          getCurrentUserPractitioner(),
         ])
+        if (cancelled) return
         setPractitionerOptions(practs)
         setAppointmentTypeOptions(appointmentTypes)
 
@@ -298,30 +319,28 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
           setFormData((prev) =>
             prev.appointment_type
               ? prev
-              : { ...prev, appointment_type: defaultAptType.name }
+              : { ...prev, appointment_type: defaultAptType.name },
           )
           applyAppointmentTypeDuration(defaultAptType.default_duration)
         }
 
-        // Set initial practitioner if provided, otherwise auto-fill current user
         if (initialPractitioner) {
-          const pract = practs.find(p => p.name === initialPractitioner)
-          if (pract) {
-            setPractitionerQuery(pract.label)
-            setFormData(prev => ({ ...prev, practitioner: pract.name }))
-          }
-        } else if (currentPract) {
-          const pract = practs.find(p => p.name === currentPract)
-          if (pract) {
-            setPractitionerQuery(pract.label)
-            setFormData(prev => prev.practitioner === '' ? { ...prev, practitioner: pract.name } : prev)
-          }
+          await applyPractitioner(initialPractitioner, true)
+          return
+        }
+
+        const currentPract = await getCurrentUserPractitioner()
+        if (currentPract && !cancelled) {
+          await applyPractitioner(currentPract)
         }
       } catch (err) {
         console.error('Failed to load options:', err)
       }
     }
     loadOptions()
+    return () => {
+      cancelled = true
+    }
   }, [initialPractitioner])
 
   useEffect(() => {
