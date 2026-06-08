@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Loader2, ShoppingCart, Trash2 } from 'lucide-react'
+import { Loader2, Pill, ShoppingCart, Trash2 } from 'lucide-react'
 import { getPatientActiveAdmission, type InpatientRecord } from '../../services/inpatientRecords'
 import {
   fetchMedicineGiven,
@@ -13,10 +13,225 @@ import {
 } from '../../services/medicineGiven'
 import { toast } from '../../hooks/useToast'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
+import { DetailSlideOver } from '../ui/DetailSlideOver'
+import { MODAL_SECTION_CLASS, MODAL_SECTION_TITLE_CLASS } from '../ui/CreateModalChrome'
 import { useCareContext } from '../../providers/CareContextProvider'
 
 const iconToolbarBtn =
   'inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-40 disabled:cursor-not-allowed transition-colors'
+
+const formatScheduleTime = (time?: string | null) => {
+  if (!time) return ''
+  return formatDisplayTime(time).slice(0, 5)
+}
+
+const formatDisplayTime = (time?: string | null) => {
+  if (!time) return ''
+  let value = time.trim()
+  if (value.includes(' ')) {
+    value = value.split(' ').pop() || value
+  }
+  if (value.includes('.')) {
+    value = value.split('.')[0]
+  }
+  return value.length >= 8 ? value.slice(0, 8) : value
+}
+
+const formatGivenDateTime = (date?: string | null, time?: string | null) => {
+  const datePart = date || ''
+  const timePart = formatDisplayTime(time)
+  if (datePart && timePart) return `${datePart} ${timePart}`
+  return datePart || timePart || '—'
+}
+
+function DetailField({ label, value }: { label: string; value?: string | null }) {
+  const display = value?.trim() ? value : '—'
+  return (
+    <div className="min-w-0">
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+      <p className="mt-1 text-sm text-slate-900 break-words">{display}</p>
+    </div>
+  )
+}
+
+function MedicineGivenDetailPanel({
+  row,
+  onClose,
+}: {
+  row: MedicineGivenRow
+  onClose: () => void
+}) {
+  const medicineLabel = row.medicine_name || row.medicine_code || 'Medicine given'
+  const pmo = row.medication_order || row.patient_medication_order
+
+  return (
+    <DetailSlideOver
+      title={medicineLabel}
+      subtitle={formatGivenDateTime(row.date, row.time)}
+      icon={<Pill className="h-5 w-5" />}
+      onClose={onClose}
+      maxWidthClass="max-w-lg"
+    >
+      <div className="space-y-4">
+        <section className={MODAL_SECTION_CLASS}>
+          <h3 className={MODAL_SECTION_TITLE_CLASS}>Administration</h3>
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <DetailField label="Date" value={row.date} />
+            <DetailField label="Time given" value={formatDisplayTime(row.time)} />
+            <DetailField label="Scheduled timing" value={formatScheduleTime(row.medicine_given_timing) || row.medicine_given_timing} />
+            <DetailField label="Quantity" value={row.qty != null ? `${row.qty} ${row.unit || ''}`.trim() : undefined} />
+            <DetailField label="Given by" value={row.user} />
+            <DetailField label="Frequency" value={row.frequency != null ? String(row.frequency) : undefined} />
+          </div>
+        </section>
+
+        <section className={MODAL_SECTION_CLASS}>
+          <h3 className={MODAL_SECTION_TITLE_CLASS}>Medicine & prescription</h3>
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <DetailField label="Medicine code" value={row.medicine_code} />
+            <DetailField label="Medicine name" value={row.medicine_name} />
+            <DetailField label="Patient Medication Order" value={pmo} />
+            <DetailField label="Prescription type" value={row.prescription_type} />
+            <DetailField label="PRN" value={row.is_prn ? 'Yes' : 'No'} />
+          </div>
+        </section>
+
+        {(row.batch_no || row.lot_no || row.dispensing_lot) && (
+          <section className={MODAL_SECTION_CLASS}>
+            <h3 className={MODAL_SECTION_TITLE_CLASS}>Batch & lot</h3>
+            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <DetailField label="Batch" value={row.batch_id || row.batch_no} />
+              <DetailField label="Lot" value={row.dispensing_lot || row.lot_no} />
+            </div>
+          </section>
+        )}
+
+        <section className={MODAL_SECTION_CLASS}>
+          <h3 className={MODAL_SECTION_TITLE_CLASS}>Billing & notes</h3>
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <DetailField label="Sales order" value={row.sales_order} />
+            <DetailField label="Delivery note" value={row.delivery_note} />
+          </div>
+          {row.dose_notes ? (
+            <div className="mt-4 rounded-lg border border-slate-200 bg-white px-3 py-2.5">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Dose notes</p>
+              <p className="mt-1 text-sm text-slate-800 whitespace-pre-wrap">{row.dose_notes}</p>
+            </div>
+          ) : null}
+          {row.override_exceeded_frequency ? (
+            <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 space-y-2">
+              <p className="text-xs font-semibold text-amber-900">Frequency override recorded</p>
+              <DetailField label="Reason" value={row.override_reason} />
+              <DetailField label="Override user" value={row.override_user} />
+              <DetailField label="Override time" value={row.override_timestamp} />
+            </div>
+          ) : null}
+        </section>
+      </div>
+    </DetailSlideOver>
+  )
+}
+
+function MarkMissedGivenModal({
+  row,
+  onClose,
+  onConfirm,
+}: {
+  row: MissedMedicineRow
+  onClose: () => void
+  onConfirm: (lateReason: string) => void | Promise<void>
+}) {
+  const [lateReason, setLateReason] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+
+  const medicineLabel = row.medicine_name || row.medicine_code || 'this medicine'
+  const scheduledTime = formatScheduleTime(row.medicine_given_timing || row.time)
+  const scheduledDate = row.date || 'today'
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSubmitting(true)
+    try {
+      await Promise.resolve(onConfirm(lateReason.trim()))
+      onClose()
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="mark-missed-given-title"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-md rounded-xl bg-white shadow-xl ring-1 ring-slate-200"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="border-b border-slate-100 px-6 py-4">
+          <h2 id="mark-missed-given-title" className="text-lg font-semibold text-slate-900">
+            Record missed dose as given
+          </h2>
+          <p className="mt-2 text-sm text-slate-600 leading-relaxed">
+            You are marking a missed dose of <strong className="text-slate-800">{medicineLabel}</strong>
+            {scheduledTime ? (
+              <>
+                {' '}
+                scheduled for <strong className="text-slate-800">{scheduledTime}</strong>
+              </>
+            ) : null}{' '}
+            on <strong className="text-slate-800">{scheduledDate}</strong> as administered.
+          </p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="px-6 py-4 space-y-4">
+          <div>
+            <label htmlFor="late-reason" className="block text-sm font-medium text-slate-700 mb-1">
+              Reason for late administration <span className="font-normal text-slate-400">(optional)</span>
+            </label>
+            <textarea
+              id="late-reason"
+              value={lateReason}
+              onChange={(e) => setLateReason(e.target.value)}
+              placeholder="e.g. Patient was asleep, delayed by procedure, refused earlier…"
+              rows={3}
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary min-h-[80px]"
+              autoFocus
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-1">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={submitting}
+              className="px-4 py-2 text-sm font-medium rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={submitting}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60"
+            >
+              {submitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                  Saving…
+                </>
+              ) : (
+                'Mark as given'
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
 
 interface MedicineGivenListProps {
   patient?: string
@@ -32,6 +247,8 @@ export const MedicineGivenList = ({ patient, refreshKey }: MedicineGivenListProp
   const [error, setError] = useState<string | null>(null)
   const [creatingSalesOrder, setCreatingSalesOrder] = useState(false)
   const [checkingMissedNow, setCheckingMissedNow] = useState(false)
+  const [pendingMissedRow, setPendingMissedRow] = useState<MissedMedicineRow | null>(null)
+  const [detailRow, setDetailRow] = useState<MedicineGivenRow | null>(null)
 
   useEffect(() => {
     const load = async () => {
@@ -124,11 +341,7 @@ export const MedicineGivenList = ({ patient, refreshKey }: MedicineGivenListProp
     }
   }
 
-  const handleConvertMissedToGiven = async (row: MissedMedicineRow) => {
-    const lateReason = window.prompt(
-      'Reason for giving this missed dose late (optional):',
-      ''
-    )
+  const handleConvertMissedToGiven = async (row: MissedMedicineRow, lateReason = '') => {
     try {
       await convertMissedMedicineToGiven(row.name, lateReason || '')
       setMissedRows((prev) => prev.filter((r) => r.name !== row.name))
@@ -136,10 +349,11 @@ export const MedicineGivenList = ({ patient, refreshKey }: MedicineGivenListProp
         const refreshed = await fetchMedicineGiven(admission.name, 100, 0)
         setRows(refreshed)
       }
-      toast.success('Missed medicine converted to given')
+      toast.success('Missed dose recorded as given')
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Failed to convert missed medicine'
       toast.error(msg)
+      throw e
     }
   }
 
@@ -191,14 +405,6 @@ export const MedicineGivenList = ({ patient, refreshKey }: MedicineGivenListProp
     )
   }
 
-  if (!rows.length && !missedRows.length) {
-    return (
-      <div className="text-sm text-slate-500">
-        No given or missed medicines recorded yet for admission {admission.name}.
-      </div>
-    )
-  }
-
   return (
     <div className="space-y-2">
       {/* Toolbar — icon actions; hover shows full label */}
@@ -234,6 +440,9 @@ export const MedicineGivenList = ({ patient, refreshKey }: MedicineGivenListProp
       </div>
 
       <div className="bg-white border border-slate-200 rounded-lg overflow-auto max-h-[320px]">
+        <div className="px-3 py-2 border-b border-slate-200 bg-slate-50">
+          <div className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Given Medicines</div>
+        </div>
         <table className="w-full text-sm">
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr>
@@ -261,10 +470,24 @@ export const MedicineGivenList = ({ patient, refreshKey }: MedicineGivenListProp
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200">
+            {rows.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="px-3 py-4 text-xs text-slate-500 text-center">
+                  No given medicines recorded yet for this admission.
+                </td>
+              </tr>
+            ) : null}
             {rows.map((row) => (
               <tr key={row.name} className="hover:bg-slate-50">
                 <td className="px-3 py-2 text-xs text-slate-700">
-                  {row.date || '-'} {row.time || ''}
+                  <button
+                    type="button"
+                    onClick={() => setDetailRow(row)}
+                    className="text-left text-primary hover:underline font-medium"
+                    title="View administration details"
+                  >
+                    {formatGivenDateTime(row.date, row.time)}
+                  </button>
                 </td>
                 <td className="px-3 py-2 text-xs text-slate-700">
                   {row.medicine_name || row.medicine_code || '-'}
@@ -348,7 +571,7 @@ export const MedicineGivenList = ({ patient, refreshKey }: MedicineGivenListProp
             onClick={handleCheckMissedNow}
             disabled={checkingMissedNow}
             className="inline-flex items-center rounded-md border border-amber-300 bg-white px-2 py-1 text-[11px] font-medium text-amber-800 hover:bg-amber-100 disabled:opacity-60"
-            title="Compare prescriptions with current time and fetch missed medicines now"
+            title="Detect missed doses for daily-frequency medicines only (morning/noon/evening/night). Long-interval medicines are manual."
           >
             {checkingMissedNow ? 'Checking…' : 'Check Missed Now'}
           </button>
@@ -380,7 +603,7 @@ export const MedicineGivenList = ({ patient, refreshKey }: MedicineGivenListProp
               {missedRows.map((row) => (
                 <tr key={row.name} className="hover:bg-amber-100/50">
                   <td className="px-3 py-2 text-xs text-slate-700">
-                    {row.date || '-'} {row.medicine_given_timing || row.time || ''}
+                    {row.date || '-'} {formatScheduleTime(row.medicine_given_timing || row.time) || '—'}
                   </td>
                   <td className="px-3 py-2 text-xs text-slate-700">
                     {row.medicine_name || row.medicine_code || '-'}
@@ -394,9 +617,9 @@ export const MedicineGivenList = ({ patient, refreshKey }: MedicineGivenListProp
                   <td className="px-3 py-2 text-xs text-right">
                     <button
                       type="button"
-                      onClick={() => handleConvertMissedToGiven(row)}
+                      onClick={() => setPendingMissedRow(row)}
                       className="inline-flex items-center rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-medium text-emerald-700 hover:bg-emerald-100"
-                      title="Convert to given medicine"
+                      title="Record this missed dose as given"
                     >
                       Mark Given
                     </button>
@@ -407,6 +630,18 @@ export const MedicineGivenList = ({ patient, refreshKey }: MedicineGivenListProp
           </table>
         )}
       </div>
+
+      {pendingMissedRow && (
+        <MarkMissedGivenModal
+          row={pendingMissedRow}
+          onClose={() => setPendingMissedRow(null)}
+          onConfirm={(lateReason) => handleConvertMissedToGiven(pendingMissedRow, lateReason)}
+        />
+      )}
+
+      {detailRow && (
+        <MedicineGivenDetailPanel row={detailRow} onClose={() => setDetailRow(null)} />
+      )}
     </div>
   )
 }

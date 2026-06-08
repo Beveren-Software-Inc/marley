@@ -44,18 +44,26 @@ export interface MedicineGivenRow {
   time?: string
   medicine_code?: string
   medicine_name?: string
+  medication_order?: string
+  medicine_given_timing?: string
   qty?: number
   unit?: string
   frequency?: number
   dose_notes?: string
   user?: string
   modified?: string
+  is_prn?: number | boolean
+  prescription_type?: string
   sales_order?: string
   delivery_note?: string
   batch_no?: string
   batch_id?: string
   lot_no?: string
   dispensing_lot?: string
+  override_exceeded_frequency?: number | boolean
+  override_reason?: string
+  override_user?: string
+  override_timestamp?: string
   old_medicine_code?: string
   old_medicine_name?: string
   ip_admission_medicine?: string

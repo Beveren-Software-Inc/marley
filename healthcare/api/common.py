@@ -935,8 +935,10 @@ def _ensure_prescription_frequency_exists(dosage, frequency_in_a_day=1):
 
 
 def ensure_prescription_frequency_for_long_acting(frequency_name):
-	"""Long-acting interval labels also exist as Prescription Frequency (0/day = no daily cap)."""
+	"""Long-acting interval labels also exist as Prescription Frequency (not daily automation)."""
 	_ensure_prescription_frequency_exists(frequency_name, frequency_in_a_day=0)
+	if frappe.db.has_column("Prescription Frequency", "daily"):
+		frappe.db.set_value("Prescription Frequency", frequency_name, "daily", 0)
 
 
 def _ensure_default_long_acting_frequencies():

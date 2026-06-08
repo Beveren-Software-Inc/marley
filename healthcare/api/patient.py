@@ -256,6 +256,9 @@ def create_patient(data):
 		"insurance_valid_till": data.get("insurance_valid_till") or None,
 		"ref_no": data.get("ref_no") or None,
 		"insurance_type": data.get("insurance_type") or None,
+		"address": (data.get("address_line1") or "").strip() or None,
+		"city": (data.get("city") or "").strip() or None,
+		"country": (data.get("country") or "").strip() or None,
 	})
 
 	patient.insert(ignore_permissions=True)
@@ -323,36 +326,154 @@ def _add_patient_relations(patient, data):
 	if patient.get("patient_relation"):
 		patient.save(ignore_permissions=True)
 
+def _address_city_for_save(city):
+	city = (city or "").strip()
+	return city or "-"
+
+
+def _address_city_for_display(city):
+	city = (city or "").strip()
+	return "" if city in ("-", "—", "N/A") else city
+
+
+def _get_patient_linked_address_name(patient_name):
+	primary = frappe.db.get_value("Patient", patient_name, "patient_primary_address")
+	if primary:
+		return primary
+
+	rows = frappe.db.sql(
+		"""
+		SELECT a.name
+		FROM `tabAddress` a
+		INNER JOIN `tabDynamic Link` dl ON dl.parent = a.name AND dl.parenttype = 'Address'
+		WHERE dl.link_doctype = 'Patient' AND dl.link_name = %s
+		ORDER BY a.is_primary_address DESC, a.modified DESC
+		LIMIT 1
+		""",
+		patient_name,
+	)
+	return rows[0][0] if rows else None
+
+
+def _patient_address_payload(address_name=None, patient_doc=None):
+	if address_name and frappe.db.exists("Address", address_name):
+		addr = frappe.db.get_value(
+			"Address",
+			address_name,
+			["name", "address_line1", "address_line2", "city", "state", "country", "pincode"],
+			as_dict=True,
+		)
+		if addr:
+			addr["city"] = _address_city_for_display(addr.get("city"))
+			return addr
+
+	if patient_doc:
+		return {
+			"name": None,
+			"address_line1": patient_doc.get("address") or "",
+			"address_line2": "",
+			"city": patient_doc.get("city") or "",
+			"state": "",
+			"country": patient_doc.get("country") or "",
+			"pincode": "",
+		}
+
+	return {
+		"name": None,
+		"address_line1": "",
+		"address_line2": "",
+		"city": "",
+		"state": "",
+		"country": "",
+		"pincode": "",
+	}
+
+
+@frappe.whitelist()
+def get_patient_address(patient):
+	"""Return address fields for the portal patient edit form."""
+	patient = (patient or "").strip()
+	if not patient or not frappe.db.exists("Patient", patient):
+		frappe.throw(_("Patient not found"))
+
+	patient_doc = frappe.get_doc("Patient", patient)
+	address_name = _get_patient_linked_address_name(patient)
+	return _patient_address_payload(address_name, patient_doc)
+
+
+@frappe.whitelist()
+def save_patient_address(patient, data):
+	"""Create or update a patient's primary address from the portal."""
+	if isinstance(data, str):
+		import json
+		data = json.loads(data)
+
+	patient = (patient or "").strip()
+	if not patient or not frappe.db.exists("Patient", patient):
+		frappe.throw(_("Patient not found"))
+
+	address_line1 = (data.get("address_line1") or "").strip()
+	if not address_line1:
+		return {"name": None}
+
+	patient_doc = frappe.get_doc("Patient", patient)
+	city = _address_city_for_save(data.get("city"))
+	country = (data.get("country") or "").strip()
+	if not country:
+		country = frappe.db.get_single_value("System Settings", "country")
+
+	address_name = _get_patient_linked_address_name(patient)
+	address_fields = {
+		"address_line1": address_line1,
+		"address_line2": data.get("address_line2"),
+		"city": city,
+		"state": data.get("state"),
+		"country": country,
+		"pincode": data.get("pincode"),
+	}
+
+	try:
+		if address_name and frappe.db.exists("Address", address_name):
+			addr = frappe.get_doc("Address", address_name)
+			addr.update(address_fields)
+			addr.is_primary_address = 1
+			addr.save(ignore_permissions=True)
+		else:
+			addr = frappe.get_doc({
+				"doctype": "Address",
+				"address_title": patient_doc.patient_name or patient_doc.name,
+				"address_type": "Billing",
+				"is_primary_address": 1,
+				"links": [{"link_doctype": "Patient", "link_name": patient_doc.name}],
+				**address_fields,
+			})
+			addr.insert(ignore_permissions=True)
+			address_name = addr.name
+
+		frappe.db.set_value(
+			"Patient",
+			patient_doc.name,
+			{
+				"patient_primary_address": address_name,
+				"address": address_line1,
+				"city": (data.get("city") or "").strip() or None,
+				"country": country,
+			},
+		)
+	except Exception:
+		frappe.log_error(frappe.get_traceback(), "Save Patient Address")
+		frappe.throw(_("Could not save patient address"))
+
+	return {"name": address_name}
+
+
 def _setup_patient_links(patient, data):
 
 	address_line1 = (data.get("address_line1") or "").strip()
-	city = (data.get("city") or "").strip()
-	country = (data.get("country") or "").strip()
 
-	if address_line1 and city:
-		if not country:
-			country = frappe.db.get_single_value("System Settings", "country")
-
+	if address_line1:
 		try:
-			addr = frappe.get_doc({
-				"doctype": "Address",
-				"address_title": patient.patient_name or patient.name,
-				"address_type": "Billing",
-				"address_line1": address_line1,
-				"address_line2": data.get("address_line2"),
-				"city": city,
-				"state": data.get("state"),
-				"country": country,
-				"pincode": data.get("pincode"),
-				"is_primary_address": 1,
-				"links": [{"link_doctype": "Patient", "link_name": patient.name}],
-			})
-			addr.insert(ignore_permissions=True)
-
-			frappe.db.set_value(
-				"Patient", patient.name,
-				"patient_primary_address", addr.name
-			)
+			save_patient_address(patient.name, data)
 		except Exception:
 			frappe.log_error(frappe.get_traceback(), "Create Patient Address")
 

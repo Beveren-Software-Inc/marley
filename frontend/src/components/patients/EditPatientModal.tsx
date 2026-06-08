@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   fetchPatientDoc,
-  fetchAddressDoc,
+  fetchPatientAddress,
   updatePatientDoc,
-  updateAddressDoc,
+  savePatientAddress,
   uploadPatientFile,
   type PatientDocumentRow,
   type UpdatePatientData
@@ -235,7 +235,6 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [primaryAddressName, setPrimaryAddressName] = useState<string | null>(null)
 
   // Form data state
   const [formData, setFormData] = useState({
@@ -333,7 +332,7 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
       setLoading(true)
       setError(null)
       try {
-        const [patient, sources, nationalities, countryList, salutations, docTypes, categories] = await Promise.all([
+        const [patient, sources, nationalities, countryList, salutations, docTypes, categories, addressInfo] = await Promise.all([
           fetchPatientDoc(patientName),
           fetchLeadSources(),
           fetchNationalities(),
@@ -341,6 +340,7 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
           fetchSalutations(),
           fetchDocumentTypes(),
           fetchPatientCategories(),
+          fetchPatientAddress(patientName),
         ])
 
         setSourceOptions(sources)
@@ -372,12 +372,12 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
           marital_status: patient.marital_status ?? '',
           is_black_list: !!(patient.is_black_list && patient.is_black_list !== 0),
           remarks: patient.remarks ?? '',
-          address_line1: '',
-          address_line2: '',
-          city: '',
-          state: '',
-          country: '',
-          pincode: '',
+          address_line1: addressInfo.address_line1 ?? patient.address ?? '',
+          address_line2: addressInfo.address_line2 ?? '',
+          city: addressInfo.city ?? patient.city ?? '',
+          state: addressInfo.state ?? '',
+          country: addressInfo.country ?? patient.country ?? '',
+          pincode: addressInfo.pincode ?? '',
           job_title: patient.job_title ?? '',
           job_company: patient.job_company ?? '',
           has_insurance: patient.has_insurance === 1,
@@ -439,23 +439,6 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
         if (patient.insurance_register) {
           setSelectedIpr({ name: patient.insurance_register, label: patient.insurance_register })
           setIprQuery(patient.insurance_register)
-        }
-
-        // Load address
-        if (patient.patient_primary_address) {
-          setPrimaryAddressName(patient.patient_primary_address)
-          const addr = await fetchAddressDoc(patient.patient_primary_address)
-          if (addr) {
-            setFormData((prev) => ({
-              ...prev,
-              address_line1: addr.address_line1 ?? '',
-              address_line2: addr.address_line2 ?? '',
-              city: addr.city ?? '',
-              state: addr.state ?? '',
-              country: addr.country ?? '',
-              pincode: addr.pincode ?? ''
-            }))
-          }
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load patient')
@@ -567,8 +550,8 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
       setActiveTab('details')
       return
     }
-    if (!formData.address_line1 || !formData.city) {
-      setError('Address (Line 1 and City) is required')
+    if (!formData.address_line1) {
+      setError('Address (Line 1) is required')
       setActiveTab('details')
       return
     }
@@ -653,14 +636,14 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
 
       const result = await updatePatientDoc(patientName, patientPayload)
 
-      if (primaryAddressName) {
-        await updateAddressDoc(primaryAddressName, {
+      if (formData.address_line1.trim()) {
+        await savePatientAddress(patientName, {
           address_line1: formData.address_line1,
           address_line2: formData.address_line2 || undefined,
           city: formData.city,
           state: formData.state || undefined,
           country: formData.country || undefined,
-          pincode: formData.pincode || undefined
+          pincode: formData.pincode || undefined,
         })
       }
 
@@ -1084,10 +1067,8 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
                       <input type="text" value={formData.address_line2} onChange={(e) => handleChange('address_line2', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">
-                        City <span className="text-red-500">*</span>
-                      </label>
-                      <input type="text" value={formData.city} onChange={(e) => handleChange('city', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" required />
+                      <label className="block text-sm font-medium text-slate-700 mb-1">City</label>
+                      <input type="text" value={formData.city} onChange={(e) => handleChange('city', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">State/Province</label>
