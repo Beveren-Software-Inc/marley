@@ -819,25 +819,32 @@ export const CreateClinicalNoteModal = ({
     return () => clearTimeout(timeoutId)
   }, [practitionerQuery, practitionerOpen, practitionerOptions])
 
-  // Auto-populate current user's practitioner
+  // Auto-populate current user's linked practitioner (independent of the dropdown list limit)
   useEffect(() => {
-    const autoPopulatePractitioner = async () => {
+    let cancelled = false
+    ;(async () => {
       try {
-        const practitioner = await getCurrentUserPractitioner()
-        if (practitioner) {
-          setFormData(prev => ({ ...prev, practitioner }))
-          // Also set the query for display
-          const practitionerOption = practitionerOptions.find(p => p.name === practitioner)
-          if (practitionerOption) {
-            setPractitionerQuery(practitionerOption.label)
-          }
+        const practitionerId = await getCurrentUserPractitioner()
+        if (!practitionerId || cancelled) return
+        setFormData((prev) =>
+          prev.practitioner ? prev : { ...prev, practitioner: practitionerId },
+        )
+        try {
+          const options = await fetchHealthcarePractitioners(practitionerId)
+          if (cancelled) return
+          const match = options.find((p) => p.name === practitionerId)
+          setPractitionerQuery(match?.label || practitionerId)
+        } catch {
+          if (!cancelled) setPractitionerQuery(practitionerId)
         }
       } catch (err) {
         console.error('Failed to auto-populate practitioner:', err)
       }
+    })()
+    return () => {
+      cancelled = true
     }
-    autoPopulatePractitioner()
-  }, [practitionerOptions])
+  }, [])
 
   // Search patients
   useEffect(() => {

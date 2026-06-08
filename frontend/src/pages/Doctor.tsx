@@ -1340,8 +1340,11 @@ export const DoctorPage = () => {
   // Show Diagnoses (all Medical Diagnosis Entry records)
   if (screen === 'dx') {
     return (
-      <div className="flex flex-col">
-        <DiagnosisSymptomsScreen />
+      <div className="flex flex-col h-[calc(100dvh-2.25rem)] max-h-[calc(100dvh-2.25rem)] overflow-hidden">
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
+        <div className="flex-1 min-h-0 overflow-hidden">
+          <DiagnosisSymptomsScreen />
+        </div>
       </div>
     )
   }
