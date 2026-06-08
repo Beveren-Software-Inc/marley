@@ -12,6 +12,7 @@ import { PatientDiagnosisModal } from './PatientDiagnosisModal'
 import { MedicalDiagnosisDetailPanel } from './MedicalDiagnosisDetailPanel'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
+import { toast } from '../../hooks/useToast'
 
 function formatDate(val?: string): string {
   if (!val) return '—'
@@ -68,7 +69,7 @@ function toAggRow(row: MedicalDiagnosisEntryRow): MedicalDiagnosisEntryAggRow {
 }
 
 export function DiagnosisSymptomsScreen() {
-  const { mode, activeVisit, activeAdmission, selectedPatient } = useCareContext()
+  const { mode, activeVisit, activeAdmission, selectedPatient, guardClinicalCreate } = useCareContext()
 
   const [rows, setRows] = useState<MedicalDiagnosisEntryAggRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -228,7 +229,13 @@ export function DiagnosisSymptomsScreen() {
             />
             <button
               type="button"
-              onClick={() => setShowAddModal(true)}
+              onClick={() => {
+                if (!selectedPatient) {
+                  toast.error('Select a patient first')
+                  return
+                }
+                guardClinicalCreate(() => setShowAddModal(true))
+              }}
               className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-lg font-bold leading-none text-white transition-colors hover:bg-primary/90"
               title="Add diagnosis"
             >
@@ -433,8 +440,12 @@ export function DiagnosisSymptomsScreen() {
         </div>
       </section>
 
-      {showAddModal ? (
+      {showAddModal && selectedPatient ? (
         <PatientDiagnosisModal
+          parentDoctype={mode === 'IP' ? 'Inpatient Admission' : 'Patient Visit'}
+          parentName={mode === 'IP' ? activeAdmission : activeVisit}
+          patient={selectedPatient}
+          mode="append"
           onClose={() => setShowAddModal(false)}
           onSuccess={() => {
             setShowAddModal(false)
