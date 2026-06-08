@@ -1,72 +1,119 @@
 {
  "actions": [],
  "allow_rename": 1,
+ "autoname": "YBOCS-.####",
  "creation": "2026-04-02 14:19:08.689312",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "section_break_qqki"
+  "patient",
+  "assessment_date",
+  "practitioner",
+  "practitioner_name",
+  "inpatient_admission",
+  "patient_visit",
+  "template",
+  "notes",
+  "total_obsessions",
+  "total_compulsions",
+  "total_score",
+  "responses",
+  "patient_name"
  ],
  "fields": [
-      {
-        "fieldname": "patient",
-        "label": "Patient",
-        "fieldtype": "Link",
-        "options": "Patient",
-        "reqd": 1
-      },
-      {
-        "fieldname": "assessment_date",
-        "label": "Assessment Date",
-        "fieldtype": "Date",
-        "reqd": 1,
-        "default": "Today"
-      },
-      {
-        "fieldname": "template",
-        "label": "Template",
-        "fieldtype": "Link",
-        "options": "YBOCS Template",
-        "reqd": 1
-      },
-      {
-        "fieldname": "notes",
-        "label": "Notes",
-        "fieldtype": "Text"
-      },
-      {
-        "fieldname": "total_obsessions",
-        "label": "Total Obsessions",
-        "fieldtype": "Int",
-        "read_only": 1
-      },
-      {
-        "fieldname": "total_compulsions",
-        "label": "Total Compulsions",
-        "fieldtype": "Int",
-        "read_only": 1
-      },
-      {
-        "fieldname": "total_score",
-        "label": "Total Score",
-        "fieldtype": "Int",
-        "read_only": 1
-      },
-      {
-        "fieldname": "responses",
-        "label": "Assessment Responses",
-        "fieldtype": "Table",
-        "options": "YBOCS Assessment Response",
-        "reqd": 1
-      }
-    ],
+  {
+   "fieldname": "patient",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Patient",
+   "options": "Patient",
+   "reqd": 1
+  },
+  {
+   "default": "Today",
+   "fieldname": "assessment_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Assessment Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "practitioner",
+   "fieldtype": "Link",
+   "label": "Practitioner",
+   "options": "Healthcare Practitioner"
+  },
+  {
+   "fieldname": "practitioner_name",
+   "fieldtype": "Data",
+   "label": "Practitioner Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "inpatient_admission",
+   "fieldtype": "Link",
+   "label": "Inpatient Admission",
+   "options": "Inpatient Admission"
+  },
+  {
+   "fieldname": "patient_visit",
+   "fieldtype": "Link",
+   "label": "Patient Visit",
+   "options": "Patient Visit"
+  },
+  {
+   "fieldname": "template",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Template",
+   "options": "YBOCS Template",
+   "reqd": 1
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Text",
+   "label": "Notes"
+  },
+  {
+   "fieldname": "total_obsessions",
+   "fieldtype": "Int",
+   "label": "Total Obsessions",
+   "read_only": 1
+  },
+  {
+   "fieldname": "total_compulsions",
+   "fieldtype": "Int",
+   "label": "Total Compulsions",
+   "read_only": 1
+  },
+  {
+   "fieldname": "total_score",
+   "fieldtype": "Int",
+   "label": "Total Score",
+   "read_only": 1
+  },
+  {
+   "fieldname": "responses",
+   "fieldtype": "Table",
+   "label": "Assessment Responses",
+   "options": "YBOCS Assessment Response",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "patient.patient_name",
+   "fieldname": "patient_name",
+   "fieldtype": "Data",
+   "label": "Patient Name"
+  }
+ ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-04-02 14:19:08.689312",
+ "modified": "2026-06-08 18:12:15.371023",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "YBOCS Assessment",
+ "naming_rule": "Expression",
  "owner": "Administrator",
  "permissions": [
   {
@@ -78,6 +125,30 @@
    "read": 1,
    "report": 1,
    "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Doctor",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Nurse",
    "share": 1,
    "write": 1
   }

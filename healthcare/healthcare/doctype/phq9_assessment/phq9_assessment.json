@@ -1,17 +1,23 @@
 {
  "actions": [],
  "allow_rename": 1,
+ "autoname": "PHQ9-.####",
  "creation": "2026-04-02 14:03:33.711294",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
   "patient",
   "assessment_date",
+  "practitioner",
+  "practitioner_name",
+  "inpatient_admission",
+  "patient_visit",
   "template",
   "notes",
   "total_score",
   "severity",
-  "responses"
+  "responses",
+  "patient_name"
  ],
  "fields": [
   {
@@ -29,6 +35,30 @@
    "in_list_view": 1,
    "label": "Assessment Date",
    "reqd": 1
+  },
+  {
+   "fieldname": "practitioner",
+   "fieldtype": "Link",
+   "label": "Practitioner",
+   "options": "Healthcare Practitioner"
+  },
+  {
+   "fieldname": "practitioner_name",
+   "fieldtype": "Data",
+   "label": "Practitioner Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "inpatient_admission",
+   "fieldtype": "Link",
+   "label": "Inpatient Admission",
+   "options": "Inpatient Admission"
+  },
+  {
+   "fieldname": "patient_visit",
+   "fieldtype": "Link",
+   "label": "Patient Visit",
+   "options": "Patient Visit"
   },
   {
    "fieldname": "template",
@@ -62,15 +92,22 @@
    "label": "Assessment Responses",
    "options": "PHQ9 Assessment Response",
    "reqd": 1
+  },
+  {
+   "fetch_from": "patient.patient_name",
+   "fieldname": "patient_name",
+   "fieldtype": "Data",
+   "label": "Patient Name"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-04-14 16:56:47.143145",
+ "modified": "2026-06-08 17:53:32.924885",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "PHQ9 Assessment",
+ "naming_rule": "Expression",
  "owner": "Administrator",
  "permissions": [
   {

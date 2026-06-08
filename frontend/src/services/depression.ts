@@ -1,5 +1,3 @@
-// services/depressionAssessment.ts
-
 export interface DepressionTemplateQuestion {
   question_no: number
   question: string
@@ -23,50 +21,81 @@ export interface DepressionResponseRow {
   option_1: string
   option_2: string
   option_3: string
-  response?: string // "0", "1", "2", "3"
+  response?: string
   score: number
 }
 
 export interface DepressionAssessmentRow {
   name: string
   patient: string
-  patient_name: string
+  patient_name?: string
   assessment_date: string
   template: string
+  practitioner?: string
+  practitioner_name?: string
   total_score: number
   level_of_depression: string
   docstatus: number
   notes?: string
+  inpatient_admission?: string
+  patient_visit?: string
 }
 
-// ── Fetch templates list ──────────────────────────────────────────────────────
+export interface DepressionAssessmentDetail extends DepressionAssessmentRow {
+  responses: DepressionResponseRow[]
+}
+
+export interface DepressionAssessmentListFilters {
+  dateFrom?: string
+  dateTo?: string
+  practitioner?: string
+}
+
+export interface CreateDepressionAssessmentInput {
+  patient: string
+  assessment_date: string
+  template: string
+  notes?: string
+  practitioner?: string
+  inpatient_admission?: string
+  patient_visit?: string
+  responses: DepressionResponseRow[]
+}
+
+export interface DepressionTemplateListItem {
+  name: string
+  label: string
+  description?: string
+  default?: boolean
+}
+
 export async function fetchDepressionTemplates(
   search?: string
-): Promise<{ name: string; label: string; description?: string }[]> {
-  const filters: any[] = []
+): Promise<DepressionTemplateListItem[]> {
+  const params = new URLSearchParams()
+  if (search?.trim()) params.append('search', search.trim())
 
-  if (search) {
-    filters.push(['template_name', 'like', `%${search}%`])
-  }
-
-  const params = new URLSearchParams({
-    fields: JSON.stringify(['name', 'template_name', 'assessment_category', 'description']),
-    filters: JSON.stringify(filters),
-    limit: '20',
-    order_by: 'template_name asc',
-  })
-
-  const res = await fetch(`/api/resource/Depression Assessment Template?${params}`)
+  const res = await fetch(
+    `/api/method/healthcare.api.depression.get_depression_assessment_templates?${params.toString()}`
+  )
   const data = await res.json()
-  console.log("Okay where are you", data)
-  return (data?.data || []).map((t: any) => ({
-    name: t.name,
-    label: t.template_name || t.name,
-    description: t.description,
-  }))
+  if (data?.exc_type) {
+    throw new Error(data?.message || 'Failed to load depression templates')
+  }
+  return data?.message || []
 }
 
-// ── Fetch template questions ──────────────────────────────────────────────────
+export async function fetchDefaultDepressionTemplate(): Promise<DepressionTemplateListItem | null> {
+  const res = await fetch(
+    '/api/method/healthcare.api.depression.get_default_depression_assessment_template'
+  )
+  const data = await res.json()
+  if (data?.exc_type) {
+    throw new Error(data?.message || 'Failed to load default depression template')
+  }
+  return data?.message || null
+}
+
 export async function fetchDepressionTemplateQuestions(
   templateName: string
 ): Promise<DepressionTemplateData> {
@@ -76,7 +105,7 @@ export async function fetchDepressionTemplateQuestions(
   )
   const data = await res.json()
   const msg = data?.message
-  
+
   if (msg && Array.isArray(msg.questions)) {
     return {
       name: msg.name,
@@ -85,22 +114,45 @@ export async function fetchDepressionTemplateQuestions(
       questions: msg.questions,
     }
   }
-  
-  return { 
-    name: templateName, 
-    template_name: templateName, 
+
+  return {
+    name: templateName,
+    template_name: templateName,
     description: undefined,
-    questions: [] 
+    questions: [],
   }
 }
 
-// ── Create assessment ─────────────────────────────────────────────────────────
-export interface CreateDepressionAssessmentInput {
-  patient: string
-  assessment_date: string
-  template: string
-  notes?: string
-  responses: DepressionResponseRow[]
+export async function fetchDepressionAssessments(
+  patient?: string,
+  filters: DepressionAssessmentListFilters = {}
+): Promise<DepressionAssessmentRow[]> {
+  const params = new URLSearchParams()
+  if (patient) params.append('patient', patient)
+  if (filters.practitioner) params.append('practitioner', filters.practitioner)
+  if (filters.dateFrom) params.append('date_from', filters.dateFrom)
+  if (filters.dateTo) params.append('date_to', filters.dateTo)
+
+  const res = await fetch(
+    `/api/method/healthcare.api.depression.get_depression_assessments?${params.toString()}`
+  )
+  const data = await res.json()
+  if (data?.exc_type) {
+    throw new Error(data?.message || 'Failed to load depression assessments')
+  }
+  return data?.message || []
+}
+
+export async function fetchDepressionAssessment(name: string): Promise<DepressionAssessmentDetail> {
+  const params = new URLSearchParams({ name })
+  const res = await fetch(
+    `/api/method/healthcare.api.depression.get_depression_assessment?${params.toString()}`
+  )
+  const data = await res.json()
+  if (data?.exc_type) {
+    throw new Error(data?.message || 'Failed to load depression assessment')
+  }
+  return data?.message as DepressionAssessmentDetail
 }
 
 export async function createDepressionAssessment(
@@ -120,38 +172,4 @@ export async function createDepressionAssessment(
   const data = await res.json()
   const msg = data?.message
   return msg ?? { success: false, message: 'Unknown error' }
-}
-
-// ── Fetch assessments list ────────────────────────────────────────────────────
-export async function fetchDepressionAssessments(
-  patient?: string,
-  search?: string
-): Promise<DepressionAssessmentRow[]> {
-  const filters: any[] = []
-  
-  if (patient) filters.push(['patient', '=', patient])
-  if (search) filters.push(['patient_name', 'like', `%${search}%`])
-
-  const params = new URLSearchParams({
-    fields: JSON.stringify([
-      'name', 'patient', 'patient_name', 'assessment_date',
-      'template', 'total_score', 'level_of_depression', 'docstatus'
-    ]),
-    filters: JSON.stringify(filters),
-    limit: '50',
-    order_by: 'assessment_date desc',
-  })
-
-  const res = await fetch(`/api/resource/Depression Assessment?${params}`)
-  const data = await res.json()
-
-  if (data?.data) {
-    return data.data
-  }
-  
-  if (data?.message) {
-    return data.message
-  }
-  
-  return []
 }

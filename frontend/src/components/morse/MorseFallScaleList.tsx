@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ShieldAlert } from 'lucide-react'
 import {
   fetchHealthcarePractitioners,
   type LinkFieldOption,
@@ -12,11 +11,10 @@ import {
 import { useCardFilters } from '../../contexts/CardFilterContext'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { CreateMorseFallScaleModal } from './CreateMorseFallScaleModal'
+import { MorseFallScaleDetailPanel } from './MorseFallScaleDetailPanel'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
-import { DetailSlideOver } from '../ui/DetailSlideOver'
-import { DocDetailView } from '../ui/DocDetailView'
 
 interface MorseFallScaleListProps {
   patient?: string
@@ -181,7 +179,6 @@ export const MorseFallScaleList = ({
   }
 
   const detailRow = detailName ? rows.find((r) => r.name === detailName) : undefined
-  const detailRisk = detailRow?.total_points != null ? getRiskLevel(detailRow.total_points) : null
 
   if (!patient) {
     return (
@@ -433,30 +430,12 @@ export const MorseFallScaleList = ({
       )}
 
       {detailName && (
-        <DetailSlideOver
-          title="Morse Fall Scale"
-          subtitle={detailName}
-          icon={<ShieldAlert className="h-5 w-5 text-emerald-700" strokeWidth={2} />}
+        <MorseFallScaleDetailPanel
+          name={detailName}
+          preview={detailRow}
           onClose={() => setDetailName(null)}
-          headerActions={
-            <div className="flex items-center gap-2">
-              {detailRisk ? (
-                <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${detailRisk.className}`}>
-                  {detailRow?.total_points ?? 0} pts · {detailRisk.label}
-                </span>
-              ) : null}
-              <PrintFormatDropdown
-                doctype="Morse Fall Scale"
-                docName={detailName}
-                noLetterhead={0}
-                triggerPrint={1}
-                className="inline-flex items-center justify-center w-8 h-8 rounded border border-slate-300 bg-white text-primary hover:bg-slate-50"
-              />
-            </div>
-          }
-        >
-          <DocDetailView doctype="Morse Fall Scale" name={detailName} onUpdate={loadRows} />
-        </DetailSlideOver>
+          onPatientClick={onPatientClick}
+        />
       )}
 
       {showCreateModal && (

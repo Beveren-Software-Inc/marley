@@ -1,30 +1,69 @@
 {
  "actions": [],
  "allow_rename": 1,
+ "autoname": "GAD-.####",
  "creation": "2026-04-02 13:54:31.825374",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "section_break_rqhl"
+  "patient",
+  "assessment_date",
+  "practitioner",
+  "practitioner_name",
+  "inpatient_admission",
+  "patient_visit",
+  "template",
+  "patient_name",
+  "notes",
+  "total_score",
+  "severity",
+  "responses"
  ],
  "fields": [
   {
    "fieldname": "patient",
    "fieldtype": "Link",
+   "in_list_view": 1,
    "label": "Patient",
    "options": "Patient",
    "reqd": 1
   },
   {
+   "default": "Today",
    "fieldname": "assessment_date",
    "fieldtype": "Date",
+   "in_list_view": 1,
    "label": "Assessment Date",
-   "default": "Today",
    "reqd": 1
+  },
+  {
+   "fieldname": "practitioner",
+   "fieldtype": "Link",
+   "label": "Practitioner",
+   "options": "Healthcare Practitioner"
+  },
+  {
+   "fieldname": "practitioner_name",
+   "fieldtype": "Data",
+   "label": "Practitioner Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "inpatient_admission",
+   "fieldtype": "Link",
+   "label": "Inpatient Admission",
+   "options": "Inpatient Admission"
+  },
+  {
+   "fieldname": "patient_visit",
+   "fieldtype": "Link",
+   "label": "Patient Visit",
+   "options": "Patient Visit"
   },
   {
    "fieldname": "template",
    "fieldtype": "Link",
+   "in_list_view": 1,
    "label": "Template",
    "options": "GAD7 Template",
    "reqd": 1
@@ -53,15 +92,22 @@
    "label": "Assessment Responses",
    "options": "GAD7 Assessment Response",
    "reqd": 1
+  },
+  {
+   "fetch_from": "patient.patient_name",
+   "fieldname": "patient_name",
+   "fieldtype": "Data",
+   "label": "Patient Name"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-04-02 13:54:31.825374",
+ "modified": "2026-06-08 17:47:41.216798",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "GAD7 Assessment",
+ "naming_rule": "Expression",
  "owner": "Administrator",
  "permissions": [
   {
@@ -73,6 +119,30 @@
    "read": 1,
    "report": 1,
    "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Doctor",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Nurse",
    "share": 1,
    "write": 1
   }

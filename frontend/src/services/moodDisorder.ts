@@ -1,5 +1,3 @@
-// services/moodDisorder.ts
-
 export interface MoodDisorderTemplateQuestion {
   question_no: number
   question: string
@@ -25,42 +23,74 @@ export interface MoodDisorderResponseRow {
 export interface MoodDisorderAssessmentRow {
   name: string
   patient: string
-  patient_name: string
+  patient_name?: string
   assessment_date: string
   template: string
+  practitioner?: string
+  practitioner_name?: string
   q1_yes_count: number
   further_assessment: string
   docstatus: number
+  description?: string
+  inpatient_admission?: string
+  patient_visit?: string
 }
 
-// ── Fetch templates list ──────────────────────────────────────────────────────
+export interface MoodDisorderAssessmentDetail extends MoodDisorderAssessmentRow {
+  responses: MoodDisorderResponseRow[]
+}
+
+export interface MoodDisorderAssessmentListFilters {
+  dateFrom?: string
+  dateTo?: string
+  practitioner?: string
+}
+
+export interface CreateMoodDisorderAssessmentInput {
+  patient: string
+  assessment_date: string
+  template: string
+  description?: string
+  practitioner?: string
+  inpatient_admission?: string
+  patient_visit?: string
+  responses: MoodDisorderResponseRow[]
+}
+
+export interface MoodDisorderTemplateListItem {
+  name: string
+  label: string
+  description?: string
+  default?: boolean
+}
+
 export async function fetchMoodDisorderTemplates(
   search?: string
-): Promise<{ name: string; label: string; description?: string }[]> {
-  const filters: any[] = []
+): Promise<MoodDisorderTemplateListItem[]> {
+  const params = new URLSearchParams()
+  if (search?.trim()) params.append('search', search.trim())
 
-  if (search) {
-    filters.push(['template_name', 'like', `%${search}%`])
-  }
-
-  const params = new URLSearchParams({
-    fields: JSON.stringify(['name', 'template_name', 'assessment_category', 'description']),
-    filters: JSON.stringify(filters),
-    limit: '20',
-    order_by: 'template_name asc',
-  })
-
-  const res = await fetch(`/api/resource/Mood Disorder Template?${params}`)
+  const res = await fetch(
+    `/api/method/healthcare.api.mood_disorder_assessment.get_mood_disorder_assessment_templates?${params.toString()}`
+  )
   const data = await res.json()
-
-  return (data?.data || []).map((t: any) => ({
-    name: t.name,
-    label: t.template_name || t.name,
-    description: t.description,
-  }))
+  if (data?.exc_type) {
+    throw new Error(data?.message || 'Failed to load mood disorder templates')
+  }
+  return data?.message || []
 }
 
-// ── Fetch template questions ──────────────────────────────────────────────────
+export async function fetchDefaultMoodDisorderTemplate(): Promise<MoodDisorderTemplateListItem | null> {
+  const res = await fetch(
+    '/api/method/healthcare.api.mood_disorder_assessment.get_default_mood_disorder_assessment_template'
+  )
+  const data = await res.json()
+  if (data?.exc_type) {
+    throw new Error(data?.message || 'Failed to load default mood disorder template')
+  }
+  return data?.message || null
+}
+
 export async function fetchMoodDisorderTemplateQuestions(
   templateName: string
 ): Promise<MoodDisorderTemplateData> {
@@ -70,7 +100,7 @@ export async function fetchMoodDisorderTemplateQuestions(
   )
   const data = await res.json()
   const msg = data?.message
-  
+
   if (msg && Array.isArray(msg.questions)) {
     return {
       name: msg.name,
@@ -79,22 +109,45 @@ export async function fetchMoodDisorderTemplateQuestions(
       questions: msg.questions,
     }
   }
-  
-  return { 
-    name: templateName, 
-    template_name: templateName, 
+
+  return {
+    name: templateName,
+    template_name: templateName,
     description: undefined,
-    questions: [] 
+    questions: [],
   }
 }
 
-// ── Create assessment ─────────────────────────────────────────────────────────
-export interface CreateMoodDisorderAssessmentInput {
-  patient: string
-  assessment_date: string
-  template: string
-  description?: string
-  responses: MoodDisorderResponseRow[]
+export async function fetchMoodDisorderAssessments(
+  patient?: string,
+  filters: MoodDisorderAssessmentListFilters = {}
+): Promise<MoodDisorderAssessmentRow[]> {
+  const params = new URLSearchParams()
+  if (patient) params.append('patient', patient)
+  if (filters.practitioner) params.append('practitioner', filters.practitioner)
+  if (filters.dateFrom) params.append('date_from', filters.dateFrom)
+  if (filters.dateTo) params.append('date_to', filters.dateTo)
+
+  const res = await fetch(
+    `/api/method/healthcare.api.mood_disorder_assessment.get_mood_disorder_assessments?${params.toString()}`
+  )
+  const data = await res.json()
+  if (data?.exc_type) {
+    throw new Error(data?.message || 'Failed to load mood disorder assessments')
+  }
+  return data?.message || []
+}
+
+export async function fetchMoodDisorderAssessment(name: string): Promise<MoodDisorderAssessmentDetail> {
+  const params = new URLSearchParams({ name })
+  const res = await fetch(
+    `/api/method/healthcare.api.mood_disorder_assessment.get_mood_disorder_assessment?${params.toString()}`
+  )
+  const data = await res.json()
+  if (data?.exc_type) {
+    throw new Error(data?.message || 'Failed to load mood disorder assessment')
+  }
+  return data?.message as MoodDisorderAssessmentDetail
 }
 
 export async function createMoodDisorderAssessment(
@@ -114,38 +167,4 @@ export async function createMoodDisorderAssessment(
   const data = await res.json()
   const msg = data?.message
   return msg ?? { success: false, message: 'Unknown error' }
-}
-
-// ── Fetch assessments list ────────────────────────────────────────────────────
-export async function fetchMoodDisorderAssessments(
-  patient?: string,
-  search?: string
-): Promise<MoodDisorderAssessmentRow[]> {
-  const filters: any[] = []
-  
-  if (patient) filters.push(['patient', '=', patient])
-  if (search) filters.push(['patient_name', 'like', `%${search}%`])
-
-  const params = new URLSearchParams({
-    fields: JSON.stringify([
-      'name', 'patient', 'patient_name', 'assessment_date',
-      'template', 'q1_yes_count', 'further_assessment', 'docstatus'
-    ]),
-    filters: JSON.stringify(filters),
-    limit: '50',
-    order_by: 'assessment_date desc',
-  })
-
-  const res = await fetch(`/api/resource/Mood Disorder Assessment?${params}`)
-  const data = await res.json()
-
-  if (data?.data) {
-    return data.data
-  }
-  
-  if (data?.message) {
-    return data.message
-  }
-  
-  return []
 }

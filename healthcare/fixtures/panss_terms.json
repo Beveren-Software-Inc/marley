@@ -1,0 +1,16 @@
+[
+ {
+  "docstatus": 0,
+  "doctype": "PANSS Terms",
+  "name": "Default PANSS Header",
+  "terms": "Default PANSS Header",
+  "description": "<p>The Positive and Negative Syndrome Scale (PANSS) measures symptom severity in schizophrenia and other psychotic disorders.</p><p><strong>Rating scale:</strong> 1 = Absent, 2 = Minimal, 3 = Mild, 4 = Moderate, 5 = Moderate severe, 6 = Severe, 7 = Extreme.</p>"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "PANSS Terms",
+  "name": "Default PANSS Footer",
+  "terms": "Default PANSS Footer",
+  "description": "<p><strong>Scoring:</strong> Positive subscale (7–49), Negative subscale (7–49), General Psychopathology (16–112), PANSS Total (30–210).</p><p>Composite Index = Positive total − Negative total.</p><p><strong>Severity bands:</strong> Mild (&lt;58), Moderate (58–75), Moderate-Severe (76–95), Severe (&gt;95).</p>"
+ }
+]

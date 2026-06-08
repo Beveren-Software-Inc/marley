@@ -40,7 +40,6 @@ import { ReceptionLongActingMedicineList } from '../components/medication/Recept
 import { CreateMoodDisorderAssessmentModal } from '../components/mood_disorder/CreateMoodDisorderAssessmentModal'
 import { MoodDisorderAssessmentList } from '../components/mood_disorder/MoodDisorderAssessmentList'
 import { MorseFallScaleList } from '../components/morse/MorseFallScaleList'
-import { NotificationBell } from '../components/notifications/NotificationBell'
 import { CreateNurseTaskModal } from '../components/nurseTask/CreateNurseTaskModal'
 import { NurseTaskList } from '../components/nurseTask/NurseTaskList'
 import { CreateObservationModal } from '../components/observations/CreateObservationModal'
@@ -53,7 +52,6 @@ import { PatientHistoryModal } from '../components/patientHistory/PatientHistory
 import { CreatePatientModal } from '../components/patients/CreatePatientModal'
 import { PatientList } from '../components/patients/PatientList'
 import { PatientCareHeader } from '../components/patients/PatientCareHeader'
-import { ClosedCareEpisodeBanner } from '../components/ui/ClosedCareEpisodeBanner'
 import { PatientSummaryCard } from '../components/patients/PatientSummaryCard'
 import { CreatePatientVisitModal } from '../components/patientVisits/CreatePatientVisitModal'
 import { PatientVisitList } from '../components/patientVisits/PatientVisitList'
@@ -69,8 +67,6 @@ import { ServiceRequestList } from '../components/serviceRequests/ServiceRequest
 import { CreateSleepingPatternModal } from '../components/sleeping/CreateSleepingPatternModal'
 import { SleepingPatternList } from '../components/sleeping/SleepingPatternList'
 import { SuicidalAssessmentList } from '../components/suicidal/SuicidalAssessmentList'
-import { UserMenu } from '../components/user/UserMenu'
-import { MobileNavMenuButton } from '../components/layout/MobileNavMenuButton'
 import { CreateVitalSignModal } from '../components/vitalSigns/CreateVitalSignModal'
 import { VitalSignsList } from '../components/vitalSigns/VitalSignsList'
 import { CreateWarningMessageModal } from '../components/warnings/CreateWarningMessageModal'
@@ -402,8 +398,9 @@ export const DoctorPage = () => {
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
 
         <div className="p-4">
-          <DashboardCard 
-            title="Suicidal Assessments" 
+          <DashboardCard
+            title="Suicidal Assessments"
+            noHeightLimit
             onAdd={() => guardClinicalCreate(() => setShowSuicidalModal(true))}
             addButtonTitle="Add Suicidal Assessment"
           >
@@ -1404,31 +1401,25 @@ export const DoctorPage = () => {
   if (screen === 'adhd') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white px-3 md:px-4 py-2 md:py-3 border-b border-white/20">
-          <MobileNavMenuButton />
-          <div className="flex-1 min-w-0">
-            <h1 className="text-sm font-semibold truncate">ADHD Assessments</h1>
-          </div>
-          <div className="hidden md:flex items-center gap-3 flex-shrink-0">
-            <UserMenu placement="header" />
-            <NotificationBell placement="header" />
-          </div>
-        </header>
-        <ClosedCareEpisodeBanner />
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
-          <DashboardCard 
-            title="ADHD Assessments" 
+          <DashboardCard
+            title="ADHD Assessments"
             onAdd={() => guardClinicalCreate(() => setShowCreateADHDModal(true))}
             addButtonTitle="Create ADHD Assessment"
           >
             <ADHDAssessmentList
+              patient={selectedPatient}
               refreshKey={adhdRefreshKey}
-              onCreateNew={() => setShowCreateADHDModal(true)}
+              onPatientClick={handlePatientSelect}
             />
           </DashboardCard>
         </div>
         {showCreateADHDModal && (
           <CreateADHDAssessmentModal
+            patient={selectedPatient}
+            defaultAdmission={activeAdmission || undefined}
+            defaultVisit={activeVisit || undefined}
             onClose={() => setShowCreateADHDModal(false)}
             onSuccess={() => {
               setShowCreateADHDModal(false)
@@ -1445,31 +1436,25 @@ export const DoctorPage = () => {
   if (screen === 'depression') {
     return (
       <div className="flex flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white px-3 md:px-4 py-2 md:py-3 border-b border-white/20">
-          <MobileNavMenuButton />
-          <div className="flex-1 min-w-0">
-            <h1 className="text-sm font-semibold truncate">Depression Assessments</h1>
-          </div>
-          <div className="hidden md:flex items-center gap-3 flex-shrink-0">
-            <UserMenu placement="header" />
-            <NotificationBell placement="header" />
-          </div>
-        </header>
-        <ClosedCareEpisodeBanner />
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
-          <DashboardCard 
-            title="Depression Assessments" 
+          <DashboardCard
+            title="Depression Assessments"
             onAdd={() => guardClinicalCreate(() => setShowCreateDepressionModal(true))}
             addButtonTitle="Create Depression Assessment"
           >
             <DepressionAssessmentList
+              patient={selectedPatient}
               refreshKey={depressionRefreshKey}
-              onCreateNew={() => setShowCreateDepressionModal(true)}
+              onPatientClick={handlePatientSelect}
             />
           </DashboardCard>
         </div>
         {showCreateDepressionModal && (
           <CreateDepressionAssessmentModal
+            patient={selectedPatient}
+            defaultAdmission={activeAdmission || undefined}
+            defaultVisit={activeVisit || undefined}
             onClose={() => setShowCreateDepressionModal(false)}
             onSuccess={() => {
               setShowCreateDepressionModal(false)
@@ -1494,13 +1479,17 @@ export const DoctorPage = () => {
             addButtonTitle="Create Mood Disorder Assessment"
           >
             <MoodDisorderAssessmentList
+              patient={selectedPatient}
               refreshKey={moodRefreshKey}
-              onCreateNew={() => setShowCreateMoodModal(true)}
+              onPatientClick={handlePatientSelect}
             />
           </DashboardCard>
         </div>
         {showCreateMoodModal && (
           <CreateMoodDisorderAssessmentModal
+            patient={selectedPatient}
+            defaultAdmission={activeAdmission || undefined}
+            defaultVisit={activeVisit || undefined}
             onClose={() => setShowCreateMoodModal(false)}
             onSuccess={() => {
               setShowCreateMoodModal(false)
@@ -1525,13 +1514,17 @@ export const DoctorPage = () => {
             addButtonTitle="Create GAD7 Assessment"
           >
             <GAD7AssessmentList
+              patient={selectedPatient}
               refreshKey={gad7RefreshKey}
-              onCreateNew={() => setShowCreateGAD7Modal(true)}
+              onPatientClick={handlePatientSelect}
             />
           </DashboardCard>
         </div>
         {showCreateGAD7Modal && (
           <CreateGAD7AssessmentModal
+            patient={selectedPatient}
+            defaultAdmission={activeAdmission || undefined}
+            defaultVisit={activeVisit || undefined}
             onClose={() => setShowCreateGAD7Modal(false)}
             onSuccess={() => {
               setShowCreateGAD7Modal(false)
@@ -1550,19 +1543,23 @@ export const DoctorPage = () => {
       <div className="flex flex-col">
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
-          <DashboardCard 
-            title="PHQ9 Assessments" 
+          <DashboardCard
+            title="PHQ9 Assessments"
             onAdd={() => guardClinicalCreate(() => setShowCreatePHQ9Modal(true))}
             addButtonTitle="Create PHQ9 Assessment"
           >
             <PHQ9AssessmentList
+              patient={selectedPatient}
               refreshKey={phq9RefreshKey}
-              onCreateNew={() => setShowCreatePHQ9Modal(true)}
+              onPatientClick={handlePatientSelect}
             />
           </DashboardCard>
         </div>
         {showCreatePHQ9Modal && (
           <CreatePHQ9AssessmentModal
+            patient={selectedPatient}
+            defaultAdmission={activeAdmission || undefined}
+            defaultVisit={activeVisit || undefined}
             onClose={() => setShowCreatePHQ9Modal(false)}
             onSuccess={() => {
               setShowCreatePHQ9Modal(false)
@@ -1609,19 +1606,23 @@ export const DoctorPage = () => {
       <div className="flex flex-col">
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
-          <DashboardCard 
-            title="Homicide Risk Assessments" 
+          <DashboardCard
+            title="Homicide Risk Assessments"
             onAdd={() => guardClinicalCreate(() => setShowCreateHomicideRiskModal(true))}
             addButtonTitle="Create Homicide Risk Assessment"
           >
             <HomicideRiskAssessmentList
+              patient={selectedPatient}
               refreshKey={homicideRiskRefreshKey}
-              onCreateNew={() => setShowCreateHomicideRiskModal(true)}
+              onPatientClick={handlePatientSelect}
             />
           </DashboardCard>
         </div>
         {showCreateHomicideRiskModal && (
           <CreateHomicideRiskAssessmentModal
+            patient={selectedPatient}
+            defaultAdmission={activeAdmission || undefined}
+            defaultVisit={activeVisit || undefined}
             onClose={() => setShowCreateHomicideRiskModal(false)}
             onSuccess={() => {
               setShowCreateHomicideRiskModal(false)
@@ -1640,19 +1641,23 @@ export const DoctorPage = () => {
       <div className="flex flex-col">
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
-          <DashboardCard 
-            title="YBOCS Assessments" 
+          <DashboardCard
+            title="YBOCS Assessments"
             onAdd={() => guardClinicalCreate(() => setShowCreateYBOCSModal(true))}
             addButtonTitle="Create YBOCS Assessment"
           >
             <YBOCSAssessmentList
+              patient={selectedPatient}
               refreshKey={ybocsRefreshKey}
-              onCreateNew={() => setShowCreateYBOCSModal(true)}
+              onPatientClick={handlePatientSelect}
             />
           </DashboardCard>
         </div>
         {showCreateYBOCSModal && (
           <CreateYBOCSAssessmentModal
+            patient={selectedPatient}
+            defaultAdmission={activeAdmission || undefined}
+            defaultVisit={activeVisit || undefined}
             onClose={() => setShowCreateYBOCSModal(false)}
             onSuccess={() => {
               setShowCreateYBOCSModal(false)
@@ -1677,13 +1682,17 @@ export const DoctorPage = () => {
             addButtonTitle="Create YMRS Assessment"
           >
             <YMRSAssessmentList
+              patient={selectedPatient}
               refreshKey={ymrsRefreshKey}
-              onCreateNew={() => setShowCreateYMRSModal(true)}
+              onPatientClick={handlePatientSelect}
             />
           </DashboardCard>
         </div>
         {showCreateYMRSModal && (
           <CreateYMRSAssessmentModal
+            patient={selectedPatient}
+            defaultAdmission={activeAdmission || undefined}
+            defaultVisit={activeVisit || undefined}
             onClose={() => setShowCreateYMRSModal(false)}
             onSuccess={() => {
               setShowCreateYMRSModal(false)
@@ -1702,19 +1711,24 @@ export const DoctorPage = () => {
       <div className="flex flex-col">
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
-          <DashboardCard 
-            title="PANSS Assessments" 
+          <DashboardCard
+            title="PANSS Assessments"
+            noHeightLimit
             onAdd={() => guardClinicalCreate(() => setShowCreatePANSSModal(true))}
             addButtonTitle="Create PANSS Assessment"
           >
             <PANSSAssessmentList
+              patient={selectedPatient}
               refreshKey={panssRefreshKey}
-              onCreateNew={() => setShowCreatePANSSModal(true)}
+              onPatientClick={handlePatientSelect}
             />
           </DashboardCard>
         </div>
         {showCreatePANSSModal && (
           <CreatePANSSAssessmentModal
+            patient={selectedPatient}
+            defaultAdmission={activeAdmission || undefined}
+            defaultVisit={activeVisit || undefined}
             onClose={() => setShowCreatePANSSModal(false)}
             onSuccess={() => {
               setShowCreatePANSSModal(false)

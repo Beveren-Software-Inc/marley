@@ -24,26 +24,56 @@ export interface PHQ9ResponseRow {
 export interface PHQ9AssessmentRow {
   name: string
   patient: string
-  patient_name: string
+  patient_name?: string
   assessment_date: string
   template: string
+  practitioner?: string
+  practitioner_name?: string
   total_score: number
   severity: string
   docstatus: number
   notes?: string
+  inpatient_admission?: string
+  patient_visit?: string
 }
 
-// Response options mapping
+export interface PHQ9AssessmentDetail extends PHQ9AssessmentRow {
+  responses: PHQ9ResponseRow[]
+}
+
+export interface PHQ9AssessmentListFilters {
+  dateFrom?: string
+  dateTo?: string
+  practitioner?: string
+}
+
+export interface PHQ9TemplateListItem {
+  name: string
+  label: string
+  description?: string
+  default?: boolean
+}
+
+export interface CreatePHQ9AssessmentInput {
+  patient: string
+  assessment_date: string
+  template: string
+  notes?: string
+  practitioner?: string
+  inpatient_admission?: string
+  patient_visit?: string
+  responses: PHQ9ResponseRow[]
+}
+
 export const RESPONSE_OPTIONS = [
   '0 - Not at all',
   '1 - Several days',
   '2 - More than half the days',
-  '3 - Nearly every day'
+  '3 - Nearly every day',
 ] as const
 
-export type ResponseOption = typeof RESPONSE_OPTIONS[number]
+export type ResponseOption = (typeof RESPONSE_OPTIONS)[number]
 
-// Score mapping
 export const RESPONSE_SCORE: Record<ResponseOption, number> = {
   '0 - Not at all': 0,
   '1 - Several days': 1,
@@ -51,34 +81,33 @@ export const RESPONSE_SCORE: Record<ResponseOption, number> = {
   '3 - Nearly every day': 3,
 }
 
-// ── Fetch templates list ──────────────────────────────────────────────────────
 export async function fetchPHQ9Templates(
   search?: string
-): Promise<{ name: string; label: string; description?: string }[]> {
-  const filters: any[] = []
+): Promise<PHQ9TemplateListItem[]> {
+  const params = new URLSearchParams()
+  if (search?.trim()) params.append('search', search.trim())
 
-  if (search) {
-    filters.push(['template_name', 'like', `%${search}%`])
-  }
-
-  const params = new URLSearchParams({
-    fields: JSON.stringify(['name', 'template_name', 'description']),
-    filters: JSON.stringify(filters),
-    limit: '20',
-    order_by: 'template_name asc',
-  })
-
-  const res = await fetch(`/api/resource/PHQ9 Template?${params}`)
+  const res = await fetch(
+    `/api/method/healthcare.api.phq9_assessment.get_phq9_assessment_templates?${params.toString()}`
+  )
   const data = await res.json()
-
-  return (data?.data || []).map((t: any) => ({
-    name: t.name,
-    label: t.template_name || t.name,
-    description: t.description,
-  }))
+  if (data?.exc_type) {
+    throw new Error(data?.message || 'Failed to load PHQ9 templates')
+  }
+  return data?.message || []
 }
 
-// ── Fetch template questions ──────────────────────────────────────────────────
+export async function fetchDefaultPHQ9Template(): Promise<PHQ9TemplateListItem | null> {
+  const res = await fetch(
+    '/api/method/healthcare.api.phq9_assessment.get_default_phq9_assessment_template'
+  )
+  const data = await res.json()
+  if (data?.exc_type) {
+    throw new Error(data?.message || 'Failed to load default PHQ9 template')
+  }
+  return data?.message || null
+}
+
 export async function fetchPHQ9TemplateQuestions(
   templateName: string
 ): Promise<PHQ9TemplateData> {
@@ -88,7 +117,7 @@ export async function fetchPHQ9TemplateQuestions(
   )
   const data = await res.json()
   const msg = data?.message
-  
+
   if (msg && Array.isArray(msg.questions)) {
     return {
       name: msg.name,
@@ -97,22 +126,45 @@ export async function fetchPHQ9TemplateQuestions(
       questions: msg.questions,
     }
   }
-  
-  return { 
-    name: templateName, 
-    template_name: templateName, 
+
+  return {
+    name: templateName,
+    template_name: templateName,
     description: undefined,
-    questions: [] 
+    questions: [],
   }
 }
 
-// ── Create assessment ─────────────────────────────────────────────────────────
-export interface CreatePHQ9AssessmentInput {
-  patient: string
-  assessment_date: string
-  template: string
-  notes?: string
-  responses: PHQ9ResponseRow[]
+export async function fetchPHQ9Assessments(
+  patient?: string,
+  filters: PHQ9AssessmentListFilters = {}
+): Promise<PHQ9AssessmentRow[]> {
+  const params = new URLSearchParams()
+  if (patient) params.append('patient', patient)
+  if (filters.practitioner) params.append('practitioner', filters.practitioner)
+  if (filters.dateFrom) params.append('date_from', filters.dateFrom)
+  if (filters.dateTo) params.append('date_to', filters.dateTo)
+
+  const res = await fetch(
+    `/api/method/healthcare.api.phq9_assessment.get_phq9_assessments?${params.toString()}`
+  )
+  const data = await res.json()
+  if (data?.exc_type) {
+    throw new Error(data?.message || 'Failed to load PHQ9 assessments')
+  }
+  return data?.message || []
+}
+
+export async function fetchPHQ9Assessment(name: string): Promise<PHQ9AssessmentDetail> {
+  const params = new URLSearchParams({ name })
+  const res = await fetch(
+    `/api/method/healthcare.api.phq9_assessment.get_phq9_assessment?${params.toString()}`
+  )
+  const data = await res.json()
+  if (data?.exc_type) {
+    throw new Error(data?.message || 'Failed to load PHQ9 assessment')
+  }
+  return data?.message as PHQ9AssessmentDetail
 }
 
 export async function createPHQ9Assessment(
@@ -132,38 +184,4 @@ export async function createPHQ9Assessment(
   const data = await res.json()
   const msg = data?.message
   return msg ?? { success: false, message: 'Unknown error' }
-}
-
-// ── Fetch assessments list ────────────────────────────────────────────────────
-export async function fetchPHQ9Assessments(
-  patient?: string,
-  search?: string
-): Promise<PHQ9AssessmentRow[]> {
-  const filters: any[] = []
-  
-  if (patient) filters.push(['patient', '=', patient])
-  if (search) filters.push(['patient_name', 'like', `%${search}%`])
-
-  const params = new URLSearchParams({
-    fields: JSON.stringify([
-      'name', 'patient', 'patient_name', 'assessment_date',
-      'template', 'total_score', 'severity', 'docstatus', 'notes'
-    ]),
-    filters: JSON.stringify(filters),
-    limit: '50',
-    order_by: 'assessment_date desc',
-  })
-
-  const res = await fetch(`/api/resource/PHQ9 Assessment?${params}`)
-  const data = await res.json()
-
-  if (data?.data) {
-    return data.data
-  }
-  
-  if (data?.message) {
-    return data.message
-  }
-  
-  return []
 }

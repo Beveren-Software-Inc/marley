@@ -642,7 +642,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-01-07 16:49:07.982269",
+ "modified": "2026-06-08 18:28:22.478212",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Suicidal Patient Assessment",
@@ -671,6 +671,37 @@
    "create": 1,
    "read": 1,
    "role": "Nursing User",
+   "write": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "role": "Nurse",
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Doctor",
+   "select": 1,
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "role": "Anesthesiologist",
+   "write": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "role": "Psychologist",
    "write": 1
   }
  ],

@@ -1,12 +1,16 @@
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { DocDetailView } from '../ui/DocDetailView'
-import { X } from 'lucide-react'
+import { fetchSuicidalAssessments, type SuicidalAssessment } from '../../services/suicidalAssessment'
+import { SuicidalPatientAssessmentDetailPanel } from '../suicidal/SuicidalPatientAssessmentDetailPanel'
 
 interface AssessmentRecord {
   name: string
   patient: string
   patient_name?: string
   inpatient_admission?: string
+  admission_no?: string
+  assessment_date?: string
   creation: string
 }
 
@@ -17,6 +21,8 @@ interface AdmissionAssessmentListProps {
   refreshKey?: number
   onPatientClick?: (patient: string) => void
 }
+
+const SUICIDAL_DOCTYPE = 'Suicidal Patient Assessment'
 
 export const AdmissionAssessmentList = ({
   doctype,
@@ -29,12 +35,30 @@ export const AdmissionAssessmentList = ({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
   const [detailName, setDetailName] = useState<string | null>(null)
+  const [detailRow, setDetailRow] = useState<SuicidalAssessment | undefined>(undefined)
+
+  const isSuicidal = doctype === SUICIDAL_DOCTYPE
 
   useEffect(() => {
     const load = async () => {
       setLoading(true)
       setError(null)
       try {
+        if (isSuicidal) {
+          const rows = await fetchSuicidalAssessments(patient)
+          setItems(
+            rows.map((row) => ({
+              name: row.name,
+              patient: row.patient,
+              patient_name: row.patient_name,
+              admission_no: row.admission_no,
+              assessment_date: row.assessment_date,
+              creation: row.assessment_date || row.modified || '',
+            }))
+          )
+          return
+        }
+
         const filters: [string, string, string][] = []
         if (patient) filters.push(['patient', '=', patient])
         const params = new URLSearchParams({
@@ -44,7 +68,7 @@ export const AdmissionAssessmentList = ({
           order_by: 'creation desc',
           limit: '50',
         })
-        const res = await fetch(`/api/method/frappe.client.get_list?${params}`)
+        const res = await fetch(`/api/method/frappe.client.get_list?${params}`, { credentials: 'include' })
         const data = await res.json()
         setItems(Array.isArray(data?.message) ? data.message : [])
       } catch (err) {
@@ -54,7 +78,26 @@ export const AdmissionAssessmentList = ({
       }
     }
     load()
-  }, [doctype, patient, refreshKey])
+  }, [doctype, patient, refreshKey, isSuicidal])
+
+  const handleView = (row: AssessmentRecord) => {
+    setDetailName(row.name)
+    if (isSuicidal) {
+      setDetailRow({
+        name: row.name,
+        patient: row.patient,
+        patient_name: row.patient_name,
+        admission_no: row.admission_no || '',
+        assessment_date: row.assessment_date || row.creation,
+      })
+    }
+  }
+
+  const formatDate = (row: AssessmentRecord) => {
+    const value = isSuicidal ? row.assessment_date : row.creation
+    if (!value) return '—'
+    return new Date(value).toLocaleDateString()
+  }
 
   if (loading) {
     return (
@@ -92,16 +135,22 @@ export const AdmissionAssessmentList = ({
               )}
               <th className="px-3 py-2 text-left text-[11px] font-semibold text-slate-600 uppercase">Admission</th>
               <th className="px-3 py-2 text-left text-[11px] font-semibold text-slate-600 uppercase">Date</th>
-              
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {items.map(row => (
-              <tr key={row.name} className="hover:bg-slate-50 transition-colors">
+            {items.map((row) => (
+              <tr
+                key={row.name}
+                className="hover:bg-slate-50 transition-colors cursor-pointer"
+                onClick={() => handleView(row)}
+              >
                 <td className="px-3 py-2">
                   <button
                     type="button"
-                    onClick={() => setDetailName(row.name)}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleView(row)
+                    }}
                     className="text-primary hover:underline font-medium text-xs"
                   >
                     {row.name}
@@ -110,16 +159,31 @@ export const AdmissionAssessmentList = ({
                 {!patient && (
                   <td
                     className="px-3 py-2 cursor-pointer"
-                    onClick={() => row.patient && onPatientClick?.(row.patient)}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      row.patient && onPatientClick?.(row.patient)
+                    }}
                   >
-                    <span className="font-medium text-primary hover:underline">{row.patient_name || row.patient || '—'}</span>
+                    <span className="font-medium text-primary hover:underline">
+                      {row.patient_name || row.patient || '—'}
+                    </span>
                   </td>
                 )}
                 <td className="px-3 py-2 text-slate-500 text-xs">
-                  {row.inpatient_admission || '—'}
+                  {row.admission_no || row.inpatient_admission || '—'}
                 </td>
-                <td className="px-3 py-2 text-slate-500 text-xs">
-                  {row.creation ? new Date(row.creation).toLocaleDateString() : '—'}
+                <td className="px-3 py-2 text-xs">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleView(row)
+                    }}
+                    className="font-medium text-primary hover:underline"
+                    title="View assessment details"
+                  >
+                    {formatDate(row)}
+                  </button>
                 </td>
               </tr>
             ))}
@@ -127,25 +191,38 @@ export const AdmissionAssessmentList = ({
         </table>
       </div>
 
-      {detailName && (
+      {detailName && isSuicidal &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <SuicidalPatientAssessmentDetailPanel
+            name={detailName}
+            preview={detailRow}
+            onClose={() => {
+              setDetailName(null)
+              setDetailRow(undefined)
+            }}
+            onPatientClick={onPatientClick}
+          />,
+          document.body
+        )}
+
+      {detailName && !isSuicidal && (
         <div
-          className="fixed inset-0 z-50 flex items-start justify-end"
-          onClick={e => { if (e.target === e.currentTarget) setDetailName(null) }}
+          className="fixed inset-0 z-[70] flex items-start justify-end p-2 sm:p-3"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setDetailName(null)
+          }}
         >
           <div className="absolute inset-0 bg-black/30" />
-          <div className="relative z-10 h-full w-full max-w-2xl bg-white shadow-xl flex flex-col">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50 shrink-0">
-              <div>
-                <p className="text-xs text-slate-500 uppercase tracking-wide">{doctypeLabel}</p>
-                <p className="text-sm font-semibold text-slate-800">{detailName}</p>
-              </div>
+          <div className="relative z-10 flex h-full w-full max-w-2xl flex-col overflow-hidden rounded-l-2xl bg-white shadow-xl">
+            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+              <p className="text-sm font-semibold text-slate-800">{detailName}</p>
               <button
                 type="button"
                 onClick={() => setDetailName(null)}
-                className="inline-flex items-center justify-center w-8 h-8 rounded-md text-slate-500 hover:text-slate-800 hover:bg-slate-200"
-                aria-label="Close"
+                className="rounded-md px-2 py-1 text-sm text-slate-500 hover:bg-slate-100"
               >
-                <X className="w-5 h-5" />
+                Close
               </button>
             </div>
             <div className="flex-1 overflow-y-auto p-6">

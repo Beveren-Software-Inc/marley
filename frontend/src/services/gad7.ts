@@ -1,5 +1,3 @@
-// services/gad7.ts
-
 export interface GAD7TemplateQuestion {
   question_no: number
   question: string
@@ -25,26 +23,56 @@ export interface GAD7ResponseRow {
 export interface GAD7AssessmentRow {
   name: string
   patient: string
-  patient_name: string
+  patient_name?: string
   assessment_date: string
   template: string
+  practitioner?: string
+  practitioner_name?: string
   total_score: number
   severity: string
   docstatus: number
   notes?: string
+  inpatient_admission?: string
+  patient_visit?: string
 }
 
-// Response options mapping
+export interface GAD7AssessmentDetail extends GAD7AssessmentRow {
+  responses: GAD7ResponseRow[]
+}
+
+export interface GAD7AssessmentListFilters {
+  dateFrom?: string
+  dateTo?: string
+  practitioner?: string
+}
+
+export interface CreateGAD7AssessmentInput {
+  patient: string
+  assessment_date: string
+  template: string
+  notes?: string
+  practitioner?: string
+  inpatient_admission?: string
+  patient_visit?: string
+  responses: GAD7ResponseRow[]
+}
+
+export interface GAD7TemplateListItem {
+  name: string
+  label: string
+  description?: string
+  default?: boolean
+}
+
 export const RESPONSE_OPTIONS = [
   '0 - Not at all',
   '1 - Several days',
   '2 - More than half the days',
-  '3 - Nearly every day'
+  '3 - Nearly every day',
 ] as const
 
 export type ResponseOption = typeof RESPONSE_OPTIONS[number]
 
-// Score mapping
 export const RESPONSE_SCORE: Record<ResponseOption, number> = {
   '0 - Not at all': 0,
   '1 - Several days': 1,
@@ -52,34 +80,33 @@ export const RESPONSE_SCORE: Record<ResponseOption, number> = {
   '3 - Nearly every day': 3,
 }
 
-// ── Fetch templates list ──────────────────────────────────────────────────────
 export async function fetchGAD7Templates(
   search?: string
-): Promise<{ name: string; label: string; description?: string }[]> {
-  const filters: any[] = []
+): Promise<GAD7TemplateListItem[]> {
+  const params = new URLSearchParams()
+  if (search?.trim()) params.append('search', search.trim())
 
-  if (search) {
-    filters.push(['template_name', 'like', `%${search}%`])
-  }
-
-  const params = new URLSearchParams({
-    fields: JSON.stringify(['name', 'template_name', 'description']),
-    filters: JSON.stringify(filters),
-    limit: '20',
-    order_by: 'template_name asc',
-  })
-
-  const res = await fetch(`/api/resource/GAD7 Template?${params}`)
+  const res = await fetch(
+    `/api/method/healthcare.api.gad7_assessment.get_gad7_assessment_templates?${params.toString()}`
+  )
   const data = await res.json()
-
-  return (data?.data || []).map((t: any) => ({
-    name: t.name,
-    label: t.template_name || t.name,
-    description: t.description,
-  }))
+  if (data?.exc_type) {
+    throw new Error(data?.message || 'Failed to load GAD7 templates')
+  }
+  return data?.message || []
 }
 
-// ── Fetch template questions ──────────────────────────────────────────────────
+export async function fetchDefaultGAD7Template(): Promise<GAD7TemplateListItem | null> {
+  const res = await fetch(
+    '/api/method/healthcare.api.gad7_assessment.get_default_gad7_assessment_template'
+  )
+  const data = await res.json()
+  if (data?.exc_type) {
+    throw new Error(data?.message || 'Failed to load default GAD7 template')
+  }
+  return data?.message || null
+}
+
 export async function fetchGAD7TemplateQuestions(
   templateName: string
 ): Promise<GAD7TemplateData> {
@@ -89,7 +116,7 @@ export async function fetchGAD7TemplateQuestions(
   )
   const data = await res.json()
   const msg = data?.message
-  
+
   if (msg && Array.isArray(msg.questions)) {
     return {
       name: msg.name,
@@ -98,22 +125,45 @@ export async function fetchGAD7TemplateQuestions(
       questions: msg.questions,
     }
   }
-  
-  return { 
-    name: templateName, 
-    template_name: templateName, 
+
+  return {
+    name: templateName,
+    template_name: templateName,
     description: undefined,
-    questions: [] 
+    questions: [],
   }
 }
 
-// ── Create assessment ─────────────────────────────────────────────────────────
-export interface CreateGAD7AssessmentInput {
-  patient: string
-  assessment_date: string
-  template: string
-  notes?: string
-  responses: GAD7ResponseRow[]
+export async function fetchGAD7Assessments(
+  patient?: string,
+  filters: GAD7AssessmentListFilters = {}
+): Promise<GAD7AssessmentRow[]> {
+  const params = new URLSearchParams()
+  if (patient) params.append('patient', patient)
+  if (filters.practitioner) params.append('practitioner', filters.practitioner)
+  if (filters.dateFrom) params.append('date_from', filters.dateFrom)
+  if (filters.dateTo) params.append('date_to', filters.dateTo)
+
+  const res = await fetch(
+    `/api/method/healthcare.api.gad7_assessment.get_gad7_assessments?${params.toString()}`
+  )
+  const data = await res.json()
+  if (data?.exc_type) {
+    throw new Error(data?.message || 'Failed to load GAD7 assessments')
+  }
+  return data?.message || []
+}
+
+export async function fetchGAD7Assessment(name: string): Promise<GAD7AssessmentDetail> {
+  const params = new URLSearchParams({ name })
+  const res = await fetch(
+    `/api/method/healthcare.api.gad7_assessment.get_gad7_assessment?${params.toString()}`
+  )
+  const data = await res.json()
+  if (data?.exc_type) {
+    throw new Error(data?.message || 'Failed to load GAD7 assessment')
+  }
+  return data?.message as GAD7AssessmentDetail
 }
 
 export async function createGAD7Assessment(
@@ -133,38 +183,4 @@ export async function createGAD7Assessment(
   const data = await res.json()
   const msg = data?.message
   return msg ?? { success: false, message: 'Unknown error' }
-}
-
-// ── Fetch assessments list ────────────────────────────────────────────────────
-export async function fetchGAD7Assessments(
-  patient?: string,
-  search?: string
-): Promise<GAD7AssessmentRow[]> {
-  const filters: any[] = []
-  
-  if (patient) filters.push(['patient', '=', patient])
-  if (search) filters.push(['patient_name', 'like', `%${search}%`])
-
-  const params = new URLSearchParams({
-    fields: JSON.stringify([
-      'name', 'patient', 'patient_name', 'assessment_date',
-      'template', 'total_score', 'severity', 'docstatus', 'notes'
-    ]),
-    filters: JSON.stringify(filters),
-    limit: '50',
-    order_by: 'assessment_date desc',
-  })
-
-  const res = await fetch(`/api/resource/GAD7 Assessment?${params}`)
-  const data = await res.json()
-
-  if (data?.data) {
-    return data.data
-  }
-  
-  if (data?.message) {
-    return data.message
-  }
-  
-  return []
 }

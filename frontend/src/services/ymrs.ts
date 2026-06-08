@@ -29,43 +29,76 @@ export interface YMRSResponseRow {
 export interface YMRSAssessmentRow {
   name: string
   patient: string
-  patient_name: string
+  patient_name?: string
   assessment_date: string
   template: string
   total_score: number
   severity: string
   docstatus: number
   notes?: string
+  practitioner?: string
+  practitioner_name?: string
+  inpatient_admission?: string
+  patient_visit?: string
 }
 
-// ── Fetch templates list ──────────────────────────────────────────────────────
+export interface YMRSAssessmentDetail extends YMRSAssessmentRow {
+  responses?: YMRSResponseRow[]
+  /** Child table rows as returned by Frappe before API normalization */
+  questions?: YMRSResponseRow[]
+}
+
+export interface YMRSAssessmentListFilters {
+  dateFrom?: string
+  dateTo?: string
+  practitioner?: string
+}
+
+export interface CreateYMRSAssessmentInput {
+  patient: string
+  assessment_date: string
+  template: string
+  notes?: string
+  practitioner?: string
+  inpatient_admission?: string
+  patient_visit?: string
+  responses: YMRSResponseRow[]
+}
+
+export interface YMRSTemplateListItem {
+  name: string
+  label: string
+  description?: string
+  default?: boolean
+}
+
 export async function fetchYMRSTemplates(
   search?: string
-): Promise<{ name: string; label: string; description?: string }[]> {
-  const filters: any[] = []
+): Promise<YMRSTemplateListItem[]> {
+  const params = new URLSearchParams()
+  if (search?.trim()) params.append('search', search.trim())
 
-  if (search) {
-    filters.push(['template_name', 'like', `%${search}%`])
-  }
-
-  const params = new URLSearchParams({
-    fields: JSON.stringify(['name', 'template_name', 'description']),
-    filters: JSON.stringify(filters),
-    limit: '20',
-    order_by: 'template_name asc',
-  })
-
-  const res = await fetch(`/api/resource/YMRS Template?${params}`)
+  const res = await fetch(
+    `/api/method/healthcare.api.ymrs_assessment.get_ymrs_assessment_templates?${params.toString()}`
+  )
   const data = await res.json()
-
-  return (data?.data || []).map((t: any) => ({
-    name: t.name,
-    label: t.template_name || t.name,
-    description: t.description,
-  }))
+  if (data?.exc_type) {
+    throw new Error(data?.message || 'Failed to load YMRS templates')
+  }
+  return data?.message || []
 }
 
-// ── Fetch template questions ──────────────────────────────────────────────────
+export async function fetchDefaultYMRSAssessmentTemplate(): Promise<YMRSTemplateListItem | null> {
+  const res = await fetch(
+    '/api/method/healthcare.api.ymrs_assessment.get_default_ymrs_assessment_template'
+  )
+  const data = await res.json()
+  if (data?.exc_type) {
+    throw new Error(data?.message || 'Failed to load default YMRS template')
+  }
+  return data?.message || null
+}
+
 export async function fetchYMRSTemplateQuestions(
   templateName: string
 ): Promise<YMRSTemplateData> {
@@ -75,7 +108,7 @@ export async function fetchYMRSTemplateQuestions(
   )
   const data = await res.json()
   const msg = data?.message
-  
+
   if (msg && Array.isArray(msg.questions)) {
     return {
       name: msg.name,
@@ -84,22 +117,46 @@ export async function fetchYMRSTemplateQuestions(
       questions: msg.questions,
     }
   }
-  
-  return { 
-    name: templateName, 
-    template_name: templateName, 
+
+  return {
+    name: templateName,
+    template_name: templateName,
     description: undefined,
-    questions: [] 
+    questions: [],
   }
 }
 
-// ── Create assessment ─────────────────────────────────────────────────────────
-export interface CreateYMRSAssessmentInput {
-  patient: string
-  assessment_date: string
-  template: string
-  notes?: string
-  responses: YMRSResponseRow[]
+export async function fetchYMRSAssessments(
+  patient?: string,
+  filters: YMRSAssessmentListFilters = {}
+): Promise<YMRSAssessmentRow[]> {
+  const params = new URLSearchParams()
+  if (patient) params.append('patient', patient)
+  if (filters.practitioner) params.append('practitioner', filters.practitioner)
+  if (filters.dateFrom) params.append('date_from', filters.dateFrom)
+  if (filters.dateTo) params.append('date_to', filters.dateTo)
+
+  const res = await fetch(
+    `/api/method/healthcare.api.ymrs_assessment.get_ymrs_assessments?${params.toString()}`
+  )
+  const data = await res.json()
+  if (data?.exc_type) {
+    throw new Error(data?.message || 'Failed to load YMRS assessments')
+  }
+  return data?.message || []
+}
+
+export async function fetchYMRSAssessment(name: string): Promise<YMRSAssessmentDetail> {
+  const params = new URLSearchParams({ name })
+  const res = await fetch(
+    `/api/method/healthcare.api.ymrs_assessment.get_ymrs_assessment?${params.toString()}`,
+    { credentials: 'include' }
+  )
+  const data = await res.json()
+  if (data?.exc_type) {
+    throw new Error(data?.message || 'Failed to load YMRS assessment')
+  }
+  return data?.message as YMRSAssessmentDetail
 }
 
 export async function createYMRSAssessment(
@@ -119,38 +176,4 @@ export async function createYMRSAssessment(
   const data = await res.json()
   const msg = data?.message
   return msg ?? { success: false, message: 'Unknown error' }
-}
-
-// ── Fetch assessments list ────────────────────────────────────────────────────
-export async function fetchYMRSAssessments(
-  patient?: string,
-  search?: string
-): Promise<YMRSAssessmentRow[]> {
-  const filters: any[] = []
-  
-  if (patient) filters.push(['patient', '=', patient])
-  if (search) filters.push(['patient_name', 'like', `%${search}%`])
-
-  const params = new URLSearchParams({
-    fields: JSON.stringify([
-      'name', 'patient', 'patient_name', 'assessment_date',
-      'template', 'total_score', 'severity', 'docstatus', 'notes'
-    ]),
-    filters: JSON.stringify(filters),
-    limit: '50',
-    order_by: 'assessment_date desc',
-  })
-
-  const res = await fetch(`/api/resource/YMRS Assessment?${params}`)
-  const data = await res.json()
-
-  if (data?.data) {
-    return data.data
-  }
-  
-  if (data?.message) {
-    return data.message
-  }
-  
-  return []
 }
