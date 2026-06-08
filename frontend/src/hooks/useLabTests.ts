@@ -9,10 +9,11 @@ export function useLabTests(
   fromDate?: string,
   toDate?: string,
   template?: string,
-  patientType?: string,
+  practitioner?: string,
   byNurse?: boolean,
   limit: number = 20,
   offset: number = 0,
+  enabled: boolean = true,
 ) {
   const [labTests, setLabTests] = useState<LabTest[]>([])
   const [totalCount, setTotalCount] = useState(0)
@@ -20,6 +21,7 @@ export function useLabTests(
   const [error, setError] = useState<Error | null>(null)
 
   const loadLabTests = useCallback(async () => {
+    if (!enabled) return
     try {
       setLoading(true)
       setError(null)
@@ -33,7 +35,7 @@ export function useLabTests(
         fromDate,
         toDate,
         template,
-        patientType,
+        practitioner,
         byNurse
       )
       setLabTests(response.data)
@@ -43,7 +45,7 @@ export function useLabTests(
     } finally {
       setLoading(false)
     }
-  }, [patient, status, pendingReview, isOutsourced, fromDate, toDate, template, patientType, byNurse, limit, offset])
+  }, [enabled, patient, status, pendingReview, isOutsourced, fromDate, toDate, template, practitioner, byNurse, limit, offset])
 
   useEffect(() => {
     loadLabTests()

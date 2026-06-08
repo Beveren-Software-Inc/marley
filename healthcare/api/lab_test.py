@@ -215,9 +215,10 @@ def get_lab_tests(
 	to_date=None,
 	template=None,
 	patient_type=None,
+	practitioner=None,
 	by_nurse=None,
 ):
-	"""Get list of Lab Tests with optional filters (patient, status, date range, OP/IP, template, outsourcing)."""
+	"""Get list of Lab Tests with optional filters (patient, status, date range, practitioner, template, outsourcing)."""
 	from healthcare.api.common import get_permitted_cost_centers
 	filters = {"docstatus": ["!=", 2]}  # Exclude cancelled
 
@@ -250,11 +251,14 @@ def get_lab_tests(
 		else:
 			return {"data": [], "total_count": 0}
 
-	# OP / IP filter based on inpatient_record link
+	# OP / IP filter based on inpatient_record link (legacy; prefer practitioner filter in portal)
 	if patient_type == "IP":
 		filters["inpatient_record"] = ["is", "set"]
 	elif patient_type == "OP":
 		filters["inpatient_record"] = ["is", "not set"]
+
+	if practitioner:
+		filters["practitioner"] = practitioner
 
 	# Date range filter — apply on result_date
 	if from_date or to_date:
