@@ -9,6 +9,8 @@
   "patient",
   "patient_name",
   "assessment_date",
+  "practitioner",
+  "practitioner_name",
   "column_break_xsbu",
   "template",
   "inpatient_admission",
@@ -110,12 +112,23 @@
    "fieldtype": "Link",
    "label": "Patient Visit",
    "options": "Patient Visit"
+  },
+  {
+   "fieldname": "practitioner",
+   "fieldtype": "Link",
+   "label": "Practitioner",
+   "options": "Healthcare Practitioner"
+  },
+  {
+   "fieldname": "practitioner_name",
+   "fieldtype": "Data",
+   "label": "Practitioner Name"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-06-08 13:48:01.319812",
+ "modified": "2026-06-08 17:06:05.253982",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "ADHD Assessment",

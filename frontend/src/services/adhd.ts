@@ -29,10 +29,24 @@ export interface ADHDAssessmentRow {
   patient_name?: string
   assessment_date: string
   template: string
+  practitioner?: string
+  practitioner_name?: string
   positive_count?: number
   result?: 'Positive' | 'Negative'
   docstatus: number
   notes?: string
+  inpatient_admission?: string
+  patient_visit?: string
+}
+
+export interface ADHDAssessmentDetail extends ADHDAssessmentRow {
+  responses: ADHDResponseRow[]
+}
+
+export interface ADHDAssessmentListFilters {
+  dateFrom?: string
+  dateTo?: string
+  practitioner?: string
 }
 
 export interface CreateADHDAssessmentInput {
@@ -40,38 +54,46 @@ export interface CreateADHDAssessmentInput {
   assessment_date: string
   template: string
   notes?: string
+  practitioner?: string
+  inpatient_admission?: string
+  patient_visit?: string
   responses: ADHDResponseRow[]
 }
 
 // ── Fetch templates list ──────────────────────────────────────────────────────
-// ── Fetch templates list ──────────────────────────────────────────────────────
+export interface ADHDTemplateListItem {
+  name: string
+  label: string
+  description?: string
+  footer_description?: string
+  default?: boolean
+}
+
 export async function fetchADHDTemplates(
   search?: string
-): Promise<{ name: string; label: string; description?: string; footer_description?: string }[]> {
-  const filters: any[] = []
+): Promise<ADHDTemplateListItem[]> {
+  const params = new URLSearchParams()
+  if (search?.trim()) params.append('search', search.trim())
 
-  if (search) {
-    filters.push(['template_name', 'like', `%${search}%`])
-  }
-
-  const params = new URLSearchParams({
-    fields: JSON.stringify(['name', 'template_name', 'assessment_category', 'description', 'footer_description']),
-    filters: JSON.stringify(filters),
-    limit: '20',
-    order_by: 'template_name asc',
-  })
-
-  const res = await fetch(`/api/resource/ADHD Assessment Template?${params}`)
+  const res = await fetch(
+    `/api/method/healthcare.api.adhd.get_adhd_assessment_templates?${params.toString()}`
+  )
   const data = await res.json()
+  if (data?.exc_type) {
+    throw new Error(data?.message || 'Failed to load ADHD templates')
+  }
+  return data?.message || []
+}
 
-  console.log('Fetched ADHD Templates:', data)
-
-  return (data?.data || []).map((t: any) => ({
-    name: t.name,
-    label: t.template_name || t.name,
-    description: t.description,
-    footer_description: t.footer_description,
-  }))
+export async function fetchDefaultADHDTemplate(): Promise<ADHDTemplateListItem | null> {
+  const res = await fetch(
+    '/api/method/healthcare.api.adhd.get_default_adhd_assessment_template'
+  )
+  const data = await res.json()
+  if (data?.exc_type) {
+    throw new Error(data?.message || 'Failed to load default ADHD template')
+  }
+  return data?.message || null
 }
 
 // ── Fetch template questions ──────────────────────────────────────────────────
@@ -86,9 +108,7 @@ export async function fetchADHDTemplateQuestions(
   )
   const data = await res.json()
   const msg = data?.message
-  
-  console.log('Fetched template details:', msg) // Debug log
-  
+
   if (msg && Array.isArray(msg.questions)) {
     return {
       name: msg.name,
@@ -113,38 +133,34 @@ export async function fetchADHDTemplateQuestions(
 
 export async function fetchADHDAssessments(
   patient?: string,
-  search?: string
+  filters: ADHDAssessmentListFilters = {}
 ): Promise<ADHDAssessmentRow[]> {
-  const filters: any[] = []
-  
-  if (patient) filters.push(['patient', '=', patient])
-  if (search) filters.push(['patient_name', 'like', `%${search}%`])
+  const params = new URLSearchParams()
+  if (patient) params.append('patient', patient)
+  if (filters.practitioner) params.append('practitioner', filters.practitioner)
+  if (filters.dateFrom) params.append('date_from', filters.dateFrom)
+  if (filters.dateTo) params.append('date_to', filters.dateTo)
 
-  const params = new URLSearchParams({
-    fields: JSON.stringify([
-      'name', 'patient', 'patient_name', 'assessment_date',
-      'template', 'positive_count', 'result', 'docstatus', 'notes'
-    ]),
-    filters: JSON.stringify(filters),
-    limit: '50',
-    order_by: 'assessment_date desc',
-  })
-
-  const res = await fetch(`/api/resource/ADHD Assessment?${params}`)
+  const res = await fetch(
+    `/api/method/healthcare.api.adhd.get_adhd_assessments?${params.toString()}`
+  )
   const data = await res.json()
+  if (data?.exc_type) {
+    throw new Error(data?.message || 'Failed to load ADHD assessments')
+  }
+  return data?.message || []
+}
 
-  console.log('Fetched ADHD Assessments:', data)
-  
-  // Handle the response format - Frappe returns data in data.message or data.data
-  if (data?.data) {
-    return data.data
+export async function fetchADHDAssessment(name: string): Promise<ADHDAssessmentDetail> {
+  const params = new URLSearchParams({ name })
+  const res = await fetch(
+    `/api/method/healthcare.api.adhd.get_adhd_assessment?${params.toString()}`
+  )
+  const data = await res.json()
+  if (data?.exc_type) {
+    throw new Error(data?.message || 'Failed to load ADHD assessment')
   }
-  
-  if (data?.message) {
-    return data.message
-  }
-  
-  return []
+  return data?.message as ADHDAssessmentDetail
 }
 
 // ── Create assessment ─────────────────────────────────────────────────────────

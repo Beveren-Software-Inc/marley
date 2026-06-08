@@ -7,9 +7,19 @@ import {
   CREATE_MODAL_OVERLAY,
   createModalShellClass,
 } from '../ui/CreateModalChrome'
-import { Shield, AlertTriangle, Brain, Heart, Users, FileText, Clock, Target } from 'lucide-react'
+import { Shield, AlertTriangle, Brain, Heart, Users, FileText, Clock, Target, PenLine } from 'lucide-react'
 import { createHomicideRiskAssessment, type ContactRow } from '../../services/homicideRisk'
-import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
+import { searchPatients, fetchPatients, uploadPatientFile, type PatientListItem } from '../../services/patients'
+import {
+  fetchInpatientAdmissionOptions,
+  fetchPatientVisits,
+  fetchHealthcarePractitioners,
+  getCurrentUserPractitioner,
+  type LinkFieldOption,
+} from '../../services/common'
+import { useCareContext } from '../../providers/CareContextProvider'
+import { SignaturePad, attachFileDisplayUrl } from '../ui/SignaturePad'
+import { toast } from '../../hooks/useToast'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -18,27 +28,55 @@ const nowDate = () => new Date().toISOString().split('T')[0]
 
 type TabType = 'basic' | 'reason' | 'episode' | 'ideation' | 'history' | 'symptoms' | 'summary' | 'safety' | 'contacts' | 'signatures'
 
+type SignatureFieldKey = 'client' | 'staff' | 'guardian' | 'witness'
+
 // ── Main modal ────────────────────────────────────────────────────────────────
 interface CreateHomicideRiskAssessmentModalProps {
   onClose: () => void
   onSuccess: () => void
   patient?: string
+  defaultAdmission?: string
+  defaultVisit?: string
 }
 
 export const CreateHomicideRiskAssessmentModal = ({
   onClose,
   onSuccess,
   patient,
+  defaultAdmission,
+  defaultVisit,
 }: CreateHomicideRiskAssessmentModalProps) => {
+  const {
+    mode,
+    activeVisit,
+    activeAdmission,
+    selectedPatient: contextPatient,
+  } = useCareContext()
+
+  const lockedAdmission = activeAdmission || defaultAdmission || ''
+  const lockedVisit = activeVisit || defaultVisit || ''
+  const isIPMode = mode === 'IP'
+  const isOPMode = mode === 'OP'
+  const hidePatientVisit = isIPMode
+  const hideInpatientAdmission = isOPMode
+  const resolvedPatient = patient || contextPatient || ''
+
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<TabType>('basic')
 
-  // Basic Info
-  const [patientId, setPatientId] = useState(patient || '')
+  const [patientId, setPatientId] = useState(resolvedPatient)
   const [patientName, setPatientName] = useState('')
   const [assessmentDate, setAssessmentDate] = useState(nowDate())
-  const [clinician, setClinician] = useState('')
+  const [inpatientAdmission, setInpatientAdmission] = useState(lockedAdmission)
+  const [patientVisit, setPatientVisit] = useState(lockedVisit)
+  const [admissionOptions, setAdmissionOptions] = useState<LinkFieldOption[]>([])
+  const [visitOptions, setVisitOptions] = useState<LinkFieldOption[]>([])
+  const [practitioner, setPractitioner] = useState('')
+  const [practitionerLabel, setPractitionerLabel] = useState('')
+  const [practitionerOpen, setPractitionerOpen] = useState(false)
+  const [practitionerQuery, setPractitionerQuery] = useState('')
+  const [practitionerOptions, setPractitionerOptions] = useState<LinkFieldOption[]>([])
 
   // Reason for Assessment
   const [reasonClinician, setReasonClinician] = useState(false)
@@ -73,15 +111,15 @@ export const CreateHomicideRiskAssessmentModal = ({
   const [historyViolence, setHistoryViolence] = useState('')
   const [recentDischarge, setRecentDischarge] = useState('')
 
-  // Symptom Severity
-  const [depression, setDepression] = useState<number>(0)
-  const [anxiety, setAnxiety] = useState<number>(0)
-  const [anger, setAnger] = useState<number>(0)
-  const [agitation, setAgitation] = useState<number>(0)
-  const [insomnia, setInsomnia] = useState<number>(0)
-  const [hopelessness, setHopelessness] = useState<number>(0)
-  const [burdensomeness, setBurdensomeness] = useState<number>(0)
-  const [impulsivity, setImpulsivity] = useState<number>(0)
+  // Symptom Severity (stored as strings so the field can be cleared while typing)
+  const [depression, setDepression] = useState('')
+  const [anxiety, setAnxiety] = useState('')
+  const [anger, setAnger] = useState('')
+  const [agitation, setAgitation] = useState('')
+  const [insomnia, setInsomnia] = useState('')
+  const [hopelessness, setHopelessness] = useState('')
+  const [burdensomeness, setBurdensomeness] = useState('')
+  const [impulsivity, setImpulsivity] = useState('')
 
   // Clinical Summary
   const [subjectiveReport, setSubjectiveReport] = useState('')
@@ -102,11 +140,12 @@ export const CreateHomicideRiskAssessmentModal = ({
   // Contacts
   const [contacts, setContacts] = useState<ContactRow[]>([])
 
-  // Signatures
+  // Signatures (Attach file URLs from digital signature pad)
   const [clientSignature, setClientSignature] = useState('')
   const [staffSignature, setStaffSignature] = useState('')
   const [guardianSignature, setGuardianSignature] = useState('')
   const [witnessSignature, setWitnessSignature] = useState('')
+  const [signatureUploading, setSignatureUploading] = useState<SignatureFieldKey | null>(null)
 
   // Follow Up
   const [followupDate, setFollowupDate] = useState('')
@@ -118,16 +157,72 @@ export const CreateHomicideRiskAssessmentModal = ({
   const [patientOptions, setPatientOptions] = useState<PatientListItem[]>([])
   const [, setPatientLoading] = useState(false)
 
-  // ── Patient label on mount ────────────────────────────────────────────────
   useEffect(() => {
-    if (!patient) return
-    fetchPatients(1, 0, patient).then((res) => {
+    if (resolvedPatient) {
+      setPatientId(resolvedPatient)
+    }
+  }, [resolvedPatient])
+
+  useEffect(() => {
+    getCurrentUserPractitioner()
+      .then(async (id) => {
+        if (!id) return
+        setPractitioner(id)
+        try {
+          const opts = await fetchHealthcarePractitioners(id)
+          const match = opts.find((o) => o.name === id)
+          setPractitionerLabel(match?.label || id)
+        } catch {
+          setPractitionerLabel(id)
+        }
+      })
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    if (!practitionerOpen) return
+    const t = setTimeout(async () => {
+      try {
+        const opts = await fetchHealthcarePractitioners(practitionerQuery || undefined)
+        setPractitionerOptions(opts)
+      } catch {
+        setPractitionerOptions([])
+      }
+    }, practitionerQuery.trim() === '' ? 0 : 300)
+    return () => clearTimeout(t)
+  }, [practitionerQuery, practitionerOpen])
+
+  useEffect(() => {
+    if (lockedAdmission) setInpatientAdmission(lockedAdmission)
+  }, [lockedAdmission])
+
+  useEffect(() => {
+    if (lockedVisit) setPatientVisit(lockedVisit)
+  }, [lockedVisit])
+
+  useEffect(() => {
+    if (!resolvedPatient) return
+    if (!hideInpatientAdmission) {
+      fetchInpatientAdmissionOptions(undefined, resolvedPatient)
+        .then(setAdmissionOptions)
+        .catch(() => setAdmissionOptions([]))
+    }
+    if (!hidePatientVisit) {
+      fetchPatientVisits(resolvedPatient)
+        .then(setVisitOptions)
+        .catch(() => setVisitOptions([]))
+    }
+  }, [resolvedPatient, hideInpatientAdmission, hidePatientVisit])
+
+  useEffect(() => {
+    if (!resolvedPatient) return
+    fetchPatients(1, 0, resolvedPatient).then((res) => {
       if (res.length > 0) {
         setPatientQuery(res[0].patient_name)
         setPatientName(res[0].patient_name)
       }
     }).catch(() => {})
-  }, [patient])
+  }, [resolvedPatient])
 
   // ── Patient options ───────────────────────────────────────────────────────
   useEffect(() => {
@@ -175,6 +270,24 @@ export const CreateHomicideRiskAssessmentModal = ({
     setContacts(contacts.filter((_, i) => i !== index))
   }
 
+  const handleSignatureSave = async (
+    field: SignatureFieldKey,
+    file: File,
+    setter: (url: string) => void
+  ) => {
+    setSignatureUploading(field)
+    try {
+      const fileUrl = await uploadPatientFile(file)
+      if (!fileUrl) throw new Error('No URL returned from signature upload')
+      setter(fileUrl)
+      toast.success('Signature saved')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Signature upload failed')
+    } finally {
+      setSignatureUploading(null)
+    }
+  }
+
   // ── Submit ────────────────────────────────────────────────────────────────
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -185,7 +298,9 @@ export const CreateHomicideRiskAssessmentModal = ({
       const result = await createHomicideRiskAssessment({
         patient: patientId,
         assessment_date: assessmentDate,
-        clinician: clinician || undefined,
+        practitioner: practitioner || undefined,
+        inpatient_admission: inpatientAdmission || undefined,
+        patient_visit: patientVisit || undefined,
         
         reason_clinician: reasonClinician,
         reason_referral: reasonReferral,
@@ -216,14 +331,14 @@ export const CreateHomicideRiskAssessmentModal = ({
         history_violence: historyViolence || undefined,
         recent_discharge: recentDischarge || undefined,
         
-        depression: depression || undefined,
-        anxiety: anxiety || undefined,
-        anger: anger || undefined,
-        agitation: agitation || undefined,
-        insomnia: insomnia || undefined,
-        hopelessness: hopelessness || undefined,
-        burdensomeness: burdensomeness || undefined,
-        impulsivity: impulsivity || undefined,
+        depression: depression !== '' ? Number(depression) : undefined,
+        anxiety: anxiety !== '' ? Number(anxiety) : undefined,
+        anger: anger !== '' ? Number(anger) : undefined,
+        agitation: agitation !== '' ? Number(agitation) : undefined,
+        insomnia: insomnia !== '' ? Number(insomnia) : undefined,
+        hopelessness: hopelessness !== '' ? Number(hopelessness) : undefined,
+        burdensomeness: burdensomeness !== '' ? Number(burdensomeness) : undefined,
+        impulsivity: impulsivity !== '' ? Number(impulsivity) : undefined,
         
         subjective_report: subjectiveReport || undefined,
         objective_signs: objectiveSigns || undefined,
@@ -308,8 +423,8 @@ export const CreateHomicideRiskAssessmentModal = ({
                 }}
                 onFocus={() => setPatientOpen(true)}
                 placeholder="Search patient…"
-                disabled={!!patient}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                disabled={!!resolvedPatient}
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-slate-50"
               />
               {patientOpen && patientOptions.length > 0 && (
                 <div className="absolute z-20 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-48 overflow-y-auto top-full">
@@ -340,16 +455,83 @@ export const CreateHomicideRiskAssessmentModal = ({
                 className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Clinician</label>
+            <div className="relative">
+              <label className="block text-sm font-medium text-slate-700 mb-1">Practitioner</label>
               <input
                 type="text"
-                value={clinician}
-                onChange={(e) => setClinician(e.target.value)}
-                placeholder="Clinician name"
+                value={practitioner ? practitionerLabel : practitionerQuery}
+                onChange={(e) => {
+                  setPractitionerQuery(e.target.value)
+                  setPractitioner('')
+                  setPractitionerLabel('')
+                  setPractitionerOpen(true)
+                }}
+                onFocus={() => setPractitionerOpen(true)}
+                placeholder="Search practitioner…"
                 className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               />
+              {practitionerOpen && practitionerOptions.length > 0 && (
+                <div className="absolute z-20 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-48 overflow-y-auto top-full">
+                  {practitionerOptions.map((p) => (
+                    <button
+                      key={p.name}
+                      type="button"
+                      onClick={() => {
+                        setPractitioner(p.name)
+                        setPractitionerLabel(p.label || p.name)
+                        setPractitionerQuery(p.label || p.name)
+                        setPractitionerOpen(false)
+                      }}
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100"
+                    >
+                      <div className="font-medium">{p.label || p.name}</div>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
+            {(isIPMode || isOPMode) && (
+              <>
+                {!hideInpatientAdmission && (
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Inpatient Admission</label>
+                    {lockedAdmission ? (
+                      <div className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm bg-slate-50">{lockedAdmission}</div>
+                    ) : (
+                      <select
+                        value={inpatientAdmission}
+                        onChange={(e) => setInpatientAdmission(e.target.value)}
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      >
+                        <option value="">— Select admission —</option>
+                        {admissionOptions.map((a) => (
+                          <option key={a.name} value={a.name}>{a.label}</option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                )}
+                {!hidePatientVisit && (
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Patient Visit</label>
+                    {lockedVisit ? (
+                      <div className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm bg-slate-50">{lockedVisit}</div>
+                    ) : (
+                      <select
+                        value={patientVisit}
+                        onChange={(e) => setPatientVisit(e.target.value)}
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      >
+                        <option value="">— Select visit —</option>
+                        {visitOptions.map((v) => (
+                          <option key={v.name} value={v.name}>{v.label}</option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </div>
 
@@ -681,7 +863,7 @@ export const CreateHomicideRiskAssessmentModal = ({
                           min="0"
                           max="10"
                           value={item.value}
-                          onChange={(e) => item.set(parseInt(e.target.value) || 0)}
+                          onChange={(e) => item.set(e.target.value)}
                           className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                         />
                       </div>
@@ -937,48 +1119,63 @@ export const CreateHomicideRiskAssessmentModal = ({
             {activeTab === 'signatures' && (
               <div className="space-y-4">
                 <div className="bg-white border border-slate-200 rounded-lg p-4">
-                  <h3 className="text-md font-semibold text-slate-800 mb-4">Signatures</h3>
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Client Signature</label>
-                      <input
-                        type="text"
-                        value={clientSignature}
-                        onChange={(e) => setClientSignature(e.target.value)}
-                        placeholder="Client signature"
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Staff Signature</label>
-                      <input
-                        type="text"
-                        value={staffSignature}
-                        onChange={(e) => setStaffSignature(e.target.value)}
-                        placeholder="Staff signature"
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Guardian Signature</label>
-                      <input
-                        type="text"
-                        value={guardianSignature}
-                        onChange={(e) => setGuardianSignature(e.target.value)}
-                        placeholder="Guardian signature (if applicable)"
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Witness Signature</label>
-                      <input
-                        type="text"
-                        value={witnessSignature}
-                        onChange={(e) => setWitnessSignature(e.target.value)}
-                        placeholder="Witness signature"
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                      />
-                    </div>
+                  <h3 className="text-md font-semibold text-slate-800 mb-2">Digital Signatures</h3>
+                  <p className="text-xs text-slate-500 mb-4 bg-slate-50 border border-slate-200 rounded-md px-3 py-2">
+                    Draw each signature on-screen, then tap <strong>Save signature</strong>. Each image is
+                    uploaded and stored as an attachment on the assessment record.
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    {[
+                      {
+                        key: 'client' as const,
+                        label: 'Client Signature',
+                        value: clientSignature,
+                        set: setClientSignature,
+                      },
+                      {
+                        key: 'staff' as const,
+                        label: 'Staff Signature',
+                        value: staffSignature,
+                        set: setStaffSignature,
+                      },
+                      {
+                        key: 'guardian' as const,
+                        label: 'Guardian Signature',
+                        hint: 'If applicable',
+                        value: guardianSignature,
+                        set: setGuardianSignature,
+                      },
+                      {
+                        key: 'witness' as const,
+                        label: 'Witness Signature',
+                        value: witnessSignature,
+                        set: setWitnessSignature,
+                      },
+                    ].map((item) => (
+                      <div key={item.key} className="rounded-lg border border-slate-200 bg-slate-50/50 p-4">
+                        <div className="flex items-center gap-1.5 mb-3">
+                          <PenLine className="w-3.5 h-3.5 text-slate-400" />
+                          <span className="text-xs font-medium text-slate-600">
+                            {item.label}
+                            {item.hint ? (
+                              <span className="text-slate-400 font-normal"> — {item.hint}</span>
+                            ) : null}
+                          </span>
+                        </div>
+                        <SignaturePad
+                          onSave={(file) => handleSignatureSave(item.key, file, item.set)}
+                          onClear={() => item.set('')}
+                          existingUrl={attachFileDisplayUrl(item.value)}
+                          uploading={signatureUploading === item.key}
+                        />
+                        {signatureUploading === item.key && (
+                          <p className="text-xs text-slate-500 text-center mt-2">Uploading signature…</p>
+                        )}
+                        {item.value && signatureUploading !== item.key ? (
+                          <p className="text-xs text-green-600 mt-2">Signature captured and ready to save.</p>
+                        ) : null}
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>

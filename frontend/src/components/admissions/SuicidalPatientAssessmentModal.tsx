@@ -1,7 +1,7 @@
 
 
 import { useState, useRef, useCallback, useEffect } from 'react'
-import { apiRequest } from '../../services/apiClient'
+import { createSuicidalPatientAssessment } from '../../services/suicidalAssessment'
 import { 
   fetchPatientOptions, 
   fetchInpatientAdmissionOptions, 
@@ -894,10 +894,10 @@ export const SuicidalPatientAssessmentModal = ({
         active_suicidal_thoughts_plans_attempt: form.active_suicidal_thoughts_plans_attempt || undefined,
       }
 
-      await apiRequest('/api/resource/Suicidal%20Patient%20Assessment', {
-        method: 'POST',
-        body: JSON.stringify({ data: payload }),
-      })
+      const result = await createSuicidalPatientAssessment(payload)
+      if (!result.success) {
+        throw new Error(result.message || 'Failed to save assessment.')
+      }
 
       toast.success('Suicidal Patient Assessment saved successfully.')
       onSuccess?.()

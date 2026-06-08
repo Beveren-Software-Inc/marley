@@ -6,6 +6,60 @@ from frappe.utils import nowdate
 
 from healthcare.api.utils.api_utility import get_next_transaction_number
 
+MORSE_FALL_SCALE_PORTAL_READ_ROLES = frozenset(
+	{
+		"Administrator",
+		"System Manager",
+		"Healthcare Administrator",
+		"Doctor",
+		"Nurse",
+		"Nursing User",
+		"Physician",
+		"Psychologist",
+		"Anesthesiologist",
+		"Therapist",
+		"Nutritionist",
+	}
+)
+
+
+def _user_can_read_morse_fall_scale_portal() -> bool:
+	if frappe.session.user in ("Guest", ""):
+		return False
+	return bool(MORSE_FALL_SCALE_PORTAL_READ_ROLES & set(frappe.get_roles(frappe.session.user)))
+
+
+def _serialize_morse_fall_scale(doc) -> dict:
+	row = doc.as_dict()
+	if row.get("patient_no") and not row.get("patient_name"):
+		row["patient_name"] = frappe.db.get_value("Patient", row["patient_no"], "patient_name")
+	if row.get("practitioner") and not row.get("practitioner_name"):
+		row["practitioner_name"] = frappe.db.get_value(
+			"Healthcare Practitioner",
+			row["practitioner"],
+			"practitioner_name",
+		)
+	return row
+
+
+@frappe.whitelist()
+def get_morse_fall_scale(name: str | None = None):
+	"""Return one Morse Fall Scale for the healthcare portal (avoids REST DocPerm gaps)."""
+	name = (name or "").strip()
+	if not name:
+		frappe.throw(_("Morse Fall Scale is required"))
+
+	if not frappe.db.exists("Morse Fall Scale", name):
+		frappe.throw(_("Morse Fall Scale {0} not found").format(name))
+
+	doc = frappe.get_doc("Morse Fall Scale", name)
+
+	if not frappe.has_permission("Morse Fall Scale", "read", doc=doc):
+		if not _user_can_read_morse_fall_scale_portal():
+			frappe.throw(_("Not permitted to read Morse Fall Scale"), frappe.PermissionError)
+
+	return _serialize_morse_fall_scale(doc)
+
 
 @frappe.whitelist()
 def create_morse_fall_scale(data):

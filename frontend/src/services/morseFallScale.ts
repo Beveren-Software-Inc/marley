@@ -10,6 +10,7 @@ export interface MorseFallScale {
   trans_no?: string
   admission_no: string
   patient_no: string
+  patient_name?: string
   orderer_number?: string
   company?: string
   practitioner?: string
@@ -70,6 +71,13 @@ export async function fetchMorseFallScales(
   params.append('order_by', 'modified desc')
 
   return apiRequest<MorseFallScale[]>(`/api/resource/Morse Fall Scale?${params.toString()}`)
+}
+
+export async function fetchMorseFallScale(name: string): Promise<MorseFallScale> {
+  const params = new URLSearchParams({ name })
+  return apiRequest<MorseFallScale>(
+    `/api/method/healthcare.api.morse_fall_scale.get_morse_fall_scale?${params.toString()}`
+  )
 }
 
 export async function createMorseFallScale(

@@ -5,18 +5,97 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "section_break_lmos"
+  "patient",
+  "patient_name",
+  "assessment_date",
+  "practitioner",
+  "practitioner_name",
+  "inpatient_admission",
+  "patient_visit",
+  "total_score",
+  "severity",
+  "notes",
+  "questions",
+  "template"
  ],
-  "fields": [
-    {"fieldname": "patient_name", "label": "Patient Name", "fieldtype": "Data"},
-    {"fieldname": "assessment_date", "label": "Date", "fieldtype": "Date"},
-    {"fieldname": "total_score", "label": "Total Score", "fieldtype": "Float", "read_only": 1},
-    {"fieldname": "questions", "label": "Questions", "fieldtype": "Table", "options": "YMRS Assessment Question"}
-  ],
+ "fields": [
+  {
+   "fetch_from": "patient.patient_name",
+   "fieldname": "patient_name",
+   "fieldtype": "Data",
+   "label": "Patient Name"
+  },
+  {
+   "fieldname": "assessment_date",
+   "fieldtype": "Date",
+   "label": "Date"
+  },
+  {
+   "fieldname": "practitioner",
+   "fieldtype": "Link",
+   "label": "Practitioner",
+   "options": "Healthcare Practitioner"
+  },
+  {
+   "fieldname": "practitioner_name",
+   "fieldtype": "Data",
+   "label": "Practitioner Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "inpatient_admission",
+   "fieldtype": "Link",
+   "label": "Inpatient Admission",
+   "options": "Inpatient Admission"
+  },
+  {
+   "fieldname": "patient_visit",
+   "fieldtype": "Link",
+   "label": "Patient Visit",
+   "options": "Patient Visit"
+  },
+  {
+   "fieldname": "total_score",
+   "fieldtype": "Float",
+   "label": "Total Score",
+   "read_only": 1
+  },
+  {
+   "fieldname": "severity",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Severity",
+   "options": "No Mania\nHypomania\nMild Mania\nModerate Mania\nSevere Mania",
+   "read_only": 1
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Text Editor",
+   "label": "Notes"
+  },
+  {
+   "fieldname": "questions",
+   "fieldtype": "Table",
+   "label": "Questions",
+   "options": "YMRS Assessment Question"
+  },
+  {
+   "fieldname": "patient",
+   "fieldtype": "Link",
+   "label": "Patient",
+   "options": "Patient"
+  },
+  {
+   "fieldname": "template",
+   "fieldtype": "Link",
+   "label": "YMRS Template",
+   "options": "YMRS Template"
+  }
+ ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-04-02 14:50:32.510818",
+ "modified": "2026-06-08 18:14:45.742862",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "YMRS Assessment",

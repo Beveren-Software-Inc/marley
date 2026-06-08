@@ -1,40 +1,19 @@
 // components/suicideRisk/SuicideRiskAssessmentList.tsx
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Shield, AlertTriangle } from 'lucide-react'
 import {
   fetchSuicideRiskAssessments,
   type SuicideRiskAssessmentRow,
 } from '../../services/suicideRisk'
 import { useCardFilters } from '../../contexts/CardFilterContext'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
-import { DetailSlideOver } from '../ui/DetailSlideOver'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
+import { ClinicalSuicideRiskAssessmentDetailPanel } from './ClinicalSuicideRiskAssessmentDetailPanel'
 
 interface SuicideRiskAssessmentListProps {
   patient?: string
   inpatientAdmission?: string
   refreshKey?: number
   onPatientClick?: (patient: string) => void
-}
-
-const statusBadge = (docstatus: number) => {
-  if (docstatus === 1)
-    return (
-      <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium bg-emerald-100 text-emerald-700">
-        Submitted
-      </span>
-    )
-  if (docstatus === 2)
-    return (
-      <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium bg-red-100 text-red-700">
-        Cancelled
-      </span>
-    )
-  return (
-    <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium bg-amber-100 text-amber-700">
-      Draft
-    </span>
-  )
 }
 
 const riskLevelBadge = (level?: string) => {
@@ -76,7 +55,6 @@ export const SuicideRiskAssessmentList = ({
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<SuicideRiskAssessmentRow | null>(null)
-  const panelRef = useRef<HTMLDivElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const cardFilters = useCardFilters()
@@ -87,7 +65,6 @@ export const SuicideRiskAssessmentList = ({
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
   const [riskLevelFilter, setRiskLevelFilter] = useState('')
-  const [statusFilter, setStatusFilter] = useState('')
 
   const load = async (q?: string) => {
     setLoading(true)
@@ -119,10 +96,9 @@ export const SuicideRiskAssessmentList = ({
       if (fromDate && day && day < fromDate) return false
       if (toDate && day && day > toDate) return false
       if (riskLevelFilter && r.risk_level !== riskLevelFilter) return false
-      if (statusFilter !== '' && String(r.docstatus) !== statusFilter) return false
       return true
     })
-  }, [records, fromDate, toDate, riskLevelFilter, statusFilter])
+  }, [records, fromDate, toDate, riskLevelFilter])
 
   const riskLevelOptions = useMemo(() => {
     const s = new Set<string>()
@@ -132,18 +108,7 @@ export const SuicideRiskAssessmentList = ({
     return Array.from(s).sort()
   }, [records])
 
-  const hasActiveFilters = Boolean(fromDate || toDate || riskLevelFilter || statusFilter)
-
-  useEffect(() => {
-    if (!selected) return
-    const onDown = (e: MouseEvent) => {
-      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
-        setSelected(null)
-      }
-    }
-    document.addEventListener('mousedown', onDown)
-    return () => document.removeEventListener('mousedown', onDown)
-  }, [selected])
+  const hasActiveFilters = Boolean(fromDate || toDate || riskLevelFilter)
 
   const fmt = (val: string | null | undefined) => {
     if (!val) return '—'
@@ -216,26 +181,12 @@ export const SuicideRiskAssessmentList = ({
               ))}
             </select>
           </div>
-          <div className="flex flex-col gap-1 min-w-[120px]">
-            <label className="text-xs font-medium text-slate-500">Status</label>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white"
-            >
-              <option value="">All</option>
-              <option value="0">Draft</option>
-              <option value="1">Submitted</option>
-              <option value="2">Cancelled</option>
-            </select>
-          </div>
           {hasActiveFilters && (
             <ClearFiltersButton
               onClick={() => {
                 setFromDate('')
                 setToDate('')
                 setRiskLevelFilter('')
-                setStatusFilter('')
               }}
             />
           )}
@@ -272,7 +223,6 @@ export const SuicideRiskAssessmentList = ({
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">Clinician</th>
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">Risk Score</th>
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">Risk Level</th>
-                <th className="px-3 py-2 text-left font-semibold text-slate-600">Status</th>
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">Action</th>
               </tr>
             </thead>
@@ -310,7 +260,6 @@ export const SuicideRiskAssessmentList = ({
                     </span>
                   </td>
                   <td className="px-3 py-2">{riskLevelBadge(r.risk_level)}</td>
-                  <td className="px-3 py-2">{statusBadge(r.docstatus)}</td>
                   <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
                     <PrintFormatDropdown
                       doctype="Clinical Suicide Risk Assessment"
@@ -328,68 +277,12 @@ export const SuicideRiskAssessmentList = ({
       )}
 
       {selected && (
-        <DetailSlideOver
-          title="Suicide Risk Assessment"
-          subtitle={selected.name}
-          icon={<Shield className="h-5 w-5 text-emerald-700" strokeWidth={2} />}
-          maxWidthClass="max-w-md"
+        <ClinicalSuicideRiskAssessmentDetailPanel
+          name={selected.name}
+          preview={selected}
           onClose={() => setSelected(null)}
-          headerActions={
-            <a
-              href={`/app/clinical-suicide-risk-assessment/${encodeURIComponent(selected.name)}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="rounded-lg px-2 py-1 text-xs font-medium text-emerald-800 hover:bg-emerald-200/50"
-            >
-              Open in Desk ↗
-            </a>
-          }
-        >
-            <div ref={panelRef} className="flex flex-col gap-5 p-1">
-              <div className="flex items-center gap-2">
-                {statusBadge(selected.docstatus)}
-                {riskLevelBadge(selected.risk_level)}
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                {[
-                  { label: 'Patient', value: selected.patient_name || selected.patient },
-                  { label: 'Assessment Date', value: fmt(selected.assessment_date) },
-                  { label: 'Clinician', value: selected.clinician_name || selected.clinician || '—' },
-                  { label: 'Risk Score', value: selected.risk_score != null ? String(selected.risk_score) : '—' },
-                ].map(({ label, value }) => (
-                  <div key={label} className="bg-slate-50 border border-slate-200 rounded-lg p-3">
-                    <div className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold">{label}</div>
-                    <div className="text-sm font-semibold text-slate-800 mt-1 truncate" title={value}>
-                      {value}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {selected.risk_level && (
-                <div
-                  className={`rounded-lg p-4 border ${
-                    selected.risk_level === 'Emergency'
-                      ? 'bg-red-50 border-red-200'
-                      : selected.risk_level === 'High'
-                        ? 'bg-orange-50 border-orange-200'
-                        : selected.risk_level === 'Medium'
-                          ? 'bg-yellow-50 border-yellow-200'
-                          : 'bg-green-50 border-green-200'
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <AlertTriangle className="w-5 h-5" />
-                    <div>
-                      <div className="text-sm font-semibold">Risk Level: {selected.risk_level}</div>
-                      <div className="text-xs mt-1">Score: {selected.risk_score}/100</div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-        </DetailSlideOver>
+          onPatientClick={onPatientClick}
+        />
       )}
     </div>
   )

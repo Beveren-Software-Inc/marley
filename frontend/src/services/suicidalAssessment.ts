@@ -15,6 +15,8 @@ export interface SuicidalAssessment {
   assessed_by_name?: string
 }
 
+export type SuicidalAssessmentDetail = SuicidalAssessment & Record<string, unknown>
+
 export async function fetchSuicidalAssessments(
   patient?: string,
   admission?: string,
@@ -28,7 +30,8 @@ export async function fetchSuicidalAssessments(
   if (admission) params.append('admission', admission)
 
   const response = await fetch(
-    `/api/method/healthcare.api.suicidal_assessment.get_suicidal_assessments?${params.toString()}`
+    `/api/method/healthcare.api.suicidal_assessment.get_suicidal_assessments?${params.toString()}`,
+    { credentials: 'include' }
   )
 
   const resData = await response.json()
@@ -44,13 +47,46 @@ export async function fetchSuicidalAssessments(
   return []
 }
 
-export async function fetchSuicidalAssessmentById(name: string): Promise<any> {
-  const response = await fetch(`/api/resource/Suicidal%20Patient%20Assessment/${name}`)
-  const resData = await response.json()
-  
-  if (resData?.data) {
-    return resData.data
+export async function createSuicidalPatientAssessment(
+  data: Record<string, unknown>
+): Promise<{ success: boolean; name?: string; message?: string }> {
+  const res = await fetch(
+    '/api/method/healthcare.api.suicidal_assessment.create_suicidal_patient_assessment',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Frappe-CSRF-Token': (window as any).csrf_token || '',
+      },
+      credentials: 'include',
+      body: JSON.stringify({ data: JSON.stringify(data) }),
+    }
+  )
+  const resData = await res.json()
+  if (resData?.exc_type) {
+    return {
+      success: false,
+      message:
+        (typeof resData._error_message === 'string' && resData._error_message) ||
+        (typeof resData.message === 'string' && resData.message) ||
+        'Failed to save assessment.',
+    }
   }
-  
-  throw new Error('Failed to fetch assessment details')
+  const msg = resData?.message
+  return msg ?? { success: false, message: 'Unknown error' }
+}
+
+export async function fetchSuicidalAssessmentById(name: string): Promise<SuicidalAssessmentDetail> {
+  const params = new URLSearchParams({ name })
+  const response = await fetch(
+    `/api/method/healthcare.api.suicidal_assessment.get_suicidal_patient_assessment?${params.toString()}`,
+    { credentials: 'include' }
+  )
+  const resData = await response.json()
+
+  if (resData?.exc_type) {
+    throw new Error(resData?.message || 'Failed to fetch assessment details')
+  }
+
+  return resData?.message as SuicidalAssessmentDetail
 }

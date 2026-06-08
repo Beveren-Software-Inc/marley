@@ -14,6 +14,33 @@ export interface SuicideRiskAssessmentRow {
   docstatus: number
 }
 
+export interface SuicideRiskAssessmentDetail extends SuicideRiskAssessmentRow {
+  has_ideation?: number | boolean
+  ideation_frequency?: string
+  ideation_duration?: string
+  ideation_increasing?: string
+  ideation_24h?: number | boolean
+  has_plan?: number | boolean
+  plan_method?: string
+  plan_location?: string
+  plan_immediacy?: string
+  access_lethal_means?: number | boolean
+  risk_behavior?: number | boolean
+  has_history?: number | boolean
+  attempt_count?: number
+  last_attempt?: string
+  psychiatric_history?: string
+  has_stressors?: number | boolean
+  stressors_description?: string
+  has_support?: number | boolean
+  support_people?: string
+  has_coping?: number | boolean
+  coping_strategies?: string
+  reasons_to_live?: string
+  personal_strengths?: string
+  actions_required?: string
+}
+
 export interface CreateSuicideRiskAssessmentInput {
   patient: string
   assessment_date: string
@@ -103,4 +130,19 @@ export async function fetchSuicideRiskAssessments(
     return data.message as SuicideRiskAssessmentRow[]
   }
   return []
+}
+
+export async function fetchSuicideRiskAssessment(
+  name: string
+): Promise<SuicideRiskAssessmentDetail> {
+  const params = new URLSearchParams({ name })
+  const res = await fetch(
+    `/api/method/healthcare.api.clinical_suicide.get_suicide_risk_assessment?${params.toString()}`,
+    { credentials: 'include' }
+  )
+  const data = await res.json()
+  if (data?.exc_type) {
+    throw new Error(data?.message || 'Failed to load suicide risk assessment')
+  }
+  return data?.message as SuicideRiskAssessmentDetail
 }

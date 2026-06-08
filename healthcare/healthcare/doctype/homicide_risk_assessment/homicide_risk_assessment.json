@@ -1,7 +1,7 @@
 {
  "actions": [],
  "allow_rename": 1,
- "autoname": "format:HRA-.YYYY.-.#####",
+ "autoname": "HRA-.#####",
  "creation": "2026-04-02 16:53:11.896360",
  "doctype": "DocType",
  "engine": "InnoDB",
@@ -9,8 +9,13 @@
   "section_basic_info",
   "patient",
   "assessment_date",
+  "practitioner",
+  "practitioner_name",
+  "inpatient_admission",
+  "patient_visit",
   "column_break_adqz",
   "clinician",
+  "patient_name",
   "section_reason",
   "reason_clinician",
   "reason_referral",
@@ -100,6 +105,30 @@
    "fieldname": "assessment_date",
    "fieldtype": "Date",
    "label": "Assessment Date"
+  },
+  {
+   "fieldname": "practitioner",
+   "fieldtype": "Link",
+   "label": "Practitioner",
+   "options": "Healthcare Practitioner"
+  },
+  {
+   "fieldname": "practitioner_name",
+   "fieldtype": "Data",
+   "label": "Practitioner Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "inpatient_admission",
+   "fieldtype": "Link",
+   "label": "Inpatient Admission",
+   "options": "Inpatient Admission"
+  },
+  {
+   "fieldname": "patient_visit",
+   "fieldtype": "Link",
+   "label": "Patient Visit",
+   "options": "Patient Visit"
   },
   {
    "fieldname": "clinician",
@@ -389,22 +418,22 @@
   },
   {
    "fieldname": "client_signature",
-   "fieldtype": "Signature",
+   "fieldtype": "Attach",
    "label": "Client Signature"
   },
   {
    "fieldname": "staff_signature",
-   "fieldtype": "Signature",
+   "fieldtype": "Attach",
    "label": "Staff Signature"
   },
   {
    "fieldname": "guardian_signature",
-   "fieldtype": "Signature",
+   "fieldtype": "Attach",
    "label": "Guardian Signature"
   },
   {
    "fieldname": "witness_signature",
-   "fieldtype": "Signature",
+   "fieldtype": "Attach",
    "label": "Witness Signature"
   },
   {
@@ -462,16 +491,22 @@
   {
    "fieldname": "column_break_mcun",
    "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "patient.patient_name",
+   "fieldname": "patient_name",
+   "fieldtype": "Data",
+   "label": "Patient Name"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-04-14 16:56:20.416153",
+ "modified": "2026-06-08 18:07:22.887327",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Homicide Risk Assessment",
- "naming_rule": "Expression (old style)",
+ "naming_rule": "Expression",
  "owner": "Administrator",
  "permissions": [
   {

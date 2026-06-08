@@ -9,6 +9,7 @@
   "template_name",
   "section_break_xxej",
   "description",
+  "default",
   "section_break_rhmg",
   "questions"
  ],
@@ -25,6 +26,12 @@
    "fieldname": "description",
    "fieldtype": "Text Editor",
    "label": "Description"
+  },
+  {
+   "default": "0",
+   "fieldname": "default",
+   "fieldtype": "Check",
+   "label": "Default"
   },
   {
    "fieldname": "questions",

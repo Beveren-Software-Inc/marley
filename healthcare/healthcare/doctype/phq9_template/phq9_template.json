@@ -9,6 +9,7 @@
   "template_name",
   "section_break_jstm",
   "description",
+  "default",
   "section_break_nvlo",
   "questions"
  ],
@@ -30,6 +31,12 @@
    "label": "Description"
   },
   {
+   "default": "0",
+   "fieldname": "default",
+   "fieldtype": "Check",
+   "label": "Default"
+  },
+  {
    "fieldname": "questions",
    "fieldtype": "Table",
    "label": "Questions",
@@ -48,7 +55,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-04-06 10:33:23.192956",
+ "modified": "2026-06-08 17:51:43.533552",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "PHQ9 Template",
@@ -64,6 +71,30 @@
    "read": 1,
    "report": 1,
    "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Nurse",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Doctor",
    "share": 1,
    "write": 1
   }

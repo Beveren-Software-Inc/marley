@@ -29,21 +29,40 @@ export interface YBOCSResponseRow {
 export interface YBOCSAssessmentRow {
   name: string
   patient: string
-  patient_name: string
+  patient_name?: string
   assessment_date: string
   template: string
+  practitioner?: string
+  practitioner_name?: string
   total_score: number
   total_obsessions: number
   total_compulsions: number
   docstatus: number
   notes?: string
+  inpatient_admission?: string
+  patient_visit?: string
 }
 
-// Response options
-export const RESPONSE_OPTIONS = ['0', '1', '2', '3', '4'] as const
-export type ResponseOption = typeof RESPONSE_OPTIONS[number]
+export interface YBOCSAssessmentDetail extends YBOCSAssessmentRow {
+  responses: YBOCSResponseRow[]
+}
 
-// Score mapping (same as value since it's 0-4)
+export interface YBOCSAssessmentListFilters {
+  dateFrom?: string
+  dateTo?: string
+  practitioner?: string
+}
+
+export interface YBOCSTemplateListItem {
+  name: string
+  label: string
+  description?: string
+  default?: boolean
+}
+
+export const RESPONSE_OPTIONS = ['0', '1', '2', '3', '4'] as const
+export type ResponseOption = (typeof RESPONSE_OPTIONS)[number]
+
 export const RESPONSE_SCORE: Record<ResponseOption, number> = {
   '0': 0,
   '1': 1,
@@ -52,34 +71,44 @@ export const RESPONSE_SCORE: Record<ResponseOption, number> = {
   '4': 4,
 }
 
-// ── Fetch templates list ──────────────────────────────────────────────────────
-export async function fetchYBOCSTemplates(
-  search?: string
-): Promise<{ name: string; label: string; description?: string }[]> {
-  const filters: any[] = []
-
-  if (search) {
-    filters.push(['template_name', 'like', `%${search}%`])
-  }
-
-  const params = new URLSearchParams({
-    fields: JSON.stringify(['name', 'template_name', 'description']),
-    filters: JSON.stringify(filters),
-    limit: '20',
-    order_by: 'template_name asc',
-  })
-
-  const res = await fetch(`/api/resource/YBOCS Template?${params}`)
-  const data = await res.json()
-
-  return (data?.data || []).map((t: any) => ({
-    name: t.name,
-    label: t.template_name || t.name,
-    description: t.description,
-  }))
+export interface CreateYBOCSAssessmentInput {
+  patient: string
+  assessment_date: string
+  template: string
+  notes?: string
+  practitioner?: string
+  inpatient_admission?: string
+  patient_visit?: string
+  responses: YBOCSResponseRow[]
 }
 
-// ── Fetch template questions ──────────────────────────────────────────────────
+export async function fetchYBOCSTemplates(
+  search?: string
+): Promise<YBOCSTemplateListItem[]> {
+  const params = new URLSearchParams()
+  if (search?.trim()) params.append('search', search.trim())
+
+  const res = await fetch(
+    `/api/method/healthcare.api.ybocs_assessment.get_ybocs_assessment_templates?${params.toString()}`
+  )
+  const data = await res.json()
+  if (data?.exc_type) {
+    throw new Error(data?.message || 'Failed to load YBOCS templates')
+  }
+  return data?.message || []
+}
+
+export async function fetchDefaultYBOCSTemplate(): Promise<YBOCSTemplateListItem | null> {
+  const res = await fetch(
+    '/api/method/healthcare.api.ybocs_assessment.get_default_ybocs_assessment_template'
+  )
+  const data = await res.json()
+  if (data?.exc_type) {
+    throw new Error(data?.message || 'Failed to load default YBOCS template')
+  }
+  return data?.message || null
+}
+
 export async function fetchYBOCSTemplateQuestions(
   templateName: string
 ): Promise<YBOCSTemplateData> {
@@ -89,7 +118,7 @@ export async function fetchYBOCSTemplateQuestions(
   )
   const data = await res.json()
   const msg = data?.message
-  
+
   if (msg && Array.isArray(msg.questions)) {
     return {
       name: msg.name,
@@ -98,22 +127,45 @@ export async function fetchYBOCSTemplateQuestions(
       questions: msg.questions,
     }
   }
-  
-  return { 
-    name: templateName, 
-    template_name: templateName, 
+
+  return {
+    name: templateName,
+    template_name: templateName,
     description: undefined,
-    questions: [] 
+    questions: [],
   }
 }
 
-// ── Create assessment ─────────────────────────────────────────────────────────
-export interface CreateYBOCSAssessmentInput {
-  patient: string
-  assessment_date: string
-  template: string
-  notes?: string
-  responses: YBOCSResponseRow[]
+export async function fetchYBOCSAssessments(
+  patient?: string,
+  filters: YBOCSAssessmentListFilters = {}
+): Promise<YBOCSAssessmentRow[]> {
+  const params = new URLSearchParams()
+  if (patient) params.append('patient', patient)
+  if (filters.practitioner) params.append('practitioner', filters.practitioner)
+  if (filters.dateFrom) params.append('date_from', filters.dateFrom)
+  if (filters.dateTo) params.append('date_to', filters.dateTo)
+
+  const res = await fetch(
+    `/api/method/healthcare.api.ybocs_assessment.get_ybocs_assessments?${params.toString()}`
+  )
+  const data = await res.json()
+  if (data?.exc_type) {
+    throw new Error(data?.message || 'Failed to load YBOCS assessments')
+  }
+  return data?.message || []
+}
+
+export async function fetchYBOCSAssessment(name: string): Promise<YBOCSAssessmentDetail> {
+  const params = new URLSearchParams({ name })
+  const res = await fetch(
+    `/api/method/healthcare.api.ybocs_assessment.get_ybocs_assessment?${params.toString()}`
+  )
+  const data = await res.json()
+  if (data?.exc_type) {
+    throw new Error(data?.message || 'Failed to load YBOCS assessment')
+  }
+  return data?.message as YBOCSAssessmentDetail
 }
 
 export async function createYBOCSAssessment(
@@ -133,38 +185,4 @@ export async function createYBOCSAssessment(
   const data = await res.json()
   const msg = data?.message
   return msg ?? { success: false, message: 'Unknown error' }
-}
-
-// ── Fetch assessments list ────────────────────────────────────────────────────
-export async function fetchYBOCSAssessments(
-  patient?: string,
-  search?: string
-): Promise<YBOCSAssessmentRow[]> {
-  const filters: any[] = []
-  
-  if (patient) filters.push(['patient', '=', patient])
-  if (search) filters.push(['patient_name', 'like', `%${search}%`])
-
-  const params = new URLSearchParams({
-    fields: JSON.stringify([
-      'name', 'patient', 'patient_name', 'assessment_date',
-      'template', 'total_score', 'total_obsessions', 'total_compulsions', 'docstatus', 'notes'
-    ]),
-    filters: JSON.stringify(filters),
-    limit: '50',
-    order_by: 'assessment_date desc',
-  })
-
-  const res = await fetch(`/api/resource/YBOCS Assessment?${params}`)
-  const data = await res.json()
-
-  if (data?.data) {
-    return data.data
-  }
-  
-  if (data?.message) {
-    return data.message
-  }
-  
-  return []
 }

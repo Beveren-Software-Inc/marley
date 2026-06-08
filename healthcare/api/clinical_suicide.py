@@ -1,6 +1,33 @@
 # healthcare/api/suicide_risk_assessment_api.py
 
 import frappe
+from frappe import _
+
+from healthcare.api.assessment_portal_utils import ensure_assessment_read_permission
+
+ASSESSMENT_DOCTYPE = "Clinical Suicide Risk Assessment"
+
+
+def _serialize_suicide_risk_assessment(doc) -> dict:
+	row = doc.as_dict()
+	if row.get("patient") and not row.get("patient_name"):
+		row["patient_name"] = frappe.db.get_value("Patient", row["patient"], "patient_name")
+	if row.get("clinician") and not row.get("clinician_name"):
+		row["clinician_name"] = (
+			frappe.db.get_value("Healthcare Practitioner", row["clinician"], "practitioner_name")
+			or row["clinician"]
+		)
+	return row
+
+
+@frappe.whitelist()
+def get_suicide_risk_assessment(name: str | None = None):
+	"""Fetch a single Clinical Suicide Risk Assessment with all entered fields."""
+	name = (name or "").strip()
+	if not name:
+		frappe.throw(_("Clinical Suicide Risk Assessment is required"))
+	doc = ensure_assessment_read_permission(ASSESSMENT_DOCTYPE, name)
+	return _serialize_suicide_risk_assessment(doc)
 
 @frappe.whitelist()
 def create_suicide_risk_assessment(data):

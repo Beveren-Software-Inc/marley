@@ -8,6 +8,7 @@
  "field_order": [
   "template_name",
   "description",
+  "default",
   "questions"
  ],
  "fields": [
@@ -23,6 +24,12 @@
    "fieldname": "description",
    "fieldtype": "Text Editor",
    "label": "Description"
+  },
+  {
+   "default": "0",
+   "fieldname": "default",
+   "fieldtype": "Check",
+   "label": "Default"
   },
   {
    "fieldname": "questions",

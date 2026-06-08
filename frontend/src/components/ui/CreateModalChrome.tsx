@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 
 /** Backdrop — centered create / edit dialogs */
@@ -11,7 +12,7 @@ export const CREATE_MODAL_OVERLAY_STACK =
 
 /** Backdrop — detail slide-over from the right (padding on all sides so panel is not flush-left). */
 export const DETAIL_PANEL_OVERLAY =
-  'fixed inset-0 z-50 flex items-stretch justify-end bg-primary/10 p-2 sm:p-3 backdrop-blur-[2px]'
+  'fixed inset-0 z-[70] flex items-stretch justify-end bg-primary/10 p-2 sm:p-3 backdrop-blur-[2px]'
 
 /**
  * Inner card shell — emerald ring, soft shadow (Clinical Suicide Risk / Service Request style).
@@ -195,7 +196,9 @@ export function DetailSlideOver({
   footer,
   maxWidthClass = 'max-w-2xl',
 }: DetailSlideOverProps) {
-  return (
+  if (typeof document === 'undefined') return null
+
+  return createPortal(
     <div
       className={DETAIL_PANEL_OVERLAY}
       onClick={(e) => {
@@ -213,13 +216,14 @@ export function DetailSlideOver({
           onClose={onClose}
           trailing={headerActions}
         />
-        <div className={`${CREATE_MODAL_BODY_GRADIENT} min-h-0 flex-1 px-5 py-4 sm:px-6 sm:py-5`}>
+        <div className={`${CREATE_MODAL_BODY_GRADIENT} min-h-0 flex-1 overflow-y-auto px-5 py-4 sm:px-6 sm:py-5`}>
           {children}
         </div>
         {footer != null ? (
           <div className={`${CREATE_MODAL_FOOTER_STICKY} justify-end`}>{footer}</div>
         ) : null}
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

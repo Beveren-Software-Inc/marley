@@ -1,12 +1,17 @@
 {
  "actions": [],
  "allow_rename": 1,
+ "autoname": "DA-.#####",
  "creation": "2026-04-02 13:33:11.043137",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
   "patient",
   "assessment_date",
+  "practitioner",
+  "practitioner_name",
+  "inpatient_admission",
+  "patient_visit",
   "template",
   "notes",
   "column_break_bppg",
@@ -32,6 +37,30 @@
    "in_list_view": 1,
    "label": "Assessment Date",
    "reqd": 1
+  },
+  {
+   "fieldname": "practitioner",
+   "fieldtype": "Link",
+   "label": "Practitioner",
+   "options": "Healthcare Practitioner"
+  },
+  {
+   "fieldname": "practitioner_name",
+   "fieldtype": "Data",
+   "label": "Practitioner Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "inpatient_admission",
+   "fieldtype": "Link",
+   "label": "Inpatient Admission",
+   "options": "Inpatient Admission"
+  },
+  {
+   "fieldname": "patient_visit",
+   "fieldtype": "Link",
+   "label": "Patient Visit",
+   "options": "Patient Visit"
   },
   {
    "fieldname": "template",
@@ -84,10 +113,11 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-04-05 14:11:33.587610",
+ "modified": "2026-06-08 17:46:01.849913",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Depression Assessment",
+ "naming_rule": "Expression",
  "owner": "Administrator",
  "permissions": [
   {
@@ -99,6 +129,30 @@
    "read": 1,
    "report": 1,
    "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Doctor",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Nurse",
    "share": 1,
    "write": 1
   }
