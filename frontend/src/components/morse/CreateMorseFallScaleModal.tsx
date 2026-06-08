@@ -23,6 +23,7 @@ import {
   getCurrentUserPractitioner,
   type LinkFieldOption,
 } from '../../services/common'
+import { useCareContext } from '../../providers/CareContextProvider'
 import { toast } from '../../hooks/useToast'
 
 interface LinkComboboxProps {
@@ -217,10 +218,13 @@ export function CreateMorseFallScaleModal({
   onClose,
   onCreated,
 }: CreateMorseFallScaleModalProps) {
+  const { activeAdmission } = useCareContext()
+  const lockedAdmission = activeAdmission || defaultAdmission || ''
+
   const [activeTab, setActiveTab] = useState<TabId>('assessment')
   const [admissionOptions, setAdmissionOptions] = useState<{ name: string; label: string }[]>([])
   const [companyOptions, setCompanyOptions] = useState<{ name: string; label: string }[]>([])
-  const [selectedAdmission, setSelectedAdmission] = useState<string>(defaultAdmission ?? '')
+  const [selectedAdmission, setSelectedAdmission] = useState<string>(lockedAdmission)
   const [practitioner, setPractitioner] = useState('')
   const [practitionerLabel, setPractitionerLabel] = useState('')
   const [ordererNumber, setOrdererNumber] = useState('')
@@ -241,11 +245,20 @@ export function CreateMorseFallScaleModal({
   const [extraRows, setExtraRows] = useState<MorseFallScaleDetailRow[]>([])
 
   useEffect(() => {
-    if (patient) {
+    if (lockedAdmission) setSelectedAdmission(lockedAdmission)
+  }, [lockedAdmission])
+
+  useEffect(() => {
+    if (patient && !lockedAdmission) {
       fetchInpatientAdmissionOptions(undefined, patient)
         .then(setAdmissionOptions)
         .catch(() => setAdmissionOptions([]))
+    } else {
+      setAdmissionOptions([])
     }
+  }, [patient, lockedAdmission])
+
+  useEffect(() => {
     fetchCompanies()
       .then((opts) => {
         setCompanyOptions(opts)
@@ -254,7 +267,7 @@ export function CreateMorseFallScaleModal({
         }
       })
       .catch(() => setCompanyOptions([]))
-  }, [patient])
+  }, [])
 
   useEffect(() => {
     getCurrentUserPractitioner()
@@ -382,17 +395,23 @@ export function CreateMorseFallScaleModal({
                     <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
                       Inpatient Admission <span className="text-red-500">*</span>
                     </label>
-                    <select
-                      value={selectedAdmission}
-                      onChange={(e) => setSelectedAdmission(e.target.value)}
-                      required
-                      className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
-                    >
-                      <option value="">— Select admission —</option>
-                      {admissionOptions.map((a) => (
-                        <option key={a.name} value={a.name}>{a.label}</option>
-                      ))}
-                    </select>
+                    {lockedAdmission ? (
+                      <div className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white px-3 py-2 text-sm">
+                        {lockedAdmission}
+                      </div>
+                    ) : (
+                      <select
+                        value={selectedAdmission}
+                        onChange={(e) => setSelectedAdmission(e.target.value)}
+                        required
+                        className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+                      >
+                        <option value="">— Select admission —</option>
+                        {admissionOptions.map((a) => (
+                          <option key={a.name} value={a.name}>{a.label}</option>
+                        ))}
+                      </select>
+                    )}
                   </div>
 
                   <div>

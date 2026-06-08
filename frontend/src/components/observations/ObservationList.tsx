@@ -3,8 +3,7 @@ import { fetchObservations, createObservationSalesOrder, type Observation } from
 import { useFormatMoney } from '../../hooks/useFormatMoney'
 import { toast } from '../../hooks/useToast'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
-import { DetailSlideOver } from '../ui/DetailSlideOver'
-import { DocDetailView } from '../ui/DocDetailView'
+import { ObservationDetailPanel } from './ObservationDetailPanel'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 
 interface ObservationListProps {
@@ -18,6 +17,7 @@ export const ObservationList = ({ patient, onPatientClick }: ObservationListProp
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
   const [detailName, setDetailName] = useState<string | null>(null)
+  const [detailPreview, setDetailPreview] = useState<Observation | undefined>(undefined)
   const [openActionRow, setOpenActionRow] = useState<string | null>(null)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const actionMenuRef = useRef<HTMLDivElement>(null)
@@ -167,7 +167,10 @@ export const ObservationList = ({ patient, onPatientClick }: ObservationListProp
             <tr key={obs.name} className="hover:bg-slate-50">
               <td
                 className="px-4 py-3 text-sm font-medium text-primary cursor-pointer hover:underline"
-                onClick={() => setDetailName(obs.name)}
+                onClick={() => {
+                  setDetailPreview(obs)
+                  setDetailName(obs.name)
+                }}
               >
                 {obs.trans_no || obs.name}
               </td>
@@ -272,15 +275,17 @@ export const ObservationList = ({ patient, onPatientClick }: ObservationListProp
         </tbody>
       </table>
 
-      {detailName && (
-        <DetailSlideOver
-          title="Observation"
-          subtitle={detailName}
-          onClose={() => setDetailName(null)}
-        >
-          <DocDetailView doctype="Observation" name={detailName} onUpdate={loadObservations} />
-        </DetailSlideOver>
-      )}
+      {detailName ? (
+        <ObservationDetailPanel
+          name={detailName}
+          preview={detailPreview}
+          onClose={() => {
+            setDetailName(null)
+            setDetailPreview(undefined)
+          }}
+          onPatientClick={onPatientClick}
+        />
+      ) : null}
     </div>
   )
 }

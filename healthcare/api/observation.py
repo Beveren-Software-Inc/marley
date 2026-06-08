@@ -12,6 +12,43 @@ from healthcare.api.sales_order_cost_center import (
 )
 from healthcare.healthcare.doctype.observation.observation import fill_patient_from_admission
 
+OBSERVATION_PORTAL_READ_ROLES = frozenset(
+	{
+		"Administrator",
+		"System Manager",
+		"Healthcare Administrator",
+		"Doctor",
+		"Nurse",
+		"Physician",
+		"Psychologist",
+		"Anesthesiologist",
+		"Therapist",
+		"Nutritionist",
+	}
+)
+
+
+def _user_can_read_observation_portal() -> bool:
+	if frappe.session.user in ("Guest", ""):
+		return False
+	return bool(OBSERVATION_PORTAL_READ_ROLES & set(frappe.get_roles(frappe.session.user)))
+
+
+def _enrich_observation_row(obs: dict) -> dict:
+	if obs.get("patient") and not obs.get("patient_name"):
+		patient_name = frappe.db.get_value("Patient", obs["patient"], "patient_name")
+		if patient_name:
+			obs["patient_name"] = patient_name
+	if obs.get("healthcare_practitioner") and not obs.get("practitioner_name"):
+		practitioner_name = frappe.db.get_value(
+			"Healthcare Practitioner",
+			obs["healthcare_practitioner"],
+			"practitioner_name",
+		)
+		if practitioner_name:
+			obs["practitioner_name"] = practitioner_name
+	return obs
+
 
 def _observation_visit_admission_refs(obs_doc):
 	"""IP/OP context for Sales Order custom_reference_* — same idea as Service Request."""
@@ -78,17 +115,28 @@ def get_observations(limit=50, offset=0, patient=None):
 	
 	# Enrich patient / practitioner names
 	for obs in observations:
-		if obs.patient and not obs.patient_name:
-			patient_name = frappe.db.get_value('Patient', obs.patient, 'patient_name')
-			if patient_name:
-				obs['patient_name'] = patient_name
-
-		if obs.healthcare_practitioner and not obs.practitioner_name:
-			practitioner_name = frappe.db.get_value('Healthcare Practitioner', obs.healthcare_practitioner, 'practitioner_name')
-			if practitioner_name:
-				obs['practitioner_name'] = practitioner_name
+		_enrich_observation_row(obs)
 	
 	return observations
+
+
+@frappe.whitelist()
+def get_observation(name: str | None = None):
+	"""Return one Observation for the healthcare portal (avoids REST DocPerm gaps)."""
+	name = (name or "").strip()
+	if not name:
+		frappe.throw(_("Observation is required"))
+
+	if not frappe.db.exists("Observation", name):
+		frappe.throw(_("Observation {0} not found").format(name))
+
+	doc = frappe.get_doc("Observation", name)
+
+	if not frappe.has_permission("Observation", "read", doc=doc):
+		if not _user_can_read_observation_portal():
+			frappe.throw(_("Not permitted to read Observation"), frappe.PermissionError)
+
+	return _enrich_observation_row(doc.as_dict())
 
 
 @frappe.whitelist()

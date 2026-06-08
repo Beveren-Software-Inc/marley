@@ -11,6 +11,8 @@
   "assessment_date",
   "column_break_xsbu",
   "template",
+  "inpatient_admission",
+  "patient_visit",
   "section_break_uowe",
   "notes",
   "section_break_toet",
@@ -43,8 +45,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Template",
-   "options": "ADHD Assessment Template",
-   "reqd": 1
+   "options": "ADHD Assessment Template"
   },
   {
    "fieldname": "notes",
@@ -97,12 +98,24 @@
    "fieldname": "patient_name",
    "fieldtype": "Data",
    "label": "Patient Name"
+  },
+  {
+   "fieldname": "inpatient_admission",
+   "fieldtype": "Link",
+   "label": "Inpatient Admission",
+   "options": "Inpatient Admission"
+  },
+  {
+   "fieldname": "patient_visit",
+   "fieldtype": "Link",
+   "label": "Patient Visit",
+   "options": "Patient Visit"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-04-14 16:57:34.520625",
+ "modified": "2026-06-08 13:48:01.319812",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "ADHD Assessment",

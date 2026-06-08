@@ -1038,7 +1038,6 @@ def get_long_acting_medicine_list(patient=None, limit=50, offset=0):
 		return []
 	limit = int(limit) if limit else 50
 	offset = int(offset) if offset else 0
-	print("Unafika hapa")
 	docs = frappe.get_all(
 		"Long Acting Medicine",
 		filters={"patient": patient, "docstatus": ["!=", 2]},
@@ -1048,6 +1047,57 @@ def get_long_acting_medicine_list(patient=None, limit=50, offset=0):
 		limit_start=offset,
 	)
 	return list(docs)
+
+
+LONG_ACTING_MEDICINE_PORTAL_ROLES = frozenset(
+	{
+		"Administrator",
+		"System Manager",
+		"Healthcare Administrator",
+		"Doctor",
+		"Nurse",
+		"Physician",
+		"Psychologist",
+		"Anesthesiologist",
+		"Therapist",
+		"Nutritionist",
+		"Receptionist",
+	}
+)
+
+
+def _user_can_access_long_acting_medicine_portal() -> bool:
+	if frappe.session.user in ("Guest", ""):
+		return False
+	return bool(LONG_ACTING_MEDICINE_PORTAL_ROLES & set(frappe.get_roles(frappe.session.user)))
+
+
+@frappe.whitelist()
+def get_long_acting_medicine(name: str | None = None):
+	"""Return one Long Acting Medicine for the healthcare portal (avoids REST DocPerm gaps)."""
+	name = (name or "").strip()
+	if not name:
+		frappe.throw(_("Long Acting Medicine is required"))
+
+	if not frappe.db.exists("Long Acting Medicine", name):
+		frappe.throw(_("Long Acting Medicine {0} not found").format(name))
+
+	doc = frappe.get_doc("Long Acting Medicine", name)
+
+	if not frappe.has_permission("Long Acting Medicine", "read", doc=doc):
+		if not _user_can_access_long_acting_medicine_portal():
+			frappe.throw(
+				_("Not permitted to read Long Acting Medicine"),
+				frappe.PermissionError,
+			)
+
+	data = doc.as_dict()
+	if doc.practitioner:
+		data["practitioner_name"] = (
+			frappe.db.get_value("Healthcare Practitioner", doc.practitioner, "practitioner_name")
+			or doc.practitioner
+		)
+	return data
 
 
 @frappe.whitelist()

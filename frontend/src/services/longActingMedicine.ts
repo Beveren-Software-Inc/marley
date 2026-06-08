@@ -9,6 +9,32 @@ export interface LongActingMedicineRow {
   status?: string
   remarks?: string
   drug_name?: string
+  practitioner?: string
+  practitioner_name?: string
+  doctors_remark?: string
+  medications?: LongActingMedicineItem[]
+}
+
+export interface LongActingMedicineItem {
+  name?: string
+  drug?: string
+  drug_name?: string
+  dosage?: number | string
+  dosage_form?: string
+  instructions?: string
+  patient_frequency?: string
+  qty_per_cycle?: number | string
+  is_active?: number | boolean
+}
+
+export async function fetchLongActingMedicine(name: string): Promise<LongActingMedicineRow> {
+  const params = new URLSearchParams({ name })
+  const res = await fetch(
+    `/api/method/healthcare.api.common.get_long_acting_medicine?${params.toString()}`
+  )
+  const data = await res.json()
+  if (data?.exc_type) throw new Error(data?.message || 'Failed to load long acting medicine')
+  return (data?.message || {}) as LongActingMedicineRow
 }
 
 export type ReminderChannel = 'email' | 'whatsapp' | 'sms'
