@@ -1,174 +1,313 @@
-// components/suicidal/SuicidalAssessmentList.tsx
-import { useState, useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { fetchSuicidalAssessments, type SuicidalAssessment } from '../../services/suicidalAssessment'
+import { Eye } from 'lucide-react'
+import {
+  fetchSuicidalAssessments,
+  type SuicidalAssessment,
+  type SuicidalAssessmentListFilters,
+} from '../../services/suicidalAssessment'
 import { useCareContext } from '../../providers/CareContextProvider'
-import { Plus, Eye, FileText, AlertTriangle } from 'lucide-react'
+import {
+  fetchHealthcarePractitioners,
+  type LinkFieldOption,
+} from '../../services/common'
+import { useCardFilters } from '../../contexts/CardFilterContext'
+import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import { StatusPill } from '../ui/StatusPill'
 import { SuicidalPatientAssessmentDetailPanel } from './SuicidalPatientAssessmentDetailPanel'
 
 interface SuicidalAssessmentListProps {
   patient?: string
   admission?: string
-  onAddNew?: () => void
+  refreshKey?: number
   onPatientClick?: (patient: string) => void
 }
+
+const FilterToggleButton = ({
+  active,
+  onClick,
+}: {
+  active: boolean
+  onClick: () => void
+}) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className={`p-1.5 rounded-md border transition-colors ${
+      active ? 'bg-primary/10 border-primary text-primary' : 'border-slate-300 text-slate-500 hover:bg-slate-50'
+    }`}
+    title={active ? 'Hide filters' : 'Show filters'}
+  >
+    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z"
+      />
+    </svg>
+  </button>
+)
 
 export const SuicidalAssessmentList = ({
   patient,
   admission,
-  onAddNew,
+  refreshKey,
   onPatientClick,
 }: SuicidalAssessmentListProps) => {
   const { selectedPatient: contextPatient, mode, activeAdmission } = useCareContext()
-  const [assessments, setAssessments] = useState<SuicidalAssessment[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [detailName, setDetailName] = useState<string | null>(null)
-  const [detailRow, setDetailRow] = useState<SuicidalAssessment | undefined>(undefined)
+  const cardFilters = useCardFilters()
+  const inDashboardCard = cardFilters !== undefined
+  const [showFiltersInternal, setShowFiltersInternal] = useState(false)
+  const showFilters = inDashboardCard ? cardFilters : showFiltersInternal
 
   const effectivePatient = patient ?? contextPatient
   const effectiveAdmission = mode === 'IP' && activeAdmission ? activeAdmission : admission
 
-  useEffect(() => {
-    const loadAssessments = async () => {
-      if (!effectivePatient && !effectiveAdmission) {
-        setAssessments([])
-        setLoading(false)
-        return
-      }
+  const [assessments, setAssessments] = useState<SuicidalAssessment[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [detailName, setDetailName] = useState<string | null>(null)
+  const [detailRow, setDetailRow] = useState<SuicidalAssessment | undefined>(undefined)
 
-      try {
-        setLoading(true)
-        setError(null)
-        const response = await fetchSuicidalAssessments(effectivePatient, effectiveAdmission)
-        setAssessments(response)
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to fetch assessments')
-      } finally {
-        setLoading(false)
-      }
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+  const [practitionerFilter, setPractitionerFilter] = useState('')
+  const [practitionerOptions, setPractitionerOptions] = useState<LinkFieldOption[]>([])
+  const [practitionerOpen, setPractitionerOpen] = useState(false)
+  const [practitionerQuery, setPractitionerQuery] = useState('')
+
+  const listFilters: SuicidalAssessmentListFilters = {
+    dateFrom: dateFrom || undefined,
+    dateTo: dateTo || undefined,
+    practitioner: practitionerFilter || undefined,
+  }
+
+  const hasActiveFilters = Boolean(dateFrom || dateTo || practitionerFilter)
+
+  const load = useCallback(async () => {
+    if (!effectivePatient && !effectiveAdmission) {
+      setAssessments([])
+      setLoading(false)
+      return
     }
+    setLoading(true)
+    setError(null)
+    try {
+      const data = await fetchSuicidalAssessments(effectivePatient, effectiveAdmission, listFilters)
+      setAssessments(data)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch assessments')
+      setAssessments([])
+    } finally {
+      setLoading(false)
+    }
+  }, [effectivePatient, effectiveAdmission, dateFrom, dateTo, practitionerFilter])
 
-    loadAssessments()
-  }, [effectivePatient, effectiveAdmission])
+  useEffect(() => {
+    load()
+  }, [load, refreshKey])
+
+  useEffect(() => {
+    if (!practitionerOpen) return
+    const t = setTimeout(async () => {
+      try {
+        const opts = await fetchHealthcarePractitioners(practitionerQuery || undefined)
+        setPractitionerOptions(opts)
+      } catch {
+        setPractitionerOptions([])
+      }
+    }, practitionerQuery.trim() === '' ? 0 : 300)
+    return () => clearTimeout(t)
+  }, [practitionerQuery, practitionerOpen])
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      const el = e.target as HTMLElement
+      if (el.closest('[data-suicidal-practitioner-filter]')) return
+      setPractitionerOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
 
   const handleView = (assessment: SuicidalAssessment) => {
     setDetailRow(assessment)
     setDetailName(assessment.name)
   }
 
+  const clearFilters = () => {
+    setDateFrom('')
+    setDateTo('')
+    setPractitionerFilter('')
+    setPractitionerQuery('')
+    setPractitionerOpen(false)
+  }
+
   const formatDate = (dateStr?: string) => {
-    if (!dateStr) return '-'
-    return new Date(dateStr).toLocaleDateString()
+    if (!dateStr) return '—'
+    try {
+      return new Date(dateStr).toLocaleDateString()
+    } catch {
+      return dateStr
+    }
   }
 
   const getRiskIndicator = (assessment: SuicidalAssessment) => {
     if (assessment.active_suicidal_thoughts_plans === 'Yes') {
-      return { color: 'danger', text: 'Active Suicidal Thoughts' }
+      return { color: 'danger' as const, text: 'Active Suicidal Thoughts' }
     }
     if (assessment.overwhelmed_thoughts_harming === 'Yes') {
-      return { color: 'warning', text: 'Has Thoughts' }
+      return { color: 'warning' as const, text: 'Has Thoughts' }
     }
-    return { color: 'success', text: 'No Active Thoughts' }
+    return { color: 'success' as const, text: 'No Active Thoughts' }
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center p-8">
-        <div className="text-slate-500">Loading assessments...</div>
-      </div>
-    )
-  }
+  const practitionerLabel = (assessment: SuicidalAssessment) =>
+    assessment.practitioner_name ||
+    assessment.assessed_by_name ||
+    assessment.practitioner ||
+    assessment.assessed_by ||
+    '—'
 
-  if (error) {
+  if (!effectivePatient && !effectiveAdmission) {
     return (
-      <div className="flex items-center justify-center p-8">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700 text-sm">
-          Error: {error}
-        </div>
+      <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-md px-4 py-3 text-sm">
+        Select a patient to view suicidal patient assessments.
       </div>
     )
   }
 
   return (
     <>
-      <div className="bg-white border border-slate-200 rounded-lg">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-amber-500" />
-            <h3 className="text-sm font-semibold text-slate-700">Suicidal Patient Assessments</h3>
+      <div className="flex flex-col gap-4">
+        {!inDashboardCard && (
+          <div className="flex items-center justify-end">
+            <FilterToggleButton
+              active={Boolean(showFilters)}
+              onClick={() => setShowFiltersInternal((prev) => !prev)}
+            />
           </div>
-          {onAddNew && (
-            <button
-              onClick={onAddNew}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white text-sm rounded-md hover:bg-primary/90 transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              New Assessment
-            </button>
-          )}
-        </div>
+        )}
 
-        {assessments.length === 0 ? (
-          <div className="flex flex-col items-center justify-center p-8 text-slate-400">
-            <FileText className="w-12 h-12 mb-2 opacity-30" />
-            <p className="text-sm">No suicidal assessments found</p>
-            {onAddNew && (
-              <button onClick={onAddNew} className="mt-3 text-sm text-primary hover:underline">
-                Create first assessment
-              </button>
-            )}
+        {showFilters && (
+          <div className="flex flex-wrap items-end gap-3 mb-1 px-1 py-2 border-b border-slate-100 bg-slate-50/80 rounded-md">
+            <div className="flex flex-col gap-1 min-w-[130px]">
+              <label className="text-xs font-medium text-slate-500">Date from</label>
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className="rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white"
+              />
+            </div>
+            <div className="flex flex-col gap-1 min-w-[130px]">
+              <label className="text-xs font-medium text-slate-500">Date to</label>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                className="rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white"
+              />
+            </div>
+            <div data-suicidal-practitioner-filter className="flex flex-col gap-1 min-w-[200px]">
+              <label className="text-xs font-medium text-slate-500">Practitioner</label>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={
+                    practitionerFilter
+                      ? practitionerOptions.find((p) => p.name === practitionerFilter)?.label ||
+                        practitionerQuery ||
+                        practitionerFilter
+                      : practitionerQuery
+                  }
+                  onChange={(e) => {
+                    setPractitionerQuery(e.target.value)
+                    setPractitionerFilter('')
+                    setPractitionerOpen(true)
+                  }}
+                  onFocus={() => setPractitionerOpen(true)}
+                  placeholder="Search practitioner…"
+                  className={`w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary ${
+                    practitionerFilter ? 'pr-8' : ''
+                  }`}
+                />
+                {practitionerFilter && (
+                  <button
+                    type="button"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    aria-label="Clear practitioner filter"
+                    onClick={() => {
+                      setPractitionerFilter('')
+                      setPractitionerQuery('')
+                      setPractitionerOpen(false)
+                    }}
+                  >
+                    ×
+                  </button>
+                )}
+                {practitionerOpen && practitionerOptions.length > 0 && (
+                  <div className="absolute z-30 left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-md shadow-lg max-h-48 overflow-auto">
+                    {practitionerOptions.map((p) => (
+                      <button
+                        key={p.name}
+                        type="button"
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => {
+                          setPractitionerFilter(p.name)
+                          setPractitionerQuery(p.label || p.name)
+                          setPractitionerOpen(false)
+                        }}
+                      >
+                        {p.label || p.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+            <ClearFiltersButton onClick={clearFilters} disabled={!hasActiveFilters} />
+          </div>
+        )}
+
+        {loading ? (
+          <div className="text-sm text-slate-500 py-4 text-center">Loading assessments…</div>
+        ) : error ? (
+          <div className="p-3 bg-red-50 border border-red-200 rounded-md text-xs text-red-700">{error}</div>
+        ) : assessments.length === 0 ? (
+          <div className="p-4 text-sm text-slate-600 border border-dashed border-slate-300 rounded-md text-center">
+            No suicidal patient assessments found{hasActiveFilters ? ' for the selected filters' : ''}.
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
+          <div className="overflow-x-auto border border-slate-200 rounded-lg">
+            <table className="min-w-full text-xs">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-                    ID
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-                    Assessment Date
-                  </th>
+                  <th className="px-3 py-2 text-left font-semibold text-slate-600">ID</th>
+                  <th className="px-3 py-2 text-left font-semibold text-slate-600">Date</th>
                   {!patient && (
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-                      Patient
-                    </th>
+                    <th className="px-3 py-2 text-left font-semibold text-slate-600">Patient</th>
                   )}
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-                    Admission No
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-                    Assessed By
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-                    Suicidal Thoughts
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-                    Current Plan
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-                    Previous Attempts
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-                    Risk Status
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase w-[80px]">
-                    Actions
-                  </th>
+                  <th className="px-3 py-2 text-left font-semibold text-slate-600">Admission</th>
+                  <th className="px-3 py-2 text-left font-semibold text-slate-600">Practitioner</th>
+                  <th className="px-3 py-2 text-left font-semibold text-slate-600">Thoughts</th>
+                  <th className="px-3 py-2 text-left font-semibold text-slate-600">Current Plan</th>
+                  <th className="px-3 py-2 text-left font-semibold text-slate-600">Prev. Attempts</th>
+                  <th className="px-3 py-2 text-left font-semibold text-slate-600">Risk</th>
+                  <th className="px-3 py-2 text-left font-semibold text-slate-600 w-[60px]"></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200">
+              <tbody className="divide-y divide-slate-100">
                 {assessments.map((assessment) => {
                   const risk = getRiskIndicator(assessment)
                   return (
                     <tr
                       key={assessment.name}
-                      className="hover:bg-slate-50 cursor-pointer"
+                      className="hover:bg-slate-50/80 cursor-pointer"
                       onClick={() => handleView(assessment)}
                     >
-                      <td className="px-4 py-3 text-sm">
+                      <td className="px-3 py-2">
                         <button
                           type="button"
                           onClick={(e) => {
@@ -180,7 +319,7 @@ export const SuicidalAssessmentList = ({
                           {assessment.name}
                         </button>
                       </td>
-                      <td className="px-4 py-3 text-sm whitespace-nowrap">
+                      <td className="px-3 py-2 whitespace-nowrap">
                         <button
                           type="button"
                           onClick={(e) => {
@@ -188,14 +327,13 @@ export const SuicidalAssessmentList = ({
                             handleView(assessment)
                           }}
                           className="font-medium text-primary hover:underline"
-                          title="View assessment details"
                         >
                           {formatDate(assessment.assessment_date)}
                         </button>
                       </td>
                       {!patient && (
                         <td
-                          className="px-4 py-3 text-sm cursor-pointer"
+                          className="px-3 py-2"
                           onClick={(e) => {
                             e.stopPropagation()
                             assessment.patient && onPatientClick?.(assessment.patient)
@@ -206,53 +344,51 @@ export const SuicidalAssessmentList = ({
                           </span>
                         </td>
                       )}
-                      <td className="px-4 py-3 text-sm text-slate-700">{assessment.admission_no || '-'}</td>
-                      <td className="px-4 py-3 text-sm text-slate-700">
-                        {assessment.assessed_by_name || assessment.assessed_by || '-'}
-                      </td>
-                      <td className="px-4 py-3 text-sm">
+                      <td className="px-3 py-2 text-slate-700">{assessment.admission_no || '—'}</td>
+                      <td className="px-3 py-2 text-slate-700">{practitionerLabel(assessment)}</td>
+                      <td className="px-3 py-2">
                         {assessment.overwhelmed_thoughts_harming === 'Yes' ? (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-amber-100 text-amber-700">
                             Yes
                           </span>
                         ) : assessment.overwhelmed_thoughts_harming === 'No' ? (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-green-100 text-green-700">
                             No
                           </span>
                         ) : (
-                          '-'
+                          '—'
                         )}
                       </td>
-                      <td className="px-4 py-3 text-sm">
+                      <td className="px-3 py-2">
                         {assessment.made_current_plans === 'Yes' ? (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-red-100 text-red-700">
                             Has Plan
                           </span>
                         ) : assessment.made_current_plans === 'No' ? (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-green-100 text-green-700">
                             No Plan
                           </span>
                         ) : (
-                          '-'
+                          '—'
                         )}
                       </td>
-                      <td className="px-4 py-3 text-sm">
+                      <td className="px-3 py-2">
                         {assessment.previous_attempts === 'Yes' ? (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-purple-100 text-purple-700">
                             Yes
                           </span>
                         ) : assessment.previous_attempts === 'No' ? (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-green-100 text-green-700">
                             No
                           </span>
                         ) : (
-                          '-'
+                          '—'
                         )}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-2">
                         <StatusPill status={risk.text} color={risk.color} />
                       </td>
-                      <td className="px-4 py-2" onClick={(e) => e.stopPropagation()}>
+                      <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
                         <button
                           type="button"
                           onClick={() => handleView(assessment)}

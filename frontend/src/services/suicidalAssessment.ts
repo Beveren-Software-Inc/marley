@@ -6,20 +6,29 @@ export interface SuicidalAssessment {
   patient_name?: string
   assessment_date: string
   assessed_by?: string
+  assessed_by_name?: string
+  practitioner?: string
+  practitioner_name?: string
   active_suicidal_thoughts_plans?: string
   overwhelmed_thoughts_harming?: string
   made_current_plans?: string
   previous_attempts?: string
   created_at?: string
   modified?: string
-  assessed_by_name?: string
 }
 
 export type SuicidalAssessmentDetail = SuicidalAssessment & Record<string, unknown>
 
+export interface SuicidalAssessmentListFilters {
+  dateFrom?: string
+  dateTo?: string
+  practitioner?: string
+}
+
 export async function fetchSuicidalAssessments(
   patient?: string,
   admission?: string,
+  filters: SuicidalAssessmentListFilters = {},
   limit: number = 50,
   offset: number = 0
 ): Promise<SuicidalAssessment[]> {
@@ -28,6 +37,9 @@ export async function fetchSuicidalAssessments(
   params.append('offset', offset.toString())
   if (patient) params.append('patient', patient)
   if (admission) params.append('admission', admission)
+  if (filters.dateFrom) params.append('date_from', filters.dateFrom)
+  if (filters.dateTo) params.append('date_to', filters.dateTo)
+  if (filters.practitioner) params.append('practitioner', filters.practitioner)
 
   const response = await fetch(
     `/api/method/healthcare.api.suicidal_assessment.get_suicidal_assessments?${params.toString()}`,

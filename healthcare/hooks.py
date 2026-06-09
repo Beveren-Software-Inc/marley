@@ -188,6 +188,12 @@ fixtures = [
 	},
     {
 		"doctype":"Practitioner Schedule"
+	},
+    {
+		"doctype":"YBOCS Template"
+	},
+    {
+		"doctype":"YMRS Template"
 	}
 ]
 

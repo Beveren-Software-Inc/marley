@@ -3,6 +3,16 @@
   "daily": 0,
   "docstatus": 0,
   "doctype": "Prescription Frequency",
+  "dosage": "Every 3 Months",
+  "dosage_strength": [],
+  "frequency_in_a_day": 0,
+  "modified": "2026-06-08 11:02:23.427208",
+  "name": "Every 3 Months"
+ },
+ {
+  "daily": 0,
+  "docstatus": 0,
+  "doctype": "Prescription Frequency",
   "dosage": "1-1-1-1",
   "dosage_strength": [
    {
