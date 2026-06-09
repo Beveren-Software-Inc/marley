@@ -5,6 +5,56 @@
 import frappe
 from frappe import _
 
+# Portal users list/read warnings via whitelisted APIs; REST /api/resource enforces DocPerm.
+WARNING_MESSAGE_PORTAL_READ_ROLES = frozenset(
+	{
+		"Administrator",
+		"System Manager",
+		"Healthcare Administrator",
+		"Doctor",
+		"Nurse",
+		"Nursing User",
+		"Physician",
+		"Psychologist",
+		"Anesthesiologist",
+		"Therapist",
+		"Nutritionist",
+		"Laboratory User",
+	}
+)
+
+
+def _user_can_read_warning_message_portal() -> bool:
+	if frappe.session.user in ("Guest", ""):
+		return False
+	return bool(WARNING_MESSAGE_PORTAL_READ_ROLES & set(frappe.get_roles(frappe.session.user)))
+
+
+def _enrich_warning_message_row(warning) -> dict:
+	as_dict = getattr(warning, "as_dict", None)
+	if callable(as_dict):
+		row = as_dict()
+	else:
+		row = dict(warning)
+
+	if row.get("patient"):
+		row["patient_name"] = (
+			frappe.db.get_value("Patient", row["patient"], "patient_name") or row["patient"]
+		)
+
+	if row.get("practitioner"):
+		row["practitioner_name"] = (
+			frappe.db.get_value(
+				"Healthcare Practitioner", row["practitioner"], "practitioner_name"
+			)
+			or row["practitioner"]
+		)
+
+	if not row.get("type_of_warning"):
+		row["type_of_warning"] = "Medical"
+
+	return row
+
 
 def allocate_warning_trans_id() -> str:
 	"""Next ``trans_id`` for Warning Message (autoname ``field:trans_id`` → document name).
@@ -88,6 +138,9 @@ def get_warning_messages(
 	:param practitioner: Optional Healthcare Practitioner id.
 	:param posting_date_from / posting_date_to: Optional posting_date range (YYYY-MM-DD).
 	"""
+	portal_reader = _user_can_read_warning_message_portal()
+	has_read = frappe.has_permission("Warning Message", "read")
+
 	filters = {}
 
 	if patient:
@@ -129,45 +182,33 @@ def get_warning_messages(
 		],
 		limit=limit,
 		limit_start=offset,
-		order_by='posting_date desc'
+		order_by='posting_date desc',
+		ignore_permissions=portal_reader and not has_read,
 	)
-	
-	# Get patient names and practitioner names for each warning
-	for warning in warnings:
-		if warning.patient:
-			patient_name = frappe.db.get_value('Patient', warning.patient, 'patient_name')
-			warning['patient_name'] = patient_name or warning.patient
-		
-		if warning.practitioner:
-			practitioner_name = frappe.db.get_value('Healthcare Practitioner', warning.practitioner, 'practitioner_name')
-			warning['practitioner_name'] = practitioner_name or warning.practitioner
-	
-	return warnings
+
+	return [_enrich_warning_message_row(warning) for warning in warnings]
 
 
 @frappe.whitelist()
-def get_warning_message(name):
-	"""Get single Warning Message by name"""
+def get_warning_message(name=None):
+	"""Return one Warning Message for the healthcare portal (avoids REST DocPerm gaps)."""
+	name = (name or "").strip()
 	if not name:
 		frappe.throw(_("Warning Message name is required"))
 
-	warning = frappe.get_doc('Warning Message', name)
-	
-	return {
-		'name': warning.name,
-		'patient': warning.patient,
-		'patient_name': warning.patient_name if hasattr(warning, 'patient_name') else frappe.db.get_value('Patient', warning.patient, 'patient_name'),
-		'posting_date': warning.posting_date,
-		'practitioner': warning.practitioner,
-		'practitioner_name': warning.practitioner_name if hasattr(warning, 'practitioner_name') else None,
-		'warning': warning.warning,
-		'reference_doc': warning.reference_doc,
-		'reference_name': warning.reference_name,
-		'medical_role': warning.medical_role,
-		'type_of_warning': getattr(warning, 'type_of_warning', None) or 'Medical',
-		'gender': warning.gender if hasattr(warning, 'gender') else None,
-		'blood_group': warning.blood_group if hasattr(warning, 'blood_group') else None
-	}
+	if not frappe.db.exists("Warning Message", name):
+		frappe.throw(_("Warning Message {0} not found").format(name))
+
+	doc = frappe.get_doc("Warning Message", name)
+
+	if not frappe.has_permission("Warning Message", "read", doc=doc):
+		if not _user_can_read_warning_message_portal():
+			frappe.throw(
+				_("Not permitted to read Warning Message"),
+				frappe.PermissionError,
+			)
+
+	return _enrich_warning_message_row(doc)
 
 
 @frappe.whitelist()

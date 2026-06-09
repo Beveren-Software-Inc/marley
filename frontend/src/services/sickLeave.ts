@@ -25,22 +25,32 @@ export interface CreateSickLeaveInput {
   patient_visit?: string
 }
 
+export interface SickLeaveFilters {
+  search?: string
+  dateFrom?: string
+  dateTo?: string
+  doctor?: string
+}
+
 export async function fetchSickLeaves(
   patient?: string,
-  search?: string,
   page = 1,
-  pageSize = 50
+  pageSize = 50,
+  filters: SickLeaveFilters = {}
 ): Promise<SickLeaveRow[]> {
   const params = new URLSearchParams({ page: String(page), page_size: String(pageSize) })
   if (patient) params.set('patient', patient)
-  if (search) params.set('search', search)
+  if (filters.search) params.set('search', filters.search)
+  if (filters.dateFrom) params.set('date_from', filters.dateFrom)
+  if (filters.dateTo) params.set('date_to', filters.dateTo)
+  if (filters.doctor) params.set('doctor', filters.doctor)
 
   const res = await fetch(`/api/method/healthcare.api.common.get_sick_leaves?${params}`)
   const data = await res.json()
   const msg = data?.message
   if (msg?.success) return msg.data as SickLeaveRow[]
   if (Array.isArray(msg)) return msg as SickLeaveRow[]
-  return []
+  throw new Error(msg?.message || data?.exc || 'Failed to load sick leave records')
 }
 
 export async function createSickLeave(

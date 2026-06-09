@@ -1677,6 +1677,9 @@ import {
   finishGroupLabTests,
   updateLabTestRemarks,
   createSampleCollectionForLabSample,
+  getSampleCollectionForLabSample,
+  updateSampleCollectionForLabSample,
+  canEditLabTestSampleCollection,
   fetchLabTestTemplateDetails,
   type LabConsumableRow,
   type LabTest,
@@ -2228,6 +2231,95 @@ export const LabTestList = ({
   const [finishingGroupKey, setFinishingGroupKey] = useState<string | null>(null)
   // Track if create sample modal is open to close the parent modal
   const [isCreatingSample, setIsCreatingSample] = useState(false)
+  const [isEditingSample, setIsEditingSample] = useState(false)
+  const [sampleFormQty, setSampleFormQty] = useState('')
+  const [sampleFormDetails, setSampleFormDetails] = useState('')
+  const [sampleFormLoadData, setSampleFormLoadData] = useState(false)
+  const [adHocSampleQty, setAdHocSampleQty] = useState('')
+  const [adHocSampleDetails, setAdHocSampleDetails] = useState('')
+  const [adHocCreateLoading, setAdHocCreateLoading] = useState(false)
+
+  const resetSampleFormState = () => {
+    setSampleFormRowIndex(null)
+    setSampleFormError(null)
+    setSampleFormCollectionPoint('')
+    setSampleFormRefPractitioner('')
+    setRefPractitionerQuery('')
+    setRefPractitionerOptions([])
+    setRefPractitionerOpen(false)
+    setSampleObsRows([])
+    setTemplateSampleDetails('')
+    setIsCreatingSample(false)
+    setIsEditingSample(false)
+    setSampleFormQty('')
+    setSampleFormDetails('')
+    setSampleFormLoadData(false)
+  }
+
+  const resetSampleModalState = () => {
+    resetSampleFormState()
+    setSampleModalLabTest(null)
+    setSampleModalError(null)
+    setAdHocSampleQty('')
+    setAdHocSampleDetails('')
+    setAdHocCreateLoading(false)
+  }
+
+  const handleOpenSampleEdit = async (idx: number) => {
+    if (!sampleModalLabTest) return
+    const row = sampleModalLabTest.sample_instances?.[idx]
+    if (!row?.sample_collection) return
+
+    setSampleFormError(null)
+    setSampleFormRowIndex(idx)
+    setIsCreatingSample(false)
+    setIsEditingSample(true)
+    setSampleFormLoadData(true)
+
+    try {
+      const data = await getSampleCollectionForLabSample(sampleModalLabTest.name, idx)
+      setSampleFormQty(data.sample_qty != null ? String(data.sample_qty) : '')
+      setSampleFormDetails(data.sample_details || row.sample_details || '')
+      setSampleFormCollectionPoint(data.collection_point || '')
+      setSampleFormRefPractitioner(data.referring_practitioner || '')
+      setRefPractitionerQuery(data.referring_practitioner_name || data.referring_practitioner || '')
+      setSampleObsRows(data.observation_rows?.length ? data.observation_rows : [])
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed to load sample collection'
+      setSampleFormError(msg)
+      toast.error(msg)
+      resetSampleFormState()
+    } finally {
+      setSampleFormLoadData(false)
+    }
+  }
+
+  const handleAdHocSampleCreate = async () => {
+    if (!sampleModalLabTest) return
+    try {
+      setAdHocCreateLoading(true)
+      setSampleModalError(null)
+      const qty = adHocSampleQty.trim() === '' ? undefined : parseFloat(adHocSampleQty)
+      const res = await createSampleCollectionForLabSample(
+        sampleModalLabTest.name,
+        0,
+        adHocSampleDetails.trim() || undefined,
+        undefined,
+        undefined,
+        undefined,
+        qty
+      )
+      toast.success(`Sample Collection ${res.sample_collection} created`)
+      await refetch()
+      resetSampleModalState()
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed to create Sample Collection'
+      setSampleModalError(msg)
+      toast.error(msg)
+    } finally {
+      setAdHocCreateLoading(false)
+    }
+  }
 
   useEffect(() => {
     const loadPractitioners = async () => {
@@ -3177,7 +3269,7 @@ export const LabTestList = ({
 
 
       {/* ── Sample Collection Modal with instructions visible by default ── */}
-      {sampleModalLabTest && !isCreatingSample && (
+      {sampleModalLabTest && !isCreatingSample && !isEditingSample && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl max-w-5xl w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col">
             <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
@@ -3185,7 +3277,7 @@ export const LabTestList = ({
                 <h2 className="text-base font-semibold text-slate-900">Sample Collection — {sampleModalLabTest.name}</h2>
                 <p className="text-xs text-slate-500 mt-0.5">Patient: {sampleModalLabTest.patient_name || sampleModalLabTest.patient || '-'}{sampleModalLabTest.lab_test_name ? ` · ${sampleModalLabTest.lab_test_name}` : ''}</p>
               </div>
-              <button type="button" onClick={() => { setSampleModalLabTest(null); setSampleModalError(null); setTemplateSampleDetails('') }}
+              <button type="button" onClick={resetSampleModalState}
                 className="text-slate-400 hover:text-slate-600 text-lg leading-none">✕</button>
             </div>
             <div className="flex-1 overflow-y-auto p-5 space-y-4">
@@ -3194,9 +3286,51 @@ export const LabTestList = ({
               {!sampleModalLoading && !sampleModalError && (
                 <>
                   {(!sampleModalLabTest.sample_instances || sampleModalLabTest.sample_instances.length === 0) ? (
-                    <div className="text-sm text-slate-500 bg-slate-50 border border-slate-200 rounded-md p-4">
-                      No sample instances are defined for this lab test. Please configure Sample Requirements on the Lab Test Template.
-                    </div>
+                    <table className="w-full text-xs border border-slate-200 rounded-lg overflow-hidden">
+                      <thead className="bg-slate-50 border-b border-slate-200">
+                        <tr>
+                          <th className="px-3 py-2.5 text-left font-semibold text-slate-600">Sample</th>
+                          <th className="px-3 py-2.5 text-left font-semibold text-slate-600 w-24">Qty</th>
+                          <th className="px-3 py-2.5 text-left font-semibold text-slate-600">Collection Instructions</th>
+                          <th className="px-3 py-2.5 text-left font-semibold text-slate-600 w-44">Sample Collection</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr className="hover:bg-slate-50/60">
+                          <td className="px-3 py-2.5 text-slate-400 italic">—</td>
+                          <td className="px-3 py-2.5">
+                            <input
+                              type="number"
+                              step="any"
+                              min="0"
+                              value={adHocSampleQty}
+                              onChange={(e) => setAdHocSampleQty(e.target.value)}
+                              placeholder="Qty"
+                              className="w-20 border border-slate-300 rounded px-2 py-1.5 text-sm focus:ring-1 focus:ring-primary focus:outline-none"
+                            />
+                          </td>
+                          <td className="px-3 py-2.5">
+                            <textarea
+                              value={adHocSampleDetails}
+                              onChange={(e) => setAdHocSampleDetails(e.target.value)}
+                              placeholder="Enter collection instructions…"
+                              rows={3}
+                              className="w-full min-h-[72px] border border-slate-300 rounded px-2 py-1.5 text-sm focus:ring-1 focus:ring-primary focus:outline-none resize-y"
+                            />
+                          </td>
+                          <td className="px-3 py-2.5">
+                            <button
+                              type="button"
+                              disabled={adHocCreateLoading}
+                              onClick={handleAdHocSampleCreate}
+                              className="inline-flex items-center px-2.5 py-1 rounded bg-primary text-white text-xs hover:bg-primary/90 disabled:opacity-50"
+                            >
+                              {adHocCreateLoading ? 'Creating…' : '+ Create'}
+                            </button>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
                   ) : (
                     <table className="w-full text-xs border border-slate-200 rounded-lg overflow-hidden">
                       <thead className="bg-slate-50 border-b border-slate-200">
@@ -3234,15 +3368,28 @@ export const LabTestList = ({
                               </td>
                               <td className="px-3 py-2.5">
                                 {row.sample_collection ? (
-                                  <button type="button" onClick={() => window.open(`/app/sample-collection/${encodeURIComponent(row.sample_collection!)}`, '_blank')}
-                                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-slate-300 text-xs text-slate-700 hover:bg-slate-50">✓ Open Record</button>
+                                  <div className="flex flex-wrap items-center gap-1.5">
+                                    <button type="button" onClick={() => window.open(`/app/sample-collection/${encodeURIComponent(row.sample_collection!)}`, '_blank')}
+                                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-slate-300 text-xs text-slate-700 hover:bg-slate-50">✓ Open Record</button>
+                                    {canEditLabTestSampleCollection(sampleModalLabTest.status) && (
+                                      <button type="button" onClick={() => handleOpenSampleEdit(idx)}
+                                        className="inline-flex items-center px-2.5 py-1 rounded border border-primary/40 text-primary text-xs hover:bg-primary/5">Edit</button>
+                                    )}
+                                  </div>
                                 ) : (
                                   <button type="button" onClick={async () => {
                                     setSampleFormError(null)
-                                    setSampleObsRows([{ sample: row.sample, sample_qty: row.sample_qty, collection_date_time: new Date().toISOString().slice(0, 16).replace('T', ' ') }])
+                                    setSampleFormQty(row.sample_qty != null ? String(row.sample_qty) : '')
+                                    setSampleFormDetails(row.sample_details || '')
+                                    setSampleObsRows(
+                                      row.sample
+                                        ? [{ sample: row.sample, sample_qty: row.sample_qty, collection_date_time: new Date().toISOString().slice(0, 16).replace('T', ' ') }]
+                                        : []
+                                    )
                                     if (sampleModalLabTest.template) {
                                       fetchLabTestTemplateDetails(sampleModalLabTest.template).then((d) => setTemplateSampleDetails(d.sample_details || '')).catch(() => setTemplateSampleDetails(''))
                                     }
+                                    setIsEditingSample(false)
                                     setIsCreatingSample(true)
                                     setSampleFormRowIndex(idx)
                                   }} className="inline-flex items-center px-2.5 py-1 rounded bg-primary text-white text-xs hover:bg-primary/90">+ Create</button>
@@ -3258,50 +3405,67 @@ export const LabTestList = ({
               )}
             </div>
             <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 flex justify-end">
-              <button type="button" onClick={() => { setSampleModalLabTest(null); setSampleModalError(null); setTemplateSampleDetails('') }}
+              <button type="button" onClick={resetSampleModalState}
                 className="px-3 py-1.5 text-xs rounded-md border border-slate-300 text-slate-700 hover:bg-white">Close</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ── Create Sample Collection Form Modal (separate, closes parent) ── */}
-      {sampleFormRowIndex !== null && sampleModalLabTest && isCreatingSample && (
+      {/* ── Create / Edit Sample Collection Form Modal (separate, closes parent) ── */}
+      {sampleFormRowIndex !== null && sampleModalLabTest && (isCreatingSample || isEditingSample) && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
           <div className="bg-white rounded-lg shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col">
             <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
               <div>
-                <h3 className="text-base font-semibold text-slate-900">Create Sample Collection</h3>
+                <h3 className="text-base font-semibold text-slate-900">{isEditingSample ? 'Edit Sample Collection' : 'Create Sample Collection'}</h3>
                 <p className="text-xs text-slate-500 mt-0.5">Sample: <strong>{sampleModalLabTest.sample_instances?.[sampleFormRowIndex!]?.sample || '—'}</strong></p>
               </div>
-              <button type="button" disabled={sampleFormLoading}
-                onClick={() => { if (!sampleFormLoading) { setSampleFormRowIndex(null); setSampleFormError(null); setSampleFormCollectionPoint(''); setSampleFormRefPractitioner(''); setRefPractitionerQuery(''); setRefPractitionerOptions([]); setRefPractitionerOpen(false); setSampleObsRows([]); setTemplateSampleDetails(''); setIsCreatingSample(false) } }}
+              <button type="button" disabled={sampleFormLoading || sampleFormLoadData}
+                onClick={() => { if (!sampleFormLoading && !sampleFormLoadData) resetSampleFormState() }}
                 className="text-slate-400 hover:text-slate-600 disabled:opacity-40 text-lg">✕</button>
             </div>
             <div className="p-5 space-y-4 overflow-y-auto flex-1">
+              {sampleFormLoadData && <div className="text-sm text-slate-600">Loading sample collection…</div>}
               {sampleFormError && <div className="bg-red-50 border border-red-200 text-red-700 text-xs rounded-md px-3 py-2">{sampleFormError}</div>}
-              {templateSampleDetails && (
+              {!sampleFormLoadData && templateSampleDetails && !isEditingSample && (
                 <div className="rounded-md border border-blue-200 bg-blue-50 px-5 py-4">
                   <p className="text-sm font-bold text-blue-800 mb-3">📋 Collection Instructions (from template)</p>
                   <div className="prose prose-base max-w-none text-base text-blue-900 leading-relaxed [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:mb-2.5 [&_li]:leading-relaxed [&_strong]:font-semibold [&_strong]:text-blue-950 [&_em]:italic [&_p]:mb-3" dangerouslySetInnerHTML={{ __html: templateSampleDetails }} />
                 </div>
               )}
-              {(() => {
+              {!sampleFormLoadData && (() => {
                 const row = sampleModalLabTest.sample_instances?.[sampleFormRowIndex!]
                 if (!row) return null
                 return (
                   <>
                     <div className="grid grid-cols-2 gap-3 text-xs bg-slate-100 border border-slate-300 rounded-lg p-2">
                       <div><div className="text-[9px] font-medium text-slate-500 mb-0.5">Sample</div><div className="text-slate-900 font-semibold text-sm truncate">{row.sample || '-'}</div></div>
-                      <div><div className="text-[9px] font-medium text-slate-500 mb-0.5">Qty / Patient</div><div className="text-slate-900 font-semibold text-sm truncate">{row.sample_qty ?? '-'} · {sampleModalLabTest.patient_name || sampleModalLabTest.patient || '-'}</div></div>
+                      <div><div className="text-[9px] font-medium text-slate-500 mb-0.5">Patient</div><div className="text-slate-900 font-semibold text-sm truncate">{sampleModalLabTest.patient_name || sampleModalLabTest.patient || '-'}</div></div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">Quantity</label>
+                        <input
+                          type="number"
+                          step="any"
+                          min="0"
+                          value={sampleFormQty}
+                          onChange={(e) => setSampleFormQty(e.target.value)}
+                          placeholder="Qty"
+                          className="w-full rounded-md border border-slate-300 px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                        />
+                      </div>
                     </div>
                     <div>
-                      <label className="block text-sm font-bold text-slate-800 mb-2">Collection Details & Observations</label>
-                      {row.sample_details && row.sample_details.includes('<')
-                        ? <div className="w-full rounded-md border border-slate-300 px-4 py-3 bg-slate-50 min-h-[200px] overflow-y-auto"><div className="prose prose-base max-w-none text-base text-slate-800 leading-relaxed [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:mb-2.5 [&_li]:leading-relaxed [&_strong]:font-semibold [&_strong]:text-slate-900 [&_em]:italic [&_p]:mb-3" dangerouslySetInnerHTML={{ __html: row.sample_details }} /></div>
-                        : row.sample_details
-                        ? <div className="w-full rounded-md border border-slate-300 px-4 py-3 text-base bg-slate-50 min-h-[200px] whitespace-pre-wrap leading-relaxed text-slate-800 font-medium">{row.sample_details}</div>
-                        : <div className="w-full rounded-md border border-slate-300 px-4 py-3 text-base bg-slate-50 min-h-[120px] text-slate-400 flex items-center justify-center">Collection details will appear here...</div>}
+                      <label className="block text-sm font-bold text-slate-800 mb-2">Collection Details</label>
+                      <textarea
+                        value={sampleFormDetails}
+                        onChange={(e) => setSampleFormDetails(e.target.value)}
+                        placeholder="Enter collection instructions or notes…"
+                        rows={5}
+                        className="w-full rounded-md border border-slate-300 px-4 py-3 text-sm bg-white min-h-[120px] focus:outline-none focus:ring-1 focus:ring-primary resize-y"
+                      />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="relative">
@@ -3362,31 +3526,51 @@ export const LabTestList = ({
               })()}
             </div>
             <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 flex justify-end gap-2">
-              <button type="button" disabled={sampleFormLoading}
-                  onClick={() => { if (!sampleFormLoading) { setSampleFormRowIndex(null); setSampleFormError(null); setSampleFormCollectionPoint(''); setSampleFormRefPractitioner(''); setRefPractitionerQuery(''); setRefPractitionerOptions([]); setRefPractitionerOpen(false); setSampleObsRows([]); setTemplateSampleDetails(''); setIsCreatingSample(false) } }}
+              <button type="button" disabled={sampleFormLoading || sampleFormLoadData}
+                  onClick={() => { if (!sampleFormLoading && !sampleFormLoadData) resetSampleFormState() }}
                 className="px-4 py-2 text-xs rounded-md border border-slate-300 text-slate-700 hover:bg-white disabled:opacity-50">Cancel</button>
-              <button type="button" disabled={sampleFormLoading || sampleFormRowIndex === null}
+              <button type="button" disabled={sampleFormLoading || sampleFormLoadData || sampleFormRowIndex === null}
                 className="px-4 py-2 text-xs rounded-md bg-primary text-white hover:bg-primary/90 disabled:opacity-50 font-medium"
                 onClick={async () => {
                   if (!sampleModalLabTest || sampleFormRowIndex === null) return
                   const row = sampleModalLabTest.sample_instances?.[sampleFormRowIndex]
                   if (!row) { setSampleFormError('Missing sample row data'); return }
+                  const qty = sampleFormQty.trim() === '' ? undefined : parseFloat(sampleFormQty)
+                  const details = sampleFormDetails.trim() || undefined
+                  const observationPayload = sampleObsRows.length ? sampleObsRows : undefined
                   try {
                     setSampleFormLoading(true); setSampleFormError(null)
-                    const res = await createSampleCollectionForLabSample(sampleModalLabTest.name, sampleFormRowIndex, row.sample_details || '', sampleFormCollectionPoint || undefined, sampleFormRefPractitioner || undefined, sampleObsRows.length ? sampleObsRows : undefined)
-                    toast.success(`Sample Collection ${res.sample_collection} created`)
-                    refetch()
-                    setSampleModalLabTest((prev) => {
-                      if (!prev) return prev
-                      const next = { ...prev }; const arr = [...(next.sample_instances || [])]
-                      arr[sampleFormRowIndex] = { ...(arr[sampleFormRowIndex] || {}), sample_collection: res.sample_collection }
-                      next.sample_instances = arr; return next
-                    })
-                    setSampleFormRowIndex(null); setSampleObsRows([]); setTemplateSampleDetails(''); setIsCreatingSample(false)
-                  } catch (e) { setSampleFormError(e instanceof Error ? e.message : 'Failed to create Sample Collection') }
+                    if (isEditingSample) {
+                      const res = await updateSampleCollectionForLabSample(
+                        sampleModalLabTest.name,
+                        sampleFormRowIndex,
+                        details,
+                        sampleFormCollectionPoint || undefined,
+                        sampleFormRefPractitioner || undefined,
+                        observationPayload,
+                        qty
+                      )
+                      toast.success(`Sample Collection ${res.sample_collection} updated`)
+                    } else {
+                      const res = await createSampleCollectionForLabSample(
+                        sampleModalLabTest.name,
+                        sampleFormRowIndex,
+                        details,
+                        sampleFormCollectionPoint || undefined,
+                        sampleFormRefPractitioner || undefined,
+                        observationPayload,
+                        qty
+                      )
+                      toast.success(`Sample Collection ${res.sample_collection} created`)
+                    }
+                    await refetch()
+                    resetSampleModalState()
+                  } catch (e) { setSampleFormError(e instanceof Error ? e.message : `Failed to ${isEditingSample ? 'update' : 'create'} Sample Collection`) }
                   finally { setSampleFormLoading(false) }
                 }}>
-                {sampleFormLoading ? 'Creating…' : 'Create Sample Collection'}
+                {sampleFormLoading
+                  ? (isEditingSample ? 'Saving…' : 'Creating…')
+                  : (isEditingSample ? 'Save Changes' : 'Create Sample Collection')}
               </button>
             </div>
           </div>

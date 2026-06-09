@@ -37,12 +37,19 @@ function parseApiMessage<T>(data: { message?: unknown }): T | null {
   return null
 }
 
+export type MainNursingNoteListFilters = {
+  dateFrom?: string
+  dateTo?: string
+  practitioner?: string
+}
+
 export async function fetchMainNursingNotes(
   patient?: string,
   search?: string,
   admission?: string,
   page = 1,
-  pageSize = 50
+  pageSize = 50,
+  listFilters?: MainNursingNoteListFilters
 ): Promise<MainNursingNoteRow[]> {
   const params = new URLSearchParams({
     page: String(page),
@@ -51,6 +58,9 @@ export async function fetchMainNursingNotes(
   if (patient) params.set('patient', patient)
   if (search) params.set('search', search)
   if (admission) params.set('admission', admission)
+  if (listFilters?.dateFrom) params.set('date_from', listFilters.dateFrom)
+  if (listFilters?.dateTo) params.set('date_to', listFilters.dateTo)
+  if (listFilters?.practitioner) params.set('practitioner', listFilters.practitioner)
 
   const res = await fetch(
     `/api/method/healthcare.api.common.get_main_nursing_notes?${params}`

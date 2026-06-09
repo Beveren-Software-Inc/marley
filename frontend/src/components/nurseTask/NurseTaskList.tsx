@@ -1,5 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { fetchNurseTasks, updateNurseTaskStatus, type NurseTask } from '../../services/nurseTask'
+import { useCardFilters } from '../../contexts/CardFilterContext'
+import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import { toast } from '../../hooks/useToast'
 
 const TASK_TYPE_ICONS: Record<string, string> = {
@@ -27,6 +29,41 @@ const PRIORITY_COLORS: Record<string, string> = {
 
 const ALL_STATUSES = ['', 'Pending', 'In Progress', 'Completed', 'Missed', 'Cancelled']
 const NEXT_STATUSES = ['Pending', 'In Progress', 'Completed', 'Missed', 'Cancelled']
+const TASK_TYPES = [
+  '',
+  'Medication Administration',
+  'Vital Monitoring',
+  'Therapy Assistance',
+  'Grooming / Care',
+  'Lab Support',
+  'Documentation',
+]
+
+const FilterToggleButton = ({
+  active,
+  onClick,
+}: {
+  active: boolean
+  onClick: () => void
+}) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className={`rounded-md border p-1.5 transition-colors ${
+      active ? 'border-primary bg-primary/10 text-primary' : 'border-slate-300 text-slate-500 hover:bg-slate-50'
+    }`}
+    title={active ? 'Hide filters' : 'Show filters'}
+    aria-label={active ? 'Hide filters' : 'Show filters'}
+  >
+    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z"
+      />
+    </svg>
+  </button>
+)
 
 // ─── Circular completion tick button ──────────────────────────────────────────
 const TickButton = ({
@@ -128,20 +165,38 @@ interface NurseTaskListProps {
   patient?: string
   myTasks?: boolean
   allowStatusChange?: boolean
+  refreshKey?: number
   onRefresh?: () => void
+  title?: string
+  onAdd?: () => void
+  addButtonTitle?: string
 }
 
 export const NurseTaskList = ({
   patient,
   myTasks,
   allowStatusChange = false,
+  refreshKey,
   onRefresh,
+  title = 'Nurse Tasks',
+  onAdd,
+  addButtonTitle = 'New Task',
 }: NurseTaskListProps) => {
+  const cardFilters = useCardFilters()
+  const inDashboardCard = cardFilters !== undefined
+  const [showFiltersInternal, setShowFiltersInternal] = useState(false)
+  const showFilters = inDashboardCard ? cardFilters : showFiltersInternal
+
   const [tasks, setTasks] = useState<NurseTask[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState<string>('')
+  const [taskTypeFilter, setTaskTypeFilter] = useState<string>('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
   const [updatingName, setUpdatingName] = useState<string | null>(null)
+
+  const hasActiveFilters = Boolean(statusFilter || taskTypeFilter || dateFrom || dateTo)
 
   const load = useCallback(async () => {
     try {
@@ -150,6 +205,9 @@ export const NurseTaskList = ({
       const data = await fetchNurseTasks({
         patient,
         status: statusFilter || undefined,
+        task_type: taskTypeFilter || undefined,
+        date_from: dateFrom || undefined,
+        date_to: dateTo || undefined,
         my_tasks: !!myTasks,
         limit: 100,
       })
@@ -159,9 +217,18 @@ export const NurseTaskList = ({
     } finally {
       setLoading(false)
     }
-  }, [patient, myTasks, statusFilter])
+  }, [patient, myTasks, statusFilter, taskTypeFilter, dateFrom, dateTo])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => {
+    load()
+  }, [load, refreshKey])
+
+  const clearFilters = () => {
+    setStatusFilter('')
+    setTaskTypeFilter('')
+    setDateFrom('')
+    setDateTo('')
+  }
 
   const changeStatus = useCallback(async (task: NurseTask, newStatus: string) => {
     if (newStatus === task.status) return
@@ -195,64 +262,114 @@ export const NurseTaskList = ({
   const openForm = (name: string) =>
     window.open(`/app/nurse-task/${encodeURIComponent(name)}`, '_blank')
 
-  if (loading) {
-    return (
-      <div className="flex items-center gap-2 py-6 text-sm text-slate-500">
-        <svg className="animate-spin w-4 h-4 text-primary" viewBox="0 0 24 24" fill="none">
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-        </svg>
-        Loading tasks…
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className="p-4 bg-red-50 border border-red-200 rounded-md text-sm text-red-700">{error}</div>
-    )
-  }
-
   const completedCount = tasks.filter((t) => t.status === 'Completed').length
 
   return (
-    <div className="space-y-3">
-      {/* Filter bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="flex flex-col gap-4">
+      {!inDashboardCard && (
+        <div className="flex flex-shrink-0 items-center justify-between gap-2">
+          <h2 className="text-xl font-semibold text-slate-900">{title}</h2>
+          <div className="flex shrink-0 items-center gap-2">
+            <FilterToggleButton
+              active={Boolean(showFilters)}
+              onClick={() => setShowFiltersInternal((prev) => !prev)}
+            />
+            {onAdd ? (
+              <button
+                type="button"
+                onClick={onAdd}
+                className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-primary text-lg font-bold text-white transition-colors hover:bg-primary/90"
+                title={addButtonTitle}
+              >
+                +
+              </button>
+            ) : null}
+          </div>
+        </div>
+      )}
+
+      {showFilters ? (
+        <div className="flex flex-shrink-0 flex-wrap items-end gap-3 rounded-md border-b border-slate-100 bg-slate-50/80 px-1 py-2">
+          <div className="flex min-w-[130px] flex-col gap-1">
+            <label className="text-xs font-medium text-slate-500">Date from</label>
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm"
+            />
+          </div>
+          <div className="flex min-w-[130px] flex-col gap-1">
+            <label className="text-xs font-medium text-slate-500">Date to</label>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm"
+            />
+          </div>
+          <div className="flex min-w-[140px] flex-col gap-1">
+            <label className="text-xs font-medium text-slate-500">Status</label>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm"
+            >
+              {ALL_STATUSES.map((s) => (
+                <option key={s || '__all'} value={s}>
+                  {s || 'All'}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex min-w-[180px] flex-col gap-1">
+            <label className="text-xs font-medium text-slate-500">Task type</label>
+            <select
+              value={taskTypeFilter}
+              onChange={(e) => setTaskTypeFilter(e.target.value)}
+              className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm"
+            >
+              {TASK_TYPES.map((t) => (
+                <option key={t || '__all'} value={t}>
+                  {t || 'All'}
+                </option>
+              ))}
+            </select>
+          </div>
+          {hasActiveFilters ? <ClearFiltersButton onClick={clearFilters} /> : null}
+        </div>
+      ) : null}
+
+      {!loading && !error && tasks.length > 0 ? (
         <p className="text-xs text-slate-500">
           {tasks.length} task{tasks.length !== 1 ? 's' : ''}
-          {completedCount > 0 && (
-            <span className="ml-1.5 inline-flex items-center gap-0.5 text-emerald-600 font-medium">
-              · {completedCount} done
-            </span>
-          )}
+          {completedCount > 0 ? (
+            <span className="ml-1.5 font-medium text-emerald-600">· {completedCount} done</span>
+          ) : null}
         </p>
-        <div className="flex items-center gap-2">
-          <label className="text-xs font-medium text-slate-600">Status</label>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="rounded-md border border-slate-300 px-2 py-1 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-primary"
-          >
-            {ALL_STATUSES.map((s) => (
-              <option key={s || '__all'} value={s}>{s || 'All'}</option>
-            ))}
-          </select>
-          <button
-            type="button"
-            onClick={load}
-            className="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50"
-          >
-            ↻ Refresh
-          </button>
-        </div>
-      </div>
+      ) : null}
 
-      {tasks.length === 0 ? (
+      {loading ? (
+        <div className="flex items-center gap-2 py-6 text-sm text-slate-500">
+          <svg className="h-4 w-4 animate-spin text-primary" viewBox="0 0 24 24" fill="none">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+          </svg>
+          Loading tasks…
+        </div>
+      ) : null}
+
+      {error ? (
+        <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>
+      ) : null}
+
+      {!loading && !error && tasks.length === 0 ? (
         <div className="text-center py-10 border-2 border-dashed border-slate-200 rounded-lg text-slate-400 text-sm">
           No nurse tasks found.
         </div>
-      ) : (
+      ) : null}
+
+      {!loading && !error && tasks.length > 0 ? (
         <div className="grid gap-2">
           {tasks.map((task) => {
             const icon = TASK_TYPE_ICONS[task.task_type] || '📋'
@@ -361,7 +478,7 @@ export const NurseTaskList = ({
             )
           })}
         </div>
-      )}
+      ) : null}
     </div>
   )
 }

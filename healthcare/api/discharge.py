@@ -5,7 +5,32 @@
 import frappe
 from frappe import _
 
+from healthcare.api.inpatient_admission import (
+	_ensure_discharge_admission_access,
+	_user_can_access_discharge_portal,
+)
 
+
+@frappe.whitelist()
+def get_discharge(name=None):
+	"""Return one Discharge for the healthcare portal (bypasses DocPerm read for clinical roles)."""
+	name = (name or "").strip()
+	if not name:
+		frappe.throw(_("Discharge is required"))
+	if not frappe.db.exists("Discharge", name):
+		frappe.throw(_("Discharge {0} not found").format(name))
+
+	if frappe.has_permission("Discharge", "read", name):
+		return frappe.get_doc("Discharge", name).as_dict()
+
+	if not _user_can_access_discharge_portal():
+		frappe.throw(_("Not permitted to read Discharge"), frappe.PermissionError)
+
+	admission = frappe.db.get_value("Discharge", name, "admission")
+	if admission:
+		_ensure_discharge_admission_access(admission)
+
+	return frappe.get_doc("Discharge", name).as_dict()
 
 
 @frappe.whitelist()
@@ -18,6 +43,10 @@ def get_discharges(limit=20, offset=0, patient=None, admission=None, search=None
 
 	limit = cint(limit) or 20
 	offset = cint(offset) or 0
+	portal_reader = _user_can_access_discharge_portal()
+	has_read = frappe.has_permission("Discharge", "read")
+	ignore_permissions = portal_reader and not has_read
+
 	filters = {}
 
 	if patient:
@@ -56,6 +85,7 @@ def get_discharges(limit=20, offset=0, patient=None, admission=None, search=None
 		filters=filters,
 		fields=['name'],
 		limit=0,
+		ignore_permissions=ignore_permissions,
 	))
 
 	discharges = frappe.get_all(
@@ -77,7 +107,8 @@ def get_discharges(limit=20, offset=0, patient=None, admission=None, search=None
 		],
 		limit=limit,
 		limit_start=offset,
-		order_by='discharge_date desc'
+		order_by='discharge_date desc',
+		ignore_permissions=ignore_permissions,
 	)
 	
 	# Get patient names if not already set

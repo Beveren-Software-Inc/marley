@@ -68,22 +68,34 @@ export interface MentalStateRow {
   delusion: 0 | 1
   perception: 0 | 1
   creation: string
+  modified?: string
+  owner?: string
 }
+
+export type MentalStateDoc = MentalStateRow
 
 export type CreateMentalStateInput = Omit<MentalStateRow, 'name' | 'creation'>
 
+export type NursingListFilters = {
+  dateFrom?: string
+  dateTo?: string
+  practitioner?: string
+}
+
 export async function fetchMentalStates(
   patient?: string,
-  search?: string,
   page = 1,
-  pageSize = 50
+  pageSize = 50,
+  filters?: NursingListFilters
 ): Promise<MentalStateRow[]> {
   const params = new URLSearchParams({
     page: String(page),
     page_size: String(pageSize),
   })
   if (patient) params.set('patient', patient)
-  if (search) params.set('search', search)
+  if (filters?.dateFrom) params.set('date_from', filters.dateFrom)
+  if (filters?.dateTo) params.set('date_to', filters.dateTo)
+  if (filters?.practitioner) params.set('practitioner', filters.practitioner)
 
   const res = await fetch(
     `/api/method/healthcare.api.common.get_mental_states?${params}`
@@ -93,6 +105,16 @@ export async function fetchMentalStates(
   if (msg?.success) return msg.data as MentalStateRow[]
   if (Array.isArray(msg)) return msg as MentalStateRow[]
   return []
+}
+
+export async function fetchMentalState(name: string): Promise<MentalStateDoc> {
+  const params = new URLSearchParams({ name })
+  const res = await fetch(`/api/method/healthcare.api.common.get_mental_state?${params}`)
+  const data = await res.json()
+  if (data?.exception) throw new Error(data.message || 'Failed to load mental state')
+  const msg = data?.message
+  if (!msg || typeof msg !== 'object') throw new Error('Invalid response format')
+  return msg as MentalStateDoc
 }
 
 export async function createMentalState(

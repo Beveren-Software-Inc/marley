@@ -49,15 +49,25 @@ export interface CreateVitalSignData {
   branch?: string
 }
 
+export interface VitalSignListFilters {
+  dateFrom?: string
+  dateTo?: string
+  practitioner?: string
+}
+
 export async function fetchVitalSigns(
   limit: number = 50,
   offset: number = 0,
-  patient?: string
+  patient?: string,
+  filters: VitalSignListFilters = {}
 ): Promise<VitalSign[]> {
   const params = new URLSearchParams()
   params.append('limit', limit.toString())
   params.append('offset', offset.toString())
   if (patient) params.append('patient', patient)
+  if (filters.dateFrom) params.append('date_from', filters.dateFrom)
+  if (filters.dateTo) params.append('date_to', filters.dateTo)
+  if (filters.practitioner) params.append('practitioner', filters.practitioner)
 
   const response = await fetch(
     `/api/method/healthcare.api.vital_signs.get_vital_signs?${params.toString()}`

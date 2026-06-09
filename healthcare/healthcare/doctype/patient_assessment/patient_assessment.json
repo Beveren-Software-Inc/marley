@@ -17,6 +17,7 @@
   "column_break_4",
   "company",
   "healthcare_practitioner",
+  "practitioner_name",
   "assessment_datetime",
   "assessment_description",
   "ip_patient_assessment",
@@ -179,11 +180,17 @@
    "fieldtype": "Link",
    "label": "IP Patient assessment",
    "options": "IP Patient Assessment"
+  },
+  {
+   "fetch_from": "healthcare_practitioner.practitioner_name",
+   "fieldname": "practitioner_name",
+   "fieldtype": "Data",
+   "label": "Practitioner Name"
   }
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2026-06-02 16:15:48.341645",
+ "modified": "2026-06-09 14:30:24.915313",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Assessment",

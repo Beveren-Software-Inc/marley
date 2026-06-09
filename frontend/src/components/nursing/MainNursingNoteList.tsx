@@ -1,50 +1,129 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { fetchMainNursingNotes, type MainNursingNoteRow } from '../../services/mainNursingNote'
+import { fetchHealthcarePractitioners, type LinkFieldOption } from '../../services/common'
+import { useCardFilters } from '../../contexts/CardFilterContext'
+import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 
 interface MainNursingNoteListProps {
   patient?: string
   admission?: string
   refreshKey?: number
   onPatientClick?: (patient: string) => void
+  title?: string
+  onAdd?: () => void
+  addButtonTitle?: string
 }
+
+const FilterToggleButton = ({
+  active,
+  onClick,
+}: {
+  active: boolean
+  onClick: () => void
+}) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className={`p-1.5 rounded-md border transition-colors ${
+      active ? 'bg-primary/10 border-primary text-primary' : 'border-slate-300 text-slate-500 hover:bg-slate-50'
+    }`}
+    title={active ? 'Hide filters' : 'Show filters'}
+    aria-label={active ? 'Hide filters' : 'Show filters'}
+  >
+    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z"
+      />
+    </svg>
+  </button>
+)
 
 export const MainNursingNoteList = ({
   patient,
   admission,
   refreshKey,
   onPatientClick,
+  title = 'Nursing Notes',
+  onAdd,
+  addButtonTitle = 'Add Nursing Note',
 }: MainNursingNoteListProps) => {
+  const cardFilters = useCardFilters()
+  const inDashboardCard = cardFilters !== undefined
+  const [showFiltersInternal, setShowFiltersInternal] = useState(false)
+  const showFilters = inDashboardCard ? cardFilters : showFiltersInternal
+
   const [records, setRecords] = useState<MainNursingNoteRow[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+  const [practitionerFilter, setPractitionerFilter] = useState('')
+  const [practitionerQuery, setPractitionerQuery] = useState('')
+  const [practitionerOpen, setPractitionerOpen] = useState(false)
+  const [practitionerOptions, setPractitionerOptions] = useState<LinkFieldOption[]>([])
   const [selected, setSelected] = useState<MainNursingNoteRow | null>(null)
   const panelRef = useRef<HTMLDivElement>(null)
+  const practitionerFilterRef = useRef<HTMLDivElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const load = async (q?: string) => {
-    setLoading(true)
-    setError(null)
-    try {
-      const data = await fetchMainNursingNotes(patient, q, admission)
-      setRecords(data)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load nursing notes')
-    } finally {
-      setLoading(false)
-    }
-  }
+  const hasActiveFilters = Boolean(search || dateFrom || dateTo || practitionerFilter)
+
+  const load = useCallback(
+    async (q?: string) => {
+      setLoading(true)
+      setError(null)
+      try {
+        const data = await fetchMainNursingNotes(patient, q, admission, 1, 50, {
+          dateFrom: dateFrom || undefined,
+          dateTo: dateTo || undefined,
+          practitioner: practitionerFilter || undefined,
+        })
+        setRecords(data)
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Failed to load nursing notes')
+      } finally {
+        setLoading(false)
+      }
+    },
+    [patient, admission, dateFrom, dateTo, practitionerFilter]
+  )
 
   useEffect(() => {
-    load()
+    load(search || undefined)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [patient, admission, refreshKey])
+  }, [load, refreshKey])
 
   const handleSearchChange = (q: string) => {
     setSearch(q)
     if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => load(q), 350)
+    debounceRef.current = setTimeout(() => load(q || undefined), 350)
   }
+
+  useEffect(() => {
+    if (!practitionerOpen) return
+    const t = setTimeout(async () => {
+      try {
+        const opts = await fetchHealthcarePractitioners(practitionerQuery || undefined)
+        setPractitionerOptions(opts)
+      } catch {
+        setPractitionerOptions([])
+      }
+    }, practitionerQuery.trim() === '' ? 0 : 300)
+    return () => clearTimeout(t)
+  }, [practitionerQuery, practitionerOpen])
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      const el = e.target as HTMLElement
+      if (practitionerFilterRef.current?.contains(el)) return
+      setPractitionerOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
 
   useEffect(() => {
     if (!selected) return
@@ -57,6 +136,18 @@ export const MainNursingNoteList = ({
     return () => document.removeEventListener('mousedown', onDown)
   }, [selected])
 
+  const clearFilters = () => {
+    setSearch('')
+    setDateFrom('')
+    setDateTo('')
+    setPractitionerFilter('')
+    setPractitionerQuery('')
+    setPractitionerOpen(false)
+  }
+
+  const selectedPractitionerLabel =
+    practitionerOptions.find((o) => o.name === practitionerFilter)?.label || practitionerFilter || ''
+
   const formatDate = (val: string | null | undefined) => {
     if (!val) return '—'
     try {
@@ -67,17 +158,97 @@ export const MainNursingNoteList = ({
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      {!patient && (
-        <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">Search patient</label>
-          <input
-            type="search"
-            placeholder="Search by patient name…"
-            value={search}
-            onChange={(e) => handleSearchChange(e.target.value)}
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary"
-          />
+    <div className="flex flex-col flex-1 min-h-0">
+      {!inDashboardCard && (
+        <div className="flex items-center justify-between gap-2 mb-3 flex-shrink-0">
+          <h2 className="text-xl font-semibold text-slate-900">{title}</h2>
+          <div className="flex items-center gap-2 shrink-0">
+            <FilterToggleButton
+              active={Boolean(showFilters)}
+              onClick={() => setShowFiltersInternal((prev) => !prev)}
+            />
+            {onAdd && (
+              <button
+                type="button"
+                onClick={onAdd}
+                className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-lg font-bold flex-shrink-0"
+                title={addButtonTitle}
+              >
+                +
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {showFilters && (
+        <div className="flex flex-wrap items-end gap-3 mb-3 px-1 py-2 border-b border-slate-100 bg-slate-50/80 rounded-md flex-shrink-0">
+          {!patient && (
+            <div className="flex flex-col gap-1 min-w-[180px]">
+              <label className="text-xs font-medium text-slate-500">Search patient</label>
+              <input
+                type="search"
+                placeholder="Search by patient name…"
+                value={search}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                className="rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white"
+              />
+            </div>
+          )}
+          <div className="flex flex-col gap-1 min-w-[130px]">
+            <label className="text-xs font-medium text-slate-500">Date from</label>
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white"
+            />
+          </div>
+          <div className="flex flex-col gap-1 min-w-[130px]">
+            <label className="text-xs font-medium text-slate-500">Date to</label>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white"
+            />
+          </div>
+          <div className="flex flex-col gap-1 min-w-[180px] relative" ref={practitionerFilterRef}>
+            <label className="text-xs font-medium text-slate-500">Recorded by</label>
+            <input
+              type="text"
+              value={practitionerOpen ? practitionerQuery : selectedPractitionerLabel}
+              onChange={(e) => {
+                setPractitionerQuery(e.target.value)
+                setPractitionerOpen(true)
+                if (!e.target.value) setPractitionerFilter('')
+              }}
+              onFocus={() => setPractitionerOpen(true)}
+              placeholder="Search practitioner…"
+              className="rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white w-full"
+            />
+            {practitionerOpen && practitionerOptions.length > 0 && (
+              <ul className="absolute z-20 top-full left-0 right-0 mt-1 max-h-48 overflow-y-auto bg-white border border-slate-200 rounded-md shadow-lg text-sm">
+                {practitionerOptions.map((opt) => (
+                  <li key={opt.name}>
+                    <button
+                      type="button"
+                      className="w-full text-left px-3 py-2 hover:bg-slate-50"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => {
+                        setPractitionerFilter(opt.name)
+                        setPractitionerQuery(opt.label || opt.name)
+                        setPractitionerOpen(false)
+                      }}
+                    >
+                      {opt.label || opt.name}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          {hasActiveFilters && <ClearFiltersButton onClick={clearFilters} />}
         </div>
       )}
 

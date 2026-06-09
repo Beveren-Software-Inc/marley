@@ -20,6 +20,66 @@ export interface Discharge {
   cost_center?: string
 }
 
+export interface DischargeChecklistRow {
+  name?: string
+  action_required?: string
+  department?: string
+  user?: string
+  name1?: string
+  date_time?: string
+  click?: number | boolean
+  description?: string
+}
+
+export interface DischargePatientDocument {
+  name?: string
+  file_name?: string
+  document_type?: string
+  transaction_no?: string | number
+  upload_remarks?: string
+  document?: string
+}
+
+export interface DischargePatientRelative {
+  name?: string
+  relationship_with_patient?: string
+  relative_name?: string
+  relative_phone_no?: string
+  relative_alternative_phone_no?: string
+  relative_alternative_phone_no_2?: string
+  cpr__id_no?: string
+  any_remarks?: string
+}
+
+export interface DischargeDoc extends Discharge {
+  discharge_time?: string
+  final_discharge_date?: string
+  final_discharge_time?: string
+  ama_type?: string
+  discharge_treatment_plan?: string
+  discharge_reason?: string
+  discharge_diagnosis?: string
+  discharge_conditions?: string
+  discharge_instructions?: string
+  final_exam_mental_status_summary?: string
+  management_in_hospital?: string
+  prognosis?: string
+  next_appointment_date?: string
+  next_appointment_time?: string
+  discharge_receptionist?: string
+  discharge_doctor?: string
+  discharge_nurse?: string
+  nurse_discharge_template?: string
+  user_name?: string
+  final_discharger_username?: string
+  discharge_checklist?: DischargeChecklistRow[]
+  nursing_checklist?: DischargeChecklistRow[]
+  patient_documents?: DischargePatientDocument[]
+  patient_relatives?: DischargePatientRelative[]
+  creation?: string
+  modified?: string
+}
+
 export interface DischargesPaginatedResponse {
   data: Discharge[]
   total_count: number
@@ -47,7 +107,7 @@ export async function fetchDischarges(
   if (status) params.append('status', status)
   if (dischargeType) params.append('discharge_type', dischargeType)
 
-  const result = await apiRequest<any>(
+  const result = await apiRequest<DischargesPaginatedResponse | Discharge[]>(
     `/api/method/healthcare.api.discharge.get_discharges?${params.toString()}`
   )
 
@@ -60,7 +120,8 @@ export async function fetchDischarges(
   return { data: [], total_count: 0 }
 }
 
-
-
-
-
+export async function fetchDischarge(name: string): Promise<DischargeDoc> {
+  return apiRequest<DischargeDoc>(
+    `/api/method/healthcare.api.discharge.get_discharge?${new URLSearchParams({ name }).toString()}`
+  )
+}

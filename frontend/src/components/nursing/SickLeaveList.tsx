@@ -1,230 +1,294 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { fetchSickLeaves, type SickLeaveRow } from '../../services/sickLeave'
+import { fetchHealthcarePractitioners, type LinkFieldOption } from '../../services/common'
+import { useCardFilters } from '../../contexts/CardFilterContext'
+import { ClearFiltersButton } from '../ui/ClearFiltersButton'
+import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
+import { SickLeaveDetailPanel } from './SickLeaveDetailPanel'
 
 interface SickLeaveListProps {
   patient?: string
   refreshKey?: number
-  onCreateNew?: () => void
   onPatientClick?: (patient: string) => void
+  title?: string
+  onAdd?: () => void
+  addButtonTitle?: string
 }
 
-export const SickLeaveList = ({ patient, refreshKey, onCreateNew, onPatientClick }: SickLeaveListProps) => {
+const FilterToggleButton = ({
+  active,
+  onClick,
+}: {
+  active: boolean
+  onClick: () => void
+}) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className={`rounded-md border p-1.5 transition-colors ${
+      active ? 'border-primary bg-primary/10 text-primary' : 'border-slate-300 text-slate-500 hover:bg-slate-50'
+    }`}
+    title={active ? 'Hide filters' : 'Show filters'}
+    aria-label={active ? 'Hide filters' : 'Show filters'}
+  >
+    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z"
+      />
+    </svg>
+  </button>
+)
+
+export const SickLeaveList = ({
+  patient,
+  refreshKey,
+  onPatientClick,
+  title = 'Sick Leave',
+  onAdd,
+  addButtonTitle = 'New Sick Leave',
+}: SickLeaveListProps) => {
+  const cardFilters = useCardFilters()
+  const inDashboardCard = cardFilters !== undefined
+  const [showFiltersInternal, setShowFiltersInternal] = useState(false)
+  const showFilters = inDashboardCard ? cardFilters : showFiltersInternal
+
   const [records, setRecords] = useState<SickLeaveRow[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<SickLeaveRow | null>(null)
-  const panelRef = useRef<HTMLDivElement>(null)
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const load = async (q?: string) => {
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+  const [doctorFilter, setDoctorFilter] = useState('')
+  const [doctorQuery, setDoctorQuery] = useState('')
+  const [doctorOpen, setDoctorOpen] = useState(false)
+  const [doctorOptions, setDoctorOptions] = useState<LinkFieldOption[]>([])
+
+  const hasActiveFilters = Boolean(dateFrom || dateTo || doctorFilter)
+
+  const load = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const data = await fetchSickLeaves(patient, q)
+      const data = await fetchSickLeaves(patient, 1, 50, {
+        dateFrom: dateFrom || undefined,
+        dateTo: dateTo || undefined,
+        doctor: doctorFilter || undefined,
+      })
       setRecords(data)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load sick leave records')
     } finally {
       setLoading(false)
     }
-  }
+  }, [patient, dateFrom, dateTo, doctorFilter])
 
   useEffect(() => {
     load()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [patient, refreshKey])
-
-  const handleSearchChange = (q: string) => {
-    setSearch(q)
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => load(q), 350)
-  }
+  }, [load, refreshKey])
 
   useEffect(() => {
-    if (!selected) return
-    const onDown = (e: MouseEvent) => {
-      if (panelRef.current && !panelRef.current.contains(e.target as Node)) setSelected(null)
-    }
-    document.addEventListener('mousedown', onDown)
-    return () => document.removeEventListener('mousedown', onDown)
-  }, [selected])
+    if (!doctorOpen) return
+    const t = setTimeout(async () => {
+      try {
+        const opts = await fetchHealthcarePractitioners(doctorQuery || undefined)
+        setDoctorOptions(opts)
+      } catch {
+        setDoctorOptions([])
+      }
+    }, doctorQuery.trim() === '' ? 0 : 300)
+    return () => clearTimeout(t)
+  }, [doctorQuery, doctorOpen])
 
-  const formatDate = (val: string | null | undefined) => {
-    if (!val) return '—'
-    try { return new Date(val).toLocaleDateString() } catch { return val }
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      const el = e.target as HTMLElement
+      if (el.closest('[data-sl-doctor-filter]')) return
+      setDoctorOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const clearFilters = () => {
+    setDateFrom('')
+    setDateTo('')
+    setDoctorFilter('')
+    setDoctorQuery('')
+    setDoctorOpen(false)
   }
+
+  const selectedDoctorLabel =
+    doctorOptions.find((o) => o.name === doctorFilter)?.label || doctorFilter || ''
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Toolbar */}
-      <div className="flex items-center gap-3 flex-wrap justify-between">
-        <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">Search Patient</label>
-          <input
-            type="search"
-            placeholder="Search by patient name…"
-            value={search}
-            onChange={(e) => handleSearchChange(e.target.value)}
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary"
-          />
-        </div>
-        {onCreateNew && (
-          <div className="flex items-end">
-            <button
-              onClick={onCreateNew}
-              className="px-3 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 transition-colors flex items-center gap-2"
-              title="New Sick Leave"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              New Sick Leave
-            </button>
+      {!inDashboardCard && (
+        <div className="flex flex-shrink-0 items-center justify-between gap-2">
+          <h2 className="text-xl font-semibold text-slate-900">{title}</h2>
+          <div className="flex shrink-0 items-center gap-2">
+            <FilterToggleButton
+              active={Boolean(showFilters)}
+              onClick={() => setShowFiltersInternal((prev) => !prev)}
+            />
+            {onAdd ? (
+              <button
+                type="button"
+                onClick={onAdd}
+                className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-primary text-lg font-bold text-white transition-colors hover:bg-primary/90"
+                title={addButtonTitle}
+              >
+                +
+              </button>
+            ) : null}
           </div>
-        )}
-      </div>
-
-      {loading && <div className="text-sm text-slate-500 py-4 text-center">Loading…</div>}
-      {error && <div className="p-3 bg-red-50 border border-red-200 rounded-md text-xs text-red-700">{error}</div>}
-
-      {!loading && !error && records.length === 0 && (
-        <div className="p-4 text-sm text-slate-600 border border-dashed border-slate-300 rounded-md text-center">
-          No sick leave records found.
         </div>
       )}
 
-      {!loading && records.length > 0 && (
-        <div className="overflow-x-auto border border-slate-200 rounded-lg">
+      {showFilters ? (
+        <div className="flex flex-shrink-0 flex-wrap items-end gap-3 rounded-md border-b border-slate-100 bg-slate-50/80 px-1 py-2">
+          <div className="flex min-w-[130px] flex-col gap-1">
+            <label className="text-xs font-medium text-slate-500">Date from</label>
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm"
+            />
+          </div>
+          <div className="flex min-w-[130px] flex-col gap-1">
+            <label className="text-xs font-medium text-slate-500">Date to</label>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm"
+            />
+          </div>
+          <div data-sl-doctor-filter className="relative flex min-w-[200px] flex-col gap-1">
+            <label className="text-xs font-medium text-slate-500">Doctor</label>
+            <input
+              type="text"
+              value={doctorOpen ? doctorQuery : selectedDoctorLabel}
+              onChange={(e) => {
+                setDoctorQuery(e.target.value)
+                setDoctorOpen(true)
+                if (!e.target.value) setDoctorFilter('')
+              }}
+              onFocus={() => setDoctorOpen(true)}
+              placeholder="Search doctor…"
+              className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm"
+            />
+            {doctorOpen && doctorOptions.length > 0 ? (
+              <ul className="absolute top-full left-0 right-0 z-20 mt-1 max-h-48 overflow-y-auto rounded-md border border-slate-200 bg-white text-sm shadow-lg">
+                {doctorOptions.map((opt) => (
+                  <li key={opt.name}>
+                    <button
+                      type="button"
+                      className="w-full px-3 py-2 text-left hover:bg-slate-50"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => {
+                        setDoctorFilter(opt.name)
+                        setDoctorQuery(opt.label || opt.name)
+                        setDoctorOpen(false)
+                      }}
+                    >
+                      {opt.label || opt.name}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+          {hasActiveFilters ? <ClearFiltersButton onClick={clearFilters} /> : null}
+        </div>
+      ) : null}
+
+      {loading ? <div className="py-4 text-center text-sm text-slate-500">Loading…</div> : null}
+      {error ? (
+        <div className="rounded-md border border-red-200 bg-red-50 p-3 text-xs text-red-700">{error}</div>
+      ) : null}
+
+      {!loading && !error && records.length === 0 ? (
+        <div className="rounded-md border border-dashed border-slate-300 p-4 text-center text-sm text-slate-600">
+          No sick leave records found.
+        </div>
+      ) : null}
+
+      {!loading && records.length > 0 ? (
+        <div className="overflow-x-auto rounded-lg border border-slate-200">
           <table className="min-w-full text-xs">
-            <thead className="bg-slate-50 border-b border-slate-200">
+            <thead className="border-b border-slate-200 bg-slate-50">
               <tr>
-                {!patient && (
+                {!patient ? (
                   <th className="px-3 py-2 text-left font-semibold text-slate-600">Patient</th>
-                )}
+                ) : null}
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">Admission No</th>
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">From Date</th>
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">To Date</th>
                 <th className="px-3 py-2 text-center font-semibold text-slate-600">Days</th>
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">Doctor</th>
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">Diagnosis</th>
+                <th className="px-3 py-2 text-left font-semibold text-slate-600">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {records.map((r) => (
-                <tr key={r.name} className="hover:bg-slate-50 cursor-pointer" onClick={() => setSelected(r)}>
-                  {!patient && (
+                <tr key={r.name} className="cursor-pointer hover:bg-slate-50" onClick={() => setSelected(r)}>
+                  {!patient ? (
                     <td
-                      className="px-3 py-2 text-slate-900 cursor-pointer"
-                      onClick={(e) => { e.stopPropagation(); r.patient && onPatientClick?.(r.patient) }}
+                      className="cursor-pointer px-3 py-2 text-slate-900"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        r.patient && onPatientClick?.(r.patient)
+                      }}
                     >
-                      <span className="font-medium text-primary hover:underline">{r.patient_name || r.patient || '—'}</span>
+                      <span className="font-medium text-primary hover:underline">
+                        {r.patient_name || r.patient || '—'}
+                      </span>
                     </td>
-                  )}
+                  ) : null}
                   <td className="px-3 py-2 text-slate-700">{r.admission_no || '—'}</td>
                   <td className="px-3 py-2 text-slate-800">{r.from_date || '—'}</td>
                   <td className="px-3 py-2 text-slate-800">{r.to_date || '—'}</td>
                   <td className="px-3 py-2 text-center">
                     {r.days ? (
-                      <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium bg-blue-100 text-blue-700">
+                      <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-medium text-blue-700">
                         {r.days}d
                       </span>
-                    ) : '—'}
+                    ) : (
+                      '—'
+                    )}
                   </td>
                   <td className="px-3 py-2 text-slate-700">{r.doctor || '—'}</td>
-                  <td className="px-3 py-2 text-slate-600 max-w-[200px] truncate" title={r.diagnosis || ''}>
+                  <td className="max-w-[200px] truncate px-3 py-2 text-slate-600" title={r.diagnosis || ''}>
                     {r.diagnosis || '—'}
+                  </td>
+                  <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
+                    <PrintFormatDropdown
+                      doctype="Sick Leave"
+                      docName={r.name}
+                      noLetterhead={0}
+                      triggerPrint={1}
+                      className="inline-flex h-8 w-8 items-center justify-center rounded border border-slate-300 bg-white text-primary hover:bg-slate-50"
+                    />
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-      )}
+      ) : null}
 
-      {/* Right-side detail slide-over */}
-      {selected && (
-        <div className="fixed inset-0 z-50 flex justify-end" aria-modal="true">
-          <div className="absolute inset-0 bg-black/30" onClick={() => setSelected(null)} />
-          <div
-            ref={panelRef}
-            className="relative z-10 flex flex-col bg-white shadow-2xl w-full max-w-2xl h-full overflow-y-auto"
-            style={{ scrollbarWidth: 'thin' }}
-          >
-            {/* Header */}
-            <div className="sticky top-0 z-10 flex items-center justify-between px-5 py-4 border-b border-slate-200 bg-white">
-              <div>
-                <div className="text-base font-semibold text-slate-900">Sick Leave</div>
-                <div className="text-xs text-slate-500 mt-0.5">{selected.name}</div>
-              </div>
-              <div className="flex items-center gap-3">
-                <a
-                  href={`/app/sick-leave/${encodeURIComponent(selected.name)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs text-primary hover:underline"
-                >
-                  Open in Frappe ↗
-                </a>
-                <button onClick={() => setSelected(null)} className="text-slate-400 hover:text-slate-700 text-xl leading-none" aria-label="Close">×</button>
-              </div>
-            </div>
-
-            <div className="p-5 flex flex-col gap-5">
-              {/* Summary cards */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {[
-                  { label: 'Patient', value: selected.patient_name || selected.patient || '—' },
-                  { label: 'Admission', value: selected.admission_no || '—' },
-                  { label: 'Days', value: selected.days ? `${selected.days} day(s)` : '—' },
-                  { label: 'Source', value: selected.source || '—' },
-                ].map(({ label, value }) => (
-                  <div key={label} className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-center">
-                    <div className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold">{label}</div>
-                    <div className="text-sm font-semibold text-slate-800 mt-1 truncate" title={value}>{value}</div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Leave Period */}
-              <div className="bg-white border border-slate-200 rounded-lg p-4">
-                <div className="text-sm font-semibold text-slate-800 mb-3">Leave Period</div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <div className="text-[11px] text-slate-500 uppercase tracking-wide font-semibold mb-0.5">From Date</div>
-                    <div className="text-sm font-semibold text-slate-800">{selected.from_date || '—'}</div>
-                  </div>
-                  <div>
-                    <div className="text-[11px] text-slate-500 uppercase tracking-wide font-semibold mb-0.5">To Date</div>
-                    <div className="text-sm font-semibold text-slate-800">{selected.to_date || '—'}</div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Clinical Details */}
-              <div className="bg-white border border-slate-200 rounded-lg p-4">
-                <div className="text-sm font-semibold text-slate-800 mb-3">Clinical Details</div>
-                <div className="grid grid-cols-2 gap-4 mb-3">
-                  <div>
-                    <div className="text-[11px] text-slate-500 uppercase tracking-wide font-semibold mb-0.5">Doctor</div>
-                    <div className="text-sm font-semibold text-slate-800">{selected.doctor || '—'}</div>
-                  </div>
-                  <div>
-                    <div className="text-[11px] text-slate-500 uppercase tracking-wide font-semibold mb-0.5">Created</div>
-                    <div className="text-sm font-semibold text-slate-800">{formatDate(selected.creation)}</div>
-                  </div>
-                </div>
-                {selected.diagnosis && (
-                  <div>
-                    <div className="text-[11px] text-slate-500 uppercase tracking-wide font-semibold mb-1">Diagnosis</div>
-                    <div className="text-sm text-slate-800 bg-slate-50 rounded-md p-3 leading-relaxed">{selected.diagnosis}</div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {selected ? (
+        <SickLeaveDetailPanel
+          row={selected}
+          onClose={() => setSelected(null)}
+          onPatientClick={onPatientClick}
+        />
+      ) : null}
     </div>
   )
 }

@@ -1,17 +1,52 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
+  fetchAssessmentTemplates,
+  fetchDefaultPatientAssessmentTemplate,
   fetchPatientAssessments,
+  type AssessmentTemplateOption,
   type PatientAssessmentRow,
 } from '../../services/patientAssessment'
+import { fetchHealthcarePractitioners, type LinkFieldOption } from '../../services/common'
+import { useCardFilters } from '../../contexts/CardFilterContext'
+import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
-
+import { PatientAssessmentDetailPanel } from './PatientAssessmentDetailPanel'
 
 interface PatientAssessmentListProps {
   patient?: string
   refreshKey?: number
   onCreateNew?: () => void
   onPatientClick?: (patient: string) => void
+  title?: string
+  onAdd?: () => void
+  addButtonTitle?: string
 }
+
+const FilterToggleButton = ({
+  active,
+  onClick,
+}: {
+  active: boolean
+  onClick: () => void
+}) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className={`p-1.5 rounded-md border transition-colors ${
+      active ? 'bg-primary/10 border-primary text-primary' : 'border-slate-300 text-slate-500 hover:bg-slate-50'
+    }`}
+    title={active ? 'Hide filters' : 'Show filters'}
+    aria-label={active ? 'Hide filters' : 'Show filters'}
+  >
+    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z"
+      />
+    </svg>
+  </button>
+)
 
 const statusBadge = (docstatus: number) => {
   if (docstatus === 1)
@@ -36,53 +71,113 @@ const statusBadge = (docstatus: number) => {
 export const PatientAssessmentList = ({
   patient,
   refreshKey,
-  onCreateNew,
   onPatientClick,
+  title = 'Patient Assessment',
+  onAdd,
+  addButtonTitle = 'New Patient Assessment',
 }: PatientAssessmentListProps) => {
+  const cardFilters = useCardFilters()
+  const inDashboardCard = cardFilters !== undefined
+  const [showFiltersInternal, setShowFiltersInternal] = useState(false)
+  const showFilters = inDashboardCard ? cardFilters : showFiltersInternal
+
   const [records, setRecords] = useState<PatientAssessmentRow[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [search, setSearch] = useState('')
-  const [selected, setSelected] = useState<PatientAssessmentRow | null>(null)
-  const panelRef = useRef<HTMLDivElement>(null)
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [detailRow, setDetailRow] = useState<PatientAssessmentRow | null>(null)
 
-  const load = async (q?: string) => {
+  const [templateFilter, setTemplateFilter] = useState('')
+  const [defaultTemplateName, setDefaultTemplateName] = useState('')
+  const [templateOptions, setTemplateOptions] = useState<AssessmentTemplateOption[]>([])
+  const [filtersReady, setFiltersReady] = useState(false)
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+  const [practitionerFilter, setPractitionerFilter] = useState('')
+  const [practitionerQuery, setPractitionerQuery] = useState('')
+  const [practitionerOpen, setPractitionerOpen] = useState(false)
+  const [practitionerOptions, setPractitionerOptions] = useState<LinkFieldOption[]>([])
+
+  const hasActiveFilters = Boolean(
+    (templateFilter && templateFilter !== defaultTemplateName) ||
+      dateFrom ||
+      dateTo ||
+      practitionerFilter
+  )
+
+  useEffect(() => {
+    let cancelled = false
+    Promise.all([fetchDefaultPatientAssessmentTemplate(), fetchAssessmentTemplates()])
+      .then(([defaultTmpl, templates]) => {
+        if (cancelled) return
+        setTemplateOptions(templates)
+        if (defaultTmpl) {
+          setDefaultTemplateName(defaultTmpl.name)
+          setTemplateFilter(defaultTmpl.name)
+        }
+        setFiltersReady(true)
+      })
+      .catch(() => {
+        if (!cancelled) setFiltersReady(true)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const load = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const data = await fetchPatientAssessments(patient, q)
+      const data = await fetchPatientAssessments(patient, 1, 50, {
+        assessmentTemplate: templateFilter || undefined,
+        dateFrom: dateFrom || undefined,
+        dateTo: dateTo || undefined,
+        practitioner: practitionerFilter || undefined,
+      })
       setRecords(data)
     } catch (e) {
-      setError(
-        e instanceof Error ? e.message : 'Failed to load patient assessments'
-      )
+      setError(e instanceof Error ? e.message : 'Failed to load patient assessments')
     } finally {
       setLoading(false)
     }
-  }
+  }, [patient, templateFilter, dateFrom, dateTo, practitionerFilter])
 
   useEffect(() => {
+    if (!filtersReady) return
     load()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [patient, refreshKey])
-
-  const handleSearchChange = (q: string) => {
-    setSearch(q)
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => load(q), 350)
-  }
+  }, [load, refreshKey, filtersReady])
 
   useEffect(() => {
-    if (!selected) return
-    const onDown = (e: MouseEvent) => {
-      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
-        setSelected(null)
+    if (!practitionerOpen) return
+    const t = setTimeout(async () => {
+      try {
+        const opts = await fetchHealthcarePractitioners(practitionerQuery || undefined)
+        setPractitionerOptions(opts)
+      } catch {
+        setPractitionerOptions([])
       }
+    }, practitionerQuery.trim() === '' ? 0 : 300)
+    return () => clearTimeout(t)
+  }, [practitionerQuery, practitionerOpen])
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      const el = e.target as HTMLElement
+      if (el.closest('[data-pa-practitioner-filter]')) return
+      setPractitionerOpen(false)
     }
-    document.addEventListener('mousedown', onDown)
-    return () => document.removeEventListener('mousedown', onDown)
-  }, [selected])
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const clearFilters = () => {
+    setTemplateFilter(defaultTemplateName)
+    setDateFrom('')
+    setDateTo('')
+    setPractitionerFilter('')
+    setPractitionerQuery('')
+    setPractitionerOpen(false)
+  }
 
   const fmt = (val: string | null | undefined) => {
     if (!val) return '—'
@@ -118,47 +213,110 @@ export const PatientAssessmentList = ({
     )
   }
 
+  const selectedPractitionerLabel =
+    practitionerOptions.find((o) => o.name === practitionerFilter)?.label || practitionerFilter || ''
+
   return (
     <div className="flex flex-col gap-4">
-      {/* Toolbar */}
-      <div className="flex items-center gap-3 flex-wrap justify-between">
-        <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">
-            Search Patient
-          </label>
-          <input
-            type="search"
-            placeholder="Search by patient name…"
-            value={search}
-            onChange={(e) => handleSearchChange(e.target.value)}
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary"
-          />
-        </div>
-        {onCreateNew && (
-          <div className="flex items-end">
-            {/* <button
-              onClick={onCreateNew}
-              className="px-3 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 transition-colors flex items-center gap-2"
-              title="New Patient Assessment"
-            >
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
+      {!inDashboardCard && (
+        <div className="flex items-center justify-between gap-2 flex-shrink-0">
+          <h2 className="text-xl font-semibold text-slate-900">{title}</h2>
+          <div className="flex items-center gap-2 shrink-0">
+            <FilterToggleButton
+              active={Boolean(showFilters)}
+              onClick={() => setShowFiltersInternal((prev) => !prev)}
+            />
+            {onAdd && (
+              <button
+                type="button"
+                onClick={onAdd}
+                className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-lg font-bold flex-shrink-0"
+                title={addButtonTitle}
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 4v16m8-8H4"
-                />
-              </svg>
-              New Assessment
-            </button> */}
+                +
+              </button>
+            )}
           </div>
-        )}
-      </div>
+        </div>
+      )}
+
+      {showFilters && (
+        <div className="flex flex-wrap items-end gap-3 px-1 py-2 border-b border-slate-100 bg-slate-50/80 rounded-md flex-shrink-0">
+          <div className="flex flex-col gap-1 min-w-[200px]">
+            <label className="text-xs font-medium text-slate-500">Assessment template</label>
+            <select
+              value={templateFilter}
+              onChange={(e) => setTemplateFilter(e.target.value)}
+              className="rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white"
+            >
+              <option value="">All templates</option>
+              {templateOptions.map((t) => (
+                <option key={t.name} value={t.name}>
+                  {t.label}
+                  {t.name === defaultTemplateName ? ' (default)' : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1 min-w-[130px]">
+            <label className="text-xs font-medium text-slate-500">Date from</label>
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white"
+            />
+          </div>
+          <div className="flex flex-col gap-1 min-w-[130px]">
+            <label className="text-xs font-medium text-slate-500">Date to</label>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white"
+            />
+          </div>
+          <div
+            data-pa-practitioner-filter
+            className="flex flex-col gap-1 min-w-[200px] relative"
+          >
+            <label className="text-xs font-medium text-slate-500">Practitioner</label>
+            <input
+              type="text"
+              value={practitionerOpen ? practitionerQuery : selectedPractitionerLabel}
+              onChange={(e) => {
+                setPractitionerQuery(e.target.value)
+                setPractitionerOpen(true)
+                if (!e.target.value) setPractitionerFilter('')
+              }}
+              onFocus={() => setPractitionerOpen(true)}
+              placeholder="Search practitioner…"
+              className="rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white w-full"
+            />
+            {practitionerOpen && practitionerOptions.length > 0 && (
+              <ul className="absolute z-20 top-full left-0 right-0 mt-1 max-h-48 overflow-y-auto bg-white border border-slate-200 rounded-md shadow-lg text-sm">
+                {practitionerOptions.map((opt) => (
+                  <li key={opt.name}>
+                    <button
+                      type="button"
+                      className="w-full text-left px-3 py-2 hover:bg-slate-50"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => {
+                        setPractitionerFilter(opt.name)
+                        setPractitionerQuery(opt.label || opt.name)
+                        setPractitionerOpen(false)
+                      }}
+                    >
+                      {opt.label || opt.name}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          {hasActiveFilters ? <ClearFiltersButton onClick={clearFilters} /> : null}
+        </div>
+      )}
 
       {loading && (
         <div className="text-sm text-slate-500 py-4 text-center">
@@ -215,7 +373,7 @@ export const PatientAssessmentList = ({
                 <tr
                   key={r.name}
                   className="hover:bg-slate-50 cursor-pointer"
-                  onClick={() => setSelected(r)}
+                  onClick={() => setDetailRow(r)}
                 >
                   <td className="px-3 py-2 text-slate-900 font-medium whitespace-nowrap">
                     {fmt(r.assessment_datetime)}
@@ -273,166 +431,14 @@ export const PatientAssessmentList = ({
         </div>
       )}
 
-      {/* Right-side detail slide-over */}
-      {selected && (
-        <div className="fixed inset-0 z-50 flex justify-end" aria-modal="true">
-          <div
-            className="absolute inset-0 bg-black/30"
-            onClick={() => setSelected(null)}
-          />
-          <div
-            ref={panelRef}
-            className="relative z-10 flex flex-col bg-white shadow-2xl w-full max-w-xl h-full overflow-y-auto"
-            style={{ scrollbarWidth: 'thin' }}
-          >
-            {/* Panel Header */}
-            <div className="sticky top-0 z-10 flex items-center justify-between px-5 py-4 border-b border-slate-200 bg-white">
-              <div>
-                <div className="text-base font-semibold text-slate-900">
-                  Patient Assessment
-                </div>
-                <div className="text-xs text-slate-500 mt-0.5">
-                  {selected.name}
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <a
-                  href={`/app/patient-assessment/${encodeURIComponent(selected.name)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs text-primary hover:underline"
-                >
-                  Open in Frappe ↗
-                </a>
-                <button
-                  onClick={() => setSelected(null)}
-                  className="text-slate-400 hover:text-slate-700 text-xl leading-none"
-                  aria-label="Close"
-                >
-                  ×
-                </button>
-              </div>
-            </div>
-
-            <div className="p-5 flex flex-col gap-5">
-              {/* Status */}
-              <div className="flex items-center gap-2">
-                {statusBadge(selected.docstatus)}
-              </div>
-
-              {/* Summary cards */}
-              <div className="grid grid-cols-2 gap-3">
-                {[
-                  {
-                    label: 'Patient',
-                    value: selected.patient_name || selected.patient,
-                  },
-                  {
-                    label: 'Assessment Date',
-                    value: fmt(selected.assessment_datetime),
-                  },
-                  {
-                    label: 'Template',
-                    value: selected.assessment_template || '—',
-                  },
-                  {
-                    label: 'Practitioner',
-                    value: selected.healthcare_practitioner || '—',
-                  },
-                ].map(({ label, value }) => (
-                  <div
-                    key={label}
-                    className="bg-slate-50 border border-slate-200 rounded-lg p-3"
-                  >
-                    <div className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold">
-                      {label}
-                    </div>
-                    <div
-                      className="text-sm font-semibold text-slate-800 mt-1 truncate"
-                      title={value}
-                    >
-                      {value}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Reference */}
-              {selected.reference_type && (
-                <div className="bg-white border border-slate-200 rounded-lg p-4">
-                  <div className="text-sm font-semibold text-slate-800 mb-2">
-                    Reference
-                  </div>
-                  <div className="text-xs text-slate-700 space-y-1">
-                    <div>
-                      <span className="font-medium">Type:</span>{' '}
-                      {selected.reference_type}
-                    </div>
-                    {selected.encounter && (
-                      <div>
-                        <span className="font-medium">Encounter:</span>{' '}
-                        {selected.encounter}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Score */}
-              {(selected.total_score != null ||
-                selected.total_score_obtained != null) && (
-                <div className="bg-white border border-slate-200 rounded-lg p-4">
-                  <div className="text-sm font-semibold text-slate-800 mb-3">
-                    Score
-                  </div>
-                  <div className="flex items-end gap-4">
-                    <div className="text-center">
-                      <div className="text-3xl font-bold text-primary">
-                        {selected.total_score_obtained ?? 0}
-                      </div>
-                      <div className="text-[11px] text-slate-500 mt-1">
-                        Obtained
-                      </div>
-                    </div>
-                    <div className="text-2xl text-slate-300 pb-1">/</div>
-                    <div className="text-center">
-                      <div className="text-3xl font-bold text-slate-400">
-                        {selected.total_score ?? 0}
-                      </div>
-                      <div className="text-[11px] text-slate-500 mt-1">
-                        Total
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Description */}
-              {selected.assessment_description && (
-                <div className="bg-white border border-slate-200 rounded-lg p-4">
-                  <div className="text-sm font-semibold text-slate-800 mb-2">
-                    Description
-                  </div>
-                  <p className="text-xs text-slate-700 whitespace-pre-wrap">
-                    {selected.assessment_description}
-                  </p>
-                </div>
-              )}
-
-              <div className="pt-2">
-                <a
-                  href={`/app/patient-assessment/${encodeURIComponent(selected.name)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 transition-colors"
-                >
-                  Open Full Form to Enter Scores ↗
-                </a>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {detailRow ? (
+        <PatientAssessmentDetailPanel
+          name={detailRow.name}
+          preview={detailRow}
+          onClose={() => setDetailRow(null)}
+          onPatientClick={onPatientClick}
+        />
+      ) : null}
     </div>
   )
 }

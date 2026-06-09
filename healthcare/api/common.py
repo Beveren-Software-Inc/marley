@@ -2444,17 +2444,66 @@ def get_sample_collection_statistics(patient=None):
 		}
 
 
+NURSING_PORTAL_READ_ROLES = frozenset(
+	{
+		"Administrator",
+		"System Manager",
+		"Healthcare Administrator",
+		"Doctor",
+		"Nurse",
+		"Nursing User",
+		"Physician",
+		"Psychologist",
+		"Anesthesiologist",
+		"Therapist",
+		"Nutritionist",
+	}
+)
+
+
+def _user_can_read_nursing_portal() -> bool:
+	if frappe.session.user in ("Guest", ""):
+		return False
+	return bool(NURSING_PORTAL_READ_ROLES & set(frappe.get_roles(frappe.session.user)))
+
+
+def _owner_filter_for_practitioner(practitioner: str | None) -> str | None:
+	if not practitioner:
+		return None
+	return frappe.db.get_value("Healthcare Practitioner", practitioner, "user_id")
+
+
 @frappe.whitelist()
-def get_grooming_charts(search=None, patient=None, page=1, page_size=20):
+def get_grooming_charts(
+	search=None,
+	patient=None,
+	date_from=None,
+	date_to=None,
+	practitioner=None,
+	page=1,
+	page_size=20,
+):
 	"""Fetch IP Grooming Chart records."""
 	try:
 		page = frappe.utils.cint(page) or 1
 		page_size = frappe.utils.cint(page_size) or 20
+		portal_reader = _user_can_read_nursing_portal()
+		has_read = frappe.has_permission("IP Grooming Chart", "read")
+
 		filters = {}
 		if patient:
 			filters["file_no"] = patient
 		if search:
 			filters["patient_name"] = ["like", f"%{search}%"]
+		if date_from and date_to:
+			filters["date"] = ["between", [date_from, date_to]]
+		elif date_from:
+			filters["date"] = [">=", date_from]
+		elif date_to:
+			filters["date"] = ["<=", date_to]
+		owner_user = _owner_filter_for_practitioner(practitioner)
+		if owner_user:
+			filters["owner"] = owner_user
 
 		charts = frappe.get_all(
 			"IP Grooming Chart",
@@ -2464,17 +2513,34 @@ def get_grooming_charts(search=None, patient=None, page=1, page_size=20):
 				"brush_teeth_morning", "change_clothes_morning", "brush_teeth_noon",
 				"change_clothes_noon", "shower", "bowel", "bed_wetting",
 				"breakfast", "snack_1", "lunch", "snack_2", "dinner", "snack_3",
-				"weight", "lmp", "creation"
+				"weight", "lmp", "creation", "modified", "owner"
 			],
-			order_by="creation desc",
+			order_by="date desc, creation desc",
 			limit_page_length=page_size,
 			limit_start=(page - 1) * page_size,
+			ignore_permissions=portal_reader and not has_read,
 		)
 		total = frappe.db.count("IP Grooming Chart", filters=filters)
 		return {"success": True, "data": charts, "page": page, "page_size": page_size, "total": total}
 	except Exception as e:
 		frappe.logger().error(f"Error in get_grooming_charts: {str(e)}")
 		return {"success": False, "message": str(e), "data": []}
+
+
+@frappe.whitelist()
+def get_grooming_chart(name=None):
+	"""Return one IP Grooming Chart for the healthcare portal."""
+	name = (name or "").strip()
+	if not name:
+		frappe.throw(_("Grooming Chart is required"))
+	if not frappe.db.exists("IP Grooming Chart", name):
+		frappe.throw(_("Grooming Chart {0} not found").format(name))
+
+	doc = frappe.get_doc("IP Grooming Chart", name)
+	if not frappe.has_permission("IP Grooming Chart", "read", doc=doc):
+		if not _user_can_read_nursing_portal():
+			frappe.throw(_("Not permitted to read Grooming Chart"), frappe.PermissionError)
+	return doc.as_dict()
 
 
 @frappe.whitelist()
@@ -2504,7 +2570,16 @@ def create_grooming_chart(data):
 
 
 @frappe.whitelist()
-def get_main_nursing_notes(search=None, patient=None, admission=None, page=1, page_size=50):
+def get_main_nursing_notes(
+	search=None,
+	patient=None,
+	admission=None,
+	date_from=None,
+	date_to=None,
+	practitioner=None,
+	page=1,
+	page_size=50,
+):
 	"""Fetch Main Nursing Note records for the portal."""
 	try:
 		page = frappe.utils.cint(page) or 1
@@ -2516,6 +2591,16 @@ def get_main_nursing_notes(search=None, patient=None, admission=None, page=1, pa
 			filters["admission"] = admission
 		if search:
 			filters["patient_name"] = ["like", f"%{search}%"]
+		if date_from and date_to:
+			filters["date"] = ["between", [date_from, date_to]]
+		elif date_from:
+			filters["date"] = [">=", date_from]
+		elif date_to:
+			filters["date"] = ["<=", date_to]
+		if practitioner:
+			user_id = frappe.db.get_value("Healthcare Practitioner", practitioner, "user_id")
+			if user_id:
+				filters["user"] = user_id
 
 		records = frappe.get_all(
 			"Main Nursing Note",
@@ -2618,16 +2703,36 @@ def get_branches(search=None):
 
 
 @frappe.whitelist()
-def get_mental_states(search=None, patient=None, page=1, page_size=20):
+def get_mental_states(
+	search=None,
+	patient=None,
+	date_from=None,
+	date_to=None,
+	practitioner=None,
+	page=1,
+	page_size=20,
+):
 	"""Fetch Mental State records."""
 	try:
 		page = frappe.utils.cint(page) or 1
 		page_size = frappe.utils.cint(page_size) or 20
+		portal_reader = _user_can_read_nursing_portal()
+		has_read = frappe.has_permission("Mental State", "read")
+
 		filters = {}
 		if patient:
 			filters["file_no"] = patient
 		if search:
 			filters["patient_name"] = ["like", f"%{search}%"]
+		if date_from and date_to:
+			filters["creation"] = ["between", [date_from, f"{date_to} 23:59:59"]]
+		elif date_from:
+			filters["creation"] = [">=", date_from]
+		elif date_to:
+			filters["creation"] = ["<=", f"{date_to} 23:59:59"]
+		owner_user = _owner_filter_for_practitioner(practitioner)
+		if owner_user:
+			filters["owner"] = owner_user
 
 		records = frappe.get_all(
 			"Mental State",
@@ -2646,17 +2751,34 @@ def get_mental_states(search=None, patient=None, page=1, page_size=20):
 				"sleep_duration", "normal_sleep", "disturbed", "intermittent",
 				"excessive", "a_little",
 				"conscious", "alert", "disturbed_con",
-				"creation"
+				"creation", "modified", "owner"
 			],
 			order_by="creation desc",
 			limit_page_length=page_size,
 			limit_start=(page - 1) * page_size,
+			ignore_permissions=portal_reader and not has_read,
 		)
 		total = frappe.db.count("Mental State", filters=filters)
 		return {"success": True, "data": records, "page": page, "page_size": page_size, "total": total}
 	except Exception as e:
 		frappe.logger().error(f"Error in get_mental_states: {str(e)}")
 		return {"success": False, "message": str(e), "data": []}
+
+
+@frappe.whitelist()
+def get_mental_state(name=None):
+	"""Return one Mental State for the healthcare portal."""
+	name = (name or "").strip()
+	if not name:
+		frappe.throw(_("Mental State is required"))
+	if not frappe.db.exists("Mental State", name):
+		frappe.throw(_("Mental State {0} not found").format(name))
+
+	doc = frappe.get_doc("Mental State", name)
+	if not frappe.has_permission("Mental State", "read", doc=doc):
+		if not _user_can_read_nursing_portal():
+			frappe.throw(_("Not permitted to read Mental State"), frappe.PermissionError)
+	return doc.as_dict()
 
 
 @frappe.whitelist()
@@ -2694,29 +2816,51 @@ def create_mental_state(data):
 
 
 @frappe.whitelist()
-def get_sick_leaves(search=None, patient=None, page=1, page_size=20):
+def get_sick_leaves(
+	search=None,
+	patient=None,
+	date_from=None,
+	date_to=None,
+	doctor=None,
+	page=1,
+	page_size=20,
+):
 	"""Fetch Sick Leave records."""
 	try:
 		page = frappe.utils.cint(page) or 1
 		page_size = frappe.utils.cint(page_size) or 20
+		portal_reader = _user_can_read_nursing_portal()
+		has_read = frappe.has_permission("Sick Leave", "read")
+
 		filters = {}
 		if patient:
 			filters["patient"] = patient
 		if search:
 			filters["patient_name"] = ["like", f"%{search}%"]
+		if date_from and date_to:
+			filters["from_date"] = ["between", [date_from, date_to]]
+		elif date_from:
+			filters["from_date"] = [">=", date_from]
+		elif date_to:
+			filters["from_date"] = ["<=", date_to]
+		if doctor:
+			filters["doctor"] = doctor
 
-		records = frappe.get_all(
-			"Sick Leave",
-			filters=filters,
-			fields=[
+		list_kwargs = {
+			"filters": filters,
+			"fields": [
 				"name", "admission_no", "patient", "patient_name",
 				"from_date", "to_date", "days", "diagnosis", "doctor", "source",
-				"creation"
+				"creation",
 			],
-			order_by="creation desc",
-			limit_page_length=page_size,
-			limit_start=(page - 1) * page_size,
-		)
+			"order_by": "creation desc",
+			"limit_page_length": page_size,
+			"limit_start": (page - 1) * page_size,
+		}
+		if portal_reader and not has_read:
+			list_kwargs["ignore_permissions"] = True
+
+		records = frappe.get_all("Sick Leave", **list_kwargs)
 		total = frappe.db.count("Sick Leave", filters=filters)
 		return {"success": True, "data": records, "page": page, "page_size": page_size, "total": total}
 	except Exception as e:
@@ -2772,7 +2916,16 @@ def get_employees(search=None):
 
 
 @frappe.whitelist()
-def get_patient_assessments(patient=None, search=None, page=1, page_size=20):
+def get_patient_assessments(
+	patient=None,
+	search=None,
+	assessment_template=None,
+	date_from=None,
+	date_to=None,
+	practitioner=None,
+	page=1,
+	page_size=20,
+):
 	"""Fetch Patient Assessment records."""
 	try:
 		page = frappe.utils.cint(page) or 1
@@ -2782,6 +2935,16 @@ def get_patient_assessments(patient=None, search=None, page=1, page_size=20):
 			filters["patient"] = patient
 		if search:
 			filters["patient_name"] = ["like", f"%{search}%"]
+		if assessment_template:
+			filters["assessment_template"] = assessment_template
+		if date_from and date_to:
+			filters["assessment_datetime"] = ["between", [date_from, date_to]]
+		elif date_from:
+			filters["assessment_datetime"] = [">=", date_from]
+		elif date_to:
+			filters["assessment_datetime"] = ["<=", date_to]
+		if practitioner:
+			filters["healthcare_practitioner"] = practitioner
 
 		records = frappe.get_all(
 			"Patient Assessment",
@@ -2803,6 +2966,83 @@ def get_patient_assessments(patient=None, search=None, page=1, page_size=20):
 		return {"success": False, "message": str(e), "data": []}
 
 
+PATIENT_ASSESSMENT_PORTAL_READ_ROLES = frozenset(
+	{
+		"Administrator",
+		"System Manager",
+		"Healthcare Administrator",
+		"Doctor",
+		"Nurse",
+		"Nursing User",
+		"Physician",
+		"Psychologist",
+		"Anesthesiologist",
+		"Therapist",
+		"Nutritionist",
+	}
+)
+
+
+def _user_can_read_patient_assessment_portal() -> bool:
+	if frappe.session.user in ("Guest", ""):
+		return False
+	return bool(PATIENT_ASSESSMENT_PORTAL_READ_ROLES & set(frappe.get_roles(frappe.session.user)))
+
+
+def _serialize_patient_assessment(doc) -> dict:
+	row = doc.as_dict()
+	if row.get("patient") and not row.get("patient_name"):
+		row["patient_name"] = frappe.db.get_value("Patient", row["patient"], "patient_name")
+	if row.get("healthcare_practitioner") and not row.get("practitioner_name"):
+		row["practitioner_name"] = frappe.db.get_value(
+			"Healthcare Practitioner",
+			row["healthcare_practitioner"],
+			"practitioner_name",
+		)
+	sheet = []
+	for line in doc.get("assessment_sheet") or []:
+		param = line.parameter
+		param_label = (
+			frappe.db.get_value("Patient Assessment Parameter", param, "assessment_parameter")
+			if param
+			else None
+		) or param
+		sheet.append(
+			{
+				"parameter": param,
+				"parameter_label": param_label,
+				"score": line.score,
+				"time": line.time,
+				"comments": line.comments,
+				"yes": line.yes,
+			}
+		)
+	row["assessment_sheet"] = sheet
+	return row
+
+
+@frappe.whitelist()
+def get_patient_assessment(name=None):
+	"""Return one Patient Assessment for the healthcare portal (avoids REST DocPerm gaps)."""
+	name = (name or "").strip()
+	if not name:
+		frappe.throw(_("Patient Assessment is required"))
+
+	if not frappe.db.exists("Patient Assessment", name):
+		frappe.throw(_("Patient Assessment {0} not found").format(name))
+
+	doc = frappe.get_doc("Patient Assessment", name)
+
+	if not frappe.has_permission("Patient Assessment", "read", doc=doc):
+		if not _user_can_read_patient_assessment_portal():
+			frappe.throw(
+				_("Not permitted to read Patient Assessment"),
+				frappe.PermissionError,
+			)
+
+	return _serialize_patient_assessment(doc)
+
+
 @frappe.whitelist()
 def create_patient_assessment(data):
 	"""Create a new Patient Assessment record.
@@ -2813,8 +3053,6 @@ def create_patient_assessment(data):
 	try:
 		if isinstance(data, str):
 			data = frappe.parse_json(data)
-		print("mambo ni noma", str(data))
-		# frappe.throw(str(data))
 		doc = frappe.new_doc("Patient Assessment")
 		doc.naming_series = "HLC-PA-.YYYY.-"
 		for field in [
@@ -2859,6 +3097,25 @@ def create_patient_assessment(data):
 	except Exception as e:
 		frappe.logger().error(f"Error creating patient assessment: {str(e)}")
 		return {"success": False, "message": str(e)}
+
+
+@frappe.whitelist()
+def get_default_patient_assessment_template():
+	"""Return the default Patient Assessment Template for the portal."""
+	template_name = (
+		frappe.db.get_value("Patient Assessment Template", {"default": 1}, "name")
+		or frappe.db.get_value(
+			"Patient Assessment Template",
+			{"assessment_name": "Default Patient Evaluation"},
+			"name",
+		)
+	)
+	if not template_name:
+		return None
+	assessment_name = frappe.db.get_value(
+		"Patient Assessment Template", template_name, "assessment_name"
+	)
+	return {"name": template_name, "label": assessment_name or template_name}
 
 
 @frappe.whitelist()

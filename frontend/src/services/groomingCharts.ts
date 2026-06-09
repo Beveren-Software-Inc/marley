@@ -24,6 +24,16 @@ export interface GroomingChartRow {
   weight: number | null
   lmp: string | null
   creation: string
+  modified?: string
+  owner?: string
+}
+
+export type GroomingChartDoc = GroomingChartRow
+
+export type NursingListFilters = {
+  dateFrom?: string
+  dateTo?: string
+  practitioner?: string
 }
 
 export interface CreateGroomingChartInput {
@@ -54,17 +64,18 @@ export interface CreateGroomingChartInput {
 
 export async function fetchGroomingCharts(
   patient?: string,
-  search?: string,
   page = 1,
-  pageSize = 50
+  pageSize = 50,
+  filters?: NursingListFilters
 ): Promise<GroomingChartRow[]> {
   const params = new URLSearchParams({
-    cmd: 'healthcare.api.common.get_grooming_charts',
     page: String(page),
     page_size: String(pageSize),
   })
   if (patient) params.set('patient', patient)
-  if (search) params.set('search', search)
+  if (filters?.dateFrom) params.set('date_from', filters.dateFrom)
+  if (filters?.dateTo) params.set('date_to', filters.dateTo)
+  if (filters?.practitioner) params.set('practitioner', filters.practitioner)
 
   const res = await fetch(`/api/method/healthcare.api.common.get_grooming_charts?${params}`)
   const data = await res.json()
@@ -72,6 +83,16 @@ export async function fetchGroomingCharts(
   if (msg?.success) return msg.data as GroomingChartRow[]
   if (Array.isArray(msg)) return msg as GroomingChartRow[]
   return []
+}
+
+export async function fetchGroomingChart(name: string): Promise<GroomingChartDoc> {
+  const params = new URLSearchParams({ name })
+  const res = await fetch(`/api/method/healthcare.api.common.get_grooming_chart?${params}`)
+  const data = await res.json()
+  if (data?.exception) throw new Error(data.message || 'Failed to load grooming chart')
+  const msg = data?.message
+  if (!msg || typeof msg !== 'object') throw new Error('Invalid response format')
+  return msg as GroomingChartDoc
 }
 
 export async function createGroomingChart(
