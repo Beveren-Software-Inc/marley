@@ -7,18 +7,34 @@ import {
   CreateModalFooter,
   CreateModalHeader,
   createModalShellClass,
+  createModalTabButtonClass,
 } from '../ui/CreateModalChrome'
+import { SignaturePad, attachFileDisplayUrl } from '../ui/SignaturePad'
+import { Check } from 'lucide-react'
 import { searchPatients, fetchPatients, fetchPatientDoc, type PatientListItem } from '../../services/patients'
 import { toast } from '../../hooks/useToast'
 import { apiRequest } from '../../services/apiClient'
-import { 
-  fetchHealthcarePractitioners, 
+import {
+  fetchInpatientRecord,
+  updateInpatientAdmission,
+  fetchServiceUnits,
+  type ServiceUnit,
+} from '../../services/inpatientRecords'
+import {
+  fetchHealthcarePractitioners,
   fetchCompanies,
   resolveDefaultCompany,
   fetchCostCenters,
   getCurrentUserPractitioner,
-  type LinkFieldOption
+  fetchMedicalDepartments,
+  fetchObservationLevels,
+  type LinkFieldOption,
 } from '../../services/common'
+import {
+  createObservation,
+  createObservationSalesOrder,
+  fetchObservationLevelDetails,
+} from '../../services/observations'
 import { CreatePatientModal } from '../patients/CreatePatientModal'
 import { CreatePractitionerModal } from '../practitioners/CreatePractitionerModal'
 
@@ -27,14 +43,136 @@ interface Company {
   company_name: string
 }
 
+type EditTab = 'details' | 'relatives' | 'visitors'
+type CreateTab = 'admission' | 'observation'
+
+type ObservationFormState = {
+  addObservation: 'Yes' | 'No' | ''
+  chargesStartToday: 'Yes' | 'No' | ''
+  observation_level: string
+  practitioner: string
+  department: string
+  designated_security_personel: string
+  note: string
+  amount: number
+  duration: string
+  start_date: string
+  room: string
+}
+
+type RelativeRow = {
+  relative_relation: string
+  relative_name: string
+  relative_id_num: string
+  relative_phone_no: string
+  relative_alternative_phone_no: string
+  relative_alternative_phone_no_2: string
+  any_remarks: string
+}
+
+type VisitorEditRow = {
+  visitors_name: string
+  relationship_with_patient: string
+  cpr__id_no: string
+  any_remarks: string
+  entered_by?: string
+  entered_date?: string
+}
+
+const RELATION_OPTIONS = [
+  'Father',
+  'Mother',
+  'Brother',
+  'Sister',
+  'Husband',
+  'Wife',
+  'Son',
+  'Daughter',
+] as const
+
+const EMPTY_RELATIVE: RelativeRow = {
+  relative_relation: '',
+  relative_name: '',
+  relative_id_num: '',
+  relative_phone_no: '',
+  relative_alternative_phone_no: '',
+  relative_alternative_phone_no_2: '',
+  any_remarks: '',
+}
+
+const EMPTY_VISITOR: VisitorEditRow = {
+  visitors_name: '',
+  relationship_with_patient: '',
+  cpr__id_no: '',
+  any_remarks: '',
+}
+
+function resolveSignatureUrl(sig?: string | null): string | undefined {
+  if (!sig?.trim()) return undefined
+  if (sig.startsWith('data:') || sig.startsWith('http')) return sig
+  if (sig.startsWith('/')) return attachFileDisplayUrl(sig)
+  return `data:image/png;base64,${sig}`
+}
+
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result as string)
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+}
+
+function YesNoField({
+  label,
+  value,
+  onChange,
+  required,
+}: {
+  label: string
+  value: 'Yes' | 'No' | ''
+  onChange: (v: 'Yes' | 'No') => void
+  required?: boolean
+}) {
+  return (
+    <div>
+      <label className="block text-sm font-medium text-slate-700 mb-2">
+        {label} {required ? <span className="text-red-500">*</span> : null}
+      </label>
+      <div className="flex items-center gap-4">
+        <label className="inline-flex items-center gap-1.5 text-sm text-slate-700">
+          <input
+            type="radio"
+            className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary"
+            checked={value === 'Yes'}
+            onChange={() => onChange('Yes')}
+          />
+          Yes
+        </label>
+        <label className="inline-flex items-center gap-1.5 text-sm text-slate-700">
+          <input
+            type="radio"
+            className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary"
+            checked={value === 'No'}
+            onChange={() => onChange('No')}
+          />
+          No
+        </label>
+      </div>
+    </div>
+  )
+}
+
 interface CreateAdmissionModalProps {
   onClose: () => void
   onSuccess: (admissionName: string) => void
   patientName?: string
   encounterName?: string
+  editAdmissionName?: string
 }
 
-export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounterName }: CreateAdmissionModalProps) => {
+export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounterName, editAdmissionName }: CreateAdmissionModalProps) => {
+  const isEditMode = Boolean(editAdmissionName)
   const [patientQuery, setPatientQuery] = useState(patientName || '')
   const [selectedPatient, setSelectedPatient] = useState<PatientListItem | null>(
     patientName ? { name: patientName, patient_name: patientName } as PatientListItem : null
@@ -42,6 +180,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
   const [patients, setPatients] = useState<PatientListItem[]>([])
   const [patientOpen, setPatientOpen] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [loadingRecord, setLoadingRecord] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showCreatePatient, setShowCreatePatient] = useState(false)
@@ -87,9 +226,48 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
     admission_nursing_checklist_template: ''
   })
 
+  const [activeTab, setActiveTab] = useState<EditTab>('details')
+  const [activeCreateTab, setActiveCreateTab] = useState<CreateTab>('admission')
+  const [relatives, setRelatives] = useState<RelativeRow[]>([])
+  const [visitors, setVisitors] = useState<VisitorEditRow[]>([])
+  const [signature, setSignature] = useState('')
+  const [signatureUploading, setSignatureUploading] = useState(false)
+
+  const [observationForm, setObservationForm] = useState<ObservationFormState>(() => ({
+    addObservation: '',
+    chargesStartToday: '',
+    observation_level: '',
+    practitioner: '',
+    department: '',
+    designated_security_personel: '',
+    note: '',
+    amount: 0,
+    duration: '',
+    start_date: new Date().toISOString().split('T')[0],
+    room: '',
+  }))
+  const [observationLevelOptions, setObservationLevelOptions] = useState<LinkFieldOption[]>([])
+  const [observationLevelOpen, setObservationLevelOpen] = useState(false)
+  const [observationLevelQuery, setObservationLevelQuery] = useState('')
+  const [selectedObservationLevel, setSelectedObservationLevel] = useState<LinkFieldOption | null>(null)
+  const [observationLevelLoading, setObservationLevelLoading] = useState(false)
+  const [obsDepartmentOptions, setObsDepartmentOptions] = useState<LinkFieldOption[]>([])
+  const [obsDepartmentOpen, setObsDepartmentOpen] = useState(false)
+  const [obsDepartmentQuery, setObsDepartmentQuery] = useState('')
+  const [selectedObsDepartment, setSelectedObsDepartment] = useState<LinkFieldOption | null>(null)
+  const [obsPractitionerOptions, setObsPractitionerOptions] = useState<LinkFieldOption[]>([])
+  const [obsPractitionerOpen, setObsPractitionerOpen] = useState(false)
+  const [obsPractitionerQuery, setObsPractitionerQuery] = useState('')
+  const [selectedObsPractitioner, setSelectedObsPractitioner] = useState<LinkFieldOption | null>(null)
+  const [obsRoomOptions, setObsRoomOptions] = useState<ServiceUnit[]>([])
+  const [obsRoomOpen, setObsRoomOpen] = useState(false)
+  const [obsRoomQuery, setObsRoomQuery] = useState('')
+  const [selectedObsRoom, setSelectedObsRoom] = useState<ServiceUnit | null>(null)
+  const [obsRoomLoading, setObsRoomLoading] = useState(false)
+
   // When patientName prop is provided, resolve the real display name
   useEffect(() => {
-    if (!patientName) return
+    if (!patientName || isEditMode) return
     fetchPatientDoc(patientName)
       .then(doc => {
         const displayName = doc.patient_name || patientName
@@ -99,7 +277,107 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
       .catch(() => {
         // fallback — keep the ID as display name
       })
-  }, [patientName])
+  }, [patientName, isEditMode])
+
+  // Load existing admission when editing
+  useEffect(() => {
+    if (!editAdmissionName) return
+
+    let cancelled = false
+    const loadAdmission = async () => {
+      setLoadingRecord(true)
+      setError(null)
+      try {
+        const record = await fetchInpatientRecord(editAdmissionName)
+        if (cancelled) return
+
+        setSelectedPatient({
+          name: record.patient,
+          patient_name: record.patient_name || record.patient,
+        } as PatientListItem)
+        setPatientQuery(record.patient_name || record.patient)
+
+        setFormData({
+          company: record.company || '',
+          cost_center: record.cost_center || '',
+          medical_department: record.medical_department || '',
+          consultant_doctor: record.primary_practitioner || record.admission_by_doctor || '',
+          psychologist_doctor: record.psychologist_doctor || '',
+          residents_doctor: record.residents_doctor_no || '',
+          admission_ordered_for: record.admission_ordered_for || new Date().toISOString().split('T')[0],
+          expected_length_of_stay: record.expected_length_of_stay != null
+            ? String(record.expected_length_of_stay)
+            : '1',
+          admission_instruction: record.admission_instruction || '',
+          admission_nursing_checklist_template: record.admission_nursing_checklist_template || '',
+        })
+
+        if (record.admission_doctor_name || record.primary_practitioner) {
+          setConsultantQuery(record.admission_doctor_name || record.primary_practitioner || '')
+        }
+        if (record.psychologist_doctor_name || record.psychologist_doctor) {
+          setPsychologistQuery(record.psychologist_doctor_name || record.psychologist_doctor || '')
+        }
+        if (record.resident_doctor_name || record.residents_doctor_no) {
+          setResidentQuery(record.resident_doctor_name || record.residents_doctor_no || '')
+        }
+        if (record.company) {
+          const companyLabel = await fetchCompanies().then((list) =>
+            list.find((c) => c.name === record.company)?.label || record.company
+          )
+          setCompanyQuery(companyLabel || record.company)
+          loadCostCenters(record.company)
+        }
+        if (record.cost_center) {
+          setCostCenterQuery(record.cost_center)
+        }
+
+        const existingRelatives = record.patient_relatives || []
+        if (existingRelatives.length > 0) {
+          setRelatives(existingRelatives.map((r) => ({
+            relative_relation: r.relative_relation || r.relationship_with_patient || '',
+            relative_name: r.relative_name || '',
+            relative_id_num: r.relative_id_num || r.cpr__id_no || '',
+            relative_phone_no: r.relative_phone_no || '',
+            relative_alternative_phone_no: r.relative_alternative_phone_no || '',
+            relative_alternative_phone_no_2: r.relative_alternative_phone_no_2 || '',
+            any_remarks: r.any_remarks || '',
+          })))
+        } else {
+          setRelatives([])
+        }
+
+        const existingVisitors = record.patient_visitors || []
+        if (existingVisitors.length > 0) {
+          setVisitors(existingVisitors.map((v) => ({
+            visitors_name: v.visitors_name || '',
+            relationship_with_patient: v.relationship_with_patient || '',
+            cpr__id_no: v.cpr__id_no || '',
+            any_remarks: v.any_remarks || '',
+            entered_by: v.entered_by,
+            entered_date: v.entered_date,
+          })))
+        } else {
+          setVisitors([])
+        }
+
+        if (record.signature) {
+          setSignature(record.signature)
+        }
+      } catch (err) {
+        if (!cancelled) {
+          const msg = err instanceof Error ? err.message : 'Failed to load admission'
+          setError(msg)
+          toast.error(msg, 5000)
+        }
+      } finally {
+        if (!cancelled) setLoadingRecord(false)
+      }
+    }
+
+    loadAdmission()
+    return () => { cancelled = true }
+  }, [editAdmissionName])
 
   // Load companies on mount
   useEffect(() => {
@@ -235,12 +513,102 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
     }
   }, [residentQuery, residentOpen, formData.medical_department])
 
-  // Auto-fill current user's practitioner as consultant doctor
+  // Observation level search (create flow)
   useEffect(() => {
+    if (isEditMode || !observationLevelOpen) return
+    const timeoutId = setTimeout(async () => {
+      try {
+        setObservationLevelLoading(true)
+        const results = await fetchObservationLevels(observationLevelQuery.trim() || undefined)
+        setObservationLevelOptions(results)
+      } catch (err) {
+        console.error('Failed to search observation levels:', err)
+      } finally {
+        setObservationLevelLoading(false)
+      }
+    }, observationLevelQuery.trim() === '' ? 0 : 300)
+    return () => clearTimeout(timeoutId)
+  }, [observationLevelQuery, observationLevelOpen, isEditMode])
+
+  useEffect(() => {
+    if (isEditMode || !obsDepartmentOpen) return
+    const timeoutId = setTimeout(async () => {
+      try {
+        const results = await fetchMedicalDepartments(obsDepartmentQuery.trim() || undefined)
+        setObsDepartmentOptions(results)
+      } catch (err) {
+        console.error('Failed to search departments:', err)
+      }
+    }, obsDepartmentQuery.trim() === '' ? 0 : 300)
+    return () => clearTimeout(timeoutId)
+  }, [obsDepartmentQuery, obsDepartmentOpen, isEditMode])
+
+  useEffect(() => {
+    if (isEditMode || !obsPractitionerOpen) return
+    const timeoutId = setTimeout(async () => {
+      try {
+        const results = await fetchHealthcarePractitioners(
+          obsPractitionerQuery.trim() || undefined,
+          observationForm.department || formData.medical_department || undefined
+        )
+        setObsPractitionerOptions(results)
+      } catch (err) {
+        console.error('Failed to search practitioners:', err)
+      }
+    }, obsPractitionerQuery.trim() === '' ? 0 : 300)
+    return () => clearTimeout(timeoutId)
+  }, [obsPractitionerQuery, obsPractitionerOpen, observationForm.department, formData.medical_department, isEditMode])
+
+  useEffect(() => {
+    if (isEditMode || !obsRoomOpen || observationForm.addObservation !== 'Yes') return
+    const timeoutId = setTimeout(async () => {
+      setObsRoomLoading(true)
+      try {
+        const results = await fetchServiceUnits(undefined, 'Vacant', obsRoomQuery.trim() || undefined)
+        setObsRoomOptions(results)
+      } catch (err) {
+        console.error('Failed to load observation rooms:', err)
+        setObsRoomOptions([])
+      } finally {
+        setObsRoomLoading(false)
+      }
+    }, obsRoomQuery.trim() === '' ? 0 : 300)
+    return () => clearTimeout(timeoutId)
+  }, [obsRoomQuery, obsRoomOpen, observationForm.addObservation, isEditMode])
+
+  // Pre-fill observation tab from admission details
+  useEffect(() => {
+    if (isEditMode || activeCreateTab !== 'observation') return
+    setObservationForm((prev) => ({
+      ...prev,
+      practitioner: prev.practitioner || formData.consultant_doctor,
+      department: prev.department || formData.medical_department,
+      start_date: prev.start_date || formData.admission_ordered_for,
+    }))
+    if (formData.consultant_doctor && !selectedObsPractitioner) {
+      setObsPractitionerQuery(consultantQuery || formData.consultant_doctor)
+    }
+    if (formData.medical_department && !selectedObsDepartment) {
+      setObsDepartmentQuery(formData.medical_department)
+    }
+  }, [
+    activeCreateTab,
+    formData.consultant_doctor,
+    formData.medical_department,
+    formData.admission_ordered_for,
+    isEditMode,
+    consultantQuery,
+    selectedObsDepartment,
+    selectedObsPractitioner,
+  ])
+
+  // Auto-fill current user's practitioner as consultant doctor (create only)
+  useEffect(() => {
+    if (isEditMode) return
     getCurrentUserPractitioner().then(pract => {
       if (pract) setFormData(prev => prev.consultant_doctor === '' ? { ...prev, consultant_doctor: pract } : prev)
     })
-  }, [])
+  }, [isEditMode])
 
   // Search nursing templates
   // (UI currently disabled; keep hook placeholder if needed in future)
@@ -251,16 +619,19 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
 
     if (!selectedPatient) {
       setError('Please select a patient')
+      if (!isEditMode) setActiveCreateTab('admission')
       return
     }
 
     if (!formData.company) {
       setError('Company is required')
+      if (!isEditMode) setActiveCreateTab('admission')
       return
     }
 
     if (!formData.cost_center) {
       setError('Cost Center is required')
+      if (!isEditMode) setActiveCreateTab('admission')
       return
     }
 
@@ -271,16 +642,82 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
 
     if (!formData.consultant_doctor) {
       setError('Consultant Doctor is required')
+      if (!isEditMode) setActiveCreateTab('admission')
       return
     }
 
     if (!encounterName && !formData.expected_length_of_stay) {
       setError('Expected Length of Stay is required')
+      if (!isEditMode) setActiveCreateTab('admission')
       return
+    }
+
+    if (!isEditMode && observationForm.addObservation === 'Yes') {
+      if (!observationForm.observation_level) {
+        setError('Observation level is required when adding an observation')
+        setActiveCreateTab('observation')
+        return
+      }
+      if (!observationForm.chargesStartToday) {
+        setError('Please select Yes or No for whether charges start today')
+        setActiveCreateTab('observation')
+        return
+      }
+      if (!observationForm.room) {
+        setError('Room / service unit is required for the observation')
+        setActiveCreateTab('observation')
+        return
+      }
     }
 
     try {
       setSubmitting(true)
+
+      if (isEditMode && editAdmissionName) {
+        const updatePayload: Record<string, unknown> = {
+          company: formData.company,
+          cost_center: formData.cost_center,
+          medical_department: formData.medical_department || undefined,
+          consultant_doctor: formData.consultant_doctor,
+          psychologist_doctor: formData.psychologist_doctor || undefined,
+          residents_doctor: formData.residents_doctor || undefined,
+          admission_ordered_for: formData.admission_ordered_for,
+          expected_length_of_stay: formData.expected_length_of_stay
+            ? parseInt(formData.expected_length_of_stay, 10)
+            : undefined,
+          admission_instruction: formData.admission_instruction || undefined,
+          admission_nursing_checklist_template: formData.admission_nursing_checklist_template || undefined,
+          patient_relatives: relatives
+            .filter((r) => r.relative_relation.trim())
+            .map((r) => ({
+              relative_relation: r.relative_relation.trim(),
+              relationship_with_patient: r.relative_relation.trim(),
+              relative_name: r.relative_name.trim() || undefined,
+              relative_id_num: r.relative_id_num.trim() || undefined,
+              cpr__id_no: r.relative_id_num.trim() || undefined,
+              relative_phone_no: r.relative_phone_no.trim() || undefined,
+              relative_alternative_phone_no: r.relative_alternative_phone_no.trim() || undefined,
+              relative_alternative_phone_no_2: r.relative_alternative_phone_no_2.trim() || undefined,
+              any_remarks: r.any_remarks.trim() || undefined,
+            })),
+          patient_visitors: visitors
+            .filter((v) => v.visitors_name.trim() && v.relationship_with_patient.trim())
+            .map((v) => ({
+              visitors_name: v.visitors_name.trim(),
+              relationship_with_patient: v.relationship_with_patient.trim(),
+              cpr__id_no: v.cpr__id_no.trim() || undefined,
+              any_remarks: v.any_remarks.trim() || undefined,
+              entered_by: v.entered_by,
+              entered_date: v.entered_date,
+            })),
+          signature: signature || undefined,
+        }
+
+        await updateInpatientAdmission(editAdmissionName, updatePayload)
+        toast.success('Admission updated successfully!', 3000)
+        onSuccess(editAdmissionName)
+        return
+      }
 
       const args: any = {
         patient: selectedPatient.name,
@@ -350,7 +787,51 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
         null
 
       if (admissionName) {
-        toast.success('Admission created successfully!', 3000)
+        let successMsg = 'Admission created successfully!'
+
+        if (observationForm.addObservation === 'Yes') {
+          try {
+            const today = new Date().toISOString().split('T')[0]
+            const startDate = observationForm.chargesStartToday === 'Yes'
+              ? today
+              : (observationForm.start_date || formData.admission_ordered_for || today)
+
+            const obs = await createObservation({
+              patient: selectedPatient.name,
+              admission_no: admissionName,
+              company: formData.company,
+              practitioner: observationForm.practitioner || formData.consultant_doctor || undefined,
+              department: observationForm.department || formData.medical_department || undefined,
+              observation_level: observationForm.observation_level,
+              designated_security_personel: observationForm.designated_security_personel || undefined,
+              note: observationForm.note || undefined,
+              amount: observationForm.amount || undefined,
+              duration: observationForm.duration || undefined,
+              start_date: startDate,
+              room: observationForm.room || undefined,
+            })
+
+            if (observationForm.chargesStartToday === 'Yes') {
+              try {
+                await createObservationSalesOrder(obs.name)
+                successMsg = 'Admission and observation created (charges started today)'
+              } catch {
+                successMsg = 'Admission and observation created (sales order could not be created)'
+              }
+            } else {
+              successMsg = 'Admission and observation created successfully!'
+            }
+          } catch (obsErr) {
+            toast.error(
+              obsErr instanceof Error ? obsErr.message : 'Admission saved but observation failed',
+              7000
+            )
+            onSuccess(admissionName)
+            return
+          }
+        }
+
+        toast.success(successMsg, 3000)
         onSuccess(admissionName)
       } else {
         const errorMsg = 'Admission created but no name returned'
@@ -375,11 +856,116 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
     setResidentOpen(false)
   }
 
+  const handleSignatureSave = async (file: File) => {
+    setSignatureUploading(true)
+    try {
+      const dataUrl = await fileToDataUrl(file)
+      setSignature(dataUrl)
+      toast.success('Signature captured')
+    } catch {
+      toast.error('Failed to capture signature')
+    } finally {
+      setSignatureUploading(false)
+    }
+  }
+
+  const filledRelativesCount = relatives.filter((r) => r.relative_relation.trim()).length
+  const filledVisitorsCount = visitors.filter((v) => v.visitors_name.trim()).length
+  const showAdmissionFields = isEditMode
+    ? activeTab === 'details'
+    : activeCreateTab === 'admission'
+
+  const handleObservationLevelSelect = async (obsLevel: LinkFieldOption) => {
+    setSelectedObservationLevel(obsLevel)
+    setObservationLevelQuery(obsLevel.label)
+    setObservationLevelOpen(false)
+
+    let rateFromLevel: number | undefined
+    let intervalFromLevel: string | undefined
+    try {
+      const details = await fetchObservationLevelDetails(obsLevel.name)
+      if (details?.rate != null && Number(details.rate) > 0) {
+        rateFromLevel = Number(details.rate)
+      }
+      if (details?.interval) {
+        intervalFromLevel = details.interval
+      }
+    } catch {
+      // keep manual values
+    }
+
+    setObservationForm((prev) => {
+      const next = { ...prev, observation_level: obsLevel.name }
+      if (rateFromLevel != null && (!prev.amount || Number(prev.amount) === 0)) {
+        next.amount = rateFromLevel
+      }
+      if (intervalFromLevel) {
+        next.duration = intervalFromLevel
+      }
+      return next
+    })
+  }
+
   return (
     <div className={CREATE_MODAL_OVERLAY}>
       <div className={createModalShellClass('max-w-3xl w-full max-h-[90vh] overflow-hidden')}>
-        <CreateModalHeader title="Create New Admission" onClose={onClose} />
+        <CreateModalHeader title={isEditMode ? 'Edit Admission' : 'Create New Admission'} onClose={onClose}>
+          {isEditMode ? (
+            <div className="-mb-px mt-3 flex border-b border-emerald-100/80">
+              {([
+                { id: 'details' as const, label: 'Details' },
+                { id: 'relatives' as const, label: 'Relatives', count: filledRelativesCount },
+                { id: 'visitors' as const, label: 'Visitors', count: filledVisitorsCount },
+              ]).map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`${createModalTabButtonClass(activeTab === tab.id)} flex items-center gap-1.5`}
+                >
+                  {tab.label}
+                  {tab.count ? (
+                    <span className="inline-flex min-w-[18px] items-center justify-center rounded-full bg-emerald-100 px-1 py-0.5 text-[10px] font-bold text-emerald-700">
+                      {tab.count}
+                    </span>
+                  ) : null}
+                  {tab.id === 'visitors' && signature ? (
+                    <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500 text-white">
+                      <Check className="h-2.5 w-2.5" />
+                    </span>
+                  ) : null}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="-mb-px mt-3 flex border-b border-emerald-100/80">
+              {([
+                { id: 'admission' as const, label: 'Admission' },
+                { id: 'observation' as const, label: 'Observation' },
+              ]).map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveCreateTab(tab.id)}
+                  className={`${createModalTabButtonClass(activeCreateTab === tab.id)} flex items-center gap-1.5`}
+                >
+                  {tab.label}
+                  {tab.id === 'observation' && observationForm.addObservation === 'Yes' ? (
+                    <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500 text-white">
+                      <Check className="h-2.5 w-2.5" />
+                    </span>
+                  ) : null}
+                </button>
+              ))}
+            </div>
+          )}
+        </CreateModalHeader>
 
+        {loadingRecord ? (
+          <div className={`${CREATE_MODAL_BODY_GRADIENT} p-6 text-sm text-slate-600`}>
+            Loading admission details...
+          </div>
+        ) : (
         <form
           onSubmit={handleSubmit}
           className={`${CREATE_MODAL_BODY_GRADIENT} space-y-4 p-6`}
@@ -389,6 +975,8 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
             closeAllDropdowns()
           }
         }}>
+          {showAdmissionFields && (
+          <>
           {/* Patient Selection */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -399,15 +987,18 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                 type="text"
                 value={selectedPatient ? (selectedPatient.patient_name || selectedPatient.name) : patientQuery}
                 onChange={(e) => {
+                  if (isEditMode) return
                   // When user types after selecting, clear the selection so input becomes fully editable
                   setSelectedPatient(null)
                   setPatientQuery(e.target.value)
                   setPatientOpen(true)
                 }}
-                onFocus={() => setPatientOpen(true)}
+                onFocus={() => { if (!isEditMode) setPatientOpen(true) }}
                 placeholder="Search patient..."
-                className="w-full rounded-md border border-slate-300 pr-9 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                readOnly={isEditMode}
+                className={`w-full rounded-md border border-slate-300 pr-9 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary ${isEditMode ? 'bg-slate-50 text-slate-600 cursor-not-allowed' : ''}`}
               />
+              {!isEditMode && (
               <button
                 type="button"
                 onClick={() => setShowCreatePatient(true)}
@@ -416,7 +1007,8 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
               >
                 +
               </button>
-              {patientOpen && (
+              )}
+              {!isEditMode && patientOpen && (
                 <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-auto">
                   {loading ? (
                     <div className="px-3 py-2 text-xs text-slate-500">Loading patients...</div>
@@ -815,6 +1407,495 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </div>
+          </>
+          )}
+
+          {!isEditMode && activeCreateTab === 'observation' && (
+            <div className="space-y-4">
+              <p className="text-sm text-slate-500">
+                Optionally create an observation linked to this admission when you save.
+              </p>
+
+              <YesNoField
+                label="Add observation with this admission?"
+                value={observationForm.addObservation}
+                onChange={(v) => setObservationForm((prev) => ({ ...prev, addObservation: v }))}
+                required
+              />
+
+              {observationForm.addObservation === 'Yes' && (
+                <>
+                  <YesNoField
+                    label="Start charges today?"
+                    value={observationForm.chargesStartToday}
+                    onChange={(v) => setObservationForm((prev) => ({ ...prev, chargesStartToday: v }))}
+                    required
+                  />
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-slate-700 mb-1">
+                        Observation Level <span className="text-red-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={selectedObservationLevel ? selectedObservationLevel.label : observationLevelQuery}
+                          onChange={(e) => {
+                            setObservationLevelQuery(e.target.value)
+                            setObservationLevelOpen(true)
+                            setSelectedObservationLevel(null)
+                            setObservationForm((prev) => ({ ...prev, observation_level: '' }))
+                          }}
+                          onFocus={() => setObservationLevelOpen(true)}
+                          placeholder="Search observation level..."
+                          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                        />
+                        {observationLevelOpen && (
+                          <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                            {observationLevelLoading ? (
+                              <div className="px-3 py-2 text-sm text-slate-500">Loading...</div>
+                            ) : observationLevelOptions.length > 0 ? (
+                              observationLevelOptions.map((obsLevel) => (
+                                <button
+                                  key={obsLevel.name}
+                                  type="button"
+                                  onClick={() => handleObservationLevelSelect(obsLevel)}
+                                  className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100"
+                                >
+                                  {obsLevel.label}
+                                </button>
+                              ))
+                            ) : (
+                              <div className="px-3 py-2 text-sm text-slate-500">No observation levels found</div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-slate-700 mb-1">
+                        Room / Service Unit <span className="text-red-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={selectedObsRoom ? (selectedObsRoom.healthcare_service_unit_name || selectedObsRoom.name) : obsRoomQuery}
+                          onChange={(e) => {
+                            setObsRoomQuery(e.target.value)
+                            setObsRoomOpen(true)
+                            setSelectedObsRoom(null)
+                            setObservationForm((prev) => ({ ...prev, room: '' }))
+                          }}
+                          onFocus={() => setObsRoomOpen(true)}
+                          placeholder="Search vacant rooms..."
+                          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                        />
+                        {obsRoomOpen && (
+                          <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                            {obsRoomLoading ? (
+                              <div className="px-3 py-2 text-sm text-slate-500">Loading rooms...</div>
+                            ) : obsRoomOptions.length > 0 ? (
+                              obsRoomOptions.map((unit) => (
+                                <button
+                                  key={unit.name}
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedObsRoom(unit)
+                                    setObsRoomQuery(unit.healthcare_service_unit_name || unit.name)
+                                    setObservationForm((prev) => ({ ...prev, room: unit.name }))
+                                    setObsRoomOpen(false)
+                                  }}
+                                  className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100"
+                                >
+                                  {unit.healthcare_service_unit_name || unit.name}
+                                </button>
+                              ))
+                            ) : (
+                              <div className="px-3 py-2 text-sm text-slate-500">No vacant rooms found</div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-500 mt-1">Patient is placed here during observation; room becomes Vacant on discharge or when admitted to another unit.</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Start Date</label>
+                      <input
+                        type="date"
+                        value={observationForm.chargesStartToday === 'Yes'
+                          ? new Date().toISOString().split('T')[0]
+                          : observationForm.start_date}
+                        onChange={(e) => setObservationForm((prev) => ({ ...prev, start_date: e.target.value }))}
+                        disabled={observationForm.chargesStartToday === 'Yes'}
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-slate-50 disabled:text-slate-500"
+                      />
+                      {observationForm.chargesStartToday === 'Yes' && (
+                        <p className="text-xs text-slate-500 mt-1">Start date is today when charges start today.</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Department</label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={selectedObsDepartment ? selectedObsDepartment.label : obsDepartmentQuery}
+                          onChange={(e) => {
+                            setObsDepartmentQuery(e.target.value)
+                            setObsDepartmentOpen(true)
+                            setSelectedObsDepartment(null)
+                            setObservationForm((prev) => ({ ...prev, department: '' }))
+                          }}
+                          onFocus={() => setObsDepartmentOpen(true)}
+                          placeholder="Search department..."
+                          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                        />
+                        {obsDepartmentOpen && obsDepartmentOptions.length > 0 && (
+                          <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                            {obsDepartmentOptions.map((dept) => (
+                              <button
+                                key={dept.name}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedObsDepartment(dept)
+                                  setObsDepartmentQuery(dept.label)
+                                  setObsDepartmentOpen(false)
+                                  setObservationForm((prev) => ({ ...prev, department: dept.name }))
+                                }}
+                                className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100"
+                              >
+                                {dept.label}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Practitioner</label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={selectedObsPractitioner ? selectedObsPractitioner.label : obsPractitionerQuery}
+                          onChange={(e) => {
+                            setObsPractitionerQuery(e.target.value)
+                            setObsPractitionerOpen(true)
+                            setSelectedObsPractitioner(null)
+                            setObservationForm((prev) => ({ ...prev, practitioner: '' }))
+                          }}
+                          onFocus={() => setObsPractitionerOpen(true)}
+                          placeholder="Search practitioner..."
+                          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                        />
+                        {obsPractitionerOpen && obsPractitionerOptions.length > 0 && (
+                          <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                            {obsPractitionerOptions.map((pract) => (
+                              <button
+                                key={pract.name}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedObsPractitioner(pract)
+                                  setObsPractitionerQuery(pract.label)
+                                  setObsPractitionerOpen(false)
+                                  setObservationForm((prev) => ({ ...prev, practitioner: pract.name }))
+                                }}
+                                className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100"
+                              >
+                                <div className="font-medium">{pract.label}</div>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Designated Security Personnel</label>
+                      <input
+                        type="text"
+                        value={observationForm.designated_security_personel}
+                        onChange={(e) => setObservationForm((prev) => ({
+                          ...prev,
+                          designated_security_personel: e.target.value,
+                        }))}
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Amount</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={observationForm.amount}
+                        onChange={(e) => setObservationForm((prev) => ({
+                          ...prev,
+                          amount: parseFloat(e.target.value) || 0,
+                        }))}
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Duration</label>
+                      <input
+                        type="text"
+                        value={observationForm.duration}
+                        onChange={(e) => setObservationForm((prev) => ({ ...prev, duration: e.target.value }))}
+                        placeholder="e.g. 60M, 24H"
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Notes</label>
+                    <textarea
+                      value={observationForm.note}
+                      onChange={(e) => setObservationForm((prev) => ({ ...prev, note: e.target.value }))}
+                      rows={3}
+                      placeholder="Observation notes..."
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {isEditMode && activeTab === 'relatives' && (
+            <div>
+              <p className="text-sm text-slate-500 mb-4">
+                Add relatives / guardians responsible for the patient during this admission.
+              </p>
+              <div className="border border-slate-200 rounded-md">
+                <div className="flex items-center justify-between px-3 py-2 border-b border-slate-200 bg-slate-50">
+                  <h3 className="text-sm font-semibold text-slate-800">Relatives / Guardians</h3>
+                  <button
+                    type="button"
+                    className="text-xs px-2 py-1 rounded-full bg-primary text-white hover:bg-primary/90"
+                    onClick={() => setRelatives((prev) => [...prev, { ...EMPTY_RELATIVE }])}
+                  >
+                    + Add Relative
+                  </button>
+                </div>
+                {relatives.length === 0 ? (
+                  <div className="px-3 py-6 text-center text-sm text-slate-500">
+                    No relatives added yet.
+                  </div>
+                ) : (
+                  <div className="divide-y divide-slate-200">
+                    {relatives.map((row, idx) => (
+                      <div key={idx} className="px-3 py-3 space-y-2">
+                        <div className="grid grid-cols-3 gap-3">
+                          <div>
+                            <label className="block text-xs font-medium text-slate-700 mb-1">Relation</label>
+                            <select
+                              value={row.relative_relation}
+                              onChange={(e) => {
+                                const value = e.target.value
+                                setRelatives((prev) => prev.map((r, i) => i === idx ? { ...r, relative_relation: value } : r))
+                              }}
+                              className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-primary"
+                            >
+                              <option value="">Select relation</option>
+                              {RELATION_OPTIONS.map((opt) => (
+                                <option key={opt} value={opt}>{opt}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-slate-700 mb-1">Name</label>
+                            <input
+                              type="text"
+                              value={row.relative_name}
+                              onChange={(e) => setRelatives((prev) => prev.map((r, i) => i === idx ? { ...r, relative_name: e.target.value } : r))}
+                              className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary"
+                              placeholder="Relative full name"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-slate-700 mb-1">ID Number</label>
+                            <input
+                              type="text"
+                              value={row.relative_id_num}
+                              onChange={(e) => setRelatives((prev) => prev.map((r, i) => i === idx ? { ...r, relative_id_num: e.target.value } : r))}
+                              className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary"
+                              placeholder="CPR / ID"
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-3 gap-3">
+                          <div>
+                            <label className="block text-xs font-medium text-slate-700 mb-1">Phone No</label>
+                            <input
+                              type="text"
+                              value={row.relative_phone_no}
+                              onChange={(e) => setRelatives((prev) => prev.map((r, i) => i === idx ? { ...r, relative_phone_no: e.target.value } : r))}
+                              className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-slate-700 mb-1">Alt. Phone</label>
+                            <input
+                              type="text"
+                              value={row.relative_alternative_phone_no}
+                              onChange={(e) => setRelatives((prev) => prev.map((r, i) => i === idx ? { ...r, relative_alternative_phone_no: e.target.value } : r))}
+                              className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-slate-700 mb-1">Alt. Phone 2</label>
+                            <input
+                              type="text"
+                              value={row.relative_alternative_phone_no_2}
+                              onChange={(e) => setRelatives((prev) => prev.map((r, i) => i === idx ? { ...r, relative_alternative_phone_no_2: e.target.value } : r))}
+                              className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <div className="flex-1">
+                            <label className="block text-xs font-medium text-slate-700 mb-1">Remarks</label>
+                            <textarea
+                              value={row.any_remarks}
+                              onChange={(e) => setRelatives((prev) => prev.map((r, i) => i === idx ? { ...r, any_remarks: e.target.value } : r))}
+                              rows={2}
+                              className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setRelatives((prev) => prev.filter((_, i) => i !== idx))}
+                            className="mt-5 text-xs text-red-600 hover:text-red-700 px-2 py-1"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {isEditMode && activeTab === 'visitors' && (
+            <div className="space-y-6">
+              <div>
+                <p className="text-sm text-slate-500 mb-4">
+                  Manage visitors allowed for this admission.
+                </p>
+                <div className="border border-slate-200 rounded-md">
+                  <div className="flex items-center justify-between px-3 py-2 border-b border-slate-200 bg-slate-50">
+                    <h3 className="text-sm font-semibold text-slate-800">Patient Visitors</h3>
+                    <button
+                      type="button"
+                      className="text-xs px-2 py-1 rounded-full bg-primary text-white hover:bg-primary/90"
+                      onClick={() => setVisitors((prev) => [...prev, { ...EMPTY_VISITOR }])}
+                    >
+                      + Add Visitor
+                    </button>
+                  </div>
+                  {visitors.length === 0 ? (
+                    <div className="px-3 py-6 text-center text-sm text-slate-500">
+                      No visitors added yet.
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-slate-200">
+                      {visitors.map((row, idx) => (
+                        <div key={idx} className="px-3 py-3 space-y-2">
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-xs font-medium text-slate-700 mb-1">
+                                Visitor Name <span className="text-red-500">*</span>
+                              </label>
+                              <input
+                                type="text"
+                                value={row.visitors_name}
+                                onChange={(e) => setVisitors((prev) => prev.map((v, i) => i === idx ? { ...v, visitors_name: e.target.value } : v))}
+                                className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-slate-700 mb-1">
+                                Relationship <span className="text-red-500">*</span>
+                              </label>
+                              <select
+                                value={row.relationship_with_patient}
+                                onChange={(e) => setVisitors((prev) => prev.map((v, i) => i === idx ? { ...v, relationship_with_patient: e.target.value } : v))}
+                                className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-primary"
+                              >
+                                <option value="">Select relationship…</option>
+                                {RELATION_OPTIONS.map((opt) => (
+                                  <option key={opt} value={opt}>{opt}</option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-xs font-medium text-slate-700 mb-1">CPR / ID No</label>
+                              <input
+                                type="text"
+                                value={row.cpr__id_no}
+                                onChange={(e) => setVisitors((prev) => prev.map((v, i) => i === idx ? { ...v, cpr__id_no: e.target.value } : v))}
+                                className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-slate-700 mb-1">Entered Date</label>
+                              <input
+                                type="text"
+                                value={row.entered_date || new Date().toLocaleDateString()}
+                                readOnly
+                                className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-xs bg-slate-50 text-slate-500"
+                              />
+                            </div>
+                          </div>
+                          <div className="flex items-start gap-2">
+                            <div className="flex-1">
+                              <label className="block text-xs font-medium text-slate-700 mb-1">Remarks</label>
+                              <textarea
+                                value={row.any_remarks}
+                                onChange={(e) => setVisitors((prev) => prev.map((v, i) => i === idx ? { ...v, any_remarks: e.target.value } : v))}
+                                rows={2}
+                                className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary"
+                              />
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setVisitors((prev) => prev.filter((_, i) => i !== idx))}
+                              className="mt-5 text-xs text-red-600 hover:text-red-700 px-2 py-1"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-sm font-semibold text-slate-800 mb-1">Admission Signature</h3>
+                <p className="text-sm text-slate-500 mb-3">
+                  Capture a signature for this admission (stored on the admission record).
+                </p>
+                <SignaturePad
+                  onSave={handleSignatureSave}
+                  onClear={() => setSignature('')}
+                  existingUrl={resolveSignatureUrl(signature)}
+                  uploading={signatureUploading}
+                />
+              </div>
+            </div>
+          )}
 
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-md p-3 text-sm text-red-700">
@@ -826,11 +1907,14 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
             <button type="button" onClick={onClose} className={CM_BTN_CANCEL}>
               Cancel
             </button>
-            <button type="submit" disabled={submitting} className={CM_BTN_PRIMARY}>
-              {submitting ? 'Creating...' : 'Create Admission'}
+            <button type="submit" disabled={submitting || loadingRecord} className={CM_BTN_PRIMARY}>
+              {submitting
+                ? (isEditMode ? 'Saving...' : 'Creating...')
+                : (isEditMode ? 'Save Changes' : 'Create Admission')}
             </button>
           </CreateModalFooter>
         </form>
+        )}
       </div>
 
       {showCreatePatient && (

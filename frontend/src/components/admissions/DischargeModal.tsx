@@ -29,6 +29,7 @@ import {
   fetchNursingTemplateDisplayLabel,
   type LinkFieldOption,
   fetchNursingDischargeChecklist,
+  pickDefaultLinkOption,
   type NursingDischargeTemplateOption,
   type NursingDischargeTemplateSource,
 } from '../../services/common'
@@ -46,6 +47,11 @@ import {
 } from '../../config/permissions'
 import { useFormatMoney } from '../../hooks/useFormatMoney'
 import { saveDischargeDraft, loadDischargeDraft, clearDischargeDraft, draftSavedAt } from '../../services/dischargeDraft'
+import {
+  summarizeDischargeChecklistStatus,
+  canSubmitDischargeWithChecklist,
+  CHECKLIST_STATUS_LABELS,
+} from '../../utils/dischargeChecklistStatus'
 import { X, ArrowLeft, CheckCircle2, Circle, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, AlertCircle, Receipt, PenLine, Trash2, Check, Save, Clock, Pill, Calendar, DollarSign, ClipboardList, HeartPulse, ArrowRightLeft, FolderOpen, Users, type LucideIcon } from 'lucide-react'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -651,6 +657,17 @@ function nursingTemplateSourceForName(
   return match?.template_source ?? 'discharge_nursing'
 }
 
+function pickDefaultNursingTemplate(
+  nurseTemplates: NursingDischargeTemplateOption[]
+): { template: NursingDischargeTemplateOption; src: NursingDischargeTemplateSource } | null {
+  const template = pickDefaultLinkOption(nurseTemplates)
+  if (!template) return null
+  return {
+    template,
+    src: template.template_source ?? 'discharge_nursing',
+  }
+}
+
 // ─── Main discharge form (full page) ────────────────────────────────────────
 
 export const DischargePatientForm = ({ admission, onClose, onSuccess }: DischargePatientFormProps) => {
@@ -1018,7 +1035,13 @@ const loadDailyVisitSetup = async () => {
           } else if (fd.discharge_template) {
             await loadChecklist(fd.discharge_template)
           } else if (!nursePrimaryUser) {
-            await loadChecklist('Inpatient Discharge')
+            const defaultTemplate = pickDefaultLinkOption(templates)
+            if (defaultTemplate) {
+              setSelectedDischargeTemplate(defaultTemplate)
+              setDischargeTemplateQuery(defaultTemplate.label)
+              setFormData((prev) => ({ ...prev, discharge_template: defaultTemplate.name }))
+              await loadChecklist(defaultTemplate.name)
+            }
           }
 
           if (nursing?.length) {
@@ -1054,6 +1077,20 @@ const loadDailyVisitSetup = async () => {
                 }))
                 if (!nursing?.length) {
                   await loadNurseChecklist(admissionNursingTemplate, 'nursing_checklist')
+                }
+              } else {
+                const defaultNursing = pickDefaultNursingTemplate(nurseTemplates)
+                if (defaultNursing) {
+                  setSelectedNurseTemplate(defaultNursing.template)
+                  setNurseTemplateQuery(defaultNursing.template.label)
+                  setNursingTemplateSource(defaultNursing.src)
+                  setFormData((prev) => ({
+                    ...prev,
+                    nurse_discharge_template: defaultNursing.template.name,
+                  }))
+                  if (!nursing?.length) {
+                    await loadNurseChecklist(defaultNursing.template.name, defaultNursing.src)
+                  }
                 }
               }
             } catch {
@@ -1180,14 +1217,12 @@ const loadDailyVisitSetup = async () => {
         }
 
         if (!nursePrimaryUser) {
-          await loadChecklist('Inpatient Discharge')
-          const defaultTemplate = templates.find(
-            (t) => t.label === 'Inpatient Discharge' || t.name === 'Inpatient Discharge'
-          )
+          const defaultTemplate = pickDefaultLinkOption(templates)
           if (defaultTemplate) {
             setSelectedDischargeTemplate(defaultTemplate)
             setFormData((prev) => ({ ...prev, discharge_template: defaultTemplate.name }))
             setDischargeTemplateQuery(defaultTemplate.label)
+            await loadChecklist(defaultTemplate.name)
           }
         }
 
@@ -1205,6 +1240,18 @@ const loadDailyVisitSetup = async () => {
               nurse_discharge_template: admissionNursingTemplate,
             }))
             await loadNurseChecklist(admissionNursingTemplate, 'nursing_checklist')
+          } else {
+            const defaultNursing = pickDefaultNursingTemplate(nurseTemplates)
+            if (defaultNursing) {
+              setSelectedNurseTemplate(defaultNursing.template)
+              setNurseTemplateQuery(defaultNursing.template.label)
+              setNursingTemplateSource(defaultNursing.src)
+              setFormData((prev) => ({
+                ...prev,
+                nurse_discharge_template: defaultNursing.template.name,
+              }))
+              await loadNurseChecklist(defaultNursing.template.name, defaultNursing.src)
+            }
           }
         } catch (admissionTplErr) {
           console.warn('Could not load admission nursing discharge template:', admissionTplErr)
@@ -1531,9 +1578,17 @@ const loadDailyVisitSetup = async () => {
   }
 
   const groupedChecklist = groupByDepartment(checklistItems)
-  const totalItems = checklistItems.length
-  const completedItems = checklistItems.filter(i => i.click).length
-  const allCompleted = totalItems > 0 && completedItems === totalItems
+  const checklistSummary = useMemo(
+    () => summarizeDischargeChecklistStatus(checklistItems),
+    [checklistItems]
+  )
+  const totalItems = checklistSummary.checklist_total
+  const completedItems = checklistSummary.checklist_completed
+  const checklistIncomplete = checklistSummary.checklist_incomplete
+  const checklistStatus = checklistSummary.checklist_status
+  const allCompleted = checklistStatus === 'complete'
+  const financeOnlyPending = checklistStatus === 'finance_pending'
+  const canSubmitDischarge = canSubmitDischargeWithChecklist(checklistItems)
 
   const groupedNurseChecklist = groupByDepartment(nurseChecklistItems)
   const nurseTotalItems = nurseChecklistItems.length
@@ -1618,9 +1673,10 @@ const loadDailyVisitSetup = async () => {
     setError(null)
     setUnbilledServices(null)
 
-    if (checklistItems.length > 0 && !allCompleted) {
-      const incomplete = totalItems - completedItems
-      setError(`Please complete all discharge checklist items. ${incomplete} item${incomplete > 1 ? 's' : ''} remaining.`)
+    if (!canSubmitDischarge) {
+      setError(
+        `Please complete all discharge checklist items. ${checklistIncomplete} item${checklistIncomplete !== 1 ? 's' : ''} remaining (excluding finance-only items such as Billing Finalization).`
+      )
       setActiveTab('checklist')
       return
     }
@@ -1629,7 +1685,11 @@ const loadDailyVisitSetup = async () => {
       setSubmitting(true)
       await createDischarge(admission.name, buildDischargePayload())
       clearDischargeDraft(admission.name)
-      toast.success('Patient discharged successfully!', 3000)
+      if (financeOnlyPending) {
+        toast.success('Patient discharged. Finance checklist items remain open on the discharge dashboard.', 5000)
+      } else {
+        toast.success('Patient discharged successfully!', 3000)
+      }
       onSuccess()
     } catch (err) {
       if (err instanceof UnbilledServicesError) {
@@ -1692,7 +1752,11 @@ const loadDailyVisitSetup = async () => {
       return (
         <span
           className={`inline-flex items-center px-1 py-0.5 rounded text-[10px] font-semibold leading-none ${
-            allCompleted ? 'bg-green-200/80 text-green-800' : 'bg-amber-200/80 text-amber-900'
+            allCompleted
+              ? 'bg-green-200/80 text-green-800'
+              : financeOnlyPending
+                ? 'bg-yellow-200/80 text-yellow-900'
+                : 'bg-red-200/80 text-red-900'
           }`}
         >
           {completedItems}/{totalItems}
@@ -2316,16 +2380,22 @@ const loadDailyVisitSetup = async () => {
                 <div className="mb-6">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium text-slate-700">Checklist Progress</span>
-                    <span className={`text-sm font-semibold ${allCompleted ? 'text-green-600' : 'text-amber-600'}`}>
+                    <span className={`text-sm font-semibold ${allCompleted ? 'text-green-600' : financeOnlyPending ? 'text-yellow-600' : 'text-red-600'}`}>
                       {completedItems} of {totalItems} completed
                     </span>
                   </div>
                   <div className="w-full bg-slate-200 rounded-full h-2">
                     <div
-                      className={`h-2 rounded-full transition-all duration-300 ${allCompleted ? 'bg-green-500' : 'bg-amber-500'}`}
+                      className={`h-2 rounded-full transition-all duration-300 ${allCompleted ? 'bg-green-500' : financeOnlyPending ? 'bg-yellow-500' : 'bg-red-500'}`}
                       style={{ width: `${totalItems ? (completedItems / totalItems) * 100 : 0}%` }}
                     />
                   </div>
+                  {financeOnlyPending && (
+                    <p className="text-xs text-yellow-700 mt-1.5 flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5" />
+                      Only finance checklist items remain (e.g. Billing Finalization) — discharge is allowed
+                    </p>
+                  )}
                   {allCompleted && (
                     <p className="text-xs text-green-600 mt-1.5 flex items-center gap-1">
                       <CheckCircle2 className="w-3.5 h-3.5" />
@@ -3346,10 +3416,16 @@ const loadDailyVisitSetup = async () => {
           {/* Footer */}
           <div className="px-4 md:px-6 py-4 border-t border-slate-200 flex items-center justify-between bg-slate-50 shrink-0 sticky bottom-0 z-10">
             <div className="text-xs text-slate-500">
-              {totalItems > 0 && !allCompleted && (
-                <span className="flex items-center gap-1 text-amber-600">
+              {checklistStatus === 'incomplete' && totalItems > 0 && (
+                <span className="flex items-center gap-1 text-red-600">
                   <AlertCircle className="w-3.5 h-3.5" />
-                  {totalItems - completedItems} checklist item{totalItems - completedItems !== 1 ? 's' : ''} remaining
+                  {checklistIncomplete} checklist item{checklistIncomplete !== 1 ? 's' : ''} remaining
+                </span>
+              )}
+              {financeOnlyPending && (
+                <span className="flex items-center gap-1 text-yellow-700">
+                  <AlertCircle className="w-3.5 h-3.5" />
+                  {CHECKLIST_STATUS_LABELS.finance_pending} — discharge allowed
                 </span>
               )}
               {allCompleted && totalItems > 0 && (

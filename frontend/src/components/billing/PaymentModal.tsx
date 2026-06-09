@@ -4,7 +4,7 @@ import { CreditCard, AlertCircle, Loader2, Building2, MapPin, Briefcase } from '
 import { toast } from '../../hooks/useToast'
 import { createPaymentEntry } from '../../services/serviceOrders'
 import { fetchCompanies, fetchCostCenters, fetchDepartments, type LinkFieldOption } from '../../services/common'
-import { useFormatMoney } from '../../hooks/useFormatMoney'
+import { useFormatMoney, useMoneyInputConfig } from '../../hooks/useFormatMoney'
 import {
   CreateModalHeader,
   CREATE_MODAL_BODY_GRADIENT,
@@ -63,6 +63,7 @@ export const PaymentModal = ({
   const [departmentQuery, setDepartmentQuery] = useState('')
 
   const formatCurrency = useFormatMoney(company || defaultCompany || null)
+  const moneyInput = useMoneyInputConfig(company || defaultCompany || null)
 
   useEffect(() => {
     if (!isOpen) return
@@ -457,9 +458,11 @@ export const PaymentModal = ({
                 </label>
                 <input
                   type="number"
-                  step="0.01"
+                  min={moneyInput.min}
+                  step={moneyInput.step}
                   value={paymentAmount}
                   onChange={(e) => setPaymentAmount(parseFloat(e.target.value))}
+                  placeholder={moneyInput.placeholder}
                   required
                   className={fieldClass}
                 />

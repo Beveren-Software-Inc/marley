@@ -54,6 +54,7 @@ import { useFormatMoney } from '../../hooks/useFormatMoney'
 import { ServiceOrdersList } from './ServiceOrdersList'
 import { ServiceInvoicesList } from './ServiceInvoicesList'
 import { PaymentModal } from './PaymentModal'
+import { StandalonePaymentModal } from './StandalonePaymentModal'
 import { SpecialtySalesInvoiceSlideOver } from './SpecialtySalesInvoiceSlideOver'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 
@@ -141,6 +142,7 @@ export const BillingDashboard = ({ patient, admission, visit }: BillingDashboard
   
   // Modal states
   const [showPaymentModal, setShowPaymentModal] = useState(false)
+  const [showStandalonePaymentModal, setShowStandalonePaymentModal] = useState(false)
   const [selectedPaymentInvoice, setSelectedPaymentInvoice] = useState<{
     name: string
     customer_name: string
@@ -608,6 +610,17 @@ const handleMakePayment = async (
         onClose={() => setSalesInvoiceDetailName(null)}
         onUpdated={notifyInvoiceDataChanged}
       />
+
+      {showStandalonePaymentModal && (
+        <StandalonePaymentModal
+          patient={effectivePatient || undefined}
+          onClose={() => setShowStandalonePaymentModal(false)}
+          onSuccess={() => {
+            setShowStandalonePaymentModal(false)
+            handlePaymentSuccess()
+          }}
+        />
+      )}
     </>
   )
 
@@ -789,6 +802,14 @@ const handleMakePayment = async (
           <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
             <h3 className="font-semibold text-slate-800">Payments</h3>
             <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowStandalonePaymentModal(true)}
+                className="w-7 h-7 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold shrink-0"
+                title="Create standalone payment"
+              >
+                +
+              </button>
               <button type="button" onClick={printPayments} className="inline-flex items-center gap-1 px-3 py-1.5 rounded border border-slate-300 text-xs"><Printer className="w-3 h-3" /> PDF</button>
               <button type="button" onClick={exportPaymentsCsv} className="inline-flex items-center gap-1 px-3 py-1.5 rounded border border-slate-300 text-xs"><FileDown className="w-3 h-3" /> Excel</button>
             </div>
@@ -817,6 +838,7 @@ const handleMakePayment = async (
             </table>
           </div>
         </div>
+        <SharedModals />
       </div>
     )
   }

@@ -27,13 +27,15 @@ import { InsurancePatientRegisterList } from '../components/insurance/InsuranceP
 import { CreateInsurancePatientRegisterModal } from '../components/insurance/CreateInsurancePatientRegisterModal'
 import { PatientReferralList } from '../components/referrals/PatientReferralList'
 import { CreatePatientReferralModal } from '../components/referrals/CreatePatientReferralModal'
+import { ObservationList } from '../components/observations/ObservationList'
+import { CreateObservationModal } from '../components/observations/CreateObservationModal'
 import { InternalTransferList } from '../components/transfers/InternalTransferList'
 import { CreateInternalTransferModal } from '../components/transfers/CreateInternalTransferModal'
 import { BillingDashboard } from '../components/billing/BillingDashboard'
 import { DailyAutoVisitView } from '../components/patientVisits/DailyAutoVisitView'
 import { AdditionalCollectionBillingPage } from './billing/AdditionalCollectionBillingPage'
 import { InternalEmployeeBillingPage } from './billing/InternalEmployeeBillingPage'
-import { isReceptionScreenBlocked } from '../config/costCenterCareScope'
+import { isReceptionScreenBlocked, observationsAllowedForMode } from '../config/costCenterCareScope'
 import { isDataOfficer } from '../config/permissions'
 import { DashboardCard } from '../components/ui/DashboardCard'
 
@@ -54,6 +56,7 @@ type View =
   | 'long-acting-medicine'
   | 'insurance'
   | 'referral'
+  | 'observation'
   | 'internal-transfer'
   | 'patients'
   | 'billing'
@@ -68,6 +71,7 @@ export const ReceptionistPage = () => {
     setSelectedPatient: setGlobalPatient,
     activeAdmission,
     activeVisit,
+    mode,
     costCenterCareScope,
     userRole,
     guardClinicalCreate,
@@ -82,7 +86,7 @@ export const ReceptionistPage = () => {
   const rawScreen = searchParams.get('screen')
   const dischargeAdmission = searchParams.get('discharge')
   const screen =
-    rawScreen && !isReceptionScreenBlocked(rawScreen, costCenterCareScope) ? rawScreen : null
+    rawScreen && !isReceptionScreenBlocked(rawScreen, costCenterCareScope, mode) ? rawScreen : null
   const [selectedPatient, setSelectedPatient] = useState<string>(() => searchParams.get('patient') || globalPatient || '')
   const [currentView, setCurrentView] = useState<View>('default')
   const [showAppointmentModal, setShowAppointmentModal] = useState(false)
@@ -102,6 +106,8 @@ export const ReceptionistPage = () => {
   const [insuranceRegisterRefreshKey, setInsuranceRegisterRefreshKey] = useState(0)
   const [showCreateReferral, setShowCreateReferral] = useState(false)
   const [referralRefreshKey, setReferralRefreshKey] = useState(0)
+  const [showObservationModal, setShowObservationModal] = useState(false)
+  const [observationRefreshKey, setObservationRefreshKey] = useState(0)
   const [showCreateInternalTransfer, setShowCreateInternalTransfer] = useState(false)
   const [internalTransferRefreshKey, setInternalTransferRefreshKey] = useState(0)
     const [showCreatePatientModal , setShowCreatePatientModal] = useState(false)
@@ -121,7 +127,7 @@ export const ReceptionistPage = () => {
 
   useLayoutEffect(() => {
     if (dischargeAdmission) return
-    if (!rawScreen || !isReceptionScreenBlocked(rawScreen, costCenterCareScope)) return
+    if (!rawScreen || !isReceptionScreenBlocked(rawScreen, costCenterCareScope, mode)) return
     const np = new URLSearchParams(searchParams)
     np.delete('screen')
     setSearchParams(np, { replace: true })
@@ -170,7 +176,7 @@ export const ReceptionistPage = () => {
   // Sync view with URL: when screen param is missing or unknown, show reception homepage
   useEffect(() => {
     if (dischargeAdmission) return
-    if (screen && isReceptionScreenBlocked(screen, costCenterCareScope)) {
+    if (screen && isReceptionScreenBlocked(screen, costCenterCareScope, mode)) {
       return
     }
     if (screen === 'r-reg') {
@@ -226,6 +232,8 @@ export const ReceptionistPage = () => {
       setCurrentView('insurance')
     } else if (screen === 'r-referral') {
       setCurrentView('referral')
+    } else if (screen === 'r-observation') {
+      setCurrentView('observation')
     } else if (screen === 'r-internal-transfer') {
       setCurrentView('internal-transfer')
       } else if (screen === 'billing') {
@@ -591,6 +599,23 @@ export const ReceptionistPage = () => {
           </div>
         )}
 
+        {currentView === 'observation' && (
+          <div className="p-4">
+            <DashboardCard
+              title="Observation"
+              onAdd={() => guardClinicalCreate(() => setShowObservationModal(true))}
+              addButtonTitle="Add Observation"
+              listingScreen="r-observation"
+            >
+              <ObservationList
+                patient={selectedPatient || undefined}
+                key={observationRefreshKey}
+                onPatientClick={handlePatientSelect}
+              />
+            </DashboardCard>
+          </div>
+        )}
+
         {currentView === 'internal-transfer' && (
           <div className="p-4">
             <div className="mb-4 flex items-center justify-between">
@@ -876,6 +901,22 @@ export const ReceptionistPage = () => {
                 />
               </DashboardCard>
 
+              {observationsAllowedForMode(mode) && (
+                <DashboardCard
+                  fixedHeight
+                  title="Observation"
+                  onAdd={() => guardClinicalCreate(() => setShowObservationModal(true))}
+                  addButtonTitle="Add Observation"
+                  listingScreen="r-observation"
+                >
+                  <ObservationList
+                    patient={selectedPatient || undefined}
+                    key={observationRefreshKey}
+                    onPatientClick={handlePatientSelect}
+                  />
+                </DashboardCard>
+              )}
+
               <DashboardCard
                 fixedHeight
                 title="Internal Transfer"
@@ -957,6 +998,17 @@ export const ReceptionistPage = () => {
           onSuccess={() => {
             setShowCreateReferral(false)
             setReferralRefreshKey(k => k + 1)
+          }}
+        />
+      )}
+
+      {showObservationModal && (
+        <CreateObservationModal
+          initialPatient={selectedPatient || undefined}
+          onClose={() => setShowObservationModal(false)}
+          onSuccess={() => {
+            setShowObservationModal(false)
+            setObservationRefreshKey((k) => k + 1)
           }}
         />
       )}

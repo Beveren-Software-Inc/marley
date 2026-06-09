@@ -33,6 +33,7 @@ const IP_ONLY_OBSERVATION_DOCTOR_SCREEN_IDS = new Set(['obs'])
 const IP_ONLY_OBSERVATION_DOCTOR_GROUP_TITLES = new Set(['Observation'])
 const IP_ONLY_OBSERVATION_NURSE_SCREEN_IDS = new Set(['n-ob'])
 const IP_ONLY_OBSERVATION_NURSE_GROUP_TITLES = new Set(['Observation & Monitoring'])
+const IP_ONLY_OBSERVATION_RECEPTION_SCREEN_IDS = new Set(['r-observation'])
 
 export function observationsAllowedForMode(mode?: CareMode): boolean {
   return mode === 'IP'
@@ -145,7 +146,8 @@ const RECEPTION_PATIENT_LIST_SCREEN_IDS = new Set(['patients'])
 export function filterReceptionScreenGroups(
   groups: ScreenGroup[],
   scope: CostCenterCareScope,
-  roles?: string[]
+  roles?: string[],
+  mode?: CareMode
 ): ScreenGroup[] {
   let filtered = groups
   if (scope === 'op_only') {
@@ -155,6 +157,9 @@ export function filterReceptionScreenGroups(
   }
   if (!isDataOfficer(roles)) {
     filtered = filterGroupsByScreenIds(filtered, RECEPTION_PATIENT_LIST_SCREEN_IDS)
+  }
+  if (!observationsAllowedForMode(mode)) {
+    filtered = filterGroupsByScreenIds(filtered, IP_ONLY_OBSERVATION_RECEPTION_SCREEN_IDS)
   }
   return filtered
 }
@@ -178,8 +183,16 @@ export function isNurseScreenBlocked(screen: string | null | undefined, scope: C
   return false
 }
 
-export function isReceptionScreenBlocked(screen: string | null | undefined, scope: CostCenterCareScope): boolean {
-  if (!screen || scope === 'both') return false
+export function isReceptionScreenBlocked(
+  screen: string | null | undefined,
+  scope: CostCenterCareScope,
+  mode?: CareMode
+): boolean {
+  if (!screen) return false
+  if (!observationsAllowedForMode(mode) && IP_ONLY_OBSERVATION_RECEPTION_SCREEN_IDS.has(screen)) {
+    return true
+  }
+  if (scope === 'both') return false
   if (scope === 'op_only') {
     return OP_ONLY_RECEPTION_SCREEN_IDS.has(screen)
   }

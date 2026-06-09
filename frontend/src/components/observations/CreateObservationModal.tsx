@@ -12,7 +12,7 @@ import { createObservation, fetchObservationLevelDetails } from '../../services/
 import { fetchHealthcarePractitioners, getCurrentUserPractitioner, fetchMedicalDepartments, type LinkFieldOption, fetchPatientVisits, fetchObservationLevels } from '../../services/common'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
 import { toast } from '../../hooks/useToast'
-import { fetchInpatientRecords } from '../../services/inpatientRecords'
+import { fetchInpatientRecords, fetchServiceUnits, type ServiceUnit } from '../../services/inpatientRecords'
 import { useCareContext } from '../../providers/CareContextProvider'
 
 interface CreateObservationModalProps {
@@ -42,6 +42,7 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
     note: '',
     amount: 0,
     duration: '',
+    room: '',
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -84,6 +85,13 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
   const [visitQuery, setVisitQuery] = useState('')
   const [visitLabel, setVisitLabel] = useState('')
 
+  // Room (service unit) dropdown — IP observation placement
+  const [roomOptions, setRoomOptions] = useState<ServiceUnit[]>([])
+  const [roomOpen, setRoomOpen] = useState(false)
+  const [roomQuery, setRoomQuery] = useState('')
+  const [selectedRoom, setSelectedRoom] = useState<ServiceUnit | null>(null)
+  const [roomLoading, setRoomLoading] = useState(false)
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
@@ -99,6 +107,10 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
     }
     if (isOPMode && !formData.patient_visit) {
       setError('Please select a patient visit (OP mode active)')
+      return
+    }
+    if (isIPMode && !formData.room) {
+      setError('Please select a room / service unit for this observation')
       return
     }
 
@@ -122,6 +134,7 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
       // Add the appropriate care context based on global mode
       if (isIPMode && formData.admission_no) {
         payload.admission_no = formData.admission_no
+        payload.room = formData.room || undefined
       } else if (isOPMode && formData.patient_visit) {
         payload.patient_visit = formData.patient_visit
       }
@@ -366,6 +379,26 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
     return () => clearTimeout(timeoutId)
   }, [visitQuery, visitOpen, formData.patient, isOPMode])
 
+  // Load vacant service units for observation room (IP mode)
+  useEffect(() => {
+    if (!isIPMode || !roomOpen) return
+
+    const timeoutId = setTimeout(async () => {
+      setRoomLoading(true)
+      try {
+        const results = await fetchServiceUnits(undefined, 'Vacant', roomQuery.trim() || undefined)
+        setRoomOptions(results)
+      } catch (err) {
+        console.error('Failed to load service units:', err)
+        setRoomOptions([])
+      } finally {
+        setRoomLoading(false)
+      }
+    }, roomQuery.trim() === '' ? 0 : 300)
+
+    return () => clearTimeout(timeoutId)
+  }, [roomQuery, roomOpen, isIPMode])
+
   // Auto-load visit label if activeVisit exists (OP mode)
   useEffect(() => {
     if (isOPMode && activeVisit && formData.patient) {
@@ -455,6 +488,13 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
     setVisitQuery(visit.label)
     setVisitLabel(visit.label)
     setVisitOpen(false)
+  }
+
+  const handleRoomSelect = (unit: ServiceUnit) => {
+    setSelectedRoom(unit)
+    setFormData(prev => ({ ...prev, room: unit.name }))
+    setRoomQuery(unit.healthcare_service_unit_name || unit.name)
+    setRoomOpen(false)
   }
 
   const admissionDisplay = admissionOpen
@@ -819,6 +859,58 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
                 </div>
               </div>
             )}
+
+            {isIPMode && (
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Room / Service Unit <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={selectedRoom ? (selectedRoom.healthcare_service_unit_name || selectedRoom.name) : roomQuery}
+                    onChange={(e) => {
+                      setRoomQuery(e.target.value)
+                      setFormData(prev => ({ ...prev, room: '' }))
+                      setSelectedRoom(null)
+                      setRoomOpen(true)
+                    }}
+                    onFocus={() => setRoomOpen(true)}
+                    onBlur={() => setTimeout(() => setRoomOpen(false), 200)}
+                    placeholder="Search vacant rooms..."
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    autoComplete="off"
+                  />
+                  <p className="text-xs text-slate-400 mt-1">Only vacant inpatient units are shown. Room is marked Occupied when saved.</p>
+                  {roomOpen && (
+                    <div className="absolute z-20 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                      {roomLoading ? (
+                        <div className="px-3 py-3 text-sm text-slate-500">Loading rooms...</div>
+                      ) : roomOptions.length === 0 ? (
+                        <div className="px-3 py-3 text-sm text-slate-500">No vacant rooms found.</div>
+                      ) : (
+                        roomOptions.map((unit) => (
+                          <button
+                            key={unit.name}
+                            type="button"
+                            onClick={() => handleRoomSelect(unit)}
+                            className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 focus:bg-slate-100 focus:outline-none border-b border-slate-100 last:border-0"
+                          >
+                            <div className="font-medium text-slate-800">
+                              {unit.healthcare_service_unit_name || unit.name}
+                            </div>
+                            <div className="text-xs text-slate-500">
+                              {unit.occupancy_status || 'Vacant'}
+                              {unit.room_category ? ` · ${unit.room_category}` : ''}
+                            </div>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
@@ -882,7 +974,7 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
             </button>
             <button
               type="submit"
-              disabled={loading || (!isIPMode && !isOPMode) || (isIPMode && !formData.admission_no) || (isOPMode && !formData.patient_visit)}
+              disabled={loading || (!isIPMode && !isOPMode) || (isIPMode && (!formData.admission_no || !formData.room)) || (isOPMode && !formData.patient_visit)}
               className={CM_BTN_PRIMARY}
             >
               {loading ? 'Creating...' : 'Create Observation'}

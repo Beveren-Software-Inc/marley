@@ -40,6 +40,7 @@ def get_discharges(limit=20, offset=0, patient=None, admission=None, search=None
 	"""
 	from frappe.utils import cint
 	from healthcare.api.common import get_permitted_cost_centers
+	from healthcare.healthcare.discharge_checklist_status import attach_checklist_status_to_discharges
 
 	limit = cint(limit) or 20
 	offset = cint(offset) or 0
@@ -146,5 +147,7 @@ def get_discharges(limit=20, offset=0, patient=None, admission=None, search=None
 			admission_date = frappe.db.get_value('Inpatient Admission', discharge.admission, 'admitted_datetime')
 			if admission_date:
 				discharge['admission_date'] = admission_date
+
+	attach_checklist_status_to_discharges(discharges)
 	
 	return {"data": discharges, "total_count": total_count}

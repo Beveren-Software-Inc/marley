@@ -486,8 +486,14 @@ export async function fetchClinicalNoteTypes(search?: string): Promise<LinkField
   }
 }
 
+export function pickDefaultLinkOption<T extends LinkFieldOption>(
+  options: T[]
+): T | undefined {
+  return options.find((t) => t.default === 1 || t.default === true)
+}
+
 export function pickDefaultAppointmentType(types: LinkFieldOption[]): LinkFieldOption | undefined {
-  return types.find((t) => t.default === 1 || t.default === true)
+  return pickDefaultLinkOption(types)
 }
 
 export async function fetchAppointmentTypes(search?: string): Promise<LinkFieldOption[]> {

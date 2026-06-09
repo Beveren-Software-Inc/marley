@@ -28,6 +28,8 @@ export interface Observation {
   reference_doctype?: string
   reference_docname?: string
   company?: string
+  room?: string
+  room_name?: string
 }
 
 export interface CreateObservationData {
@@ -43,6 +45,8 @@ export interface CreateObservationData {
   note?: string
   amount?: number
   duration?: string
+  company?: string
+  room?: string
 }
 
 export interface ObservationLevelDetails {
@@ -103,19 +107,6 @@ export async function fetchObservation(name: string): Promise<Observation> {
   return (resData?.message || {}) as Observation
 }
 
-export async function createObservationSalesOrder(
-  observationName: string
-): Promise<{ sales_order: string; status: string; existing?: boolean }> {
-  const { apiRequest } = await import('./apiClient')
-  return apiRequest<{ sales_order: string; status: string; existing?: boolean }>(
-    '/api/method/healthcare.api.observation.create_sales_order_from_observation',
-    {
-      method: 'POST',
-      body: JSON.stringify({ observation_name: observationName }),
-    }
-  )
-}
-
 export async function createObservation(data: CreateObservationData): Promise<Observation> {
   const { ensureCSRF } = await import('./apiClient')
   const csrf = await ensureCSRF()
@@ -144,6 +135,29 @@ export async function createObservation(data: CreateObservationData): Promise<Ob
   }
 }
 
+export async function createObservationSalesOrder(
+  observationName: string
+): Promise<{ sales_order: string; status: string; existing?: boolean }> {
+  const { apiRequest } = await import('./apiClient')
+  return apiRequest<{ sales_order: string; status: string; existing?: boolean }>(
+    '/api/method/healthcare.api.observation.create_sales_order_from_observation',
+    {
+      method: 'POST',
+      body: JSON.stringify({ observation_name: observationName }),
+    }
+  )
+}
 
-
-
+export async function scheduleObservationDischarge(
+  name: string,
+  dcDate?: string
+): Promise<{ name: string; dc_date: string; room?: string; message?: string }> {
+  const { apiRequest } = await import('./apiClient')
+  return apiRequest<{ name: string; dc_date: string; room?: string; message?: string }>(
+    '/api/method/healthcare.api.observation.schedule_observation_discharge',
+    {
+      method: 'POST',
+      body: JSON.stringify({ name, dc_date: dcDate }),
+    }
+  )
+}

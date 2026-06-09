@@ -11,6 +11,11 @@ import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/Pagi
 import { useCardFilters } from '../../contexts/CardFilterContext'
 import { navigateToDischarge } from '../../utils/dischargeNavigation'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
+import {
+  CHECKLIST_STATUS_COLORS,
+  CHECKLIST_STATUS_LABELS,
+  type DischargeChecklistStatus,
+} from '../../utils/dischargeChecklistStatus'
 
 const statusColors: Record<string, string> = {
   'Draft': 'warning',
@@ -208,6 +213,37 @@ export const DischargeList = ({ patient, admission, onPatientClick }: DischargeL
 
   const isDraftDischarge = (discharge: Discharge) => discharge.docstatus === 0
 
+  const getChecklistRowClass = (discharge: Discharge) => {
+    if (discharge.docstatus !== 1 || !discharge.checklist_status) return ''
+    if (discharge.checklist_status === 'incomplete') return 'bg-red-50/80'
+    if (discharge.checklist_status === 'finance_pending') return 'bg-yellow-50/80'
+    return ''
+  }
+
+  const renderChecklistStatus = (discharge: Discharge) => {
+    const status = discharge.checklist_status
+    if (!status || status === 'none') return <span className="text-slate-400">—</span>
+    if (status === 'complete') {
+      return (
+        <StatusPill
+          status={`${discharge.checklist_completed ?? 0}/${discharge.checklist_total ?? 0}`}
+          color="success"
+        />
+      )
+    }
+    const color = CHECKLIST_STATUS_COLORS[status as Exclude<DischargeChecklistStatus, 'none' | 'complete'>]
+    const progress =
+      discharge.checklist_total != null && discharge.checklist_completed != null
+        ? ` (${discharge.checklist_completed}/${discharge.checklist_total})`
+        : ''
+    return (
+      <StatusPill
+        status={`${CHECKLIST_STATUS_LABELS[status]}${progress}`}
+        color={color}
+      />
+    )
+  }
+
   const handleContinueDraft = (discharge: Discharge) => {
     if (!discharge.admission) return
     navigateToDischarge(
@@ -267,6 +303,19 @@ export const DischargeList = ({ patient, admission, onPatientClick }: DischargeL
               <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
             </svg>
           </button>
+        </div>
+      )}
+
+      {!isInsideCard && discharges.some((d) => d.checklist_status === 'incomplete' || d.checklist_status === 'finance_pending') && (
+        <div className="mx-4 mt-3 flex flex-wrap gap-3 text-xs text-slate-600">
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-full bg-red-500" />
+            Checklist incomplete
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-full bg-yellow-500" />
+            Finance items only pending (Billing Finalization / Final Financial Check)
+          </span>
         </div>
       )}
 
@@ -448,6 +497,9 @@ export const DischargeList = ({ patient, admission, onPatientClick }: DischargeL
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
                     Status
                   </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+                    Checklist
+                  </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase w-[100px]">
                     Actions
                   </th>
@@ -455,7 +507,7 @@ export const DischargeList = ({ patient, admission, onPatientClick }: DischargeL
               </thead>
               <tbody className="divide-y divide-slate-200">
                 {discharges.map((discharge) => (
-                  <tr key={discharge.name} className="hover:bg-slate-50">
+                  <tr key={discharge.name} className={`hover:bg-slate-50 ${getChecklistRowClass(discharge)}`}>
                     <td
                       className="px-4 py-3 text-sm font-medium text-primary cursor-pointer hover:underline"
                       onClick={() => setDetailRow(discharge)}
@@ -491,6 +543,7 @@ export const DischargeList = ({ patient, admission, onPatientClick }: DischargeL
                         color={statusColors[getDocStatus(discharge.docstatus)] || 'default'}
                       />
                     </td>
+                    <td className="px-4 py-3">{renderChecklistStatus(discharge)}</td>
                     <td className="px-4 py-2 align-middle" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center gap-1.5">
                         <div
