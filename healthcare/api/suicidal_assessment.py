@@ -25,19 +25,31 @@ def _apply_suicidal_assessment_data(doc, data: dict):
 		doc.naming_series = DEFAULT_NAMING_SERIES
 
 
+def _practitioner_display_name(practitioner: str | None) -> str | None:
+	if not practitioner:
+		return None
+	return frappe.db.get_value("Healthcare Practitioner", practitioner, "practitioner_name")
+
+
 def _serialize_suicidal_assessment(doc) -> dict:
 	row = doc.as_dict()
 	if row.get("assessed_by") and not row.get("assessed_by_name"):
-		row["assessed_by_name"] = frappe.db.get_value(
-			"Healthcare Practitioner",
-			row["assessed_by"],
-			"practitioner_name",
-		)
+		row["assessed_by_name"] = _practitioner_display_name(row["assessed_by"])
+	if row.get("practitioner") and not row.get("practitioner_name"):
+		row["practitioner_name"] = _practitioner_display_name(row["practitioner"])
 	return row
 
 
 @frappe.whitelist()
-def get_suicidal_assessments(patient=None, admission=None, limit=50, offset=0):
+def get_suicidal_assessments(
+	patient=None,
+	admission=None,
+	practitioner=None,
+	date_from=None,
+	date_to=None,
+	limit=50,
+	offset=0,
+):
 	"""Get list of Suicidal Patient Assessments."""
 	filters = {}
 
@@ -46,6 +58,16 @@ def get_suicidal_assessments(patient=None, admission=None, limit=50, offset=0):
 
 	if admission:
 		filters["admission_no"] = admission
+
+	if practitioner:
+		filters["practitioner"] = practitioner
+
+	if date_from and date_to:
+		filters["assessment_date"] = ["between", [date_from, date_to]]
+	elif date_from:
+		filters["assessment_date"] = [">=", date_from]
+	elif date_to:
+		filters["assessment_date"] = ["<=", date_to]
 
 	from healthcare.api.common import get_permitted_cost_centers
 
@@ -67,6 +89,8 @@ def get_suicidal_assessments(patient=None, admission=None, limit=50, offset=0):
 			"patient_name",
 			"assessment_date",
 			"assessed_by",
+			"practitioner",
+			"practitioner_name",
 			"active_suicidal_thoughts_plans",
 			"overwhelmed_thoughts_harming",
 			"made_current_plans",
@@ -81,14 +105,10 @@ def get_suicidal_assessments(patient=None, admission=None, limit=50, offset=0):
 	)
 
 	for assessment in assessments:
-		if assessment.assessed_by:
-			practitioner_name = frappe.db.get_value(
-				"Healthcare Practitioner",
-				assessment.assessed_by,
-				"practitioner_name",
-			)
-			if practitioner_name:
-				assessment.assessed_by_name = practitioner_name
+		if assessment.assessed_by and not assessment.get("assessed_by_name"):
+			assessment.assessed_by_name = _practitioner_display_name(assessment.assessed_by)
+		if assessment.practitioner and not assessment.get("practitioner_name"):
+			assessment.practitioner_name = _practitioner_display_name(assessment.practitioner)
 
 	return assessments
 
@@ -114,6 +134,8 @@ def create_suicidal_patient_assessment(data):
 
 		doc = frappe.new_doc(ASSESSMENT_DOCTYPE)
 		_apply_suicidal_assessment_data(doc, data or {})
+		if doc.get("practitioner") and not doc.get("practitioner_name"):
+			doc.practitioner_name = _practitioner_display_name(doc.practitioner)
 		doc.insert(ignore_permissions=True)
 		frappe.db.commit()
 		return {"success": True, "name": doc.name}

@@ -1519,6 +1519,36 @@ def get_patient_visits(search=None, patient=None, limit=20):
 
 
 @frappe.whitelist()
+def get_ip_risk_analyses(search=None, patient=None, admission=None, limit=20):
+	"""Link options for IP Risk Analysis (Suicidal Patient Assessment reference field)."""
+	filters = {}
+
+	if admission:
+		filters["admission_no"] = admission
+	elif patient:
+		filters["file_number"] = patient
+
+	if search:
+		filters["name"] = ["like", f"%{search}%"]
+
+	records = frappe.get_all(
+		"IP Risk Analysis",
+		filters=filters,
+		fields=["name", "admission_no", "patient_name", "file_number"],
+		limit=int(limit),
+		order_by="modified desc",
+	)
+
+	return [
+		{
+			"name": r.name,
+			"label": " – ".join(p for p in [r.name, r.patient_name or r.file_number] if p),
+		}
+		for r in records
+	]
+
+
+@frappe.whitelist()
 def get_inpatient_admissions(search=None, patient=None, limit=20):
 	# filters = {"docstatus": ["!=", 2]}
 	filters = {}

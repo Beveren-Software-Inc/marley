@@ -2,14 +2,26 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { createSuicidalPatientAssessment } from '../../services/suicidalAssessment'
-import { 
-  fetchPatientOptions, 
-  fetchInpatientAdmissionOptions, 
+import {
+  fetchPatientOptions,
+  fetchInpatientAdmissionOptions,
   fetchHealthcarePractitioners,
-  type LinkFieldOption 
+  fetchIpRiskAnalysisOptions,
+  getCurrentUserPractitioner,
+  type LinkFieldOption,
 } from '../../services/common'
 import { toast } from '../../hooks/useToast'
-import { X, ChevronDown } from 'lucide-react'
+import { AlertTriangle, ChevronDown, FileText, Info } from 'lucide-react'
+import {
+  CM_BTN_CANCEL,
+  CM_BTN_PRIMARY,
+  CREATE_MODAL_BODY_GRADIENT,
+  CREATE_MODAL_FOOTER_STICKY,
+  CREATE_MODAL_OVERLAY,
+  CreateModalHeader,
+  createModalShellClass,
+  createModalTabButtonClass,
+} from '../ui/CreateModalChrome'
 
 interface SuicidalPatientAssessmentModalProps {
   admissionNo: string
@@ -33,7 +45,7 @@ type SelectYesNoUnknown = '' | 'Yes' | 'No' | 'Unknown'
 interface FormState {
   // Basic Info
   assessment_date: string
-  assessed_by: string
+  practitioner: string
   // Suicidal Thoughts
   overwhelmed_thoughts_harming: SelectValue
   overwhelmed_thoughts_explanation: string
@@ -111,7 +123,7 @@ const today = new Date().toISOString().split('T')[0]
 
 const emptyForm = (): FormState => ({
   assessment_date: today,
-  assessed_by: '',
+  practitioner: '',
   overwhelmed_thoughts_harming: '',
   overwhelmed_thoughts_explanation: '',
   thoughts_occurrence_frequency: '',
@@ -335,7 +347,7 @@ function GeneralTab({
   form, setField,
   currentAdmission, currentPatient, currentPatientName,
   isLockedContext,
-  fetchPatientOpts, fetchAdmissionOpts,
+  fetchPatientOpts, fetchAdmissionOpts, fetchIpRiskOpts,
   setCurrentAdmission, setCurrentPatient, setCurrentPatientName,
 }: {
   form: FormState
@@ -346,6 +358,7 @@ function GeneralTab({
   isLockedContext: boolean
   fetchPatientOpts: (s: string) => Promise<LinkFieldOption[]>
   fetchAdmissionOpts: (s: string) => Promise<LinkFieldOption[]>
+  fetchIpRiskOpts: (s: string) => Promise<LinkFieldOption[]>
   setCurrentAdmission: (v: string) => void
   setCurrentPatient: (v: string) => void
   setCurrentPatientName: (v: string) => void
@@ -410,10 +423,10 @@ function GeneralTab({
           </div>
           <div className="col-span-2">
             <LinkCombobox
-              label="Assessed By (Healthcare Practitioner)"
-              value={form.assessed_by}
-              onSelect={(opt) => setField('assessed_by', opt.name)}
-              onClear={() => setField('assessed_by', '')}
+              label="Practitioner"
+              value={form.practitioner}
+              onSelect={(opt) => setField('practitioner', opt.name)}
+              onClear={() => setField('practitioner', '')}
               fetchOptions={async (search) => {
                 const result = await fetchHealthcarePractitioners(search || undefined)
                 return result
@@ -601,10 +614,14 @@ function GeneralTab({
       <div className={sectionClass}>
         <h3 className={sectionTitleClass}>Reference &amp; Additional Notes</h3>
         <div className="space-y-4">
-          <div>
-            <label className={labelClass}>IP Risk Analysis Reference</label>
-            <input type="text" value={form.ip_risk_analysis_reference} onChange={e => setField('ip_risk_analysis_reference', e.target.value)} className={inputClass} placeholder="Link to IP Risk Analysis..." />
-          </div>
+          <LinkCombobox
+            label="IP Risk Analysis Reference"
+            value={form.ip_risk_analysis_reference}
+            onSelect={(opt) => setField('ip_risk_analysis_reference', opt.name)}
+            onClear={() => setField('ip_risk_analysis_reference', '')}
+            fetchOptions={fetchIpRiskOpts}
+            placeholder="Search IP Risk Analysis..."
+          />
           <div>
             <label className={labelClass}>Additional Notes</label>
             <textarea rows={4} value={form.additional_notes} onChange={e => setField('additional_notes', e.target.value)} className={textareaClass} />
@@ -797,10 +814,28 @@ export const SuicidalPatientAssessmentModal = ({
   const [currentPatientName, setCurrentPatientName] = useState(patientName || '')
   const isLockedContext = Boolean(admissionNo)
 
+  useEffect(() => {
+    getCurrentUserPractitioner()
+      .then((id) => {
+        if (!id) return
+        setForm((prev) => (prev.practitioner ? prev : { ...prev, practitioner: id }))
+      })
+      .catch(() => {})
+  }, [])
+
   const fetchPatientOpts = useCallback((s: string) => fetchPatientOptions(s || undefined), [])
   const fetchAdmissionOpts = useCallback(
     (s: string) => fetchInpatientAdmissionOptions(s || undefined, currentPatient || undefined),
     [currentPatient]
+  )
+  const fetchIpRiskOpts = useCallback(
+    (s: string) =>
+      fetchIpRiskAnalysisOptions(
+        s || undefined,
+        currentPatient || undefined,
+        currentAdmission || undefined
+      ),
+    [currentPatient, currentAdmission]
   )
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -820,7 +855,7 @@ export const SuicidalPatientAssessmentModal = ({
         patient: currentPatient,
         patient_name: currentPatientName,
         assessment_date: form.assessment_date,
-        assessed_by: form.assessed_by || undefined,
+        practitioner: form.practitioner || undefined,
         // Suicidal thoughts
         overwhelmed_thoughts_harming: form.overwhelmed_thoughts_harming || undefined,
         overwhelmed_thoughts_explanation: form.overwhelmed_thoughts_explanation || undefined,
@@ -910,62 +945,45 @@ export const SuicidalPatientAssessmentModal = ({
     }
   }
 
+  const tabIcon = (id: TabId) => {
+    if (id === 'general') return <Info className="h-4 w-4" />
+    if (id === 'risk-factors') return <AlertTriangle className="h-4 w-4" />
+    return <FileText className="h-4 w-4" />
+  }
+
+  const subtitle = [
+    currentPatientName || patientName,
+    currentAdmission || admissionNo,
+  ]
+    .filter(Boolean)
+    .join(' · ')
+
   return (
-    <div
-      className="fixed inset-0 z-[60] flex items-center justify-center p-4"
-      onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}
-    >
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/50" />
-
-      {/* Modal panel */}
-      <div
-        className="relative z-10 w-full max-w-3xl max-h-[92vh] bg-white rounded-xl shadow-2xl flex flex-col overflow-hidden"
-        onMouseDown={e => e.stopPropagation()}
-      >
-        {/* Header - neutral theme */}
-        <div className="flex items-start justify-between px-6 py-4 border-b border-slate-200 bg-white shrink-0">
-          <div>
-            <h2 className="text-lg font-bold text-slate-900">Suicidal Patient Assessment</h2>
-            <p className="text-xs text-slate-500 mt-0.5">
-              {patientName ? `${patientName} · ` : ''}{admissionNo}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="inline-flex items-center justify-center w-8 h-8 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors ml-4 shrink-0"
-            aria-label="Close"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Tab bar - neutral theme */}
-        <div className="flex border-b border-slate-200 bg-white shrink-0">
-          {TABS.map(tab => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setActiveTab(tab.id)}
-              className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-                activeTab === tab.id
-                  ? 'border-emerald-500 text-emerald-600'
-                  : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Scrollable form body */}
-        <form
-          onSubmit={handleSubmit}
-          noValidate
-          className="flex-1 overflow-y-auto"
+    <div className={CREATE_MODAL_OVERLAY}>
+      <div className={createModalShellClass('w-full max-w-3xl max-h-[92vh] overflow-hidden')}>
+        <CreateModalHeader
+          title="New Suicidal Patient Assessment"
+          icon={<AlertTriangle className="h-5 w-5 text-emerald-700" strokeWidth={2} />}
+          subtitle={subtitle || undefined}
+          onClose={onClose}
         >
-          <div className="px-6 py-5">
+          <div className="-mb-px mt-3 flex border-b border-emerald-100/80 overflow-x-auto">
+            {TABS.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={createModalTabButtonClass(activeTab === tab.id)}
+              >
+                {tabIcon(tab.id)}
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </CreateModalHeader>
+
+        <form onSubmit={handleSubmit} noValidate className={`${CREATE_MODAL_BODY_GRADIENT} flex flex-1 flex-col min-h-0`}>
+          <div className="flex-1 overflow-y-auto px-5 py-4 min-h-0">
             {activeTab === 'general' && (
               <GeneralTab
                 form={form}
@@ -976,6 +994,7 @@ export const SuicidalPatientAssessmentModal = ({
                 isLockedContext={isLockedContext}
                 fetchPatientOpts={fetchPatientOpts}
                 fetchAdmissionOpts={fetchAdmissionOpts}
+                fetchIpRiskOpts={fetchIpRiskOpts}
                 setCurrentAdmission={setCurrentAdmission}
                 setCurrentPatient={setCurrentPatient}
                 setCurrentPatientName={setCurrentPatientName}
@@ -989,58 +1008,13 @@ export const SuicidalPatientAssessmentModal = ({
             )}
           </div>
 
-          {/* Footer */}
-          <div className="sticky bottom-0 bg-white border-t border-slate-200 px-6 py-4 flex items-center justify-between gap-3 shrink-0">
-            <div className="flex gap-1">
-              {TABS.map((tab, i) => (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`w-2 h-2 rounded-full transition-colors ${activeTab === tab.id ? 'bg-emerald-500' : 'bg-slate-300 hover:bg-slate-400'}`}
-                  title={`Go to ${tab.label}`}
-                  aria-label={`${i + 1}. ${tab.label}`}
-                />
-              ))}
-            </div>
-            <div className="flex gap-3">
-              {TABS.findIndex(t => t.id === activeTab) > 0 && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    const idx = TABS.findIndex(t => t.id === activeTab)
-                    setActiveTab(TABS[idx - 1].id)
-                  }}
-                  className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors"
-                >
-                  ← Previous
-                </button>
-              )}
-              {TABS.findIndex(t => t.id === activeTab) < TABS.length - 1 && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    const idx = TABS.findIndex(t => t.id === activeTab)
-                    setActiveTab(TABS[idx + 1].id)
-                  }}
-                  className="px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded-md hover:bg-emerald-700 transition-colors"
-                >
-                  Next →
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors"
-              >
+          <div className={`${CREATE_MODAL_FOOTER_STICKY} items-center justify-end`}>
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={onClose} disabled={submitting} className={CM_BTN_CANCEL}>
                 Cancel
               </button>
-              <button
-                type="submit"
-                disabled={submitting}
-                className="px-5 py-2 text-sm font-semibold text-white bg-emerald-600 rounded-md hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
-              >
-                {submitting ? 'Saving...' : 'Save Assessment'}
+              <button type="submit" disabled={submitting} className={CM_BTN_PRIMARY}>
+                {submitting ? 'Creating…' : 'Create Assessment'}
               </button>
             </div>
           </div>

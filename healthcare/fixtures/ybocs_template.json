@@ -1,0 +1,113 @@
+[
+ {
+  "default": 1,
+  "description": "Yale-Brown Obsessive Compulsive Scale (Y-BOCS) - Standard 10-question version. Measures severity of obsessions and compulsions. Each question scored 0-4. Total score range 0-40.",
+  "docstatus": 0,
+  "doctype": "YBOCS Template",
+  "modified": "2026-06-09 10:22:05.905284",
+  "name": "Y-BOCS Standard",
+  "questions": [
+   {
+    "max_score": 4,
+    "option_0": "None",
+    "option_1": "Less than 1 hr/day or occasional occurrence",
+    "option_2": "1 to 3 hrs/day or frequent",
+    "option_3": "Greater than 3 and up to 8 hrs/day or very frequent occurrence",
+    "option_4": "Greater than 8 hrs/day or nearly constant occurrence",
+    "question": "1. TIME OCCUPIED BY OBSESSIVE THOUGHTS - How much of your time is occupied by obsessive thoughts?",
+    "section": "Obsessions"
+   },
+   {
+    "max_score": 4,
+    "option_0": "None",
+    "option_1": "Slight interference with social or other activities, but overall performance not impaired",
+    "option_2": "Definite interference with social or occupational performance, but still manageable",
+    "option_3": "Causes substantial impairment in social or occupational performance",
+    "option_4": "Incapacitating",
+    "question": "2. INTERFERENCE DUE TO OBSESSIVE THOUGHTS - How much do your obsessive thoughts interfere with your work, school, social, or other important role functioning?",
+    "section": "Obsessions"
+   },
+   {
+    "max_score": 4,
+    "option_0": "None",
+    "option_1": "Not too disturbing",
+    "option_2": "Disturbing, but still manageable",
+    "option_3": "Very disturbing",
+    "option_4": "Near constant and disabling distress",
+    "question": "3. DISTRESS ASSOCIATED WITH OBSESSIVE THOUGHTS - How much distress do your obsessive thoughts cause you?",
+    "section": "Obsessions"
+   },
+   {
+    "max_score": 4,
+    "option_0": "Try to resist all the time",
+    "option_1": "Try to resist most of the time",
+    "option_2": "Make some effort to resist",
+    "option_3": "Yield to all obsessions without attempting to control them, but with some reluctance",
+    "option_4": "Completely and willingly yield to all obsessions",
+    "question": "4. RESISTANCE AGAINST OBSESSIONS - How much effort do you make to resist the obsessive thoughts?",
+    "section": "Obsessions"
+   },
+   {
+    "max_score": 4,
+    "option_0": "Complete control",
+    "option_1": "Usually able to stop or divert obsessions with some effort and concentration",
+    "option_2": "Sometimes able to stop or divert obsessions",
+    "option_3": "Rarely successful in stopping or dismissing obsessions, can only divert attention with difficulty",
+    "option_4": "Obsessions are completely involuntary, rarely able to even momentarily alter obsessive thinking",
+    "question": "5. DEGREE OF CONTROL OVER OBSESSIVE THOUGHTS - How much control do you have over your obsessive thoughts?",
+    "section": "Obsessions"
+   },
+   {
+    "max_score": 4,
+    "option_0": "None",
+    "option_1": "Less than 1 hr/day or occasional performance of compulsive behaviors",
+    "option_2": "1 to 3 hrs/day or frequent performance of compulsive behaviors",
+    "option_3": "More than 3 and up to 8 hrs/day or very frequent performance of compulsive behaviors",
+    "option_4": "More than 8 hrs/day or near constant performance of compulsive behaviors",
+    "question": "6. TIME SPENT PERFORMING COMPULSIVE BEHAVIORS - How much time do you spend performing compulsive behaviors?",
+    "section": "Compulsions"
+   },
+   {
+    "max_score": 4,
+    "option_0": "None",
+    "option_1": "Slight interference with social or other activities, but overall performance not impaired",
+    "option_2": "Definite interference with social or occupational performance, but still manageable",
+    "option_3": "Causes substantial impairment in social or occupational performance",
+    "option_4": "Incapacitating",
+    "question": "7. INTERFERENCE DUE TO COMPULSIVE BEHAVIORS - How much do your compulsive behaviors interfere with your work, school, social, or other important role functioning?",
+    "section": "Compulsions"
+   },
+   {
+    "max_score": 4,
+    "option_0": "None",
+    "option_1": "Only slightly anxious if compulsions prevented",
+    "option_2": "Anxiety would mount but remain manageable if compulsions prevented",
+    "option_3": "Prominent and very disturbing increase in anxiety if compulsions interrupted",
+    "option_4": "Incapacitating anxiety from any intervention aimed at modifying activity",
+    "question": "8. DISTRESS ASSOCIATED WITH COMPULSIVE BEHAVIOR - How would you feel if prevented from performing your compulsion(s)?",
+    "section": "Compulsions"
+   },
+   {
+    "max_score": 4,
+    "option_0": "Always try to resist",
+    "option_1": "Try to resist most of the time",
+    "option_2": "Make some effort to resist",
+    "option_3": "Yield to almost all compulsions without attempting to control them, but with some reluctance",
+    "option_4": "Completely and willingly yield to all compulsions",
+    "question": "9. RESISTANCE AGAINST COMPULSIONS - How much effort do you make to resist the compulsions?",
+    "section": "Compulsions"
+   },
+   {
+    "max_score": 4,
+    "option_0": "Complete control",
+    "option_1": "Pressure to perform the behavior but usually able to exercise voluntary control",
+    "option_2": "Strong pressure to perform behavior, can control it only with difficulty",
+    "option_3": "Very strong drive to perform behavior, must be carried to completion, can only delay with difficulty",
+    "option_4": "Drive to perform behavior experienced as completely involuntary and overpowering, rarely able to even momentarily delay activity",
+    "question": "10. DEGREE OF CONTROL OVER COMPULSIVE BEHAVIOR - How strong is the drive to perform the compulsive behavior?",
+    "section": "Compulsions"
+   }
+  ],
+  "template_name": "Y-BOCS Standard"
+ }
+]

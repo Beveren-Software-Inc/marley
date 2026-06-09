@@ -1,6 +1,7 @@
 {
  "actions": [],
  "allow_rename": 1,
+ "autoname": "YMRS-.####",
  "creation": "2026-04-02 14:50:32.510818",
  "doctype": "DocType",
  "engine": "InnoDB",
@@ -95,10 +96,11 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-06-08 18:14:45.742862",
+ "modified": "2026-06-09 10:32:28.257740",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "YMRS Assessment",
+ "naming_rule": "Expression",
  "owner": "Administrator",
  "permissions": [
   {

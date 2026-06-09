@@ -1,5 +1,6 @@
 [
  {
+  "default": 0,
   "description": "<div class=\"ql-editor read-mode\"><p>Over the last 2 weeks, how often have you been bothered</p><p>by any of the following problems?</p><p>(Use “✔” to indicate your answer)</p></div>",
   "docstatus": 0,
   "doctype": "PHQ9 Template",

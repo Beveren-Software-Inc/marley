@@ -407,8 +407,7 @@ export const DoctorPage = () => {
             <SuicidalAssessmentList
               patient={selectedPatient}
               admission={activeAdmission}
-              onAddNew={() => guardClinicalCreate(() => setShowSuicidalModal(true))}
-              key={suicidalRefreshKey}
+              refreshKey={suicidalRefreshKey}
             />
           </DashboardCard>
         </div>

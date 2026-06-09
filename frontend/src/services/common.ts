@@ -1267,6 +1267,27 @@ export async function fetchSampleTypes(search?: string): Promise<LinkFieldOption
   return []
 }
 
+export async function fetchIpRiskAnalysisOptions(
+  search?: string,
+  patient?: string,
+  admission?: string
+): Promise<LinkFieldOption[]> {
+  const params = new URLSearchParams()
+  if (search) params.append('search', search)
+  if (patient) params.append('patient', patient)
+  if (admission) params.append('admission', admission)
+  const url = `/api/method/healthcare.api.common.get_ip_risk_analyses${
+    params.toString() ? `?${params.toString()}` : ''
+  }`
+  try {
+    const response = await fetch(url, { credentials: 'include' })
+    const resData = await response.json()
+    return Array.isArray(resData?.message) ? resData.message : []
+  } catch {
+    return []
+  }
+}
+
 export async function fetchInpatientAdmissionOptions(search?: string, patient?: string): Promise<LinkFieldOption[]> {
   const filters: [string, string, string][] = []
   if (search) filters.push(['name', 'like', `%${search}%`])
