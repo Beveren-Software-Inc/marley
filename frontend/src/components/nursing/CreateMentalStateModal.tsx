@@ -8,6 +8,7 @@ import {
 import { createMentalState } from '../../services/mentalState'
 import { fetchInpatientAdmissions, fetchBranches, type LinkFieldOption } from '../../services/common'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
+import { useCareContext } from '../../providers/CareContextProvider'
 
 interface CreateMentalStateModalProps {
   onClose: () => void
@@ -48,14 +49,20 @@ const Sub = ({ label }: { label: string }) => (
 )
 
 export const CreateMentalStateModal = ({ onClose, onSuccess, patient }: CreateMentalStateModalProps) => {
+  const { mode, activeAdmission, selectedPatient: contextPatient } = useCareContext()
+  const isIPMode = mode === 'IP'
+
   const [activeTab, setActiveTab] = useState<Tab>('details')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   // Header fields
-  const [patientId, setPatientId] = useState(patient || '')
+  const [patientId, setPatientId] = useState(patient || contextPatient || '')
   const [patientName, setPatientName] = useState('')
-  const [admissionNo, setAdmissionNo] = useState('')
+  const [admissionNo, setAdmissionNo] = useState(() => {
+    if (isIPMode && activeAdmission) return activeAdmission
+    return ''
+  })
   const [branch, setBranch] = useState('')
   const [transShift, setTransShift] = useState('')
   const [normalAt, setNormalAt] = useState('')
@@ -142,12 +149,43 @@ export const CreateMentalStateModal = ({ onClose, onSuccess, patient }: CreateMe
   const [selectedBranch, setSelectedBranch] = useState<LinkFieldOption | null>(null)
 
   useEffect(() => {
-    if (patient) {
-      fetchPatients(1, 0, patient).then((res) => {
-        if (res.length > 0) setPatientQuery(res[0].patient_name)
-      }).catch(() => {})
+    const patientToLoad = patient || contextPatient
+    if (patientToLoad) {
+      setPatientId(patientToLoad)
+      fetchPatients(1, 0, patientToLoad)
+        .then((res) => {
+          if (res.length > 0) {
+            setPatientQuery(res[0].patient_name)
+            setPatientName(res[0].patient_name)
+          }
+        })
+        .catch(() => {})
     }
-  }, [patient])
+  }, [patient, contextPatient])
+
+  useEffect(() => {
+    if (isIPMode && activeAdmission) {
+      setAdmissionNo(activeAdmission)
+    }
+  }, [isIPMode, activeAdmission])
+
+  useEffect(() => {
+    if (isIPMode && activeAdmission && patientId) {
+      const loadAdmissionLabel = async () => {
+        try {
+          const admissions = await fetchInpatientAdmissions(patientId, activeAdmission)
+          const matched = admissions.find((a) => a.name === activeAdmission)
+          if (matched) {
+            setSelectedAdmission(matched)
+            setAdmissionQuery(matched.label)
+          }
+        } catch {
+          // keep admission no even if label fetch fails
+        }
+      }
+      loadAdmissionLabel()
+    }
+  }, [isIPMode, activeAdmission, patientId])
 
   useEffect(() => {
     if (!patientOpen) return
@@ -322,22 +360,53 @@ export const CreateMentalStateModal = ({ onClose, onSuccess, patient }: CreateMe
                         Admission No <span className="text-red-500">*</span>
                       </label>
                       <div className="relative">
-                        <input
-                          type="text"
-                          value={admissionOpen ? admissionQuery : (selectedAdmission?.label ?? admissionQuery)}
-                          onChange={(e) => { setAdmissionQuery(e.target.value); setAdmissionOpen(true); if (!e.target.value) { setAdmissionNo(''); setSelectedAdmission(null) } }}
-                          onFocus={() => setAdmissionOpen(true)}
-                          placeholder="Search admission…"
-                          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                        />
-                        {admissionOpen && admissionOptions.length > 0 && (
-                          <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto top-full">
-                            {admissionOptions.map((a) => (
-                              <button key={a.name} type="button"
-                                onClick={() => { setAdmissionNo(a.name); setSelectedAdmission(a); setAdmissionQuery(a.label); setAdmissionOpen(false) }}
-                                className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100">{a.label}</button>
-                            ))}
+                        {isIPMode && activeAdmission ? (
+                          <div>
+                            <input
+                              type="text"
+                              value={selectedAdmission?.label || admissionNo}
+                              readOnly
+                              className="w-full cursor-not-allowed rounded-md border border-slate-300 bg-slate-100 px-3 py-2 text-sm"
+                            />
+                            <p className="mt-1 text-xs text-slate-400">Auto-selected from IP context</p>
                           </div>
+                        ) : (
+                          <>
+                            <input
+                              type="text"
+                              value={admissionOpen ? admissionQuery : (selectedAdmission?.label ?? admissionQuery)}
+                              onChange={(e) => {
+                                setAdmissionQuery(e.target.value)
+                                setAdmissionOpen(true)
+                                if (!e.target.value) {
+                                  setAdmissionNo('')
+                                  setSelectedAdmission(null)
+                                }
+                              }}
+                              onFocus={() => setAdmissionOpen(true)}
+                              placeholder="Search admission…"
+                              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                            />
+                            {admissionOpen && admissionOptions.length > 0 && (
+                              <div className="absolute top-full z-10 mt-1 max-h-60 w-full overflow-y-auto rounded-md border border-slate-300 bg-white shadow-lg">
+                                {admissionOptions.map((a) => (
+                                  <button
+                                    key={a.name}
+                                    type="button"
+                                    onClick={() => {
+                                      setAdmissionNo(a.name)
+                                      setSelectedAdmission(a)
+                                      setAdmissionQuery(a.label)
+                                      setAdmissionOpen(false)
+                                    }}
+                                    className="w-full px-3 py-2 text-left text-sm hover:bg-slate-100"
+                                  >
+                                    {a.label}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </>
                         )}
                       </div>
                     </div>

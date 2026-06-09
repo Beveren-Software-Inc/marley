@@ -477,13 +477,52 @@ export async function finishGroupLabTests(
   )
 }
 
+export const SAMPLE_COLLECTION_EDITABLE_LAB_TEST_STATUSES = new Set([
+  'Awaiting sample collection',
+  'Sample Collection in Progress',
+  'Sample Collected',
+  'Sample collection in progress',
+])
+
+export function canEditLabTestSampleCollection(status?: string | null): boolean {
+  if (!status) return false
+  return SAMPLE_COLLECTION_EDITABLE_LAB_TEST_STATUSES.has(status.trim())
+}
+
+export interface LabSampleCollectionFormData {
+  sample_collection: string
+  sample?: string
+  sample_qty?: number
+  sample_details?: string
+  collection_point?: string
+  referring_practitioner?: string
+  referring_practitioner_name?: string
+  observation_rows?: ObservationSampleCollectionRow[]
+  lab_test_status?: string
+}
+
+export async function getSampleCollectionForLabSample(
+  labTestName: string,
+  rowIndex: number
+): Promise<LabSampleCollectionFormData> {
+  const params = new URLSearchParams({
+    lab_test_name: labTestName,
+    row_index: String(rowIndex),
+  })
+  const { apiRequest } = await import('./apiClient')
+  return apiRequest<LabSampleCollectionFormData>(
+    `/api/method/healthcare.api.lab_test.get_sample_collection_for_lab_sample?${params.toString()}`
+  )
+}
+
 export async function createSampleCollectionForLabSample(
   labTestName: string,
   rowIndex: number,
   sampleDetails?: string,
   collectionPoint?: string,
   referringPractitioner?: string,
-  observationRows?: ObservationSampleCollectionRow[]
+  observationRows?: ObservationSampleCollectionRow[],
+  sampleQty?: number
 ): Promise<{ sample_collection: string }> {
   const { apiRequest } = await import('./apiClient')
   return apiRequest<{ sample_collection: string }>(
@@ -497,6 +536,34 @@ export async function createSampleCollectionForLabSample(
         collection_point: collectionPoint,
         referring_practitioner: referringPractitioner,
         observation_rows: observationRows?.length ? observationRows : undefined,
+        sample_qty: sampleQty,
+      }),
+    }
+  )
+}
+
+export async function updateSampleCollectionForLabSample(
+  labTestName: string,
+  rowIndex: number,
+  sampleDetails?: string,
+  collectionPoint?: string,
+  referringPractitioner?: string,
+  observationRows?: ObservationSampleCollectionRow[],
+  sampleQty?: number
+): Promise<{ sample_collection: string }> {
+  const { apiRequest } = await import('./apiClient')
+  return apiRequest<{ sample_collection: string }>(
+    '/api/method/healthcare.api.lab_test.update_sample_collection_for_lab_sample',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        lab_test_name: labTestName,
+        row_index: rowIndex,
+        sample_details: sampleDetails,
+        collection_point: collectionPoint,
+        referring_practitioner: referringPractitioner,
+        observation_rows: observationRows?.length ? observationRows : undefined,
+        sample_qty: sampleQty,
       }),
     }
   )

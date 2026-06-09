@@ -39,7 +39,37 @@ interface ServiceRequestListProps {
   /** Flag to indicate if we're in nurse/IP context */
   isNurseContext?: boolean
   onPatientClick?: (patient: string) => void
+  title?: string
+  subtitle?: string
+  onAdd?: () => void
+  addButtonTitle?: string
 }
+
+const FilterToggleButton = ({
+  active,
+  onClick,
+}: {
+  active: boolean
+  onClick: () => void
+}) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className={`rounded-md border p-1.5 transition-colors ${
+      active ? 'border-primary bg-primary/10 text-primary' : 'border-slate-300 text-slate-500 hover:bg-slate-50'
+    }`}
+    title={active ? 'Hide filters' : 'Show filters'}
+    aria-label={active ? 'Hide filters' : 'Show filters'}
+  >
+    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z"
+      />
+    </svg>
+  </button>
+)
 
 const statusColors: Record<string, string> = {
   'Completed': 'success',
@@ -92,14 +122,18 @@ const refetch = (
     .finally(() => setLoading(false))
 }
 
-export const ServiceRequestList = ({ 
-  patient, 
-  onLabTestCreated, 
-  refreshKey, 
-  template_dt, 
+export const ServiceRequestList = ({
+  patient,
+  onLabTestCreated,
+  refreshKey,
+  template_dt,
   onCreateIPService,
   isNurseContext = false,
   onPatientClick,
+  title = 'Service Requests',
+  subtitle,
+  onAdd,
+  addButtonTitle = 'New Service Request',
 }: ServiceRequestListProps) => {
   const formatMoney = useFormatMoney()
   const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>([])
@@ -367,26 +401,33 @@ export const ServiceRequestList = ({
 
   return (
     <div className="min-w-full flex flex-col flex-1 min-h-0 h-full">
-      {/* Header row */}
       {!inDashboardCard && (
-      <div className="flex items-center justify-between gap-2 mb-3 flex-shrink-0">
-        <h2 className="text-xl font-semibold text-slate-900">Service Requests</h2>
-        <button
-          type="button"
-          onClick={() => setShowFiltersInternal(prev => !prev)}
-          className={`p-1.5 rounded-md border transition-colors ${showFilters ? 'bg-primary/10 border-primary text-primary' : 'border-slate-300 text-slate-500 hover:bg-slate-50'}`}
-          title={showFilters ? 'Hide filters' : 'Show filters'}
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
-          </svg>
-        </button>
-      </div>
+        <div className="mb-3 flex flex-shrink-0 flex-col gap-2">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-xl font-semibold text-slate-900">{title}</h2>
+            <div className="flex shrink-0 items-center gap-2">
+              <FilterToggleButton
+                active={Boolean(showFilters)}
+                onClick={() => setShowFiltersInternal((prev) => !prev)}
+              />
+              {onAdd ? (
+                <button
+                  type="button"
+                  onClick={onAdd}
+                  className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-primary text-lg font-bold text-white transition-colors hover:bg-primary/90"
+                  title={addButtonTitle}
+                >
+                  +
+                </button>
+              ) : null}
+            </div>
+          </div>
+          {subtitle ? <p className="text-sm text-slate-600">{subtitle}</p> : null}
+        </div>
       )}
 
-      {/* ── FILTER BAR ── */}
       {showFilters && (
-      <div className="flex flex-wrap items-center gap-3 mb-4 flex-shrink-0">
+      <div className="mb-4 flex flex-shrink-0 flex-wrap items-center gap-3 rounded-md border-b border-slate-100 bg-slate-50/80 px-1 py-2">
         {/* Search */}
         <div className="relative flex-1 min-w-[180px]">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />

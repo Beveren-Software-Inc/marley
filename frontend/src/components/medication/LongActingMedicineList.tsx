@@ -128,9 +128,9 @@ import { Pill, MoreVertical } from 'lucide-react'
 import { useDashboardCompactClinical } from '../../contexts/CardFilterContext'
 import {
   CardRowMetaHint,
-  dashboardCardRowHoverClass,
   formatDashboardDate,
 } from '../ui/dashboardCardListing'
+import { LongActingMedicineDetailPanel } from './LongActingMedicineDetailPanel'
 
 const statusColors: Record<string, string> = {
   Draft: 'bg-slate-100 text-slate-700 border-slate-200',
@@ -142,6 +142,18 @@ const statusColors: Record<string, string> = {
 function formatDate(d?: string) {
   if (!d) return '—'
   return new Date(d).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: 'numeric' })
+}
+
+function getRowColorClass(nextRunDate?: string) {
+  if (!nextRunDate) return 'hover:bg-slate-50'
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const next = new Date(nextRunDate)
+  next.setHours(0, 0, 0, 0)
+  const diffDays = Math.round((next.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+  if (diffDays < 0) return 'bg-red-100 hover:bg-red-200'
+  if (diffDays <= 2) return 'bg-green-100 hover:bg-green-200'
+  return 'hover:bg-slate-50'
 }
 
 interface RowMenuProps {
@@ -224,13 +236,21 @@ function RowMenu({ row }: RowMenuProps) {
 interface LongActingMedicineListProps {
   patient?: string
   refreshKey?: string | number
+  onPatientClick?: (patient: string) => void
 }
 
-export const LongActingMedicineList = ({ patient, refreshKey }: LongActingMedicineListProps) => {
+export const LongActingMedicineList = ({ patient, refreshKey, onPatientClick }: LongActingMedicineListProps) => {
   const compactClinical = useDashboardCompactClinical()
   const [list, setList] = useState<LongActingMedicineRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [detailName, setDetailName] = useState<string | null>(null)
+  const [detailPreview, setDetailPreview] = useState<LongActingMedicineRow | undefined>(undefined)
+
+  const openDetail = (row: LongActingMedicineRow) => {
+    setDetailPreview(row)
+    setDetailName(row.name)
+  }
 
   useEffect(() => {
     if (!patient) {
@@ -285,99 +305,115 @@ export const LongActingMedicineList = ({ patient, refreshKey }: LongActingMedici
 
   if (compactClinical) {
     return (
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-50 border-b border-slate-200">
-            <tr>
-              <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Schedule</th>
-              <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">Next due</th>
-              <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Status</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {list.map((row) => {
-              const metaFields = [
-                ['Record', row.name],
-                ['Patient', row.patient_name || row.patient],
-                ['Started', formatDashboardDate(row.start_date)],
-                ['Ends', formatDashboardDate(row.end_date)],
-                ['Remarks', row.remarks],
-              ] as const
-              return (
-                <tr
-                  key={row.name}
-                  className={dashboardCardRowHoverClass}
-                >
-                  <td className="px-3 py-2.5 text-slate-800 font-medium align-top">
-                    {row.frequency || 'Long acting'}
-                    <CardRowMetaHint fields={metaFields} />
-                  </td>
-                  <td className="px-3 py-2.5 text-xs text-slate-600 whitespace-nowrap align-top">
-                    {formatDashboardDate(row.next_run_date)}
-                  </td>
-                  <td className="px-3 py-2.5 align-top">
-                    <span
-                      className={`inline-flex px-1.5 py-0.5 rounded text-xs font-medium border ${
-                        statusColors[row.status || 'Draft'] ?? 'bg-slate-100 text-slate-700 border-slate-200'
-                      }`}
-                    >
-                      {row.status || 'Draft'}
-                    </span>
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
+      <>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 border-b border-slate-200">
+              <tr>
+                <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Schedule</th>
+                <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">Next due</th>
+                <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {list.map((row) => {
+                const metaFields = [
+                  ['Record', row.name],
+                  ['Patient', row.patient_name || row.patient],
+                  ['Started', formatDashboardDate(row.start_date)],
+                  ['Ends', formatDashboardDate(row.end_date)],
+                  ['Remarks', row.remarks],
+                ] as const
+                return (
+                  <tr
+                    key={row.name}
+                    className={`cursor-pointer transition-colors ${getRowColorClass(row.next_run_date)}`}
+                    onClick={() => openDetail(row)}
+                  >
+                    <td className="px-3 py-2.5 text-slate-800 font-medium align-top">
+                      {row.frequency || 'Long acting'}
+                      <CardRowMetaHint fields={metaFields} />
+                    </td>
+                    <td className="px-3 py-2.5 text-xs text-slate-600 whitespace-nowrap align-top">
+                      {formatDashboardDate(row.next_run_date)}
+                    </td>
+                    <td className="px-3 py-2.5 align-top">
+                      <span
+                        className={`inline-flex px-1.5 py-0.5 rounded text-xs font-medium border ${
+                          statusColors[row.status || 'Draft'] ?? 'bg-slate-100 text-slate-700 border-slate-200'
+                        }`}
+                      >
+                        {row.status || 'Draft'}
+                      </span>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+        {detailName ? (
+          <LongActingMedicineDetailPanel
+            name={detailName}
+            preview={detailPreview}
+            onClose={() => { setDetailName(null); setDetailPreview(undefined) }}
+            onPatientClick={onPatientClick}
+          />
+        ) : null}
+      </>
     )
   }
 
   return (
-    <div className="overflow-x-auto">
-      <table className="min-w-full text-sm">
-        <thead className="bg-slate-50 border-b border-slate-200">
-          <tr>
-            <th className="px-3 py-2 text-left font-semibold text-slate-600">Name</th>
-            <th className="px-3 py-2 text-left font-semibold text-slate-600">Frequency</th>
-            <th className="px-3 py-2 text-left font-semibold text-slate-600">Start</th>
-            <th className="px-3 py-2 text-left font-semibold text-slate-600">Next run</th>
-            <th className="px-3 py-2 text-left font-semibold text-slate-600">Status</th>
-            <th className="px-3 py-2" />
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-slate-100">
-          {list.map((row) => (
-            <tr key={row.name} className="hover:bg-slate-50">
-              <td className="px-3 py-2">
-                <a
-                  href={`/app/long-acting-medicine/${encodeURIComponent(row.name)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline font-medium"
-                >
-                  {row.name}
-                </a>
-              </td>
-              <td className="px-3 py-2 text-slate-700">{row.frequency || '—'}</td>
-              <td className="px-3 py-2 text-slate-700">{formatDate(row.start_date)}</td>
-              <td className="px-3 py-2 text-slate-700">{formatDate(row.next_run_date)}</td>
-              <td className="px-3 py-2">
-                <span
-                  className={`inline-flex px-1.5 py-0.5 rounded text-xs font-medium border ${
-                    statusColors[row.status || 'Draft'] ?? 'bg-slate-100 text-slate-700 border-slate-200'
-                  }`}
-                >
-                  {row.status || 'Draft'}
-                </span>
-              </td>
-              <td className="px-3 py-2 text-right">
-                <RowMenu row={row} />
-              </td>
+    <>
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-sm">
+          <thead className="bg-slate-50 border-b border-slate-200">
+            <tr>
+              <th className="px-3 py-2 text-left font-semibold text-slate-600">Name</th>
+              <th className="px-3 py-2 text-left font-semibold text-slate-600">Frequency</th>
+              <th className="px-3 py-2 text-left font-semibold text-slate-600">Start</th>
+              <th className="px-3 py-2 text-left font-semibold text-slate-600">Next run</th>
+              <th className="px-3 py-2 text-left font-semibold text-slate-600">Status</th>
+              <th className="px-3 py-2" />
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {list.map((row) => (
+              <tr
+                key={row.name}
+                className={`cursor-pointer transition-colors ${getRowColorClass(row.next_run_date)}`}
+                onClick={() => openDetail(row)}
+              >
+                <td className="px-3 py-2 text-primary font-medium">{row.name}</td>
+                <td className="px-3 py-2 text-slate-700">{row.frequency || '—'}</td>
+                <td className="px-3 py-2 text-slate-700">{formatDate(row.start_date)}</td>
+                <td className="px-3 py-2 text-slate-700">{formatDate(row.next_run_date)}</td>
+                <td className="px-3 py-2">
+                  <span
+                    className={`inline-flex px-1.5 py-0.5 rounded text-xs font-medium border ${
+                      statusColors[row.status || 'Draft'] ?? 'bg-slate-100 text-slate-700 border-slate-200'
+                    }`}
+                  >
+                    {row.status || 'Draft'}
+                  </span>
+                </td>
+                <td className="px-3 py-2 text-right" onClick={(e) => e.stopPropagation()}>
+                  <RowMenu row={row} />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {detailName ? (
+        <LongActingMedicineDetailPanel
+          name={detailName}
+          preview={detailPreview}
+          onClose={() => { setDetailName(null); setDetailPreview(undefined) }}
+          onPatientClick={onPatientClick}
+        />
+      ) : null}
+    </>
   )
 }

@@ -13,7 +13,11 @@ def _is_admin() -> bool:
 
 def _get_practitioner_for_user(user: str) -> str | None:
 	"""Return the Healthcare Practitioner name linked to the given user account."""
-	return frappe.db.get_value("Healthcare Practitioner", {"user": user}, "name")
+	return frappe.db.get_value(
+		"Healthcare Practitioner",
+		{"user_id": user, "status": "Active"},
+		"name",
+	)
 
 
 @frappe.whitelist()
@@ -111,6 +115,9 @@ def get_nurse_tasks(
 	offset: int = 0,
 	patient: str | None = None,
 	status: str | None = None,
+	task_type: str | None = None,
+	date_from: str | None = None,
+	date_to: str | None = None,
 	my_tasks: int = 0,
 	assigned_nurse: str | None = None,
 ) -> list:
@@ -121,8 +128,8 @@ def get_nurse_tasks(
 	* Admins (System Manager / Healthcare Administrator / Administrator):
 	  see every task — no automatic nurse filter is applied.
 	* Everyone else (nurses): only see tasks where ``assigned_nurse``
-	  matches the Employee record linked to their user account.
-	  If their user has no linked Employee record the list is empty.
+	  matches their Healthcare Practitioner record (via ``user_id``).
+	  If their user has no linked practitioner the list is empty.
 	"""
 	filters: dict = {}
 
@@ -130,6 +137,14 @@ def get_nurse_tasks(
 		filters["patient"] = patient
 	if status:
 		filters["status"] = status
+	if task_type:
+		filters["task_type"] = task_type
+	if date_from and date_to:
+		filters["scheduled_time"] = ["between", [date_from, f"{date_to} 23:59:59"]]
+	elif date_from:
+		filters["scheduled_time"] = [">=", date_from]
+	elif date_to:
+		filters["scheduled_time"] = ["<=", f"{date_to} 23:59:59"]
 
 	if not _is_admin():
 		# Non-admins always see only their own tasks
@@ -171,8 +186,8 @@ def get_nurse_tasks(
 			"creation",
 		],
 		order_by="scheduled_time asc, creation desc",
-		limit=cint(limit or 50),
-		start=cint(offset or 0),
+		limit_page_length=cint(limit or 50),
+		limit_start=cint(offset or 0),
 	)
 
 	# Enrich with patient_name and nurse full name

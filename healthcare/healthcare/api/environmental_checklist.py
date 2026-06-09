@@ -2,6 +2,31 @@ import frappe
 from frappe import _
 import json
 
+# Portal users list/read via whitelisted APIs; REST /api/resource enforces DocPerm.
+ENVIRONMENTAL_CHECKLIST_PORTAL_READ_ROLES = frozenset(
+	{
+		"Administrator",
+		"System Manager",
+		"Healthcare Administrator",
+		"Doctor",
+		"Nurse",
+		"Nursing User",
+		"Physician",
+		"Psychologist",
+		"Anesthesiologist",
+		"Therapist",
+		"Nutritionist",
+	}
+)
+
+
+def _user_can_read_environmental_checklist_portal() -> bool:
+	if frappe.session.user in ("Guest", ""):
+		return False
+	return bool(
+		ENVIRONMENTAL_CHECKLIST_PORTAL_READ_ROLES & set(frappe.get_roles(frappe.session.user))
+	)
+
 
 def _serialize_checklist(doc) -> dict:
 	details = [
@@ -71,6 +96,9 @@ def list_environmental_checklists(
 	date_to: str | None = None,
 	inpatient_admission: str | None = None,
 ) -> list:
+	portal_reader = _user_can_read_environmental_checklist_portal()
+	has_read = frappe.has_permission("Environmental Checklist", "read")
+
 	filters = {}
 	if patient:
 		filters["patient"] = patient
@@ -101,6 +129,7 @@ def list_environmental_checklists(
 		],
 		order_by="creation desc",
 		limit_page_length=int(limit or 50),
+		ignore_permissions=portal_reader and not has_read,
 	)
 
 	for row in records:
@@ -123,10 +152,23 @@ def list_environmental_checklists(
 
 @frappe.whitelist()
 def get_environmental_checklist(checklist_name: str) -> dict:
+	"""Return one Environmental Checklist for the healthcare portal (avoids REST DocPerm gaps)."""
+	checklist_name = (checklist_name or "").strip()
 	if not checklist_name:
 		frappe.throw(_("Environmental Checklist is required"))
 
+	if not frappe.db.exists("Environmental Checklist", checklist_name):
+		frappe.throw(_("Environmental Checklist {0} not found").format(checklist_name))
+
 	doc = frappe.get_doc("Environmental Checklist", checklist_name)
+
+	if not frappe.has_permission("Environmental Checklist", "read", doc=doc):
+		if not _user_can_read_environmental_checklist_portal():
+			frappe.throw(
+				_("Not permitted to read Environmental Checklist"),
+				frappe.PermissionError,
+			)
+
 	return _serialize_checklist(doc)
 
 

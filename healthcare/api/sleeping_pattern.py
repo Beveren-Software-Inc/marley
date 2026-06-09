@@ -3,10 +3,10 @@ import frappe
 from frappe import _
 from frappe.utils import nowdate, get_datetime, flt
 
+from healthcare.api.common import _owner_filter_for_practitioner, _user_can_read_nursing_portal
 from healthcare.api.medicine_given import _get_or_create_admission_detail
 from healthcare.healthcare.care_episode_guard import assert_inpatient_admission_open_for_create
 from healthcare.api.utils.api_utility import get_next_transaction_number
-
 
 @frappe.whitelist()
 def create_sleeping_pattern(**data):
@@ -87,8 +87,18 @@ def create_sleeping_pattern(**data):
 
 
 @frappe.whitelist()
-def get_sleeping_patterns(patient: str | None = None, limit: int = 50, offset: int = 0):
+def get_sleeping_patterns(
+	patient: str | None = None,
+	date_from: str | None = None,
+	date_to: str | None = None,
+	practitioner: str | None = None,
+	limit: int = 50,
+	offset: int = 0,
+):
 	"""Return Sleeping Pattern Detail rows (from Admission Detail.child table) for a patient."""
+	portal_reader = _user_can_read_nursing_portal()
+	has_read = frappe.has_permission("Admission Detail", "read")
+
 	admission_filters = {}
 	if patient:
 		admission_filters["file_no"] = patient
@@ -97,6 +107,7 @@ def get_sleeping_patterns(patient: str | None = None, limit: int = 50, offset: i
 		"Admission Detail",
 		filters=admission_filters,
 		fields=["name", "admission", "file_no", "patient_name"],
+		ignore_permissions=portal_reader and not has_read,
 	)
 	if not admission_details:
 		return []
@@ -104,9 +115,20 @@ def get_sleeping_patterns(patient: str | None = None, limit: int = 50, offset: i
 	admission_map = {a.name: a for a in admission_details}
 	parent_names = list(admission_map.keys())
 
+	child_filters = {"parent": ["in", parent_names], "parenttype": "Admission Detail"}
+	if date_from and date_to:
+		child_filters["date"] = ["between", [date_from, date_to]]
+	elif date_from:
+		child_filters["date"] = [">=", date_from]
+	elif date_to:
+		child_filters["date"] = ["<=", date_to]
+	owner_user = _owner_filter_for_practitioner(practitioner)
+	if owner_user:
+		child_filters["user"] = owner_user
+
 	children = frappe.get_all(
 		"Sleeping Pattern Detail",
-		filters={"parent": ["in", parent_names], "parenttype": "Admission Detail"},
+		filters=child_filters,
 		fields=[
 			"name",
 			"parent",
@@ -122,10 +144,12 @@ def get_sleeping_patterns(patient: str | None = None, limit: int = 50, offset: i
 			"evening_to",
 			"night_from",
 			"night_to",
+			"modified",
 		],
 		order_by="date desc, modified desc",
 		limit_start=offset,
 		limit_page_length=limit,
+		ignore_permissions=portal_reader and not has_read,
 	)
 
 	result = []
@@ -153,5 +177,46 @@ def get_sleeping_patterns(patient: str | None = None, limit: int = 50, offset: i
 			}
 		)
 
+	return result
+
+
+@frappe.whitelist()
+def get_sleeping_pattern(name=None):
+	"""Return one Sleeping Pattern Detail row for the healthcare portal."""
+	name = (name or "").strip()
+	if not name:
+		frappe.throw(_("Sleeping Pattern is required"))
+	if not frappe.db.exists("Sleeping Pattern Detail", name):
+		frappe.throw(_("Sleeping Pattern {0} not found").format(name))
+
+	row = frappe.get_doc("Sleeping Pattern Detail", name)
+	if not frappe.has_permission("Admission Detail", "read"):
+		if not _user_can_read_nursing_portal():
+			frappe.throw(_("Not permitted to read Sleeping Pattern"), frappe.PermissionError)
+
+	result = row.as_dict()
+	ad = frappe.db.get_value(
+		"Admission Detail",
+		row.parent,
+		["admission", "file_no", "patient_name"],
+		as_dict=True,
+	)
+	if ad:
+		result["admission_no"] = ad.admission
+		result["file_no"] = ad.file_no
+		result["patient_name"] = ad.patient_name
+
+	def _to_float(val):
+		try:
+			return float(val) if val not in (None, "", "None") else 0.0
+		except Exception:
+			return 0.0
+
+	total_hours = (
+		_to_float(result.get("morning_total"))
+		+ _to_float(result.get("evening_total"))
+		+ _to_float(result.get("night_total"))
+	)
+	result["total_hours"] = total_hours if total_hours else None
 	return result
 

@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useWarningMessages } from '../../hooks/useWarningMessages'
-import { DetailSlideOver } from '../ui/DetailSlideOver'
-import { DocDetailView } from '../ui/DocDetailView'
-import type { NoPatientWarningScope, WarningMessageListQuery } from '../../services/warningMessages'
+import type { NoPatientWarningScope, WarningMessage, WarningMessageListQuery } from '../../services/warningMessages'
+import { WarningMessageDetailPanel } from './WarningMessageDetailPanel'
 import { useCardFilters, useDashboardCompactClinical } from '../../contexts/CardFilterContext'
 import { fetchHealthcarePractitioners, type LinkFieldOption } from '../../services/common'
 import {
@@ -28,12 +27,18 @@ interface WarningMessagesListProps {
   /** When there is no patient filter: show only organisation notices, or all warnings (default). */
   noPatientScope?: NoPatientWarningScope
   onPatientClick?: (patient: string) => void
+  title?: string
+  onAdd?: () => void
+  addButtonTitle?: string
 }
 
 export const WarningMessagesList = ({
   patient,
   noPatientScope = 'all',
   onPatientClick,
+  title = 'Warnings & Allergies',
+  onAdd,
+  addButtonTitle = 'Add Warning Message',
 }: WarningMessagesListProps) => {
   const cardFilters = useCardFilters()
   const [showFiltersInternal, setShowFiltersInternal] = useState(false)
@@ -67,7 +72,7 @@ export const WarningMessagesList = ({
   }, [noPatientScope, typeFilter, practitionerFilter, fromDate, toDate])
 
   const { warnings, loading, error, refetch } = useWarningMessages(patient, noPatientScope, listQuery)
-  const [detailName, setDetailName] = useState<string | null>(null)
+  const [detailWarning, setDetailWarning] = useState<WarningMessage | null>(null)
 
   useEffect(() => {
     if (!practitionerOpen) return
@@ -122,16 +127,15 @@ export const WarningMessagesList = ({
   return (
     <div className="min-w-full flex flex-col flex-1 min-h-0 h-full">
       {!inDashboardCard && (
-        <div className="flex items-center justify-between px-2 py-2 border-b border-slate-200 flex-shrink-0 gap-2">
-          <span className="text-xs font-medium text-slate-500">
-            {warnings.length} warning{warnings.length !== 1 ? 's' : ''}
-          </span>
-          <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between gap-2 mb-3 flex-shrink-0">
+          <h2 className="text-xl font-semibold text-slate-900">{title}</h2>
+          <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
               onClick={() => setShowFiltersInternal((p) => !p)}
               className={`p-1.5 rounded-md border transition-colors ${showFilters ? 'bg-primary/10 border-primary text-primary' : 'border-slate-300 text-slate-500 hover:bg-slate-50'}`}
               title={showFilters ? 'Hide filters' : 'Show filters'}
+              aria-label={showFilters ? 'Hide filters' : 'Show filters'}
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path
@@ -141,6 +145,16 @@ export const WarningMessagesList = ({
                 />
               </svg>
             </button>
+            {onAdd && (
+              <button
+                type="button"
+                onClick={onAdd}
+                className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-lg font-bold flex-shrink-0"
+                title={addButtonTitle}
+              >
+                +
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -254,7 +268,7 @@ export const WarningMessagesList = ({
                   <tr
                     key={warning.name}
                     className={dashboardCardRowHoverClass}
-                    onClick={() => setDetailName(warning.name)}
+                    onClick={() => setDetailWarning(warning)}
                   >
                     <td className="px-3 py-2.5 text-xs text-slate-600 whitespace-nowrap align-top">
                       {formatDashboardDate(warning.posting_date)}
@@ -299,7 +313,7 @@ export const WarningMessagesList = ({
                   <td className="px-4 py-3 text-sm text-slate-700">{warning.type_of_warning || 'Medical'}</td>
                   <td
                     className="px-4 py-3 text-sm text-slate-700 cursor-pointer"
-                    onClick={() => setDetailName(warning.name)}
+                    onClick={() => setDetailWarning(warning)}
                   >
                     <span className="text-primary hover:underline">
                       {warning.posting_date ? new Date(warning.posting_date).toLocaleString() : '-'}
@@ -330,11 +344,14 @@ export const WarningMessagesList = ({
         ) : null}
       </div>
 
-      {detailName && (
-        <DetailSlideOver title="Warning Message" subtitle={detailName} onClose={() => setDetailName(null)}>
-          <DocDetailView doctype="Warning Message" name={detailName} onUpdate={refetch} />
-        </DetailSlideOver>
-      )}
+      {detailWarning ? (
+        <WarningMessageDetailPanel
+          name={detailWarning.name}
+          preview={detailWarning}
+          onClose={() => setDetailWarning(null)}
+          onPatientClick={onPatientClick}
+        />
+      ) : null}
     </div>
   )
 }

@@ -45,7 +45,8 @@ import { CreateMedicineGivenModal } from '../components/medication/CreateMedicin
 import { MedicineGivenList } from '../components/medication/MedicineGivenList'
 import { DailyMedicationChart } from '../components/medication/DailyMedicationChart'
 import { MedicationSheet } from '../components/medication/MedicationSheet'
-import { LongActingMedReminderList } from '../components/medication/LongActingMedReminderList'
+import { LongActingMedicineList } from '../components/medication/LongActingMedicineList'
+import { ReceptionLongActingMedicineList } from '../components/medication/ReceptionLongActingMedicineList'
 import { reconcileDischargeMedicines } from '../services/medicineGiven'
 import { Loader2, PackageSearch, Plus } from 'lucide-react'
 import { AppointmentList } from '../components/appointments/AppointmentList'
@@ -348,18 +349,13 @@ export const NursePage = () => {
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-            <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
-              <span>Warnings & Allergies</span>
-              <button
-                onClick={() => setShowWarningModal(true)}
-                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
-                title="Add Warning Message"
-              >
-                +
-              </button>
-            </div>
             <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-              <WarningMessagesList patient={selectedPatient} key={warningRefreshKey} onPatientClick={handlePatientSelect} />
+              <WarningMessagesList
+                patient={selectedPatient}
+                key={warningRefreshKey}
+                onPatientClick={handlePatientSelect}
+                onAdd={() => setShowWarningModal(true)}
+              />
             </div>
           </section>
         </div>
@@ -476,25 +472,11 @@ export const NursePage = () => {
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-base font-semibold text-slate-900">Nurse Tasks</h2>
-                <p className="text-xs text-slate-600 mt-1">
-                  Tasks assigned to you. Administrators see all tasks.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowCreateNurseTaskModal(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-white text-sm font-medium hover:bg-primary/90"
-              >
-                + New Task
-              </button>
-            </div>
             <NurseTaskList
-              key={nurseTaskRefreshKey}
               patient={selectedPatient}
+              refreshKey={nurseTaskRefreshKey}
               allowStatusChange
+              onAdd={() => setShowCreateNurseTaskModal(true)}
               onRefresh={() => setNurseTaskRefreshKey((k) => k + 1)}
             />
           </section>
@@ -639,7 +621,7 @@ export const NursePage = () => {
       <div className="flex flex-col">
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
-          <DashboardCard title="Doctors Order">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
             <DoctorOrderList
               patient={selectedPatient}
               admission={orderAdmission}
@@ -647,7 +629,7 @@ export const NursePage = () => {
               key={clinicalNotesRefreshKey}
               onPatientClick={handlePatientSelect}
             />
-          </DashboardCard>
+          </section>
         </div>
       </div>
     )
@@ -661,21 +643,12 @@ export const NursePage = () => {
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4 flex items-center justify-between">
-              <span>Nursing Notes</span>
-              <button
-                onClick={() => guardClinicalCreate(() => setShowNursingNoteModal(true))}
-                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
-                title="Add Nursing Note"
-              >
-                +
-              </button>
-            </div>
             <MainNursingNoteList
               patient={selectedPatient}
               admission={noteAdmission}
               key={clinicalNotesRefreshKey}
               onPatientClick={handlePatientSelect}
+              onAdd={() => guardClinicalCreate(() => setShowNursingNoteModal(true))}
             />
           </section>
         </div>
@@ -700,7 +673,6 @@ export const NursePage = () => {
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4">Psychologist Notes</div>
             <ClinicalNotesList
               patient={selectedPatient}
               clinicalNoteType="Psychologist Note"
@@ -719,21 +691,12 @@ export const NursePage = () => {
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4 flex items-center justify-between">
-              <span>Nutritionist Notes</span>
-              <button
-                onClick={() => setShowNutritionNoteModal(true)}
-                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
-                title="Add Nutritionist Note"
-              >
-                +
-              </button>
-            </div>
-            <ClinicalNotesList 
+            <ClinicalNotesList
               patient={selectedPatient}
               clinicalNoteType="Nutritionist Note"
               key={clinicalNotesRefreshKey}
               onPatientClick={handlePatientSelect}
+              onAdd={() => setShowNutritionNoteModal(true)}
             />
           </section>
         </div>
@@ -760,20 +723,11 @@ export const NursePage = () => {
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4 flex items-center justify-between">
-              <span>Psychologist Orders</span>
-              <button
-                onClick={() => setShowPsychOrderModal(true)}
-                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
-                title="Add Psychologist Order"
-              >
-                +
-              </button>
-            </div>
             <ClinicalNotesList
               patient={selectedPatient}
               clinicalNoteType="Psychologist Order"
               onPatientClick={handlePatientSelect}
+              onAdd={() => setShowPsychOrderModal(true)}
             />
           </section>
         </div>
@@ -833,17 +787,12 @@ export const NursePage = () => {
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4 flex items-center justify-between">
-              <span>Vital Signs</span>
-              <button
-                onClick={() => setShowVitalSignModal(true)}
-                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
-                title="Add Vital Signs"
-              >
-                +
-              </button>
-            </div>
-            <VitalSignsList patient={selectedPatient} refreshKey={vitalSignsRefreshKey} onPatientClick={handlePatientSelect} />
+            <VitalSignsList
+              patient={selectedPatient}
+              refreshKey={vitalSignsRefreshKey}
+              onPatientClick={handlePatientSelect}
+              onAdd={() => setShowVitalSignModal(true)}
+            />
           </section>
         </div>
         {showVitalSignModal && (
@@ -885,21 +834,13 @@ export const NursePage = () => {
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4 flex items-center justify-between">
-              <span>Therapist Note</span>
-              <button
-                onClick={() => setShowTherapistNoteModal(true)}
-                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
-                title="Add Therapist Note"
-              >
-                +
-              </button>
-            </div>
-            <ClinicalNotesList 
+            <ClinicalNotesList
               patient={selectedPatient}
               clinicalNoteType="Therapist Note"
+              title="Therapist Note"
               key={clinicalNotesRefreshKey}
               onPatientClick={handlePatientSelect}
+              onAdd={() => setShowTherapistNoteModal(true)}
             />
           </section>
         </div>
@@ -1019,17 +960,23 @@ export const NursePage = () => {
     )
   }
 
-  // Long Acting Med Reminder – automatic alerts for extended-duration medications (Q1W, Q2W, Q3W, Q4W)
+  // Long Acting Med Reminder – same listing as doctor (filters, color coding, detail panel)
   if (screen === 'n-reminder') {
     return (
       <div className="flex flex-col">
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
+          <div className="mb-4">
+            <h2 className="text-xl font-semibold text-slate-900">Long Acting Med Reminder</h2>
+            <p className="text-sm text-slate-600 mt-1">
+              View long acting medicines for the selected patient. Filter by start date and frequency. Click a row for details.
+            </p>
+          </div>
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4">
-              <span>Long Acting Med Reminder</span>
-            </div>
-            <LongActingMedReminderList patient={selectedPatient} daysAhead={7} />
+            <ReceptionLongActingMedicineList
+              patient={selectedPatient || undefined}
+              onPatientClick={handlePatientSelect}
+            />
           </section>
         </div>
       </div>
@@ -1046,32 +993,21 @@ export const NursePage = () => {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 min-h-0 flex-1">
             {/* Left card: Service Request – request a service (e.g. Transport) */}
             <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[420px] overflow-hidden min-w-0">
-              <div className="font-semibold mb-2 flex items-center justify-between flex-shrink-0">
-                <span>Service Request</span>
-                <button
-                  onClick={() => setShowServiceRequestModal(true)}
-                  className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
-                  title="New service request (Healthcare Service Template)"
-                >
-                  +
-                </button>
-              </div>
-              <p className="text-sm text-slate-600 mb-3 flex-shrink-0">
-                Request a hospital service (e.g. transport with nurse, transport only). Turn a request into an IP Service from the right card.
-              </p>
-              <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-<ServiceRequestList
+              <ServiceRequestList
                 patient={selectedPatient}
                 refreshKey={serviceRequestRefreshKey}
                 template_dt="Healthcare Service Template"
                 isNurseContext={true}
                 onPatientClick={handlePatientSelect}
+                title="Service Request"
+                subtitle="Request a hospital service (e.g. transport with nurse, transport only). Turn a request into an IP Service from the right card."
+                onAdd={() => setShowServiceRequestModal(true)}
+                addButtonTitle="New service request (Healthcare Service Template)"
                 onCreateIPService={(sr) => {
                   setCreateIPServicePreFill({ serviceRequest: sr.name, patient: sr.patient })
                   setShowCreateIPServiceModal(true)
                 }}
               />
-              </div>
             </section>
             {/* Right card: IP Service – fulfill / create service (with or without a request) */}
             <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[420px] overflow-hidden min-w-0">
@@ -1214,19 +1150,10 @@ export const NursePage = () => {
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4 flex items-center justify-between">
-              <span>Sleeping Pattern</span>
-              <button
-                onClick={() => setShowSleepingPatternModal(true)}
-                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
-                title="Create Sleeping Pattern"
-              >
-                +
-              </button>
-            </div>
             <SleepingPatternList
               patient={selectedPatient}
               refreshKey={sleepingPatternRefreshKey}
+              onAdd={() => setShowSleepingPatternModal(true)}
             />
           </section>
         </div>
@@ -1362,20 +1289,10 @@ export const NursePage = () => {
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4 flex items-center justify-between">
-              <span>Sick Leave</span>
-              <button
-                onClick={() => setShowSickLeaveModal(true)}
-                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
-                title="New Sick Leave"
-              >
-                +
-              </button>
-            </div>
             <SickLeaveList
               patient={selectedPatient}
               refreshKey={sickLeaveRefreshKey}
-              onCreateNew={() => setShowSickLeaveModal(true)}
+              onAdd={() => setShowSickLeaveModal(true)}
             />
           </section>
         </div>
@@ -1401,20 +1318,10 @@ export const NursePage = () => {
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4 flex items-center justify-between">
-              <span>Mental Status</span>
-              <button
-                onClick={() => setShowMentalStateModal(true)}
-                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
-                title="New Mental State"
-              >
-                +
-              </button>
-            </div>
             <MentalStateList
               patient={selectedPatient}
               refreshKey={mentalStateRefreshKey}
-              onCreateNew={() => setShowMentalStateModal(true)}
+              onAdd={() => setShowMentalStateModal(true)}
             />
           </section>
         </div>
@@ -1440,20 +1347,10 @@ export const NursePage = () => {
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4 flex items-center justify-between">
-              <span>Grooming Chart</span>
-              <button
-                onClick={() => setShowGroomingModal(true)}
-                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
-                title="New Grooming Chart"
-              >
-                +
-              </button>
-            </div>
             <GroomingChartList
               patient={selectedPatient}
               refreshKey={groomingRefreshKey}
-              onCreateNew={() => setShowGroomingModal(true)}
+              onAdd={() => setShowGroomingModal(true)}
             />
           </section>
         </div>
@@ -1479,20 +1376,10 @@ export const NursePage = () => {
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4 flex items-center justify-between">
-              <span>Patient Assessment</span>
-              <button
-                onClick={() => setShowPatientAssessmentModal(true)}
-                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
-                title="New Patient Assessment"
-              >
-                +
-              </button>
-            </div>
             <PatientAssessmentList
               patient={selectedPatient}
               refreshKey={patientAssessmentRefreshKey}
-              onCreateNew={() => setShowPatientAssessmentModal(true)}
+              onAdd={() => setShowPatientAssessmentModal(true)}
             />
           </section>
         </div>
@@ -1603,9 +1490,11 @@ export const NursePage = () => {
               title="Long Acting Med Reminder"
               listingScreen="n-reminder"
               openListingTitle="Open full Long Acting Med Reminder list"
-              filterable={false}
             >
-              <LongActingMedReminderList patient={selectedPatient} daysAhead={7} />
+              <LongActingMedicineList
+                patient={selectedPatient}
+                onPatientClick={handlePatientSelect}
+              />
             </DashboardCard>
           </div>
 

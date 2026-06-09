@@ -23,6 +23,21 @@ interface ClinicalNotesListProps {
   noteType?: string
   hideTypes?: boolean
   onPatientClick?: (patient: string) => void
+  title?: string
+  onAdd?: () => void
+  addButtonTitle?: string
+}
+
+function resolveListTitle(clinicalNoteType?: string, title?: string): string {
+  if (title) return title
+  if (!clinicalNoteType) return 'Clinical Notes'
+  if (clinicalNoteType.endsWith(' Note')) {
+    return clinicalNoteType.replace(/ Note$/, ' Notes')
+  }
+  if (clinicalNoteType.endsWith(' Order')) {
+    return clinicalNoteType.replace(/ Order$/, ' Orders')
+  }
+  return clinicalNoteType
 }
 
 export const ClinicalNotesList = ({
@@ -31,7 +46,12 @@ export const ClinicalNotesList = ({
   noteType,
   hideTypes = false,
   onPatientClick,
+  title,
+  onAdd,
+  addButtonTitle,
 }: ClinicalNotesListProps) => {
+  const listTitle = resolveListTitle(clinicalNoteType, title)
+  const resolvedAddTitle = addButtonTitle ?? `Add ${clinicalNoteType || 'Clinical Note'}`
   const { mode, activeVisit, activeAdmission } = useCareContext()
   const [clinicalNotes, setClinicalNotes] = useState<ClinicalNote[]>([])
   const [pendingEncounters, setPendingEncounters] = useState<PendingDoctorProgressEncounter[]>([])
@@ -469,18 +489,34 @@ export const ClinicalNotesList = ({
 
   return (
     <div className="min-w-full flex flex-col flex-1 min-h-0 h-full">
-      {!inDashboardCard && (Boolean(patient) || applyDefaultPractitionerFilter) && (
-        <div className="flex justify-end mb-2 flex-shrink-0">
-          <button
-            type="button"
-            onClick={() => setShowFiltersInternal((p) => !p)}
-            className={`p-1.5 rounded-md border transition-colors ${showFilters ? 'bg-primary/10 border-primary text-primary' : 'border-slate-300 text-slate-500 hover:bg-slate-50'}`}
-            title={showFilters ? 'Hide filters' : 'Show filters'}
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
-            </svg>
-          </button>
+      {!inDashboardCard && (
+        <div className="flex items-center justify-between gap-2 mb-3 flex-shrink-0">
+          <h2 className="text-xl font-semibold text-slate-900">{listTitle}</h2>
+          <div className="flex items-center gap-2 shrink-0">
+            {(Boolean(patient) || applyDefaultPractitionerFilter) && (
+              <button
+                type="button"
+                onClick={() => setShowFiltersInternal((p) => !p)}
+                className={`p-1.5 rounded-md border transition-colors ${showFilters ? 'bg-primary/10 border-primary text-primary' : 'border-slate-300 text-slate-500 hover:bg-slate-50'}`}
+                title={showFilters ? 'Hide filters' : 'Show filters'}
+                aria-label={showFilters ? 'Hide filters' : 'Show filters'}
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
+                </svg>
+              </button>
+            )}
+            {onAdd && (
+              <button
+                type="button"
+                onClick={onAdd}
+                className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-lg font-bold flex-shrink-0"
+                title={resolvedAddTitle}
+              >
+                +
+              </button>
+            )}
+          </div>
         </div>
       )}
 

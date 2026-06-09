@@ -58,15 +58,26 @@ export async function fetchEnvironmentalChecklists(
 }
 
 export async function fetchEnvironmentalChecklist(checklistName: string): Promise<EnvironmentalChecklistRecord> {
+  if (!checklistName) {
+    throw new Error('Environmental checklist name is required')
+  }
+
   const params = new URLSearchParams()
   params.append('checklist_name', checklistName)
   const res = await fetch(
     `/api/method/healthcare.healthcare.api.environmental_checklist.get_environmental_checklist?${params.toString()}`
   )
   const data = await res.json()
-  if (data?.exc_type) {
-    throw new Error(data?.message || 'Failed to load environmental checklist')
+
+  if (!res.ok || data.exc) {
+    const message =
+      data?._error_message ||
+      data?.message?.message ||
+      data?.message ||
+      'Failed to load environmental checklist'
+    throw new Error(typeof message === 'string' ? message : 'Failed to load environmental checklist')
   }
+
   return data?.message as EnvironmentalChecklistRecord
 }
 

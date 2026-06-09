@@ -80,6 +80,9 @@ export async function fetchNurseTasks(
     offset?: number
     patient?: string
     status?: string
+    task_type?: string
+    date_from?: string
+    date_to?: string
     my_tasks?: boolean
     assigned_nurse?: string
   }
@@ -89,6 +92,9 @@ export async function fetchNurseTasks(
   if (options?.offset != null) params.append('offset', String(options.offset))
   if (options?.patient) params.append('patient', options.patient)
   if (options?.status) params.append('status', options.status)
+  if (options?.task_type) params.append('task_type', options.task_type)
+  if (options?.date_from) params.append('date_from', options.date_from)
+  if (options?.date_to) params.append('date_to', options.date_to)
   if (options?.my_tasks) params.append('my_tasks', '1')
   if (options?.assigned_nurse) params.append('assigned_nurse', options.assigned_nurse)
 

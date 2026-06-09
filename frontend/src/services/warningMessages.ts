@@ -12,6 +12,14 @@ export interface WarningMessage {
   type_of_warning?: string
   gender?: string
   blood_group?: string
+  trans_id?: string
+  high_risk_text?: string
+  clinical_note_type?: string
+  cost_center?: string
+  warning_message_type?: string
+  warning_message_class?: string
+  creation?: string
+  modified?: string
 }
 
 export type NoPatientWarningScope = 'all' | 'organisation'
@@ -54,17 +62,30 @@ export async function fetchWarningMessages(
   }
 }
 
-export async function fetchWarningMessage(name: string): Promise<WarningMessage> {
+export async function fetchWarningMessage(name: string): Promise<Record<string, unknown>> {
+  if (!name) {
+    throw new Error('Warning message name is required')
+  }
+
   const response = await fetch(
     `/api/method/healthcare.api.warning_message.get_warning_message?name=${encodeURIComponent(name)}`
   )
   const resData = await response.json()
 
-  if (resData?.message) {
-    return resData.message as WarningMessage
-  } else {
-    throw new Error('Invalid response format')
+  if (!response.ok || resData.exc) {
+    const message =
+      resData?._error_message ||
+      resData?.message?.message ||
+      resData?.message ||
+      'Failed to fetch warning message'
+    throw new Error(typeof message === 'string' ? message : 'Failed to fetch warning message')
   }
+
+  if (resData?.message && typeof resData.message === 'object') {
+    return resData.message as Record<string, unknown>
+  }
+
+  throw new Error('Invalid response format')
 }
 
 export interface CreateWarningMessageData {

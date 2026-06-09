@@ -5,8 +5,7 @@ import { fetchInpatientRecords } from '../../services/inpatientRecords'
 import { StatusPill } from '../ui/StatusPill'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
-import { DetailSlideOver } from '../ui/DetailSlideOver'
-import { DocDetailView } from '../ui/DocDetailView'
+import { DischargeDetailPanel } from './DischargeDetailPanel'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
 import { useCardFilters } from '../../contexts/CardFilterContext'
@@ -40,7 +39,7 @@ export const DischargeList = ({ patient, admission, onPatientClick }: DischargeL
   const [discharges, setDischarges] = useState<Discharge[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
-  const [detailName, setDetailName] = useState<string | null>(null)
+  const [detailRow, setDetailRow] = useState<Discharge | null>(null)
   const [statusFilter, setStatusFilter] = useState<string>('')
   const [typeFilter, setTypeFilter] = useState<string>('')
   const [admissionFilter, setAdmissionFilter] = useState<string>('')
@@ -459,7 +458,7 @@ export const DischargeList = ({ patient, admission, onPatientClick }: DischargeL
                   <tr key={discharge.name} className="hover:bg-slate-50">
                     <td
                       className="px-4 py-3 text-sm font-medium text-primary cursor-pointer hover:underline"
-                      onClick={() => setDetailName(discharge.name)}
+                      onClick={() => setDetailRow(discharge)}
                     >
                       {discharge.name}
                     </td>
@@ -530,7 +529,7 @@ export const DischargeList = ({ patient, admission, onPatientClick }: DischargeL
                             <button
                               type="button"
                               onClick={() => {
-                                setDetailName(discharge.name)
+                                setDetailRow(discharge)
                                 setOpenActionRow(null)
                               }}
                               className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
@@ -565,15 +564,14 @@ export const DischargeList = ({ patient, admission, onPatientClick }: DischargeL
       )}
       </div>
 
-      {detailName && (
-        <DetailSlideOver
-          title="Discharge"
-          subtitle={detailName}
-          onClose={() => setDetailName(null)}
-        >
-          <DocDetailView doctype="Discharge" name={detailName} />
-        </DetailSlideOver>
-      )}
+      {detailRow ? (
+        <DischargeDetailPanel
+          name={detailRow.name}
+          preview={detailRow}
+          onClose={() => setDetailRow(null)}
+          onPatientClick={onPatientClick}
+        />
+      ) : null}
     </div>
   )
 }

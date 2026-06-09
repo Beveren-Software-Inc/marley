@@ -1148,7 +1148,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2026-05-17 15:01:37.487754",
+ "modified": "2026-06-09 12:59:00.041869",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Lab Test",
@@ -1200,6 +1200,18 @@
    "select": 1,
    "share": 1,
    "submit": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Nurse",
+   "share": 1,
    "write": 1
   }
  ],

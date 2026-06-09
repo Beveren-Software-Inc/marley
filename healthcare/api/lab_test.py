@@ -1288,19 +1288,122 @@ def update_lab_test_status(lab_test_name: str, new_status: str, **kwargs):
 	)
 
 
-@frappe.whitelist()
-def create_sample_collection_for_lab_sample(
-	lab_test_name: str,
-	row_index: int,
-	sample_details: str | None = None,
-	collection_point: str | None = None,
-	referring_practitioner: str | None = None,
-	observation_rows: str | list | None = None,
-):
-	"""Create (or return existing) Sample Collection for a specific sample_instances row on Lab Test.
+SAMPLE_COLLECTION_EDITABLE_LAB_TEST_STATUSES = frozenset(
+	{
+		"Awaiting sample collection",
+		"Sample Collection in Progress",
+		"Sample Collected",
+		"Sample collection in progress",
+	}
+)
 
-	row_index is 0-based index into lab_test.sample_instances.
-	"""
+
+def _lab_test_allows_sample_collection_edit(lab_test) -> bool:
+	status = (getattr(lab_test, "status", None) or "").strip()
+	return status in SAMPLE_COLLECTION_EDITABLE_LAB_TEST_STATUSES
+
+
+def _valid_lab_test_sample(sample_name) -> str | None:
+	"""Return sample name only when it exists on Lab Test Sample (avoids bogus defaults like Urine)."""
+	if not sample_name:
+		return None
+	sample_name = str(sample_name).strip()
+	if not sample_name or not frappe.db.exists("Lab Test Sample", sample_name):
+		return None
+	return sample_name
+
+
+def _observation_row_has_content(obs: dict, fallback_sample=None) -> bool:
+	sample = _valid_lab_test_sample(obs.get("sample") or fallback_sample)
+	if sample:
+		return True
+	if (obs.get("specimen") or "").strip():
+		return True
+	if frappe.utils.flt(obs.get("sample_qty") or 0) > 0:
+		return True
+	if obs.get("observation_template"):
+		return True
+	return False
+
+
+def _serialize_observation_sample_rows(sample_doc) -> list[dict]:
+	rows = []
+	for obs in sample_doc.get("observation_sample_collection") or []:
+		sample = _valid_lab_test_sample(obs.get("sample"))
+		if not sample and not _observation_row_has_content(obs.as_dict() if hasattr(obs, "as_dict") else dict(obs)):
+			continue
+		rows.append(
+			{
+				"sample": sample,
+				"sample_type": obs.get("sample_type"),
+				"uom": obs.get("uom"),
+				"status": obs.get("status"),
+				"observation_template": obs.get("observation_template"),
+				"collection_date_time": str(obs.get("collection_date_time") or ""),
+				"sample_qty": obs.get("sample_qty"),
+				"collection_point": obs.get("collection_point"),
+				"collected_by": obs.get("collected_by"),
+				"specimen": obs.get("specimen"),
+			}
+		)
+	return rows
+
+
+def _scrub_invalid_observation_sample_rows(sample_doc):
+	"""Remove child rows with invalid sample links (e.g. doctype default 'Urine' with no real data)."""
+	remove_rows = []
+	for obs in sample_doc.get("observation_sample_collection") or []:
+		sample = (obs.get("sample") or "").strip()
+		if not sample or frappe.db.exists("Lab Test Sample", sample):
+			continue
+		if not _observation_row_has_content(obs):
+			remove_rows.append(obs)
+		else:
+			obs.sample = ""
+	for obs in remove_rows:
+		sample_doc.remove(obs)
+
+
+def _apply_observation_rows(sample_doc, observation_rows, fallback_sample=None, fallback_qty=0):
+	if observation_rows is None:
+		return
+	if isinstance(observation_rows, str):
+		import json
+
+		observation_rows = json.loads(observation_rows)
+
+	valid_fallback_sample = _valid_lab_test_sample(fallback_sample)
+	sample_doc.set("observation_sample_collection", [])
+	for obs in observation_rows or []:
+		if not isinstance(obs, dict):
+			continue
+		if not _observation_row_has_content(obs, valid_fallback_sample):
+			continue
+
+		sample_val = _valid_lab_test_sample(obs.get("sample") or valid_fallback_sample)
+		status = (obs.get("status") or "Open").strip()
+		if status not in ("Open", "Collected"):
+			status = "Open"
+
+		row_data = {
+			# Explicit empty string prevents the child-table default ("Urine") when no sample is set.
+			"sample": sample_val or "",
+			"sample_type": obs.get("sample_type") or "",
+			"uom": obs.get("uom") or "",
+			"status": status,
+			"observation_template": obs.get("observation_template") or "",
+			"collection_date_time": obs.get("collection_date_time") or frappe.utils.now_datetime(),
+			"sample_qty": frappe.utils.flt(obs.get("sample_qty") or fallback_qty or 0),
+			"collection_point": obs.get("collection_point") or "",
+			"collected_by": obs.get("collected_by") or "",
+			"specimen": obs.get("specimen") or "",
+		}
+		sample_doc.append("observation_sample_collection", row_data)
+
+
+@frappe.whitelist()
+def get_sample_collection_for_lab_sample(lab_test_name: str, row_index: int):
+	"""Return Sample Collection data for editing a lab test sample_instances row."""
 	if not lab_test_name:
 		frappe.throw(_("Lab Test name is required"))
 
@@ -1315,13 +1418,179 @@ def create_sample_collection_for_lab_sample(
 		frappe.throw(_("Invalid sample instance row"), title=_("Invalid Row"))
 
 	row = rows[row_index]
+	if not getattr(row, "sample_collection", None):
+		frappe.throw(_("No sample collection linked to this row"))
+
+	if not _lab_test_allows_sample_collection_edit(doc):
+		frappe.throw(
+			_(
+				"Sample collection can only be edited while the Lab Test is still in the sample collection workflow."
+			),
+			frappe.PermissionError,
+		)
+
+	if not frappe.db.exists("Sample Collection", row.sample_collection):
+		frappe.throw(_("Sample Collection {0} not found").format(row.sample_collection))
+
+	sample_doc = frappe.get_doc("Sample Collection", row.sample_collection)
+	if getattr(sample_doc, "docstatus", 0) >= 1:
+		frappe.throw(_("Submitted Sample Collection records cannot be edited from the portal"))
+
+	referring_practitioner_name = None
+	if sample_doc.referring_practitioner:
+		referring_practitioner_name = frappe.db.get_value(
+			"Healthcare Practitioner",
+			sample_doc.referring_practitioner,
+			"practitioner_name",
+		)
+
+	return {
+		"sample_collection": sample_doc.name,
+		"sample": sample_doc.sample or getattr(row, "sample", None),
+		"sample_qty": sample_doc.sample_qty if sample_doc.sample_qty is not None else getattr(row, "sample_qty", None),
+		"sample_details": sample_doc.sample_details or getattr(row, "sample_details", None),
+		"collection_point": sample_doc.collection_point,
+		"referring_practitioner": sample_doc.referring_practitioner,
+		"referring_practitioner_name": referring_practitioner_name,
+		"observation_rows": _serialize_observation_sample_rows(sample_doc),
+		"lab_test_status": doc.status,
+	}
+
+
+@frappe.whitelist()
+def update_sample_collection_for_lab_sample(
+	lab_test_name: str,
+	row_index: int,
+	sample_details: str | None = None,
+	collection_point: str | None = None,
+	referring_practitioner: str | None = None,
+	observation_rows: str | list | None = None,
+	sample_qty: float | int | str | None = None,
+):
+	"""Update an existing Sample Collection linked to a lab test sample_instances row."""
+	if not lab_test_name:
+		frappe.throw(_("Lab Test name is required"))
+
+	try:
+		row_index = int(row_index)
+	except Exception:
+		frappe.throw(_("Row index is required"), title=_("Invalid Input"))
+
+	sample_qty_value = None
+	if sample_qty is not None and sample_qty != "":
+		sample_qty_value = frappe.utils.flt(sample_qty)
+
+	doc = frappe.get_doc("Lab Test", lab_test_name)
+	if not _lab_test_allows_sample_collection_edit(doc):
+		frappe.throw(
+			_(
+				"Sample collection can only be edited while the Lab Test is still in the sample collection workflow."
+			),
+			frappe.PermissionError,
+		)
+
+	rows = doc.get("sample_instances") or []
+	if row_index < 0 or row_index >= len(rows):
+		frappe.throw(_("Invalid sample instance row"), title=_("Invalid Row"))
+
+	row = rows[row_index]
+	if not getattr(row, "sample_collection", None):
+		frappe.throw(_("No sample collection linked to this row"))
+
+	if not frappe.db.exists("Sample Collection", row.sample_collection):
+		frappe.throw(_("Sample Collection {0} not found").format(row.sample_collection))
+
+	sample_doc = frappe.get_doc("Sample Collection", row.sample_collection)
+	if getattr(sample_doc, "docstatus", 0) >= 1:
+		frappe.throw(_("Submitted Sample Collection records cannot be edited from the portal"))
+
+	if sample_qty_value is not None:
+		sample_doc.sample_qty = sample_qty_value
+		row.sample_qty = sample_qty_value
+
+	if sample_details is not None:
+		sample_doc.sample_details = sample_details
+		row.sample_details = sample_details
+
+	if collection_point is not None:
+		sample_doc.collection_point = collection_point
+
+	if referring_practitioner is not None:
+		sample_doc.referring_practitioner = referring_practitioner or None
+
+	if observation_rows is not None:
+		_apply_observation_rows(
+			sample_doc,
+			observation_rows,
+			fallback_sample=getattr(row, "sample", None),
+			fallback_qty=sample_doc.sample_qty,
+		)
+	else:
+		_scrub_invalid_observation_sample_rows(sample_doc)
+
+	sample_doc.save(ignore_permissions=True)
+	doc.save(ignore_permissions=True)
+
+	return {"sample_collection": sample_doc.name}
+
+
+@frappe.whitelist()
+def create_sample_collection_for_lab_sample(
+	lab_test_name: str,
+	row_index: int,
+	sample_details: str | None = None,
+	collection_point: str | None = None,
+	referring_practitioner: str | None = None,
+	observation_rows: str | list | None = None,
+	sample_qty: float | int | str | None = None,
+):
+	"""Create (or return existing) Sample Collection for a specific sample_instances row on Lab Test.
+
+	row_index is 0-based index into lab_test.sample_instances.
+	When the Lab Test has no sample rows yet, a row is created from sample_qty / sample_details.
+	"""
+	if not lab_test_name:
+		frappe.throw(_("Lab Test name is required"))
+
+	try:
+		row_index = int(row_index)
+	except Exception:
+		frappe.throw(_("Row index is required"), title=_("Invalid Input"))
+
+	sample_qty_value = None
+	if sample_qty is not None and sample_qty != "":
+		sample_qty_value = frappe.utils.flt(sample_qty)
+
+	doc = frappe.get_doc("Lab Test", lab_test_name)
+	rows = doc.get("sample_instances") or []
+
+	if not rows and (sample_details or sample_qty_value is not None):
+		child = doc.append("sample_instances", {})
+		if sample_qty_value is not None:
+			child.sample_qty = sample_qty_value
+		if sample_details:
+			child.sample_details = sample_details
+		doc.save(ignore_permissions=True)
+		rows = doc.get("sample_instances") or []
+		row_index = 0
+
+	if row_index < 0 or row_index >= len(rows):
+		frappe.throw(_("Invalid sample instance row"), title=_("Invalid Row"))
+
+	row = rows[row_index]
 
 	# If already linked, just return existing Sample Collection
 	if getattr(row, "sample_collection", None) and frappe.db.exists("Sample Collection", row.sample_collection):
 		return {"sample_collection": row.sample_collection}
 
-	if not getattr(row, "sample", None):
-		frappe.throw(_("Sample is required on the selected row"))
+	if sample_qty_value is not None:
+		row.sample_qty = sample_qty_value
+	if sample_details:
+		row.sample_details = sample_details
+
+	row_details = sample_details or getattr(row, "sample_details", None)
+	if not getattr(row, "sample", None) and not row_details:
+		frappe.throw(_("Sample or collection details is required on the selected row"))
 
 	if not doc.patient:
 		frappe.throw(_("Patient is required on Lab Test"))
@@ -1332,12 +1601,13 @@ def create_sample_collection_for_lab_sample(
 	sample_doc.patient = patient.name
 	sample_doc.patient_age = patient.get_age()
 	sample_doc.patient_sex = patient.sex
-	sample_doc.sample = row.sample
-	# UOM from Lab Test Sample
-	uom = frappe.db.get_value("Lab Test Sample", row.sample, "sample_uom")
-	if uom:
-		sample_doc.sample_uom = uom
-	sample_doc.sample_qty = getattr(row, "sample_qty", 0) or 0
+	if getattr(row, "sample", None):
+		sample_doc.sample = row.sample
+		# UOM from Lab Test Sample
+		uom = frappe.db.get_value("Lab Test Sample", row.sample, "sample_uom")
+		if uom:
+			sample_doc.sample_uom = uom
+	sample_doc.sample_qty = frappe.utils.flt(getattr(row, "sample_qty", 0) or 0)
 	# Prefer explicit sample_details from caller, fall back to row
 	sample_doc.sample_details = sample_details or getattr(row, "sample_details", None)
 	if doc.company:
@@ -1347,27 +1617,13 @@ def create_sample_collection_for_lab_sample(
 	if referring_practitioner:
 		sample_doc.referring_practitioner = referring_practitioner
 
-	# Add observation rows if provided
-	if observation_rows:
-		if isinstance(observation_rows, str):
-			import json
-			observation_rows = json.loads(observation_rows)
-		for obs in (observation_rows or []):
-			if not isinstance(obs, dict):
-				continue
-			sample_doc.append('observation_sample_collection', {
-				'sample': obs.get('sample') or row.sample,
-				'sample_type': obs.get('sample_type') or '',
-				'uom': obs.get('uom') or '',
-				'status': obs.get('status') or 'Active',
-				'observation_template': obs.get('observation_template') or '',
-				'collection_date_time': obs.get('collection_date_time') or frappe.utils.now_datetime(),
-				'sample_qty': frappe.utils.flt(obs.get('sample_qty') or getattr(row, 'sample_qty', 0) or 0),
-				'collection_point': obs.get('collection_point') or '',
-				'collected_by': obs.get('collected_by') or '',
-				# 'medical_department': obs.get('medical_department') or '',
-				'specimen': obs.get('specimen') or '',
-			})
+	_apply_observation_rows(
+		sample_doc,
+		observation_rows,
+		fallback_sample=getattr(row, "sample", None),
+		fallback_qty=getattr(row, "sample_qty", 0),
+	)
+	_scrub_invalid_observation_sample_rows(sample_doc)
 
 	sample_doc.save(ignore_permissions=True)
 

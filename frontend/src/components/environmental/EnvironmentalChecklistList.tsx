@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ClipboardCheck } from 'lucide-react'
 import { fetchInpatientAdmissionOptions } from '../../services/common'
 import {
   fetchEnvironmentalChecklists,
@@ -12,8 +11,7 @@ import { EnvironmentalChecklistModal } from './EnvironmentalChecklistModal'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
-import { DetailSlideOver } from '../ui/DetailSlideOver'
-import { DocDetailView } from '../ui/DocDetailView'
+import { EnvironmentalChecklistDetailPanel } from './EnvironmentalChecklistDetailPanel'
 
 interface EnvironmentalChecklistListProps {
   patient?: string
@@ -70,7 +68,7 @@ export const EnvironmentalChecklistList = ({
   const [error, setError] = useState<string | null>(null)
   const [internalCreateOpen, setInternalCreateOpen] = useState(false)
   const [editChecklist, setEditChecklist] = useState<string | null>(null)
-  const [detailName, setDetailName] = useState<string | null>(null)
+  const [detailRow, setDetailRow] = useState<EnvironmentalChecklistRecord | null>(null)
   const [openActionRow, setOpenActionRow] = useState<string | null>(null)
   const actionMenuRef = useRef<HTMLDivElement>(null)
 
@@ -147,14 +145,14 @@ export const EnvironmentalChecklistList = ({
     loadRows()
   }
 
-  const handleView = (name: string) => {
+  const handleView = (row: EnvironmentalChecklistRecord) => {
     setOpenActionRow(null)
-    setDetailName(name)
+    setDetailRow(row)
   }
 
   const handleEdit = (name: string) => {
     setOpenActionRow(null)
-    setDetailName(null)
+    setDetailRow(null)
     setEditChecklist(name)
   }
 
@@ -259,7 +257,7 @@ export const EnvironmentalChecklistList = ({
                 <tr key={row.name} className="hover:bg-slate-50">
                   <td
                     className="px-4 py-3 text-sm font-medium text-primary hover:underline cursor-pointer"
-                    onClick={() => handleView(row.name)}
+                    onClick={() => handleView(row)}
                   >
                     {row.name}
                   </td>
@@ -275,43 +273,43 @@ export const EnvironmentalChecklistList = ({
                   )}
                   <td
                     className="px-4 py-3 text-sm text-slate-700 cursor-pointer"
-                    onClick={() => handleView(row.name)}
+                    onClick={() => handleView(row)}
                   >
                     {row.inpatient_admission || '—'}
                   </td>
                   <td
                     className="px-4 py-3 text-sm text-slate-700 cursor-pointer"
-                    onClick={() => handleView(row.name)}
+                    onClick={() => handleView(row)}
                   >
                     {row.patient_visit || '—'}
                   </td>
                   <td
                     className="px-4 py-3 text-sm text-slate-700 cursor-pointer"
-                    onClick={() => handleView(row.name)}
+                    onClick={() => handleView(row)}
                   >
                     {row.practitioner_name || row.practitioner || '—'}
                   </td>
                   <td
                     className="px-4 py-3 text-sm text-slate-700 cursor-pointer"
-                    onClick={() => handleView(row.name)}
+                    onClick={() => handleView(row)}
                   >
                     {row.cost_center || '—'}
                   </td>
                   <td
                     className="px-4 py-3 text-sm text-slate-700 cursor-pointer"
-                    onClick={() => handleView(row.name)}
+                    onClick={() => handleView(row)}
                   >
                     {row.environmental_checklist_template || '—'}
                   </td>
                   <td
                     className="px-4 py-3 text-sm text-slate-700 cursor-pointer"
-                    onClick={() => handleView(row.name)}
+                    onClick={() => handleView(row)}
                   >
                     {row.completed_count ?? 0} / {row.total_count ?? 0}
                   </td>
                   <td
                     className="px-4 py-3 text-sm text-slate-500 cursor-pointer"
-                    onClick={() => handleView(row.name)}
+                    onClick={() => handleView(row)}
                   >
                     {row.creation ? new Date(row.creation).toLocaleDateString() : '—'}
                   </td>
@@ -336,7 +334,7 @@ export const EnvironmentalChecklistList = ({
                         >
                           <button
                             type="button"
-                            onClick={() => handleView(row.name)}
+                            onClick={() => handleView(row)}
                             className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
                           >
                             View
@@ -366,38 +364,15 @@ export const EnvironmentalChecklistList = ({
         </div>
       )}
 
-      {detailName && (
-        <DetailSlideOver
-          title="Environmental Checklist"
-          subtitle={detailName}
-          icon={<ClipboardCheck className="h-5 w-5 text-emerald-700" strokeWidth={2} />}
-          onClose={() => setDetailName(null)}
-          headerActions={
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => handleEdit(detailName)}
-                className="rounded-lg px-2.5 py-1 text-xs font-medium text-emerald-800 hover:bg-emerald-200/50 border border-emerald-200"
-              >
-                Edit
-              </button>
-              <PrintFormatDropdown
-                doctype="Environmental Checklist"
-                docName={detailName}
-                noLetterhead={0}
-                triggerPrint={1}
-                className="inline-flex items-center justify-center w-8 h-8 rounded border border-slate-300 bg-white text-primary hover:bg-slate-50"
-              />
-            </div>
-          }
-        >
-          <DocDetailView
-            doctype="Environmental Checklist"
-            name={detailName}
-            onUpdate={loadRows}
-          />
-        </DetailSlideOver>
-      )}
+      {detailRow ? (
+        <EnvironmentalChecklistDetailPanel
+          name={detailRow.name}
+          preview={detailRow}
+          onClose={() => setDetailRow(null)}
+          onPatientClick={onPatientClick}
+          onEdit={handleEdit}
+        />
+      ) : null}
 
       {showCreateModal && (
         <EnvironmentalChecklistModal

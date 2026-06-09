@@ -754,6 +754,7 @@ DISCHARGE_PORTAL_ROLES = frozenset(
 		"Receptionist",
 		"Doctor",
 		"Nurse",
+		"Nursing User",
 		"Physician",
 		"Psychologist",
 		"Anesthesiologist",

@@ -299,9 +299,18 @@ export async function bookLabAndForward(serviceRequestName: string): Promise<{ l
 }
 
 export async function confirmSessionPayment(serviceRequestName: string): Promise<{ ok: boolean }> {
+  const { ensureCSRF } = await import('./apiClient')
+  const csrf = await ensureCSRF()
   const response = await fetch(
     `/api/method/healthcare.api.service_request.confirm_session_payment?service_request_name=${encodeURIComponent(serviceRequestName)}`,
-    { method: 'POST' }
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
+      },
+      credentials: 'include',
+    }
   )
   const resData = await response.json()
   if (resData?.message?.ok) return resData.message
@@ -309,11 +318,20 @@ export async function confirmSessionPayment(serviceRequestName: string): Promise
 }
 
 export async function bookSession(serviceRequestName: string, appointment?: string): Promise<{ ok: boolean; created?: { doctype: string; name: string } }> {
+  const { ensureCSRF } = await import('./apiClient')
+  const csrf = await ensureCSRF()
   const params = new URLSearchParams({ service_request_name: serviceRequestName })
   if (appointment) params.append('appointment', appointment)
   const response = await fetch(
     `/api/method/healthcare.api.service_request.book_session?${params.toString()}`,
-    { method: 'POST' }
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
+      },
+      credentials: 'include',
+    }
   )
   const resData = await response.json()
   if (resData?.message?.ok) return resData.message

@@ -307,6 +307,41 @@ export async function fetchDoc(doctype: string, name: string): Promise<Record<st
     return fetchClinicalNote(name)
   }
 
+  if (doctype === 'Warning Message') {
+    const { fetchWarningMessage } = await import('./warningMessages')
+    return fetchWarningMessage(name)
+  }
+
+  if (doctype === 'Patient Assessment') {
+    const { fetchPatientAssessment } = await import('./patientAssessment')
+    return (await fetchPatientAssessment(name)) as unknown as Record<string, unknown>
+  }
+
+  if (doctype === 'Environmental Checklist') {
+    const { fetchEnvironmentalChecklist } = await import('./environmentalChecklist')
+    return (await fetchEnvironmentalChecklist(name)) as unknown as Record<string, unknown>
+  }
+
+  if (doctype === 'Mental State') {
+    const { fetchMentalState } = await import('./mentalState')
+    return (await fetchMentalState(name)) as unknown as Record<string, unknown>
+  }
+
+  if (doctype === 'IP Grooming Chart') {
+    const { fetchGroomingChart } = await import('./groomingCharts')
+    return (await fetchGroomingChart(name)) as unknown as Record<string, unknown>
+  }
+
+  if (doctype === 'Sleeping Pattern Detail') {
+    const { fetchSleepingPattern } = await import('./sleepingPattern')
+    return (await fetchSleepingPattern(name)) as unknown as Record<string, unknown>
+  }
+
+  if (doctype === 'Discharge') {
+    const { fetchDischarge } = await import('./discharges')
+    return (await fetchDischarge(name)) as unknown as Record<string, unknown>
+  }
+
   const res = await fetch(
     `/api/resource/${encodeURIComponent(doctype)}/${encodeURIComponent(name)}`
   )

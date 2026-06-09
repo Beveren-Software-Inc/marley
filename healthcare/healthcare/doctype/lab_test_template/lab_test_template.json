@@ -634,7 +634,7 @@
    "link_fieldname": "template"
   }
  ],
- "modified": "2026-04-20 14:00:04.114185",
+ "modified": "2026-06-09 12:59:24.233450",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Lab Test Template",
@@ -662,6 +662,20 @@
    "read": 1,
    "report": 1,
    "role": "Laboratory User",
+   "select": 1,
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Nurse",
+   "select": 1,
    "share": 1,
    "write": 1
   }

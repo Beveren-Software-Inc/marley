@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useState, useMemo, useRef } from 'react'
 import { fetchReceptionLongActingMedicineList } from '../../services/receptionLongActingMedicine'
 import type { LongActingMedicineRow, ReminderChannel } from '../../services/longActingMedicine'
 import { sendLongActingMedicineReminder, updateLongActingMedicineRemarks } from '../../services/longActingMedicine'
@@ -7,7 +7,33 @@ import { LongActingMedicineDetailPanel } from './LongActingMedicineDetailPanel'
 import { toast } from '../../hooks/useToast'
 import { Mail, MoreHorizontal } from 'lucide-react'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
+import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 
+const FilterToggleButton = ({
+  active,
+  onClick,
+}: {
+  active: boolean
+  onClick: () => void
+}) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className={`p-1.5 rounded-md border transition-colors ${
+      active ? 'bg-primary/10 border-primary text-primary' : 'border-slate-300 text-slate-500 hover:bg-slate-50'
+    }`}
+    title={active ? 'Hide filters' : 'Show filters'}
+    aria-label={active ? 'Hide filters' : 'Show filters'}
+  >
+    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z"
+      />
+    </svg>
+  </button>
+)
 
 interface ReceptionLongActingMedicineListProps {
   patient?: string
@@ -19,9 +45,11 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
   const [rows, setRows] = useState<LongActingMedicineRow[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showFilters, setShowFilters] = useState(false)
   const [startDate, setStartDate] = useState('')
   const [frequency, setFrequency] = useState<string>('')
   const [sortBy, setSortBy] = useState<'next_run_date' | 'start_date'>('next_run_date')
+  const hasActiveFilters = Boolean(startDate || frequency)
   const [detailName, setDetailName] = useState<string | null>(null)
   const [detailPreview, setDetailPreview] = useState<LongActingMedicineRow | undefined>(undefined)
   const [bulkSending, setBulkSending] = useState(false)
@@ -37,7 +65,7 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
   const [remarksText, setRemarksText] = useState('')
   const [remarksSaving, setRemarksSaving] = useState(false)
 
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
       setLoading(true)
       setError(null)
@@ -56,12 +84,16 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
     } finally {
       setLoading(false)
     }
-  }
+  }, [startDate, frequency, patient])
 
   useEffect(() => {
     load()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [patient, refreshKey])
+  }, [load, refreshKey])
+
+  const clearFilters = () => {
+    setStartDate('')
+    setFrequency('')
+  }
 
   // Close action menu when clicking outside
   useEffect(() => {
@@ -133,10 +165,6 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
     setDetailName(row.name)
   }
 
-  const handleApplyFilters = async () => {
-    await load()
-  }
-
   const handleBulkSendReminders = async (channel: ReminderChannel) => {
     if (formattedRows.length === 0) {
       toast.error('No long acting medicines to send reminders for')
@@ -188,61 +216,8 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
 
   return (
     <div className="space-y-3">
-      {/* Filters + Bulk Actions */}
-      <div className="flex flex-wrap items-end gap-3 justify-between">
-        <div className="flex flex-wrap items-end gap-3">
-          {/* Start Date Filter */}
-          <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Start Date</label>
-            <input
-              type="date"
-              className="border border-slate-300 rounded px-2 py-1.5 text-sm"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-            />
-          </div>
-
-          {/* Frequency Filter */}
-          <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Frequency</label>
-            <select
-              className="border border-slate-300 rounded px-2 py-1.5 text-sm bg-white min-w-[160px]"
-              value={frequency}
-              onChange={(e) => setFrequency(e.target.value)}
-            >
-              <option value="">All</option>
-              {LONG_ACTING_FREQUENCY_OPTIONS.map((opt) => (
-                <option key={opt} value={opt}>
-                  {opt}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Sort By */}
-          <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Sort By</label>
-            <select
-              className="border border-slate-300 rounded px-2 py-1.5 text-sm bg-white min-w-[160px]"
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as 'next_run_date' | 'start_date')}
-            >
-              <option value="next_run_date">Next Run Date</option>
-              <option value="start_date">Start Date</option>
-            </select>
-          </div>
-
-          {/* Apply Filters Button */}
-          <button
-            type="button"
-            onClick={handleApplyFilters}
-            className="inline-flex items-center px-3 py-1.5 text-sm rounded bg-primary text-white hover:bg-primary/90 transition-colors"
-          >
-            Apply Filters
-          </button>
-        </div>
-
-        {/* Bulk Send Reminders Button */}
+      {/* Toolbar: bulk actions left, filter toggle far right */}
+      <div className="flex flex-wrap items-center gap-3 justify-between">
         <div className="relative" ref={bulkMenuRef}>
           <button
             type="button"
@@ -276,7 +251,53 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
             </div>
           )}
         </div>
+
+        <FilterToggleButton active={showFilters} onClick={() => setShowFilters((v) => !v)} />
       </div>
+
+      {showFilters && (
+        <div className="flex flex-wrap items-end gap-3 px-1 py-2 border-b border-slate-100 bg-slate-50/80 rounded-md">
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Start Date</label>
+            <input
+              type="date"
+              className="border border-slate-300 rounded px-2 py-1.5 text-sm bg-white"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Frequency</label>
+            <select
+              className="border border-slate-300 rounded px-2 py-1.5 text-sm bg-white min-w-[160px]"
+              value={frequency}
+              onChange={(e) => setFrequency(e.target.value)}
+            >
+              <option value="">All</option>
+              {LONG_ACTING_FREQUENCY_OPTIONS.map((opt) => (
+                <option key={opt} value={opt}>
+                  {opt}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Sort By</label>
+            <select
+              className="border border-slate-300 rounded px-2 py-1.5 text-sm bg-white min-w-[160px]"
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as 'next_run_date' | 'start_date')}
+            >
+              <option value="next_run_date">Next Run Date</option>
+              <option value="start_date">Start Date</option>
+            </select>
+          </div>
+
+          <ClearFiltersButton onClick={clearFilters} disabled={!hasActiveFilters} />
+        </div>
+      )}
 
       {/* Content Area */}
       {loading ? (

@@ -1,27 +1,12 @@
 import { useEffect, useState } from 'react'
+import { fetchSleepingPattern, type SleepingPatternDoc } from '../../services/sleepingPattern'
 
 interface SleepingPatternDetailProps {
   name: string
 }
 
-interface SleepingPatternDetailDoc {
-  name: string
-  date?: string
-  branch?: string
-  morning_from?: string
-  morning_to?: string
-  morning_total?: string
-  evening_from?: string
-  evening_to?: string
-  evening_total?: string
-  night_from?: string
-  night_to?: string
-  night_total?: string
-  user?: string
-}
-
 export const SleepingPatternDetail = ({ name }: SleepingPatternDetailProps) => {
-  const [doc, setDoc] = useState<SleepingPatternDetailDoc | null>(null)
+  const [doc, setDoc] = useState<SleepingPatternDoc | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -30,15 +15,8 @@ export const SleepingPatternDetail = ({ name }: SleepingPatternDetailProps) => {
       try {
         setLoading(true)
         setError(null)
-        const res = await fetch(
-          `/api/resource/Sleeping%20Pattern%20Detail/${encodeURIComponent(name)}`
-        )
-        const data = await res.json()
-        if (data?.data) {
-          setDoc(data.data as SleepingPatternDetailDoc)
-        } else {
-          setError('Record not found')
-        }
+        const data = await fetchSleepingPattern(name)
+        setDoc(data)
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Failed to load details')
       } finally {
@@ -52,7 +30,7 @@ export const SleepingPatternDetail = ({ name }: SleepingPatternDetailProps) => {
   if (error) return <div className="text-sm text-red-600">{error}</div>
   if (!doc) return null
 
-  const formatDateTime = (value?: string) => {
+  const formatDateTime = (value?: string | null) => {
     if (!value) return '-'
     try {
       const d = new Date(value)
@@ -63,10 +41,15 @@ export const SleepingPatternDetail = ({ name }: SleepingPatternDetailProps) => {
     }
   }
 
+  const toHours = (value: number | string | null | undefined) => {
+    if (typeof value === 'number') return value
+    if (value == null || value === '') return 0
+    const n = parseFloat(String(value))
+    return Number.isFinite(n) ? n : 0
+  }
+
   const totalHours =
-    (parseFloat(doc.morning_total || '0') || 0) +
-    (parseFloat(doc.evening_total || '0') || 0) +
-    (parseFloat(doc.night_total || '0') || 0)
+    toHours(doc.morning_total) + toHours(doc.evening_total) + toHours(doc.night_total)
 
   return (
     <div className="space-y-4">

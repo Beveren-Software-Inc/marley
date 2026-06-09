@@ -830,6 +830,7 @@ import { ChevronDown, ChevronUp, Trash2, ClipboardList } from 'lucide-react'
 import {
   createPatientAssessment,
   fetchAssessmentTemplates,
+  fetchDefaultPatientAssessmentTemplate,
   fetchTemplateParameters,
   fetchAssessmentParameters,
   type AssessmentSheetRow,
@@ -1058,6 +1059,42 @@ export const CreatePatientAssessmentModal = ({
     const t = setTimeout(run, patientQuery.trim() ? 300 : 0)
     return () => { c = true; clearTimeout(t) }
   }, [patientQuery, patientOpen])
+
+  const defaultTemplateLoaded = useRef(false)
+
+  // ── Default assessment template on open ─────────────────────────────────────
+  useEffect(() => {
+    if (defaultTemplateLoaded.current) return
+    defaultTemplateLoaded.current = true
+    let cancelled = false
+    ;(async () => {
+      try {
+        const defaultTmpl = await fetchDefaultPatientAssessmentTemplate()
+        if (!defaultTmpl || cancelled) return
+        setSelectedTemplate(defaultTmpl)
+        setTemplateQuery(defaultTmpl.label)
+        setLoadingTemplate(true)
+        const data = await fetchTemplateParameters(defaultTmpl.name)
+        if (cancelled) return
+        const rows = data.parameters.map((p) => ({
+          parameter: p.parameter,
+          score: 0,
+          time: '',
+          comments: '',
+        }))
+        setSheetRows(rows)
+        setParamQuery(Object.fromEntries(rows.map((r, i) => [i, r.parameter])))
+        setExpandedRows(new Set(rows.map((_, i) => i)))
+      } catch {
+        // optional default
+      } finally {
+        if (!cancelled) setLoadingTemplate(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   // ── Template options ──────────────────────────────────────────────────────────
   useEffect(() => {

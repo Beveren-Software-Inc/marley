@@ -7,12 +7,24 @@ from frappe import _
 
 
 @frappe.whitelist()
-def get_vital_signs(limit=50, offset=0, patient=None):
+def get_vital_signs(limit=50, offset=0, patient=None, date_from=None, date_to=None, practitioner=None):
 	"""Get list of Vital Signs"""
 	filters = {}
 
 	if patient:
 		filters['patient'] = patient
+
+	if date_from and date_to:
+		filters['signs_date'] = ['between', [date_from, date_to]]
+	elif date_from:
+		filters['signs_date'] = ['>=', date_from]
+	elif date_to:
+		filters['signs_date'] = ['<=', date_to]
+
+	if practitioner:
+		user_id = frappe.db.get_value('Healthcare Practitioner', practitioner, 'user_id')
+		if user_id:
+			filters['owner'] = user_id
 
 	vital_signs = frappe.get_all(
 		'Vital Signs',
