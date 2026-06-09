@@ -91,10 +91,18 @@ export interface InpatientRecord {
   patient_ip_category?: string
   patient_relatives?: {
     relative_relation?: string
+    relationship_with_patient?: string
     relative_name?: string
     relative_id_num?: string
+    cpr__id_no?: string
+    relative_phone_no?: string
+    relative_alternative_phone_no?: string
+    relative_alternative_phone_no_2?: string
+    relation_email?: string
     any_remarks?: string
   }[]
+  patient_visitors?: PatientVisitorRow[]
+  signature?: string
 }
 
 export interface PackageDetail {
@@ -196,6 +204,19 @@ export async function fetchInpatientRecord(name: string) {
   } else {
     throw new Error('Invalid response format')
   }
+}
+
+export async function updateInpatientAdmission(
+  name: string,
+  payload: Record<string, unknown>
+): Promise<InpatientRecord> {
+  return await apiRequest<InpatientRecord>(
+    '/api/method/healthcare.api.inpatient_admission.update_inpatient_admission',
+    {
+      method: 'POST',
+      body: JSON.stringify({ name, data: payload }),
+    }
+  )
 }
 
 export async function fetchPackageDetails(admissionNo: string): Promise<PackageDetailsResponse> {

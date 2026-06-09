@@ -24,6 +24,7 @@
   "medical_department",
   "amended_from",
   "amount",
+  "room",
   "section_break_i70a",
   "admission_no",
   "patient",
@@ -705,12 +706,18 @@
    "fieldname": "up_date",
    "fieldtype": "Data",
    "label": "UP Date"
+  },
+  {
+   "fieldname": "room",
+   "fieldtype": "Link",
+   "label": "Room",
+   "options": "Healthcare Service Unit"
   }
  ],
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-06-08 13:35:28.643505",
+ "modified": "2026-06-10 02:02:21.745327",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Observation",

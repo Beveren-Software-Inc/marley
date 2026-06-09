@@ -2,6 +2,7 @@ import { useState, useEffect, useLayoutEffect } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useCareContext } from '../providers/CareContextProvider'
 import { isNurseScreenBlocked } from '../config/costCenterCareScope'
+import { DashboardCard } from '../components/ui/DashboardCard'
 import { PatientCareHeader } from '../components/patients/PatientCareHeader'
 import { WarningMessagesList } from '../components/warnings/WarningMessagesList'
 import { LabTestList } from '../components/labTests/LabTestList'
@@ -76,7 +77,6 @@ import { CreateSessionScheduleModal } from '../components/sessionSchedule/Create
 import { PatientList } from '../components/patients/PatientList'
 import { RxPage } from '../components/prescriptions/SinglePrescription'
 import { NursingInventoryDashboard } from '../components/nursingInventory/NursingInventoryDashboard'
-import { DashboardCard } from '../components/ui/DashboardCard'
 import { PortalTopBar } from '../components/layout/PortalTopBar'
 
 /** Icon-only toolbar buttons for Given Medicines (native `title` = hover tooltip) */
@@ -980,18 +980,15 @@ export const NursePage = () => {
       <div className="flex flex-col">
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
-          <div className="mb-4">
-            <h2 className="text-xl font-semibold text-slate-900">Long Acting Med Reminder</h2>
-            <p className="text-sm text-slate-600 mt-1">
-              View long acting medicines for the selected patient. Filter by start date and frequency. Click a row for details.
-            </p>
-          </div>
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+          <p className="text-sm text-slate-600 mb-4">
+            View long acting medicines for the selected patient. Filter by start date and frequency. Click a row for details.
+          </p>
+          <DashboardCard title="Long Acting Med Reminder" noHeightLimit>
             <ReceptionLongActingMedicineList
               patient={selectedPatient || undefined}
               onPatientClick={handlePatientSelect}
             />
-          </section>
+          </DashboardCard>
         </div>
       </div>
     )

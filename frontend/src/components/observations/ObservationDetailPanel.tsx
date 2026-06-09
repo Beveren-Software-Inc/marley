@@ -251,6 +251,11 @@ export function ObservationDetailPanel({
                 value={formatDate(source.dc_date)}
               />
               <InfoTile
+                icon={<Building2 className="h-4 w-4" strokeWidth={2} />}
+                label="Room"
+                value={displayValue(source.room_name || source.room)}
+              />
+              <InfoTile
                 icon={<Calendar className="h-4 w-4" strokeWidth={2} />}
                 label="Duration"
                 value={displayValue(source.duration)}

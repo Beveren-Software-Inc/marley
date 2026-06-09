@@ -8,7 +8,7 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 from frappe.model.workflow import get_workflow_name, get_workflow_state_field
-from frappe.utils import cstr, flt, get_link_to_form, getdate, now_datetime, nowdate
+from frappe.utils import cint, cstr, flt, get_link_to_form, getdate, now_datetime, nowdate
 
 from erpnext.setup.doctype.terms_and_conditions.terms_and_conditions import (
 	get_terms_and_conditions,
@@ -90,12 +90,105 @@ def fill_patient_from_admission(doc) -> None:
 		doc.patient_name = frappe.db.get_value("Patient", doc.patient, "patient_name")
 
 
+def validate_observation_room_available(service_unit):
+	"""Ensure an inpatient service unit exists and is vacant before assignment."""
+	service_unit = cstr(service_unit).strip()
+	if not service_unit:
+		return
+
+	if not frappe.db.exists("Healthcare Service Unit", service_unit):
+		frappe.throw(_("Healthcare Service Unit {0} not found").format(service_unit))
+
+	row = frappe.db.get_value(
+		"Healthcare Service Unit",
+		service_unit,
+		["occupancy_status", "inpatient_occupancy"],
+		as_dict=True,
+	)
+	if not row:
+		frappe.throw(_("Healthcare Service Unit {0} not found").format(service_unit))
+	if not cint(row.get("inpatient_occupancy")):
+		frappe.throw(_("Service Unit {0} is not an inpatient unit.").format(service_unit))
+	if row.get("occupancy_status") == "Occupied":
+		frappe.throw(_("Service Unit {0} is already occupied.").format(service_unit))
+
+
+def occupy_observation_room(service_unit):
+	service_unit = cstr(service_unit).strip()
+	if not service_unit:
+		return
+	validate_observation_room_available(service_unit)
+	frappe.db.set_value("Healthcare Service Unit", service_unit, "occupancy_status", "Occupied")
+
+
+def vacate_observation_room(service_unit):
+	service_unit = cstr(service_unit).strip()
+	if not service_unit:
+		return
+	if not frappe.db.exists("Healthcare Service Unit", service_unit):
+		return
+	frappe.db.set_value("Healthcare Service Unit", service_unit, "occupancy_status", "Vacant")
+
+
+def vacate_active_observation_rooms_for_patient(patient, exclude_service_units=None, dc_date=None):
+	"""Mark observation rooms vacant for active observations (no DC date yet)."""
+	patient = cstr(patient).strip()
+	if not patient:
+		return
+
+	exclude = {u for u in (exclude_service_units or []) if u}
+	observations = frappe.get_all(
+		"Observation",
+		filters={
+			"patient": patient,
+			"room": ["is", "set"],
+			"dc_date": ["is", "not set"],
+		},
+		fields=["name", "room"],
+	)
+	for row in observations:
+		room = cstr(row.get("room")).strip()
+		if room and room not in exclude:
+			vacate_observation_room(room)
+		if dc_date:
+			frappe.db.set_value("Observation", row.name, "dc_date", getdate(dc_date))
+
+
 class Observation(Document):
 	def before_insert(self):
 		assign_observation_trans_no(self)
 
 	def before_save(self):
 		fill_patient_from_admission(self)
+		self._sync_observation_room_occupancy()
+
+	def _sync_observation_room_occupancy(self):
+		if self.is_new():
+			return
+
+		prev = self.get_doc_before_save()
+		if not prev:
+			return
+
+		prev_room = cstr(prev.get("room")).strip()
+		new_room = cstr(self.get("room")).strip()
+		prev_dc = prev.get("dc_date")
+		new_dc = self.get("dc_date")
+
+		if prev_room and prev_room != new_room and not prev_dc:
+			vacate_observation_room(prev_room)
+
+		if new_room and new_room != prev_room and not new_dc:
+			validate_observation_room_available(new_room)
+			occupy_observation_room(new_room)
+
+		if prev_room and not prev_dc and new_dc:
+			vacate_observation_room(prev_room)
+
+	def after_insert(self):
+		room = cstr(self.get("room")).strip()
+		if room and not self.get("dc_date"):
+			occupy_observation_room(room)
 	# def validate(self):
 	# 	self.set_age()
 	# 	self.set_result_time()

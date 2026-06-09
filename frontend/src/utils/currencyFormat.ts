@@ -17,6 +17,16 @@ export function currencyFractionDigits(currencyCode: string): number {
   return THREE_DECIMAL_CURRENCIES.has(c) ? 3 : 2
 }
 
+/** Smallest currency unit for HTML number inputs (e.g. 0.001 for BHD, 0.01 for USD). */
+export function currencyInputStep(currencyCode: string): number {
+  return 10 ** -currencyFractionDigits(currencyCode)
+}
+
+export function currencyAmountPlaceholder(currencyCode: string): string {
+  const digits = currencyFractionDigits(currencyCode)
+  return `0.${'0'.repeat(digits)}`
+}
+
 /**
  * Format a monetary amount using the company's ISO currency (from ERPNext Company.default_currency).
  */

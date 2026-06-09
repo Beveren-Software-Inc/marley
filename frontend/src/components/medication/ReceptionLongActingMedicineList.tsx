@@ -8,32 +8,8 @@ import { toast } from '../../hooks/useToast'
 import { Mail, MoreHorizontal } from 'lucide-react'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
-
-const FilterToggleButton = ({
-  active,
-  onClick,
-}: {
-  active: boolean
-  onClick: () => void
-}) => (
-  <button
-    type="button"
-    onClick={onClick}
-    className={`p-1.5 rounded-md border transition-colors ${
-      active ? 'bg-primary/10 border-primary text-primary' : 'border-slate-300 text-slate-500 hover:bg-slate-50'
-    }`}
-    title={active ? 'Hide filters' : 'Show filters'}
-    aria-label={active ? 'Hide filters' : 'Show filters'}
-  >
-    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z"
-      />
-    </svg>
-  </button>
-)
+import { PortalActionsMenu } from '../ui/PortalActionsMenu'
+import { useCardFilters } from '../../contexts/CardFilterContext'
 
 interface ReceptionLongActingMedicineListProps {
   patient?: string
@@ -42,10 +18,14 @@ interface ReceptionLongActingMedicineListProps {
 }
 
 export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatientClick }: ReceptionLongActingMedicineListProps) => {
+  const cardFilters = useCardFilters()
+  const inDashboardCard = cardFilters !== undefined
+  const [showFiltersInternal, setShowFiltersInternal] = useState(false)
+  const showFilters = inDashboardCard ? cardFilters : showFiltersInternal
+
   const [rows, setRows] = useState<LongActingMedicineRow[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [showFilters, setShowFilters] = useState(false)
   const [startDate, setStartDate] = useState('')
   const [frequency, setFrequency] = useState<string>('')
   const [sortBy, setSortBy] = useState<'next_run_date' | 'start_date'>('next_run_date')
@@ -98,6 +78,9 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
   // Close action menu when clicking outside
   useEffect(() => {
     const handler = (e: MouseEvent) => {
+      const el = e.target as HTMLElement
+      if (el.closest('[data-portal-actions-menu]')) return
+      if (el.closest('button[aria-label="Actions"]')) return
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setOpenMenuRow(null)
       }
@@ -215,9 +198,30 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
   }
 
   return (
-    <div className="space-y-3">
-      {/* Toolbar: bulk actions left, filter toggle far right */}
-      <div className="flex flex-wrap items-center gap-3 justify-between">
+    <div className="flex flex-col gap-3 min-h-0">
+      {!inDashboardCard && (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => setShowFiltersInternal((v) => !v)}
+            className={`p-1.5 rounded-md border transition-colors ${
+              showFilters ? 'bg-primary/10 border-primary text-primary' : 'border-slate-300 text-slate-500 hover:bg-slate-50'
+            }`}
+            title={showFilters ? 'Hide filters' : 'Show filters'}
+            aria-label={showFilters ? 'Hide filters' : 'Show filters'}
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z"
+              />
+            </svg>
+          </button>
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-end gap-3 px-1 py-2 border-b border-slate-100 bg-slate-50/80 rounded-md">
         <div className="relative" ref={bulkMenuRef}>
           <button
             type="button"
@@ -232,7 +236,7 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
             )}
           </button>
           {bulkChannelMenuOpen && (
-            <div className="absolute right-0 z-30 mt-1 w-48 bg-white border border-slate-200 rounded-md shadow-lg py-1">
+            <div className="absolute left-0 bottom-full z-30 mb-1 w-48 bg-white border border-slate-200 rounded-md shadow-lg py-1">
               <div className="px-3 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wide border-b border-slate-100">
                 Choose Channel
               </div>
@@ -252,52 +256,50 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
           )}
         </div>
 
-        <FilterToggleButton active={showFilters} onClick={() => setShowFilters((v) => !v)} />
+        {showFilters && (
+          <>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Start Date</label>
+              <input
+                type="date"
+                className="border border-slate-300 rounded px-2 py-1.5 text-sm bg-white"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Frequency</label>
+              <select
+                className="border border-slate-300 rounded px-2 py-1.5 text-sm bg-white min-w-[160px]"
+                value={frequency}
+                onChange={(e) => setFrequency(e.target.value)}
+              >
+                <option value="">All</option>
+                {LONG_ACTING_FREQUENCY_OPTIONS.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Sort By</label>
+              <select
+                className="border border-slate-300 rounded px-2 py-1.5 text-sm bg-white min-w-[160px]"
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as 'next_run_date' | 'start_date')}
+              >
+                <option value="next_run_date">Next Run Date</option>
+                <option value="start_date">Start Date</option>
+              </select>
+            </div>
+
+            <ClearFiltersButton onClick={clearFilters} disabled={!hasActiveFilters} />
+          </>
+        )}
       </div>
-
-      {showFilters && (
-        <div className="flex flex-wrap items-end gap-3 px-1 py-2 border-b border-slate-100 bg-slate-50/80 rounded-md">
-          <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Start Date</label>
-            <input
-              type="date"
-              className="border border-slate-300 rounded px-2 py-1.5 text-sm bg-white"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Frequency</label>
-            <select
-              className="border border-slate-300 rounded px-2 py-1.5 text-sm bg-white min-w-[160px]"
-              value={frequency}
-              onChange={(e) => setFrequency(e.target.value)}
-            >
-              <option value="">All</option>
-              {LONG_ACTING_FREQUENCY_OPTIONS.map((opt) => (
-                <option key={opt} value={opt}>
-                  {opt}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Sort By</label>
-            <select
-              className="border border-slate-300 rounded px-2 py-1.5 text-sm bg-white min-w-[160px]"
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as 'next_run_date' | 'start_date')}
-            >
-              <option value="next_run_date">Next Run Date</option>
-              <option value="start_date">Start Date</option>
-            </select>
-          </div>
-
-          <ClearFiltersButton onClick={clearFilters} disabled={!hasActiveFilters} />
-        </div>
-      )}
 
       {/* Content Area */}
       {loading ? (
@@ -311,7 +313,7 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
           No long acting medicines found for the selected filters.
         </div>
       ) : (
-        <div className="bg-white border border-slate-200 rounded-lg overflow-auto max-h-[420px]">
+        <div className="bg-white border border-slate-200 rounded-lg overflow-x-auto overflow-y-visible">
           <table className="w-full text-sm">
             <thead className="bg-slate-50 border-b border-slate-200 sticky top-0">
               <tr>
@@ -367,46 +369,50 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
                             e.stopPropagation()
                             setOpenMenuRow(openMenuRow === row.name ? null : row.name)
                           }}
-                          className="inline-flex items-center justify-center w-7 h-7 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                          className="inline-flex items-center justify-center w-8 h-8 rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 transition-colors"
                         >
                           <MoreHorizontal className="w-4 h-4" />
                         </button>
-                        {openMenuRow === row.name && (
-                          <div className="absolute right-0 z-30 mt-1 w-44 bg-white border border-slate-200 rounded-md shadow-lg py-1">
-                            <div className="px-3 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wide border-b border-slate-100">
-                              Send Reminder
-                            </div>
-                            <button
-                              type="button"
-                              onClick={(e) => handleSendReminder(e, row.name, row.patient_name || row.patient || row.name, 'email')}
-                              className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
-                            >
-                              <Mail className="w-3.5 h-3.5 text-blue-500" /> Send Email
-                            </button>
-                            <button
-                              type="button"
-                              onClick={(e) => handleSendReminder(e, row.name, row.patient_name || row.patient || row.name, 'whatsapp')}
-                              className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
-                            >
-                              <span className="text-green-500 text-base leading-none">💬</span> Send WhatsApp
-                            </button>
-                            <button
-                              type="button"
-                              onClick={(e) => handleSendReminder(e, row.name, row.patient_name || row.patient || row.name, 'sms')}
-                              className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
-                            >
-                              <span className="text-purple-500 text-base leading-none">📱</span> Send SMS
-                            </button>
-                            <div className="border-t border-slate-100 my-1" />
-                            <button
-                              type="button"
-                              onClick={(e) => openRemarksModal(e, row)}
-                              className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
-                            >
-                              <span className="text-slate-500 text-base leading-none">✏️</span> Add Remarks
-                            </button>
+                        <PortalActionsMenu
+                          open={openMenuRow === row.name}
+                          onClose={() => setOpenMenuRow(null)}
+                          triggerRef={menuRef}
+                          placement="above-right"
+                          minWidth={176}
+                        >
+                          <div className="px-3 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wide border-b border-slate-100">
+                            Send Reminder
                           </div>
-                        )}
+                          <button
+                            type="button"
+                            onClick={(e) => handleSendReminder(e, row.name, row.patient_name || row.patient || row.name, 'email')}
+                            className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                          >
+                            <Mail className="w-3.5 h-3.5 text-blue-500" /> Send Email
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => handleSendReminder(e, row.name, row.patient_name || row.patient || row.name, 'whatsapp')}
+                            className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                          >
+                            <span className="text-green-500 text-base leading-none">💬</span> Send WhatsApp
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => handleSendReminder(e, row.name, row.patient_name || row.patient || row.name, 'sms')}
+                            className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                          >
+                            <span className="text-purple-500 text-base leading-none">📱</span> Send SMS
+                          </button>
+                          <div className="border-t border-slate-100 my-1" />
+                          <button
+                            type="button"
+                            onClick={(e) => openRemarksModal(e, row)}
+                            className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                          >
+                            <span className="text-slate-500 text-base leading-none">✏️</span> Add Remarks
+                          </button>
+                        </PortalActionsMenu>
                       </div>
 
                       {/* Print */}

@@ -1,13 +1,14 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useCareContext } from '../providers/CareContextProvider'
 import { fetchDefaultCompanyCurrency } from '../services/common'
-import { formatMoneyAmount } from '../utils/currencyFormat'
+import {
+  currencyAmountPlaceholder,
+  currencyFractionDigits,
+  currencyInputStep,
+  formatMoneyAmount,
+} from '../utils/currencyFormat'
 
-/**
- * Format money using Company.default_currency.
- * Pass `companyName` when the UI has a specific company selected (e.g. invoice modal); otherwise uses session default from context.
- */
-export function useFormatMoney(companyName?: string | null) {
+function useResolvedCurrencyCode(companyName?: string | null): string {
   const { companyCurrency } = useCareContext()
   const [overrideCurrency, setOverrideCurrency] = useState<string | null>(null)
 
@@ -30,6 +31,30 @@ export function useFormatMoney(companyName?: string | null) {
     }
   }, [companyName])
 
-  const code = ((overrideCurrency ?? companyCurrency) || 'USD').toUpperCase()
+  return ((overrideCurrency ?? companyCurrency) || 'USD').toUpperCase()
+}
+
+/**
+ * Format money using Company.default_currency.
+ * Pass `companyName` when the UI has a specific company selected (e.g. invoice modal); otherwise uses session default from context.
+ */
+export function useFormatMoney(companyName?: string | null) {
+  const code = useResolvedCurrencyCode(companyName)
   return useCallback((amount: number) => formatMoneyAmount(amount, code), [code])
+}
+
+/** HTML number input settings aligned with company currency (3 decimals for BHD, etc.). */
+export function useMoneyInputConfig(companyName?: string | null) {
+  const currencyCode = useResolvedCurrencyCode(companyName)
+  return useMemo(() => {
+    const step = currencyInputStep(currencyCode)
+    return {
+      currencyCode,
+      fractionDigits: currencyFractionDigits(currencyCode),
+      step,
+      min: step,
+      placeholder: currencyAmountPlaceholder(currencyCode),
+      format: (amount: number) => formatMoneyAmount(amount, currencyCode),
+    }
+  }, [currencyCode])
 }

@@ -11,12 +11,20 @@ def create_daily_patient_visit_setup(data):
         import json
         data = json.loads(data)
     
-    frappe.log_error(f"Creating daily visit setup with data: {data}", "Daily Visit Setup Debug")
-    
+    practioner = data.get('practioner') or data.get('practitioner') or data.get('doctor')
+    practitioner_name = data.get('practitioner_name')
+    if practioner and not practitioner_name:
+        practitioner_name = frappe.db.get_value(
+            'Healthcare Practitioner', practioner, 'practitioner_name'
+        )
+
     doc = frappe.get_doc({
         'doctype': 'Daily Patient Visit Setup',
         'patient': data.get('patient'),
-        'admission': data.get('admission'),  # This should now be present
+        'practioner': practioner,
+        'practitioner_name': practitioner_name,
+        'posting_date': data.get('posting_date') or today(),
+        'admission': data.get('admission'),
         'discharge': data.get('discharge'),
         'from_date': data.get('from_date'),
         'to_date': data.get('to_date'),
@@ -27,8 +35,8 @@ def create_daily_patient_visit_setup(data):
     })
     doc.insert(ignore_permissions=True)
     frappe.db.commit()
-    
-    return doc.as_dict()
+
+    return _serialize_daily_patient_visit_setup(doc)
 
 @frappe.whitelist()
 def update_daily_patient_visit_setup(name, data):
@@ -38,11 +46,47 @@ def update_daily_patient_visit_setup(name, data):
         data = json.loads(data)
     
     doc = frappe.get_doc('Daily Patient Visit Setup', name)
+    practioner = data.pop('practioner', None) or data.pop('practitioner', None) or data.pop('doctor', None)
+    if practioner is not None:
+        doc.practioner = practioner
+        doc.practitioner_name = (
+            data.pop('practitioner_name', None)
+            or frappe.db.get_value('Healthcare Practitioner', practioner, 'practitioner_name')
+        )
     doc.update(data)
     doc.save()
     frappe.db.commit()
-    
-    return doc.as_dict()
+
+    return _serialize_daily_patient_visit_setup(doc)
+
+
+def _patient_file_no_map(patient_ids):
+    patient_ids = [p for p in patient_ids if p]
+    if not patient_ids:
+        return {}
+    rows = frappe.get_all(
+        'Patient',
+        filters={'name': ('in', patient_ids)},
+        fields=['name', 'file_no'],
+    )
+    return {row.name: row.file_no for row in rows}
+
+
+def _serialize_daily_patient_visit_setup(doc):
+    data = doc.as_dict() if hasattr(doc, 'as_dict') else dict(doc)
+    patient = data.get('patient')
+    if patient:
+        data['file_no'] = frappe.db.get_value('Patient', patient, 'file_no')
+    return data
+
+
+@frappe.whitelist()
+def get_daily_patient_visit_setup(name):
+    """Get one Daily Patient Visit Setup for detail panel / edit."""
+    if not name:
+        frappe.throw(_('Setup name is required'))
+    doc = frappe.get_doc('Daily Patient Visit Setup', name)
+    return _serialize_daily_patient_visit_setup(doc)
 
 
 @frappe.whitelist()
@@ -54,13 +98,17 @@ def get_daily_patient_visit_setups(patient=None, active_only=0, limit=100):
     if str(active_only).lower() in ("1", "true", "yes"):
         filters["is_active"] = 1
 
-    return frappe.get_all(
+    rows = frappe.get_all(
         "Daily Patient Visit Setup",
         filters=filters,
         fields=[
             "name",
             "patient",
             "patient_name",
+            "practioner",
+            "practitioner_name",
+            "posting_date",
+            "creation",
             "admission",
             "discharge",
             "from_date",
@@ -73,6 +121,10 @@ def get_daily_patient_visit_setups(patient=None, active_only=0, limit=100):
         order_by="creation desc",
         limit_page_length=int(limit or 100),
     )
+    file_map = _patient_file_no_map([row.get("patient") for row in rows])
+    for row in rows:
+        row["file_no"] = file_map.get(row.get("patient"))
+    return rows
 
 
 @frappe.whitelist()

@@ -1,4 +1,5 @@
 import { apiRequest } from './apiClient'
+import type { DischargeChecklistStatus } from '../utils/dischargeChecklistStatus'
 
 export interface Discharge {
   name: string
@@ -18,6 +19,10 @@ export interface Discharge {
   template_name?: string
   docstatus: number
   cost_center?: string
+  checklist_status?: DischargeChecklistStatus
+  checklist_total?: number
+  checklist_completed?: number
+  checklist_incomplete?: number
 }
 
 export interface DischargeChecklistRow {

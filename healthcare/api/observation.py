@@ -4,13 +4,18 @@
 
 import frappe
 from frappe import _
-from frappe.utils import cint, flt, nowdate
+from frappe.utils import cint, flt, getdate, nowdate
 
 from healthcare.api.sales_order_cost_center import (
 	apply_cost_center_to_sales_order,
 	cost_center_from_visit_or_admission,
 )
-from healthcare.healthcare.doctype.observation.observation import fill_patient_from_admission
+from healthcare.healthcare.doctype.observation.observation import (
+	fill_patient_from_admission,
+	vacate_active_observation_rooms_for_patient,
+	vacate_observation_room,
+	validate_observation_room_available,
+)
 
 OBSERVATION_PORTAL_READ_ROLES = frozenset(
 	{
@@ -47,6 +52,14 @@ def _enrich_observation_row(obs: dict) -> dict:
 		)
 		if practitioner_name:
 			obs["practitioner_name"] = practitioner_name
+	if obs.get("room") and not obs.get("room_name"):
+		room_name = frappe.db.get_value(
+			"Healthcare Service Unit",
+			obs["room"],
+			"healthcare_service_unit_name",
+		)
+		if room_name:
+			obs["room_name"] = room_name
 	return obs
 
 
@@ -104,6 +117,7 @@ def get_observations(limit=50, offset=0, patient=None):
 			'duration',
 			'designated_security_personel',
 			'order_created',
+			'room',
 			'reference_doctype',
 			'reference_docname',
 			'company',
@@ -226,6 +240,11 @@ def create_observation(data):
 		'naming_series': naming_series,
 		'company': company,
 	})
+
+	room = frappe.utils.cstr(data.get('room') or '').strip()
+	if room:
+		validate_observation_room_available(room)
+		observation.room = room
 	
 	pv = data.get("patient_visit")
 	if pv:
@@ -249,7 +268,70 @@ def create_observation(data):
 		'amount': observation.amount,
 		'duration': observation.duration,
 		'company': observation.company,
+		'room': observation.room,
 	}
+
+
+@frappe.whitelist()
+def schedule_observation_discharge(name, dc_date=None):
+	"""Set DC date on an observation and release its room (Vacant)."""
+	name = (name or "").strip()
+	if not name:
+		frappe.throw(_("Observation is required"))
+	if not frappe.db.exists("Observation", name):
+		frappe.throw(_("Observation {0} not found").format(name))
+
+	obs = frappe.get_doc("Observation", name)
+	if obs.get("dc_date"):
+		frappe.throw(_("Observation {0} is already discharged (DC date set).").format(name))
+
+	discharge_date = getdate(dc_date) if dc_date else getdate(nowdate())
+	room = (obs.get("room") or "").strip()
+
+	obs.dc_date = discharge_date
+	obs.save(ignore_permissions=True)
+
+	if room:
+		vacate_observation_room(room)
+
+	return {
+		"name": obs.name,
+		"dc_date": obs.dc_date,
+		"room": obs.room,
+		"message": _("Observation discharge scheduled"),
+	}
+
+
+@frappe.whitelist()
+def update_observation(data):
+	"""Update observation fields (room, dc_date) with occupancy side effects."""
+	if isinstance(data, str):
+		import json
+		data = json.loads(data)
+
+	name = (data.get("name") or "").strip()
+	if not name:
+		frappe.throw(_("Observation name is required"))
+	if not frappe.db.exists("Observation", name):
+		frappe.throw(_("Observation {0} not found").format(name))
+
+	obs = frappe.get_doc("Observation", name)
+
+	if "room" in data:
+		new_room = frappe.utils.cstr(data.get("room") or "").strip()
+		if new_room and not obs.get("dc_date"):
+			if new_room != (obs.get("room") or "").strip():
+				validate_observation_room_available(new_room)
+		obs.room = new_room or None
+
+	if data.get("dc_date"):
+		if obs.get("dc_date"):
+			frappe.throw(_("Observation {0} is already discharged.").format(name))
+		obs.dc_date = getdate(data.get("dc_date"))
+
+	obs.save(ignore_permissions=True)
+
+	return _enrich_observation_row(obs.as_dict())
 
 
 @frappe.whitelist()

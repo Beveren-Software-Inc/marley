@@ -164,6 +164,7 @@ const receptionScreenGroups: ScreenGroup[] = [
     screens: [
       { id: 'r-service-requests', title: 'Service Requests / Booked Lab' },
       { id: 'r-referral',         title: 'Patient Referral' },
+      { id: 'r-observation',      title: 'Observation' },
       { id: 'r-internal-transfer', title: 'Internal Transfer' },
       { id: 'r-long-acting-meds', title: 'Long Acting Medicine' },
     ],
@@ -307,7 +308,7 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
         return { ...link, screenGroups: filterNurseScreenGroups(nurseScreenGroups, ccScope, sidebarModeForNurse) }
       }
       if (link.to === '/reception') {
-        return { ...link, screenGroups: filterReceptionScreenGroups(receptionScreenGroups, ccScope, roles) }
+        return { ...link, screenGroups: filterReceptionScreenGroups(receptionScreenGroups, ccScope, roles, mode) }
       }
       return link
     })

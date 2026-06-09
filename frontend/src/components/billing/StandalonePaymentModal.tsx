@@ -4,8 +4,13 @@ import {
   createModalShellClass,
 } from '../ui/CreateModalChrome'
 import { toast } from '../../hooks/useToast'
-import { createPaymentEntry } from '../../services/paymentEntry'
-import { fetchModeOfPayments, fetchSalesInvoices, fetchSalesOrders } from '../../services/paymentEntry'
+import {
+  createPaymentEntry,
+  fetchModeOfPayments,
+  fetchSalesInvoices,
+  fetchSalesOrders,
+  fetchSalesInvoiceSummary,
+} from '../../services/paymentEntry'
 import { useMoneyInputConfig } from '../../hooks/useFormatMoney'
 import {
   linkComboboxDropdownClass,
@@ -14,7 +19,6 @@ import {
   linkComboboxOptionClassCompact,
 } from '../ui/linkComboboxStyles'
 
-// ─── Reusable searchable link field ──────────────────────────────────────────
 interface LinkFieldProps {
   label: string
   placeholder?: string
@@ -22,6 +26,7 @@ interface LinkFieldProps {
   options: { name: string; label: string }[]
   open: boolean
   query: string
+  loading?: boolean
   required?: boolean
   onQueryChange: (q: string) => void
   onOpen: () => void
@@ -30,10 +35,20 @@ interface LinkFieldProps {
 }
 
 const LinkField = ({
-  label, placeholder, value, options, open, query,
-  required, onQueryChange, onOpen, onSelect, onClear
+  label,
+  placeholder,
+  value,
+  options,
+  open,
+  query,
+  loading = false,
+  required,
+  onQueryChange,
+  onOpen,
+  onSelect,
+  onClear,
 }: LinkFieldProps) => (
-  <div data-link-field className="relative">
+  <div data-standalone-payment-link className="relative">
     <label className="block text-xs font-medium text-slate-600 mb-1.5">
       {label} {required && <span className="text-red-500">*</span>}
     </label>
@@ -41,7 +56,10 @@ const LinkField = ({
       <input
         type="text"
         value={value ? value.label : query}
-        onChange={e => { onQueryChange(e.target.value); onOpen() }}
+        onChange={(e) => {
+          onQueryChange(e.target.value)
+          onOpen()
+        }}
         onFocus={onOpen}
         placeholder={placeholder ?? `Search ${label}...`}
         className={`${linkComboboxInputWithClearClass} pr-7`}
@@ -59,9 +77,12 @@ const LinkField = ({
         </button>
       )}
     </div>
-    {open && options.length > 0 && (
+    {open && loading && (
+      <div className={linkComboboxEmptyPanelClass}>Loading…</div>
+    )}
+    {open && !loading && options.length > 0 && (
       <div className={linkComboboxDropdownClass}>
-        {options.map(opt => (
+        {options.map((opt) => (
           <button
             key={opt.name}
             type="button"
@@ -73,69 +94,64 @@ const LinkField = ({
         ))}
       </div>
     )}
-    {open && options.length === 0 && query.length > 0 && (
+    {open && !loading && options.length === 0 && (
       <div className={linkComboboxEmptyPanelClass}>
-        No results found
+        {query.trim() ? 'No results found' : 'No matching records. Try searching by ID, customer, or patient name.'}
       </div>
     )}
   </div>
 )
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
 type ReferenceType = 'Sales Invoice' | 'Sales Order'
 
-interface CreatePaymentModalProps {
-  visitName: string
-  patientName: string
+export interface StandalonePaymentModalProps {
+  /** When set, narrows search to this patient only */
   patient?: string
+  patientName?: string
   onClose: () => void
   onSuccess: () => void
 }
 
-// ─── Modal ────────────────────────────────────────────────────────────────────
-
-export const CreatePaymentModal = ({
-  visitName,
-  patientName,
+export function StandalonePaymentModal({
   patient,
+  patientName,
   onClose,
   onSuccess,
-}: CreatePaymentModalProps) => {
+}: StandalonePaymentModalProps) {
   const moneyInput = useMoneyInputConfig()
-
-  // ── Reference type selection ──
   const [referenceType, setReferenceType] = useState<ReferenceType>('Sales Invoice')
 
-  // ── Sales Invoice link field ──
   const [invoiceQuery, setInvoiceQuery] = useState('')
   const [invoiceOptions, setInvoiceOptions] = useState<{ name: string; label: string }[]>([])
   const [invoiceOpen, setInvoiceOpen] = useState(false)
   const [selectedInvoice, setSelectedInvoice] = useState<{ name: string; label: string } | null>(null)
 
-  // ── Sales Order link field ──
   const [orderQuery, setOrderQuery] = useState('')
   const [orderOptions, setOrderOptions] = useState<{ name: string; label: string }[]>([])
   const [orderOpen, setOrderOpen] = useState(false)
   const [selectedOrder, setSelectedOrder] = useState<{ name: string; label: string } | null>(null)
 
-  // ── Other fields ──
   const [paymentModes, setPaymentModes] = useState<string[]>([])
   const [paymentMode, setPaymentMode] = useState('')
   const [amount, setAmount] = useState('')
   const [remarks, setRemarks] = useState('')
   const [loading, setLoading] = useState(false)
+  const [invoiceLoading, setInvoiceLoading] = useState(false)
+  const [orderLoading, setOrderLoading] = useState(false)
+  const [limitToPatient, setLimitToPatient] = useState(false)
 
-  // Load payment modes once
   useEffect(() => {
     fetchModeOfPayments()
-      .then(setPaymentModes)
-      .catch(() => setPaymentModes(['Cash', 'Bank Transfer', 'Credit Card', 'Cheque', 'Insurance']))
+      .then((modes) => {
+        setPaymentModes(modes)
+        if (modes.length > 0) setPaymentMode(modes[0])
+      })
+      .catch(() => setPaymentModes(['Cash', 'Bank Transfer', 'Credit Card', 'Cheque']))
   }, [])
 
-  // When reference type changes, clear the other field's selection
   const handleTypeChange = (type: ReferenceType) => {
     setReferenceType(type)
+    setAmount('')
     if (type === 'Sales Invoice') {
       setSelectedOrder(null)
       setOrderQuery('')
@@ -147,32 +163,61 @@ export const CreatePaymentModal = ({
     }
   }
 
-  // Sales Invoice: debounced search
+  const scopedPatient = limitToPatient && patient ? patient : undefined
+
   useEffect(() => {
     if (!invoiceOpen || referenceType !== 'Sales Invoice') return
     const t = setTimeout(async () => {
+      setInvoiceLoading(true)
       try {
-        setInvoiceOptions(await fetchSalesInvoices(invoiceQuery || undefined, patient))
-      } catch { setInvoiceOptions([]) }
+        setInvoiceOptions(await fetchSalesInvoices(invoiceQuery || undefined, scopedPatient))
+      } catch {
+        setInvoiceOptions([])
+      } finally {
+        setInvoiceLoading(false)
+      }
     }, invoiceQuery.trim() === '' ? 0 : 300)
     return () => clearTimeout(t)
-  }, [invoiceQuery, invoiceOpen, patient, referenceType])
+  }, [invoiceQuery, invoiceOpen, scopedPatient, referenceType])
 
-  // Sales Order: debounced search
   useEffect(() => {
     if (!orderOpen || referenceType !== 'Sales Order') return
     const t = setTimeout(async () => {
+      setOrderLoading(true)
       try {
-        setOrderOptions(await fetchSalesOrders(orderQuery || undefined, patient))
-      } catch { setOrderOptions([]) }
+        setOrderOptions(await fetchSalesOrders(orderQuery || undefined, scopedPatient))
+      } catch {
+        setOrderOptions([])
+      } finally {
+        setOrderLoading(false)
+      }
     }, orderQuery.trim() === '' ? 0 : 300)
     return () => clearTimeout(t)
-  }, [orderQuery, orderOpen, patient, referenceType])
+  }, [orderQuery, orderOpen, scopedPatient, referenceType])
 
-  // Close dropdowns on outside click
+  // Preload recent payable invoices when modal opens
+  useEffect(() => {
+    setInvoiceLoading(true)
+    fetchSalesInvoices(undefined, scopedPatient)
+      .then(setInvoiceOptions)
+      .catch(() => setInvoiceOptions([]))
+      .finally(() => setInvoiceLoading(false))
+  }, [scopedPatient])
+
+  useEffect(() => {
+    if (!selectedInvoice || referenceType !== 'Sales Invoice') return
+    fetchSalesInvoiceSummary(selectedInvoice.name)
+      .then((summary) => {
+        if (summary.outstanding_amount > 0) {
+          setAmount(String(summary.outstanding_amount))
+        }
+      })
+      .catch(() => {})
+  }, [selectedInvoice, referenceType])
+
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (!(e.target as HTMLElement).closest('[data-link-field]')) {
+      if (!(e.target as HTMLElement).closest('[data-standalone-payment-link]')) {
         setInvoiceOpen(false)
         setOrderOpen(false)
       }
@@ -202,13 +247,12 @@ export const CreatePaymentModal = ({
     setLoading(true)
     try {
       const result = await createPaymentEntry({
-        visit: visitName,
         reference_doctype: referenceType,
         reference_name: selectedReference.name,
         paid_amount: parseFloat(amount),
         mode_of_payment: paymentMode,
         remarks: remarks.trim() || undefined,
-        patient,
+        patient: scopedPatient,
       })
       toast.success(result.server_message || `Payment entry ${result.name} created successfully`)
       onSuccess()
@@ -222,14 +266,12 @@ export const CreatePaymentModal = ({
   return (
     <div className={CREATE_MODAL_OVERLAY}>
       <div className={createModalShellClass('w-full max-w-md')}>
-
-        {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
           <div>
             <h2 className="text-base font-semibold text-slate-900">Create Payment</h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              Visit: <span className="font-medium text-slate-700">{visitName}</span>
-              {patientName && <> &mdash; {patientName}</>}
+              Standalone payment against a sales invoice or order
+              {patientName ? <> &mdash; {patientName}</> : patient ? <> &mdash; {patient}</> : null}
             </p>
           </div>
           <button
@@ -243,14 +285,11 @@ export const CreatePaymentModal = ({
           </button>
         </div>
 
-        {/* Form */}
         <form onSubmit={handleSubmit} className="flex flex-col gap-4 p-6">
-
-          {/* Reference Type toggle */}
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1.5">Reference Type</label>
             <div className="flex rounded-lg border border-slate-300 overflow-hidden">
-              {(['Sales Invoice', 'Sales Order'] as ReferenceType[]).map(type => (
+              {(['Sales Invoice', 'Sales Order'] as ReferenceType[]).map((type) => (
                 <button
                   key={type}
                   type="button"
@@ -267,88 +306,117 @@ export const CreatePaymentModal = ({
             </div>
           </div>
 
-          {/* Conditional link field — only shows the selected type */}
+          {patient && (
+            <label className="flex items-center gap-2 text-xs text-slate-600">
+              <input
+                type="checkbox"
+                checked={limitToPatient}
+                onChange={(e) => setLimitToPatient(e.target.checked)}
+                className="rounded border-slate-300 text-primary focus:ring-primary"
+              />
+              Limit search to current patient only
+            </label>
+          )}
+
           {referenceType === 'Sales Invoice' ? (
             <LinkField
               label="Sales Invoice"
-              placeholder="Search sales invoice..."
+              placeholder="Search by invoice ID, customer, or patient..."
               value={selectedInvoice}
               options={invoiceOptions}
               open={invoiceOpen}
               query={invoiceQuery}
+              loading={invoiceLoading}
               required
               onQueryChange={setInvoiceQuery}
               onOpen={() => setInvoiceOpen(true)}
-              onSelect={opt => { setSelectedInvoice(opt); setInvoiceQuery(''); setInvoiceOpen(false) }}
-              onClear={() => { setSelectedInvoice(null); setInvoiceQuery('') }}
+              onSelect={(opt) => {
+                setSelectedInvoice(opt)
+                setInvoiceQuery('')
+                setInvoiceOpen(false)
+                const match = invoiceOptions.find((row) => row.name === opt.name) as
+                  | { outstanding_amount?: number }
+                  | undefined
+                if (match?.outstanding_amount && match.outstanding_amount > 0) {
+                  setAmount(String(match.outstanding_amount))
+                }
+              }}
+              onClear={() => {
+                setSelectedInvoice(null)
+                setInvoiceQuery('')
+                setAmount('')
+              }}
             />
           ) : (
             <LinkField
               label="Sales Order"
-              placeholder="Search sales order..."
+              placeholder="Search by order ID, customer, or patient..."
               value={selectedOrder}
               options={orderOptions}
               open={orderOpen}
               query={orderQuery}
+              loading={orderLoading}
               required
               onQueryChange={setOrderQuery}
               onOpen={() => setOrderOpen(true)}
-              onSelect={opt => { setSelectedOrder(opt); setOrderQuery(''); setOrderOpen(false) }}
-              onClear={() => { setSelectedOrder(null); setOrderQuery('') }}
+              onSelect={(opt) => {
+                setSelectedOrder(opt)
+                setOrderQuery('')
+                setOrderOpen(false)
+              }}
+              onClear={() => {
+                setSelectedOrder(null)
+                setOrderQuery('')
+              }}
             />
           )}
 
-          {/* Amount */}
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1.5">
               Amount <span className="text-red-500">*</span>
             </label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-400 font-medium select-none">$</span>
-              <input
-                type="number"
-                min={moneyInput.min}
-                step={moneyInput.step}
-                value={amount}
-                onChange={e => setAmount(e.target.value)}
-                placeholder={moneyInput.placeholder}
-                className="w-full rounded-md border border-slate-300 pl-7 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                required
-              />
-            </div>
+            <input
+              type="number"
+              min={moneyInput.min}
+              step={moneyInput.step}
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder={moneyInput.placeholder}
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              required
+            />
           </div>
 
-          {/* Mode of Payment */}
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1.5">
               Mode of Payment <span className="text-red-500">*</span>
             </label>
             <select
               value={paymentMode}
-              onChange={e => setPaymentMode(e.target.value)}
+              onChange={(e) => setPaymentMode(e.target.value)}
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
               required
             >
               <option value="">Select mode of payment...</option>
-              {paymentModes.map(m => (
-                <option key={m} value={m}>{m}</option>
+              {paymentModes.map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
               ))}
             </select>
           </div>
 
-          {/* Remarks */}
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1.5">Remarks</label>
             <textarea
               value={remarks}
-              onChange={e => setRemarks(e.target.value)}
+              onChange={(e) => setRemarks(e.target.value)}
               rows={2}
               placeholder="Optional notes..."
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary resize-none"
             />
           </div>
 
-          {/* Footer */}
           <div className="flex justify-end gap-3 pt-1">
             <button
               type="button"
@@ -370,4 +438,3 @@ export const CreatePaymentModal = ({
     </div>
   )
 }
-

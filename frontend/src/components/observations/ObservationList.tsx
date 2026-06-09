@@ -4,6 +4,7 @@ import { useFormatMoney } from '../../hooks/useFormatMoney'
 import { toast } from '../../hooks/useToast'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { ObservationDetailPanel } from './ObservationDetailPanel'
+import { ScheduleObservationDischargeModal } from './ScheduleObservationDischargeModal'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 
 interface ObservationListProps {
@@ -20,6 +21,7 @@ export const ObservationList = ({ patient, onPatientClick }: ObservationListProp
   const [detailPreview, setDetailPreview] = useState<Observation | undefined>(undefined)
   const [openActionRow, setOpenActionRow] = useState<string | null>(null)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [dischargeTarget, setDischargeTarget] = useState<Observation | null>(null)
   const actionMenuRef = useRef<HTMLDivElement>(null)
 
   const loadObservations = async () => {
@@ -143,6 +145,9 @@ export const ObservationList = ({ patient, onPatientClick }: ObservationListProp
               Obs Level
             </th>
             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+              Room
+            </th>
+            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
               Security Personnel
             </th>
             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
@@ -192,6 +197,9 @@ export const ObservationList = ({ patient, onPatientClick }: ObservationListProp
                 {obs.observation_level || '-'}
               </td>
               <td className="px-4 py-3 text-sm text-slate-700">
+                {obs.room_name || obs.room || '-'}
+              </td>
+              <td className="px-4 py-3 text-sm text-slate-700">
                 {obs.designated_security_personel || '-'}
               </td>
               <td className="px-4 py-3 text-sm text-slate-700">
@@ -235,6 +243,18 @@ export const ObservationList = ({ patient, onPatientClick }: ObservationListProp
                       triggerRef={actionMenuRef}
                       minWidth={200}
                     >
+                      {!obs.dc_date ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setOpenActionRow(null)
+                            setDischargeTarget(obs)
+                          }}
+                          className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                        >
+                          Schedule discharge
+                        </button>
+                      ) : null}
                       {obs.order_created ? (
                         <button
                           type="button"
@@ -284,6 +304,14 @@ export const ObservationList = ({ patient, onPatientClick }: ObservationListProp
             setDetailPreview(undefined)
           }}
           onPatientClick={onPatientClick}
+        />
+      ) : null}
+
+      {dischargeTarget ? (
+        <ScheduleObservationDischargeModal
+          observation={dischargeTarget}
+          onClose={() => setDischargeTarget(null)}
+          onSuccess={loadObservations}
         />
       ) : null}
     </div>

@@ -1,8 +1,199 @@
 import frappe
 from frappe import _
+from frappe.utils import cint, flt
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
+
+def _payment_search_cost_center_filter(filters: dict) -> bool:
+	"""Apply portal cost-center scope. Returns False when user has CC perm but none allowed."""
+	from healthcare.api.common import get_permitted_cost_centers
+
+	permitted_cc = get_permitted_cost_centers()
+	if permitted_cc is None:
+		return True
+	if not permitted_cc:
+		return False
+	filters["cost_center"] = ["in", permitted_cc]
+	return True
+
+
+def _format_invoice_payment_label(row: dict) -> str:
+	parts = [row.get("name") or ""]
+	if row.get("customer_name"):
+		parts.append(row["customer_name"])
+	if row.get("patient_name"):
+		parts.append(row["patient_name"])
+	outstanding = flt(row.get("outstanding_amount"))
+	if outstanding:
+		parts.append(f"Outstanding {outstanding:.3f}")
+	return " · ".join(p for p in parts if p)
+
+
+def _format_order_payment_label(row: dict) -> str:
+	parts = [row.get("name") or ""]
+	if row.get("customer_name"):
+		parts.append(row["customer_name"])
+	if row.get("patient_name"):
+		parts.append(row["patient_name"])
+	grand = flt(row.get("grand_total"))
+	if grand:
+		parts.append(f"Total {grand:.3f}")
+	return " · ".join(p for p in parts if p)
+
+
+@frappe.whitelist()
+def search_sales_invoices_for_payment(search=None, patient=None, limit=30):
+	"""Portal invoice picker for standalone payments (cost-center scoped, ignores strict DocPerm)."""
+	limit = min(cint(limit) or 30, 50)
+	filters = {
+		"docstatus": 1,
+		"outstanding_amount": [">", 0],
+	}
+	if patient:
+		filters["patient"] = patient
+	if not _payment_search_cost_center_filter(filters):
+		return []
+
+	search = (search or "").strip()
+	if search:
+		like = f"%{search}%"
+		rows = frappe.get_all(
+			"Sales Invoice",
+			filters={
+				**filters,
+				"name": ["like", like],
+			},
+			fields=[
+				"name",
+				"customer_name",
+				"patient_name",
+				"outstanding_amount",
+				"grand_total",
+				"posting_date",
+			],
+			limit=limit,
+			order_by="modified desc",
+		)
+		if len(rows) < limit:
+			extra_filters = {**filters}
+			extra_filters.pop("name", None)
+			extra_rows = frappe.get_all(
+				"Sales Invoice",
+				filters=extra_filters,
+				or_filters=[
+					["customer_name", "like", like],
+					["patient_name", "like", like],
+				],
+				fields=[
+					"name",
+					"customer_name",
+					"patient_name",
+					"outstanding_amount",
+					"grand_total",
+					"posting_date",
+				],
+				limit=limit,
+				order_by="modified desc",
+			)
+			seen = {r.name for r in rows}
+			for row in extra_rows:
+				if row.name not in seen:
+					rows.append(row)
+					seen.add(row.name)
+				if len(rows) >= limit:
+					break
+	else:
+		rows = frappe.get_all(
+			"Sales Invoice",
+			filters=filters,
+			fields=[
+				"name",
+				"customer_name",
+				"patient_name",
+				"outstanding_amount",
+				"grand_total",
+				"posting_date",
+			],
+			limit=limit,
+			order_by="posting_date desc, modified desc",
+		)
+
+	return [
+		{
+			"name": row.name,
+			"label": _format_invoice_payment_label(row),
+			"outstanding_amount": flt(row.outstanding_amount),
+			"customer_name": row.customer_name,
+			"patient_name": row.patient_name,
+		}
+		for row in rows
+	]
+
+
+@frappe.whitelist()
+def search_sales_orders_for_payment(search=None, patient=None, limit=30):
+	"""Portal sales order picker for standalone payments."""
+	limit = min(cint(limit) or 30, 50)
+	filters = {
+		"docstatus": 1,
+		"status": ["not in", ["Closed", "Cancelled", "Completed"]],
+	}
+	if patient:
+		filters["patient"] = patient
+	if not _payment_search_cost_center_filter(filters):
+		return []
+
+	search = (search or "").strip()
+	if search:
+		like = f"%{search}%"
+		rows = frappe.get_all(
+			"Sales Order",
+			filters={**filters, "name": ["like", like]},
+			fields=["name", "customer_name", "patient_name", "grand_total", "transaction_date"],
+			limit=limit,
+			order_by="modified desc",
+		)
+		if len(rows) < limit:
+			extra_filters = {**filters}
+			extra_filters.pop("name", None)
+			extra_rows = frappe.get_all(
+				"Sales Order",
+				filters=extra_filters,
+				or_filters=[
+					["customer_name", "like", like],
+					["patient_name", "like", like],
+				],
+				fields=["name", "customer_name", "patient_name", "grand_total", "transaction_date"],
+				limit=limit,
+				order_by="modified desc",
+			)
+			seen = {r.name for r in rows}
+			for row in extra_rows:
+				if row.name not in seen:
+					rows.append(row)
+					seen.add(row.name)
+				if len(rows) >= limit:
+					break
+	else:
+		rows = frappe.get_all(
+			"Sales Order",
+			filters=filters,
+			fields=["name", "customer_name", "patient_name", "grand_total", "transaction_date"],
+			limit=limit,
+			order_by="transaction_date desc, modified desc",
+		)
+
+	return [
+		{
+			"name": row.name,
+			"label": _format_order_payment_label(row),
+			"grand_total": flt(row.grand_total),
+			"customer_name": row.customer_name,
+			"patient_name": row.patient_name,
+		}
+		for row in rows
+	]
 
 def _validate_input(data: dict) -> None:
     """Raise if any required field is missing or values are invalid."""

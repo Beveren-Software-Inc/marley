@@ -37,6 +37,7 @@ import { createInvoiceForInpatientAdmission } from '../../services/inpatientReco
 import { toast } from '../../hooks/useToast' // Add this import if not already present
 import { Stethoscope } from 'lucide-react'
 import { InpatientDiagnosisModal } from './InpatientDiagnosisModal'
+import { CreateAdmissionModal } from './CreateAdmissionModal'
 
 const statusColors: Record<string, string> = {
   'Admission Scheduled': 'warning',
@@ -118,6 +119,7 @@ export const AdmissionList = ({ onAdmissionSelect, onPatientFromAdmission, searc
   const [diagnosisAdmission, setDiagnosisAdmission] = useState<InpatientRecord | null>(null)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [diagnosisModalAdmission, setDiagnosisModalAdmission] = useState<InpatientRecord | null>(null)
+  const [editAdmissionName, setEditAdmissionName] = useState<string | null>(null)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState<PageSize>(DEFAULT_PAGE_SIZE)
   // --- Filter: Admission No (searchable dropdown) ---
@@ -639,6 +641,19 @@ export const AdmissionList = ({ onAdmissionSelect, onPatientFromAdmission, searc
                                   {actionLoading === record.name + '_invoice' ? 'Creating...' : 'Create Invoice'}
                                 </button>
                               )}
+
+                              {(record.status === 'Admission Scheduled' || record.status === 'Admitted') && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditAdmissionName(record.name)
+                                    setOpenActionRow(null)
+                                  }}
+                                  className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                                >
+                                  Edit
+                                </button>
+                              )}
                               
                               {record.status === 'Admission Scheduled' && (
                                 <button
@@ -1106,6 +1121,20 @@ export const AdmissionList = ({ onAdmissionSelect, onPatientFromAdmission, searc
           referredFromDocname={referralAdmission.name}
           onClose={() => setReferralAdmission(null)}
           onSuccess={() => setReferralAdmission(null)}
+        />
+      )}
+
+      {editAdmissionName && (
+        <CreateAdmissionModal
+          editAdmissionName={editAdmissionName}
+          onClose={() => setEditAdmissionName(null)}
+          onSuccess={() => {
+            setEditAdmissionName(null)
+            refetch()
+            if (detailAdmission === editAdmissionName) {
+              setDetailAdmission(editAdmissionName)
+            }
+          }}
         />
       )}
     </div>

@@ -4,7 +4,7 @@
 
 import frappe
 from frappe import _
-from frappe.utils import nowdate
+from frappe.utils import nowdate, now_datetime
 import json
 
 from healthcare.api.utils.api_utility import get_next_transaction_number
@@ -664,6 +664,70 @@ def create_invoice_from_visit(visit_name: str):
 
 
 
+def try_create_patient_visit_for_iop_enrollment(enrollment_doc):
+	"""Best-effort IOP Patient Visit when Healthcare Settings auto-create is enabled.
+
+	Returns visit name if created or already linked, None if skipped.
+	Does not raise — enrollment creation must still succeed.
+	"""
+	if not frappe.db.get_single_value(
+		"Healthcare Settings", "auto_create_patient_visit_on_iop_enrollment"
+	):
+		return None
+
+	existing_visit = frappe.db.get_value(
+		"Patient Visit",
+		{"iop_enrollment": enrollment_doc.name},
+		"name",
+	)
+	if existing_visit:
+		return existing_visit
+
+	practitioner = enrollment_doc.doctor
+	if not practitioner:
+		from healthcare.utils import get_current_user_practitioner
+
+		practitioner = get_current_user_practitioner()
+	if not practitioner:
+		frappe.log_error(
+			title="IOP auto patient visit skipped",
+			message=(
+				f"Enrollment {enrollment_doc.name}: no doctor on enrollment and "
+				f"no Healthcare Practitioner linked to user {frappe.session.user}."
+			),
+		)
+		return None
+
+	if get_open_patient_visits_for_patient(enrollment_doc.patient):
+		frappe.log_error(
+			title="IOP auto patient visit skipped",
+			message=(
+				f"Enrollment {enrollment_doc.name}: patient {enrollment_doc.patient} "
+				"already has an open visit."
+			),
+		)
+		return None
+
+	encounter_date = enrollment_doc.posting_date or nowdate()
+	encounter_time = now_datetime().strftime("%H:%M:%S")
+	case_no = get_next_transaction_number("Patient Visit", fieldname="case_no")
+	visit_doc = frappe.get_doc(
+		{
+			"doctype": "Patient Visit",
+			"patient": enrollment_doc.patient,
+			"case_no": case_no,
+			"practitioner": practitioner,
+			"encounter_date": encounter_date,
+			"encounter_time": encounter_time,
+			"visit_type": "IOP",
+			"iop_enrollment": enrollment_doc.name,
+			"status": "Open",
+		}
+	)
+	visit_doc.insert(ignore_permissions=True)
+	return visit_doc.name
+
+
 @frappe.whitelist()
 def create_patient_visit(data):
 	"""Create a new Patient Visit through backend API."""
@@ -679,6 +743,19 @@ def create_patient_visit(data):
 			frappe.throw(_("{0} is required").format(field.replace("_", " ").title()))
 
 	ensure_patient_can_open_new_visit(data.get("patient"))
+
+	iop_enrollment = data.get("iop_enrollment")
+	if iop_enrollment:
+		existing_visit = frappe.db.get_value(
+			"Patient Visit",
+			{"iop_enrollment": iop_enrollment},
+			"name",
+		)
+		if existing_visit:
+			frappe.throw(
+				_("A patient visit ({0}) is already linked to this IOP enrollment.").format(existing_visit),
+				title=_("Visit Already Exists"),
+			)
 
 	case_no = get_next_transaction_number('Patient Visit', fieldname='case_no')
 	visit_doc = frappe.get_doc({

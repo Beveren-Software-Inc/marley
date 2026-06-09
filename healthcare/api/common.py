@@ -338,11 +338,14 @@ def get_discharge_templates(search=None):
 	templates = frappe.get_all(
 		'Discharge Template',
 		filters=filters,
-		fields=['name', 'template_name'],
+		fields=['name', 'template_name', 'default'],
 		limit=50,
-		order_by='template_name'
+		order_by='default desc, template_name'
 	)
-	return [{'name': t.name, 'label': t.template_name or t.name} for t in templates]
+	return [
+		{'name': t.name, 'label': t.template_name or t.name, 'default': t.default or 0}
+		for t in templates
+	]
 
 
 @frappe.whitelist()
@@ -3618,15 +3621,16 @@ def fetch_nursing_discharge_template_options(template_name=None):
 	for row in frappe.get_all(
 		"Discharge Nursing Template",
 		filters=dnt_filters,
-		fields=["name", "template_name"],
+		fields=["name", "template_name", "default"],
 		limit=50,
-		order_by="template_name",
+		order_by="default desc, template_name",
 	):
 		label = row.template_name or row.name
 		out.append(
 			{
 				"name": row.name,
 				"label": label,
+				"default": row.default or 0,
 				"template_source": "discharge_nursing",
 			}
 		)
@@ -3637,15 +3641,16 @@ def fetch_nursing_discharge_template_options(template_name=None):
 	for row in frappe.get_all(
 		"Nursing Checklist Template",
 		filters=nct_filters,
-		fields=["name", "title"],
+		fields=["name", "title", "default"],
 		limit=50,
-		order_by="title",
+		order_by="default desc, title",
 	):
 		label = row.title or row.name
 		out.append(
 			{
 				"name": row.name,
 				"label": f"{label} (Nursing Checklist)",
+				"default": row.default or 0,
 				"template_source": "nursing_checklist",
 			}
 		)

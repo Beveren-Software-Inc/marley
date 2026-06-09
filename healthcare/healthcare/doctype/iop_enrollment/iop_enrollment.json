@@ -97,7 +97,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-02-22 16:15:23.170464",
+ "modified": "2026-06-10 00:18:45.374101",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "IOP Enrollment",
@@ -113,6 +113,30 @@
    "read": 1,
    "report": 1,
    "role": "Healthcare Administrator",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Reception",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Physician",
    "share": 1,
    "write": 1
   }

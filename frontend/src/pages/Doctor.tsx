@@ -1018,7 +1018,10 @@ export const DoctorPage = () => {
               <IOPDayListWithHeader refreshKey={appointmentRefreshKey} />
             </DashboardCard>
             <DashboardCard title="IOP Enrollments">
-              <IOPEnrollmentListWithHeader refreshKey={appointmentRefreshKey} />
+              <IOPEnrollmentListWithHeader
+                refreshKey={appointmentRefreshKey}
+                patientFilter={selectedPatient}
+              />
             </DashboardCard>
           </div>
         </div>
@@ -1136,7 +1139,7 @@ export const DoctorPage = () => {
               View long acting medicines for the selected patient. Filter by start date and frequency. Click a row for details.
             </p>
           </div>
-          <DashboardCard title="Long Acting Medicines">
+          <DashboardCard title="Long Acting Medicines" noHeightLimit>
             <ReceptionLongActingMedicineList
               patient={selectedPatient || undefined}
               refreshKey={longActingRefreshKey}

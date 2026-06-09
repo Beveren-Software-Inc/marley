@@ -277,8 +277,7 @@
   {
    "fieldname": "expected_length_of_stay",
    "fieldtype": "Int",
-   "label": "Expected Length of Stay",
-   "set_only_once": 1
+   "label": "Expected Length of Stay"
   },
   {
    "fieldname": "expected_discharge",
@@ -321,8 +320,7 @@
   {
    "fieldname": "admission_instruction",
    "fieldtype": "Small Text",
-   "label": "Admission Instructions",
-   "set_only_once": 1
+   "label": "Admission Instructions"
   },
   {
    "fieldname": "section_break_person_contact",
@@ -980,7 +978,7 @@
    "link_fieldname": "admission"
   }
  ],
- "modified": "2026-06-07 10:34:29.994039",
+ "modified": "2026-06-10 01:37:56.391669",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Inpatient Admission",

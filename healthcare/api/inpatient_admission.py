@@ -12,6 +12,7 @@ from frappe.utils import cint, flt, format_timedelta, get_datetime, getdate
 from healthcare.api.patient_visit import create_invoice
 from healthcare.api.utils.api_utility import get_next_transaction_number
 from healthcare.controllers.discount_validation import apply_insurance_discounts
+from healthcare.healthcare.doctype.observation.observation import vacate_active_observation_rooms_for_patient
 
 try:
 	from erpnext import get_default_currency
@@ -309,10 +310,28 @@ def get_inpatient_record(name):
 	relatives = []
 	for row in getattr(record, "patient_relatives", []) or []:
 		relatives.append({
-			"relative_relation": getattr(row, "relative_relation", None),
+			"relative_relation": getattr(row, "relationship_with_patient", None) or getattr(row, "relative_relation", None),
+			"relationship_with_patient": getattr(row, "relationship_with_patient", None) or getattr(row, "relative_relation", None),
 			"relative_name": getattr(row, "relative_name", None),
-			"relative_id_num": getattr(row, "relative_id_num", None),
+			"relative_id_num": getattr(row, "cpr__id_no", None) or getattr(row, "relative_id_num", None),
+			"cpr__id_no": getattr(row, "cpr__id_no", None) or getattr(row, "relative_id_num", None),
+			"relative_phone_no": getattr(row, "relative_phone_no", None),
+			"relative_alternative_phone_no": getattr(row, "relative_alternative_phone_no", None),
+			"relative_alternative_phone_no_2": getattr(row, "relative_alternative_phone_no_2", None),
+			"relation_email": getattr(row, "relation_email", None),
 			"any_remarks": getattr(row, "any_remarks", None),
+		})
+
+	visitors = []
+	for row in getattr(record, "patient_visitors", []) or []:
+		visitors.append({
+			"name": row.name,
+			"visitors_name": row.visitors_name,
+			"relationship_with_patient": row.relationship_with_patient,
+			"cpr__id_no": row.cpr__id_no,
+			"any_remarks": row.any_remarks,
+			"entered_by": row.entered_by,
+			"entered_date": row.entered_date,
 		})
 
 	return {
@@ -336,6 +355,8 @@ def get_inpatient_record(name):
 		'current_occupancy': current_occupancy,
 		'charges': charges_info,
 		'patient_relatives': relatives,
+		'patient_visitors': visitors,
+		'signature': getattr(record, "signature", None),
 		'gender': getattr(record, "gender", None),
 		'blood_group': getattr(record, "blood_group", None),
 		'dob': getattr(record, "dob", None),
@@ -1215,6 +1236,21 @@ def admit_patient(
 	# Perform admit (sets status, occupancy, bed no, service units)
 	record.admit(service_unit, check_in, expected_discharge)
 
+	admitted_service_units = []
+	if service_unit:
+		admitted_service_units.append(service_unit)
+	if isinstance(service_unit_list, list):
+		admitted_service_units.extend([u for u in service_unit_list if u])
+	for row in record.get("service_unit") or []:
+		su_name = getattr(row, "service_unit", None) or (row.get("service_unit") if isinstance(row, dict) else None)
+		if su_name:
+			admitted_service_units.append(su_name)
+	vacate_active_observation_rooms_for_patient(
+		record.patient,
+		exclude_service_units=admitted_service_units,
+		dc_date=check_in,
+	)
+
 	# Save patient documents if provided (stored as e-signatures)
 	documents = frappe.parse_json(patient_documents or [])
 	if isinstance(documents, list) and documents:
@@ -1447,3 +1483,146 @@ def create_invoice_from_inpatient_admission(inpatient_admission_name: str):
 		dict: Dictionary containing invoice name and status
 	"""
 	return create_invoice("Inpatient Admission", inpatient_admission_name)
+
+
+def _apply_patient_relatives(doc, relatives_data):
+	relatives = frappe.parse_json(relatives_data) if isinstance(relatives_data, str) else relatives_data
+	if not isinstance(relatives, list):
+		return
+
+	doc.set("patient_relatives", [])
+	for row in relatives:
+		if not isinstance(row, dict):
+			continue
+		relation = (row.get("relationship_with_patient") or row.get("relative_relation") or "").strip()
+		if not relation:
+			continue
+		child = doc.append("patient_relatives", {})
+		child.relationship_with_patient = relation
+		name_val = (row.get("relative_name") or "").strip()
+		if name_val:
+			child.relative_name = name_val
+		id_no = (row.get("cpr__id_no") or row.get("relative_id_num") or "").strip()
+		if id_no:
+			child.cpr__id_no = id_no
+			child.relative_id_no = id_no
+		phone = (row.get("relative_phone_no") or "").strip()
+		if phone:
+			child.relative_phone_no = phone
+		alt_phone = (row.get("relative_alternative_phone_no") or "").strip()
+		if alt_phone:
+			child.relative_alternative_phone_no = alt_phone
+		alt_phone_2 = (row.get("relative_alternative_phone_no_2") or "").strip()
+		if alt_phone_2:
+			child.relative_alternative_phone_no_2 = alt_phone_2
+		email = (row.get("relation_email") or "").strip()
+		if email:
+			child.relation_email = email
+		remarks = (row.get("any_remarks") or "").strip()
+		if remarks:
+			child.any_remarks = remarks
+		child.entered_by = row.get("entered_by") or frappe.session.user
+		child.entered_date = row.get("entered_date") or frappe.utils.today()
+
+
+def _apply_patient_visitors(doc, visitors_data):
+	visitors = frappe.parse_json(visitors_data) if isinstance(visitors_data, str) else visitors_data
+	if not isinstance(visitors, list):
+		return
+
+	doc.set("patient_visitors", [])
+	for row in visitors:
+		if not isinstance(row, dict):
+			continue
+		visitor_name = (row.get("visitors_name") or "").strip()
+		relationship = (row.get("relationship_with_patient") or "").strip()
+		if not visitor_name or not relationship:
+			continue
+		child = doc.append("patient_visitors", {})
+		child.visitors_name = visitor_name
+		child.relationship_with_patient = relationship
+		id_no = (row.get("cpr__id_no") or "").strip()
+		if id_no:
+			child.cpr__id_no = id_no
+		remarks = (row.get("any_remarks") or "").strip()
+		if remarks:
+			child.any_remarks = remarks
+		child.entered_by = row.get("entered_by") or frappe.session.user
+		child.entered_date = row.get("entered_date") or frappe.utils.today()
+
+
+@frappe.whitelist()
+def update_inpatient_admission(name, data):
+	"""Update editable fields on a scheduled or admitted Inpatient Admission."""
+	if isinstance(data, str):
+		data = frappe.parse_json(data) if data else {}
+	if not name:
+		frappe.throw(_("Admission name is required"))
+
+	doc = frappe.get_doc("Inpatient Admission", name)
+	if doc.status not in ("Admission Scheduled", "Admitted"):
+		frappe.throw(_("Only scheduled or admitted admissions can be edited"))
+
+	# Frontend aliases
+	if data.get("consultant_doctor"):
+		data["primary_practitioner"] = data.pop("consultant_doctor")
+	if data.get("residents_doctor"):
+		data["residents_doctor_no"] = data.pop("residents_doctor")
+
+	allowed_fields = {
+		"company",
+		"cost_center",
+		"medical_department",
+		"primary_practitioner",
+		"psychologist_doctor",
+		"residents_doctor_no",
+		"admission_ordered_for",
+		"expected_length_of_stay",
+		"admission_instruction",
+		"admission_nursing_checklist_template",
+		"scheduled_date",
+	}
+
+	for key, value in data.items():
+		if key not in allowed_fields:
+			continue
+		if value is None or value == "":
+			continue
+		doc.set(key, value)
+
+	if "patient_relatives" in data:
+		_apply_patient_relatives(doc, data.get("patient_relatives"))
+
+	if "patient_visitors" in data:
+		_apply_patient_visitors(doc, data.get("patient_visitors"))
+
+	if "signature" in data:
+		doc.signature = data.get("signature") or ""
+
+	practitioner = doc.get("primary_practitioner")
+	if practitioner:
+		doc.admission_by_doctor = practitioner
+		practitioner_name = frappe.db.get_value(
+			"Healthcare Practitioner", practitioner, "practitioner_name"
+		)
+		if practitioner_name:
+			doc.admission_doctor_name = practitioner_name
+
+	if doc.get("psychologist_doctor"):
+		psych_name = frappe.db.get_value(
+			"Healthcare Practitioner", doc.psychologist_doctor, "practitioner_name"
+		)
+		if psych_name:
+			doc.psychologist_doctor_name = psych_name
+
+	if doc.get("residents_doctor_no"):
+		res_name = frappe.db.get_value(
+			"Healthcare Practitioner", doc.residents_doctor_no, "practitioner_name"
+		)
+		if res_name:
+			doc.resident_doctor_name = res_name
+
+	doc.save(ignore_permissions=True)
+	frappe.db.commit()
+
+	return get_inpatient_record(doc.name)
