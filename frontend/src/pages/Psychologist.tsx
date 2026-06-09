@@ -6,17 +6,14 @@ import { ClinicalNotesList } from '../components/clinicalNotes/ClinicalNotesList
 import { CreateClinicalNoteModal } from '../components/clinicalNotes/CreateClinicalNoteModal'
 import { DiagnosisSymptomsScreen } from '../components/diagnosis/DiagnosisSymptomsScreen'
 import { WarningMessagesList } from '../components/warnings/WarningMessagesList'
-import { CreateWarningMessageModal } from '../components/warnings/CreateWarningMessageModal'
 import { PatientHistoryList } from '../components/patientHistory/PatientHistoryList'
-import { PatientHistoryModal } from '../components/patientHistory/PatientHistoryModal'
 import { PhysicalExaminationList } from '../components/physicalExam/PhysicalExaminationList'
-import { PhysicalExaminationModal } from '../components/physicalExam/PhysicalExaminationModal'
 import { MedicalHistoryView } from '../components/medicalHistory/MedicalHistoryView'
 import { PatientSummaryCard } from '../components/patients/PatientSummaryCard'
-import { toast } from '../hooks/useToast'
+import { DashboardCard } from '../components/ui/DashboardCard'
 
 export const PsychologistPage = () => {
-  const { selectedPatient: globalPatient, setSelectedPatient: setGlobalPatient } = useCareContext()
+  const { selectedPatient: globalPatient, setSelectedPatient: setGlobalPatient, guardClinicalCreate } = useCareContext()
   const [searchParams, setSearchParams] = useSearchParams()
   const screen = searchParams.get('screen') || ''
   const patientFromUrl = searchParams.get('patient') || ''
@@ -25,23 +22,25 @@ export const PsychologistPage = () => {
 
   const [showPsychNoteModal, setShowPsychNoteModal] = useState(false)
   const [showPsychOrderModal, setShowPsychOrderModal] = useState(false)
-  const [showWarningModal, setShowWarningModal] = useState(false)
-  const [showPatientHistoryModal, setShowPatientHistoryModal] = useState(false)
-  const [showPhysicalExamModal, setShowPhysicalExamModal] = useState(false)
 
   const [clinicalNotesRefreshKey, setClinicalNotesRefreshKey] = useState(0)
-  const [warningRefreshKey, setWarningRefreshKey] = useState(0)
-  const [patientHistoryRefreshKey, setPatientHistoryRefreshKey] = useState(0)
-  const [physicalExamRefreshKey, setPhysicalExamRefreshKey] = useState(0)
 
   useEffect(() => {
-    const patientParam = searchParams.get('patient') || ''
+    const patientParam = searchParams.get('patient')
     if (patientParam && patientParam !== selectedPatient) {
       setSelectedPatient(patientParam)
-    } else if (!patientParam && selectedPatient) {
-      setSelectedPatient(undefined)
     }
-  }, [searchParams])
+  }, [searchParams, selectedPatient])
+
+  // Restore patient in URL when sidebar navigation drops the query param
+  useEffect(() => {
+    const patient = selectedPatient || globalPatient
+    if (!patient) return
+    if (searchParams.get('patient')) return
+    const next = new URLSearchParams(searchParams)
+    next.set('patient', patient)
+    setSearchParams(next, { replace: true })
+  }, [screen, selectedPatient, globalPatient, searchParams, setSearchParams])
 
   const handlePatientSelect = (patient: string | undefined) => {
     setSelectedPatient(patient)
@@ -52,8 +51,10 @@ export const PsychologistPage = () => {
     setSearchParams(next, { replace: true })
   }
 
+  const headerPatient = selectedPatient || globalPatient || ''
+
   const header = (
-    <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
+    <PatientCareHeader selectedPatient={headerPatient} onPatientSelect={handlePatientSelect} patients={[]} />
   )
 
   // ── Psychologist Notes ────────────────────────────────────────────────────────
@@ -62,22 +63,19 @@ export const PsychologistPage = () => {
       <div className="flex flex-col">
         {header}
         <div className="p-4">
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4 flex items-center justify-between">
-              <span>Psychologist Notes</span>
-              <button
-                onClick={() => setShowPsychNoteModal(true)}
-                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
-                title="Add Psychologist Note"
-              >+</button>
-            </div>
+          <DashboardCard
+            title="Psychologist Notes"
+            onAdd={() => guardClinicalCreate(() => setShowPsychNoteModal(true))}
+            addButtonTitle="Add Psychologist Note"
+            noHeightLimit
+          >
             <ClinicalNotesList
               patient={selectedPatient}
               clinicalNoteType="Psychologist Note"
               key={clinicalNotesRefreshKey}
               onPatientClick={handlePatientSelect}
             />
-          </section>
+          </DashboardCard>
         </div>
         {showPsychNoteModal && (
           <CreateClinicalNoteModal
@@ -98,22 +96,19 @@ export const PsychologistPage = () => {
       <div className="flex flex-col">
         {header}
         <div className="p-4">
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4 flex items-center justify-between">
-              <span>Psychologist Orders</span>
-              <button
-                onClick={() => setShowPsychOrderModal(true)}
-                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
-                title="Add Psychologist Order"
-              >+</button>
-            </div>
+          <DashboardCard
+            title="Psychologist Orders"
+            onAdd={() => guardClinicalCreate(() => setShowPsychOrderModal(true))}
+            addButtonTitle="Add Psychologist Order"
+            noHeightLimit
+          >
             <ClinicalNotesList
               patient={selectedPatient}
               clinicalNoteType="Psychologist Order"
               key={clinicalNotesRefreshKey}
               onPatientClick={handlePatientSelect}
             />
-          </section>
+          </DashboardCard>
         </div>
         {showPsychOrderModal && (
           <CreateClinicalNoteModal
@@ -128,124 +123,74 @@ export const PsychologistPage = () => {
     )
   }
 
-  // ── Diagnoses ─────────────────────────────────────────────────────────────────
+  // ── Diagnoses (read-only for psychologist) ──────────────────────────────────
   if (screen === 'p-dx') {
     return (
       <div className="flex flex-col h-[calc(100dvh-2.25rem)] max-h-[calc(100dvh-2.25rem)] overflow-hidden">
         {header}
         <div className="flex-1 min-h-0 overflow-hidden">
-          <DiagnosisSymptomsScreen />
+          <DiagnosisSymptomsScreen allowCreate={false} />
         </div>
       </div>
     )
   }
 
-  // ── Warning Messages ──────────────────────────────────────────────────────────
+  // ── Warning Messages (read-only) ──────────────────────────────────────────────
   if (screen === 'p-warn') {
     return (
       <div className="flex flex-col">
         {header}
         <div className="p-4">
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4 flex items-center justify-between">
-              <span>Warning Messages</span>
-              <button
-                onClick={() => {
-                  if (!selectedPatient) { toast.error('Please select a patient first'); return }
-                  setShowWarningModal(true)
-                }}
-                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
-                title="Add Warning"
-              >+</button>
-            </div>
-            <WarningMessagesList patient={selectedPatient} key={warningRefreshKey} onPatientClick={handlePatientSelect} />
-          </section>
+          <DashboardCard title="Warning Messages" noHeightLimit>
+            <WarningMessagesList patient={selectedPatient} onPatientClick={handlePatientSelect} />
+          </DashboardCard>
         </div>
-        {showWarningModal && (
-          <CreateWarningMessageModal
-            onClose={() => setShowWarningModal(false)}
-            onSuccess={() => { setWarningRefreshKey(p => p + 1); setShowWarningModal(false) }}
-            initialPatient={selectedPatient}
-          />
-        )}
       </div>
     )
   }
 
-  // ── Medical History / Allergies ───────────────────────────────────────────────
+  // ── Medical History / Allergies (read-only) ───────────────────────────────────
   if (screen === 'p-mh') {
     return (
       <div className="flex flex-col">
         {header}
         <div className="p-4">
-          {selectedPatient ? (
-            <MedicalHistoryView patient={selectedPatient} />
-          ) : (
-            <div className="text-center text-slate-400 py-16">Select a patient to view medical history.</div>
-          )}
+          <DashboardCard title="Medical History / Allergies" noHeightLimit filterable={false}>
+            {selectedPatient ? (
+              <MedicalHistoryView patient={selectedPatient} />
+            ) : (
+              <div className="py-16 text-center text-slate-400">Select a patient to view medical history.</div>
+            )}
+          </DashboardCard>
         </div>
       </div>
     )
   }
 
-  // ── Patient History ───────────────────────────────────────────────────────────
+  // ── Patient History (read-only) ───────────────────────────────────────────────
   if (screen === 'p-patient-history') {
     return (
       <div className="flex flex-col">
         {header}
         <div className="p-4">
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4 flex items-center justify-between">
-              <span>Patient History</span>
-              <button
-                onClick={() => setShowPatientHistoryModal(true)}
-                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
-                title="Add Patient History"
-              >+</button>
-            </div>
-            <PatientHistoryList patient={selectedPatient} refreshKey={patientHistoryRefreshKey} onPatientClick={handlePatientSelect} />
-          </section>
+          <DashboardCard title="Patient History" noHeightLimit>
+            <PatientHistoryList patient={selectedPatient} onPatientClick={handlePatientSelect} />
+          </DashboardCard>
         </div>
-        {showPatientHistoryModal && (
-          <PatientHistoryModal
-            admissionNo=""
-            patient={selectedPatient || ''}
-            patientName=""
-            onClose={() => setShowPatientHistoryModal(false)}
-            onSuccess={() => { setPatientHistoryRefreshKey(p => p + 1); setShowPatientHistoryModal(false) }}
-          />
-        )}
       </div>
     )
   }
 
-  // ── Physical Examination ──────────────────────────────────────────────────────
+  // ── Physical Examination (read-only) ──────────────────────────────────────────
   if (screen === 'p-physical') {
     return (
       <div className="flex flex-col">
         {header}
         <div className="p-4">
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4 flex items-center justify-between">
-              <span>Physical Examination</span>
-              <button
-                onClick={() => setShowPhysicalExamModal(true)}
-                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
-                title="Add Physical Examination"
-              >+</button>
-            </div>
-            <PhysicalExaminationList patient={selectedPatient} refreshKey={physicalExamRefreshKey} onPatientClick={handlePatientSelect} />
-          </section>
+          <DashboardCard title="Physical Examination" noHeightLimit filterable={false}>
+            <PhysicalExaminationList patient={selectedPatient} onPatientClick={handlePatientSelect} />
+          </DashboardCard>
         </div>
-        {showPhysicalExamModal && (
-          <PhysicalExaminationModal
-            admissionNo=""
-            patient={selectedPatient || ''}
-            patientName=""
-            onClose={() => setShowPhysicalExamModal(false)}
-            onSuccess={() => { setPhysicalExamRefreshKey(p => p + 1); setShowPhysicalExamModal(false) }}
-          />
-        )}
       </div>
     )
   }
@@ -258,106 +203,55 @@ export const PsychologistPage = () => {
         {selectedPatient && <PatientSummaryCard patient={selectedPatient} />}
 
         <div className="grid gap-4 md:grid-cols-2">
-          {/* Psychologist Notes */}
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col min-h-[400px] max-h-[400px]">
-            <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
-              <span>Psychologist Notes</span>
-              <button
-                onClick={() => setShowPsychNoteModal(true)}
-                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
-                title="Add Psychologist Note"
-              >+</button>
-            </div>
-            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto" style={{ scrollbarWidth: 'thin' }}>
-              <ClinicalNotesList
-                patient={selectedPatient}
-                clinicalNoteType="Psychologist Note"
-                key={clinicalNotesRefreshKey}
-                onPatientClick={handlePatientSelect}
-              />
-            </div>
-          </section>
+          <DashboardCard
+            title="Psychologist Notes"
+            listingScreen="p-notes"
+            onAdd={() => guardClinicalCreate(() => setShowPsychNoteModal(true))}
+            addButtonTitle="Add Psychologist Note"
+            fixedHeight
+          >
+            <ClinicalNotesList
+              patient={selectedPatient}
+              clinicalNoteType="Psychologist Note"
+              key={clinicalNotesRefreshKey}
+              onPatientClick={handlePatientSelect}
+            />
+          </DashboardCard>
 
-          {/* Psychologist Orders */}
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col min-h-[400px] max-h-[400px]">
-            <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
-              <span>Psychologist Orders</span>
-              <button
-                onClick={() => setShowPsychOrderModal(true)}
-                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
-                title="Add Psychologist Order"
-              >+</button>
-            </div>
-            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto" style={{ scrollbarWidth: 'thin' }}>
-              <ClinicalNotesList
-                patient={selectedPatient}
-                clinicalNoteType="Psychologist Order"
-                key={`order-${clinicalNotesRefreshKey}`}
-                onPatientClick={handlePatientSelect}
-              />
-            </div>
-          </section>
+          <DashboardCard
+            title="Psychologist Orders"
+            listingScreen="p-orders"
+            onAdd={() => guardClinicalCreate(() => setShowPsychOrderModal(true))}
+            addButtonTitle="Add Psychologist Order"
+            fixedHeight
+          >
+            <ClinicalNotesList
+              patient={selectedPatient}
+              clinicalNoteType="Psychologist Order"
+              key={`order-${clinicalNotesRefreshKey}`}
+              onPatientClick={handlePatientSelect}
+            />
+          </DashboardCard>
 
-          {/* Warning Messages */}
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col min-h-[400px] max-h-[400px]">
-            <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
-              <span>Warning Messages</span>
-              <button
-                onClick={() => {
-                  if (!selectedPatient) { toast.error('Please select a patient first'); return }
-                  setShowWarningModal(true)
-                }}
-                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
-                title="Add Warning"
-              >+</button>
-            </div>
-            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto" style={{ scrollbarWidth: 'thin' }}>
-              <WarningMessagesList patient={selectedPatient} key={warningRefreshKey} onPatientClick={handlePatientSelect} />
-            </div>
-          </section>
+          <DashboardCard title="Warning Messages" listingScreen="p-warn" fixedHeight>
+            <WarningMessagesList patient={selectedPatient} onPatientClick={handlePatientSelect} />
+          </DashboardCard>
 
-          {/* Patient History */}
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col min-h-[400px] max-h-[400px]">
-            <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
-              <span>Patient History</span>
-              <button
-                onClick={() => setShowPatientHistoryModal(true)}
-                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
-                title="Add Patient History"
-              >+</button>
-            </div>
-            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto" style={{ scrollbarWidth: 'thin' }}>
-              <PatientHistoryList patient={selectedPatient} refreshKey={patientHistoryRefreshKey} onPatientClick={handlePatientSelect} />
-            </div>
-          </section>
+          <DashboardCard title="Patient History" listingScreen="p-patient-history" fixedHeight>
+            <PatientHistoryList patient={selectedPatient} onPatientClick={handlePatientSelect} />
+          </DashboardCard>
 
-          {/* Physical Examination */}
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col min-h-[400px] max-h-[400px]">
-            <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
-              <span>Physical Examination</span>
-              <button
-                onClick={() => setShowPhysicalExamModal(true)}
-                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
-                title="Add Physical Examination"
-              >+</button>
-            </div>
-            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto" style={{ scrollbarWidth: 'thin' }}>
-              <PhysicalExaminationList patient={selectedPatient} refreshKey={physicalExamRefreshKey} onPatientClick={handlePatientSelect} />
-            </div>
-          </section>
+          <DashboardCard title="Physical Examination" listingScreen="p-physical" fixedHeight filterable={false}>
+            <PhysicalExaminationList patient={selectedPatient} onPatientClick={handlePatientSelect} />
+          </DashboardCard>
 
-          {/* Medical History */}
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col min-h-[400px] max-h-[400px]">
-            <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
-              <span>Medical History / Allergies</span>
-            </div>
-            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto" style={{ scrollbarWidth: 'thin' }}>
-              {selectedPatient
-                ? <MedicalHistoryView patient={selectedPatient} />
-                : <p className="text-sm text-slate-400 text-center py-4">Select a patient</p>
-              }
-            </div>
-          </section>
+          <DashboardCard title="Medical History / Allergies" listingScreen="p-mh" fixedHeight filterable={false}>
+            {selectedPatient ? (
+              <MedicalHistoryView patient={selectedPatient} />
+            ) : (
+              <p className="py-4 text-center text-sm text-slate-400">Select a patient</p>
+            )}
+          </DashboardCard>
         </div>
       </div>
 
@@ -377,31 +271,6 @@ export const PsychologistPage = () => {
           initialPatient={selectedPatient}
           defaultClinicalNoteType="Psychologist Order"
           title="Add Psychologist Order"
-        />
-      )}
-      {showWarningModal && (
-        <CreateWarningMessageModal
-          onClose={() => setShowWarningModal(false)}
-          onSuccess={() => { setWarningRefreshKey(p => p + 1); setShowWarningModal(false) }}
-          initialPatient={selectedPatient}
-        />
-      )}
-      {showPatientHistoryModal && (
-        <PatientHistoryModal
-          admissionNo=""
-          patient={selectedPatient || ''}
-          patientName=""
-          onClose={() => setShowPatientHistoryModal(false)}
-          onSuccess={() => { setPatientHistoryRefreshKey(p => p + 1); setShowPatientHistoryModal(false) }}
-        />
-      )}
-      {showPhysicalExamModal && (
-        <PhysicalExaminationModal
-          admissionNo=""
-          patient={selectedPatient || ''}
-          patientName=""
-          onClose={() => setShowPhysicalExamModal(false)}
-          onSuccess={() => { setPhysicalExamRefreshKey(p => p + 1); setShowPhysicalExamModal(false) }}
         />
       )}
     </div>

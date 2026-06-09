@@ -122,7 +122,6 @@ const labScreens = [
   // { id: 'l-pending', title: 'Pending Samples / Tests' },
   // { id: 'l-history', title: 'Patient History (Medical)' },
   { id: 'l-setup',   title: 'Lab Test Setup' },
-  { id: 'l-req',     title: 'Lab Test Requests' },
   { id: 'l-out',     title: 'Outsourced Tests' },
   // { id: 'l-sample',  title: 'Sample Collection' },
   { id: 'l-results', title: 'Lab Test & Result' },
@@ -226,6 +225,22 @@ const ALL_MAIN_LINKS: MainLinkItem[] = [
   { to: '/employee',         label: 'Employee',         screens: [],                          prefix: '/employee' },
   { to: '/qmps',             label: 'QMPS',             screens: [],                          prefix: '/qmps' },
 ]
+
+/** Keep patient / mode / admission query params when switching sidebar screens. */
+function buildScreenPath(basePath: string, screenId: string, currentSearch: string): string {
+  const params = new URLSearchParams(currentSearch)
+  params.set('screen', screenId)
+  const qs = params.toString()
+  return qs ? `${basePath}?${qs}` : basePath
+}
+
+/** Role home link: drop screen only, keep care context query params. */
+function buildRoleHomePath(basePath: string, currentSearch: string): string {
+  const params = new URLSearchParams(currentSearch)
+  params.delete('screen')
+  const qs = params.toString()
+  return qs ? `${basePath}?${qs}` : basePath
+}
 
 // ─── AppShell ─────────────────────────────────────────────────────────────────
 
@@ -360,7 +375,7 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
                     </button>
                   )}
                   <NavLink
-                    to={link.to}
+                    to={buildRoleHomePath(link.to, location.search)}
                     onClick={closeSidebar}
                     className={({ isActive }) =>
                       `flex-1 px-3 py-2 rounded-md ${
@@ -401,7 +416,7 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
                               {group.screens.map((s) => (
                                 <NavLink
                                   key={s.id}
-                                  to={`${link.to}?screen=${s.id}`}
+                                  to={buildScreenPath(link.to, s.id, location.search)}
                                   onClick={closeSidebar}
                                   className={
                                     activeScreen === s.id
@@ -426,7 +441,7 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
                     {link.screens.map((s) => (
                       <NavLink
                         key={s.id}
-                        to={`${link.to}?screen=${s.id}`}
+                        to={buildScreenPath(link.to, s.id, location.search)}
                         onClick={closeSidebar}
                         className={
                           activeScreen === s.id

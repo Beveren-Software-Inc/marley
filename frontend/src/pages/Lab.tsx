@@ -707,13 +707,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useCareContext } from '../providers/CareContextProvider'
-import { ClipboardList, FlaskConical, BookOpen, AlertTriangle, Droplet, FileCode, History } from 'lucide-react'
+import { FlaskConical, BookOpen, AlertTriangle, Droplet, FileCode, History } from 'lucide-react'
 import { PatientCareHeader } from '../components/patients/PatientCareHeader'
-import { ServiceRequestList } from '../components/serviceRequests/ServiceRequestList'
 import { LabTestList, type LabTestListBatchSaveRef } from '../components/labTests/LabTestList'
 import { LabTestResultsSaveHeader } from '../components/labTests/LabTestResultsSaveHeader'
 import { CreateLabTestModal } from '../components/labTests/CreateLabTestModal'
-import { CreateServiceRequestModal } from '../components/serviceRequests/CreateServiceRequestModal'
 import { MedicalHistoryView } from '../components/medicalHistory/MedicalHistoryView'
 import { WarningMessagesList } from '../components/warnings/WarningMessagesList'
 import { CreateLabTestTemplateModal } from '../components/labTests/CreateLabTestTemplateModal'
@@ -724,21 +722,12 @@ import { SampleCollectionList } from '../components/labTests/SampleCollectionLis
 import { LabTestHistory } from '../components/labTests/LabTestHistory' // ADD THIS IMPORT
 import { fetchLabTestSamples, fetchSampleTypes, type LabTestSampleOption, type LinkFieldOption } from '../services/common'
 
-type LabTab = 'service-requests' | 'lab-tests' | 'medical-history' | 'warnings' | 'sample-collection' | 'lab-templates' | 'lab-history' // ADD 'lab-history'
+type LabTab = 'lab-tests' | 'medical-history' | 'warnings' | 'sample-collection' | 'lab-templates' | 'lab-history'
 
 const NAV_CARDS = [
   {
-    id: 'service-requests' as LabTab,
-    title: 'Service Requests',
-    desc: 'Lab test requests from doctors and departments',
-    icon: ClipboardList,
-    color: 'bg-primary/10 text-primary border-primary/20',
-    iconColor: 'text-primary',
-  },
-  {
     id: 'lab-tests' as LabTab,
     title: 'Lab Tests & Results',
-    desc: 'Process tests, enter results and track status',
     icon: FlaskConical,
     color: 'bg-emerald-50 text-emerald-700 border-emerald-200',
     iconColor: 'text-emerald-600',
@@ -746,7 +735,6 @@ const NAV_CARDS = [
   {
     id: 'sample-collection' as LabTab,
     title: 'Sample Collection',
-    desc: 'Track sample collection details and linked tests',
     icon: Droplet,
     color: 'bg-cyan-50 text-cyan-700 border-cyan-200',
     iconColor: 'text-cyan-600',
@@ -754,15 +742,13 @@ const NAV_CARDS = [
   {
     id: 'lab-templates' as LabTab,
     title: 'Lab Test Templates',
-    desc: 'Manage test templates, parameters and reference ranges',
     icon: FileCode,
     color: 'bg-purple-50 text-purple-700 border-purple-200',
     iconColor: 'text-purple-600',
   },
   {
-    id: 'lab-history' as LabTab,  // ADD THIS NEW CARD - placed before medical-history
+    id: 'lab-history' as LabTab,
     title: 'Lab History',
-    desc: 'Patient lab test history and results',
     icon: History,
     color: 'bg-teal-50 text-teal-700 border-teal-200',
     iconColor: 'text-teal-600',
@@ -770,7 +756,6 @@ const NAV_CARDS = [
   {
     id: 'medical-history' as LabTab,
     title: 'Medical History',
-    desc: 'Patient background, diagnoses and clinical notes',
     icon: BookOpen,
     color: 'bg-blue-50 text-blue-700 border-blue-200',
     iconColor: 'text-blue-600',
@@ -778,7 +763,6 @@ const NAV_CARDS = [
   {
     id: 'warnings' as LabTab,
     title: 'Allergies & Warnings',
-    desc: 'Critical alerts, allergies and contraindications',
     icon: AlertTriangle,
     color: 'bg-amber-50 text-amber-700 border-amber-200',
     iconColor: 'text-amber-600',
@@ -795,28 +779,18 @@ export const LabPage = () => {
   const patientFromUrl = searchParams.get('patient')
   const screen = searchParams.get('screen')
   const roles = userRole || []
-  /** Lab home "Service Requests" tab: admins only (not Doctor / lab staff). */
-  const canSeeServiceRequestsTab = roles.some((role) =>
-    ['System Manager', 'Healthcare Administrator', 'Administrator'].includes(role)
-  )
-  const canCreateLabServiceRequests = roles.some((role) =>
-    ['Doctor', 'System Manager', 'Healthcare Administrator', 'Administrator'].includes(role)
-  )
   const isLabTechnologist = roles.includes('Laboratory User') && !roles.some((role) =>
     ['Doctor', 'System Manager', 'Healthcare Administrator', 'Administrator'].includes(role)
   )
 
-  const rawTab = (searchParams.get('tab') ||
-    (canSeeServiceRequestsTab ? 'service-requests' : 'lab-tests')) as LabTab
-  const tabFromUrl =
-    !canSeeServiceRequestsTab && rawTab === 'service-requests' ? 'lab-tests' : rawTab
+  const tabParam = searchParams.get('tab')
+  const tabFromUrl: LabTab =
+    !tabParam || tabParam === 'service-requests' ? 'lab-tests' : (tabParam as LabTab)
 
   const [selectedPatient, setSelectedPatient] = useState<string | undefined>(() => patientFromUrl || globalPatient || undefined)
   const [activeTab, setActiveTab] = useState<LabTab>(tabFromUrl)
   const [labTestRefreshKey, setLabTestRefreshKey] = useState(0)
   const [showLabTestModal, setShowLabTestModal] = useState(false)
-  const [showServiceRequestModal, setShowServiceRequestModal] = useState(false)
-  const [serviceRequestRefreshKey, setServiceRequestRefreshKey] = useState(0)
   const [sampleCollectionRefreshKey, setSampleCollectionRefreshKey] = useState(0)
 
   // Template management state
@@ -835,27 +809,27 @@ export const LabPage = () => {
   const [sampleTypes, setSampleTypes] = useState<LinkFieldOption[]>([])
   const [sampleTypesLoading, setSampleTypesLoading] = useState(false)
 
-  const [batchLabTechnician, setBatchLabTechnician] = useState('')
-  const [batchLabTechnicianLabel, setBatchLabTechnicianLabel] = useState('')
   const [pendingResultCount, setPendingResultCount] = useState(0)
   const [batchSaving, setBatchSaving] = useState(false)
   const batchSaveRef = useRef<LabTestListBatchSaveRef | null>(null)
-
-  const handleBatchLabTechnicianChange = (id: string, label: string) => {
-    setBatchLabTechnician(id)
-    setBatchLabTechnicianLabel(label)
-  }
 
   const handleBatchSave = async () => {
     await batchSaveRef.current?.savePendingChanges()
   }
 
   const batchListProps = {
-    batchLabTechnician,
     onPendingCountChange: setPendingResultCount,
     onBatchSavingChange: setBatchSaving,
     batchSaveRef,
   }
+
+  const labTestSaveHeader = (
+    <LabTestResultsSaveHeader
+      pendingCount={pendingResultCount}
+      batchSaving={batchSaving}
+      onSave={handleBatchSave}
+    />
+  )
 
   const loadLabSamples = useCallback(async () => {
     setSamplesLoading(true)
@@ -903,27 +877,15 @@ export const LabPage = () => {
   }
 
   const handleTabChange = (newTab: LabTab) => {
-    if (newTab === 'service-requests' && !canSeeServiceRequestsTab) return
     setActiveTab(newTab)
     const newSearchParams = new URLSearchParams(searchParams)
     newSearchParams.set('tab', newTab)
     setSearchParams(newSearchParams, { replace: true })
   }
 
-  useEffect(() => {
-    if (!canSeeServiceRequestsTab && activeTab === 'service-requests') {
-      handleTabChange('lab-tests')
-    }
-  }, [canSeeServiceRequestsTab, activeTab])
-
   const handleLabTestCreated = () => {
     setLabTestRefreshKey(prev => prev + 1)
-    setServiceRequestRefreshKey(prev => prev + 1)
     setSampleCollectionRefreshKey(prev => prev + 1)
-  }
-
-  const handleServiceRequestCreated = () => {
-    setServiceRequestRefreshKey(prev => prev + 1)
   }
 
   const handleTemplateCreated = () => {
@@ -1066,65 +1028,6 @@ export const LabPage = () => {
   }
 
   // Render based on screen
-  if (screen === 'l-req') {
-    if (!canCreateLabServiceRequests) {
-      return (
-        <div className="flex flex-col">
-          <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
-          <div className="p-4">
-            <section className="bg-white border border-slate-200 rounded-lg p-6 shadow-sm">
-              <p className="text-sm text-slate-700">
-                You are not allowed to create Lab Service Requests. Please contact a Doctor, System Manager, or Healthcare Administrator.
-              </p>
-            </section>
-          </div>
-        </div>
-      )
-    }
-
-    // Lab Test Requests - show service requests with Lab Test Template
-    return (
-      <div className="flex flex-col min-w-0">
-        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
-
-        <div className="p-4">
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col">
-            <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0">
-              <span>Lab Test Requests</span>
-              <button
-                onClick={() => setShowServiceRequestModal(true)}
-                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
-                title="Add Service Request"
-              >
-                +
-              </button>
-            </div>
-            <div className="overflow-x-auto overflow-visible" style={{ scrollbarWidth: 'thin' }}>
-              <ServiceRequestList 
-                patient={selectedPatient} 
-                onLabTestCreated={handleLabTestCreated}
-                refreshKey={serviceRequestRefreshKey}
-                template_dt="Lab Test Template"
-                onPatientClick={handlePatientSelect}
-              />
-            </div>
-          </section>
-        </div>
-        {showServiceRequestModal && (
-          <CreateServiceRequestModal
-            onClose={() => setShowServiceRequestModal(false)}
-            onSuccess={() => { 
-              setShowServiceRequestModal(false); 
-              handleServiceRequestCreated() 
-            }}
-            initialPatient={selectedPatient}
-            labTestTemplateOnly
-          />
-        )}
-      </div>
-    )
-  }
-
   if (screen === 'l-out') {
     // Outsourced Tests - show only lab tests where is_outsourced = 1
     return (
@@ -1132,21 +1035,19 @@ export const LabPage = () => {
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
 
         <div className="p-4">
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col">
-            <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0 gap-2">
-              <span>Outsourced Tests</span>
-              <LabTestResultsSaveHeader
-                pendingCount={pendingResultCount}
-                batchSaving={batchSaving}
-                batchLabTechnician={batchLabTechnician}
-                batchLabTechnicianLabel={batchLabTechnicianLabel}
-                onBatchLabTechnicianChange={handleBatchLabTechnicianChange}
-                onSave={handleBatchSave}
-                onAdd={() => setShowLabTestModal(true)}
-              />
-            </div>
+          <section className="bg-white border border-slate-200 rounded-lg shadow-sm flex flex-col overflow-hidden">
             <div className="overflow-x-auto overflow-visible" style={{ scrollbarWidth: 'thin' }}>
-              <LabTestList patient={selectedPatient} isOutsourced={true} key={labTestRefreshKey} onPatientClick={handlePatientSelect} hideAmount={isLabTechnologist} {...batchListProps} />
+              <LabTestList
+                patient={selectedPatient}
+                isOutsourced={true}
+                key={labTestRefreshKey}
+                onPatientClick={handlePatientSelect}
+                hideAmount={isLabTechnologist}
+                title="Outsourced Tests"
+                headerExtra={labTestSaveHeader}
+                onAdd={() => setShowLabTestModal(true)}
+                {...batchListProps}
+              />
             </div>
           </section>
         </div>
@@ -1171,21 +1072,18 @@ export const LabPage = () => {
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
 
         <div className="p-4">
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col">
-            <div className="font-semibold mb-4 flex items-center justify-between flex-shrink-0 gap-2">
-              <span>Lab Test & Result</span>
-              <LabTestResultsSaveHeader
-                pendingCount={pendingResultCount}
-                batchSaving={batchSaving}
-                batchLabTechnician={batchLabTechnician}
-                batchLabTechnicianLabel={batchLabTechnicianLabel}
-                onBatchLabTechnicianChange={handleBatchLabTechnicianChange}
-                onSave={handleBatchSave}
-                onAdd={() => setShowLabTestModal(true)}
-              />
-            </div>
+          <section className="bg-white border border-slate-200 rounded-lg shadow-sm flex flex-col overflow-hidden">
             <div className="overflow-x-auto overflow-visible" style={{ scrollbarWidth: 'thin' }}>
-              <LabTestList patient={selectedPatient} key={labTestRefreshKey} onPatientClick={handlePatientSelect} hideAmount={isLabTechnologist} {...batchListProps} />
+              <LabTestList
+                patient={selectedPatient}
+                key={labTestRefreshKey}
+                onPatientClick={handlePatientSelect}
+                hideAmount={isLabTechnologist}
+                title="Lab Test & Result"
+                headerExtra={labTestSaveHeader}
+                onAdd={() => setShowLabTestModal(true)}
+                {...batchListProps}
+              />
             </div>
           </section>
         </div>
@@ -1204,11 +1102,8 @@ export const LabPage = () => {
   }
 
   // Default view — card-based navigation
-  const labNavCards = NAV_CARDS.filter(
-    (card) => canSeeServiceRequestsTab || card.id !== 'service-requests'
-  )
-  const resolvedTab: LabTab =
-    !canSeeServiceRequestsTab && activeTab === 'service-requests' ? 'lab-tests' : activeTab
+  const labNavCards = NAV_CARDS
+  const resolvedTab = activeTab
   const activeCard =
     labNavCards.find((c) => c.id === resolvedTab) ??
     labNavCards.find((c) => c.id === 'lab-tests') ??
@@ -1222,7 +1117,7 @@ export const LabPage = () => {
       <div className="flex-1 min-w-0 overflow-y-auto p-4 space-y-4">
 
         {/* Navigation cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
+        <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2">
           {labNavCards.map((card) => {
             const Icon = card.icon
             const isActive = resolvedTab === card.id
@@ -1231,19 +1126,18 @@ export const LabPage = () => {
                 key={card.id}
                 type="button"
                 onClick={() => handleTabChange(card.id)}
-                className={`flex items-start gap-3 rounded-xl border-2 px-4 py-3.5 text-left transition-all hover:shadow-md ${
+                className={`flex flex-col items-center justify-center gap-2 rounded-xl border-2 px-2 py-3 text-center transition-all hover:shadow-md ${
                   isActive
                     ? `${card.color} shadow-sm`
                     : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
                 }`}
               >
-                <div className={`p-2 rounded-lg shrink-0 ${isActive ? 'bg-white/60' : 'bg-slate-100'}`}>
-                  <Icon className={`w-5 h-5 ${isActive ? card.iconColor : 'text-slate-500'}`} />
+                <div className={`rounded-lg p-2.5 ${isActive ? 'bg-white/60' : 'bg-slate-100'}`}>
+                  <Icon className={`h-5 w-5 ${isActive ? card.iconColor : 'text-slate-500'}`} />
                 </div>
-                <div>
-                  <p className={`text-sm font-semibold ${isActive ? '' : 'text-slate-800'}`}>{card.title}</p>
-                  <p className={`text-xs mt-0.5 ${isActive ? 'opacity-80' : 'text-slate-500'}`}>{card.desc}</p>
-                </div>
+                <p className={`text-xs font-semibold leading-tight sm:text-sm ${isActive ? '' : 'text-slate-800'}`}>
+                  {card.title}
+                </p>
               </button>
             )
           })}
@@ -1251,33 +1145,9 @@ export const LabPage = () => {
 
         {/* Active section */}
         <section className="bg-white border border-slate-200 rounded-lg shadow-sm">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
-            <div>
-              <h2 className="text-sm font-semibold text-slate-800">{activeCard.title}</h2>
-              <p className="text-xs text-slate-500 mt-0.5">{activeCard.desc}</p>
-            </div>
-            {resolvedTab === 'service-requests' && canSeeServiceRequestsTab && (
-              <button
-                type="button"
-                onClick={() => setShowServiceRequestModal(true)}
-                className="w-7 h-7 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-base font-bold"
-                title="New Service Request"
-              >
-                +
-              </button>
-            )}
-            {resolvedTab === 'lab-tests' && (
-              <LabTestResultsSaveHeader
-                pendingCount={pendingResultCount}
-                batchSaving={batchSaving}
-                batchLabTechnician={batchLabTechnician}
-                batchLabTechnicianLabel={batchLabTechnicianLabel}
-                onBatchLabTechnicianChange={handleBatchLabTechnicianChange}
-                onSave={handleBatchSave}
-                onAdd={() => setShowLabTestModal(true)}
-                addTitle="New Lab Test"
-              />
-            )}
+          {resolvedTab !== 'lab-tests' && (
+          <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-100">
+            <h2 className="text-sm font-semibold text-slate-800">{activeCard.title}</h2>
             {resolvedTab === 'lab-templates' && (
               <button
                 type="button"
@@ -1289,19 +1159,20 @@ export const LabPage = () => {
               </button>
             )}
           </div>
+          )}
 
           <div className="overflow-x-auto overflow-y-auto max-h-[480px] p-1" style={{ scrollbarWidth: 'thin' }}>
-            {resolvedTab === 'service-requests' && canSeeServiceRequestsTab && (
-              <ServiceRequestList
-                patient={selectedPatient}
-                onLabTestCreated={handleLabTestCreated}
-                refreshKey={serviceRequestRefreshKey}
-                template_dt="Lab Test Template"
-                onPatientClick={handlePatientSelect}
-              />
-            )}
             {resolvedTab === 'lab-tests' && (
-              <LabTestList patient={selectedPatient} key={labTestRefreshKey} onPatientClick={handlePatientSelect} hideAmount={isLabTechnologist} {...batchListProps} />
+              <LabTestList
+                patient={selectedPatient}
+                key={labTestRefreshKey}
+                onPatientClick={handlePatientSelect}
+                hideAmount={isLabTechnologist}
+                title={activeCard.title}
+                headerExtra={labTestSaveHeader}
+                onAdd={() => setShowLabTestModal(true)}
+                {...batchListProps}
+              />
             )}
             {resolvedTab === 'sample-collection' && (
               <div className="p-3">
@@ -1367,17 +1238,6 @@ export const LabPage = () => {
           onClose={() => setShowLabTestModal(false)}
           onSuccess={() => { setShowLabTestModal(false); handleLabTestCreated() }}
           initialPatient={selectedPatient}
-        />
-      )}
-      {showServiceRequestModal && canSeeServiceRequestsTab && (
-        <CreateServiceRequestModal
-          onClose={() => setShowServiceRequestModal(false)}
-          onSuccess={() => { 
-            setShowServiceRequestModal(false); 
-            handleServiceRequestCreated() 
-          }}
-          initialPatient={selectedPatient}
-          labTestTemplateOnly
         />
       )}
       {showCreateTemplateModal && (

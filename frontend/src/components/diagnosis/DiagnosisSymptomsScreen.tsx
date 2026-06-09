@@ -68,7 +68,7 @@ function toAggRow(row: MedicalDiagnosisEntryRow): MedicalDiagnosisEntryAggRow {
   }
 }
 
-export function DiagnosisSymptomsScreen() {
+export function DiagnosisSymptomsScreen({ allowCreate = true }: { allowCreate?: boolean } = {}) {
   const { mode, activeVisit, activeAdmission, selectedPatient, guardClinicalCreate } = useCareContext()
 
   const [rows, setRows] = useState<MedicalDiagnosisEntryAggRow[]>([])
@@ -227,20 +227,22 @@ export function DiagnosisSymptomsScreen() {
               placeholder="Search patient, visit, diagnosis…"
               className="min-w-[200px] max-w-xs rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm shadow-sm placeholder:text-slate-400 hover:border-emerald-300/80 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25"
             />
-            <button
-              type="button"
-              onClick={() => {
-                if (!selectedPatient) {
-                  toast.error('Select a patient first')
-                  return
-                }
-                guardClinicalCreate(() => setShowAddModal(true))
-              }}
-              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-lg font-bold leading-none text-white transition-colors hover:bg-primary/90"
-              title="Add diagnosis"
-            >
-              <Plus className="h-4 w-4" strokeWidth={2.5} />
-            </button>
+            {allowCreate ? (
+              <button
+                type="button"
+                onClick={() => {
+                  if (!selectedPatient) {
+                    toast.error('Select a patient first')
+                    return
+                  }
+                  guardClinicalCreate(() => setShowAddModal(true))
+                }}
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-lg font-bold leading-none text-white transition-colors hover:bg-primary/90"
+                title="Add diagnosis"
+              >
+                <Plus className="h-4 w-4" strokeWidth={2.5} />
+              </button>
+            ) : null}
           </div>
         </div>
 
@@ -440,7 +442,7 @@ export function DiagnosisSymptomsScreen() {
         </div>
       </section>
 
-      {showAddModal && selectedPatient ? (
+      {allowCreate && showAddModal && selectedPatient ? (
         <PatientDiagnosisModal
           parentDoctype={mode === 'IP' ? 'Inpatient Admission' : 'Patient Visit'}
           parentName={mode === 'IP' ? activeAdmission : activeVisit}

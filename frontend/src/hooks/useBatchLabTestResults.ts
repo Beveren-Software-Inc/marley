@@ -10,7 +10,6 @@ function stripHtml(value: string): string {
 export function useBatchLabTestResults(
   labTests: LabTest[],
   canEditRow: (labTest: LabTest) => boolean,
-  batchLabTechnician: string,
   onPendingCountChange?: (count: number) => void,
   onBatchSavingChange?: (saving: boolean) => void,
   onAfterSave?: () => void | Promise<void>
@@ -92,10 +91,8 @@ export function useBatchLabTestResults(
 
   const resolveLabTechnicianId = useCallback(
     (labTest: LabTest) =>
-      pendingLabTech[labTest.name]?.trim() ||
-      batchLabTechnician.trim() ||
-      (labTest.lab_technician || '').trim(),
-    [pendingLabTech, batchLabTechnician]
+      pendingLabTech[labTest.name]?.trim() || (labTest.lab_technician || '').trim(),
+    [pendingLabTech]
   )
 
   const savePendingChanges = useCallback(async () => {
@@ -109,8 +106,8 @@ export function useBatchLabTestResults(
     if (missingTech.length) {
       toast.error(
         missingTech.length === 1
-          ? 'This test has no lab technician. Pick one in the row or in the header, then Save.'
-          : `${missingTech.length} tests have no lab technician. Pick one in the header or on each row, then Save.`
+          ? 'This test has no lab technician. Pick one in the row, then Save.'
+          : `${missingTech.length} tests have no lab technician. Pick one on each row, then Save.`
       )
       return
     }
@@ -129,13 +126,12 @@ export function useBatchLabTestResults(
 
     for (const lt of dirtyTests) {
       try {
-        const headerOrPending =
-          pendingLabTech[lt.name]?.trim() || batchLabTechnician.trim()
+        const rowLabTech = pendingLabTech[lt.name]?.trim()
         const payload: { custom_result: string; lab_technician?: string } = {
           custom_result: pendingResults[lt.name] ?? '',
         }
-        if (headerOrPending) {
-          payload.lab_technician = headerOrPending
+        if (rowLabTech) {
+          payload.lab_technician = rowLabTech
         }
         const res = await saveAndSubmitLabTest(lt.name, payload)
         mergedRuleFeedback.rule_warnings?.push(...(res.rule_warnings || []))
@@ -176,7 +172,7 @@ export function useBatchLabTestResults(
     }
     setBatchSaving(false)
     return { savedCount: savedNames.length, errors }
-  }, [labTests, isDirty, pendingResults, pendingLabTech, batchLabTechnician, onAfterSave, resolveLabTechnicianId])
+  }, [labTests, isDirty, pendingResults, pendingLabTech, onAfterSave, resolveLabTechnicianId])
 
   return {
     batchSaving,
