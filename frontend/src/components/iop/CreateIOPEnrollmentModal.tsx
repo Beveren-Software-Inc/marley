@@ -7,7 +7,16 @@ import {
   CreateModalHeader,
   createModalShellClass,
 } from '../ui/CreateModalChrome'
-import { createIOPEnrollment, fetchIOPDays, fetchIOPSessionTypes, type IOPDay, type IOPSessionType, type IOPEnrollmentSessionRow } from '../../services/iop'
+import { IOPSessionTypeSelect } from '../ui/IOPSessionTypeSelect'
+import {
+  createIOPEnrollment,
+  fetchIOPDayWithSessions,
+  fetchIOPDays,
+  fetchIOPSessionTypes,
+  type IOPDay,
+  type IOPSessionType,
+  type IOPEnrollmentSessionRow,
+} from '../../services/iop'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
 import { fetchHealthcarePractitioners, getCurrentUserPractitioner, type LinkFieldOption } from '../../services/common'
 import { toast } from '../../hooks/useToast'
@@ -37,7 +46,7 @@ export const CreateIOPEnrollmentModal = ({ onClose, onSuccess, initialPatient }:
   const [status, setStatus] = useState('Scheduled')
   const [notes, setNotes] = useState('')
   const [sessionTypes, setSessionTypes] = useState<IOPSessionType[]>([])
-  const [sessions, setSessions] = useState<IOPEnrollmentSessionRow[]>([{ session_type: '', from_time: '', to_time: '', notes: '' }])
+  const [sessions, setSessions] = useState<IOPEnrollmentSessionRow[]>([{ session_type: '', notes: '' }])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -45,6 +54,46 @@ export const CreateIOPEnrollmentModal = ({ onClose, onSuccess, initialPatient }:
     fetchIOPDays(100, 0).then(setIopDays).catch(() => setIopDays([]))
     fetchIOPSessionTypes().then(setSessionTypes).catch(() => setSessionTypes([]))
   }, [])
+
+  useEffect(() => {
+    if (!initialPatient) return
+    setPatient(initialPatient)
+    fetchPatients(1, 0, initialPatient)
+      .then((list) => {
+        if (list.length > 0) {
+          const p = list[0]
+          setPatient(p.name)
+          setPatientQuery((p as { patient_name?: string }).patient_name || p.name)
+        } else {
+          setPatientQuery(initialPatient)
+        }
+      })
+      .catch(() => setPatientQuery(initialPatient))
+  }, [initialPatient])
+
+  useEffect(() => {
+    if (!iop_day) {
+      setSessions([{ session_type: '', notes: '' }])
+      return
+    }
+    let cancelled = false
+    fetchIOPDayWithSessions(iop_day)
+      .then((day) => {
+        if (cancelled) return
+        const daySessions = (day.sessions ?? []).filter((s) => s.session_type)
+        if (daySessions.length === 0) {
+          setSessions([{ session_type: '', notes: '' }])
+          return
+        }
+        setSessions(daySessions.map((s) => ({ session_type: s.session_type, notes: '' })))
+      })
+      .catch(() => {
+        if (!cancelled) setSessions([{ session_type: '', notes: '' }])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [iop_day])
 
   // Search patients
   useEffect(() => {
@@ -111,7 +160,7 @@ export const CreateIOPEnrollmentModal = ({ onClose, onSuccess, initialPatient }:
   }
 
   const addSession = () => {
-    setSessions((prev) => [...prev, { session_type: '', from_time: '', to_time: '', notes: '' }])
+    setSessions((prev) => [...prev, { session_type: '', notes: '' }])
   }
 
   const updateSession = (idx: number, field: keyof IOPEnrollmentSessionRow, value: string) => {
@@ -137,21 +186,23 @@ export const CreateIOPEnrollmentModal = ({ onClose, onSuccess, initialPatient }:
       .filter((s) => s.session_type)
       .map((s) => ({
         session_type: s.session_type,
-        from_time: s.from_time || undefined,
-        to_time: s.to_time || undefined,
-        notes: s.notes || undefined
+        notes: s.notes || undefined,
       }))
     try {
       setLoading(true)
-      await createIOPEnrollment({
+      const created = await createIOPEnrollment({
         patient,
         ...(iop_day ? { iop_day } : {}),
         status,
         notes: notes || undefined,
-        ...(practitioner ? { practitioner } : {}),
+        ...(practitioner ? { doctor: practitioner } : {}),
         iop_session: validSessions.length ? validSessions : undefined
       })
-      toast.success('Enrollment created')
+      if (created.patient_visit) {
+        toast.success(`Enrollment created. Patient visit ${created.patient_visit} created.`)
+      } else {
+        toast.success('Enrollment created')
+      }
       onSuccess()
       onClose()
     } catch (err) {
@@ -209,10 +260,10 @@ export const CreateIOPEnrollmentModal = ({ onClose, onSuccess, initialPatient }:
           </div>
 
 
-        {/* Healthcare Practitioner */}
+        {/* Doctor */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">
-              Healthcare Practitioner
+              Doctor
             </label>
             <div className="relative">
               <input
@@ -224,7 +275,7 @@ export const CreateIOPEnrollmentModal = ({ onClose, onSuccess, initialPatient }:
                   if (practitioner) setPractitioner('')
                 }}
                 onFocus={() => setPractitionerOpen(true)}
-                placeholder="Search practitioner..."
+                placeholder="Search doctor..."
                 className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               />
               {practitionerOpen && practitioners.length > 0 && (
@@ -284,8 +335,8 @@ export const CreateIOPEnrollmentModal = ({ onClose, onSuccess, initialPatient }:
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              rows={2}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              rows={4}
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm min-h-[6rem] focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </div>
 
@@ -300,36 +351,20 @@ export const CreateIOPEnrollmentModal = ({ onClose, onSuccess, initialPatient }:
             <div className="space-y-2">
               {sessions.map((row, idx) => (
                 <div key={idx} className="flex flex-wrap items-start gap-2 p-2 border border-slate-200 rounded-md">
-                  <select
+                  <IOPSessionTypeSelect
                     value={row.session_type}
-                    onChange={(e) => updateSession(idx, 'session_type', e.target.value)}
-                    className="rounded-md border border-slate-300 px-2 py-1.5 text-sm flex-1 min-w-[120px]"
-                  >
-                    <option value="">Type</option>
-                    {sessionTypes.map((st) => (
-                      <option key={st.name} value={st.name}>{st.session_type_name || st.name}</option>
-                    ))}
-                  </select>
-                  <input
-                    type="time"
-                    value={row.from_time || ''}
-                    onChange={(e) => updateSession(idx, 'from_time', e.target.value)}
-                    className="rounded-md border border-slate-300 px-2 py-1.5 text-sm w-28"
-                    placeholder="From"
+                    onChange={(value) => updateSession(idx, 'session_type', value)}
+                    types={sessionTypes}
+                    onTypesUpdated={setSessionTypes}
+                    className="flex-1 min-w-[140px]"
+                    placeholder="Select session type..."
                   />
-                  <input
-                    type="time"
-                    value={row.to_time || ''}
-                    onChange={(e) => updateSession(idx, 'to_time', e.target.value)}
-                    className="rounded-md border border-slate-300 px-2 py-1.5 text-sm w-28"
-                    placeholder="To"
-                  />
-                  <input
-                    type="text"
+                  <textarea
                     value={row.notes || ''}
                     onChange={(e) => updateSession(idx, 'notes', e.target.value)}
-                    placeholder="Notes"
-                    className="rounded-md border border-slate-300 px-2 py-1.5 text-sm flex-1 min-w-[80px]"
+                    placeholder="Session notes"
+                    rows={2}
+                    className="rounded-md border border-slate-300 px-2 py-1.5 text-sm flex-1 min-w-[120px] min-h-[3rem] resize-y"
                   />
                   <button
                     type="button"

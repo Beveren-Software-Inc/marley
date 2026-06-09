@@ -6,22 +6,22 @@ import {
   fetchIOPSessionTypes,
   type IOPEnrollmentWithSessions,
   type IOPSessionType,
-  type IOPEnrollmentSessionRow
+  type IOPEnrollmentSessionRow,
 } from '../../services/iop'
 import { toast } from '../../hooks/useToast'
 import { X } from 'lucide-react'
 
-interface EditIOPEnrollmentModalProps {
+interface MarkIOPEnrollmentAttendedModalProps {
   enrollmentName: string
   onClose: () => void
   onSuccess: () => void
 }
 
-export const EditIOPEnrollmentModal = ({
+export const MarkIOPEnrollmentAttendedModal = ({
   enrollmentName,
   onClose,
-  onSuccess
-}: EditIOPEnrollmentModalProps) => {
+  onSuccess,
+}: MarkIOPEnrollmentAttendedModalProps) => {
   const [enrollment, setEnrollment] = useState<IOPEnrollmentWithSessions | null>(null)
   const [notes, setNotes] = useState('')
   const [sessions, setSessions] = useState<IOPEnrollmentSessionRow[]>([])
@@ -40,7 +40,7 @@ export const EditIOPEnrollmentModal = ({
         setEnrollment(enr)
         setNotes(enr.notes || '')
         setSessionTypes(types)
-        const rows = (enr.iop_session && enr.iop_session.length)
+        const rows = enr.iop_session?.length
           ? enr.iop_session.map((s) => ({ session_type: s.session_type, notes: s.notes || '' }))
           : [{ session_type: '', notes: '' }]
         setSessions(rows)
@@ -53,7 +53,9 @@ export const EditIOPEnrollmentModal = ({
       .finally(() => {
         if (!cancelled) setLoading(false)
       })
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, [enrollmentName])
 
   const addSession = () => {
@@ -84,10 +86,11 @@ export const EditIOPEnrollmentModal = ({
     try {
       setSaving(true)
       await updateIOPEnrollment(enrollmentName, {
+        status: 'Attended',
         notes: notes || undefined,
         iop_session: validSessions,
       })
-      toast.success('Sessions updated')
+      toast.success('Marked as attended')
       onSuccess()
       onClose()
     } catch (err) {
@@ -103,7 +106,7 @@ export const EditIOPEnrollmentModal = ({
       <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
         <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
           <h2 className="text-xl font-semibold text-slate-900">
-            Edit sessions — {enrollment?.patient_name || enrollmentName}
+            Mark attended — {enrollment?.patient_name || enrollmentName}
           </h2>
           <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600">
             <X className="w-5 h-5" />
@@ -157,7 +160,7 @@ export const EditIOPEnrollmentModal = ({
                     <button
                       type="button"
                       onClick={() => removeSession(idx)}
-                      className="text-slate-500 hover:text-red-600 p-1"
+                      className="text-slate-500 hover:text-red-600 p-1 shrink-0"
                       title="Remove"
                     >
                       <X className="w-4 h-4" />
@@ -168,11 +171,19 @@ export const EditIOPEnrollmentModal = ({
             </div>
 
             <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
-              <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50"
+              >
                 Cancel
               </button>
-              <button type="submit" disabled={saving} className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-50">
-                {saving ? 'Saving…' : 'Save sessions'}
+              <button
+                type="submit"
+                disabled={saving}
+                className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50"
+              >
+                {saving ? 'Saving…' : 'Mark attended'}
               </button>
             </div>
           </form>

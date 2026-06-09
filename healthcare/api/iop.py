@@ -67,9 +67,14 @@ def create_iop_day(data):
 			_("An IOP Day already exists for {0}. Use that day or choose a different date.").format(posting_date),
 			title=_("Duplicate Date"),
 		)
+	company = data.get("company")
+	if not company:
+		first_company = frappe.get_all("Company", fields=["name"], limit=1, order_by="creation asc")
+		company = first_company[0].name if first_company else None
+
 	doc = frappe.new_doc("IOP Day")
 	doc.posting_date = posting_date
-	doc.company = data.get("company") or None
+	doc.company = company
 	doc.cost_center = data.get("cost_center") or None
 	for s in (data.get("sessions") or []):
 		doc.append("sessions", {
@@ -100,6 +105,50 @@ def get_iop_session_types():
 
 
 @frappe.whitelist()
+def create_iop_session_type(session_type_name=None, description=None):
+	"""Create an IOP Session Type from the portal when the needed type is missing."""
+	session_type_name = (session_type_name or "").strip()
+	if not session_type_name:
+		frappe.throw(_("Session Type is required"))
+
+	existing = frappe.db.exists("IOP Session Type", {"session_type_name": session_type_name})
+	if existing:
+		return {
+			"name": existing,
+			"session_type_name": frappe.db.get_value("IOP Session Type", existing, "session_type_name"),
+		}
+
+	doc = frappe.get_doc(
+		{
+			"doctype": "IOP Session Type",
+			"session_type_name": session_type_name,
+			"description": (description or "").strip() or None,
+		}
+	)
+	doc.insert(ignore_permissions=True)
+	frappe.db.commit()
+	return {"name": doc.name, "session_type_name": doc.session_type_name}
+
+
+def _linked_patient_visits_by_enrollment(enrollment_names):
+	"""Map IOP Enrollment name -> linked Patient Visit name (first match)."""
+	if not enrollment_names:
+		return {}
+	visits = frappe.get_all(
+		"Patient Visit",
+		filters={"iop_enrollment": ["in", enrollment_names]},
+		fields=["name", "iop_enrollment"],
+		order_by="creation desc",
+	)
+	linked = {}
+	for row in visits:
+		enrollment = row.get("iop_enrollment")
+		if enrollment and enrollment not in linked:
+			linked[enrollment] = row.get("name")
+	return linked
+
+
+@frappe.whitelist()
 def get_iop_enrollments(limit=50, offset=0, iop_day=None, patient=None, status=None):
 	"""List IOP Enrollments for reception dashboard."""
 	filters = {}
@@ -117,6 +166,9 @@ def get_iop_enrollments(limit=50, offset=0, iop_day=None, patient=None, status=N
 		limit_start=int(offset),
 		order_by="posting_date desc, modified desc",
 	)
+	linked_visits = _linked_patient_visits_by_enrollment([e["name"] for e in enrollments])
+	for enrollment in enrollments:
+		enrollment["patient_visit"] = linked_visits.get(enrollment["name"])
 	return enrollments
 
 
@@ -141,6 +193,18 @@ def create_iop_enrollment(patient, iop_day=None, status=None, notes=None, doctor
 			"notes": row.get("notes"),
 		})
 	doc.insert(ignore_permissions=True)
+
+	patient_visit = None
+	try:
+		from healthcare.api.patient_visit import try_create_patient_visit_for_iop_enrollment
+
+		patient_visit = try_create_patient_visit_for_iop_enrollment(doc)
+	except Exception:
+		frappe.log_error(
+			frappe.get_traceback(),
+			f"IOP enrollment auto patient visit failed for {doc.name}",
+		)
+
 	frappe.db.commit()
 	posting_date = doc.iop_day and frappe.db.get_value("IOP Day", doc.iop_day, "posting_date")
 	return {
@@ -148,8 +212,9 @@ def create_iop_enrollment(patient, iop_day=None, status=None, notes=None, doctor
 		"patient": doc.patient,
 		"patient_name": doc.patient_name,
 		"iop_day": doc.iop_day,
-		"posting_date": posting_date,
+		"posting_date": posting_date or doc.posting_date,
 		"status": doc.status,
+		"patient_visit": patient_visit,
 	}
 
 
@@ -157,6 +222,7 @@ def create_iop_enrollment(patient, iop_day=None, status=None, notes=None, doctor
 def get_iop_enrollment(name):
 	"""Get one IOP Enrollment with iop_session child table (for edit modal)."""
 	doc = frappe.get_doc("IOP Enrollment", name)
+	linked_visits = _linked_patient_visits_by_enrollment([doc.name])
 	return {
 		"name": doc.name,
 		"patient": doc.patient,
@@ -165,6 +231,8 @@ def get_iop_enrollment(name):
 		"posting_date": doc.posting_date,
 		"status": doc.status,
 		"notes": doc.notes,
+		"doctor": doc.doctor,
+		"patient_visit": linked_visits.get(doc.name),
 		"iop_session": [
 			{
 				"session_type": s.session_type,
@@ -178,19 +246,24 @@ def get_iop_enrollment(name):
 
 
 @frappe.whitelist()
-def update_iop_enrollment(name, iop_session=None):
-	"""Update IOP Enrollment child table iop_session only."""
+def update_iop_enrollment(name, iop_session=None, status=None, notes=None):
+	"""Update IOP Enrollment sessions, status, and/or notes."""
 	if isinstance(iop_session, str):
 		iop_session = json.loads(iop_session) if iop_session else []
 	doc = frappe.get_doc("IOP Enrollment", name)
-	doc.iop_session = []
-	for row in (iop_session or []):
-		doc.append("iop_session", {
-			"session_type": row.get("session_type"),
-			"from_time": row.get("from_time"),
-			"to_time": row.get("to_time"),
-			"notes": row.get("notes"),
-		})
-	doc.save()
+	if status is not None:
+		doc.status = status
+	if notes is not None:
+		doc.notes = notes
+	if iop_session is not None:
+		doc.iop_session = []
+		for row in (iop_session or []):
+			doc.append("iop_session", {
+				"session_type": row.get("session_type"),
+				"from_time": row.get("from_time"),
+				"to_time": row.get("to_time"),
+				"notes": row.get("notes"),
+			})
+	doc.save(ignore_permissions=True)
 	frappe.db.commit()
-	return {"name": doc.name}
+	return {"name": doc.name, "status": doc.status}

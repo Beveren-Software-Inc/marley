@@ -2,9 +2,11 @@ import { useState, useEffect, useRef } from 'react'
 import { fetchIOPEnrollments, type IOPEnrollment } from '../../services/iop'
 import { CreateIOPEnrollmentModal } from './CreateIOPEnrollmentModal'
 import { EditIOPEnrollmentModal } from './EditIOPEnrollmentModal'
+import { MarkIOPEnrollmentAttendedModal } from './MarkIOPEnrollmentAttendedModal'
 import { CreatePatientVisitModal } from '../patientVisits/CreatePatientVisitModal'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { getPatientVisitFormUrl } from '../../services/appointments'
+import { toast } from '../../hooks/useToast'
 
 interface IOPEnrollmentListProps {
   refreshKey?: string | number
@@ -23,6 +25,7 @@ export const IOPEnrollmentList = ({
   const [loading, setLoading] = useState(true)
   const [createVisitForEnrollment, setCreateVisitForEnrollment] = useState<IOPEnrollment | null>(null)
   const [editEnrollmentName, setEditEnrollmentName] = useState<string | null>(null)
+  const [attendedEnrollmentName, setAttendedEnrollmentName] = useState<string | null>(null)
   const [openActionRow, setOpenActionRow] = useState<string | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -51,7 +54,7 @@ export const IOPEnrollmentList = ({
 
   const handleVisitCreated = (visitName: string) => {
     setCreateVisitForEnrollment(null)
-    window.open(getPatientVisitFormUrl(visitName), '_blank')
+    toast.success(`Patient visit ${visitName} created`)
     load()
   }
 
@@ -75,13 +78,14 @@ export const IOPEnrollmentList = ({
               <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">IOP Day</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Date</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Status</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase w-[140px]">Actions</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Visit</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase w-[4.5rem]">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200">
             {enrollments.length === 0 ? (
               <tr>
-                <td colSpan={patientFilter ? 4 : 5} className="px-4 py-6 text-center text-slate-500">
+                <td colSpan={patientFilter ? 5 : 6} className="px-4 py-6 text-center text-slate-500">
                   No enrollments. Enroll a patient in an IOP day.
                 </td>
               </tr>
@@ -111,6 +115,20 @@ export const IOPEnrollmentList = ({
                       {e.status || '-'}
                     </span>
                   </td>
+                  <td className="px-4 py-3 text-sm whitespace-nowrap">
+                    {e.patient_visit ? (
+                      <button
+                        type="button"
+                        onClick={() => window.open(getPatientVisitFormUrl(e.patient_visit!), '_blank')}
+                        className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-800 border border-emerald-200 hover:bg-emerald-100"
+                        title="Open linked patient visit"
+                      >
+                        Visit created
+                      </button>
+                    ) : (
+                      <span className="text-slate-400 text-xs">—</span>
+                    )}
+                  </td>
                   <td className="px-4 py-2 align-middle">
                     <div className="relative" ref={openActionRow === e.name ? menuRef : undefined}>
                       <button
@@ -129,13 +147,35 @@ export const IOPEnrollmentList = ({
                         triggerRef={menuRef}
                         minWidth={180}
                       >
-                        <button
-                          type="button"
-                          onClick={() => { setCreateVisitForEnrollment(e); setOpenActionRow(null) }}
-                          className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
-                        >
-                          Create Patient Visit
-                        </button>
+                        {e.patient_visit ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              window.open(getPatientVisitFormUrl(e.patient_visit!), '_blank')
+                              setOpenActionRow(null)
+                            }}
+                            className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                          >
+                            Open Patient Visit
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => { setCreateVisitForEnrollment(e); setOpenActionRow(null) }}
+                            className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                          >
+                            Create Patient Visit
+                          </button>
+                        )}
+                        {e.status !== 'Attended' && (
+                          <button
+                            type="button"
+                            onClick={() => { setAttendedEnrollmentName(e.name); setOpenActionRow(null) }}
+                            className="block w-full text-left px-3 py-2 text-sm text-green-700 hover:bg-green-50"
+                          >
+                            Mark attended
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => { setEditEnrollmentName(e.name); setOpenActionRow(null) }}
@@ -158,6 +198,16 @@ export const IOPEnrollmentList = ({
           onClose={() => setEditEnrollmentName(null)}
           onSuccess={() => {
             setEditEnrollmentName(null)
+            load()
+          }}
+        />
+      )}
+      {attendedEnrollmentName && (
+        <MarkIOPEnrollmentAttendedModal
+          enrollmentName={attendedEnrollmentName}
+          onClose={() => setAttendedEnrollmentName(null)}
+          onSuccess={() => {
+            setAttendedEnrollmentName(null)
             load()
           }}
         />
@@ -209,6 +259,7 @@ export function IOPEnrollmentListWithHeader({
             setShowCreate(false)
             setLocalRefreshKey((k) => k + 1)
           }}
+          initialPatient={patientFilter}
         />
       )}
     </section>

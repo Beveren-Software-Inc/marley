@@ -7,7 +7,13 @@ import {
   CreateModalHeader,
   createModalShellClass,
 } from '../ui/CreateModalChrome'
-import { createIOPDay, fetchIOPSessionTypes, fetchCompanies, fetchCostCenters, type IOPSessionType } from '../../services/iop'
+import { IOPSessionTypeSelect } from '../ui/IOPSessionTypeSelect'
+import {
+  createIOPDay,
+  fetchIOPSessionTypes,
+  fetchCompanies,
+  type IOPSessionType,
+} from '../../services/iop'
 import { toast } from '../../hooks/useToast'
 import { X } from 'lucide-react'
 
@@ -16,33 +22,33 @@ interface CreateIOPDayModalProps {
   onSuccess: () => void
 }
 
-type SessionRow = { session_type: string; from_time: string; to_time: string }
+type SessionRow = { session_type: string }
 
 export const CreateIOPDayModal = ({ onClose, onSuccess }: CreateIOPDayModalProps) => {
   const [posting_date, setPostingDate] = useState(() => new Date().toISOString().split('T')[0])
-  const [company, setCompany] = useState('')
-  const [cost_center, setCostCenter] = useState('')
-  const [sessions, setSessions] = useState<SessionRow[]>([{ session_type: '', from_time: '', to_time: '' }])
+  const [defaultCompany, setDefaultCompany] = useState('')
+  const [sessions, setSessions] = useState<SessionRow[]>([{ session_type: '' }])
   const [sessionTypes, setSessionTypes] = useState<IOPSessionType[]>([])
-  const [companies, setCompanies] = useState<{ name: string }[]>([])
-  const [costCenters, setCostCenters] = useState<{ name: string }[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     fetchIOPSessionTypes().then(setSessionTypes).catch(() => setSessionTypes([]))
-    fetchCompanies().then(setCompanies).catch(() => setCompanies([]))
-    fetchCostCenters().then(setCostCenters).catch(() => setCostCenters([]))
+    fetchCompanies()
+      .then((companies) => {
+        if (companies.length > 0) setDefaultCompany(companies[0].name)
+      })
+      .catch(() => setDefaultCompany(''))
   }, [])
 
   const addSession = () => {
-    setSessions((prev) => [...prev, { session_type: '', from_time: '', to_time: '' }])
+    setSessions((prev) => [...prev, { session_type: '' }])
   }
 
-  const updateSession = (idx: number, field: keyof SessionRow, value: string) => {
+  const updateSession = (idx: number, session_type: string) => {
     setSessions((prev) => {
       const next = [...prev]
-      next[idx] = { ...next[idx], [field]: value }
+      next[idx] = { session_type }
       return next
     })
   }
@@ -67,13 +73,8 @@ export const CreateIOPDayModal = ({ onClose, onSuccess }: CreateIOPDayModalProps
       setLoading(true)
       await createIOPDay({
         posting_date,
-        company: company || undefined,
-        cost_center: cost_center || undefined,
-        sessions: validSessions.map((s) => ({
-          session_type: s.session_type,
-          from_time: s.from_time || undefined,
-          to_time: s.to_time || undefined
-        }))
+        company: defaultCompany || undefined,
+        sessions: validSessions.map((s) => ({ session_type: s.session_type })),
       })
       toast.success('IOP Day created')
       onSuccess()
@@ -105,34 +106,6 @@ export const CreateIOPDayModal = ({ onClose, onSuccess }: CreateIOPDayModalProps
               required
             />
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Company</label>
-              <select
-                value={company}
-                onChange={(e) => setCompany(e.target.value)}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
-              >
-                <option value="">Select company</option>
-                {companies.map((c) => (
-                  <option key={c.name} value={c.name}>{c.name}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Cost Center</label>
-              <select
-                value={cost_center}
-                onChange={(e) => setCostCenter(e.target.value)}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
-              >
-                <option value="">Select cost center</option>
-                {costCenters.map((cc) => (
-                  <option key={cc.name} value={cc.name}>{cc.name}</option>
-                ))}
-              </select>
-            </div>
-          </div>
           <div>
             <div className="flex items-center justify-between mb-2">
               <label className="block text-sm font-medium text-slate-700">Sessions</label>
@@ -142,35 +115,19 @@ export const CreateIOPDayModal = ({ onClose, onSuccess }: CreateIOPDayModalProps
             </div>
             <div className="space-y-2">
               {sessions.map((row, idx) => (
-                <div key={idx} className="flex flex-wrap items-center gap-2 p-2 border border-slate-200 rounded-md">
-                  <select
+                <div key={idx} className="flex items-center gap-2 p-2 border border-slate-200 rounded-md">
+                  <IOPSessionTypeSelect
                     value={row.session_type}
-                    onChange={(e) => updateSession(idx, 'session_type', e.target.value)}
-                    className="rounded-md border border-slate-300 px-2 py-1.5 text-sm flex-1 min-w-[120px]"
-                  >
-                    <option value="">Select type</option>
-                    {sessionTypes.map((st) => (
-                      <option key={st.name} value={st.name}>{st.session_type_name || st.name}</option>
-                    ))}
-                  </select>
-                  <input
-                    type="time"
-                    value={row.from_time}
-                    onChange={(e) => updateSession(idx, 'from_time', e.target.value)}
-                    className="rounded-md border border-slate-300 px-2 py-1.5 text-sm w-28"
-                    placeholder="From"
-                  />
-                  <input
-                    type="time"
-                    value={row.to_time}
-                    onChange={(e) => updateSession(idx, 'to_time', e.target.value)}
-                    className="rounded-md border border-slate-300 px-2 py-1.5 text-sm w-28"
-                    placeholder="To"
+                    onChange={(value) => updateSession(idx, value)}
+                    types={sessionTypes}
+                    onTypesUpdated={setSessionTypes}
+                    className="flex-1 min-w-0"
+                    placeholder="Select session type..."
                   />
                   <button
                     type="button"
                     onClick={() => removeSession(idx)}
-                    className="text-slate-500 hover:text-red-600 p-1"
+                    className="text-slate-500 hover:text-red-600 p-1 shrink-0"
                     title="Remove"
                   >
                     <X className="w-4 h-4" />

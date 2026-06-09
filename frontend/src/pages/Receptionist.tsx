@@ -467,34 +467,31 @@ export const ReceptionistPage = () => {
             </div>
             <div className="grid gap-6 md:grid-cols-2">
               <IOPDayListWithHeader refreshKey={patientVisitRefreshKey} />
-              <IOPEnrollmentListWithHeader refreshKey={patientVisitRefreshKey} />
+              <IOPEnrollmentListWithHeader
+                refreshKey={patientVisitRefreshKey}
+                patientFilter={selectedPatient || undefined}
+              />
             </div>
           </div>
         )}
 
         {currentView === 'long-acting-medicine' && (
           <div className="p-4">
-            <div className="mb-4 flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-semibold text-slate-900">Long Acting Medicine</h2>
-                <p className="text-sm text-slate-600 mt-1">
-                  View long acting medicines across patients. Filter by start date and frequency. Click a row for details.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowCreateLongActing(true)}
-                className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
-                title="Create Long Acting Medicine"
-              >
-                +
-              </button>
-            </div>
-            <ReceptionLongActingMedicineList
-              patient={selectedPatient || undefined}
-              refreshKey={longActingRefreshKey}
-              onPatientClick={handlePatientSelect}
-            />
+            <p className="text-sm text-slate-600 mb-4">
+              View long acting medicines across patients. Filter by start date and frequency. Click a row for details.
+            </p>
+            <DashboardCard
+              title="Long Acting Medicine"
+              onAdd={() => setShowCreateLongActing(true)}
+              addButtonTitle="Create Long Acting Medicine"
+              noHeightLimit
+            >
+              <ReceptionLongActingMedicineList
+                patient={selectedPatient || undefined}
+                refreshKey={longActingRefreshKey}
+                onPatientClick={handlePatientSelect}
+              />
+            </DashboardCard>
 
             {showCreateLongActing && (
               <CreateLongActingMedicineModal

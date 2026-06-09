@@ -23,6 +23,7 @@ import {
 } from '../../services/common'
 import { DocumentTypeSelect } from '../ui/DocumentTypeSelect'
 import { CreatePatientModal } from '../patients/CreatePatientModal'
+import { fetchIOPEnrollment } from '../../services/iop'
 import { CreatePractitionerModal } from '../practitioners/CreatePractitionerModal'
 import { toast } from '../../hooks/useToast'
 import { PenLine } from 'lucide-react'
@@ -211,6 +212,7 @@ export const CreatePatientVisitModal = ({
     : null
   const [showCreatePatient, setShowCreatePatient] = useState(false)
   const [showCreatePractitioner, setShowCreatePractitioner] = useState(false)
+  const [linkedIopVisit, setLinkedIopVisit] = useState<string | null>(null)
 
   // Link field options
   const [practitioners, setPractitioners] = useState<LinkFieldOption[]>([])
@@ -342,6 +344,48 @@ export const CreatePatientVisitModal = ({
       }
     }).catch(() => setPatientQuery(initialPatient))
   }, [initialPatient])
+
+  // Pre-fill from IOP enrollment: date, doctor, patient, and block if visit already exists
+  useEffect(() => {
+    if (!initialIOPEnrollment) return
+    let cancelled = false
+    fetchIOPEnrollment(initialIOPEnrollment)
+      .then(async (enr) => {
+        if (cancelled) return
+        if (enr.patient_visit) {
+          setLinkedIopVisit(enr.patient_visit)
+          setError(`A patient visit (${enr.patient_visit}) is already linked to this enrollment.`)
+          return
+        }
+        setLinkedIopVisit(null)
+        if (enr.posting_date) {
+          setFormData((prev) => ({ ...prev, encounter_date: enr.posting_date! }))
+        }
+        if (enr.doctor) {
+          setFormData((prev) => ({ ...prev, practitioner: enr.doctor! }))
+          const options = await fetchHealthcarePractitioners(enr.doctor)
+          const match = options.find((p) => p.name === enr.doctor)
+          setPractQuery(match?.label || enr.doctor)
+        }
+        const patientId = enr.patient || initialPatient
+        if (patientId && !initialPatient) {
+          const list = await fetchPatients(1, 0, patientId)
+          if (list.length > 0) {
+            const p = list[0]
+            setSelectedPatient(p)
+            setPatientQuery((p as { patient_name?: string }).patient_name || p.name)
+          } else {
+            setPatientQuery(patientId)
+          }
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setError('Failed to load IOP enrollment details')
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [initialIOPEnrollment, initialPatient])
 
   useEffect(() => {
     const patientId = selectedPatient?.name
@@ -525,7 +569,8 @@ export const CreatePatientVisitModal = ({
         encounter_time: formData.encounter_time,
         visit_type: formData.visit_type,
         appointment: formData.appointment || undefined,
-        status: 'Open'
+        iop_enrollment: initialIOPEnrollment || undefined,
+        status: 'Open',
       })
 
       if (createdVisit?.name) {
@@ -1011,7 +1056,7 @@ export const CreatePatientVisitModal = ({
             </button>
             <button
               type="submit"
-              disabled={submitting || createBlocked || openVisitCheckLoading}
+              disabled={submitting || createBlocked || openVisitCheckLoading || Boolean(linkedIopVisit)}
               className={CM_BTN_PRIMARY}
               title={createBlocked ? openVisitBlockMessage ?? undefined : undefined}
             >

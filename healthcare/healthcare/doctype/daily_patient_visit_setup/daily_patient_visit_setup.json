@@ -8,6 +8,9 @@
  "field_order": [
   "patient",
   "patient_name",
+  "practioner",
+  "practitioner_name",
+  "posting_date",
   "column_break_fyot",
   "from_date",
   "to_date",
@@ -62,7 +65,7 @@
    "fieldname": "session",
    "fieldtype": "Link",
    "label": "Session",
-   "options": "Therapy Session"
+   "options": "IOP Session Type"
   },
   {
    "default": "0",
@@ -99,12 +102,29 @@
    "fieldtype": "Link",
    "label": "Discharge",
    "options": "Discharge"
+  },
+  {
+   "fieldname": "practioner",
+   "fieldtype": "Link",
+   "label": "Practioner",
+   "options": "Healthcare Practitioner"
+  },
+  {
+   "fieldname": "practitioner_name",
+   "fieldtype": "Data",
+   "label": "Practitioner Name"
+  },
+  {
+   "default": "Today",
+   "fieldname": "posting_date",
+   "fieldtype": "Data",
+   "label": "Posting Date"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-04-15 17:10:45.705639",
+ "modified": "2026-06-10 00:53:40.452319",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Daily Patient Visit Setup",

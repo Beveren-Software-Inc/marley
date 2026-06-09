@@ -4,6 +4,12 @@ export interface DailyPatientVisitSetup {
   name?: string
   patient: string
   patient_name?: string
+  file_no?: string
+  /** Doctype field name (Healthcare Practitioner link). */
+  practioner?: string
+  practitioner_name?: string
+  posting_date?: string
+  creation?: string
   admission?: string
   discharge?: string
   from_date: string
@@ -16,7 +22,6 @@ export interface DailyPatientVisitSetup {
 
 export async function createDailyPatientVisitSetup(data: DailyPatientVisitSetup): Promise<DailyPatientVisitSetup> {
   const csrf = (window as any).csrf_token
-      console.log('Creating Daily Patient Visit Setup with data:', data)
 
   const response = await fetch('/api/method/healthcare.api.daily_patient_visit.create_daily_patient_visit_setup', {
     method: 'POST',
@@ -52,6 +57,21 @@ export async function updateDailyPatientVisitSetup(name: string, data: Partial<D
     throw new Error(resData.exc_type ? `${resData.exc_type}: ${resData.exc}` : resData.exc)
   }
   return resData.message
+}
+
+export async function fetchDailyPatientVisitSetup(name: string): Promise<DailyPatientVisitSetup> {
+  const res = await fetch(
+    `/api/method/healthcare.api.daily_patient_visit.get_daily_patient_visit_setup?name=${encodeURIComponent(name)}`
+  )
+  const out = await res.json().catch(() => ({} as Record<string, unknown>))
+  if (!res.ok || (out as Record<string, unknown>)?.exc) {
+    const msg =
+      (out as Record<string, unknown>)?.message ||
+      (out as Record<string, unknown>)?.exc ||
+      'Failed to load Daily Patient Visit Setup'
+    throw new Error(typeof msg === 'string' ? msg : String(msg))
+  }
+  return (out as Record<string, unknown>).message as DailyPatientVisitSetup
 }
 
 export async function fetchDailyPatientVisitSetups(

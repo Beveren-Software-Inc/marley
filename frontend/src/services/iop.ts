@@ -35,6 +35,9 @@ export interface IOPEnrollment {
   posting_date?: string
   status?: string
   notes?: string
+  doctor?: string
+  /** Linked Patient Visit when one was created from this enrollment. */
+  patient_visit?: string
 }
 
 /** One row of IOP Session child table (type, from, to, notes). */
@@ -120,6 +123,31 @@ export async function fetchIOPSessionTypes(): Promise<IOPSessionType[]> {
   return Array.isArray(data?.message) ? data.message : []
 }
 
+export async function createIOPSessionType(
+  sessionTypeName: string,
+  description?: string,
+): Promise<IOPSessionType> {
+  const { ensureCSRF } = await import('./apiClient')
+  const csrf = await ensureCSRF()
+  const res = await fetch('/api/method/healthcare.api.iop.create_iop_session_type', {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
+    },
+    body: JSON.stringify({
+      session_type_name: sessionTypeName,
+      description: description || undefined,
+    }),
+  })
+  const data = await res.json()
+  if (data?.exc) throw new Error(messageFromExc(data.exc, data.exc_type))
+  if (!data?.message?.name) throw new Error('Failed to create session type')
+  return data.message as IOPSessionType
+}
+
 export async function fetchIOPEnrollments(
   limit: number = 50,
   offset: number = 0,
@@ -144,6 +172,7 @@ export async function createIOPEnrollment(payload: {
   iop_day?: string
   status?: string
   notes?: string
+  doctor?: string
   practitioner?: string
   iop_session?: IOPEnrollmentSessionRow[]
 }): Promise<IOPEnrollment> {
@@ -175,10 +204,14 @@ export async function fetchIOPEnrollment(name: string): Promise<IOPEnrollmentWit
   return data.message as IOPEnrollmentWithSessions
 }
 
-export async function updateIOPEnrollmentSessions(
+export async function updateIOPEnrollment(
   name: string,
-  iop_session: IOPEnrollmentSessionRow[]
-): Promise<{ name: string }> {
+  payload: {
+    iop_session?: IOPEnrollmentSessionRow[]
+    status?: string
+    notes?: string
+  },
+): Promise<{ name: string; status?: string }> {
   const { ensureCSRF } = await import('./apiClient')
   const csrf = await ensureCSRF()
   const res = await fetch('/api/method/healthcare.api.iop.update_iop_enrollment', {
@@ -187,12 +220,20 @@ export async function updateIOPEnrollmentSessions(
     headers: {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
-      ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {})
+      ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
     },
-    body: JSON.stringify({ name, iop_session })
+    body: JSON.stringify({ name, ...payload }),
   })
   const data = await res.json()
   if (data?.exc) throw new Error(messageFromExc(data.exc, data.exc_type))
   if (!data?.message?.name) throw new Error('Failed to update enrollment')
-  return data.message as { name: string }
+  return data.message as { name: string; status?: string }
+}
+
+/** @deprecated Use updateIOPEnrollment */
+export async function updateIOPEnrollmentSessions(
+  name: string,
+  iop_session: IOPEnrollmentSessionRow[],
+): Promise<{ name: string }> {
+  return updateIOPEnrollment(name, { iop_session })
 }

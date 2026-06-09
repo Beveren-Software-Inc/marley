@@ -82,6 +82,7 @@
   "nurse_mini_warehouse",
   "more_info_tab",
   "default_patient",
+  "auto_create_patient_visit_on_iop_enrollment",
   "pricing_tab",
   "patient_category_pricing"
  ],
@@ -563,11 +564,17 @@
    "fieldtype": "Link",
    "label": "Default Patient Appointment Item",
    "options": "Item"
+  },
+  {
+   "default": "0",
+   "fieldname": "auto_create_patient_visit_on_iop_enrollment",
+   "fieldtype": "Check",
+   "label": "Auto Create Patient Visit on IOP Enrollment "
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-05-21 15:19:03.725841",
+ "modified": "2026-06-10 00:35:12.898139",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Settings",
