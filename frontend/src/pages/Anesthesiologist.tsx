@@ -60,13 +60,20 @@ export const AnesthesiologistPage = () => {
   const [patientHistoryRefreshKey, setPatientHistoryRefreshKey] = useState(0)
 
   useEffect(() => {
-    const patientParam = searchParams.get('patient') || ''
+    const patientParam = searchParams.get('patient')
     if (patientParam && patientParam !== selectedPatient) {
       setSelectedPatient(patientParam)
-    } else if (!patientParam && selectedPatient) {
-      setSelectedPatient(undefined)
     }
-  }, [searchParams])
+  }, [searchParams, selectedPatient])
+
+  useEffect(() => {
+    const patient = selectedPatient || globalPatient
+    if (!patient) return
+    if (searchParams.get('patient')) return
+    const next = new URLSearchParams(searchParams)
+    next.set('patient', patient)
+    setSearchParams(next, { replace: true })
+  }, [screen, selectedPatient, globalPatient, searchParams, setSearchParams])
 
   const handlePatientSelect = (patient: string | undefined) => {
     setSelectedPatient(patient)
@@ -78,7 +85,11 @@ export const AnesthesiologistPage = () => {
   }
 
   const header = (
-    <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
+    <PatientCareHeader
+      selectedPatient={selectedPatient || globalPatient || ''}
+      onPatientSelect={handlePatientSelect}
+      patients={[]}
+    />
   )
 
   const plusBtn = (onClick: () => void, title: string) => (

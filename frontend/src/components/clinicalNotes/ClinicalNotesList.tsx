@@ -72,13 +72,10 @@ export const ClinicalNotesList = ({
   const [practitionerQuery, setPractitionerQuery] = useState('')
   const [practitionerOpen, setPractitionerOpen] = useState(false)
   const [practitionerOptions, setPractitionerOptions] = useState<LinkFieldOption[]>([])
-  const [myPractitionerId, setMyPractitionerId] = useState<string | null>(null)
   const [practitionerInitDone, setPractitionerInitDone] = useState(false)
 
   /** Any typed note/order list: default practitioner filter to logged-in user's practitioner. */
   const applyDefaultPractitionerFilter = Boolean(clinicalNoteType?.trim())
-
-  const isOrderList = Boolean(clinicalNoteType?.trim().endsWith(' Order'))
 
   /** Without a patient: Doctor Progress Note aggregate list (pending encounters banner). */
   const hasRefContext = Boolean(
@@ -87,15 +84,7 @@ export const ClinicalNotesList = ({
   const useDoctorProgressMineOnly =
     clinicalNoteType === 'Doctor Progress Note' && !patient && !hasRefContext
 
-  /** Aggregate order sheet (no patient): optional widen to all practitioners. */
-  const isAggregateOrderList = isOrderList && !patient && !hasRefContext
-
-  const [showAllPractitionersOrders, setShowAllPractitionersOrders] = useState(false)
-
-  const mineOnlyRequest =
-    !notePractitionerFilter &&
-    (useDoctorProgressMineOnly ||
-      (isAggregateOrderList && !showAllPractitionersOrders))
+  const mineOnlyRequest = !notePractitionerFilter && useDoctorProgressMineOnly
 
   const showAdvancedNoteFilters =
     showFilters && (Boolean(patient) || applyDefaultPractitionerFilter)
@@ -111,7 +100,6 @@ export const ClinicalNotesList = ({
     ;(async () => {
       const practId = await getCurrentUserPractitioner()
       if (cancelled) return
-      setMyPractitionerId(practId)
       if (practId) {
         setNotePractitionerFilter(practId)
         try {
@@ -595,40 +583,6 @@ export const ClinicalNotesList = ({
               }}
             />
           ) : null}
-        </div>
-      )}
-
-      {isAggregateOrderList && clinicalNoteType && (
-        <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2 bg-slate-50 border border-slate-200 rounded-md text-sm">
-          <label className="flex items-center gap-2 cursor-pointer text-slate-800 select-none">
-            <input
-              type="checkbox"
-              className="rounded border-slate-300 text-primary focus:ring-primary"
-              checked={showAllPractitionersOrders}
-              onChange={(e) => {
-                const checked = e.target.checked
-                setShowAllPractitionersOrders(checked)
-                if (checked) {
-                  setNotePractitionerFilter('')
-                  setPractitionerQuery('')
-                } else if (myPractitionerId) {
-                  setNotePractitionerFilter(myPractitionerId)
-                  const match = practitionerOptions.find((p) => p.name === myPractitionerId)
-                  setPractitionerQuery(match?.label || myPractitionerId)
-                }
-              }}
-            />
-            <span>Show orders from all practitioners</span>
-          </label>
-          {!showAllPractitionersOrders ? (
-            <span className="text-xs text-slate-500">
-              Default is your orders only; turn on to see the full list and avoid repeating orders others placed.
-            </span>
-          ) : (
-            <span className="text-xs text-slate-500">
-              Showing everyone&apos;s {clinicalNoteType}. Uncheck to return to yours only.
-            </span>
-          )}
         </div>
       )}
 

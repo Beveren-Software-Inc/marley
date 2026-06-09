@@ -120,6 +120,7 @@ export const NursePage = () => {
   const [showCreateIPServiceModal, setShowCreateIPServiceModal] = useState(false)
   const [createIPServicePreFill, setCreateIPServicePreFill] = useState<{ serviceRequest?: string; patient?: string } | null>(null)
   const [prescriptionRefreshKey] = useState(0)
+  const [showPsychNoteModal, setShowPsychNoteModal] = useState(false)
   const [showPsychOrderModal, setShowPsychOrderModal] = useState(false)
   // Doctor notes are read-only on the nurse screen — no create modal state needed
   const [showNutritionNoteModal, setShowNutritionNoteModal] = useState(false)
@@ -677,9 +678,22 @@ export const NursePage = () => {
               patient={selectedPatient}
               clinicalNoteType="Psychologist Note"
               onPatientClick={handlePatientSelect}
+              onAdd={() => setShowPsychNoteModal(true)}
+              addButtonTitle="Add Psychologist Note"
             />
           </section>
         </div>
+        {showPsychNoteModal && (
+          <CreateClinicalNoteModal
+            onClose={() => setShowPsychNoteModal(false)}
+            onSuccess={() => {
+              setShowPsychNoteModal(false)
+            }}
+            initialPatient={selectedPatient}
+            defaultClinicalNoteType="Psychologist Note"
+            title="Add Psychologist Note"
+          />
+        )}
       </div>
     )
   }
