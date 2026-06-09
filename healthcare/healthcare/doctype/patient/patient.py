@@ -108,10 +108,9 @@ class Patient(Document):
 	# 	)
 
 	def set_missing_customer_details(self):
-		if not self.customer_group:
-			self.customer_group = frappe.db.get_single_value(
-				"Selling Settings", "customer_group"
-			) or get_root_of("Customer Group")
+		if not self.customer_group or _is_group_customer_group(self.customer_group):
+			ensure_patient_customer_group_exists()
+			self.customer_group = "Patient"
 		if not self.territory:
 			self.territory = frappe.db.get_single_value("Selling Settings", "territory") or get_root_of(
 				"Territory"
@@ -324,8 +323,12 @@ class Patient(Document):
 
 	def update_linked_customer(self):
 		customer = frappe.get_doc("Customer", self.customer)
-		if self.customer_group:
-			customer.customer_group = self.customer_group
+		cg = self.customer_group
+		if cg and not _is_group_customer_group(cg):
+			customer.customer_group = cg
+		elif not customer.customer_group or _is_group_customer_group(customer.customer_group):
+			ensure_patient_customer_group_exists()
+			customer.customer_group = "Patient"
 		if self.territory:
 			customer.territory = self.territory
 		customer.customer_name = self.patient_name
@@ -370,17 +373,36 @@ class Patient(Document):
 
 # 	frappe.db.set_value("Patient", doc.name, "customer", customer.name)
 # 	frappe.msgprint(_("Customer {0} created and linked to Patient").format(customer.name), alert=True)
-def create_customer(doc):
-	# Ensure Patient Customer Group exists
-	customer_group = "Patient"
+ALL_CUSTOMER_GROUP_NAMES = frozenset({"All Customer Groups", "All Customer Group"})
 
-	if not frappe.db.exists("Customer Group", customer_group):
-		frappe.get_doc({
+
+def _is_group_customer_group(name):
+	if not name:
+		return True
+	if name in ALL_CUSTOMER_GROUP_NAMES:
+		return True
+	return cint(frappe.db.get_value("Customer Group", name, "is_group"))
+
+
+def ensure_patient_customer_group_exists():
+	if frappe.db.exists("Customer Group", "Patient"):
+		return
+	parent = frappe.db.get_single_value("Selling Settings", "customer_group") or "All Customer Groups"
+	if not frappe.db.exists("Customer Group", parent) or _is_group_customer_group(parent):
+		parent = "All Customer Groups"
+	frappe.get_doc(
+		{
 			"doctype": "Customer Group",
-			"customer_group_name": customer_group,
+			"customer_group_name": "Patient",
 			"is_group": 0,
-			"parent_customer_group": frappe.db.get_single_value("Selling Settings", "customer_group")
-		}).insert(ignore_permissions=True)
+			"parent_customer_group": parent,
+		}
+	).insert(ignore_permissions=True)
+
+
+def create_customer(doc):
+	ensure_patient_customer_group_exists()
+	customer_group = "Patient"
 
 	# Create Customer
 	customer = frappe.get_doc({

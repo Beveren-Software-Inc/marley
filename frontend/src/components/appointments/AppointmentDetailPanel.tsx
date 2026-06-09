@@ -289,7 +289,7 @@ export function AppointmentDetailPanel({
 
       {!!(doc.practitioner || doc.department) && (
         <Section
-          title="Practitioner"
+          title="Doctor"
           icon={
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path
@@ -300,10 +300,10 @@ export function AppointmentDetailPanel({
             </svg>
           }
         >
-          <InfoRow label="Practitioner" value={str(doc.practitioner_name || doc.practitioner)} />
+          <InfoRow label="Doctor" value={str(doc.practitioner_name || doc.practitioner)} />
           <InfoRow label="Department" value={str(doc.department)} />
           {!!doc.referring_practitioner && (
-            <InfoRow label="Referring Practitioner" value={str(doc.referring_practitioner)} />
+            <InfoRow label="Referring Doctor" value={str(doc.referring_practitioner)} />
           )}
         </Section>
       )}

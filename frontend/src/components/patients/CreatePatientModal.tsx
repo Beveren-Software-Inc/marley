@@ -18,6 +18,7 @@ import {
 import { fetchLeadSources, fetchNationalities, fetchCountries, fetchDocumentTypes, fetchHealthcareInsurance, fetchSalutations, fetchInsurancePatientRegisters, fetchPatientCategories, type LinkFieldOption, type InsurancePatientRegisterRow } from '../../services/common'
 import { CreateLeadSourceModal } from './CreateLeadSourceModal'
 import { CreateNationalityModal } from './CreateNationalityModal'
+import { DocumentTypeSelect } from '../ui/DocumentTypeSelect'
 import { toast } from '../../hooks/useToast'
 import { PenLine, Trash2, Check } from 'lucide-react'
 
@@ -1312,13 +1313,12 @@ export const CreatePatientModal = ({ onClose, onSuccess, initialName, initialMob
                           </div>
                           <div>
                             <label className="block text-xs font-medium text-slate-600 mb-0.5">Document Type</label>
-                            <select value={row.document_type || ''} onChange={(e) => updateDocumentRow(idx, 'document_type', e.target.value)}
-                              className="w-full rounded border border-slate-300 bg-white text-slate-900 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
-                              <option value="">Select type</option>
-                              {documentTypes.map((dt) => (
-                                <option key={dt.name} value={dt.name}>{dt.document_name || dt.name}</option>
-                              ))}
-                            </select>
+                            <DocumentTypeSelect
+                              value={row.document_type || ''}
+                              onChange={(v) => updateDocumentRow(idx, 'document_type', v)}
+                              types={documentTypes}
+                              onTypesUpdated={setDocumentTypes}
+                            />
                           </div>
                           <div>
                             <label className="block text-xs font-medium text-slate-600 mb-0.5">Transaction No</label>

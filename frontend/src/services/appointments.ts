@@ -513,7 +513,7 @@ export function friendlyAvailabilityMessage(raw: string): string {
         ? msg
         : `${msg.replace(/\.\s*$/, '')}, or use Custom time to book.`
     }
-    return 'This practitioner has no schedule set up. Open the Healthcare Practitioner record and add entries under Practitioner Schedules, or use Custom time to book.'
+    return 'This doctor has no schedule set up. Add schedule entries for the doctor, or use Custom time to book.'
   }
   if (/holiday/i.test(msg)) {
     return msg
@@ -522,7 +522,7 @@ export function friendlyAvailabilityMessage(raw: string): string {
     return msg
   }
   if (/Traceback|File \"/i.test(msg)) {
-    return 'Could not load schedule slots. Check the practitioner schedule or use Custom time.'
+    return 'Could not load schedule slots. Check the doctor\'s schedule or use Custom time.'
   }
   return msg
 }

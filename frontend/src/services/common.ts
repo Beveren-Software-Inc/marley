@@ -290,14 +290,33 @@ export async function fetchCountries(): Promise<{ name: string }[]> {
   return Array.isArray(data?.data) ? data.data : []
 }
 
-/** Fetch Document Type list for Patient document dropdown. */
-export async function fetchDocumentTypes(): Promise<{ name: string; document_name?: string }[]> {
+export type DocumentTypeOption = { name: string; document_name?: string }
+
+/** Fetch Document Type list for portal document upload dropdowns. */
+export async function fetchDocumentTypes(search?: string): Promise<DocumentTypeOption[]> {
+  const params = new URLSearchParams()
+  if (search?.trim()) params.set('search', search.trim())
   const res = await fetch(
-    '/api/resource/Document%20Type?fields=["name","document_name"]&limit_page_length=200'
+    `/api/method/healthcare.api.common.get_document_types${params.toString() ? `?${params.toString()}` : ''}`,
+    { credentials: 'include' },
   )
-  const data = await res.json()
-  if (!Array.isArray(data?.data)) return []
-  return data.data
+  const data = await res.json().catch(() => ({}))
+  if (data?.exc) {
+    throw new Error(typeof data.message === 'string' ? data.message : 'Failed to load document types')
+  }
+  return Array.isArray(data?.message) ? (data.message as DocumentTypeOption[]) : []
+}
+
+/** Create a new Document Type from the portal. */
+export async function createDocumentType(documentName: string): Promise<DocumentTypeOption> {
+  const { apiRequest } = await import('./apiClient')
+  return apiRequest<DocumentTypeOption>(
+    '/api/method/healthcare.api.common.create_document_type',
+    {
+      method: 'POST',
+      body: JSON.stringify({ document_name: documentName.trim() }),
+    },
+  )
 }
 
 /** Fetch a single document by doctype and name (Frappe resource API). */

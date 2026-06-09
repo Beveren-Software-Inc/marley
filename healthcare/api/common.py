@@ -3792,3 +3792,35 @@ def get_observation_levels(query=None):
     return levels
 
 
+@frappe.whitelist()
+def get_document_types(search=None):
+	"""Document Type options for portal upload forms."""
+	filters = {}
+	search = (search or "").strip()
+	if search:
+		filters["document_name"] = ["like", f"%{search}%"]
+
+	return frappe.get_all(
+		"Document Type",
+		fields=["name", "document_name"],
+		filters=filters,
+		limit=200,
+		order_by="document_name asc",
+	)
+
+
+@frappe.whitelist()
+def create_document_type(document_name=None):
+	"""Create a Document Type from the portal when the needed type is missing."""
+	document_name = (document_name or "").strip()
+	if not document_name:
+		frappe.throw(_("Document Name is required"))
+
+	if frappe.db.exists("Document Type", document_name):
+		return {"name": document_name, "document_name": document_name}
+
+	doc = frappe.get_doc({"doctype": "Document Type", "document_name": document_name})
+	doc.insert(ignore_permissions=True)
+	return {"name": doc.name, "document_name": doc.document_name}
+
+
