@@ -501,7 +501,7 @@
 //                             )
 //                           )}
 //                           {!apt.practitioner && (
-//                             <span className="text-sm text-slate-400">No practitioner assigned</span>
+//                             <span className="text-sm text-slate-400">No doctor assigned</span>
 //                           )}
 //                         </td>
 //                       </>
@@ -734,7 +734,7 @@ function appointmentCardMetaFields(apt: Appointment): readonly CardMetaField[] {
   const fields: CardMetaField[] = [
     ['Appointment ID', apt.name],
     ['Type', apt.appointment_type],
-    ['Practitioner', apt.practitioner_name || apt.practitioner],
+    ['Doctor', apt.practitioner_name || apt.practitioner],
     ['Department', apt.department],
     ['Cost center', apt.cost_center],
     ['Service unit', apt.service_unit],
@@ -1318,13 +1318,13 @@ export const AppointmentList = ({
             onClick={clearFilters}
             className="underline font-medium hover:text-blue-700"
           >
-            Show all practitioners
+            Show all doctors
           </button>
         </div>
       )}
       {doctorScheduleMode && !patient && schedulePractitionerResolved && !myPractitionerId && (
         <p className="text-xs text-amber-700 mb-2">
-          No Healthcare Practitioner is linked to your user. Appointments may be empty unless you have a reception/admin role.
+          No doctor is linked to your user. Appointments may be empty unless you have a reception/admin role.
         </p>
       )}
       {/* Header row */}
@@ -1357,7 +1357,7 @@ export const AppointmentList = ({
               type="text"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Patient, practitioner, ID…"
+              placeholder="Patient, doctor, ID…"
               className={FILTER_CONTROL_CLASS}
             />
           </div>
@@ -1379,7 +1379,7 @@ export const AppointmentList = ({
 
           {useAllAppointmentsApi && (
             <div data-filter-dropdown className="flex flex-col gap-1 min-w-[180px]">
-              <label className={FILTER_LABEL_CLASS}>Practitioner</label>
+              <label className={FILTER_LABEL_CLASS}>Doctor</label>
               <div className="relative">
                 <input
                   type="text"
@@ -1391,14 +1391,14 @@ export const AppointmentList = ({
                     setPage(1)
                   }}
                   onFocus={() => setPractitionerOpen(true)}
-                  placeholder="Search practitioner..."
+                  placeholder="Search doctor..."
                   className={`${FILTER_CONTROL_CLASS}${filterPractitioner ? ' pr-8' : ''}`}
                 />
                 {filterPractitioner && (
                   <button
                     type="button"
                     className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                    aria-label="Clear practitioner filter"
+                    aria-label="Clear doctor filter"
                     onClick={() => {
                       setFilterPractitioner('')
                       setPractitionerQuery('')
@@ -1635,11 +1635,11 @@ export const AppointmentList = ({
                 {showPractitionerColumn && (
                   <>
                     <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap min-w-[8rem]">
-                      Practitioner
+                      Doctor
                     </th>
                     {showAll && (
                     <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap min-w-[9.5rem]">
-                      Practitioner Status
+                      Doctor Status
                     </th>
                     )}
                   </>
@@ -1720,7 +1720,7 @@ export const AppointmentList = ({
                             )
                           )}
                           {!apt.practitioner && (
-                            <span className="text-sm text-slate-400">No practitioner assigned</span>
+                            <span className="text-sm text-slate-400">No doctor assigned</span>
                           )}
                         </td>
                         )}

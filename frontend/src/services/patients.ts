@@ -586,10 +586,18 @@ export interface AddressDoc {
 }
 
 export async function fetchPatientDoc(name: string): Promise<PatientDoc> {
-  const res = await fetch(`/api/resource/Patient/${encodeURIComponent(name)}`)
-  const data = await res.json()
-  if (data?.data) return data.data as PatientDoc
-  throw new Error(data?.message?.message || data?.message || 'Failed to load patient')
+  const res = await fetch(
+    `/api/method/healthcare.api.patient.get_patient_doc?patient=${encodeURIComponent(name)}`,
+    { credentials: 'include' },
+  )
+  const data = await res.json().catch(() => ({}))
+  if (data?.exc) {
+    throw new Error(typeof data.message === 'string' ? data.message : 'Failed to load patient')
+  }
+  if (data?.message && typeof data.message === 'object') {
+    return data.message as PatientDoc
+  }
+  throw new Error(messageFromFrappeResponse(data as Record<string, unknown>) || 'Failed to load patient')
 }
 
 export async function fetchAddressDoc(name: string): Promise<AddressDoc | null> {
@@ -647,6 +655,7 @@ interface PatientRelation{
 
 }
 export interface UpdatePatientData {
+  patient_name?: string
   first_name?: string
   file_no?:string
   middle_name?: string
@@ -690,15 +699,16 @@ export function messageFromFrappeResponse(out: Record<string, unknown>): string 
 
 /** On success, may return the server message (e.g. "Customer X updated"). */
 export async function updatePatientDoc(patientName: string, data: UpdatePatientData): Promise<{ message?: string }> {
-  const csrf = (window as any).csrf_token
-  const res = await fetch(`/api/resource/Patient/${encodeURIComponent(patientName)}`, {
-    method: 'PUT',
+  const csrf = (window as any).csrf_token || (await (await import('./apiClient')).ensureCSRF())
+  const res = await fetch('/api/method/healthcare.api.patient.update_patient', {
+    method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {})
+      Accept: 'application/json',
+      ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
     },
-    body: JSON.stringify(data),
-    credentials: 'include'
+    body: JSON.stringify({ patient: patientName, data }),
+    credentials: 'include',
   })
   const out = await res.json().catch(() => ({}))
   if (!res.ok || out?.exc) {

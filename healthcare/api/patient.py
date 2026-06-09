@@ -202,6 +202,100 @@ def check_patient_duplicate(patient_name=None, mobile=None, phone=None, category
 	}
 
 
+ALL_CUSTOMER_GROUP_NAMES = frozenset({"All Customer Groups", "All Customer Group"})
+
+
+def _is_group_customer_group(name):
+	if not name:
+		return True
+	if name in ALL_CUSTOMER_GROUP_NAMES:
+		return True
+	return cint(frappe.db.get_value("Customer Group", name, "is_group"))
+
+
+def _ensure_patient_customer_group_exists():
+	from healthcare.healthcare.doctype.patient.patient import ensure_patient_customer_group_exists
+
+	ensure_patient_customer_group_exists()
+
+
+def _serialize_patient_for_portal(patient_doc):
+	relations = []
+	for row in patient_doc.get("patient_relation") or []:
+		relations.append(
+			{
+				"full_name": row.get("full_name"),
+				"relation": row.get("relation"),
+				"mobile_no": row.get("mobile_no"),
+				"email": row.get("email"),
+				"description": row.get("description"),
+				"is_next_of_kin": cint(row.get("is_next_of_kin")),
+			}
+		)
+
+	documents = []
+	for row in patient_doc.get("patient_document") or []:
+		documents.append(
+			{
+				"name": row.get("name"),
+				"file_name": row.get("document_name") or row.get("file_name"),
+				"document_type": row.get("document_type"),
+				"transaction_no": row.get("transaction_no"),
+				"upload_remarks": row.get("upload_remarks"),
+				"document": row.get("document"),
+			}
+		)
+
+	return {
+		"name": patient_doc.name,
+		"patient_name": patient_doc.patient_name,
+		"file_no": getattr(patient_doc, "file_no", None) or patient_doc.name,
+		"first_name": getattr(patient_doc, "first_name", None),
+		"middle_name": getattr(patient_doc, "middle_name", None),
+		"last_name": getattr(patient_doc, "last_name", None),
+		"title": getattr(patient_doc, "title", None),
+		"sex": getattr(patient_doc, "sex", None),
+		"dob": getattr(patient_doc, "dob", None),
+		"blood_group": getattr(patient_doc, "blood_group", None),
+		"mobile": getattr(patient_doc, "mobile", None),
+		"phone": getattr(patient_doc, "phone", None),
+		"email": getattr(patient_doc, "email", None),
+		"id_number": getattr(patient_doc, "id_number", None),
+		"nationality": getattr(patient_doc, "nationality", None),
+		"category": getattr(patient_doc, "category", None),
+		"source": getattr(patient_doc, "source", None),
+		"marital_status": getattr(patient_doc, "marital_status", None),
+		"is_black_list": cint(getattr(patient_doc, "is_black_list", 0)),
+		"remarks": getattr(patient_doc, "patient_details", None),
+		"address": getattr(patient_doc, "address", None),
+		"city": getattr(patient_doc, "city", None),
+		"country": getattr(patient_doc, "country", None),
+		"alternative_mobile_no_1": getattr(patient_doc, "alter_mobile_no", None),
+		"alternative_mobile_no_2": getattr(patient_doc, "alter_2_mobile_no", None),
+		"job_title": getattr(patient_doc, "job_title", None),
+		"job_company": getattr(patient_doc, "job_company", None),
+		"has_insurance": cint(getattr(patient_doc, "is_insurance", 0)),
+		"insurance": getattr(patient_doc, "insurance", None),
+		"insurance_type": getattr(patient_doc, "insurance_type", None),
+		"insurance_company_no": getattr(patient_doc, "insurance_company_no", None),
+		"insurance_policy": getattr(patient_doc, "insurance_policy_no", None),
+		"ref_no": getattr(patient_doc, "ref_no", None),
+		"insurance_register": getattr(patient_doc, "insurance_register", None),
+		"patient_relation": relations,
+		"patient_document": documents,
+	}
+
+
+@frappe.whitelist()
+def get_patient_doc(patient=None):
+	"""Full Patient record for portal edit form (bypasses REST read permission)."""
+	patient = (patient or "").strip()
+	if not patient or not frappe.db.exists("Patient", patient):
+		frappe.throw(_("Patient not found"))
+	patient_doc = frappe.get_doc("Patient", patient)
+	return _serialize_patient_for_portal(patient_doc)
+
+
 @frappe.whitelist()
 def get_next_patient_file_no():
 	"""Generate the next file number for a new Patient record."""
@@ -225,8 +319,11 @@ def create_patient(data):
 		phone=data.get("phone"),
 	)
 
+	_ensure_patient_customer_group_exists()
+
 	patient = frappe.get_doc({
 		"doctype": "Patient",
+		"customer_group": "Patient",
 		"title": data.get("title") or None,
 		# "first_name": data.get("first_name"),
 		# "middle_name": data.get("middle_name") or "",
@@ -293,15 +390,19 @@ def _validate_patient_payload(data):
 
 from frappe.utils import cint
 
-def _add_patient_relations(patient, data):
-
-	relations = data.get("patient_relation") or []
-
-	if isinstance(relations, str):
+def _parse_child_rows(data, key):
+	rows = data.get(key) or []
+	if isinstance(rows, str):
 		import json
-		relations = json.loads(relations) if relations.strip() else []
+		rows = json.loads(rows) if rows.strip() else []
+	return rows if isinstance(rows, list) else []
 
-	for row in relations:
+
+def _apply_patient_relations(patient, data, *, replace=False):
+	if replace:
+		patient.set("patient_relation", [])
+
+	for row in _parse_child_rows(data, "patient_relation"):
 		if not isinstance(row, dict):
 			continue
 
@@ -313,16 +414,22 @@ def _add_patient_relations(patient, data):
 		is_next_of_kin = cint(row.get("is_next_of_kin"))
 
 		if relation or mobile_no or email or full_name or is_next_of_kin:
-			patient.append("patient_relation", {
-				"patient": patient.name,
-				"relation": relation,
-				"mobile_no": mobile_no,
-				"email": email,
-				"description": description,
-				"full_name": full_name,
-				"is_next_of_kin": is_next_of_kin,
-			})
+			patient.append(
+				"patient_relation",
+				{
+					"patient": patient.name,
+					"relation": relation,
+					"mobile_no": mobile_no,
+					"email": email,
+					"description": description,
+					"full_name": full_name,
+					"is_next_of_kin": is_next_of_kin,
+				},
+			)
 
+
+def _add_patient_relations(patient, data):
+	_apply_patient_relations(patient, data)
 	if patient.get("patient_relation"):
 		patient.save(ignore_permissions=True)
 
@@ -493,15 +600,11 @@ def _setup_patient_links(patient, data):
 	except Exception:
 		pass
 
-def _add_patient_documents(patient, data):
+def _apply_patient_documents(patient, data, *, replace=False):
+	if replace:
+		patient.set("patient_document", [])
 
-	documents = data.get("patient_document") or data.get("documents") or []
-
-	if isinstance(documents, str):
-		import json
-		documents = json.loads(documents) if documents.strip() else []
-
-	for row in documents:
+	for row in _parse_child_rows(data, "patient_document") or _parse_child_rows(data, "documents"):
 		if not isinstance(row, dict):
 			continue
 
@@ -515,17 +618,118 @@ def _add_patient_documents(patient, data):
 		if not display_name and document_url:
 			display_name = document_url.split("/")[-1]
 
-		patient.append("patient_document", {
-			"document_name": display_name,
-			"file_name": document_type,
-			"document_type": document_type,
-			"transaction_no": row.get("transaction_no"),
-			"upload_remarks": row.get("upload_remarks"),
-			"document": document_url,
-		})
+		patient.append(
+			"patient_document",
+			{
+				"document_name": display_name,
+				"file_name": document_type,
+				"document_type": document_type,
+				"transaction_no": row.get("transaction_no"),
+				"upload_remarks": row.get("upload_remarks"),
+				"document": document_url,
+			},
+		)
 
+
+def _add_patient_documents(patient, data):
+	_apply_patient_documents(patient, data)
 	if patient.get("patient_document"):
 		patient.save(ignore_permissions=True)
+
+
+def _apply_patient_scalar_fields(patient, data):
+	first_name = (data.get("first_name") or "").strip()
+	middle_name = (data.get("middle_name") or "").strip()
+	last_name = (data.get("last_name") or "").strip()
+	patient_name = (data.get("patient_name") or "").strip()
+	if not patient_name:
+		patient_name = " ".join(part for part in [first_name, middle_name, last_name] if part)
+
+	scalar_map = {
+		"title": "title",
+		"first_name": "first_name",
+		"middle_name": "middle_name",
+		"last_name": "last_name",
+		"sex": "sex",
+		"dob": "dob",
+		"blood_group": "blood_group",
+		"mobile": "mobile",
+		"phone": "phone",
+		"email": "email",
+		"id_number": "id_number",
+		"nationality": "nationality",
+		"category": "category",
+		"source": "source",
+		"marital_status": "marital_status",
+		"job_title": "job_title",
+		"job_company": "job_company",
+		"insurance": "insurance",
+		"insurance_type": "insurance_type",
+		"insurance_company_no": "insurance_company_no",
+		"ref_no": "ref_no",
+		"insurance_register": "insurance_register",
+	}
+
+	for src, field in scalar_map.items():
+		if src in data:
+			patient.set(field, data.get(src) or None)
+
+	if first_name or "first_name" in data:
+		patient.first_name = first_name or None
+	if middle_name or "middle_name" in data:
+		patient.middle_name = middle_name or None
+	if last_name or "last_name" in data:
+		patient.last_name = last_name or None
+	if patient_name:
+		patient.patient_name = patient_name
+
+	if "file_no" in data and data.get("file_no"):
+		patient.file_no = data.get("file_no")
+
+	if "remarks" in data:
+		patient.patient_details = data.get("remarks") or None
+	if "alternative_mobile_no_1" in data:
+		patient.alter_mobile_no = data.get("alternative_mobile_no_1") or None
+	if "alternative_mobile_no_2" in data:
+		patient.alter_2_mobile_no = data.get("alternative_mobile_no_2") or None
+	if "has_insurance" in data:
+		patient.is_insurance = 1 if data.get("has_insurance") else 0
+	if "insurance_policy" in data:
+		patient.insurance_policy_no = data.get("insurance_policy") or None
+	if "is_black_list" in data:
+		patient.is_black_list = 1 if data.get("is_black_list") else 0
+
+	if _is_group_customer_group(patient.customer_group):
+		_ensure_patient_customer_group_exists()
+		patient.customer_group = "Patient"
+
+
+@frappe.whitelist()
+def update_patient(patient, data):
+	"""Update Patient from portal (bypasses REST write permission)."""
+	if isinstance(data, str):
+		import json
+		data = json.loads(data)
+
+	patient = (patient or "").strip()
+	if not patient or not frappe.db.exists("Patient", patient):
+		frappe.throw(_("Patient not found"))
+
+	doc = frappe.get_doc("Patient", patient)
+	_apply_patient_scalar_fields(doc, data)
+
+	if "patient_relation" in data:
+		_apply_patient_relations(doc, data, replace=True)
+	if "patient_document" in data:
+		_apply_patient_documents(doc, data, replace=True)
+
+	doc.save(ignore_permissions=True)
+
+	return {
+		"name": doc.name,
+		"patient_name": doc.patient_name,
+		"file_no": getattr(doc, "file_no", None) or doc.name,
+	}
 
 
 

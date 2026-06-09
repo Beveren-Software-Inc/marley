@@ -22,6 +22,7 @@ import {
 } from '../../services/common'
 import { CreateLeadSourceModal } from './CreateLeadSourceModal'
 import { CreateNationalityModal } from './CreateNationalityModal'
+import { DocumentTypeSelect } from '../ui/DocumentTypeSelect'
 import { toast } from '../../hooks/useToast'
 import { PenLine, Trash2, Check, X } from 'lucide-react'
 
@@ -350,8 +351,11 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
         setDocumentTypes(docTypes)
         setCategoryOptions(categories)
 
-        // Build full name
-        const fullName = [patient.first_name, patient.middle_name, patient.last_name].filter(Boolean).join(' ') || ''
+        // Build full name (prefer stored parts, fall back to patient_name)
+        const fullName =
+          [patient.first_name, patient.middle_name, patient.last_name].filter(Boolean).join(' ') ||
+          patient.patient_name ||
+          ''
 
         setFormData({
           patient_name: fullName,
@@ -585,6 +589,7 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
 
       const patientPayload: UpdatePatientData = {
         title: formData.title || undefined,
+        patient_name: formData.patient_name.trim(),
         first_name: firstName,
         middle_name: undefined,
         last_name: lastName || undefined,
@@ -1318,10 +1323,12 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
                           </div>
                           <div>
                             <label className="block text-xs font-medium text-slate-600 mb-0.5">Document Type</label>
-                            <select value={row.document_type || ''} onChange={(e) => updateDocumentRow(idx, 'document_type', e.target.value)} className="w-full rounded border border-slate-300 bg-white text-slate-900 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
-                              <option value="">Select type</option>
-                              {documentTypes.map((dt) => (<option key={dt.name} value={dt.name}>{dt.document_name || dt.name}</option>))}
-                            </select>
+                            <DocumentTypeSelect
+                              value={row.document_type || ''}
+                              onChange={(v) => updateDocumentRow(idx, 'document_type', v)}
+                              types={documentTypes}
+                              onTypesUpdated={setDocumentTypes}
+                            />
                           </div>
                           <div>
                             <label className="block text-xs font-medium text-slate-600 mb-0.5">Transaction No</label>

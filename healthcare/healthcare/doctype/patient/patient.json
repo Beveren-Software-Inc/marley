@@ -1170,7 +1170,7 @@
   }
  ],
  "max_attachments": 50,
- "modified": "2026-06-09 17:42:03.185459",
+ "modified": "2026-06-09 23:30:42.815619",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient",
@@ -1234,6 +1234,18 @@
    "read": 1,
    "report": 1,
    "role": "Psychologist",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Reception",
    "share": 1,
    "write": 1
   }

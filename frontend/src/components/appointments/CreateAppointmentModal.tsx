@@ -719,7 +719,7 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">
-              Healthcare Practitioner <span className="text-red-500">*</span>
+              Doctor <span className="text-red-500">*</span>
             </label>
             <div className="relative flex items-center">
               <input
@@ -733,7 +733,7 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
                   setSlotsError(null)
                 }}
                 onFocus={() => setPractitionerOpen(true)}
-                placeholder="Select practitioner..."
+                placeholder="Select doctor..."
                 className="w-full rounded-md border border-slate-300 px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
               />
               <button
@@ -743,7 +743,7 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
                   setShowCreatePractitioner(true)
                 }}
                 className="absolute right-2 p-1 text-primary hover:text-primary/80 rounded"
-                title="Create New Practitioner"
+                title="Create New Doctor"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />

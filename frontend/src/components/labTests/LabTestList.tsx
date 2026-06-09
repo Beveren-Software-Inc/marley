@@ -1711,6 +1711,7 @@ import { useCardFilters, useDashboardCompactClinical } from '../../contexts/Card
 import { useBatchLabTestResults } from '../../hooks/useBatchLabTestResults'
 import { LabTestDashboardCardTable } from './LabTestDashboardCardTable'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
+import { DocumentTypeSelect } from '../ui/DocumentTypeSelect'
 
 export type LabTestListBatchSaveRef = {
   savePendingChanges: () => Promise<void>
@@ -3883,7 +3884,15 @@ export const LabTestList = ({
                   {resultDocuments.map((row, idx) => (
                     <div key={idx} className="rounded-lg border border-slate-200 bg-slate-50/50 p-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div><label className="block text-xs font-medium text-slate-600 mb-0.5">File Name</label><input value={row.file_name || ''} onChange={(e) => updateResultDocumentRow(idx, 'file_name', e.target.value)} placeholder="File name" className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm" /></div>
-                      <div><label className="block text-xs font-medium text-slate-600 mb-0.5">Document Type</label><select value={row.document_type || ''} onChange={(e) => updateResultDocumentRow(idx, 'document_type', e.target.value)} className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm bg-white"><option value="">Select type</option>{resultDocumentTypes.map((dt) => <option key={dt.name} value={dt.name}>{dt.document_name || dt.name}</option>)}</select></div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 mb-0.5">Document Type</label>
+                        <DocumentTypeSelect
+                          value={row.document_type || ''}
+                          onChange={(v) => updateResultDocumentRow(idx, 'document_type', v)}
+                          types={resultDocumentTypes}
+                          onTypesUpdated={setResultDocumentTypes}
+                        />
+                      </div>
                       <div><label className="block text-xs font-medium text-slate-600 mb-0.5">Transaction No</label><input value={row.transaction_no || ''} onChange={(e) => updateResultDocumentRow(idx, 'transaction_no', e.target.value)} placeholder="Optional" className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm" /></div>
                       <div><label className="block text-xs font-medium text-slate-600 mb-0.5">Upload Remarks</label><input value={row.upload_remarks || ''} onChange={(e) => updateResultDocumentRow(idx, 'upload_remarks', e.target.value)} placeholder="Optional" className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm" /></div>
                       <div className="sm:col-span-2">

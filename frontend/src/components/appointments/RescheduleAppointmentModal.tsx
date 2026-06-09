@@ -170,7 +170,7 @@ export const RescheduleAppointmentModal = ({
           if (res.user_message) {
             setSlotsError(res.user_message)
           } else if (!res.slot_details?.length) {
-            setSlotsError('No slots available for this date. The practitioner may be on leave or it\'s a holiday.')
+            setSlotsError('No slots available for this date. The doctor may be on leave or it\'s a holiday.')
           }
         }
       })
@@ -183,7 +183,7 @@ export const RescheduleAppointmentModal = ({
               errorMessage.toLowerCase().includes('leave') ||
               errorMessage.toLowerCase().includes('not available')) {
             setIsPractitionerOnLeave(true)
-            setSlotsError(`❌ Practitioner is not available on ${appointment_date}. Please select a different date.`)
+            setSlotsError(`❌ Doctor is not available on ${appointment_date}. Please select a different date.`)
           } else {
             setSlotsError(errorMessage)
           }
@@ -211,7 +211,7 @@ export const RescheduleAppointmentModal = ({
     
     // Check if practitioner is on leave before submitting
     if (isPractitionerOnLeave) {
-      setError(`Cannot reschedule: Practitioner is not available on ${appointment_date}. Please select a different date.`)
+      setError(`Cannot reschedule: Doctor is not available on ${appointment_date}. Please select a different date.`)
       return
     }
     
@@ -245,7 +245,7 @@ export const RescheduleAppointmentModal = ({
         message = `❌ Cannot reschedule: ${message}`
         setIsPractitionerOnLeave(true)
       } else if (message.toLowerCase().includes('leave') || message.toLowerCase().includes('not available')) {
-        message = `❌ Practitioner is not available on ${appointment_date}. Please select a different date.`
+        message = `❌ Doctor is not available on ${appointment_date}. Please select a different date.`
         setIsPractitionerOnLeave(true)
       }
       
@@ -285,7 +285,7 @@ export const RescheduleAppointmentModal = ({
           </p>
           {hasPractitioner && (
             <p className="text-sm text-slate-500">
-              Practitioner: {appointment.practitioner_name || appointment.practitioner}
+              Doctor: {appointment.practitioner_name || appointment.practitioner}
             </p>
           )}
 
@@ -302,7 +302,7 @@ export const RescheduleAppointmentModal = ({
             <div className="bg-amber-50 border border-amber-200 rounded-md p-3 flex items-start gap-2">
               <CalendarOff className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
               <span className="text-sm text-amber-800">
-                The practitioner is not available on {appointment_date}. Please select a different date.
+                The doctor is not available on {appointment_date}. Please select a different date.
               </span>
             </div>
           )}
@@ -339,7 +339,7 @@ export const RescheduleAppointmentModal = ({
               )}
               {!slotsLoading && !slotsError && flatSlots.length === 0 && slotDetails && (
                 <div className="bg-amber-50 border border-amber-200 rounded-md p-3">
-                  <p className="text-sm text-amber-800">No slots available for this date. The practitioner may be on leave or fully booked.</p>
+                  <p className="text-sm text-amber-800">No slots available for this date. The doctor may be on leave or fully booked.</p>
                 </div>
               )}
               {!slotsLoading && flatSlots.length > 0 && (
@@ -383,7 +383,7 @@ export const RescheduleAppointmentModal = ({
             <div className="bg-slate-50 border border-slate-200 rounded-md p-4 text-center">
               <CalendarOff className="w-8 h-8 text-slate-400 mx-auto mb-2" />
               <p className="text-sm text-slate-600">
-                No slots available. Please select a different date when the practitioner is available.
+                No slots available. Please select a different date when the doctor is available.
               </p>
             </div>
           )}

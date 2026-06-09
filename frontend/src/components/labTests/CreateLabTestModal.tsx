@@ -9,6 +9,7 @@ import { createLabTest } from '../../services/labTests'
 import { fetchHealthcarePractitioners, fetchLabTestTemplates, fetchMedicalDepartments, fetchDocumentTypes, fetchCostCenters, getCurrentUserPractitioner, type LinkFieldOption } from '../../services/common'
 import { createNurseTask } from '../../services/nurseTask'
 import { searchPatients, fetchPatients, uploadPatientFile, type PatientListItem, type PatientDocumentRow } from '../../services/patients'
+import { DocumentTypeSelect } from '../ui/DocumentTypeSelect'
 import { CreatePatientModal } from '../patients/CreatePatientModal'
 import { CreatePractitionerModal } from '../practitioners/CreatePractitionerModal'
 import { CreateLabTestTemplateModal } from './CreateLabTestTemplateModal'
@@ -718,10 +719,12 @@ export const CreateLabTestModal = ({
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-slate-600 mb-0.5">Document Type</label>
-                    <select value={row.document_type || ''} onChange={(e) => updateDocumentRow(idx, 'document_type', e.target.value)} className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm bg-white">
-                      <option value="">Select type</option>
-                      {documentTypes.map((dt) => <option key={dt.name} value={dt.name}>{dt.document_name || dt.name}</option>)}
-                    </select>
+                    <DocumentTypeSelect
+                      value={row.document_type || ''}
+                      onChange={(v) => updateDocumentRow(idx, 'document_type', v)}
+                      types={documentTypes}
+                      onTypesUpdated={setDocumentTypes}
+                    />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-slate-600 mb-0.5">Transaction No</label>
