@@ -108,9 +108,7 @@ class Patient(Document):
 	# 	)
 
 	def set_missing_customer_details(self):
-		if not self.customer_group or _is_group_customer_group(self.customer_group):
-			ensure_patient_customer_group_exists()
-			self.customer_group = "Patient"
+		self.customer_group = resolve_patient_customer_group(self.category, self.customer_group)
 		if not self.territory:
 			self.territory = frappe.db.get_single_value("Selling Settings", "territory") or get_root_of(
 				"Territory"
@@ -327,8 +325,9 @@ class Patient(Document):
 		if cg and not _is_group_customer_group(cg):
 			customer.customer_group = cg
 		elif not customer.customer_group or _is_group_customer_group(customer.customer_group):
-			ensure_patient_customer_group_exists()
-			customer.customer_group = "Patient"
+			customer.customer_group = resolve_patient_customer_group(
+				self.category, self.customer_group
+			)
 		if self.territory:
 			customer.territory = self.territory
 		customer.customer_name = self.patient_name
@@ -384,25 +383,68 @@ def _is_group_customer_group(name):
 	return cint(frappe.db.get_value("Customer Group", name, "is_group"))
 
 
-def ensure_patient_customer_group_exists():
-	if frappe.db.exists("Customer Group", "Patient"):
-		return
+def _default_customer_group_parent():
 	parent = frappe.db.get_single_value("Selling Settings", "customer_group") or "All Customer Groups"
 	if not frappe.db.exists("Customer Group", parent) or _is_group_customer_group(parent):
 		parent = "All Customer Groups"
+	return parent
+
+
+def ensure_patient_customer_group_exists():
+	if frappe.db.exists("Customer Group", "Patient"):
+		return
 	frappe.get_doc(
 		{
 			"doctype": "Customer Group",
 			"customer_group_name": "Patient",
 			"is_group": 0,
-			"parent_customer_group": parent,
+			"parent_customer_group": _default_customer_group_parent(),
 		}
 	).insert(ignore_permissions=True)
 
 
-def create_customer(doc):
+def ensure_customer_group_for_category(category):
+	"""Create a leaf Customer Group matching the patient category when missing."""
+	category = cstr(category).strip()
+	if not category:
+		return None
+
+	if frappe.db.exists("Customer Group", category):
+		if _is_group_customer_group(category):
+			frappe.throw(
+				_("Customer Group {0} is a group node and cannot be assigned to patients").format(
+					frappe.bold(category)
+				)
+			)
+		return category
+
+	frappe.get_doc(
+		{
+			"doctype": "Customer Group",
+			"customer_group_name": category,
+			"is_group": 0,
+			"parent_customer_group": _default_customer_group_parent(),
+		}
+	).insert(ignore_permissions=True)
+	return category
+
+
+def resolve_patient_customer_group(category=None, customer_group=None):
+	"""Map Patient Category to Customer Group; legacy fallback when category is blank."""
+	category = cstr(category).strip() if category else ""
+	if category:
+		return ensure_customer_group_for_category(category)
+
+	cg = cstr(customer_group).strip() if customer_group else ""
+	if cg and not _is_group_customer_group(cg):
+		return cg
+
 	ensure_patient_customer_group_exists()
-	customer_group = "Patient"
+	return "Patient"
+
+
+def create_customer(doc):
+	customer_group = resolve_patient_customer_group(doc.category, doc.customer_group)
 
 	# Create Customer
 	customer = frappe.get_doc({

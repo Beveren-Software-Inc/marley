@@ -1964,6 +1964,86 @@ def create_insurance_patient_register(data):
 
 
 @frappe.whitelist()
+def update_insurance_patient_register(name, data):
+	"""Portal: update editable fields on an Insurance Patient Register."""
+	data = frappe.parse_json(data) if isinstance(data, str) else (data or {})
+	register_name = (name or data.get("name") or "").strip()
+	if not register_name:
+		frappe.throw(_("Register name is required"))
+	if not frappe.db.exists("Insurance Patient Register", register_name):
+		frappe.throw(_("Insurance Patient Register {0} not found").format(register_name))
+
+	if not (data.get("full_name") or "").strip():
+		frappe.throw(_("Full Name is required"))
+	if not (data.get("insurance_provider") or "").strip():
+		frappe.throw(_("Insurance Provider is required"))
+
+	used = frappe.db.get_value(
+		"Insurance Patient Register", register_name, "no_of_patient_visit"
+	) or 0
+	status = (data.get("status") or "Unused").strip()
+	no_of_visits = (data.get("no_of_visits") or "").strip() or None
+
+	try:
+		if no_of_visits and int(no_of_visits) <= used:
+			status = "Exhausted"
+		elif status == "Exhausted" and no_of_visits and int(no_of_visits) > used:
+			status = "Active"
+	except (ValueError, TypeError):
+		pass
+
+	updates = {
+		"full_name": data.get("full_name").strip(),
+		"national_id_cpr_no": (data.get("national_id_cpr_no") or "").strip() or None,
+		"posting_date": data.get("posting_date") or None,
+		"status": status,
+		"insurance_provider": data.get("insurance_provider"),
+		"approval_id": (data.get("approval_id") or "").strip() or None,
+		"approval_validitydays": data.get("approval_validitydays") or None,
+		"no_of_visits": no_of_visits,
+	}
+
+	frappe.db.set_value(
+		"Insurance Patient Register",
+		register_name,
+		updates,
+		update_modified=True,
+	)
+
+	patient = frappe.db.get_value("Insurance Patient Register", register_name, "patient")
+	if patient and updates.get("insurance_provider"):
+		frappe.db.set_value(
+			"Patient",
+			patient,
+			"insurance",
+			updates["insurance_provider"],
+			update_modified=True,
+		)
+
+	frappe.db.commit()
+
+	row = frappe.db.get_value(
+		"Insurance Patient Register",
+		register_name,
+		[
+			"name",
+			"full_name",
+			"national_id_cpr_no",
+			"posting_date",
+			"status",
+			"insurance_provider",
+			"approval_id",
+			"approval_validitydays",
+			"no_of_visits",
+			"patient",
+			"no_of_patient_visit",
+		],
+		as_dict=True,
+	)
+	return row
+
+
+@frappe.whitelist()
 def link_patient_to_insurance_register(register_name, patient):
 	"""Link Patient ↔ Insurance Patient Register (both directions)."""
 	_sync_patient_with_insurance_register(register_name, patient)

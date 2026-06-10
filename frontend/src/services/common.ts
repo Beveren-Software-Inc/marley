@@ -1268,6 +1268,20 @@ export async function createInsurancePatientRegister(
   })
 }
 
+export type UpdateInsurancePatientRegisterPayload = CreateInsurancePatientRegisterPayload & {
+  name: string
+}
+
+export async function updateInsurancePatientRegister(
+  payload: UpdateInsurancePatientRegisterPayload
+): Promise<InsurancePatientRegisterRow> {
+  const { name, ...data } = payload
+  return apiRequest('/api/method/healthcare.api.common.update_insurance_patient_register', {
+    method: 'POST',
+    body: JSON.stringify({ name, data }),
+  })
+}
+
 export async function fetchInsurancePatientRegisters(search?: string): Promise<InsurancePatientRegisterRow[]> {
   const params = new URLSearchParams()
   if (search) params.append('search', search)

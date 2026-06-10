@@ -16,6 +16,20 @@ frappe.ui.form.on('Healthcare Settings', {
 			);
 		}, __('Data Maintenance'));
 
+		frm.add_custom_button(__('Sync Customer Group from Category'), () => {
+			frappe.confirm(
+				__(
+					'Run in background: for each Patient with a Category, set Customer Group to the same name (create the Customer Group if missing) and update the linked Customer. Patients without a category are skipped. Continue?'
+				),
+				() =>
+					run_migration_job(
+						frm,
+						'start_patient_category_customer_group_sync',
+						'patient_category_customer_group'
+					)
+			);
+		}, __('Data Maintenance'));
+
 		frm.add_custom_button(__('Discharge Scheduled Admissions'), () => {
 			frappe.confirm(
 				__(

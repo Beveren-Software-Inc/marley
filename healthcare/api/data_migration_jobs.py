@@ -143,6 +143,25 @@ def start_patient_migration() -> dict:
 
 
 @frappe.whitelist()
+def start_patient_category_customer_group_sync() -> dict:
+	"""Align Patient + linked Customer customer_group with Patient.category."""
+	_require_admin()
+	_acquire_lock("patient_category_customer_group")
+	_set_progress("patient_category_customer_group", 0, updated=0, skipped_no_category=0)
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_patient_category_customer_group_batch",
+		offset=0,
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_sync_patient_category_customer_group",
+	)
+	return {
+		"ok": True,
+		"message": _("Customer Group sync from Patient Category started in the background."),
+	}
+
+
+@frappe.whitelist()
 def start_admission_migration() -> dict:
 	_require_admin()
 	_acquire_lock("admissions")
@@ -395,6 +414,103 @@ def start_patient_history_import_migration() -> dict:
 
 
 # ── Batch workers ─────────────────────────────────────────────────────────────
+
+
+def process_patient_category_customer_group_batch(offset: int = 0) -> None:
+	"""Set customer_group = category name for patients that have a category."""
+	from healthcare.healthcare.doctype.patient.patient import ensure_customer_group_for_category
+
+	job = "patient_category_customer_group"
+	try:
+		rows = frappe.db.sql(
+			"""
+			SELECT name, category, customer_group, customer
+			FROM `tabPatient`
+			ORDER BY name
+			LIMIT %s OFFSET %s
+			""",
+			(PATIENT_BATCH_SIZE, offset),
+			as_dict=True,
+		)
+
+		prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+		updated = cint(prev.get("updated"))
+		skipped_no_category = cint(prev.get("skipped_no_category"))
+
+		for row in rows:
+			category = (row.get("category") or "").strip()
+			if not category:
+				skipped_no_category += 1
+				continue
+
+			_ensure_patient_category(category)
+			target_cg = ensure_customer_group_for_category(category)
+			current_cg = (row.get("customer_group") or "").strip()
+
+			patient_changed = current_cg != target_cg
+			if patient_changed:
+				frappe.db.set_value(
+					"Patient",
+					row.name,
+					"customer_group",
+					target_cg,
+					update_modified=False,
+				)
+
+			customer = (row.get("customer") or "").strip()
+			if customer:
+				customer_cg = frappe.db.get_value("Customer", customer, "customer_group")
+				if (customer_cg or "").strip() != target_cg:
+					frappe.db.set_value(
+						"Customer",
+						customer,
+						"customer_group",
+						target_cg,
+						update_modified=False,
+					)
+					patient_changed = True
+
+			if patient_changed:
+				updated += 1
+
+		frappe.db.commit()
+		processed = offset + len(rows)
+		_set_progress(
+			job,
+			processed,
+			updated=updated,
+			skipped_no_category=skipped_no_category,
+		)
+
+		if len(rows) >= PATIENT_BATCH_SIZE:
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_patient_category_customer_group_batch",
+				offset=processed,
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_sync_patient_category_customer_group_{processed}",
+			)
+		else:
+			_set_progress(
+				job,
+				processed,
+				done=True,
+				updated=updated,
+				skipped_no_category=skipped_no_category,
+			)
+			_release_lock(job)
+			frappe.log_error(
+				title="Healthcare patient category → customer group sync complete",
+				message=(
+					f"Scanned {processed} patient row(s); updated {updated}; "
+					f"skipped without category {skipped_no_category}."
+				),
+			)
+	except Exception:
+		frappe.db.rollback()
+		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
+		_release_lock(job)
+		raise
 
 
 def process_patient_migration_batch(offset: int = 0) -> None:

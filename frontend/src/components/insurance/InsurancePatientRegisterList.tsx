@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { MoreHorizontal, UserPlus, Eye, X, ExternalLink, ShieldCheck } from 'lucide-react'
+import { MoreHorizontal, UserPlus, Eye, X, ExternalLink, ShieldCheck, Pencil } from 'lucide-react'
 import { fetchInsurancePatientRegisters, linkPatientToInsuranceRegister, type InsurancePatientRegisterRow } from '../../services/common'
 import { CreatePatientModal } from '../patients/CreatePatientModal'
+import { EditInsurancePatientRegisterModal } from './EditInsurancePatientRegisterModal'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 
 const STATUS_COLORS: Record<string, string> = {
@@ -57,6 +58,9 @@ export const InsurancePatientRegisterList = ({
 
   // Create patient modal (prefilled from register)
   const [createPatientForRegister, setCreatePatientForRegister] = useState<InsurancePatientRegisterRow | null>(null)
+
+  // Edit register modal
+  const [editRegister, setEditRegister] = useState<InsurancePatientRegisterRow | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -210,6 +214,14 @@ export const InsurancePatientRegisterList = ({
                           </button>
                           <button
                             type="button"
+                            onClick={() => { setEditRegister(row); setOpenActionRow(null) }}
+                            className="flex w-full items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                          >
+                            <Pencil className="w-4 h-4 text-emerald-600" />
+                            Edit Register
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => { setCreatePatientForRegister(row); setOpenActionRow(null) }}
                             className="flex w-full items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
                           >
@@ -225,6 +237,18 @@ export const InsurancePatientRegisterList = ({
             </tbody>
           </table>
         </div>
+      )}
+
+      {editRegister && (
+        <EditInsurancePatientRegisterModal
+          register={editRegister}
+          onClose={() => setEditRegister(null)}
+          onSuccess={() => {
+            setEditRegister(null)
+            if (detailRow?.name === editRegister.name) setDetailRow(null)
+            load()
+          }}
+        />
       )}
 
       {/* Create Patient modal pre-filled from this register */}
@@ -337,29 +361,32 @@ export const InsurancePatientRegisterList = ({
 
             {/* Panel footer actions */}
             <div className="shrink-0 px-6 py-4 border-t border-slate-200 bg-slate-50 flex gap-3">
-              {/* Exhausted / Expired / Active — edit only, no patient create/reassign */}
-              {(detailRow.status === 'Exhausted' || detailRow.status === 'Expired') ? (
-                <a
-                  href={`/app/insurance-patient-register/${encodeURIComponent(detailRow.name)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary/90 transition"
-                >
-                  <ExternalLink className="w-4 h-4" />
-                  Edit Register
-                </a>
-              ) : detailRow.status === 'Active' ? (
-                /* Already linked — no create/reassign needed */
-                null
-              ) : (
-                /* Unused / other — show Create / Reassign */
+              <button
+                type="button"
+                onClick={() => { setEditRegister(detailRow); setDetailRow(null) }}
+                className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary/90 transition"
+              >
+                <Pencil className="w-4 h-4" />
+                Edit Register
+              </button>
+              {!detailRow.patient && detailRow.status !== 'Active' && (
                 <button
                   type="button"
                   onClick={() => { setCreatePatientForRegister(detailRow); setDetailRow(null) }}
                   className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary/90 transition"
                 >
                   <UserPlus className="w-4 h-4" />
-                  {detailRow.patient ? 'Reassign Patient' : 'Create Patient'}
+                  Create Patient
+                </button>
+              )}
+              {detailRow.patient && (
+                <button
+                  type="button"
+                  onClick={() => { setCreatePatientForRegister(detailRow); setDetailRow(null) }}
+                  className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-slate-700 border border-slate-300 rounded-lg hover:bg-slate-100 transition"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  Reassign Patient
                 </button>
               )}
               <button

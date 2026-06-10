@@ -45,6 +45,8 @@ export interface PatientSummary {
   name: string
   patient_name: string
   file_no: string
+  /** CPR / Passport / ID (falls back to National ID on patient record) */
+  id_number?: string
   dob?: string
   sex?: string
   marital_status?: string

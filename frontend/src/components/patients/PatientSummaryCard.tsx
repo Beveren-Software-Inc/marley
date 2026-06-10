@@ -36,11 +36,18 @@ export const PatientSummaryCard = ({ patient }: PatientSummaryCardProps) => {
     <section className="bg-white border border-slate-200 rounded-lg p-3 sm:p-4 shadow-sm h-full min-w-0">
       <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
         <div className="font-semibold text-slate-900 text-sm sm:text-base">Patient Information</div>
-        {summary?.file_no && (
-          <span className="shrink-0 text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
-            File: {summary.file_no}
-          </span>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {summary?.id_number && (
+            <span className="shrink-0 text-xs px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200/80 font-medium">
+              CPR / ID: {summary.id_number}
+            </span>
+          )}
+          {summary?.file_no && (
+            <span className="shrink-0 text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
+              File: {summary.file_no}
+            </span>
+          )}
+        </div>
       </div>
       {loading && (
         <div className="text-sm text-slate-500">Loading patient information...</div>
@@ -54,6 +61,10 @@ export const PatientSummaryCard = ({ patient }: PatientSummaryCardProps) => {
             <div>
               <div className="text-xs font-medium text-slate-500">Name</div>
               <div className="text-slate-900">{summary.patient_name || summary.name}</div>
+            </div>
+            <div>
+              <div className="text-xs font-medium text-slate-500">CPR / ID Number</div>
+              <div className="text-slate-900 font-medium">{summary.id_number || '-'}</div>
             </div>
             <div>
               <div className="text-xs font-medium text-slate-500">Sex</div>
