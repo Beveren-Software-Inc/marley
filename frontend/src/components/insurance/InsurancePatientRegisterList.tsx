@@ -12,6 +12,19 @@ const STATUS_COLORS: Record<string, string> = {
   Cancelled: 'bg-slate-200 text-slate-500',
 }
 
+function parseApprovedVisits(value?: string | number | null): number | null {
+  if (value === null || value === undefined || value === '') return null
+  const n = parseInt(String(value), 10)
+  return Number.isNaN(n) ? null : n
+}
+
+function visitsRemaining(row: InsurancePatientRegisterRow): string {
+  const approved = parseApprovedVisits(row.no_of_visits)
+  if (approved === null) return '—'
+  const used = row.no_of_patient_visit ?? 0
+  return String(Math.max(0, approved - used))
+}
+
 function Field({ label, value }: { label: string; value?: string | number | null }) {
   return (
     <div>
@@ -111,7 +124,8 @@ export const InsurancePatientRegisterList = ({
                 <th className="px-3 py-2 text-xs font-semibold text-slate-600">Full Name</th>
                 <th className="px-3 py-2 text-xs font-semibold text-slate-600">National ID / CPR</th>
                 <th className="px-3 py-2 text-xs font-semibold text-slate-600">Insurance Provider</th>
-                <th className="px-3 py-2 text-xs font-semibold text-slate-600">Visits</th>
+                <th className="px-3 py-2 text-xs font-semibold text-slate-600">No. of Visits</th>
+                <th className="px-3 py-2 text-xs font-semibold text-slate-600">Visits Remaining</th>
                 <th className="px-3 py-2 text-xs font-semibold text-slate-600">Status</th>
                 <th className="px-3 py-2 text-xs font-semibold text-slate-600">Patient</th>
                 <th className="px-2 py-2"></th>
@@ -120,7 +134,7 @@ export const InsurancePatientRegisterList = ({
             <tbody>
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="text-center text-slate-400 py-8">
+                  <td colSpan={9} className="text-center text-slate-400 py-8">
                     No insurance patient registers found
                   </td>
                 </tr>
@@ -141,9 +155,21 @@ export const InsurancePatientRegisterList = ({
                   <td className="px-3 py-2 font-medium text-slate-800">{row.full_name || '—'}</td>
                   <td className="px-3 py-2 text-slate-500 text-xs">{row.national_id_cpr_no || '—'}</td>
                   <td className="px-3 py-2 text-slate-600 text-xs">{row.insurance_provider || '—'}</td>
-                  <td className="px-3 py-2 text-slate-500 text-xs">
+                  <td className="px-3 py-2 text-slate-700 text-xs font-medium tabular-nums">
                     {row.no_of_visits || '—'}
-                    {row.approval_validitydays ? <span className="ml-1 text-slate-400">({row.approval_validitydays}d)</span> : null}
+                  </td>
+                  <td className="px-3 py-2 text-xs font-semibold tabular-nums">
+                    <span
+                      className={
+                        visitsRemaining(row) === '0'
+                          ? 'text-orange-700'
+                          : visitsRemaining(row) === '—'
+                            ? 'text-slate-400'
+                            : 'text-primary'
+                      }
+                    >
+                      {visitsRemaining(row)}
+                    </span>
                   </td>
                   <td className="px-3 py-2">
                     <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${STATUS_COLORS[row.status] || 'bg-slate-100 text-slate-600'}`}>
@@ -281,6 +307,15 @@ export const InsurancePatientRegisterList = ({
                   <Field label="Approval ID" value={detailRow.approval_id} />
                   <Field label="Approval Validity (Days)" value={detailRow.approval_validitydays} />
                   <Field label="No of Approved Visits" value={detailRow.no_of_visits} />
+                  <Field label="Visits Used" value={detailRow.no_of_patient_visit ?? 0} />
+                  <Field
+                    label="Visits Remaining"
+                    value={
+                      visitsRemaining(detailRow) === '—'
+                        ? undefined
+                        : visitsRemaining(detailRow)
+                    }
+                  />
                 </div>
               </div>
 

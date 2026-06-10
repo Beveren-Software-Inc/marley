@@ -1171,20 +1171,26 @@ export async function fetchSalutations(search?: string): Promise<LinkFieldOption
 }
 export async function fetchPatientOptions(search?: string): Promise<LinkFieldOption[]> {
   const filters: [string, string, string][] = []
-  if (search) filters.push(['patient_name', 'like', `%${search}%`])
+  if (search?.trim()) filters.push(['patient_name', 'like', `%${search.trim()}%`])
   const params = new URLSearchParams({
     doctype: 'Patient',
-    fields: JSON.stringify(['name', 'patient_name']),
+    fields: JSON.stringify(['name', 'patient_name', 'id_number']),
     filters: JSON.stringify(filters),
-    limit: '20',
+    limit: '30',
     order_by: 'patient_name asc',
   })
-  const res = await fetch(`/api/method/frappe.client.get_list?${params}`)
+  const res = await fetch(`/api/method/frappe.client.get_list?${params}`, {
+    credentials: 'include',
+  })
   const data = await res.json()
-  return (data?.message || []).map((p: { name: string; patient_name?: string }) => ({
-    name: p.name,
-    label: p.patient_name ? `${p.patient_name} (${p.name})` : p.name,
-  }))
+  if (data?.exc) return []
+  return (data?.message || []).map(
+    (p: { name: string; patient_name?: string; id_number?: string }) => ({
+      name: p.name,
+      label: p.patient_name ? `${p.patient_name} (${p.name})` : p.name,
+      id_number: p.id_number,
+    })
+  )
 }
 
 export interface InsuranceClaimRow {
@@ -1233,6 +1239,35 @@ export interface InsurancePatientRegisterRow {
   no_of_patient_visit?: number
 }
 
+export interface CreateInsurancePatientRegisterPayload {
+  full_name: string
+  national_id_cpr_no?: string | null
+  posting_date?: string | null
+  status?: string
+  insurance_provider: string
+  approval_id?: string | null
+  approval_validitydays?: number | null
+  no_of_visits?: string | null
+  patient?: string | null
+}
+
+export async function createInsurancePatientRegister(
+  payload: CreateInsurancePatientRegisterPayload
+): Promise<{
+  name: string
+  full_name: string
+  insurance_provider: string
+  national_id_cpr_no: string
+  patient?: string
+  status?: string
+  linked_patient?: boolean
+}> {
+  return apiRequest('/api/method/healthcare.api.common.create_insurance_patient_register', {
+    method: 'POST',
+    body: JSON.stringify({ data: payload }),
+  })
+}
+
 export async function fetchInsurancePatientRegisters(search?: string): Promise<InsurancePatientRegisterRow[]> {
   const params = new URLSearchParams()
   if (search) params.append('search', search)
@@ -1248,12 +1283,24 @@ export async function fetchInsurancePatientRegisters(search?: string): Promise<I
 }
 
 export async function linkPatientToInsuranceRegister(registerName: string, patient: string): Promise<void> {
-  const url = `/api/method/healthcare.api.common.link_patient_to_insurance_register`
-  await fetch(url, {
+  const { ensureCSRF } = await import('./apiClient')
+  const csrf = (window as any).csrf_token || (await ensureCSRF())
+  const res = await fetch(`/api/method/healthcare.api.common.link_patient_to_insurance_register`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Frappe-CSRF-Token': (window as any).csrf_token || '' },
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
+    },
     body: JSON.stringify({ register_name: registerName, patient }),
   })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok || data?.exc) {
+    throw new Error(
+      typeof data?.message === 'string' ? data.message : 'Failed to link patient to register'
+    )
+  }
 }
 
 export interface LabTestTemplateListRow {

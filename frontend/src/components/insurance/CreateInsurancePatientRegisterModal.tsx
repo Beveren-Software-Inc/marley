@@ -1,24 +1,51 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
+import { ShieldCheck } from 'lucide-react'
 import {
   CM_BTN_CANCEL,
   CM_BTN_PRIMARY,
+  CREATE_MODAL_BODY_GRADIENT,
   CREATE_MODAL_OVERLAY,
+  CreateModalFooter,
+  CreateModalHeader,
+  MODAL_FIELD_CLASS,
+  MODAL_LABEL_CLASS,
+  MODAL_SECTION_CLASS,
+  MODAL_SECTION_TITLE_CLASS,
+  MODAL_SELECT_CLASS,
   createModalShellClass,
 } from '../ui/CreateModalChrome'
-import { apiRequest } from '../../services/apiClient'
-import { fetchHealthcareInsurance, type LinkFieldOption } from '../../services/common'
+import {
+  createInsurancePatientRegister,
+  fetchHealthcareInsurance,
+  fetchPatientOptions,
+  type LinkFieldOption,
+} from '../../services/common'
+import { toast } from '../../hooks/useToast'
+import {
+  linkComboboxDropdownClass,
+  linkComboboxEmptyPanelClass,
+  linkComboboxInputWithClearClass,
+  linkComboboxOptionClassCompact,
+} from '../ui/linkComboboxStyles'
 
 const STATUS_OPTIONS = ['Unused', 'Active', 'Exhausted', 'Expired', 'Cancelled']
 
 interface CreateInsurancePatientRegisterModalProps {
   onClose: () => void
-  onSuccess?: (record: { name: string; full_name: string; insurance_provider: string; national_id_cpr_no: string }) => void
+  onSuccess?: (record: {
+    name: string
+    full_name: string
+    insurance_provider: string
+    national_id_cpr_no: string
+  }) => void
 }
 
 export const CreateInsurancePatientRegisterModal = ({
   onClose,
   onSuccess,
 }: CreateInsurancePatientRegisterModalProps) => {
+  const [existingPatient, setExistingPatient] = useState(false)
+
   const [fullName, setFullName] = useState('')
   const [nationalId, setNationalId] = useState('')
   const [postingDate, setPostingDate] = useState(new Date().toISOString().split('T')[0])
@@ -26,6 +53,11 @@ export const CreateInsurancePatientRegisterModal = ({
   const [approvalId, setApprovalId] = useState('')
   const [approvalValidityDays, setApprovalValidityDays] = useState('')
   const [noOfVisits, setNoOfVisits] = useState('')
+
+  const [patientOpts, setPatientOpts] = useState<LinkFieldOption[]>([])
+  const [patientOpen, setPatientOpen] = useState(false)
+  const [patientQuery, setPatientQuery] = useState('')
+  const [selectedPatient, setSelectedPatient] = useState<LinkFieldOption | null>(null)
 
   const [insuranceOpts, setInsuranceOpts] = useState<LinkFieldOption[]>([])
   const [insuranceOpen, setInsuranceOpen] = useState(false)
@@ -40,32 +72,111 @@ export const CreateInsurancePatientRegisterModal = ({
     setInsuranceOpts(opts)
   }, [])
 
-  const closeDropdowns = () => setInsuranceOpen(false)
+  const loadPatients = useCallback(async (q?: string) => {
+    const opts = await fetchPatientOptions(q)
+    setPatientOpts(opts)
+  }, [])
+
+  useEffect(() => {
+    if (!existingPatient) return
+    const t = setTimeout(() => {
+      void loadPatients(patientQuery || undefined)
+    }, patientQuery.trim() === '' ? 0 : 300)
+    return () => clearTimeout(t)
+  }, [existingPatient, patientQuery, loadPatients])
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest('[data-ipr-patient-field]')) {
+        setPatientOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const closeDropdowns = () => {
+    setInsuranceOpen(false)
+    setPatientOpen(false)
+  }
+
+  const handleExistingPatientToggle = (next: boolean) => {
+    setExistingPatient(next)
+    setError(null)
+    if (next) {
+      setFullName('')
+      setNationalId('')
+      void loadPatients()
+    } else {
+      setSelectedPatient(null)
+      setPatientQuery('')
+      setPatientOpts([])
+    }
+  }
+
+  const handlePatientSelect = async (opt: LinkFieldOption) => {
+    setSelectedPatient(opt)
+    setPatientQuery(opt.label)
+    setPatientOpen(false)
+
+    const displayName = opt.label.split(' (')[0].trim()
+    setFullName(displayName || opt.name)
+
+    try {
+      const params = new URLSearchParams({ patient: opt.name })
+      const res = await fetch(
+        `/api/method/healthcare.api.patient.get_patient_doc?${params.toString()}`,
+        { credentials: 'include' }
+      )
+      const data = await res.json()
+      const doc = data?.message
+      if (doc?.patient_name) setFullName(doc.patient_name)
+      if (doc?.id_number) setNationalId(doc.id_number)
+    } catch {
+      /* keep label-derived name */
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!fullName.trim()) { setError('Full Name is required'); return }
-    if (!selectedInsurance) { setError('Insurance Provider is required'); return }
+    if (existingPatient && !selectedPatient) {
+      setError('Please select an existing patient')
+      return
+    }
+    if (!existingPatient && !fullName.trim()) {
+      setError('Full Name is required')
+      return
+    }
+    if (!selectedInsurance) {
+      setError('Insurance Provider is required')
+      return
+    }
+
+    const resolvedName = fullName.trim() || selectedPatient?.label.split(' (')[0].trim() || ''
+    const resolvedStatus = existingPatient && selectedPatient ? 'Active' : status
 
     try {
       setSaving(true)
       setError(null)
-      const created = await apiRequest<{ name: string; full_name: string; insurance_provider: string; national_id_cpr_no: string }>(
-        '/api/resource/Insurance%20Patient%20Register',
-        {
-          method: 'POST',
-          body: JSON.stringify({
-            full_name: fullName.trim(),
-            national_id_cpr_no: nationalId.trim() || null,
-            posting_date: postingDate || null,
-            status,
-            insurance_provider: selectedInsurance.name,
-            approval_id: approvalId.trim() || null,
-            approval_validitydays: approvalValidityDays ? parseInt(approvalValidityDays) : null,
-            no_of_visits: noOfVisits.trim() || null,
-          }),
-        }
-      )
+      const created = await createInsurancePatientRegister({
+        full_name: resolvedName,
+        national_id_cpr_no: nationalId.trim() || null,
+        posting_date: postingDate || null,
+        status: resolvedStatus,
+        insurance_provider: selectedInsurance.name,
+        approval_id: approvalId.trim() || null,
+        approval_validitydays: approvalValidityDays ? parseInt(approvalValidityDays, 10) : null,
+        no_of_visits: noOfVisits.trim() || null,
+        patient: existingPatient && selectedPatient ? selectedPatient.name : null,
+      })
+
+      if (created.linked_patient && selectedPatient) {
+        toast.success(
+          `Register ${created.name} created and linked to patient ${selectedPatient.name}`,
+          4000
+        )
+      }
+
       onSuccess?.(created)
       onClose()
     } catch (err) {
@@ -78,140 +189,292 @@ export const CreateInsurancePatientRegisterModal = ({
   return (
     <div
       className={CREATE_MODAL_OVERLAY}
-      onClick={e => { if (e.target === e.currentTarget) onClose() }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
     >
       <div
-        className={createModalShellClass('w-full max-w-lg flex flex-col h-[85vh]')}
-        onClick={e => { e.stopPropagation(); closeDropdowns() }}
+        className={createModalShellClass('w-full max-w-4xl flex flex-col max-h-[94vh] min-h-[min(560px,90vh)]')}
+        onClick={(e) => {
+          e.stopPropagation()
+          closeDropdowns()
+        }}
       >
-        {/* Header */}
-        <div className="relative shrink-0 border-b border-emerald-100/60 bg-gradient-to-r from-emerald-100 via-teal-50 to-sky-100 px-6 py-4 flex flex-shrink-0 items-center justify-between">
-          <div>
-            <h2 className="text-lg font-semibold tracking-tight text-emerald-950">New Insurance Patient Register</h2>
-            <p className="text-xs text-slate-500 mt-0.5">Register a patient's insurance for tracking visits and approvals</p>
-          </div>
-          <button onClick={onClose} className="shrink-0 rounded-lg p-2 text-emerald-800/70 transition hover:bg-emerald-200/50 hover:text-emerald-950">
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
+        <CreateModalHeader
+          title="New Insurance Patient Register"
+          subtitle="Register insurance approval and visit limits for a patient"
+          icon={<ShieldCheck className="h-5 w-5 text-emerald-700" strokeWidth={2} />}
+          onClose={onClose}
+          alert={error}
+        />
 
-        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
-          <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4" style={{ scrollbarWidth: 'thin' }}>
-
-            {/* Patient Info */}
-            <div className="rounded-lg bg-slate-50 border border-slate-200 p-4 space-y-3">
-              <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Patient Information</h3>
+        <form
+          onSubmit={handleSubmit}
+          className={`${CREATE_MODAL_BODY_GRADIENT} flex flex-col flex-1 min-h-0`}
+        >
+          <div
+            className="flex-1 overflow-y-auto px-5 py-5 space-y-5 sm:px-6"
+            style={{ scrollbarWidth: 'thin' }}
+          >
+            <div className="flex flex-col gap-3 rounded-xl border border-emerald-200/70 bg-emerald-50/50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">
-                  Full Name <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text" value={fullName} onChange={e => setFullName(e.target.value)}
-                  placeholder="e.g. John Michael Smith"
-                  className="w-full rounded border border-slate-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                />
+                <p className="text-sm font-semibold text-emerald-950">Existing patient?</p>
+                <p className="mt-0.5 text-xs text-emerald-800/70">
+                  {existingPatient
+                    ? 'Search and link a patient already in the system'
+                    : 'Enter details for a new patient (create patient later from the list)'}
+                </p>
               </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">National ID / CPR No</label>
-                <input
-                  type="text" value={nationalId} onChange={e => setNationalId(e.target.value)}
-                  placeholder="e.g. 880101-1234"
-                  className="w-full rounded border border-slate-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              <button
+                type="button"
+                role="switch"
+                aria-checked={existingPatient}
+                onClick={() => handleExistingPatientToggle(!existingPatient)}
+                className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors ${
+                  existingPatient ? 'bg-emerald-600' : 'bg-slate-300'
+                }`}
+              >
+                <span
+                  className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+                    existingPatient ? 'translate-x-6' : 'translate-x-1'
+                  }`}
                 />
-              </div>
+              </button>
             </div>
 
-            {/* Insurance Details */}
-            <div className="rounded-lg bg-slate-50 border border-slate-200 p-4 space-y-3">
-              <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Insurance Details</h3>
+            <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+              <div className={`${MODAL_SECTION_CLASS} space-y-3`}>
+                <h3 className={MODAL_SECTION_TITLE_CLASS}>Patient Information</h3>
 
-              {/* Insurance Provider combobox */}
-              <div onClick={e => e.stopPropagation()}>
-                <label className="block text-xs font-medium text-slate-700 mb-1">
-                  Insurance Provider <span className="text-red-500">*</span>
-                </label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={insuranceQuery}
-                    onChange={e => { setInsuranceQuery(e.target.value); setSelectedInsurance(null); setInsuranceOpen(true); loadInsurance(e.target.value) }}
-                    onFocus={() => { setInsuranceOpen(true); loadInsurance() }}
-                    placeholder="Search insurance provider…"
-                    className="w-full rounded border border-slate-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary pr-7"
-                  />
-                  {insuranceQuery && (
-                    <button type="button" onClick={() => { setSelectedInsurance(null); setInsuranceQuery('') }}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs">✕</button>
-                  )}
-                  {insuranceOpen && insuranceOpts.length > 0 && (
-                    <div className="absolute z-20 w-full mt-1 bg-white border border-slate-300 rounded shadow-lg max-h-44 overflow-y-auto">
-                      {insuranceOpts.map(o => (
-                        <button key={o.name} type="button"
-                          onClick={() => { setSelectedInsurance(o); setInsuranceQuery(o.label || o.name); setInsuranceOpen(false) }}
-                          className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100">
-                          <div className="font-medium">{o.label || o.name}</div>
+                {existingPatient ? (
+                  <div data-ipr-patient-field onClick={(e) => e.stopPropagation()}>
+                    <label className={MODAL_LABEL_CLASS}>
+                      Patient <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={selectedPatient ? selectedPatient.label : patientQuery}
+                        onChange={(e) => {
+                          setPatientQuery(e.target.value)
+                          setSelectedPatient(null)
+                          setPatientOpen(true)
+                        }}
+                        onFocus={() => {
+                          setPatientOpen(true)
+                          void loadPatients(patientQuery || undefined)
+                        }}
+                        placeholder="Search patient by name…"
+                        className={`${linkComboboxInputWithClearClass} pr-7`}
+                      />
+                      {selectedPatient && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedPatient(null)
+                            setPatientQuery('')
+                            setFullName('')
+                            setNationalId('')
+                          }}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
+                        >
+                          ✕
                         </button>
-                      ))}
+                      )}
+                      {patientOpen && patientOpts.length > 0 && (
+                        <div className={linkComboboxDropdownClass}>
+                          {patientOpts.map((o) => (
+                            <button
+                              key={o.name}
+                              type="button"
+                              onClick={() => void handlePatientSelect(o)}
+                              className={linkComboboxOptionClassCompact}
+                            >
+                              {o.label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      {patientOpen && patientOpts.length === 0 && patientQuery.trim() && (
+                        <div className={linkComboboxEmptyPanelClass}>No patients found</div>
+                      )}
                     </div>
-                  )}
+                  </div>
+                ) : (
+                  <>
+                    <div>
+                      <label className={MODAL_LABEL_CLASS}>
+                        Full Name <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={fullName}
+                        onChange={(e) => setFullName(e.target.value)}
+                        placeholder="e.g. John Michael Smith"
+                        className={MODAL_FIELD_CLASS}
+                      />
+                    </div>
+                    <div>
+                      <label className={MODAL_LABEL_CLASS}>National ID / CPR No</label>
+                      <input
+                        type="text"
+                        value={nationalId}
+                        onChange={(e) => setNationalId(e.target.value)}
+                        placeholder="e.g. 880101-1234"
+                        className={MODAL_FIELD_CLASS}
+                      />
+                    </div>
+                  </>
+                )}
+
+                {existingPatient && selectedPatient && (
+                  <div className="grid grid-cols-2 gap-3 rounded-lg border border-emerald-100/80 bg-emerald-50/40 p-3">
+                    <div>
+                      <p className="mb-0.5 text-[10px] font-medium uppercase tracking-wide text-emerald-700/70">
+                        Full Name
+                      </p>
+                      <p className="text-sm font-medium text-emerald-950">{fullName || '—'}</p>
+                    </div>
+                    <div>
+                      <p className="mb-0.5 text-[10px] font-medium uppercase tracking-wide text-emerald-700/70">
+                        National ID
+                      </p>
+                      <p className="text-sm font-medium text-emerald-950">{nationalId || '—'}</p>
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <label className={MODAL_LABEL_CLASS}>Posting Date</label>
+                  <input
+                    type="date"
+                    value={postingDate}
+                    onChange={(e) => setPostingDate(e.target.value)}
+                    className={MODAL_FIELD_CLASS}
+                  />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">Approval ID</label>
-                  <input type="text" value={approvalId} onChange={e => setApprovalId(e.target.value)}
-                    placeholder="Approval reference"
-                    className="w-full rounded border border-slate-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+              <div className={`${MODAL_SECTION_CLASS} space-y-3`}>
+                <h3 className={MODAL_SECTION_TITLE_CLASS}>Insurance Details</h3>
+
+                <div onClick={(e) => e.stopPropagation()}>
+                  <label className={MODAL_LABEL_CLASS}>
+                    Insurance Provider <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={insuranceQuery}
+                      onChange={(e) => {
+                        setInsuranceQuery(e.target.value)
+                        setSelectedInsurance(null)
+                        setInsuranceOpen(true)
+                        void loadInsurance(e.target.value)
+                      }}
+                      onFocus={() => {
+                        setInsuranceOpen(true)
+                        void loadInsurance()
+                      }}
+                      placeholder="Search insurance provider…"
+                      className={`${linkComboboxInputWithClearClass} pr-7`}
+                    />
+                    {insuranceQuery && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedInsurance(null)
+                          setInsuranceQuery('')
+                        }}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
+                      >
+                        ✕
+                      </button>
+                    )}
+                    {insuranceOpen && insuranceOpts.length > 0 && (
+                      <div className={linkComboboxDropdownClass}>
+                        {insuranceOpts.map((o) => (
+                          <button
+                            key={o.name}
+                            type="button"
+                            onClick={() => {
+                              setSelectedInsurance(o)
+                              setInsuranceQuery(o.label || o.name)
+                              setInsuranceOpen(false)
+                            }}
+                            className={linkComboboxOptionClassCompact}
+                          >
+                            {o.label || o.name}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">Approval Validity (Days)</label>
-                  <input type="number" value={approvalValidityDays} onChange={e => setApprovalValidityDays(e.target.value)}
-                    placeholder="e.g. 30" min="0"
-                    className="w-full rounded border border-slate-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">No. of Visits</label>
-                  <input type="text" value={noOfVisits} onChange={e => setNoOfVisits(e.target.value)}
-                    placeholder="e.g. 10"
-                    className="w-full rounded border border-slate-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">Status</label>
-                  <select value={status} onChange={e => setStatus(e.target.value)}
-                    className="w-full rounded border border-slate-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white">
-                    {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
-                  </select>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={MODAL_LABEL_CLASS}>Approval ID</label>
+                    <input
+                      type="text"
+                      value={approvalId}
+                      onChange={(e) => setApprovalId(e.target.value)}
+                      placeholder="Approval reference"
+                      className={MODAL_FIELD_CLASS}
+                    />
+                  </div>
+                  <div>
+                    <label className={MODAL_LABEL_CLASS}>Approval Validity (Days)</label>
+                    <input
+                      type="number"
+                      value={approvalValidityDays}
+                      onChange={(e) => setApprovalValidityDays(e.target.value)}
+                      placeholder="e.g. 30"
+                      min="0"
+                      className={MODAL_FIELD_CLASS}
+                    />
+                  </div>
+                  <div>
+                    <label className={MODAL_LABEL_CLASS}>No. of Visits</label>
+                    <input
+                      type="text"
+                      value={noOfVisits}
+                      onChange={(e) => setNoOfVisits(e.target.value)}
+                      placeholder="e.g. 10"
+                      className={MODAL_FIELD_CLASS}
+                    />
+                  </div>
+                  <div>
+                    <label className={MODAL_LABEL_CLASS}>Status</label>
+                    <select
+                      value={existingPatient && selectedPatient ? 'Active' : status}
+                      onChange={(e) => setStatus(e.target.value)}
+                      disabled={existingPatient && !!selectedPatient}
+                      className={`${MODAL_SELECT_CLASS} disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500`}
+                    >
+                      {STATUS_OPTIONS.map((s) => (
+                        <option key={s} value={s}>
+                          {s}
+                        </option>
+                      ))}
+                    </select>
+                    {existingPatient && selectedPatient && (
+                      <p className="mt-1 text-[10px] text-emerald-700/70">Set to Active when linked</p>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
-
-            {/* Posting Date */}
-            <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1">Posting Date</label>
-              <input type="date" value={postingDate} onChange={e => setPostingDate(e.target.value)}
-                className="rounded border border-slate-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-            </div>
           </div>
 
-          {/* Footer */}
-          <div className="px-6 py-4 border-t border-slate-200 flex-shrink-0">
-            {error && (
-              <div className="mb-3 rounded-md bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">{error}</div>
-            )}
-            <div className="flex justify-end gap-3">
-              <button type="button" onClick={onClose}
-                className={CM_BTN_CANCEL}>
-                Cancel
-              </button>
-              <button type="submit" disabled={saving}
-                className={CM_BTN_PRIMARY}>
-                {saving ? 'Creating…' : 'Create Register'}
-              </button>
-            </div>
-          </div>
+          <CreateModalFooter>
+            <button type="button" onClick={onClose} className={CM_BTN_CANCEL}>
+              Cancel
+            </button>
+            <button type="submit" disabled={saving} className={CM_BTN_PRIMARY}>
+              {saving ? 'Creating…' : 'Create Register'}
+            </button>
+          </CreateModalFooter>
         </form>
       </div>
     </div>

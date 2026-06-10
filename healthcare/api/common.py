@@ -1881,13 +1881,92 @@ def get_insurance_claims(search=None, patient=None):
 	return claims
 
 
+def _sync_patient_with_insurance_register(register_name, patient, insurance_provider=None):
+	"""Link Patient ↔ Insurance Patient Register and mark patient as insured."""
+	if not register_name or not patient:
+		frappe.throw(_("Register and Patient are required"))
+
+	if not frappe.db.exists("Insurance Patient Register", register_name):
+		frappe.throw(_("Insurance Patient Register {0} not found").format(register_name))
+	if not frappe.db.exists("Patient", patient):
+		frappe.throw(_("Patient {0} not found").format(patient))
+
+	if not insurance_provider:
+		insurance_provider = frappe.db.get_value(
+			"Insurance Patient Register", register_name, "insurance_provider"
+		)
+
+	register_updates = {"patient": patient, "status": "Active"}
+	frappe.db.set_value(
+		"Insurance Patient Register",
+		register_name,
+		register_updates,
+		update_modified=True,
+	)
+
+	patient_updates = {
+		"insurance_register": register_name,
+		"is_insurance": 1,
+	}
+	if insurance_provider:
+		patient_updates["insurance"] = insurance_provider
+
+	frappe.db.set_value("Patient", patient, patient_updates, update_modified=True)
+
+
+@frappe.whitelist()
+def create_insurance_patient_register(data):
+	"""Portal: create IPR and optionally link an existing patient in one step."""
+	data = frappe.parse_json(data) if isinstance(data, str) else (data or {})
+	patient = (data.get("patient") or "").strip() or None
+
+	if not (data.get("full_name") or "").strip():
+		frappe.throw(_("Full Name is required"))
+	if not (data.get("insurance_provider") or "").strip():
+		frappe.throw(_("Insurance Provider is required"))
+
+	status = (data.get("status") or "Unused").strip()
+	if patient:
+		status = "Active"
+
+	doc = frappe.get_doc(
+		{
+			"doctype": "Insurance Patient Register",
+			"full_name": data.get("full_name").strip(),
+			"national_id_cpr_no": (data.get("national_id_cpr_no") or "").strip() or None,
+			"posting_date": data.get("posting_date") or None,
+			"status": status,
+			"insurance_provider": data.get("insurance_provider"),
+			"approval_id": (data.get("approval_id") or "").strip() or None,
+			"approval_validitydays": data.get("approval_validitydays") or None,
+			"no_of_visits": (data.get("no_of_visits") or "").strip() or None,
+			"patient": patient,
+		}
+	)
+	doc.insert(ignore_permissions=True)
+
+	if patient:
+		_sync_patient_with_insurance_register(
+			doc.name, patient, doc.insurance_provider
+		)
+
+	frappe.db.commit()
+
+	return {
+		"name": doc.name,
+		"full_name": doc.full_name,
+		"insurance_provider": doc.insurance_provider,
+		"national_id_cpr_no": doc.national_id_cpr_no,
+		"patient": doc.patient,
+		"status": doc.status,
+		"linked_patient": bool(patient),
+	}
+
+
 @frappe.whitelist()
 def link_patient_to_insurance_register(register_name, patient):
-	"""Link a newly created Patient back to the Insurance Patient Register."""
-	doc = frappe.get_doc("Insurance Patient Register", register_name)
-	doc.patient = patient
-	# allow_on_submit is set on the patient field so db_set works even on submitted docs
-	doc.db_set("patient", patient, update_modified=True)
+	"""Link Patient ↔ Insurance Patient Register (both directions)."""
+	_sync_patient_with_insurance_register(register_name, patient)
 	frappe.db.commit()
 	return {"status": "ok", "register": register_name, "patient": patient}
 
