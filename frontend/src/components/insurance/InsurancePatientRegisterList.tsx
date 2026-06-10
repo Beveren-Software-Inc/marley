@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { MoreHorizontal, UserPlus, Eye, X, ExternalLink, ShieldCheck } from 'lucide-react'
+import { MoreHorizontal, UserPlus, Eye, X, ExternalLink, ShieldCheck, Pencil } from 'lucide-react'
 import { fetchInsurancePatientRegisters, linkPatientToInsuranceRegister, type InsurancePatientRegisterRow } from '../../services/common'
 import { CreatePatientModal } from '../patients/CreatePatientModal'
+import { EditInsurancePatientRegisterModal } from './EditInsurancePatientRegisterModal'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 
 const STATUS_COLORS: Record<string, string> = {
@@ -10,6 +11,19 @@ const STATUS_COLORS: Record<string, string> = {
   Exhausted: 'bg-orange-100 text-orange-700',
   Expired: 'bg-red-100 text-red-600',
   Cancelled: 'bg-slate-200 text-slate-500',
+}
+
+function parseApprovedVisits(value?: string | number | null): number | null {
+  if (value === null || value === undefined || value === '') return null
+  const n = parseInt(String(value), 10)
+  return Number.isNaN(n) ? null : n
+}
+
+function visitsRemaining(row: InsurancePatientRegisterRow): string {
+  const approved = parseApprovedVisits(row.no_of_visits)
+  if (approved === null) return '—'
+  const used = row.no_of_patient_visit ?? 0
+  return String(Math.max(0, approved - used))
 }
 
 function Field({ label, value }: { label: string; value?: string | number | null }) {
@@ -44,6 +58,9 @@ export const InsurancePatientRegisterList = ({
 
   // Create patient modal (prefilled from register)
   const [createPatientForRegister, setCreatePatientForRegister] = useState<InsurancePatientRegisterRow | null>(null)
+
+  // Edit register modal
+  const [editRegister, setEditRegister] = useState<InsurancePatientRegisterRow | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -111,7 +128,8 @@ export const InsurancePatientRegisterList = ({
                 <th className="px-3 py-2 text-xs font-semibold text-slate-600">Full Name</th>
                 <th className="px-3 py-2 text-xs font-semibold text-slate-600">National ID / CPR</th>
                 <th className="px-3 py-2 text-xs font-semibold text-slate-600">Insurance Provider</th>
-                <th className="px-3 py-2 text-xs font-semibold text-slate-600">Visits</th>
+                <th className="px-3 py-2 text-xs font-semibold text-slate-600">No. of Visits</th>
+                <th className="px-3 py-2 text-xs font-semibold text-slate-600">Visits Remaining</th>
                 <th className="px-3 py-2 text-xs font-semibold text-slate-600">Status</th>
                 <th className="px-3 py-2 text-xs font-semibold text-slate-600">Patient</th>
                 <th className="px-2 py-2"></th>
@@ -120,7 +138,7 @@ export const InsurancePatientRegisterList = ({
             <tbody>
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="text-center text-slate-400 py-8">
+                  <td colSpan={9} className="text-center text-slate-400 py-8">
                     No insurance patient registers found
                   </td>
                 </tr>
@@ -141,9 +159,21 @@ export const InsurancePatientRegisterList = ({
                   <td className="px-3 py-2 font-medium text-slate-800">{row.full_name || '—'}</td>
                   <td className="px-3 py-2 text-slate-500 text-xs">{row.national_id_cpr_no || '—'}</td>
                   <td className="px-3 py-2 text-slate-600 text-xs">{row.insurance_provider || '—'}</td>
-                  <td className="px-3 py-2 text-slate-500 text-xs">
+                  <td className="px-3 py-2 text-slate-700 text-xs font-medium tabular-nums">
                     {row.no_of_visits || '—'}
-                    {row.approval_validitydays ? <span className="ml-1 text-slate-400">({row.approval_validitydays}d)</span> : null}
+                  </td>
+                  <td className="px-3 py-2 text-xs font-semibold tabular-nums">
+                    <span
+                      className={
+                        visitsRemaining(row) === '0'
+                          ? 'text-orange-700'
+                          : visitsRemaining(row) === '—'
+                            ? 'text-slate-400'
+                            : 'text-primary'
+                      }
+                    >
+                      {visitsRemaining(row)}
+                    </span>
                   </td>
                   <td className="px-3 py-2">
                     <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${STATUS_COLORS[row.status] || 'bg-slate-100 text-slate-600'}`}>
@@ -184,6 +214,14 @@ export const InsurancePatientRegisterList = ({
                           </button>
                           <button
                             type="button"
+                            onClick={() => { setEditRegister(row); setOpenActionRow(null) }}
+                            className="flex w-full items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                          >
+                            <Pencil className="w-4 h-4 text-emerald-600" />
+                            Edit Register
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => { setCreatePatientForRegister(row); setOpenActionRow(null) }}
                             className="flex w-full items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
                           >
@@ -199,6 +237,18 @@ export const InsurancePatientRegisterList = ({
             </tbody>
           </table>
         </div>
+      )}
+
+      {editRegister && (
+        <EditInsurancePatientRegisterModal
+          register={editRegister}
+          onClose={() => setEditRegister(null)}
+          onSuccess={() => {
+            setEditRegister(null)
+            if (detailRow?.name === editRegister.name) setDetailRow(null)
+            load()
+          }}
+        />
       )}
 
       {/* Create Patient modal pre-filled from this register */}
@@ -281,6 +331,15 @@ export const InsurancePatientRegisterList = ({
                   <Field label="Approval ID" value={detailRow.approval_id} />
                   <Field label="Approval Validity (Days)" value={detailRow.approval_validitydays} />
                   <Field label="No of Approved Visits" value={detailRow.no_of_visits} />
+                  <Field label="Visits Used" value={detailRow.no_of_patient_visit ?? 0} />
+                  <Field
+                    label="Visits Remaining"
+                    value={
+                      visitsRemaining(detailRow) === '—'
+                        ? undefined
+                        : visitsRemaining(detailRow)
+                    }
+                  />
                 </div>
               </div>
 
@@ -302,29 +361,32 @@ export const InsurancePatientRegisterList = ({
 
             {/* Panel footer actions */}
             <div className="shrink-0 px-6 py-4 border-t border-slate-200 bg-slate-50 flex gap-3">
-              {/* Exhausted / Expired / Active — edit only, no patient create/reassign */}
-              {(detailRow.status === 'Exhausted' || detailRow.status === 'Expired') ? (
-                <a
-                  href={`/app/insurance-patient-register/${encodeURIComponent(detailRow.name)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary/90 transition"
-                >
-                  <ExternalLink className="w-4 h-4" />
-                  Edit Register
-                </a>
-              ) : detailRow.status === 'Active' ? (
-                /* Already linked — no create/reassign needed */
-                null
-              ) : (
-                /* Unused / other — show Create / Reassign */
+              <button
+                type="button"
+                onClick={() => { setEditRegister(detailRow); setDetailRow(null) }}
+                className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary/90 transition"
+              >
+                <Pencil className="w-4 h-4" />
+                Edit Register
+              </button>
+              {!detailRow.patient && detailRow.status !== 'Active' && (
                 <button
                   type="button"
                   onClick={() => { setCreatePatientForRegister(detailRow); setDetailRow(null) }}
                   className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary/90 transition"
                 >
                   <UserPlus className="w-4 h-4" />
-                  {detailRow.patient ? 'Reassign Patient' : 'Create Patient'}
+                  Create Patient
+                </button>
+              )}
+              {detailRow.patient && (
+                <button
+                  type="button"
+                  onClick={() => { setCreatePatientForRegister(detailRow); setDetailRow(null) }}
+                  className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-slate-700 border border-slate-300 rounded-lg hover:bg-slate-100 transition"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  Reassign Patient
                 </button>
               )}
               <button

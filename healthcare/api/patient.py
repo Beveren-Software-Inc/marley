@@ -319,11 +319,14 @@ def create_patient(data):
 		phone=data.get("phone"),
 	)
 
-	_ensure_patient_customer_group_exists()
+	from healthcare.healthcare.doctype.patient.patient import resolve_patient_customer_group
+
+	category = data.get("category") or None
+	customer_group = resolve_patient_customer_group(category)
 
 	patient = frappe.get_doc({
 		"doctype": "Patient",
-		"customer_group": "Patient",
+		"customer_group": customer_group,
 		"title": data.get("title") or None,
 		# "first_name": data.get("first_name"),
 		# "middle_name": data.get("middle_name") or "",
@@ -338,7 +341,7 @@ def create_patient(data):
 		"email": data.get("email") or None,
 		"id_number": data.get("id_number") or None,
 		"nationality": data.get("nationality") or None,
-		"category": data.get("category") or None,
+		"category": category,
 		"source": data.get("source") or None,
 		"marital_status": data.get("marital_status") or None,
 		"is_black_list": 1 if data.get("is_black_list") else 0,
@@ -699,9 +702,12 @@ def _apply_patient_scalar_fields(patient, data):
 	if "is_black_list" in data:
 		patient.is_black_list = 1 if data.get("is_black_list") else 0
 
-	if _is_group_customer_group(patient.customer_group):
-		_ensure_patient_customer_group_exists()
-		patient.customer_group = "Patient"
+	from healthcare.healthcare.doctype.patient.patient import resolve_patient_customer_group
+
+	if "category" in data or _is_group_customer_group(patient.customer_group):
+		patient.customer_group = resolve_patient_customer_group(
+			patient.category, patient.customer_group
+		)
 
 
 @frappe.whitelist()
@@ -934,10 +940,13 @@ def get_patient_summary(patient):
 	if last_visit and 'is_blacklist' in last_visit:
 		is_blacklist = last_visit.get('is_blacklist') or 0
 
+	id_number = getattr(patient_doc, "id_number", None) or getattr(patient_doc, "national_id", None)
+
 	data = {
 		'name': patient_doc.name,
 		'patient_name': patient_doc.patient_name,
 		'file_no': getattr(patient_doc, 'file_no', None) or patient_doc.name,
+		'id_number': id_number,
 		'dob': getattr(patient_doc, 'dob', None),
 		'sex': getattr(patient_doc, 'sex', None),
 		'marital_status': getattr(patient_doc, 'marital_status', None),

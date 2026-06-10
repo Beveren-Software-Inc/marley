@@ -138,9 +138,7 @@ class PatientVisit(Document):
 		return str(next_number)
 
 	def _track_insurance_visit(self):
-		"""On the first save of a new patient visit, increment the linked IPR's visit counter."""
-		if not self.is_new():
-			return
+		"""On insert, increment the linked IPR's visit counter."""
 		if not self.patient:
 			return
 		reg = frappe.db.get_value("Patient", self.patient, "insurance_register")
@@ -161,8 +159,10 @@ class PatientVisit(Document):
 			pass
 		frappe.db.set_value("Insurance Patient Register", reg, updates)
 
-	def on_update(self):
+	def after_insert(self):
 		self._track_insurance_visit()
+
+	def on_update(self):
 		if self.appointment:
 			# Reception flow: appointment is already Patient Arrived / Checked In / Out — do not
 			# overwrite when the visit is first created from mark-arrived.
