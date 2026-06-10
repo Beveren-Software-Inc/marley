@@ -9,6 +9,7 @@ import { PharmacyPage } from '../pages/Pharmacy'
 import { ReceptionistPage } from '../pages/Receptionist'
 import { SettingsPage } from '../pages/Settings'
 import { QMPSPage } from '../pages/QMPS'
+import { StaffActivityAuditPage } from '../pages/StaffActivityAudit'
 import { EmployeePage } from '../pages/Employee'
 import { PatientVisitDetailPage } from '../pages/PatientVisitDetailPage'
 import { DischargePatientPage } from '../pages/DischargePatientPage'
@@ -112,6 +113,14 @@ export const RouterProvider = () => {
       element: (
         <RoleGuard>
           <QMPSPage />
+        </RoleGuard>
+      )
+    },
+    {
+      path: '/staff-activity-audit',
+      element: (
+        <RoleGuard>
+          <StaffActivityAuditPage />
         </RoleGuard>
       )
     },

@@ -225,6 +225,7 @@ const ALL_MAIN_LINKS: MainLinkItem[] = [
   { to: '/patient-history',  label: 'Patient History',  screens: [],                          prefix: '/patient-history' },
   { to: '/employee',         label: 'Employee',         screens: [],                          prefix: '/employee' },
   { to: '/qmps',             label: 'QMPS',             screens: [],                          prefix: '/qmps' },
+  { to: '/staff-activity-audit', label: 'Staff Activity Audit', screens: [],                  prefix: '/staff-activity-audit' },
 ]
 
 /** Keep patient / mode / admission query params when switching sidebar screens. */

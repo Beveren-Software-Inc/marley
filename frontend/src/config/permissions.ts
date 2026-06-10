@@ -61,6 +61,12 @@ export function isAdmin(roles: string[]): boolean {
   )
 }
 
+/** Matches healthcare.api.user_activity_audit.AUDIT_VIEW_ROLES */
+export function isCEO(roles: string[] | undefined): boolean {
+  if (!roles?.length) return false
+  return roles.some((r) => r.trim().toLowerCase() === 'ceo')
+}
+
 /** Matches healthcare.api.patient.DATA_OFFICER_ROLE — full patient directory / list UI. */
 export const DATA_OFFICER_ROLE = 'Data Officer'
 
@@ -73,6 +79,7 @@ export function isDataOfficer(roles: string[] | undefined): boolean {
 export function hasHealthcareRole(roles: string[]): boolean {
   if (!roles || roles.length === 0) return false
   if (isAdmin(roles)) return true
+  if (isCEO(roles)) return true
   const r = roles.map(x => x.trim().toLowerCase())
   return (
     r.some(x => x.includes('doctor') || x.includes('physician') || x.includes('practitioner')) ||
@@ -88,6 +95,9 @@ export function hasHealthcareRole(roles: string[]): boolean {
 
 export function canAccessRoute(pathname: string, roles: string[]): boolean {
   if (!roles || roles.length === 0) return false
+
+  // CEO-only routes (no admin bypass)
+  if (pathname === '/staff-activity-audit') return isCEO(roles)
 
   if (isAdmin(roles)) return true
 
@@ -135,9 +145,16 @@ export interface MainLinkItem {
 export function getVisibleMainLinks(links: MainLinkItem[], roles: string[]): MainLinkItem[] {
   if (!roles || roles.length === 0) return []
 
-  if (isAdmin(roles)) return links
+  const filtered = isAdmin(roles)
+    ? links
+    : links.filter(link => canAccessRoute(link.to, roles))
 
-  return links.filter(link => canAccessRoute(link.to, roles))
+  // Staff Activity Audit is CEO-only (even system admins without CEO role)
+  if (!isCEO(roles)) {
+    return filtered.filter((link) => link.to !== '/staff-activity-audit')
+  }
+
+  return filtered
 }
 
 /** Discharge patient modal section tabs. */
@@ -224,6 +241,7 @@ export function canViewDischargeTab(roles: string[] | undefined, tabId: Discharg
 /** Default route after login or when user has no access to current page */
 export function getDefaultRouteForUser(roles: string[]): string {
   if (isAdmin(roles)) return '/doctor'
+  if (isCEO(roles)) return '/staff-activity-audit'
   const r = roles.map(x => x.trim().toLowerCase())
   if (r.some(x => x.includes('doctor') || x.includes('physician') || x.includes('practitioner'))) return '/doctor'
   if (r.some(x => x.includes('nurse') || x.includes('nursing'))) return '/nurse'
