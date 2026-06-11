@@ -68,4 +68,9 @@ def recalculate_panel_for_service_request(service_request):
 	"""Re-apply panel formulas for every lab test on a service request."""
 	from healthcare.healthcare.lab_test_result_rules import recalculate_panel_for_service_request as _recalc
 
-	return _recalc(service_request)
+	result = _recalc(service_request)
+	return {
+		"rule_warnings": result.get("warnings") or [],
+		"rule_errors": [],
+		"calculated_updates": result.get("calculated_updates") or [],
+	}

@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { saveAndSubmitLabTest, type LabTest } from '../services/labTests'
+import {
+  recalculatePanelForServiceRequest,
+  saveAndSubmitLabTest,
+  type LabTest,
+} from '../services/labTests'
 import { showLabTestRuleFeedback } from '../utils/labTestRuleFeedback'
 import { toast } from './useToast'
 
@@ -102,15 +106,15 @@ export function useBatchLabTestResults(
       return
     }
 
-    const missingTech = dirtyTests.filter((lt) => !resolveLabTechnicianId(lt))
-    if (missingTech.length) {
-      toast.error(
-        missingTech.length === 1
-          ? 'This test has no lab technician. Pick one in the row, then Save.'
-          : `${missingTech.length} tests have no lab technician. Pick one on each row, then Save.`
-      )
-      return
-    }
+    // const missingTech = dirtyTests.filter((lt) => !resolveLabTechnicianId(lt))
+    // if (missingTech.length) {
+    //   toast.error(
+    //     missingTech.length === 1
+    //       ? 'This test has no lab technician. Pick one in the row, then Save.'
+    //       : `${missingTech.length} tests have no lab technician. Pick one on each row, then Save.`
+    //   )
+    //   return
+    // }
 
     setBatchSaving(true)
     const savedNames: string[] = []
@@ -124,6 +128,8 @@ export function useBatchLabTestResults(
       calculated_updates: [],
     }
 
+    const panelServiceRequests = new Set<string>()
+
     for (const lt of dirtyTests) {
       try {
         const rowLabTech = pendingLabTech[lt.name]?.trim()
@@ -134,6 +140,9 @@ export function useBatchLabTestResults(
           payload.lab_technician = rowLabTech
         }
         const res = await saveAndSubmitLabTest(lt.name, payload)
+        if (lt.service_request && lt.is_group_lab_test) {
+          panelServiceRequests.add(lt.service_request)
+        }
         mergedRuleFeedback.rule_warnings?.push(...(res.rule_warnings || []))
         mergedRuleFeedback.rule_errors?.push(...(res.rule_errors || []))
         mergedRuleFeedback.calculated_updates?.push(...(res.calculated_updates || []))
@@ -141,6 +150,18 @@ export function useBatchLabTestResults(
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Failed to save result'
         errors.push(`${lt.lab_test_name || lt.name}: ${msg}`)
+      }
+    }
+
+    // Re-run panel formulas once after the full batch so calculated fields use every saved input.
+    for (const serviceRequest of panelServiceRequests) {
+      try {
+        const panelRecalc = await recalculatePanelForServiceRequest(serviceRequest)
+        mergedRuleFeedback.rule_warnings?.push(...(panelRecalc.rule_warnings || []))
+        mergedRuleFeedback.rule_errors?.push(...(panelRecalc.rule_errors || []))
+        mergedRuleFeedback.calculated_updates?.push(...(panelRecalc.calculated_updates || []))
+      } catch {
+        /* best-effort; per-save recalc above already persisted formulas */
       }
     }
 

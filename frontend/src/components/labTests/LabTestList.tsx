@@ -1706,7 +1706,7 @@ import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
 import { toast } from '../../hooks/useToast'
 import { canEditLabTestResults, canEditLabTestResultForRow } from '../../config/permissions'
-import { Search, X, ChevronDown, ChevronRight } from 'lucide-react'
+import { Search, X, ChevronDown, ChevronRight, ArrowDown, ArrowUp } from 'lucide-react'
 import { useCardFilters, useDashboardCompactClinical } from '../../contexts/CardFilterContext'
 import { useBatchLabTestResults } from '../../hooks/useBatchLabTestResults'
 import { LabTestDashboardCardTable } from './LabTestDashboardCardTable'
@@ -1846,6 +1846,18 @@ const calculateResultFlag = (
   
   return { flag: 'Normal', color: 'success', bgColor: 'bg-green-100', textColor: 'text-green-700' }
 }
+
+const getLabTestResultFlag = (labTest: LabTest, getDisplayResult: (lt: LabTest) => number | string | null | undefined) =>
+  calculateResultFlag(
+    getDisplayResult(labTest),
+    labTest.gender || labTest.patient_sex,
+    labTest.female_min_range,
+    labTest.female_max_range,
+    labTest.male_min_range,
+    labTest.male_max_range,
+    labTest.min_range,
+    labTest.max_range,
+  ).flag
 
 // ─── Filter Bar ─────────────────────────────────────────────────────────────
 
@@ -2686,21 +2698,43 @@ export const LabTestList = ({
   )
   }
 
+  const renderResultArrowCell = (labTest: LabTest) => {
+    const flag = getLabTestResultFlag(labTest, batch.getDisplayResult)
+    const isLow = flag === 'Critically Low' || flag === 'Low'
+    const isHigh = flag === 'Critically High' || flag === 'High'
+
+    if (!isLow && !isHigh) {
+      return (
+        <td className="px-2 py-1.5 text-center">
+          <span className="text-xs text-slate-300">—</span>
+        </td>
+      )
+    }
+
+    const Icon = isLow ? ArrowDown : ArrowUp
+    const colorClass =
+      flag === 'Critically Low' || flag === 'Critically High'
+        ? 'text-red-600'
+        : 'text-orange-600'
+
+    return (
+      <td className="px-2 py-1.5 text-center" title={flag}>
+        <Icon className={`mx-auto h-4 w-4 ${colorClass}`} aria-label={flag} />
+      </td>
+    )
+  }
+
   // Helper: render result flag cell
   const renderResultFlagCell = (labTest: LabTest) => {
-    // Get patient gender from the lab test
-    const patientGender = labTest.gender || labTest.patient_sex
-    const resultForFlag = batch.getDisplayResult(labTest)
-    
     const { flag, bgColor, textColor } = calculateResultFlag(
-      resultForFlag,
-      patientGender,
+      batch.getDisplayResult(labTest),
+      labTest.gender || labTest.patient_sex,
       labTest.female_min_range,
       labTest.female_max_range,
       labTest.male_min_range,
       labTest.male_max_range,
       labTest.min_range,
-      labTest.max_range
+      labTest.max_range,
     )
     
     if (!flag) {
@@ -3083,7 +3117,7 @@ export const LabTestList = ({
                 <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Results</th>
                 <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Result Flag</th>
                 <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Lab technician</th>
-                <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Inventory</th>
+                <th className="px-2 py-2 text-center text-xs font-semibold text-slate-600 uppercase w-10" title="Result trend">↑↓</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
@@ -3220,11 +3254,7 @@ export const LabTestList = ({
                         {renderResultCell(child)}
                         {renderResultFlagCell(child)}
                         {renderTechnicianCell(child)}
-                        <td className="px-3 py-1.5 text-sm text-slate-700">
-                          {child.material_request
-                            ? <span className="text-xs text-slate-500">MR: {child.material_request}</span>
-                            : <span className="text-xs text-slate-400">—</span>}
-                        </td>
+                        {renderResultArrowCell(child)}
                       </tr>
                     ))}
                   </Fragment>
@@ -3269,11 +3299,7 @@ export const LabTestList = ({
                   {renderResultCell(labTest)}
                   {renderResultFlagCell(labTest)}
                   {renderTechnicianCell(labTest)}
-                  <td className="px-3 py-1.5 text-sm text-slate-700">
-                    {labTest.material_request
-                      ? <span className="text-xs text-slate-500">MR: {labTest.material_request}</span>
-                      : <span className="text-xs text-slate-400">—</span>}
-                  </td>
+                  {renderResultArrowCell(labTest)}
                 </tr>
                 )
               })}

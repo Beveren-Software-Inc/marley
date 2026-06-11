@@ -1,7 +1,8 @@
 // tabs/MaterialRequestTab.tsx
 import { useState, useEffect } from 'react'
 import { useCareContext } from '../../providers/CareContextProvider'
-import { createMaterialRequest, fetchMaterialRequests, fetchInventoryItems, type MaterialRequest, type MaterialRequestItem } from '../../services/nursingInventory'
+import { createMaterialRequest, fetchMaterialRequests, fetchInventoryItems, fetchItemUomOptions, type MaterialRequest, type MaterialRequestItem } from '../../services/nursingInventory'
+import { useMiniWarehouseContext } from './MiniWarehouseInventoryContext'
 import { toast } from '../../hooks/useToast'
 import { Plus, Trash2, Send, Eye, CheckCircle, XCircle, Package } from 'lucide-react'
 
@@ -13,6 +14,7 @@ interface MaterialRequestTabProps {
 }
 
 export const MaterialRequestTab = ({ onSuccess, refreshKey: _refreshKey, costCenter: _costCenter, isFullAccess: _isFullAccess }: MaterialRequestTabProps) => {
+  const warehouseContext = useMiniWarehouseContext()
   const { userCostCenter, user } = useCareContext()
   const effectiveCostCenter = _costCenter || userCostCenter
   const [requests, setRequests] = useState<MaterialRequest[]>([])
@@ -26,18 +28,19 @@ export const MaterialRequestTab = ({ onSuccess, refreshKey: _refreshKey, costCen
   const [notes, setNotes] = useState('')
   const [itemSearch, setItemSearch] = useState<{ [key: number]: string }>({})
   const [itemOptions, setItemOptions] = useState<{ [key: number]: any[] }>({})
+  const [itemUomOptions, setItemUomOptions] = useState<{ [key: number]: { name: string; label: string }[] }>({})
 
   useEffect(() => {
     if (effectiveCostCenter) {
       loadRequests()
     }
-  }, [effectiveCostCenter, _refreshKey])
+  }, [effectiveCostCenter, _refreshKey, warehouseContext])
 
   const loadRequests = async () => {
     if (!effectiveCostCenter) return
     setLoading(true)
     try {
-      const data = await fetchMaterialRequests(effectiveCostCenter)
+      const data = await fetchMaterialRequests(effectiveCostCenter, undefined, warehouseContext)
       const names = new Set<string>()
       const duplicates = data.filter((request) => names.has(request.name) || names.add(request.name))
       if (duplicates.length > 0) {
@@ -60,18 +63,44 @@ export const MaterialRequestTab = ({ onSuccess, refreshKey: _refreshKey, costCen
     setItemOptions(prev => ({ ...prev, [index]: results }))
   }
 
-  const selectItem = (index: number, item: any) => {
+  const selectItem = async (index: number, item: any) => {
+    let uoms: { name: string; label: string }[] = []
+    try {
+      uoms = await fetchItemUomOptions(item.code)
+    } catch (error) {
+      console.error('Failed to load item units:', error)
+    }
+    const defaultUom = item.uom || uoms[0]?.name || ''
     const updatedItems = [...items]
     updatedItems[index] = {
       ...updatedItems[index],
       item_code: item.code,
       item_name: item.name,
-      uom: item.uom,
+      uom: defaultUom,
       quantity: 1
     }
     setItems(updatedItems)
-    setItemSearch(prev => ({ ...prev, [index]: '' }))
+    setItemUomOptions(prev => ({ ...prev, [index]: uoms.length ? uoms : defaultUom ? [{ name: defaultUom, label: defaultUom }] : [] }))
+    setItemSearch(prev => ({ ...prev, [index]: item.name }))
     setItemOptions(prev => ({ ...prev, [index]: [] }))
+  }
+
+  const handleItemSearchChange = (index: number, value: string) => {
+    setItemSearch(prev => ({ ...prev, [index]: value }))
+    const updatedItems = [...items]
+    updatedItems[index] = {
+      ...updatedItems[index],
+      item_code: '',
+      item_name: '',
+      uom: '',
+    }
+    setItems(updatedItems)
+    setItemUomOptions(prev => {
+      const next = { ...prev }
+      delete next[index]
+      return next
+    })
+    searchItems(index, value)
   }
 
   const addItem = () => {
@@ -80,10 +109,23 @@ export const MaterialRequestTab = ({ onSuccess, refreshKey: _refreshKey, costCen
 
   const removeItem = (index: number) => {
     if (items.length === 1) {
-      toast.error('At least one item is required')
+      setItems([{ item_code: '', item_name: '', quantity: 1, uom: '', notes: '' }])
+      setItemSearch({})
+      setItemOptions({})
+      setItemUomOptions({})
       return
     }
     setItems(items.filter((_, i) => i !== index))
+    setItemSearch(prev => {
+      const next = { ...prev }
+      delete next[index]
+      return next
+    })
+    setItemOptions(prev => {
+      const next = { ...prev }
+      delete next[index]
+      return next
+    })
   }
 
   const updateItem = (index: number, field: keyof MaterialRequestItem, value: any) => {
@@ -100,7 +142,7 @@ export const MaterialRequestTab = ({ onSuccess, refreshKey: _refreshKey, costCen
       return
     }
 
-    const validItems = items.filter(item => item.item_code && item.quantity > 0)
+    const validItems = items.filter(item => item.item_code && item.quantity > 0 && item.uom)
     if (validItems.length === 0) {
       toast.error('Please add at least one valid item')
       return
@@ -111,10 +153,10 @@ export const MaterialRequestTab = ({ onSuccess, refreshKey: _refreshKey, costCen
       await createMaterialRequest({
         cost_center: effectiveCostCenter,
         request_date: new Date().toISOString().split('T')[0],
-        status: 'Submitted',
         items: validItems,
         requested_by: user?.name || '',
-        notes: notes || undefined
+        notes: notes || undefined,
+        warehouse_context: warehouseContext,
       })
       toast.success('Material request created successfully')
       setShowForm(false)
@@ -133,22 +175,34 @@ export const MaterialRequestTab = ({ onSuccess, refreshKey: _refreshKey, costCen
     setNotes('')
     setItemSearch({})
     setItemOptions({})
+    setItemUomOptions({})
   }
 
   const getStatusColor = (status: string) => {
     switch (status) {
+      case 'Pending': return 'bg-amber-100 text-amber-800'
+      case 'Draft': return 'bg-slate-100 text-slate-700'
       case 'Submitted': return 'bg-blue-100 text-blue-800'
-      case 'Approved': return 'bg-green-100 text-green-800'
-      case 'Rejected': return 'bg-red-100 text-red-800'
-      case 'Issued': return 'bg-purple-100 text-purple-800'
+      case 'Partially Ordered': return 'bg-cyan-100 text-cyan-800'
+      case 'Ordered': return 'bg-indigo-100 text-indigo-800'
+      case 'Partially Received': return 'bg-teal-100 text-teal-800'
+      case 'Received':
+      case 'Transferred':
+      case 'Issued': return 'bg-green-100 text-green-800'
+      case 'Stopped':
+      case 'Cancelled': return 'bg-red-100 text-red-800'
       default: return 'bg-slate-100 text-slate-800'
     }
   }
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'Approved': return <CheckCircle className="w-4 h-4" />
-      case 'Rejected': return <XCircle className="w-4 h-4" />
+      case 'Received':
+      case 'Transferred':
+      case 'Issued':
+      case 'Ordered': return <CheckCircle className="w-4 h-4" />
+      case 'Stopped':
+      case 'Cancelled': return <XCircle className="w-4 h-4" />
       default: return <Package className="w-4 h-4" />
     }
   }
@@ -206,11 +260,8 @@ export const MaterialRequestTab = ({ onSuccess, refreshKey: _refreshKey, costCen
                       <input
                         type="text"
                         placeholder="Search item..."
-                        value={itemSearch[idx] || item.item_name}
-                        onChange={(e) => {
-                          setItemSearch(prev => ({ ...prev, [idx]: e.target.value }))
-                          searchItems(idx, e.target.value)
-                        }}
+                        value={itemSearch[idx] ?? item.item_name ?? ''}
+                        onChange={(e) => handleItemSearchChange(idx, e.target.value)}
                         className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                       />
                       {itemOptions[idx] && itemOptions[idx].length > 0 && (
@@ -234,11 +285,39 @@ export const MaterialRequestTab = ({ onSuccess, refreshKey: _refreshKey, costCen
                   <div className="w-24">
                     <input
                       type="number"
-                      min="1"
-                      value={item.quantity}
-                      onChange={(e) => updateItem(idx, 'quantity', parseInt(e.target.value) || 0)}
+                      min="0"
+                      value={item.quantity > 0 ? item.quantity : ''}
+                      onChange={(e) => {
+                        const raw = e.target.value
+                        if (raw === '') {
+                          updateItem(idx, 'quantity', 0)
+                          return
+                        }
+                        const num = parseInt(raw, 10)
+                        if (!isNaN(num)) updateItem(idx, 'quantity', num)
+                      }}
+                      onBlur={() => {
+                        if (!item.quantity || item.quantity < 1) {
+                          updateItem(idx, 'quantity', 1)
+                        }
+                      }}
                       className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                     />
+                  </div>
+
+                  <div className="w-28">
+                    <select
+                      value={item.uom}
+                      onChange={(e) => updateItem(idx, 'uom', e.target.value)}
+                      disabled={!item.item_code}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white disabled:bg-slate-50 disabled:text-slate-400"
+                      title="Unit"
+                    >
+                      <option value="">Unit</option>
+                      {(itemUomOptions[idx] || (item.uom ? [{ name: item.uom, label: item.uom }] : [])).map(uom => (
+                        <option key={uom.name} value={uom.name}>{uom.label}</option>
+                      ))}
+                    </select>
                   </div>
                   
                   <div className="flex-1">
@@ -340,7 +419,7 @@ export const MaterialRequestTab = ({ onSuccess, refreshKey: _refreshKey, costCen
                       {request.items.slice(0, 2).map((item, idx) => (
                         <div key={idx} className="flex justify-between text-xs">
                           <span>{item.item_name}</span>
-                          <span>Qty: {item.quantity} {item.uom}</span>
+                          <span>Qty: {item.quantity} {item.uom || 'unit'}</span>
                         </div>
                       ))}
                       {request.items.length > 2 && (
@@ -397,7 +476,7 @@ export const MaterialRequestTab = ({ onSuccess, refreshKey: _refreshKey, costCen
                         <tr>
                           <th className="px-3 py-2 text-left">Item</th>
                           <th className="px-3 py-2 text-right">Quantity</th>
-                          <th className="px-3 py-2 text-left">UOM</th>
+                          <th className="px-3 py-2 text-left">Unit</th>
                           <th className="px-3 py-2 text-left">Notes</th>
                         </tr>
                       </thead>

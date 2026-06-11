@@ -316,6 +316,15 @@ export interface SaveAndSubmitLabTestInput {
   discount_amount?: number
 }
 
+export async function recalculatePanelForServiceRequest(
+  serviceRequest: string
+): Promise<Pick<LabTest, 'rule_warnings' | 'rule_errors' | 'calculated_updates'>> {
+  const { apiRequest } = await import('./apiClient')
+  return apiRequest<Pick<LabTest, 'rule_warnings' | 'rule_errors' | 'calculated_updates'>>(
+    `/api/method/healthcare.api.lab_test_result_rules.recalculate_panel_for_service_request?service_request=${encodeURIComponent(serviceRequest)}`
+  )
+}
+
 export async function saveAndSubmitLabTest(
   labTestName: string,
   payload: SaveAndSubmitLabTestInput

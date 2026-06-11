@@ -1,7 +1,8 @@
 // tabs/StockReconciliationTab.tsx
 import { useState, useEffect } from 'react'
 import { useCareContext } from '../../providers/CareContextProvider'
-import { fetchStockLedger, getStockReconciliations } from '../../services/nursingInventory'
+import { createStockReconciliation, fetchStockLedger, getStockReconciliations, getWarehousesForCostCenter } from '../../services/nursingInventory'
+import { useMiniWarehouseContext } from './MiniWarehouseInventoryContext'
 import { toast } from '../../hooks/useToast'
 import { Save, Eye, CheckCircle, RefreshCw, Search } from 'lucide-react'
 
@@ -22,6 +23,7 @@ interface ReconciliationItem {
 }
 
 export const StockReconciliationTab = ({ onSuccess, refreshKey: _refreshKey, costCenter: _costCenter, isFullAccess: _isFullAccess }: StockReconciliationTabProps) => {
+  const warehouseContext = useMiniWarehouseContext()
   const { userCostCenter, user } = useCareContext()
   const effectiveCostCenter = _costCenter || userCostCenter
   const [reconciliations, setReconciliations] = useState<any[]>([])
@@ -44,15 +46,14 @@ export const StockReconciliationTab = ({ onSuccess, refreshKey: _refreshKey, cos
       loadReconciliations()
       loadWarehouses()
     }
-  }, [effectiveCostCenter])
+  }, [effectiveCostCenter, _refreshKey, warehouseContext])
 
   const loadWarehouses = async () => {
     try {
-      const response = await fetch(`/api/method/healthcare.api.nursing_inventory.get_warehouses_for_cost_center?cost_center=${encodeURIComponent(effectiveCostCenter!)}`)
-      const data = await response.json()
-      setWarehouses(data.message || [])
-      if (data.message && data.message.length > 0) {
-        setWarehouse(data.message[0].name)
+      const data = await getWarehousesForCostCenter(effectiveCostCenter!, warehouseContext)
+      setWarehouses(data)
+      if (data.length > 0) {
+        setWarehouse(data[0].name)
       }
     } catch (error) {
       console.error('Failed to load warehouses:', error)
@@ -67,7 +68,7 @@ export const StockReconciliationTab = ({ onSuccess, refreshKey: _refreshKey, cos
     }
     setLoading(true)
     try {
-      const data = await getStockReconciliations(effectiveCostCenter)
+      const data = await getStockReconciliations(effectiveCostCenter, warehouseContext)
       console.log('Loaded stock reconciliations:', data)
       setReconciliations(data || [])
     } catch (error) {
@@ -83,13 +84,13 @@ export const StockReconciliationTab = ({ onSuccess, refreshKey: _refreshKey, cos
       toast.error('Please select a warehouse first')
       return
     }
-    if (!userCostCenter) {
+    if (!effectiveCostCenter) {
       toast.error('Cost center not available')
       return
     }
     
     try {
-      const stock = await fetchStockLedger(userCostCenter)
+      const stock = await fetchStockLedger(effectiveCostCenter, warehouseContext)
       const reconciliationItems = stock.map(item => ({
         item_code: item.item_code,
         item_name: item.item_name,
@@ -158,6 +159,11 @@ export const StockReconciliationTab = ({ onSuccess, refreshKey: _refreshKey, cos
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
+    if (!effectiveCostCenter) {
+      toast.error('Cost center not available')
+      return
+    }
+
     if (!warehouse) {
       toast.error('Please select a warehouse')
       return
@@ -171,26 +177,22 @@ export const StockReconciliationTab = ({ onSuccess, refreshKey: _refreshKey, cos
 
     setSubmitting(true)
     try {
-      // Create standard ERPNext Stock Reconciliation
-      const response = await fetch('/api/method/healthcare.api.nursing_inventory.create_stock_reconciliation', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          cost_center: effectiveCostCenter,
-          warehouse: warehouse,
-          reconciliation_date: new Date().toISOString().split('T')[0],
-          items: itemsWithDiscrepancy.map(item => ({
-            item_code: item.item_code,
-            qty: item.new_qty,
-            current_qty: item.current_qty
-          })),
-          reconciled_by: user?.name || ''
-        })
+      await createStockReconciliation({
+        cost_center: effectiveCostCenter,
+        warehouse: warehouse,
+        reconciliation_date: new Date().toISOString().split('T')[0],
+        items: itemsWithDiscrepancy.map(item => ({
+          item_code: item.item_code,
+          item_name: item.item_name,
+          system_quantity: item.current_qty,
+          physical_quantity: item.new_qty,
+          difference: item.difference,
+        })),
+        reconciled_by: user?.name || '',
+        status: 'Draft',
+        warehouse_context: warehouseContext,
       })
-      
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.message || 'Failed to create reconciliation')
-      
+
       toast.success(`Stock reconciliation completed. ${itemsWithDiscrepancy.length} items adjusted.`)
       setShowForm(false)
       loadReconciliations()

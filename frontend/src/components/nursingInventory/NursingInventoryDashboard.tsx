@@ -9,6 +9,11 @@ import { CreateMaterialRequestModal } from './CreateMaterialRequest'
 import { CreateStockReconciliationModal } from './CreateStockReconciliation'
 import { CreateMaterialReceiptModal } from './CreateMaterialReceipt'
 import { getAllCostCenters } from '../../services/nursingInventory'
+import {
+  MiniWarehouseInventoryProvider,
+  type WarehouseContext,
+  useMiniWarehouseContext,
+} from './MiniWarehouseInventoryContext'
 
 type InventoryTab =
   | 'all'
@@ -26,10 +31,22 @@ interface CardDef {
   onAdd?: () => void
 }
 
-export function NursingInventoryDashboard() {
-  console.log('NursingInventoryDashboard: Component rendered')
+export function NursingInventoryDashboard({
+  warehouseContext = 'nurse',
+}: {
+  warehouseContext?: WarehouseContext
+}) {
+  return (
+    <MiniWarehouseInventoryProvider value={warehouseContext}>
+      <NursingInventoryDashboardInner />
+    </MiniWarehouseInventoryProvider>
+  )
+}
+
+function NursingInventoryDashboardInner() {
+  const warehouseContext = useMiniWarehouseContext()
+  const moduleLabel = warehouseContext === 'laboratory' ? 'Laboratory' : 'Nursing'
   const { userCostCenter, userRole } = useCareContext()
-  console.log('NursingInventoryDashboard: userCostCenter:', userCostCenter, 'userRole:', userRole)
   const [activeTab, setActiveTab] = useState<InventoryTab>('stock-ledger')
   const [availableCostCenters, setAvailableCostCenters] = useState<{ name: string; label: string }[]>([])
   const [selectedCostCenter, setSelectedCostCenter] = useState('')
@@ -59,12 +76,12 @@ export function NursingInventoryDashboard() {
     if (isFullAccess && !userCostCenter) {
       loadAllCostCenters()
     }
-  }, [isFullAccess, userCostCenter])
+  }, [isFullAccess, userCostCenter, warehouseContext])
 
   const loadAllCostCenters = async () => {
     setLoadingCostCenters(true)
     try {
-      const costCenters = await getAllCostCenters()
+      const costCenters = await getAllCostCenters(warehouseContext)
       setAvailableCostCenters(costCenters)
       if (costCenters.length > 0 && !selectedCostCenter) {
         setSelectedCostCenter(costCenters[0].name)
@@ -116,8 +133,6 @@ export function NursingInventoryDashboard() {
   const activeCard = CARDS.find(c => c.id === activeTab)!
 
   const sectionContent = (id: InventoryTab) => {
-    console.log('NursingInventoryDashboard: Rendering section for tab:', id)
-    // Pass the effective cost center to each tab
     switch (id) {
       case 'stock-ledger':
         return <StockLedgerTab costCenter={effectiveCostCenter} isFullAccess={isFullAccess} />
@@ -126,7 +141,6 @@ export function NursingInventoryDashboard() {
       case 'stock-reconciliation':
         return <StockReconciliationTab onSuccess={() => setStockReconciliationRefreshKey(prev => prev + 1)} refreshKey={stockReconciliationRefreshKey} costCenter={effectiveCostCenter} isFullAccess={isFullAccess} />
       case 'material-receipt':
-        console.log('NursingInventoryDashboard: Rendering MaterialReceiptTab with costCenter:', effectiveCostCenter)
         return <MaterialReceiptTab onSuccess={() => setMaterialReceiptRefreshKey(prev => prev + 1)} refreshKey={materialReceiptRefreshKey} costCenter={effectiveCostCenter} isFullAccess={isFullAccess} />
       default:
         return null
@@ -179,7 +193,7 @@ export function NursingInventoryDashboard() {
           <p className="text-sm text-amber-700">
             Please contact your administrator to assign a cost center to your user account.
             <br />
-            You need a cost center to access the Nursing Inventory module.
+            You need a cost center to access the {moduleLabel} Inventory module.
           </p>
         </div>
       </div>
@@ -199,10 +213,7 @@ export function NursingInventoryDashboard() {
             <div key={card.id} className="relative">
               <button
                 type="button"
-                onClick={() => {
-                  console.log('NursingInventoryDashboard: Tab clicked:', card.id)
-                  setActiveTab(card.id)
-                }}
+                onClick={() => setActiveTab(card.id)}
                 className={`w-full flex flex-col items-start gap-1.5 rounded-xl border-2 px-4 py-3 text-left transition-all hover:shadow-md ${
                   isActive 
                     ? `${card.color} shadow-sm` 
