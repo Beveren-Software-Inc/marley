@@ -17,6 +17,16 @@ CLOSED_PATIENT_VISIT_STATUSES = frozenset(
 )
 
 
+def is_block_new_patient_visit_if_open_exist_enabled() -> bool:
+	"""Whether Healthcare Settings blocks a second open visit for the same patient."""
+	return bool(
+		frappe.db.get_single_value(
+			"Healthcare Settings",
+			"block_new_patient_visit_if_open_exist",
+		)
+	)
+
+
 def get_open_patient_visits_for_patient(patient: str | None, exclude_name: str | None = None) -> list[dict]:
 	"""Visits that are still active (not Completed / External Referral / Cancelled)."""
 	if not patient:
@@ -40,7 +50,10 @@ def get_open_patient_visits_for_patient(patient: str | None, exclude_name: str |
 
 
 def ensure_patient_can_open_new_visit(patient: str | None, exclude_name: str | None = None) -> None:
-	"""Raise if the patient already has an open visit."""
+	"""Raise if the patient already has an open visit (when enabled in Healthcare Settings)."""
+	if not is_block_new_patient_visit_if_open_exist_enabled():
+		return
+
 	open_visits = get_open_patient_visits_for_patient(patient, exclude_name=exclude_name)
 	if not open_visits:
 		return
