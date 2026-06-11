@@ -94,6 +94,19 @@ fixtures = [
                     
                     "Delivery Note-custom_patient",
                    
+                   #stock
+                   "Stock Entry-custom_nurse_inventory",
+                   "Stock Entry-custom_lab_inventory",
+                   "Stock Entry-custom_notes",
+                   "Stock Entry-custom_section_break_prxhx",
+                   "Stock Reconciliation-custom_nurse_inventory",
+                   "Stock Reconciliation-custom_lab_inventory",
+                   "Stock Reconciliation-custom_notes",
+                   "Stock Reconciliation-custom_section_break_xaoh0",
+                   "Material Request-custom_notes",
+                   "Material Request-custom_section_break_gmmp2",
+                   "Material Request-custom_nurse_inventory",
+                   "Material Request-custom_lab_inventory"
                     
                 ),
             ]
