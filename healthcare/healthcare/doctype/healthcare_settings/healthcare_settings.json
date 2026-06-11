@@ -24,6 +24,7 @@
   "allow_discharge_despite_unbilled_services",
   "block_clinical_records_on_discharged_ip",
   "do_not_bill_inpatient_encounters",
+  "block_new_patient_visit_if_open_exist",
   "discount_section",
   "discount_limit",
   "orders_tab",
@@ -582,11 +583,17 @@
    "fieldtype": "Table",
    "label": "Laboratory Mini Warehouse",
    "options": "Labaratory Warehouse"
+  },
+  {
+   "default": "0",
+   "fieldname": "block_new_patient_visit_if_open_exist",
+   "fieldtype": "Check",
+   "label": "Block New Patient Visit if Open Exist"
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-06-11 10:43:23.553366",
+ "modified": "2026-06-11 13:45:30.464225",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Settings",

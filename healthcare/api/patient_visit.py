@@ -11,6 +11,7 @@ from healthcare.api.utils.api_utility import get_next_transaction_number
 from healthcare.healthcare.doctype.patient_visit.open_visit_guard import (
 	ensure_patient_can_open_new_visit,
 	get_open_patient_visits_for_patient,
+	is_block_new_patient_visit_if_open_exist_enabled,
 )
 
 
@@ -18,11 +19,14 @@ from healthcare.healthcare.doctype.patient_visit.open_visit_guard import (
 def check_can_create_patient_visit(patient=None):
 	"""Portal: whether a new Patient Visit is allowed for this patient."""
 	if not patient:
-		return {"allowed": True, "open_visits": []}
+		return {"allowed": True, "open_visits": [], "blocking_enabled": False}
+	if not is_block_new_patient_visit_if_open_exist_enabled():
+		return {"allowed": True, "open_visits": [], "blocking_enabled": False}
 	open_visits = get_open_patient_visits_for_patient(patient)
 	return {
 		"allowed": not open_visits,
 		"open_visits": open_visits,
+		"blocking_enabled": True,
 	}
 
 
@@ -698,7 +702,10 @@ def try_create_patient_visit_for_iop_enrollment(enrollment_doc):
 		)
 		return None
 
-	if get_open_patient_visits_for_patient(enrollment_doc.patient):
+	if (
+		is_block_new_patient_visit_if_open_exist_enabled()
+		and get_open_patient_visits_for_patient(enrollment_doc.patient)
+	):
 		frappe.log_error(
 			title="IOP auto patient visit skipped",
 			message=(

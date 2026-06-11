@@ -372,12 +372,12 @@ def create_patient_medication_order(
 				doc.end_date = max(last_dates)
 
 	doc.insert(ignore_permissions=True)
-	# doc.submit()
+	doc.submit()
 
 	# Create Long Acting Medicine for each medication row marked as long-acting
 	_create_long_acting_medicine_for_entries(doc)
 
-	return {'name': doc.name}
+	return {'name': doc.name, 'status': doc.status}
 
 
 def _long_acting_frequency_interval_days(frequency):
