@@ -984,6 +984,24 @@ def save_and_submit_lab_test(
                 for w in (rule_feedback.get("warnings") or [])
                 if w.get("type") != "formula_missing_inputs"
             ]
+        # If panel re-run did not persist calculated fields, apply pre-save targets now.
+        if not rule_feedback["calculated_updates"] and rule_feedback.get("calculated_targets"):
+            from healthcare.healthcare.lab_test_result_rules import (
+                _resolve_panel_template_and_rule,
+                _sync_calculated_targets_to_lab_tests,
+                rule_doc_to_dict,
+            )
+
+            panel_template, rule_doc = _resolve_panel_template_and_rule(doc)
+            if rule_doc:
+                rule_feedback["calculated_updates"] = _sync_calculated_targets_to_lab_tests(
+                    doc,
+                    rule_doc_to_dict(rule_doc),
+                    rule_feedback.get("calculated_targets") or {},
+                    service_request=getattr(doc, "service_request", None),
+                    lab_test_group=getattr(doc, "lab_test_group", None) or panel_template,
+                    persist=True,
+                )
     elif doc.template and rule_feedback.get("calculated_targets"):
         from healthcare.healthcare.lab_test_result_rules import (
             _resolve_panel_template_and_rule,

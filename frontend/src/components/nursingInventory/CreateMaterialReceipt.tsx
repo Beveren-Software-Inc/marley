@@ -6,6 +6,7 @@ import {
 } from '../ui/CreateModalChrome'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { createMaterialReceipt, fetchInventoryItems, getWarehousesForCostCenter } from '../../services/nursingInventory'
+import { useMiniWarehouseContext } from './MiniWarehouseInventoryContext'
 import { toast } from '../../hooks/useToast'
 import { X, Plus, Trash2, Save, Package } from 'lucide-react'
 
@@ -29,6 +30,7 @@ interface ReceiptItem {
 type TabId = 'details' | 'items'
 
 export const CreateMaterialReceiptModal = ({ onClose, onSuccess, costCenter }: CreateMaterialReceiptModalProps) => {
+  const warehouseContext = useMiniWarehouseContext()
   const { userCostCenter, user } = useCareContext()
   const effectiveCostCenter = costCenter || userCostCenter
   
@@ -52,13 +54,13 @@ export const CreateMaterialReceiptModal = ({ onClose, onSuccess, costCenter }: C
     if (effectiveCostCenter) {
       loadWarehouses()
     }
-  }, [effectiveCostCenter])
+  }, [effectiveCostCenter, warehouseContext])
 
   const loadWarehouses = async () => {
     if (!effectiveCostCenter) return
     setLoadingWarehouses(true)
     try {
-      const data = await getWarehousesForCostCenter(effectiveCostCenter)
+      const data = await getWarehousesForCostCenter(effectiveCostCenter, warehouseContext)
       setWarehouses(data)
       if (data.length > 0) {
         setWarehouse(data[0].name)
@@ -157,7 +159,8 @@ export const CreateMaterialReceiptModal = ({ onClose, onSuccess, costCenter }: C
         items: validItems,
         total_amount: calculateTotalAmount(),
         received_by: user?.name || '',
-        status: 'Completed'
+        status: 'Completed',
+        warehouse_context: warehouseContext,
       })
       toast.success(`Material receipt created. ${validItems.length} items received.`)
       onSuccess()

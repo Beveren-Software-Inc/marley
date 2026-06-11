@@ -5,7 +5,8 @@ import {
   createModalShellClass,
 } from '../ui/CreateModalChrome'
 import { useCareContext } from '../../providers/CareContextProvider'
-import { createMaterialRequest, fetchInventoryItems, getWarehousesForCostCenter } from '../../services/nursingInventory'
+import { createMaterialRequest, fetchInventoryItems, fetchItemUomOptions, getWarehousesForCostCenter } from '../../services/nursingInventory'
+import { useMiniWarehouseContext } from './MiniWarehouseInventoryContext'
 import { toast } from '../../hooks/useToast'
 import { X, Plus, Trash2, Send, Package } from 'lucide-react'
 
@@ -27,6 +28,7 @@ interface RequestItem {
 type TabId = 'details' | 'items'
 
 export const CreateMaterialRequestModal = ({ onClose, onSuccess, costCenter }: CreateMaterialRequestModalProps) => {
+  const warehouseContext = useMiniWarehouseContext()
   const { userCostCenter, user } = useCareContext()
   const effectiveCostCenter = costCenter || userCostCenter
   
@@ -40,6 +42,7 @@ export const CreateMaterialRequestModal = ({ onClose, onSuccess, costCenter }: C
   const [submitting, setSubmitting] = useState(false)
   const [itemSearch, setItemSearch] = useState<{ [key: number]: string }>({})
   const [itemOptions, setItemOptions] = useState<{ [key: number]: any[] }>({})
+  const [itemUomOptions, setItemUomOptions] = useState<{ [key: number]: { name: string; label: string }[] }>({})
   const [openDropdown, setOpenDropdown] = useState<number | null>(null)
 
   // Load warehouses
@@ -47,13 +50,13 @@ export const CreateMaterialRequestModal = ({ onClose, onSuccess, costCenter }: C
     if (effectiveCostCenter) {
       loadWarehouses()
     }
-  }, [effectiveCostCenter])
+  }, [effectiveCostCenter, warehouseContext])
 
   const loadWarehouses = async () => {
     if (!effectiveCostCenter) return
     setLoadingWarehouses(true)
     try {
-      const data = await getWarehousesForCostCenter(effectiveCostCenter)
+      const data = await getWarehousesForCostCenter(effectiveCostCenter, warehouseContext)
       setWarehouses(data)
       if (data.length > 0) {
         setWarehouse(data[0].name)
@@ -74,19 +77,46 @@ export const CreateMaterialRequestModal = ({ onClose, onSuccess, costCenter }: C
     setItemOptions(prev => ({ ...prev, [index]: results }))
   }
 
-  const selectItem = (index: number, item: any) => {
+  const selectItem = async (index: number, item: any) => {
+    let uoms: { name: string; label: string }[] = []
+    try {
+      uoms = await fetchItemUomOptions(item.code)
+    } catch (error) {
+      console.error('Failed to load item units:', error)
+    }
+    const defaultUom = item.uom || uoms[0]?.name || ''
     const updatedItems = [...items]
     updatedItems[index] = {
       ...updatedItems[index],
       item_code: item.code,
       item_name: item.name,
-      uom: item.uom,
+      uom: defaultUom,
       quantity: updatedItems[index].quantity || 1
     }
     setItems(updatedItems)
-    setItemSearch(prev => ({ ...prev, [index]: '' }))
+    setItemUomOptions(prev => ({ ...prev, [index]: uoms.length ? uoms : defaultUom ? [{ name: defaultUom, label: defaultUom }] : [] }))
+    setItemSearch(prev => ({ ...prev, [index]: item.name }))
     setItemOptions(prev => ({ ...prev, [index]: [] }))
     setOpenDropdown(null)
+  }
+
+  const handleItemSearchChange = (index: number, value: string) => {
+    setItemSearch(prev => ({ ...prev, [index]: value }))
+    setOpenDropdown(index)
+    const updatedItems = [...items]
+    updatedItems[index] = {
+      ...updatedItems[index],
+      item_code: '',
+      item_name: '',
+      uom: '',
+    }
+    setItems(updatedItems)
+    setItemUomOptions(prev => {
+      const next = { ...prev }
+      delete next[index]
+      return next
+    })
+    searchItems(index, value)
   }
 
   const addItem = () => {
@@ -95,10 +125,23 @@ export const CreateMaterialRequestModal = ({ onClose, onSuccess, costCenter }: C
 
   const removeItem = (index: number) => {
     if (items.length === 1) {
-      toast.error('At least one item is required')
+      setItems([{ item_code: '', item_name: '', quantity: 1, uom: '', notes: '' }])
+      setItemSearch({})
+      setItemOptions({})
+      setItemUomOptions({})
       return
     }
     setItems(items.filter((_, i) => i !== index))
+    setItemSearch(prev => {
+      const next = { ...prev }
+      delete next[index]
+      return next
+    })
+    setItemOptions(prev => {
+      const next = { ...prev }
+      delete next[index]
+      return next
+    })
   }
 
   const updateItem = (index: number, field: keyof RequestItem, value: any) => {
@@ -107,7 +150,7 @@ export const CreateMaterialRequestModal = ({ onClose, onSuccess, costCenter }: C
     setItems(updatedItems)
   }
 
-  const validItems = items.filter(item => item.item_code && item.quantity > 0)
+  const validItems = items.filter(item => item.item_code && item.quantity > 0 && item.uom)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -135,10 +178,10 @@ export const CreateMaterialRequestModal = ({ onClose, onSuccess, costCenter }: C
         cost_center: effectiveCostCenter,
         warehouse: warehouse,
         request_date: new Date().toISOString().split('T')[0],
-        status: 'Submitted',
         items: validItems,
         requested_by: user?.name || '',
-        notes: notes || undefined
+        notes: notes || undefined,
+        warehouse_context: warehouseContext,
       })
       toast.success('Material request created successfully')
       onSuccess()
@@ -292,12 +335,8 @@ export const CreateMaterialRequestModal = ({ onClose, onSuccess, costCenter }: C
                           <input
                             type="text"
                             placeholder="Search for an item..."
-                            value={item.item_code ? item.item_name : (itemSearch[idx] || '')}
-                            onChange={(e) => {
-                              setItemSearch(prev => ({ ...prev, [idx]: e.target.value }))
-                              setOpenDropdown(idx)
-                              searchItems(idx, e.target.value)
-                            }}
+                            value={itemSearch[idx] ?? item.item_name ?? ''}
+                            onChange={(e) => handleItemSearchChange(idx, e.target.value)}
                             onFocus={() => setOpenDropdown(idx)}
                             className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                           />
@@ -324,23 +363,41 @@ export const CreateMaterialRequestModal = ({ onClose, onSuccess, costCenter }: C
                           </label>
                           <input
                             type="number"
-                            min="1"
-                            value={item.quantity}
-                            onChange={(e) => updateItem(idx, 'quantity', parseInt(e.target.value) || 0)}
+                            min="0"
+                            value={item.quantity > 0 ? item.quantity : ''}
+                            onChange={(e) => {
+                              const raw = e.target.value
+                              if (raw === '') {
+                                updateItem(idx, 'quantity', 0)
+                                return
+                              }
+                              const num = parseInt(raw, 10)
+                              if (!isNaN(num)) updateItem(idx, 'quantity', num)
+                            }}
+                            onBlur={() => {
+                              if (!item.quantity || item.quantity < 1) {
+                                updateItem(idx, 'quantity', 1)
+                              }
+                            }}
                             className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary text-right"
                           />
                         </div>
 
-                        <div className="w-24">
+                        <div className="w-28">
                           <label className="block text-xs font-medium text-slate-600 mb-1">
-                            UOM
+                            Unit
                           </label>
-                          <input
-                            type="text"
+                          <select
                             value={item.uom}
-                            readOnly
-                            className="w-full px-3 py-2 border border-slate-200 bg-slate-50 rounded-md text-sm text-slate-600"
-                          />
+                            onChange={(e) => updateItem(idx, 'uom', e.target.value)}
+                            disabled={!item.item_code}
+                            className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white disabled:bg-slate-50 disabled:text-slate-400"
+                          >
+                            <option value="">Select unit</option>
+                            {(itemUomOptions[idx] || (item.uom ? [{ name: item.uom, label: item.uom }] : [])).map(uom => (
+                              <option key={uom.name} value={uom.name}>{uom.label}</option>
+                            ))}
+                          </select>
                         </div>
 
                         <button

@@ -8,15 +8,31 @@ function filterFormulaWarnings(
   calculatedUpdates: LabTest['calculated_updates']
 ): RuleMessage[] {
   if (!calculatedUpdates?.length) return warnings
-  return warnings.filter((w) => w.type !== 'formula_missing_inputs')
+  return warnings.filter(
+    (w) => w.type !== 'formula_missing_inputs' && w.type !== 'sum_validation_missing'
+  )
+}
+
+function dedupeRuleMessages(messages: RuleMessage[]): RuleMessage[] {
+  const seen = new Set<string>()
+  const out: RuleMessage[] = []
+  for (const msg of messages) {
+    const key = (msg.short_message || msg.message || '').trim()
+    if (!key || seen.has(key)) continue
+    seen.add(key)
+    out.push(msg)
+  }
+  return out
 }
 
 /** Show rule validation toasts after saving lab results (one toast set per save action). */
 export function showLabTestRuleFeedback(res: LabTest) {
   const calculatedUpdates = res.calculated_updates || []
-  const warnings = filterFormulaWarnings(res.rule_warnings || [], calculatedUpdates)
+  const warnings = dedupeRuleMessages(
+    filterFormulaWarnings(res.rule_warnings || [], calculatedUpdates)
+  )
 
-  for (const err of res.rule_errors || []) {
+  for (const err of dedupeRuleMessages(res.rule_errors || [])) {
     const text = (err as RuleMessage).short_message || err?.message || ''
     if (text) toast.error(text.split('\n\n')[0] || text)
   }

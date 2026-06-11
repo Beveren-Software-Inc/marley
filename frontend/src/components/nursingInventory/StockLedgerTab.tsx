@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { fetchStockLedger, fetchItemGroups, type StockLedgerItem } from '../../services/nursingInventory'
+import { useMiniWarehouseContext } from './MiniWarehouseInventoryContext'
 import { Search, Filter, Package, AlertTriangle, TrendingUp, TrendingDown, ChevronDown, ChevronUp } from 'lucide-react'
 
 interface StockLedgerTabProps {
@@ -11,6 +12,7 @@ interface StockLedgerTabProps {
 }
 
 export const StockLedgerTab = ({ refreshTrigger = 0, costCenter, isFullAccess = false }: StockLedgerTabProps) => {
+  const warehouseContext = useMiniWarehouseContext()
   const { userCostCenter } = useCareContext()
   const effectiveCostCenter = costCenter || userCostCenter
   
@@ -33,7 +35,7 @@ export const StockLedgerTab = ({ refreshTrigger = 0, costCenter, isFullAccess = 
     if (effectiveCostCenter) {
       loadStockLedger()
     }
-  }, [refreshTrigger, effectiveCostCenter])
+  }, [refreshTrigger, effectiveCostCenter, warehouseContext])
 
   useEffect(() => {
     if (!searchTerm.trim() && !filterCategory) {
@@ -55,7 +57,7 @@ export const StockLedgerTab = ({ refreshTrigger = 0, costCenter, isFullAccess = 
     setLoading(true)
     try {
       const [stockData, itemGroupsData] = await Promise.all([
-        fetchStockLedger(effectiveCostCenter),
+        fetchStockLedger(effectiveCostCenter, warehouseContext),
         fetchItemGroups()
       ])
       

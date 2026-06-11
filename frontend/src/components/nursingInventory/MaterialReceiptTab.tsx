@@ -1,7 +1,8 @@
 // tabs/MaterialReceiptTab.tsx
 import { useState, useEffect } from 'react'
 import { useCareContext } from '../../providers/CareContextProvider'
-import { createMaterialReceipt, fetchInventoryItems, type MaterialReceipt } from '../../services/nursingInventory'
+import { createMaterialReceipt, fetchInventoryItems, fetchMaterialReceipts, type MaterialReceipt } from '../../services/nursingInventory'
+import { useMiniWarehouseContext } from './MiniWarehouseInventoryContext'
 import { toast } from '../../hooks/useToast'
 import { Plus, Trash2, Save, Eye, Upload, Package, CheckCircle } from 'lucide-react'
 
@@ -23,11 +24,9 @@ interface ReceiptItem {
 }
 
 export const MaterialReceiptTab = ({ onSuccess, refreshKey: _refreshKey, costCenter: _costCenter, isFullAccess: _isFullAccess }: MaterialReceiptTabProps) => {
-  console.log('MaterialReceiptTab: Component rendered with props:', { onSuccess, refreshKey: _refreshKey, costCenter: _costCenter, isFullAccess: _isFullAccess })
+  const warehouseContext = useMiniWarehouseContext()
   const { userCostCenter, user } = useCareContext()
-  console.log('MaterialReceiptTab: Context values - userCostCenter:', userCostCenter, 'user:', user)
   const effectiveCostCenter = _costCenter || userCostCenter
-  console.log('MaterialReceiptTab: effectiveCostCenter:', effectiveCostCenter)
   const [receipts, setReceipts] = useState<MaterialReceipt[]>([])
   const [showForm, setShowForm] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -44,27 +43,17 @@ export const MaterialReceiptTab = ({ onSuccess, refreshKey: _refreshKey, costCen
   const [itemOptions, setItemOptions] = useState<{ [key: number]: any[] }>({})
 
   useEffect(() => {
-    console.log('MaterialReceiptTab: useEffect triggered, effectiveCostCenter:', effectiveCostCenter)
     if (effectiveCostCenter) {
       loadReceipts()
-    } else {
-      console.log('MaterialReceiptTab: effectiveCostCenter is falsy, not loading receipts')
     }
-  }, [effectiveCostCenter])
+  }, [effectiveCostCenter, _refreshKey, warehouseContext])
 
   const loadReceipts = async () => {
-    console.log('MaterialReceiptTab: loadReceipts called')
     if (!effectiveCostCenter) return
     setLoading(true)
     try {
-      const url = `/api/method/healthcare.api.nursing_inventory.get_material_receipts?cost_center=${encodeURIComponent(effectiveCostCenter)}`
-      console.log('MaterialReceiptTab: fetching from URL:', url)
-      const response = await fetch(url)
-      console.log('MaterialReceiptTab: response status:', response.status)
-      const data = await response.json()
-
-      console.log("Fetched material receipts:", data.message)
-      setReceipts(data.message || [])
+      const data = await fetchMaterialReceipts(effectiveCostCenter, warehouseContext)
+      setReceipts(data)
     } catch (error) {
       console.error('Failed to load receipts:', error)
     } finally {
@@ -150,7 +139,8 @@ export const MaterialReceiptTab = ({ onSuccess, refreshKey: _refreshKey, costCen
         items: validItems,
         total_amount: calculateTotalAmount(),
         received_by: user?.name || '',
-        status: 'Completed'
+        status: 'Completed',
+        warehouse_context: warehouseContext,
       })
       toast.success(`Material receipt created. ${validItems.length} items received.`)
       setShowForm(false)

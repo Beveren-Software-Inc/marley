@@ -37,13 +37,20 @@ def _norm_key(value: str | None) -> str:
 def _parse_float(value) -> float | None:
 	if value is None:
 		return None
-	text = str(value).strip()
+	text = re.sub(r"<[^>]+>", "", str(value)).strip()
 	if not text:
 		return None
 	try:
-		return float(text)
+		return float(text.replace(",", ""))
 	except (TypeError, ValueError):
-		return None
+		pass
+	match = re.search(r"[-+]?\d*\.?\d+", text.replace(",", ""))
+	if match:
+		try:
+			return float(match.group())
+		except (TypeError, ValueError):
+			return None
+	return None
 
 
 def _format_sum_validation_user_message(
@@ -850,10 +857,10 @@ def apply_rules(
 			warnings.append(
 				{
 					"type": "sum_validation_missing",
-					"message": _(
-						"Could not find results for: {0}. Enter results on each child lab test "
-						"in this group, or check that the correct child tests are listed on the rule."
-					).format(", ".join(missing)),
+					# "message": _(
+					# 	"Could not find results for: {0}. Enter results on each child lab test "
+					# 	"in this group, or check that the correct child tests are listed on the rule."
+					# ).format(", ".join(missing)),
 					"ok": False,
 					"block_save": False,
 				}

@@ -80,6 +80,8 @@
   "default_return_medicine",
   "section_break_whbc",
   "nurse_mini_warehouse",
+  "section_break_vzkt",
+  "laboratory_mini_warehouse",
   "more_info_tab",
   "default_patient",
   "auto_create_patient_visit_on_iop_enrollment",
@@ -570,11 +572,21 @@
    "fieldname": "auto_create_patient_visit_on_iop_enrollment",
    "fieldtype": "Check",
    "label": "Auto Create Patient Visit on IOP Enrollment "
+  },
+  {
+   "fieldname": "section_break_vzkt",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "laboratory_mini_warehouse",
+   "fieldtype": "Table",
+   "label": "Laboratory Mini Warehouse",
+   "options": "Labaratory Warehouse"
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-06-10 00:35:12.898139",
+ "modified": "2026-06-11 10:43:23.553366",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Settings",

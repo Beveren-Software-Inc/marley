@@ -338,6 +338,9 @@ doc_events = {
 	"Service Request": {
 		"validate": "healthcare.healthcare.care_episode_guard.validate_care_episode_open",
 	},
+	"Stock Entry": {
+		"before_insert": "healthcare.api.nursing_inventory.inherit_mini_warehouse_flags_on_stock_entry",
+	},
 	"Patient Medication Order": {
 		"validate": "healthcare.healthcare.care_episode_guard.validate_care_episode_open",
 	},

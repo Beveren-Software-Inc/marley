@@ -1,5 +1,14 @@
 // services/nursingInventory.ts
 
+import type { WarehouseContext } from '../components/nursingInventory/MiniWarehouseInventoryContext'
+import { apiRequest } from './apiClient'
+
+function withWarehouseContext(url: string, warehouseContext: WarehouseContext = 'nurse'): string {
+  if (warehouseContext === 'nurse') return url
+  const sep = url.includes('?') ? '&' : '?'
+  return `${url}${sep}warehouse_context=${encodeURIComponent(warehouseContext)}`
+}
+
 export interface StockLedgerItem {
   item_code: string
   item_name: string
@@ -27,7 +36,7 @@ export interface MaterialRequest {
   cost_center: string
   warehouse?: string
   request_date: string
-  status: 'Draft' | 'Submitted' | 'Approved' | 'Rejected' | 'Issued'
+  status: string
   items: MaterialRequestItem[]
   requested_by: string
   approved_by?: string
@@ -39,6 +48,7 @@ export interface StockReconciliation {
   cost_center: string
   warehouse?: string
   reconciliation_date: string
+  notes?: string
   items: {
     item_code: string
     item_name: string
@@ -56,6 +66,7 @@ export interface MaterialReceipt {
   cost_center: string
   warehouse?: string
   receipt_date: string
+  notes?: string
   supplier?: string
   invoice_number?: string
   items: {
@@ -73,8 +84,16 @@ export interface MaterialReceipt {
 }
 
 // Fetch stock ledger for a cost center
-export async function fetchStockLedger(costCenter: string): Promise<StockLedgerItem[]> {
-  const response = await fetch(`/api/method/healthcare.api.nursing_inventory.get_stock_ledger?cost_center=${encodeURIComponent(costCenter)}`)
+export async function fetchStockLedger(
+  costCenter: string,
+  warehouseContext: WarehouseContext = 'nurse'
+): Promise<StockLedgerItem[]> {
+  const response = await fetch(
+    withWarehouseContext(
+      `/api/method/healthcare.api.nursing_inventory.get_stock_ledger?cost_center=${encodeURIComponent(costCenter)}`,
+      warehouseContext
+    )
+  )
   const data = await response.json()
   return data.message || []
 }
@@ -89,20 +108,25 @@ export async function fetchItemGroups(search?: string): Promise<{ name: string; 
 }
 
 // Create material request
-export async function createMaterialRequest(data: Omit<MaterialRequest, 'name'>): Promise<{ name: string }> {
-  const response = await fetch('/api/method/healthcare.api.nursing_inventory.create_material_request', {
+export async function createMaterialRequest(
+  data: Omit<MaterialRequest, 'name' | 'status'> & { warehouse_context?: WarehouseContext; status?: string }
+): Promise<{ name: string; status?: string }> {
+  return apiRequest('/api/method/healthcare.api.nursing_inventory.create_material_request', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data)
+    body: JSON.stringify(data),
   })
-  const result = await response.json()
-  if (!response.ok) throw new Error(result.message || 'Failed to create material request')
-  return result.message
 }
 
 // Fetch material requests for a cost center
-export async function fetchMaterialRequests(costCenter: string, status?: string): Promise<MaterialRequest[]> {
-  let url = `/api/method/healthcare.api.nursing_inventory.get_material_requests?cost_center=${encodeURIComponent(costCenter)}`
+export async function fetchMaterialRequests(
+  costCenter: string,
+  status?: string,
+  warehouseContext: WarehouseContext = 'nurse'
+): Promise<MaterialRequest[]> {
+  let url = withWarehouseContext(
+    `/api/method/healthcare.api.nursing_inventory.get_material_requests?cost_center=${encodeURIComponent(costCenter)}`,
+    warehouseContext
+  )
   if (status) url += `&status=${status}`
   const response = await fetch(url)
   const data = await response.json()
@@ -112,34 +136,38 @@ export async function fetchMaterialRequests(costCenter: string, status?: string)
 }
 
 // Create stock reconciliation
-export async function createStockReconciliation(data: Omit<StockReconciliation, 'name'>): Promise<{ name: string }> {
-  const response = await fetch('/api/method/healthcare.api.nursing_inventory.create_stock_reconciliation', {
+export async function createStockReconciliation(
+  data: Omit<StockReconciliation, 'name'> & { warehouse_context?: WarehouseContext; custom_notes?: string }
+): Promise<{ name: string }> {
+  return apiRequest('/api/method/healthcare.api.nursing_inventory.create_stock_reconciliation', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data)
+    body: JSON.stringify(data),
   })
-  const result = await response.json()
-  if (!response.ok) throw new Error(result.message || 'Failed to create stock reconciliation')
-  return result.message
 }
 
 // Fetch stock reconciliations
-export async function getStockReconciliations(costCenter: string): Promise<StockReconciliation[]> {
-  const response = await fetch(`/api/method/healthcare.api.nursing_inventory.get_stock_reconciliations?cost_center=${encodeURIComponent(costCenter)}`)
+export async function getStockReconciliations(
+  costCenter: string,
+  warehouseContext: WarehouseContext = 'nurse'
+): Promise<StockReconciliation[]> {
+  const response = await fetch(
+    withWarehouseContext(
+      `/api/method/healthcare.api.nursing_inventory.get_stock_reconciliations?cost_center=${encodeURIComponent(costCenter)}`,
+      warehouseContext
+    )
+  )
   const data = await response.json()
   return data.message || []
 }
 
 // Create material receipt
-export async function createMaterialReceipt(data: Omit<MaterialReceipt, 'name'>): Promise<{ name: string }> {
-  const response = await fetch('/api/method/healthcare.api.nursing_inventory.create_material_receipt', {
+export async function createMaterialReceipt(
+  data: Omit<MaterialReceipt, 'name'> & { warehouse_context?: WarehouseContext; custom_notes?: string }
+): Promise<{ name: string }> {
+  return apiRequest('/api/method/healthcare.api.nursing_inventory.create_material_receipt', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data)
+    body: JSON.stringify(data),
   })
-  const result = await response.json()
-  if (!response.ok) throw new Error(result.message || 'Failed to create material receipt')
-  return result.message
 }
 
 // Fetch items for dropdown
@@ -148,6 +176,15 @@ export async function fetchInventoryItems(search?: string): Promise<{ code: stri
   if (search) url += `?search=${encodeURIComponent(search)}`
   const response = await fetch(url)
   const data = await response.json()
+  return data.message || []
+}
+
+export async function fetchItemUomOptions(itemCode: string): Promise<{ name: string; label: string }[]> {
+  const response = await fetch(
+    `/api/method/healthcare.api.nursing_inventory.get_item_uom_options?item_code=${encodeURIComponent(itemCode)}`
+  )
+  const data = await response.json()
+  if (!response.ok) throw new Error(data.message || 'Failed to fetch item units')
   return data.message || []
 }
 
@@ -160,50 +197,64 @@ export async function fetchUserCostCenters(): Promise<{ name: string; label: str
 
 // Add to services/nursingInventory.ts
 
-export async function getWarehousesForCostCenter(costCenter: string): Promise<{ name: string; label: string }[]> {
-  const response = await fetch(`/api/method/healthcare.api.nursing_inventory.get_warehouses_for_cost_center?cost_center=${encodeURIComponent(costCenter)}`)
+export async function getWarehousesForCostCenter(
+  costCenter: string,
+  warehouseContext: WarehouseContext = 'nurse'
+): Promise<{ name: string; label: string }[]> {
+  const response = await fetch(
+    withWarehouseContext(
+      `/api/method/healthcare.api.nursing_inventory.get_warehouses_for_cost_center?cost_center=${encodeURIComponent(costCenter)}`,
+      warehouseContext
+    )
+  )
   const data = await response.json()
   return data.message || []
 }
 
 
-export async function getAllCostCenters(): Promise<{ name: string; label: string }[]> {
-  const response = await fetch('/api/method/healthcare.api.nursing_inventory.get_all_cost_centers')
+export async function getAllCostCenters(
+  warehouseContext: WarehouseContext = 'nurse'
+): Promise<{ name: string; label: string }[]> {
+  const response = await fetch(
+    withWarehouseContext('/api/method/healthcare.api.nursing_inventory.get_all_cost_centers', warehouseContext)
+  )
   const data = await response.json()
   console.log("Cost centers:", data.message)
   return data.message || []
 }
 
+export async function fetchMaterialReceipts(
+  costCenter: string,
+  warehouseContext: WarehouseContext = 'nurse'
+): Promise<MaterialReceipt[]> {
+  const response = await fetch(
+    withWarehouseContext(
+      `/api/method/healthcare.api.nursing_inventory.get_material_receipts?cost_center=${encodeURIComponent(costCenter)}`,
+      warehouseContext
+    )
+  )
+  const data = await response.json()
+  if (!response.ok) throw new Error(data.message || 'Failed to fetch material receipts')
+  return data.message || []
+}
+
 export async function getItemBatches(itemCode: string, warehouse: string) {
-  const response = await fetch('/api/method/healthcare.api.nursing_inventory.get_item_batches', {
+  return apiRequest('/api/method/healthcare.api.nursing_inventory.get_item_batches', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ item_code: itemCode, warehouse })
+    body: JSON.stringify({ item_code: itemCode, warehouse }),
   })
-  const result = await response.json()
-  console.log("Uko wapi")
-  if (!response.ok) throw new Error(result.message || 'Failed to fetch batches')
-  return result.message
 }
 
 export async function getItemSerials(itemCode: string, warehouse: string) {
-  const response = await fetch('/api/method/healthcare.api.nursing_inventory.get_item_serials', {
+  return apiRequest('/api/method/healthcare.api.nursing_inventory.get_item_serials', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ item_code: itemCode, warehouse })
+    body: JSON.stringify({ item_code: itemCode, warehouse }),
   })
-  const result = await response.json()
-  if (!response.ok) throw new Error(result.message || 'Failed to fetch serials')
-  return result.message
 }
 
 export async function getBatchSerials(batchNo: string, warehouse: string) {
-  const response = await fetch('/api/method/healthcare.api.nursing_inventory.get_batch_details_with_serials', {
+  return apiRequest('/api/method/healthcare.api.nursing_inventory.get_batch_details_with_serials', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ batch_no: batchNo, warehouse })
+    body: JSON.stringify({ batch_no: batchNo, warehouse }),
   })
-  const result = await response.json()
-  if (!response.ok) throw new Error(result.message || 'Failed to fetch batch serials')
-  return result.message || []
 }

@@ -6,6 +6,7 @@ import {
 } from '../ui/CreateModalChrome'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { fetchStockLedger, getWarehousesForCostCenter, createStockReconciliation, getItemBatches, getItemSerials, getBatchSerials } from '../../services/nursingInventory'
+import { useMiniWarehouseContext } from './MiniWarehouseInventoryContext'
 import { toast } from '../../hooks/useToast'
 import { X, Save, Search, AlertTriangle, Plus, Minus } from 'lucide-react'
 
@@ -38,6 +39,7 @@ interface ReconciliationItem {
 }
 
 export const CreateStockReconciliationModal = ({ onClose, onSuccess, costCenter }: CreateStockReconciliationModalProps) => {
+  const warehouseContext = useMiniWarehouseContext()
   const { userCostCenter, user } = useCareContext()
   const effectiveCostCenter = costCenter || userCostCenter
   
@@ -61,13 +63,13 @@ export const CreateStockReconciliationModal = ({ onClose, onSuccess, costCenter 
     if (effectiveCostCenter) {
       loadWarehouses()
     }
-  }, [effectiveCostCenter])
+  }, [effectiveCostCenter, warehouseContext])
 
   const loadWarehouses = async () => {
     if (!effectiveCostCenter) return
     setLoadingWarehouses(true)
     try {
-      const data = await getWarehousesForCostCenter(effectiveCostCenter)
+      const data = await getWarehousesForCostCenter(effectiveCostCenter, warehouseContext)
       setWarehouses(data)
       if (data.length > 0) {
         setWarehouse(data[0].name)
@@ -92,7 +94,7 @@ export const CreateStockReconciliationModal = ({ onClose, onSuccess, costCenter 
     
     setLoading(true)
     try {
-      const stock = await fetchStockLedger(effectiveCostCenter)
+      const stock = await fetchStockLedger(effectiveCostCenter, warehouseContext)
       
       // Fetch item details to know which items are serialized/batched
       const reconciliationItems = await Promise.all(stock.map(async (item) => {
@@ -462,7 +464,8 @@ export const CreateStockReconciliationModal = ({ onClose, onSuccess, costCenter 
           batch_no: item.batch_no || undefined
         })),
         reconciled_by: user?.name || '',
-        status: 'Draft'
+        status: 'Draft',
+        warehouse_context: warehouseContext,
       })
       toast.success(`Stock reconciliation completed. ${itemsWithDiscrepancy.length} items adjusted.`)
       onSuccess()

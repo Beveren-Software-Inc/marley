@@ -3832,89 +3832,90 @@ def fetch_nursing_discharge_templates(template_name=None):
 	]
 
 
+MINI_WAREHOUSE_TABLES = {
+	"nurse": "nurse_mini_warehouse",
+	"laboratory": "laboratory_mini_warehouse",
+}
+
+
+def normalize_mini_warehouse_context(warehouse_context=None):
+	ctx = (warehouse_context or "nurse").strip().lower()
+	return ctx if ctx in MINI_WAREHOUSE_TABLES else "nurse"
+
+
+def _iter_mini_warehouse_rows(settings, warehouse_context=None):
+	fieldname = MINI_WAREHOUSE_TABLES[normalize_mini_warehouse_context(warehouse_context)]
+	return settings.get(fieldname) or []
+
+
 @frappe.whitelist()
-def get_warehouse_for_cost_center(cost_center):
+def get_warehouse_for_cost_center(cost_center, warehouse_context=None):
 	"""
 	Get the default warehouse for a given cost center from Healthcare Settings.
-	
-	Args:
-		cost_center: The cost center name/ID
-		
-	Returns:
-		str: The warehouse name, or None if not found
+
+	warehouse_context: 'nurse' (default) uses Nurse Mini Warehouse;
+	                   'laboratory' uses Laboratory Mini Warehouse.
 	"""
 	if not cost_center:
 		return None
-	
+
 	try:
-		# Get Healthcare Settings
 		settings = frappe.get_doc("Healthcare Settings")
-		
-		# Find the warehouse for this cost center in the nurse_mini_warehouse table
-		if settings.nurse_mini_warehouse:
-			for warehouse_row in settings.nurse_mini_warehouse:
-				if warehouse_row.cost_center == cost_center:
-					return warehouse_row.warehouse
+		for warehouse_row in _iter_mini_warehouse_rows(settings, warehouse_context):
+			if warehouse_row.cost_center == cost_center:
+				return warehouse_row.warehouse
 	except Exception:
 		pass
-	
+
 	return None
 
 
 @frappe.whitelist()
-def get_warehouses_for_cost_centers(cost_centers=None):
+def get_warehouses_for_cost_centers(cost_centers=None, warehouse_context=None):
 	"""
 	Get warehouses for one or more cost centers from Healthcare Settings.
-	
-	Args:
-		cost_centers: List of cost center names, or None for current user's cost centers
-		
-	Returns:
-		dict: Mapping of cost_center -> warehouse
 	"""
 	if cost_centers is None:
 		permitted_cc = get_permitted_cost_centers()
 		cost_centers = permitted_cc if permitted_cc else []
-	
+
 	warehouse_map = {}
-	
+
 	if not cost_centers:
 		return warehouse_map
-	
+
 	try:
 		settings = frappe.get_doc("Healthcare Settings")
-		if settings.nurse_mini_warehouse:
-			for warehouse_row in settings.nurse_mini_warehouse:
-				if warehouse_row.cost_center in cost_centers:
-					warehouse_map[warehouse_row.cost_center] = warehouse_row.warehouse
+		for warehouse_row in _iter_mini_warehouse_rows(settings, warehouse_context):
+			if warehouse_row.cost_center in cost_centers:
+				warehouse_map[warehouse_row.cost_center] = warehouse_row.warehouse
 	except Exception:
 		pass
-	
+
 	return warehouse_map
 
 
 @frappe.whitelist()
-def get_warehouses_for_cost_center(cost_center):
+def get_warehouses_for_cost_center(cost_center, warehouse_context=None):
 	"""
-	Get all warehouses for a cost center (may have multiple warehouse entries).
+	Get all warehouses for a cost center from the configured mini-warehouse table.
 	Returns list of {name, label} for dropdown selection.
 	"""
 	if not cost_center:
 		return []
-	
+
 	warehouses = []
 	try:
 		settings = frappe.get_doc("Healthcare Settings")
-		if settings.nurse_mini_warehouse:
-			for warehouse_row in settings.nurse_mini_warehouse:
-				if warehouse_row.cost_center == cost_center:
-					warehouses.append({
-						"name": warehouse_row.warehouse,
-						"label": warehouse_row.warehouse
-					})
+		for warehouse_row in _iter_mini_warehouse_rows(settings, warehouse_context):
+			if warehouse_row.cost_center == cost_center:
+				warehouses.append({
+					"name": warehouse_row.warehouse,
+					"label": warehouse_row.warehouse,
+				})
 	except Exception:
 		pass
-	
+
 	return warehouses
 
 

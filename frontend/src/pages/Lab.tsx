@@ -720,6 +720,7 @@ import { CreateLabTestSampleModal } from '../components/labTests/CreateLabTestSa
 import { CreateSampleTypeModal } from '../components/labTests/CreateSampleTypeModal'
 import { SampleCollectionList } from '../components/labTests/SampleCollectionList'
 import { LabTestHistory } from '../components/labTests/LabTestHistory' // ADD THIS IMPORT
+import { NursingInventoryDashboard } from '../components/nursingInventory/NursingInventoryDashboard'
 import { fetchLabTestSamples, fetchSampleTypes, type LabTestSampleOption, type LinkFieldOption } from '../services/common'
 
 type LabTab = 'lab-tests' | 'medical-history' | 'warnings' | 'sample-collection' | 'lab-templates' | 'lab-history'
@@ -1061,6 +1062,20 @@ export const LabPage = () => {
             initialPatient={selectedPatient}
           />
         )}
+      </div>
+    )
+  }
+
+  if (screen === 'l-inventory') {
+    return (
+      <div className="flex flex-col">
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
+        <div className="p-4">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+            <div className="font-semibold mb-4">Inventory Dashboard</div>
+            <NursingInventoryDashboard warehouseContext="laboratory" />
+          </section>
+        </div>
       </div>
     )
   }
