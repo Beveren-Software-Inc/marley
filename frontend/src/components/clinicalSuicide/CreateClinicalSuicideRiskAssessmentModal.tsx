@@ -81,7 +81,7 @@ export const CreateSuicideRiskAssessmentModal = ({
 
   // Section 3: History
   const [hasHistory, setHasHistory] = useState(false)
-  const [attemptCount, setAttemptCount] = useState<number>(0)
+  const [attemptCount, setAttemptCount] = useState('')
   const [lastAttempt, setLastAttempt] = useState('')
   const [psychiatricHistory, setPsychiatricHistory] = useState('')
 
@@ -211,7 +211,8 @@ export const CreateSuicideRiskAssessmentModal = ({
         risk_behavior: riskBehavior || undefined,
         
         has_history: hasHistory,
-        attempt_count: attemptCount || undefined,
+        attempt_count:
+          attemptCount.trim() === '' ? undefined : parseInt(attemptCount, 10) || undefined,
         last_attempt: lastAttempt || undefined,
         psychiatric_history: psychiatricHistory || undefined,
         
@@ -561,8 +562,9 @@ export const CreateSuicideRiskAssessmentModal = ({
                     <label className="block text-sm font-medium text-slate-700 mb-1">How many attempts?</label>
                     <input
                       type="number"
+                      min={0}
                       value={attemptCount}
-                      onChange={(e) => setAttemptCount(parseInt(e.target.value) || 0)}
+                      onChange={(e) => setAttemptCount(e.target.value)}
                       className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                     />
                   </div>

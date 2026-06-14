@@ -100,6 +100,35 @@ frappe.ui.form.on('Healthcare Settings', {
 			});
 		}, __('Data Maintenance'));
 
+		frm.add_custom_button(__('Backfill Patient History Dates from Import'), () => {
+			frappe.call({
+				method: 'healthcare.api.patient_history_date_backfill.run_patient_history_date_backfill_preview',
+				callback(preview) {
+					const counts = preview.message || {};
+					frappe.confirm(
+						__(
+							'Run in background: for each Patient History linked to an admission with no date, use Patient History Import CR Date when available; otherwise use the linked Inpatient Admission date (Admitted Datetime or Admission Date).\n\nWith admission: {0}\nMissing date: {1}\nSample can update: {2} / {3}\nSample from import CR Date: {4}\nSample from admission date: {5}\nSample with no date source: {6}\n\nContinue?',
+							[
+								counts.total_with_admission || 0,
+								counts.missing_date || 0,
+								counts.sample_can_update || 0,
+								counts.sample_checked || 0,
+								counts.sample_from_import || 0,
+								counts.sample_from_admission || 0,
+								counts.sample_no_date || 0,
+							]
+						),
+						() =>
+							run_migration_job(
+								frm,
+								'start_patient_history_date_backfill_migration',
+								'patient_history_date_backfill'
+							)
+					);
+				},
+			});
+		}, __('Data Maintenance'));
+
 		frm.add_custom_button(__('Link IP Admission Medicine to PMO'), () => {
 			frappe.confirm(
 				__(

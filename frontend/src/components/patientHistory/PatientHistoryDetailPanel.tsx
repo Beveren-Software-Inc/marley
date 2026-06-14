@@ -21,6 +21,7 @@ export interface PatientHistoryDetail {
   patient_visit?: string
   template?: string
   cost_center?: string
+  date?: string
   creation?: string
   history_detail: PatientHistoryDetailRow[]
 }
@@ -36,13 +37,15 @@ function mapDetailRow(raw: Record<string, unknown>): PatientHistoryDetailRow {
   }
 }
 
-function formatDate(val?: string) {
+function formatDateTime(val?: string) {
   if (!val) return '—'
   try {
-    return new Date(val).toLocaleDateString(undefined, {
+    return new Date(val).toLocaleString(undefined, {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
     })
   } catch {
     return val
@@ -87,6 +90,7 @@ export function PatientHistoryDetailPanel({ name, onClose }: PatientHistoryDetai
           patient_visit: data.patient_visit ? String(data.patient_visit) : undefined,
           template: data.template ? String(data.template) : undefined,
           cost_center: data.cost_center ? String(data.cost_center) : undefined,
+          date: data.date ? String(data.date) : undefined,
           creation: data.creation ? String(data.creation) : undefined,
           history_detail: rows,
         })
@@ -114,8 +118,8 @@ export function PatientHistoryDetailPanel({ name, onClose }: PatientHistoryDetai
   const filledCount = detail?.history_detail.filter(rowHasContent).length ?? 0
   const emptyCount = (detail?.history_detail.length ?? 0) - filledCount
 
-  const headerSubtitle = detail?.creation
-    ? formatDate(detail.creation)
+  const headerSubtitle = detail?.date || detail?.creation
+    ? formatDateTime(detail.date || detail.creation)
     : loading
       ? 'Loading…'
       : undefined
@@ -135,15 +139,9 @@ export function PatientHistoryDetailPanel({ name, onClose }: PatientHistoryDetai
           <CreateModalHeader
             title="Patient History"
             subtitle={
-              <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                <span className="font-medium text-emerald-950">{name}</span>
-                {headerSubtitle ? (
-                  <>
-                    <span className="text-emerald-700/40">·</span>
-                    <span>{headerSubtitle}</span>
-                  </>
-                ) : null}
-              </span>
+              headerSubtitle ? (
+                <span className="font-medium text-emerald-950">{headerSubtitle}</span>
+              ) : undefined
             }
             icon={<BookOpen className="h-5 w-5 text-emerald-700" strokeWidth={2} />}
             onClose={onClose}

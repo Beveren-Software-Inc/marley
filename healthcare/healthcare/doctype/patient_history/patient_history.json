@@ -12,6 +12,7 @@
   "column_break_utvm",
   "patient",
   "template",
+  "date",
   "detail_descriptions_section",
   "history_detail"
  ],
@@ -65,12 +66,17 @@
    "fieldtype": "Link",
    "label": "Cost Center",
    "options": "Cost Center"
+  },
+  {
+   "fieldname": "date",
+   "fieldtype": "Datetime",
+   "label": "Date"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-06-08 13:13:23.430619",
+ "modified": "2026-06-14 12:07:07.578773",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient History",

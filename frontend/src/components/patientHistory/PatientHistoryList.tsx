@@ -2,14 +2,20 @@ import { useEffect, useMemo, useState } from 'react'
 import { BookOpen } from 'lucide-react'
 import { PatientHistoryDetailPanel } from './PatientHistoryDetailPanel'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
-import { useCardFilters, useInDashboardCard } from '../../contexts/CardFilterContext'
+import { useCardFilters, useDashboardCompactClinical, useInDashboardCard } from '../../contexts/CardFilterContext'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
+import {
+  CardRowMetaHint,
+  dashboardCardRowHoverClass,
+  formatDashboardDate,
+} from '../ui/dashboardCardListing'
 
 interface HistoryRecord {
   name: string
   patient: string
   inpatient_admission?: string
   patient_visit?: string
+  date?: string
   creation: string
 }
 
@@ -20,13 +26,38 @@ interface PatientHistoryListProps {
   onPatientClick?: (patient: string) => void
 }
 
-const creationDay = (val?: string) => {
-  if (!val) return ''
+function historyDateDay(val?: string) {
+  const source = val || ''
+  if (!source) return ''
   try {
-    return new Date(val).toISOString().slice(0, 10)
+    return new Date(source).toISOString().slice(0, 10)
   } catch {
-    return String(val).slice(0, 10)
+    return String(source).slice(0, 10)
   }
+}
+
+function formatHistoryDateOnly(val?: string) {
+  if (!val) return '—'
+  return formatDashboardDate(val)
+}
+
+function formatHistoryDateTime(val?: string) {
+  if (!val) return '—'
+  try {
+    return new Date(val).toLocaleString(undefined, {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  } catch {
+    return val
+  }
+}
+
+function recordDate(row: HistoryRecord) {
+  return row.date || row.creation
 }
 
 export const PatientHistoryList = ({
@@ -42,6 +73,7 @@ export const PatientHistoryList = ({
 
   const cardFilters = useCardFilters()
   const inDashboardCard = useInDashboardCard()
+  const compactClinical = useDashboardCompactClinical()
   const showFilters = cardFilters === true
 
   const [fromDate, setFromDate] = useState('')
@@ -58,9 +90,16 @@ export const PatientHistoryList = ({
         if (inpatientAdmission) filters.push(['inpatient_admission', '=', inpatientAdmission])
         const params = new URLSearchParams({
           doctype: 'Patient History',
-          fields: JSON.stringify(['name', 'patient', 'inpatient_admission', 'patient_visit', 'creation']),
+          fields: JSON.stringify([
+            'name',
+            'patient',
+            'inpatient_admission',
+            'patient_visit',
+            'date',
+            'creation',
+          ]),
           filters: JSON.stringify(filters),
-          order_by: 'creation desc',
+          order_by: 'date desc, creation desc',
           limit: '50',
         })
         const res = await fetch(`/api/method/frappe.client.get_list?${params}`)
@@ -85,7 +124,7 @@ export const PatientHistoryList = ({
 
   const filteredItems = useMemo(() => {
     return items.filter((row) => {
-      const day = creationDay(row.creation)
+      const day = historyDateDay(recordDate(row))
       if (fromDate && day && day < fromDate) return false
       if (toDate && day && day > toDate) return false
       if (admissionFilter && row.inpatient_admission !== admissionFilter) return false
@@ -94,6 +133,8 @@ export const PatientHistoryList = ({
   }, [items, fromDate, toDate, admissionFilter])
 
   const hasActiveFilters = Boolean(fromDate || toDate || admissionFilter)
+
+  const openDetail = (name: string) => setDetailName(name)
 
   if (loading) {
     return (
@@ -112,7 +153,7 @@ export const PatientHistoryList = ({
       {showFilters && (
         <div className="flex flex-wrap items-end gap-3 py-2 border-b border-slate-100 bg-slate-50/80 flex-shrink-0">
           <div className="flex flex-col gap-1 min-w-[120px]">
-            <label className="text-xs font-medium text-slate-500">Created from</label>
+            <label className="text-xs font-medium text-slate-500">Date from</label>
             <input
               type="date"
               value={fromDate}
@@ -121,7 +162,7 @@ export const PatientHistoryList = ({
             />
           </div>
           <div className="flex flex-col gap-1 min-w-[120px]">
-            <label className="text-xs font-medium text-slate-500">Created to</label>
+            <label className="text-xs font-medium text-slate-500">Date to</label>
             <input
               type="date"
               value={toDate}
@@ -171,18 +212,69 @@ export const PatientHistoryList = ({
           <p className="text-sm text-slate-500 mb-1">No patient history records yet</p>
           <p className="text-xs text-slate-400">Use the + button to record a new history</p>
         </div>
-      ) : (
+      ) : compactClinical ? (
         <div className="overflow-auto border border-slate-200 rounded-md flex-1 min-h-0">
           <table className="w-full text-sm">
             <thead className="bg-slate-50 border-b border-slate-200 sticky top-0">
               <tr>
-                <th className="px-3 py-2 text-left text-[11px] font-semibold text-slate-600 uppercase">Record #</th>
+                <th className="px-3 py-2 text-left text-[11px] font-semibold text-slate-600 uppercase">Date</th>
+                <th className="px-3 py-2 text-left text-[11px] font-semibold text-slate-600 uppercase">Admission</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {filteredItems.map((row) => {
+                const metaFields = [
+                  ['Record', row.name],
+                  ['Visit', row.patient_visit],
+                  ['Created', row.creation ? formatHistoryDateTime(row.creation) : ''],
+                ] as const
+                return (
+                  <tr
+                    key={row.name}
+                    className={dashboardCardRowHoverClass}
+                    onClick={() => openDetail(row.name)}
+                  >
+                    <td className="px-3 py-2">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          openDetail(row.name)
+                        }}
+                        className="text-primary hover:underline font-medium text-xs whitespace-nowrap"
+                      >
+                        {formatHistoryDateOnly(recordDate(row))}
+                      </button>
+                      <CardRowMetaHint fields={metaFields} />
+                    </td>
+                    <td className="px-3 py-2 text-slate-500 text-xs">{row.inpatient_admission || '—'}</td>
+                    <td className="px-3 py-2 text-slate-500 text-xs" onClick={(e) => e.stopPropagation()}>
+                      <PrintFormatDropdown
+                        doctype="Patient History"
+                        docName={row.name}
+                        noLetterhead={0}
+                        triggerPrint={1}
+                        className="inline-flex items-center justify-center w-8 h-8 rounded border border-slate-300 bg-white text-primary hover:bg-slate-50"
+                      />
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="overflow-auto border border-slate-200 rounded-md flex-1 min-h-0">
+          <table className="w-full text-sm min-w-[640px]">
+            <thead className="bg-slate-50 border-b border-slate-200 sticky top-0">
+              <tr>
+                <th className="px-3 py-2 text-left text-[11px] font-semibold text-slate-600 uppercase">Date</th>
                 {!patient && (
                   <th className="px-3 py-2 text-left text-[11px] font-semibold text-slate-600 uppercase">Patient</th>
                 )}
                 <th className="px-3 py-2 text-left text-[11px] font-semibold text-slate-600 uppercase">Admission</th>
                 <th className="px-3 py-2 text-left text-[11px] font-semibold text-slate-600 uppercase">Visit</th>
-                <th className="px-3 py-2 text-left text-[11px] font-semibold text-slate-600 uppercase">Date</th>
                 <th />
               </tr>
             </thead>
@@ -192,10 +284,10 @@ export const PatientHistoryList = ({
                   <td className="px-3 py-2">
                     <button
                       type="button"
-                      onClick={() => setDetailName(row.name)}
-                      className="text-primary hover:underline font-medium text-xs"
+                      onClick={() => openDetail(row.name)}
+                      className="text-primary hover:underline font-medium text-xs whitespace-nowrap"
                     >
-                      {row.name}
+                      {formatHistoryDateTime(recordDate(row))}
                     </button>
                   </td>
                   {!patient && (
@@ -208,9 +300,6 @@ export const PatientHistoryList = ({
                   )}
                   <td className="px-3 py-2 text-slate-500 text-xs">{row.inpatient_admission || '—'}</td>
                   <td className="px-3 py-2 text-slate-500 text-xs">{row.patient_visit || '—'}</td>
-                  <td className="px-3 py-2 text-slate-500 text-xs">
-                    {row.creation ? new Date(row.creation).toLocaleDateString() : '—'}
-                  </td>
                   <td className="px-3 py-2 text-slate-500 text-xs">
                     <PrintFormatDropdown
                       doctype="Patient History"
