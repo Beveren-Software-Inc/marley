@@ -396,7 +396,7 @@ def get_patient_visits_full(search=None, patient=None, practitioner=None, from_d
 		"data": [
 			{
 				"name": v.name,
-				"label": f"{v.name} - {v.patient_name or v.patient or ''}",
+				"label": v.name,
 				"patient": v.patient or '',
 				"patient_name": v.patient_name or '',
 				"encounter_date": str(v.encounter_date) if v.encounter_date else None,

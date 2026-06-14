@@ -1376,11 +1376,73 @@ def _resolve_sales_order_reference(pmo):
 	return ref_doctype, ref_name
 
 
+def _pharmacy_giveout_billing_groups_from_pmo(pmo):
+	"""Build SO/DN billing groups with batch and dispensing lot from pharmacy give-out stock lines."""
+	stock_lines = getattr(getattr(pmo, "flags", None), "pharmacy_giveout_item_stock", None) or []
+	groups = []
+	for idx, row in enumerate(pmo.get("medication_orders") or []):
+		if not getattr(row, "drug", None):
+			continue
+		stock = stock_lines[idx] if idx < len(stock_lines) else {}
+		groups.append(
+			{
+				"medicine_code": row.drug,
+				"medicine_name": getattr(row, "drug_name", None) or row.drug,
+				"qty": flt(getattr(row, "quantity", 0)) or 1,
+				"batch_no": stock.get("batch_no"),
+				"dispensing_lot": stock.get("dispensing_lot"),
+			}
+		)
+	return groups
+
+
+def _delivery_notes_for_sales_order(sales_order):
+	"""Submitted Delivery Notes linked to a Sales Order."""
+	if not sales_order:
+		return []
+	return frappe.db.sql_list(
+		"""
+		SELECT DISTINCT dn.name
+		FROM `tabDelivery Note` dn
+		INNER JOIN `tabDelivery Note Item` dni ON dni.parent = dn.name
+		WHERE dni.against_sales_order = %s AND dn.docstatus = 1
+		ORDER BY dn.creation DESC
+		""",
+		sales_order,
+	)
+
+
+def _cancel_delivery_notes_for_sales_order(sales_order):
+	cancelled = []
+	for dn_name in _delivery_notes_for_sales_order(sales_order):
+		dn = frappe.get_doc("Delivery Note", dn_name)
+		if dn.docstatus == 1:
+			dn.cancel()
+			cancelled.append(dn_name)
+	return cancelled
+
+
+def _apply_stock_to_sales_order_item_row(item_row, batch_no=None, dispensing_lot=None):
+	"""Set batch and dispensing lot on a Sales Order item dict when fields exist."""
+	batch_no = (batch_no or "").strip() or None
+	dispensing_lot = (dispensing_lot or "").strip() or None
+	if batch_no and frappe.get_meta("Sales Order Item").has_field("batch_no"):
+		item_row["batch_no"] = batch_no
+	if dispensing_lot:
+		if frappe.db.has_column("Sales Order Item", "custom_dispensing_lot"):
+			item_row["custom_dispensing_lot"] = dispensing_lot
+		elif frappe.get_meta("Sales Order Item").has_field("serial_no"):
+			serial_no = frappe.db.get_value("Dispensing Lot", dispensing_lot, "serial_no")
+			if serial_no:
+				item_row["serial_no"] = serial_no
+
+
 def _append_sales_order_items_from_pmo(so, pmo, warehouse=None):
 	"""Append Sales Order items (with rates/taxes) from PMO medication rows."""
 	tax_templates_added = set()
+	stock_lines = getattr(getattr(pmo, "flags", None), "pharmacy_giveout_item_stock", None) or []
 
-	for row in pmo.get("medication_orders") or []:
+	for idx, row in enumerate(pmo.get("medication_orders") or []):
 		if not getattr(row, "drug", None):
 			continue
 		qty = flt(getattr(row, "quantity", 0)) or 1
@@ -1395,6 +1457,12 @@ def _append_sales_order_items_from_pmo(so, pmo, warehouse=None):
 			item_row["price_list_rate"] = rate
 		if warehouse:
 			item_row["warehouse"] = warehouse
+		stock = stock_lines[idx] if idx < len(stock_lines) else {}
+		_apply_stock_to_sales_order_item_row(
+			item_row,
+			batch_no=stock.get("batch_no"),
+			dispensing_lot=stock.get("dispensing_lot"),
+		)
 		so.append("items", item_row)
 
 		tax_info = get_item_tax(row.drug, pmo.company)
@@ -1465,6 +1533,9 @@ def _create_submitted_sales_order_for_pmo(pmo, cost_center=None, warehouse=None)
 	if warehouse and hasattr(so, "set_warehouse"):
 		so.set_warehouse = warehouse
 
+	if getattr(pmo, "nursing_pharmacy_giveout", 0) and hasattr(so, "reserve_stock"):
+		so.reserve_stock = 0
+
 	_append_sales_order_items_from_pmo(so, pmo, warehouse=warehouse)
 
 	cc = cost_center or cost_center_from_patient_medication_order(pmo, ref_doctype, ref_name)
@@ -1480,6 +1551,71 @@ def _create_submitted_sales_order_for_pmo(pmo, cost_center=None, warehouse=None)
 	return so
 
 
+def _resolve_nursing_pharmacy_giveout_warehouse(inpatient_record, warehouse=None):
+	"""Validate and resolve warehouse for pharmacy give-out from Healthcare Settings."""
+	from healthcare.api.common import (
+		get_pharmacy_giveout_warehouses,
+		resolve_pharmacy_giveout_default_warehouse,
+	)
+
+	cost_center = frappe.db.get_value("Inpatient Admission", inpatient_record, "cost_center")
+	allowed = get_pharmacy_giveout_warehouses()
+	if not allowed:
+		frappe.throw(
+			_(
+				"No Pharmacy Give Out warehouses configured in Healthcare Settings. "
+				"Add warehouses under Stock → Pharmacy Give Out."
+			)
+		)
+
+	allowed_names = {row["name"] for row in allowed}
+	warehouse = (warehouse or "").strip() or None
+	if warehouse:
+		if warehouse not in allowed_names:
+			frappe.throw(
+				_("Warehouse {0} is not configured for Pharmacy Give Out in Healthcare Settings.").format(warehouse)
+			)
+		return warehouse
+
+	default_wh, _allowed = resolve_pharmacy_giveout_default_warehouse(cost_center)
+	if not default_wh:
+		frappe.throw(
+			_(
+				"No Pharmacy Give Out warehouse could be resolved for cost center {0}. "
+				"Configure Pharmacy Give Out warehouses in Healthcare Settings."
+			).format(cost_center or _("(not set)"))
+		)
+	return default_wh
+
+
+@frappe.whitelist()
+def get_nursing_pharmacy_giveout_warehouses(inpatient_record):
+	"""Warehouses allowed for nursing pharmacy give-out plus default (nurse mini warehouse when listed)."""
+	if not _user_can_access_patient_medication_order_portal():
+		frappe.throw(_("Not permitted"), frappe.PermissionError)
+	if not inpatient_record:
+		frappe.throw(_("Inpatient Admission is required"))
+	if not frappe.db.exists("Inpatient Admission", inpatient_record):
+		frappe.throw(_("Inpatient Admission {0} does not exist").format(inpatient_record))
+
+	from healthcare.api.common import (
+		get_pharmacy_giveout_warehouses,
+		get_warehouse_for_cost_center,
+		resolve_pharmacy_giveout_default_warehouse,
+	)
+
+	cost_center = frappe.db.get_value("Inpatient Admission", inpatient_record, "cost_center")
+	warehouses = get_pharmacy_giveout_warehouses()
+	default_warehouse, _allowed = resolve_pharmacy_giveout_default_warehouse(cost_center)
+	mini_warehouse = get_warehouse_for_cost_center(cost_center) if cost_center else None
+
+	return {
+		"warehouses": warehouses,
+		"default_warehouse": default_warehouse,
+		"mini_warehouse": mini_warehouse,
+	}
+
+
 @frappe.whitelist()
 def create_nursing_pharmacy_giveout(
 	patient,
@@ -1487,6 +1623,7 @@ def create_nursing_pharmacy_giveout(
 	medication_orders,
 	source_prescription=None,
 	practitioner=None,
+	warehouse=None,
 ):
 	"""Nursing pharmacy give-out: create PMO from edited prescription lines, bill via submitted Sales Order."""
 	if not _user_can_access_patient_medication_order_portal():
@@ -1527,9 +1664,9 @@ def create_nursing_pharmacy_giveout(
 			)
 		)
 
-	from healthcare.api.common import get_warehouse_for_cost_center
+	from healthcare.api.medicine_given import _validate_medicine_given_batch_lot
 
-	warehouse = get_warehouse_for_cost_center(cost_center)
+	warehouse = _resolve_nursing_pharmacy_giveout_warehouse(inpatient_record, warehouse)
 
 	start_date = nowdate()
 	doc = frappe.new_doc("Patient Medication Order")
@@ -1548,9 +1685,12 @@ def create_nursing_pharmacy_giveout(
 	elif admission_doc.get("secondary_practitioner"):
 		doc.practitioner = admission_doc.secondary_practitioner
 
+	from healthcare.api.medicine_given import _validate_medicine_given_batch_lot
+
 	doc.nursing_pharmacy_giveout = 1
 	if source_prescription and frappe.db.exists("Patient Medication Order", source_prescription):
 		doc.source_prescription = source_prescription
+	doc.flags.pharmacy_giveout_item_stock = []
 	for row in valid_rows:
 		row = dict(row)
 		if not row.get("date"):
@@ -1559,7 +1699,23 @@ def create_nursing_pharmacy_giveout(
 			row["time"] = "00:00:00"
 		if not row.get("quantity") and not row.get("qty"):
 			row["quantity"] = 1
+		drug = (row.get("drug") or "").strip()
+		if drug:
+			_validate_medicine_given_batch_lot(
+				drug,
+				inpatient_record,
+				row.get("batch_no"),
+				row.get("lot_no"),
+				row.get("dispensing_lot"),
+				warehouse=warehouse,
+			)
 		_set_medication_row(doc, row)
+		doc.flags.pharmacy_giveout_item_stock.append(
+			{
+				"batch_no": (row.get("batch_no") or "").strip() or None,
+				"dispensing_lot": (row.get("dispensing_lot") or "").strip() or None,
+			}
+		)
 
 	if doc.medication_orders:
 		last_dates = [r.date for r in doc.medication_orders if r.date]
@@ -1572,12 +1728,25 @@ def create_nursing_pharmacy_giveout(
 
 	so = _create_submitted_sales_order_for_pmo(doc, cost_center=cost_center, warehouse=warehouse)
 
+	from healthcare.api.nursing_inventory import _create_delivery_note_for_sales_order
+
+	billing_groups = _pharmacy_giveout_billing_groups_from_pmo(doc)
+	dn = _create_delivery_note_for_sales_order(
+		so.name,
+		patient,
+		start_date,
+		billing_groups,
+		warehouse=warehouse,
+	)
+
 	frappe.db.commit()
 
 	return {
 		"patient_medication_order": doc.name,
 		"sales_order": so.name,
 		"sales_order_status": so.status,
+		"delivery_note": dn.name,
+		"delivery_note_status": dn.status,
 		"pmo_status": frappe.db.get_value("Patient Medication Order", doc.name, "status"),
 		"source_prescription": source_prescription,
 	}
@@ -1715,7 +1884,7 @@ def _sales_order_has_invoice(sales_order):
 
 
 @frappe.whitelist()
-def delete_nursing_pharmacy_giveout(name):
+def cancel_nursing_pharmacy_giveout(name):
 	"""Cancel a nursing pharmacy give-out PMO and its linked Sales Order when not invoiced."""
 	if not name:
 		frappe.throw(_("Give-out record name is required"))
@@ -1733,7 +1902,7 @@ def delete_nursing_pharmacy_giveout(name):
 		frappe.throw(_("This is not a nursing pharmacy give-out record"))
 
 	if doc.docstatus != 1:
-		frappe.throw(_("Only submitted give-out records can be removed"))
+		frappe.throw(_("Only submitted give-out records can be cancelled"))
 
 	from healthcare.api.common import get_permitted_cost_centers
 
@@ -1758,16 +1927,35 @@ def delete_nursing_pharmacy_giveout(name):
 			)
 			frappe.throw(
 				_(
-					"This give-out is linked to Sales Invoice {0} and cannot be removed."
+					"This give-out is linked to Sales Invoice {0} and cannot be cancelled."
 				).format(frappe.bold(invoice))
 			)
+
+		# Unlink PMO from SO before cancelling — Frappe blocks SO cancel while referenced.
+		frappe.db.set_value(
+			"Patient Medication Order",
+			doc.name,
+			{"reference_doctype": None, "reference_document_name": None},
+			update_modified=False,
+		)
+		doc.reference_doctype = None
+		doc.reference_document_name = None
+
+		_cancel_delivery_notes_for_sales_order(sales_order)
 
 		so = frappe.get_doc("Sales Order", sales_order)
 		if so.docstatus == 1:
 			so.cancel()
 
 	if doc.docstatus == 1:
+		doc.reload()
 		doc.cancel()
 
 	frappe.db.commit()
 	return {"cancelled": name, "sales_order": sales_order}
+
+
+@frappe.whitelist()
+def delete_nursing_pharmacy_giveout(name):
+	"""Deprecated alias — cancels the give-out record."""
+	return cancel_nursing_pharmacy_giveout(name)

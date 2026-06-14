@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useState } from 'react'
-import { Eye, Trash2 } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { MoreHorizontal, XCircle } from 'lucide-react'
 import {
-  deleteNursingPharmacyGiveOut,
+  cancelNursingPharmacyGiveOut,
   fetchNursingPharmacyGiveOuts,
   isPharmacyGiveOutInvoiced,
   type PharmacyGiveOutRow,
@@ -15,6 +15,7 @@ import {
 } from '../ui/dashboardCardListing'
 import { StatusPill } from '../ui/StatusPill'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
+import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { PharmacyGiveOutSlideOver } from './PharmacyGiveOutSlideOver'
 import { toast } from '../../hooks/useToast'
 
@@ -41,27 +42,23 @@ interface PharmacyGiveOutListProps {
 function PharmacyGiveOutActions({
   row,
   deleting,
-  onView,
-  onDelete,
+  openActionRow,
+  setOpenActionRow,
+  menuRef,
+  onCancel,
 }: {
   row: PharmacyGiveOutRow
   deleting: boolean
-  onView: () => void
-  onDelete: () => void
+  openActionRow: string | null
+  setOpenActionRow: (value: string | null | ((prev: string | null) => string | null)) => void
+  menuRef: React.RefObject<HTMLDivElement | null>
+  onCancel: () => void
 }) {
   const invoiced = isPharmacyGiveOutInvoiced(row)
+  const menuOpen = openActionRow === row.name
 
   return (
     <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-      <button
-        type="button"
-        onClick={onView}
-        className={`${iconToolbarBtn} text-primary border-slate-200`}
-        title="View details"
-        aria-label="View details"
-      >
-        <Eye className="h-4 w-4" aria-hidden />
-      </button>
       <PrintFormatDropdown
         doctype="Patient Medication Order"
         docName={row.name}
@@ -71,20 +68,40 @@ function PharmacyGiveOutActions({
         ariaLabel="Print"
         title="Print"
       />
-      <button
-        type="button"
-        onClick={onDelete}
-        disabled={invoiced || deleting}
-        className={`${iconToolbarBtn} border-red-200 text-red-700 hover:bg-red-50`}
-        title={
-          invoiced
-            ? `Linked to invoice ${row.invoice} — cannot remove`
-            : 'Remove this pharmacy give-out record'
-        }
-        aria-label="Remove"
-      >
-        <Trash2 className="h-3.5 w-3.5" aria-hidden />
-      </button>
+      <div className="relative inline-block" ref={menuOpen ? menuRef : undefined}>
+        <button
+          type="button"
+          aria-label="Actions"
+          onClick={() => setOpenActionRow((prev) => (prev === row.name ? null : row.name))}
+          className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
+        >
+          <MoreHorizontal className="h-4 w-4" />
+        </button>
+        <PortalActionsMenu
+          open={menuOpen}
+          onClose={() => setOpenActionRow(null)}
+          triggerRef={menuRef}
+          minWidth={180}
+        >
+          <button
+            type="button"
+            disabled={invoiced || deleting}
+            onClick={() => {
+              setOpenActionRow(null)
+              onCancel()
+            }}
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
+            title={
+              invoiced
+                ? `Linked to invoice ${row.invoice} — cannot cancel`
+                : 'Cancel this pharmacy give-out record'
+            }
+          >
+            <XCircle className="h-3.5 w-3.5 shrink-0 text-slate-500" aria-hidden />
+            {deleting ? 'Cancelling…' : 'Cancel'}
+          </button>
+        </PortalActionsMenu>
+      </div>
     </div>
   )
 }
@@ -105,7 +122,9 @@ export function PharmacyGiveOutList({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
   const [detailName, setDetailName] = useState<string | null>(null)
-  const [deletingName, setDeletingName] = useState<string | null>(null)
+  const [cancellingName, setCancellingName] = useState<string | null>(null)
+  const [openActionRow, setOpenActionRow] = useState<string | null>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
 
   const load = useCallback(async () => {
     try {
@@ -128,27 +147,43 @@ export function PharmacyGiveOutList({
     void load()
   }, [load, refreshKey])
 
-  const handleDelete = async (row: PharmacyGiveOutRow) => {
+  const handleCancel = async (row: PharmacyGiveOutRow) => {
     if (isPharmacyGiveOutInvoiced(row)) return
-    if (!window.confirm('Remove this pharmacy give-out record? The linked sales order will be cancelled.')) {
+    if (!window.confirm('Cancel this pharmacy give-out record? The linked sales order will also be cancelled.')) {
       return
     }
 
-    setDeletingName(row.name)
+    setCancellingName(row.name)
     try {
-      await deleteNursingPharmacyGiveOut(row.name)
+      await cancelNursingPharmacyGiveOut(row.name)
       setRows((prev) => prev.filter((r) => r.name !== row.name))
       if (detailName === row.name) {
         setDetailName(null)
       }
-      toast.success('Pharmacy give-out removed')
+      toast.success('Pharmacy give-out cancelled')
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Failed to remove pharmacy give-out record'
+      const msg = e instanceof Error ? e.message : 'Failed to cancel pharmacy give-out record'
       toast.error(msg)
     } finally {
-      setDeletingName(null)
+      setCancellingName(null)
     }
   }
+
+  const openDetails = (name: string) => {
+    setOpenActionRow(null)
+    setDetailName(name)
+  }
+
+  const dateCell = (row: PharmacyGiveOutRow, className: string) => (
+    <button
+      type="button"
+      onClick={() => openDetails(row.name)}
+      className={`text-primary hover:underline font-medium text-left whitespace-nowrap ${className}`}
+      title="View give-out details"
+    >
+      {formatDashboardDate(row.posting_date || row.start_date)}
+    </button>
+  )
 
   const slideOver = (
     <PharmacyGiveOutSlideOver giveOutName={detailName} onClose={() => setDetailName(null)} />
@@ -198,14 +233,8 @@ export function PharmacyGiveOutList({
             </thead>
             <tbody>
               {rows.map((row) => (
-                <tr
-                  key={row.name}
-                  className={`border-b border-slate-100 ${dashboardCardRowHoverClass}`}
-                  onClick={() => setDetailName(row.name)}
-                >
-                  <td className="py-2 pr-2 align-top whitespace-nowrap text-slate-700">
-                    {formatDashboardDate(row.posting_date || row.start_date)}
-                  </td>
+                <tr key={row.name} className={`border-b border-slate-100 ${dashboardCardRowHoverClass}`}>
+                  <td className="py-2 pr-2 align-top">{dateCell(row, 'text-xs')}</td>
                   <td className="py-2 pr-2 align-top min-w-0">
                     <div className="font-medium text-slate-900 truncate">
                       {row.medications_summary || '—'}
@@ -230,9 +259,11 @@ export function PharmacyGiveOutList({
                   <td className="py-2 align-top">
                     <PharmacyGiveOutActions
                       row={row}
-                      deleting={deletingName === row.name}
-                      onView={() => setDetailName(row.name)}
-                      onDelete={() => void handleDelete(row)}
+                      deleting={cancellingName === row.name}
+                      openActionRow={openActionRow}
+                      setOpenActionRow={setOpenActionRow}
+                      menuRef={menuRef}
+                      onCancel={() => void handleCancel(row)}
                     />
                   </td>
                 </tr>
@@ -262,23 +293,14 @@ export function PharmacyGiveOutList({
           </thead>
           <tbody>
             {rows.map((row) => (
-              <tr
-                key={row.name}
-                className={`border-b border-slate-100 hover:bg-slate-50 ${dashboardCardRowHoverClass}`}
-                onClick={() => setDetailName(row.name)}
-              >
-                <td className="py-3 pr-4 whitespace-nowrap text-slate-700">
-                  {formatDashboardDate(row.posting_date || row.start_date)}
-                </td>
+              <tr key={row.name} className={`border-b border-slate-100 hover:bg-slate-50`}>
+                <td className="py-3 pr-4">{dateCell(row, 'text-sm')}</td>
                 {!effectivePatient && (
                   <td className="py-3 pr-4">
                     {onPatientClick && row.patient ? (
                       <button
                         type="button"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          onPatientClick(row.patient)
-                        }}
+                        onClick={() => onPatientClick(row.patient)}
                         className="text-primary hover:underline text-left"
                       >
                         {row.patient_name || row.patient}
@@ -302,9 +324,11 @@ export function PharmacyGiveOutList({
                 <td className="py-3 pr-2">
                   <PharmacyGiveOutActions
                     row={row}
-                    deleting={deletingName === row.name}
-                    onView={() => setDetailName(row.name)}
-                    onDelete={() => void handleDelete(row)}
+                    deleting={cancellingName === row.name}
+                    openActionRow={openActionRow}
+                    setOpenActionRow={setOpenActionRow}
+                    menuRef={menuRef}
+                    onCancel={() => void handleCancel(row)}
                   />
                 </td>
               </tr>

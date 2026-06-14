@@ -3919,6 +3919,56 @@ def get_warehouses_for_cost_center(cost_center, warehouse_context=None):
 	return warehouses
 
 
+PHARMACY_GIVEOUT_SETTINGS_FIELD = "phamarcy_give_out"
+
+
+def get_pharmacy_giveout_warehouses():
+	"""Warehouses configured in Healthcare Settings for nursing pharmacy give-out."""
+	warehouses = []
+	seen = set()
+	try:
+		settings = frappe.get_single("Healthcare Settings")
+		for row in settings.get(PHARMACY_GIVEOUT_SETTINGS_FIELD) or []:
+			wh = ""
+			if isinstance(row, str):
+				wh = row.strip()
+			else:
+				wh = (getattr(row, "warehouse", None) or "").strip()
+			if wh and wh not in seen:
+				seen.add(wh)
+				warehouses.append({"name": wh, "label": wh})
+		if not warehouses and frappe.db.exists("DocType", "Nurse Give Out Medicine"):
+			for row in frappe.get_all(
+				"Nurse Give Out Medicine",
+				filters={
+					"parent": "Healthcare Settings",
+					"parenttype": "Healthcare Settings",
+					"parentfield": PHARMACY_GIVEOUT_SETTINGS_FIELD,
+				},
+				fields=["warehouse"],
+				order_by="idx asc",
+			):
+				wh = (row.get("warehouse") or "").strip()
+				if wh and wh not in seen:
+					seen.add(wh)
+					warehouses.append({"name": wh, "label": wh})
+	except Exception:
+		pass
+	return warehouses
+
+
+def resolve_pharmacy_giveout_default_warehouse(cost_center):
+	"""Pick default give-out warehouse: nurse mini warehouse when listed, else first configured."""
+	allowed = get_pharmacy_giveout_warehouses()
+	if not allowed:
+		return None, allowed
+	allowed_names = {row["name"] for row in allowed}
+	mini_wh = get_warehouse_for_cost_center(cost_center) if cost_center else None
+	if mini_wh and mini_wh in allowed_names:
+		return mini_wh, allowed
+	return allowed[0]["name"], allowed
+
+
 def validate_warehouse_change_permission():
 	"""
 	Check if current user has permission to change warehouse/cost_center.

@@ -1295,7 +1295,7 @@ def _link_medicine_given_to_billing(row_names, sales_order, delivery_note):
     return len(row_names)
 
 
-def _create_delivery_note_for_sales_order(sales_order_name, patient, posting_date=None, billing_groups=None):
+def _create_delivery_note_for_sales_order(sales_order_name, patient, posting_date=None, billing_groups=None, warehouse=None):
     """Create and submit a Delivery Note from a submitted Sales Order to consume stock."""
     from erpnext.selling.doctype.sales_order.sales_order import make_delivery_note
 
@@ -1314,6 +1314,16 @@ def _create_delivery_note_for_sales_order(sales_order_name, patient, posting_dat
     dn_meta = frappe.get_meta("Delivery Note")
     if patient and dn_meta.has_field("patient"):
         dn.patient = patient
+
+    if warehouse:
+        if hasattr(dn, "set_warehouse"):
+            dn.set_warehouse = warehouse
+        for row in dn.get("items") or []:
+            if not getattr(row, "warehouse", None):
+                row.warehouse = warehouse
+
+    if hasattr(dn, "update_stock"):
+        dn.update_stock = 1
 
     _apply_medicine_tracking_to_delivery_note(dn, billing_groups or [])
     _validate_delivery_note_dispensing_lots(dn)

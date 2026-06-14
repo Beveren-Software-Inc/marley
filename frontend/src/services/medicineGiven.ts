@@ -106,11 +106,13 @@ export interface MedicineGivenLotOption {
 
 export async function fetchMedicineGivenStockOptions(
   admission: string,
-  itemCode: string
+  itemCode: string,
+  warehouse?: string
 ): Promise<MedicineGivenStockOptions> {
   const params = new URLSearchParams()
   params.append('admission', admission)
   params.append('item_code', itemCode)
+  if (warehouse) params.append('warehouse', warehouse)
   const res = await fetch(
     `/api/method/healthcare.api.medicine_given.get_medicine_given_stock_options?${params.toString()}`
   )
@@ -132,12 +134,14 @@ export async function fetchMedicineGivenStockOptions(
 export async function fetchMedicineGivenDispensingLots(
   admission: string,
   itemCode: string,
-  batchNo?: string
+  batchNo?: string,
+  warehouse?: string
 ): Promise<MedicineGivenDispensingLotOption[]> {
   const params = new URLSearchParams()
   params.append('admission', admission)
   params.append('item_code', itemCode)
   if (batchNo) params.append('batch_no', batchNo)
+  if (warehouse) params.append('warehouse', warehouse)
   const res = await fetch(
     `/api/method/healthcare.api.medicine_given.get_medicine_given_dispensing_lots?${params.toString()}`
   )

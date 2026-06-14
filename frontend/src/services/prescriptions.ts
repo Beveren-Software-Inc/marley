@@ -272,12 +272,17 @@ export interface MedicationOrderRow {
   medication_type?: string
   quantity?: number
   qty?: number
+  batch_no?: string
+  dispensing_lot?: string
+  lot_no?: string
 }
 
 export interface NursingPharmacyGiveOutResult {
   patient_medication_order: string
   sales_order: string
   sales_order_status: string
+  delivery_note?: string
+  delivery_note_status?: string
   pmo_status: string
   source_prescription?: string
 }
@@ -548,6 +553,7 @@ export async function createNursingPharmacyGiveOut(input: {
   medication_orders: MedicationOrderRow[]
   source_prescription?: string
   practitioner?: string
+  warehouse?: string
 }): Promise<NursingPharmacyGiveOutResult> {
   const { apiRequest } = await import('./apiClient')
   return apiRequest<NursingPharmacyGiveOutResult>(
@@ -560,6 +566,7 @@ export async function createNursingPharmacyGiveOut(input: {
         medication_orders: input.medication_orders,
         source_prescription: input.source_prescription || undefined,
         practitioner: input.practitioner || undefined,
+        warehouse: input.warehouse || undefined,
       }),
     }
   )
